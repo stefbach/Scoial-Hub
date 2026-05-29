@@ -10,7 +10,7 @@ import { AiTextPanel, AiVisualsPanel } from "@/components/ui/AiPanel";
 import { MediaUpload, type UploadedMedia } from "@/components/ui/MediaUpload";
 import { DatePicker, TimePicker } from "@/components/ui/DateTimePicker";
 import { PlatformTag } from "@/components/ui/PlatformTag";
-import { saveDraft, findDraft } from "@/lib/draft-store";
+import { saveDraft, findDraft, findPost } from "@/lib/draft-store";
 
 const SAMPLE =
   "Staying hydrated isn't just about quenching thirst — it supports metabolism, focus, and recovery. Aim for 2L a day.";
@@ -32,19 +32,25 @@ function ComposeContent() {
   const params = useSearchParams();
 
   const draftId = params.get("draft");
+  const postId = params.get("post");
   const draft = draftId ? findDraft(company.id, draftId) : undefined;
+  const post = postId ? findPost(company.id, postId) : undefined;
+  // A draft being resumed, or a scheduled post being edited.
+  const source = draft ?? post;
 
-  const [body, setBody] = useState(draft?.body ?? SAMPLE);
+  const [body, setBody] = useState(source?.body ?? SAMPLE);
   const [selected, setSelected] = useState<string[]>(() => {
-    if (draft) {
-      const acc = data.accounts.find((a) => a.platform === draft.platform);
+    if (source) {
+      const acc = data.accounts.find((a) => a.platform === source.platform);
       return acc ? [acc.id] : data.accounts.map((a) => a.id);
     }
     return data.accounts.map((a) => a.id);
   });
   const [when, setWhen] = useState<"now" | "schedule">("schedule");
-  const [date, setDate] = useState<Date>(new Date("2026-05-27T00:00:00"));
-  const [time, setTime] = useState("09:00");
+  const [date, setDate] = useState<Date>(
+    new Date(`${source?.date ?? "2026-05-27"}T00:00:00`)
+  );
+  const [time, setTime] = useState(source?.time ?? "09:00");
   const [upload, setUpload] = useState<UploadedMedia | null>(null);
   const [previewPlatform, setPreviewPlatform] = useState<"facebook" | "instagram">("facebook");
 
@@ -94,7 +100,7 @@ function ComposeContent() {
       <div className="card p-4">
         <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <span className="font-semibold text-ink">{draft ? "Edit draft" : "New post"}</span>
+            <span className="font-semibold text-ink">{draft ? "Edit draft" : post ? "Edit post" : "New post"}</span>
             <span className="text-hair">|</span>
             <span className="text-sm text-muted">
               Company: <span className="font-semibold text-ink">{company.code}</span>

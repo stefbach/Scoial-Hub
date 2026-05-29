@@ -61,8 +61,11 @@ export interface ScheduledPost {
   time: string; // HH:mm
   source: PostSource;
   needsReview?: boolean;
-  status?: "scheduled" | "draft"; // defaults to "scheduled" when omitted
+  status?: "scheduled" | "draft" | "published"; // defaults to "scheduled" when omitted
   body?: string; // full post text, used to resume editing a draft
+  automationName?: string; // present when source === "automation"
+  media?: { kind: "image" | "video" }; // attached media, if any
+  publishedAt?: string; // ISO timestamp set when published from the modal
 }
 
 export interface Template {

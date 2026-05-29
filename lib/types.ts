@@ -61,6 +61,8 @@ export interface ScheduledPost {
   time: string; // HH:mm
   source: PostSource;
   needsReview?: boolean;
+  status?: "scheduled" | "draft"; // defaults to "scheduled" when omitted
+  body?: string; // full post text, used to resume editing a draft
 }
 
 export interface Template {

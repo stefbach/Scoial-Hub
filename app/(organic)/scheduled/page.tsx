@@ -1,6 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useCompany } from "@/lib/company-context";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
@@ -8,19 +10,51 @@ import { PlatformTag } from "@/components/ui/PlatformTag";
 import { groupDateLabel } from "@/lib/format";
 import type { ScheduledPost } from "@/lib/types";
 
+type TabId = "all" | "scheduled" | "drafts";
+const TABS: { id: TabId; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "scheduled", label: "Scheduled" },
+  { id: "drafts", label: "Drafts" },
+];
+
+const isDraft = (p: ScheduledPost) => p.status === "draft";
+
 export default function ScheduledPage() {
+  return (
+    <Suspense fallback={null}>
+      <ScheduledContent />
+    </Suspense>
+  );
+}
+
+function ScheduledContent() {
   const { data } = useCompany();
+  const router = useRouter();
+  const params = useSearchParams();
   const [view, setView] = useState<"list" | "calendar">("list");
+
+  const param = params.get("tab");
+  const tab: TabId = param === "scheduled" || param === "drafts" ? param : "all";
+
+  const setTab = (t: TabId) => {
+    router.push(t === "all" ? "/scheduled" : `/scheduled?tab=${t}`);
+  };
+
+  const posts = useMemo(() => {
+    if (tab === "scheduled") return data.scheduled.filter((p) => !isDraft(p));
+    if (tab === "drafts") return data.scheduled.filter(isDraft);
+    return data.scheduled;
+  }, [data.scheduled, tab]);
 
   const groups = useMemo(() => {
     const map = new Map<string, ScheduledPost[]>();
-    for (const p of data.scheduled) {
+    for (const p of posts) {
       const arr = map.get(p.date) ?? [];
       arr.push(p);
       map.set(p.date, arr);
     }
     return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-  }, [data.scheduled]);
+  }, [posts]);
 
   return (
     <div>
@@ -42,43 +76,94 @@ export default function ScheduledPage() {
                 Calendar
               </button>
             </div>
-            <Button variant="primary">New post</Button>
+            <Button variant="primary" onClick={() => router.push("/compose")}>New post</Button>
           </>
         }
       />
 
+      <div className="mb-4 flex gap-5 border-b-hair border-hair">
+        {TABS.map((t) => {
+          const c =
+            t.id === "drafts"
+              ? data.scheduled.filter(isDraft).length
+              : t.id === "scheduled"
+              ? data.scheduled.filter((p) => !isDraft(p)).length
+              : data.scheduled.length;
+          return (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={`-mb-px border-b-2 px-1 pb-2 text-sm ${
+                t.id === tab
+                  ? "border-page font-medium text-ink"
+                  : "border-transparent text-muted hover:text-ink"
+              }`}
+            >
+              {t.label} ({c})
+            </button>
+          );
+        })}
+      </div>
+
       {view === "list" ? (
         <div className="space-y-4">
-          {groups.map(([date, posts]) => (
+          {groups.length === 0 && (
+            <div className="card px-3 py-6 text-center text-sm text-muted">
+              Nothing here yet.
+            </div>
+          )}
+          {groups.map(([date, items]) => (
             <div key={date}>
               <div className="section-label mb-1">{groupDateLabel(date)}</div>
               <div className="card divide-y divide-hair">
-                {posts.map((p) => (
-                  <div key={p.id} className="flex items-center gap-3 px-3 py-2.5 text-sm">
-                    <span className="w-12 text-2xs text-muted">{p.time}</span>
-                    <PlatformTag platform={p.platform} />
-                    <span className="flex-1 text-ink">{p.title}</span>
-                    {p.needsReview && (
-                      <span className="text-2xs font-medium text-amber-600" title="Flagged for review">
-                        ⚑ review
-                      </span>
-                    )}
-                    <span
-                      className={`text-2xs ${p.source === "automation" ? "text-ai-visual" : "text-muted"}`}
-                    >
-                      {p.source === "automation" ? "Automation" : "Manual"}
-                    </span>
-                  </div>
+                {items.map((p) => (
+                  <PostRow key={p.id} post={p} />
                 ))}
               </div>
             </div>
           ))}
         </div>
       ) : (
-        <CalendarView posts={data.scheduled} />
+        <CalendarView posts={posts} />
       )}
     </div>
   );
+}
+
+function PostRow({ post: p }: { post: ScheduledPost }) {
+  const inner = (
+    <>
+      <span className="w-12 text-2xs text-muted">{p.time}</span>
+      <PlatformTag platform={p.platform} />
+      <span className="flex-1 text-ink">{p.title}</span>
+      {p.needsReview && (
+        <span className="text-2xs font-medium text-amber-600" title="Flagged for review">
+          ⚑ review
+        </span>
+      )}
+      {isDraft(p) ? (
+        <span className="text-2xs font-medium text-amber-600">Draft</span>
+      ) : (
+        <span
+          className={`text-2xs ${p.source === "automation" ? "text-ai-visual" : "text-muted"}`}
+        >
+          {p.source === "automation" ? "Automation" : "Manual"}
+        </span>
+      )}
+    </>
+  );
+
+  if (isDraft(p)) {
+    return (
+      <Link
+        href={`/compose?draft=${p.id}`}
+        className="flex cursor-pointer items-center gap-3 px-3 py-2.5 text-sm transition-colors hover:bg-canvas"
+      >
+        {inner}
+      </Link>
+    );
+  }
+  return <div className="flex items-center gap-3 px-3 py-2.5 text-sm">{inner}</div>;
 }
 
 function CalendarView({ posts }: { posts: ScheduledPost[] }) {

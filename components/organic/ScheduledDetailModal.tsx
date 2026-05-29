@@ -1,0 +1,246 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { format } from "date-fns";
+import { Modal } from "@/components/ui/Modal";
+import { Button } from "@/components/ui/Button";
+import { StatusBadge } from "@/components/ui/StatusBadge";
+import { PlatformTag } from "@/components/ui/PlatformTag";
+import { DatePicker, TimePicker } from "@/components/ui/DateTimePicker";
+import { deletePost, publishPost, reschedulePost } from "@/lib/draft-store";
+import type { ScheduledPost } from "@/lib/types";
+
+function headerLabel(p: ScheduledPost) {
+  const base = (p.body?.split("\n")[0] || p.title).trim();
+  return base.length > 60 ? base.slice(0, 60) + "…" : base;
+}
+
+function whenLabel(date: string, time: string) {
+  const d = new Date(`${date}T00:00:00`);
+  return `${format(d, "EEEE, d MMMM yyyy")} at ${time}`;
+}
+
+export function ScheduledDetailModal({
+  companyId,
+  post,
+  onClose,
+  onChanged,
+}: {
+  companyId: string;
+  post: ScheduledPost | null;
+  onClose: () => void;
+  onChanged: () => void;
+}) {
+  const router = useRouter();
+  const [rescheduling, setRescheduling] = useState(false);
+  const [date, setDate] = useState<Date>(new Date());
+  const [time, setTime] = useState("09:00");
+  const [confirm, setConfirm] = useState<null | "publish" | "delete">(null);
+
+  // Reset transient state whenever a different post is opened.
+  useEffect(() => {
+    if (post) {
+      setRescheduling(false);
+      setConfirm(null);
+      setDate(new Date(`${post.date}T00:00:00`));
+      setTime(post.time);
+    }
+  }, [post]);
+
+  useEffect(() => {
+    if (!post) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [post, onClose]);
+
+  if (!post) return null;
+
+  const handleSaveReschedule = () => {
+    reschedulePost(companyId, post.id, format(date, "yyyy-MM-dd"), time);
+    onChanged();
+    onClose();
+  };
+
+  const handlePublish = () => {
+    publishPost(companyId, post.id);
+    onChanged();
+    onClose();
+  };
+
+  const handleDelete = () => {
+    deletePost(companyId, post.id);
+    onChanged();
+    onClose();
+  };
+
+  return (
+    <Modal open onClose={onClose} width="max-w-lg">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-3 border-b-hair border-hair px-4 py-3">
+        <div className="text-sm font-semibold text-ink">{headerLabel(post)}</div>
+        <button
+          onClick={onClose}
+          aria-label="Close"
+          className="-mr-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-muted hover:bg-canvas hover:text-ink"
+        >
+          ✕
+        </button>
+      </div>
+
+      <div className="px-4 py-3">
+        {/* Status + platform + when */}
+        <div className="mb-2 flex flex-wrap items-center gap-2">
+          <StatusBadge tone="blue">Scheduled</StatusBadge>
+          <PlatformTag platform={post.platform} />
+          <span className="text-xs font-medium text-ink">
+            {whenLabel(post.date, post.time)}
+          </span>
+        </div>
+
+        {/* Source */}
+        <div className="mb-3 flex items-center gap-1.5 text-2xs text-muted">
+          {post.source === "automation" ? (
+            <>
+              <RefreshIcon />
+              <span>From automation: {post.automationName ?? "Recurring rule"}</span>
+            </>
+          ) : (
+            <>
+              <EditIcon />
+              <span>Manual post</span>
+            </>
+          )}
+        </div>
+
+        {/* Content */}
+        <div className="whitespace-pre-line rounded-md border-hair border-hair bg-canvas p-3 text-sm leading-relaxed text-ink">
+          {post.body || post.title}
+        </div>
+
+        {/* Media */}
+        {post.media && (
+          <div className="mt-3">
+            <div className="section-label mb-1">Media</div>
+            <div className="flex h-[90px] w-[120px] items-center justify-center rounded-md border-hair border-hair bg-canvas">
+              <span className="text-2xs text-muted">
+                {post.media.kind === "video" ? "Video" : "Image"}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Reschedule inline */}
+        {rescheduling && (
+          <div className="mt-3 rounded-md border-hair border-hair bg-canvas p-3">
+            <div className="section-label mb-2">Reschedule</div>
+            <div className="grid grid-cols-2 gap-2">
+              <DatePicker value={date} onChange={setDate} />
+              <TimePicker value={time} onChange={setTime} />
+            </div>
+            <div className="mt-2 flex justify-end gap-2">
+              <Button variant="ghost" onClick={() => setRescheduling(false)}>Cancel</Button>
+              <Button variant="primary" onClick={handleSaveReschedule}>Save</Button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Actions */}
+      <div className="flex items-center justify-between gap-2 border-t-hair border-hair px-4 py-3">
+        <Button variant="danger" onClick={() => setConfirm("delete")}>
+          <span className="flex items-center gap-1.5"><TrashIcon /> Delete</span>
+        </Button>
+        <div className="flex gap-2">
+          <Button variant="secondary" onClick={() => setRescheduling((r) => !r)}>
+            Reschedule
+          </Button>
+          <Button variant="secondary" onClick={() => router.push(`/compose?post=${post.id}`)}>
+            Edit in Compose
+          </Button>
+          <Button variant="primary" onClick={() => setConfirm("publish")}>
+            <span className="flex items-center gap-1.5"><PlayIcon /> Publish now</span>
+          </Button>
+        </div>
+      </div>
+
+      {/* Confirmation overlay */}
+      {confirm && (
+        <ConfirmDialog
+          message={
+            confirm === "publish"
+              ? "Publish this post immediately? This cannot be undone."
+              : "Delete this post? This cannot be undone."
+          }
+          confirmLabel={confirm === "publish" ? "Publish" : "Delete"}
+          danger={confirm === "delete"}
+          onCancel={() => setConfirm(null)}
+          onConfirm={confirm === "publish" ? handlePublish : handleDelete}
+        />
+      )}
+    </Modal>
+  );
+}
+
+function ConfirmDialog({
+  message,
+  confirmLabel,
+  danger,
+  onCancel,
+  onConfirm,
+}: {
+  message: string;
+  confirmLabel: string;
+  danger?: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-black/20 p-6">
+      <div className="w-full max-w-xs rounded-lg border-hair border-hair bg-card p-4 shadow-xl">
+        <p className="text-sm text-ink">{message}</p>
+        <div className="mt-4 flex justify-end gap-2">
+          <Button variant="secondary" onClick={onCancel}>Cancel</Button>
+          <Button variant={danger ? "danger" : "primary"} onClick={onConfirm}>
+            {confirmLabel}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RefreshIcon() {
+  return (
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
+      <path d="M3 12a9 9 0 0115-6.7L21 7M21 3v4h-4M21 12a9 9 0 01-15 6.7L3 17m0 4v-4h4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function EditIcon() {
+  return (
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
+      <path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4 12.5-12.5z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+      <path d="M3 6h18M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2m2 0v14a1 1 0 01-1 1H6a1 1 0 01-1-1V6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function PlayIcon() {
+  return (
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M6 4l14 8-14 8V4z" />
+    </svg>
+  );
+}

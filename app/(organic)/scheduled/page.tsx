@@ -7,6 +7,7 @@ import { useCompany } from "@/lib/company-context";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { PlatformTag } from "@/components/ui/PlatformTag";
+import { ScheduledDetailModal } from "@/components/organic/ScheduledDetailModal";
 import { groupDateLabel } from "@/lib/format";
 import type { ScheduledPost } from "@/lib/types";
 
@@ -28,10 +29,13 @@ export default function ScheduledPage() {
 }
 
 function ScheduledContent() {
-  const { data } = useCompany();
+  const { company, data } = useCompany();
   const router = useRouter();
   const params = useSearchParams();
   const [view, setView] = useState<"list" | "calendar">("list");
+  const [openPost, setOpenPost] = useState<ScheduledPost | null>(null);
+  const [, setTick] = useState(0);
+  const refresh = () => setTick((t) => t + 1);
 
   const param = params.get("tab");
   const tab: TabId = param === "scheduled" || param === "drafts" ? param : "all";
@@ -40,11 +44,22 @@ function ScheduledContent() {
     router.push(t === "all" ? "/scheduled" : `/scheduled?tab=${t}`);
   };
 
+  // Published posts leave the Scheduled screen entirely.
+  const visible = data.scheduled.filter((p) => p.status !== "published");
+
+  const isScheduledStatus = (p: ScheduledPost) => !isDraft(p);
+  const counts = {
+    all: visible.length,
+    scheduled: visible.filter(isScheduledStatus).length,
+    drafts: visible.filter(isDraft).length,
+  };
+
   const posts = useMemo(() => {
-    if (tab === "scheduled") return data.scheduled.filter((p) => !isDraft(p));
-    if (tab === "drafts") return data.scheduled.filter(isDraft);
-    return data.scheduled;
-  }, [data.scheduled, tab]);
+    if (tab === "scheduled") return visible.filter(isScheduledStatus);
+    if (tab === "drafts") return visible.filter(isDraft);
+    return visible;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data.scheduled, tab, openPost]);
 
   const groups = useMemo(() => {
     const map = new Map<string, ScheduledPost[]>();
@@ -83,12 +98,7 @@ function ScheduledContent() {
 
       <div className="mb-4 flex gap-5 border-b-hair border-hair">
         {TABS.map((t) => {
-          const c =
-            t.id === "drafts"
-              ? data.scheduled.filter(isDraft).length
-              : t.id === "scheduled"
-              ? data.scheduled.filter((p) => !isDraft(p)).length
-              : data.scheduled.length;
+          const c = counts[t.id];
           return (
             <button
               key={t.id}
@@ -117,7 +127,7 @@ function ScheduledContent() {
               <div className="section-label mb-1">{groupDateLabel(date)}</div>
               <div className="card divide-y divide-hair">
                 {items.map((p) => (
-                  <PostRow key={p.id} post={p} />
+                  <PostRow key={p.id} post={p} onOpen={() => setOpenPost(p)} />
                 ))}
               </div>
             </div>
@@ -126,11 +136,18 @@ function ScheduledContent() {
       ) : (
         <CalendarView posts={posts} />
       )}
+
+      <ScheduledDetailModal
+        companyId={company.id}
+        post={openPost}
+        onClose={() => setOpenPost(null)}
+        onChanged={refresh}
+      />
     </div>
   );
 }
 
-function PostRow({ post: p }: { post: ScheduledPost }) {
+function PostRow({ post: p, onOpen }: { post: ScheduledPost; onOpen: () => void }) {
   const inner = (
     <>
       <span className="w-12 text-2xs text-muted">{p.time}</span>
@@ -163,7 +180,14 @@ function PostRow({ post: p }: { post: ScheduledPost }) {
       </Link>
     );
   }
-  return <div className="flex items-center gap-3 px-3 py-2.5 text-sm">{inner}</div>;
+  return (
+    <button
+      onClick={onOpen}
+      className="flex w-full cursor-pointer items-center gap-3 px-3 py-2.5 text-left text-sm transition-colors hover:bg-canvas"
+    >
+      {inner}
+    </button>
+  );
 }
 
 function CalendarView({ posts }: { posts: ScheduledPost[] }) {

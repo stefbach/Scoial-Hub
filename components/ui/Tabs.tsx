@@ -5,11 +5,13 @@ import { useState } from "react";
 export function Tabs({
   tabs,
   className = "",
+  defaultActiveId,
 }: {
   tabs: { id: string; label: React.ReactNode; content: React.ReactNode }[];
   className?: string;
+  defaultActiveId?: string;
 }) {
-  const [active, setActive] = useState(tabs[0]?.id);
+  const [active, setActive] = useState(defaultActiveId ?? tabs[0]?.id);
   const current = tabs.find((t) => t.id === active);
   return (
     <div className={className}>

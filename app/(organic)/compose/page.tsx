@@ -11,6 +11,7 @@ import { MediaUpload, type UploadedMedia } from "@/components/ui/MediaUpload";
 import { DatePicker, TimePicker } from "@/components/ui/DateTimePicker";
 import { PlatformTag } from "@/components/ui/PlatformTag";
 import { saveDraft, findDraft, findPost } from "@/lib/draft-store";
+import { findTemplate } from "@/lib/template-store";
 
 const SAMPLE =
   "Staying hydrated isn't just about quenching thirst — it supports metabolism, focus, and recovery. Aim for 2L a day.";
@@ -33,10 +34,12 @@ function ComposeContent() {
 
   const draftId = params.get("draft");
   const postId = params.get("post");
+  const templateId = params.get("template");
   const draft = draftId ? findDraft(company.id, draftId) : undefined;
   const post = postId ? findPost(company.id, postId) : undefined;
-  // A draft being resumed, or a scheduled post being edited.
-  const source = draft ?? post;
+  const template = templateId ? findTemplate(company.id, templateId) : undefined;
+  // A draft being resumed, a scheduled post being edited, or a template used.
+  const source = draft ?? post ?? template;
 
   const [body, setBody] = useState(source?.body ?? SAMPLE);
   const [selected, setSelected] = useState<string[]>(() => {
@@ -46,11 +49,12 @@ function ComposeContent() {
     }
     return data.accounts.map((a) => a.id);
   });
+  const scheduleSource = draft ?? post; // templates carry no schedule
   const [when, setWhen] = useState<"now" | "schedule">("schedule");
   const [date, setDate] = useState<Date>(
-    new Date(`${source?.date ?? "2026-05-27"}T00:00:00`)
+    new Date(`${scheduleSource?.date ?? "2026-05-27"}T00:00:00`)
   );
-  const [time, setTime] = useState(source?.time ?? "09:00");
+  const [time, setTime] = useState(scheduleSource?.time ?? "09:00");
   const [upload, setUpload] = useState<UploadedMedia | null>(null);
   const [previewPlatform, setPreviewPlatform] = useState<"facebook" | "instagram">("facebook");
 
@@ -100,7 +104,7 @@ function ComposeContent() {
       <div className="card p-4">
         <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <span className="font-semibold text-ink">{draft ? "Edit draft" : post ? "Edit post" : "New post"}</span>
+            <span className="font-semibold text-ink">{draft ? "Edit draft" : post ? "Edit post" : template ? "New post from template" : "New post"}</span>
             <span className="text-hair">|</span>
             <span className="text-sm text-muted">
               Company: <span className="font-semibold text-ink">{company.code}</span>

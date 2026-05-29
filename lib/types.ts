@@ -68,15 +68,23 @@ export interface ScheduledPost {
   publishedAt?: string; // ISO timestamp set when published from the modal
 }
 
+export type TemplateStatus = "unused" | "used" | "archived";
+
+export interface TemplateMedia {
+  kind: "image" | "video" | "none";
+  ready: boolean;
+  seconds?: number;
+  url?: string; // object URL for a manually uploaded image
+}
+
 export interface Template {
   id: string;
   platform: Platform;
-  tag: string;
+  tags: string[];
   body: string;
-  media:
-    | { kind: "image"; ready: true }
-    | { kind: "video"; seconds: number; ready: true }
-    | { kind: "none"; ready: false };
+  status: TemplateStatus;
+  addedDate: string; // ISO date
+  media: TemplateMedia;
 }
 
 export interface Automation {

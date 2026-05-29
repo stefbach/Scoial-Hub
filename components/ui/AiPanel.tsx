@@ -1,4 +1,8 @@
+"use client";
+
+import { useState } from "react";
 import { Pills } from "./Tabs";
+import { Toggle } from "./Toggle";
 
 // Blue = AI text
 export function AiTextPanel({
@@ -10,11 +14,9 @@ export function AiTextPanel({
     <div className="rounded-lg border-hair border-ai-text/20 bg-ai-textbg p-3">
       <div className="mb-2 flex items-center justify-between">
         <span className="text-xs font-medium text-ai-text">AI assist · Text</span>
-        <label className="flex items-center gap-1.5 text-2xs text-ai-text">
+        <label className="flex cursor-pointer items-center gap-1.5 text-2xs text-ai-text">
           Use {brandVoiceLabel} brand voice
-          <span className="relative inline-flex h-4 w-7 items-center rounded-full bg-ai-text">
-            <span className="ml-3.5 h-3 w-3 rounded-full bg-white" />
-          </span>
+          <Toggle defaultOn />
         </label>
       </div>
       <textarea
@@ -43,6 +45,9 @@ export function AiVisualsPanel({
   used: number;
   cap: number;
 }) {
+  const [mode, setMode] = useState<"image" | "video">("image");
+  const isVideo = mode === "video";
+
   return (
     <div className="rounded-lg border-hair border-ai-visual/20 bg-ai-visualbg p-3">
       <div className="mb-2 flex items-center justify-between">
@@ -52,29 +57,58 @@ export function AiVisualsPanel({
         </span>
       </div>
       <div className="mb-2 flex gap-3 text-2xs">
-        <button className="font-medium text-ai-visual underline">Image</button>
-        <button className="text-muted">Video</button>
+        <button
+          onClick={() => setMode("image")}
+          className={mode === "image" ? "font-medium text-ai-visual underline" : "text-muted"}
+        >
+          Image
+        </button>
+        <button
+          onClick={() => setMode("video")}
+          className={mode === "video" ? "font-medium text-ai-visual underline" : "text-muted"}
+        >
+          Video
+        </button>
       </div>
       <textarea
-        placeholder="A glass of water with lemon and cucumber, soft morning light, professional wellness photography"
+        placeholder={
+          isVideo
+            ? "A slow pan over a glass of water with lemon and mint, soft morning light, calming wellness mood"
+            : "A glass of water with lemon and cucumber, soft morning light, professional wellness photography"
+        }
         className="h-12 w-full resize-none rounded-md border-hair border-hair bg-card p-2 text-xs text-ink placeholder:text-muted focus:outline-none"
       />
       <div className="mt-2 flex items-center justify-between">
         <Pills
-          options={[
-            { id: "photo", label: "Photo" },
-            { id: "illustration", label: "Illustration" },
-            { id: "poster", label: "Poster" },
-          ]}
+          key={mode}
+          options={
+            isVideo
+              ? [
+                  { id: "photo", label: "Realistic" },
+                  { id: "cinematic", label: "Cinematic" },
+                  { id: "animated", label: "Animated" },
+                ]
+              : [
+                  { id: "photo", label: "Photo" },
+                  { id: "illustration", label: "Illustration" },
+                  { id: "poster", label: "Poster with text" },
+                ]
+          }
           tone="ai"
         />
-        <span className="text-2xs text-muted">~EUR 0.06/img</span>
+        <span className="text-2xs text-muted">
+          {isVideo ? "~EUR 0.50 / 5s clip" : "~EUR 0.06/img"}
+        </span>
       </div>
       <div className="mt-2 flex gap-1.5">
         <button className="rounded-md bg-ai-visual px-2.5 py-1 text-2xs font-medium text-white">
-          Generate 4 options
+          {isVideo ? "Generate video" : "Generate 4 options"}
         </button>
-        <button className="rounded-md border-hair border-ai-visual/30 bg-card px-2.5 py-1 text-2xs font-medium text-ai-visual">
+        <button
+          disabled
+          title="Select an image first to generate variations"
+          className="cursor-not-allowed rounded-md border-hair border-ai-visual/20 bg-card px-2.5 py-1 text-2xs font-medium text-ai-visual/40"
+        >
           Variations
         </button>
       </div>
@@ -82,7 +116,7 @@ export function AiVisualsPanel({
         {[0, 1, 2, 3].map((i) => (
           <div
             key={i}
-            className={`aspect-square rounded-md border-hair ${
+            className={`rounded-md border-hair ${isVideo ? "aspect-video" : "aspect-square"} ${
               i === 0 ? "border-ai-visual bg-ai-visualbg" : "border-hair bg-card"
             }`}
           />

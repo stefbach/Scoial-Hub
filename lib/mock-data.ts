@@ -60,6 +60,9 @@ const occ: CompanyData = {
     { id: "s3", platform: "facebook", title: "Patient testimonial — Sarah", date: "2026-05-27", time: "09:00", source: "automation" },
     { id: "s4", platform: "facebook", title: "Free consultation week — May promo", date: "2026-05-27", time: "15:30", source: "manual" },
     { id: "s5", platform: "instagram", title: "Weekly wellness tip — sleep", date: "2026-05-29", time: "09:00", source: "automation" },
+    { id: "d1", platform: "facebook", title: "Bariatric Q&A — answering your questions", date: "2026-05-30", time: "10:00", source: "manual", status: "draft", body: "We get a lot of questions about bariatric surgery. This week our team answers the most common ones — from recovery time to long-term results." },
+    { id: "d2", platform: "instagram", title: "Meet the team — Dr. Patel", date: "2026-06-01", time: "12:00", source: "manual", status: "draft", body: "Say hello to Dr. Patel, who has guided hundreds of patients through their weight-loss journey with warmth and evidence-based care." },
+    { id: "d3", platform: "facebook", title: "June challenge — 10K steps a day", date: "2026-06-02", time: "08:00", source: "manual", status: "draft", body: "This June, join our 10,000-steps-a-day challenge. Small daily movement adds up to big results — who's in?" },
   ],
   library: {
     unused: 23,
@@ -356,6 +359,8 @@ const tibok: CompanyData = {
     { id: "ts1", platform: "instagram", title: "Telehealth in 60 seconds", date: "2026-05-26", time: "10:00", source: "automation" },
     { id: "ts2", platform: "facebook", title: "Meet your doctor online", date: "2026-05-28", time: "11:00", source: "manual", needsReview: true },
     { id: "ts3", platform: "instagram", title: "5 signs you should see a GP", date: "2026-05-30", time: "10:00", source: "automation" },
+    { id: "td1", platform: "instagram", title: "How online prescriptions work", date: "2026-05-31", time: "10:00", source: "manual", status: "draft", body: "Wondering how online prescriptions work with Tibok? Here's the simple 3-step process — consult, get your script, collect at your pharmacy." },
+    { id: "td2", platform: "facebook", title: "Weekend clinic hours update", date: "2026-06-01", time: "09:00", source: "manual", status: "draft", body: "Good news — our online doctors are now available all weekend. Quality care whenever you need it, no appointment required." },
   ],
   library: {
     unused: 15,
@@ -577,6 +582,7 @@ const cvmi: CompanyData = {
   scheduled: [
     { id: "cs1", platform: "facebook", title: "International patient program", date: "2026-05-27", time: "12:00", source: "automation" },
     { id: "cs2", platform: "facebook", title: "Accredited care, global standards", date: "2026-05-29", time: "12:00", source: "manual" },
+    { id: "cd1", platform: "facebook", title: "Patient travel guide — what to expect", date: "2026-05-31", time: "12:00", source: "manual", status: "draft", body: "Travelling for treatment can feel daunting. Our patient travel guide walks you through every step, from visa support to recovery accommodation." },
   ],
   library: {
     unused: 9,

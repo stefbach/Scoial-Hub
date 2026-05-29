@@ -1,19 +1,31 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useCompany } from "@/lib/company-context";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Toggle } from "@/components/ui/Toggle";
 import { CreateAdModal } from "@/components/paid/CreateAdModal";
+import { NewCampaignModal } from "@/components/paid/NewCampaignModal";
 import { eur } from "@/lib/format";
 import type { Campaign } from "@/lib/types";
 
 export default function CampaignsPage() {
+  return (
+    <Suspense fallback={null}>
+      <CampaignsContent />
+    </Suspense>
+  );
+}
+
+function CampaignsContent() {
   const { data } = useCompany();
   const c = data.campaigns;
+  const params = useSearchParams();
   const [adModal, setAdModal] = useState(false);
+  const [campaignModal, setCampaignModal] = useState(params.get("new") === "true");
   const [expanded, setExpanded] = useState<string | null>(c.list[0]?.id ?? null);
 
   return (
@@ -23,7 +35,7 @@ export default function CampaignsPage() {
         actions={
           <>
             <Button variant="secondary" onClick={() => setAdModal(true)}>New ad</Button>
-            <Button variant="primary">New campaign</Button>
+            <Button variant="primary" onClick={() => setCampaignModal(true)}>New campaign</Button>
           </>
         }
       />
@@ -47,6 +59,7 @@ export default function CampaignsPage() {
       </div>
 
       <CreateAdModal open={adModal} onClose={() => setAdModal(false)} />
+      <NewCampaignModal open={campaignModal} onClose={() => setCampaignModal(false)} />
     </div>
   );
 }

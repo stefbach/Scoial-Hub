@@ -1,5 +1,7 @@
 "use client";
 
+import { Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { useCompany } from "@/lib/company-context";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
@@ -9,7 +11,19 @@ import { PlatformTag } from "@/components/ui/PlatformTag";
 import type { HistoryItem } from "@/lib/types";
 
 export default function HistoryPage() {
+  return (
+    <Suspense fallback={null}>
+      <HistoryContent />
+    </Suspense>
+  );
+}
+
+function HistoryContent() {
   const { data } = useCompany();
+  const params = useSearchParams();
+  const tab = params.get("tab");
+  const defaultActiveId = tab === "published" ? "pub" : tab === "failed" ? "fail" : "all";
+
   const items = data.history;
   const published = items.filter((i) => i.status === "published");
   const failed = items.filter((i) => i.status === "failed");
@@ -19,6 +33,7 @@ export default function HistoryPage() {
       <PageHeader title="History" actions={<Button variant="secondary">Export</Button>} />
 
       <Tabs
+        defaultActiveId={defaultActiveId}
         tabs={[
           { id: "all", label: `All (${items.length})`, content: <List items={items} /> },
           { id: "pub", label: `Published (${published.length})`, content: <List items={published} /> },

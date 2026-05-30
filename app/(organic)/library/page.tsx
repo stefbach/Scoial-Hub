@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useCompany } from "@/lib/company-context";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
@@ -32,17 +33,37 @@ const STATUS_LABEL: Record<StatusFilter, string> = {
 };
 
 export default function LibraryPage() {
+  return (
+    <Suspense fallback={null}>
+      <LibraryContent />
+    </Suspense>
+  );
+}
+
+function LibraryContent() {
   const { company, data } = useCompany();
   const lib = data.library;
+  const params = useSearchParams();
+  const initialPlatform = params.get("platform");
+  const initialTag = params.get("tag");
+  const initialStatus = params.get("status");
 
   const [, setTick] = useState(0);
   const refresh = () => setTick((t) => t + 1);
 
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [platformFilter, setPlatformFilter] = useState<PlatformFilter>("all");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("unused");
-  const [search, setSearch] = useState("");
+  const [platformFilter, setPlatformFilter] = useState<PlatformFilter>(
+    initialPlatform === "facebook" || initialPlatform === "instagram" || initialPlatform === "linkedin"
+      ? initialPlatform
+      : "all"
+  );
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(
+    initialStatus === "all" || initialStatus === "used" || initialStatus === "archived"
+      ? initialStatus
+      : "unused"
+  );
+  const [search, setSearch] = useState(initialTag ?? "");
 
   const [bulkGenOpen, setBulkGenOpen] = useState(false);
   const [newOpen, setNewOpen] = useState(false);

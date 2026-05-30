@@ -87,16 +87,27 @@ export interface Template {
   media: TemplateMedia;
 }
 
+export type WeekDay = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
+export type OnEmptyBehavior = "pause_and_alert" | "loop" | "auto_generate";
+
 export interface Automation {
   id: string;
   name: string;
   account: string;
+  socialAccountId: string;
+  platform: Platform;
+  days: WeekDay[];
+  time: string; // HH:mm
+  libraryName: string;
+  tagFilter: string[];
+  onEmpty: OnEmptyBehavior;
   schedule: string;
   status: "active" | "library_low" | "paused";
   libraryNote: string;
   next?: string;
   last?: string;
   publishedCount?: number;
+  lastRunAt?: string;
   pausedSince?: string;
   warning?: string;
   enabled: boolean;

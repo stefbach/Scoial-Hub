@@ -119,10 +119,22 @@ export interface HistoryItem {
   id: string;
   platform: Platform;
   body: string;
+  fullBody?: string; // full post text, falls back to body when omitted
   when: string;
   source: string;
+  scheduledAt?: string; // ISO timestamp the post was scheduled for
+  publishedAt?: string; // ISO timestamp the post actually went out (published only)
+  automationName?: string; // present when source === "automation"
   status: HistoryStatus;
   stats?: string;
+  metrics?: {
+    reactions: number;
+    comments: number;
+    shares: number;
+    linkClicks: number;
+  };
+  externalUrl?: string; // public URL on the platform when known
+  media?: { kind: "image" | "video" };
   error?: { title: string; detail: string };
 }
 

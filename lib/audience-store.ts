@@ -20,6 +20,19 @@ export function findAudience(companyId: string, audienceId: string) {
   return COMPANY_DATA[companyId]?.audiences.list.find((a) => a.id === audienceId);
 }
 
+export function updateAudience(
+  companyId: string,
+  audienceId: string,
+  next: Audience
+) {
+  const data = COMPANY_DATA[companyId];
+  if (!data) return;
+  data.audiences.list = data.audiences.list.map((a) =>
+    a.id === audienceId ? next : a
+  );
+  recount(companyId);
+}
+
 export function deleteAudience(companyId: string, audienceId: string) {
   const data = COMPANY_DATA[companyId];
   if (!data) return;

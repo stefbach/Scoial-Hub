@@ -334,7 +334,16 @@ const occ: CompanyData = {
         metricsLabel: "124,800 impr.",
         metricsValue: "1 set · 2 ads",
         enabled: true,
-        adSets: [],
+        adSets: [
+          {
+            id: "as3",
+            name: "Wellness curious 25-45 Mauritius",
+            placement: "IG Feed + IG Reels",
+            targeting: "Interests: nutrition, mindfulness",
+            ads: 2,
+            dailyBudget: 30,
+          },
+        ],
       },
       {
         id: "c3",
@@ -347,7 +356,24 @@ const occ: CompanyData = {
         metricsLabel: "53 conv.",
         metricsValue: "EUR 18.87 CPA",
         enabled: true,
-        adSets: [],
+        adSets: [
+          {
+            id: "as4",
+            name: "Men 40-60 Mauritius",
+            placement: "FB Feed",
+            targeting: "Lookalike: bariatric consults",
+            ads: 2,
+            dailyBudget: 50,
+          },
+          {
+            id: "as5",
+            name: "Women 40-60 Mauritius",
+            placement: "FB Feed",
+            targeting: "Interests: weight loss, health checks",
+            ads: 1,
+            dailyBudget: 35,
+          },
+        ],
       },
     ],
   },

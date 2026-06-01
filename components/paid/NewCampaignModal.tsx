@@ -1,11 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import { format } from "date-fns";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { Pills } from "@/components/ui/Tabs";
 import { DatePicker } from "@/components/ui/DateTimePicker";
 import { useCompany } from "@/lib/company-context";
+import { updateCampaign } from "@/lib/campaign-store";
+import type { Campaign } from "@/lib/types";
 
 const OBJECTIVES = [
   { id: "awareness", label: "Awareness" },
@@ -16,15 +19,54 @@ const OBJECTIVES = [
   { id: "conversions", label: "Conversions" },
 ];
 
-export function NewCampaignModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+function platformsToId(platforms: ("FB" | "IG")[]): string {
+  if (platforms.includes("FB") && platforms.includes("IG")) return "fbig";
+  if (platforms.includes("FB")) return "fb";
+  return "ig";
+}
+
+export function NewCampaignModal({
+  open,
+  onClose,
+  campaign,
+  onSaved,
+}: {
+  open: boolean;
+  onClose: () => void;
+  campaign?: Campaign;
+  onSaved?: () => void;
+}) {
   const { company, data } = useCompany();
-  const [startDate, setStartDate] = useState<Date>(new Date("2026-05-27T00:00:00"));
-  const [endDate, setEndDate] = useState<Date | null>(null);
+  const editing = !!campaign;
+
+  const [name, setName] = useState(campaign?.name ?? "");
+  const [startDate, setStartDate] = useState<Date>(
+    new Date(`${campaign?.startDate ?? "2026-05-27"}T00:00:00`)
+  );
+  const [endDate, setEndDate] = useState<Date | null>(
+    campaign?.endDate ? new Date(`${campaign.endDate}T00:00:00`) : null
+  );
+
+  const save = () => {
+    if (!editing || !campaign) {
+      onClose();
+      return;
+    }
+    updateCampaign(company.id, campaign.id, {
+      name: name.trim() || campaign.name,
+      startDate: format(startDate, "yyyy-MM-dd"),
+      endDate: endDate ? format(endDate, "yyyy-MM-dd") : null,
+    });
+    onSaved?.();
+    onClose();
+  };
 
   return (
     <Modal open={open} onClose={onClose} width="max-w-xl">
       <div className="border-b-hair border-hair px-4 py-3">
-        <div className="text-sm font-semibold text-ink">New campaign</div>
+        <div className="text-sm font-semibold text-ink">
+          {editing ? "Edit campaign" : "New campaign"}
+        </div>
         <div className="text-2xs text-muted">
           Company: <span className="font-medium text-ink">{company.code}</span>
         </div>
@@ -34,6 +76,8 @@ export function NewCampaignModal({ open, onClose }: { open: boolean; onClose: ()
         <div className="mb-3">
           <label className="text-2xs font-medium text-muted">Campaign name</label>
           <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
             placeholder="e.g. January Detox Program — Lead Gen"
             className="mt-1 w-full rounded-md border-hair border-hair bg-card px-3 py-2 text-sm text-ink placeholder:text-muted focus:outline-none"
           />
@@ -41,7 +85,7 @@ export function NewCampaignModal({ open, onClose }: { open: boolean; onClose: ()
 
         <div className="mb-3">
           <label className="mb-1 block text-2xs font-medium text-muted">Objective</label>
-          <Pills options={OBJECTIVES} defaultId="leads" />
+          <Pills options={OBJECTIVES} defaultId={(campaign?.objective ?? "leads").toLowerCase()} />
         </div>
 
         <div className="mb-3">
@@ -52,7 +96,7 @@ export function NewCampaignModal({ open, onClose }: { open: boolean; onClose: ()
               { id: "ig", label: "Instagram" },
               { id: "fbig", label: "Facebook + Instagram" },
             ]}
-            defaultId="fbig"
+            defaultId={campaign ? platformsToId(campaign.platforms) : "fbig"}
             tone="ai"
           />
         </div>
@@ -70,7 +114,7 @@ export function NewCampaignModal({ open, onClose }: { open: boolean; onClose: ()
             <div className="mt-1 flex items-center gap-2 rounded-md border-hair border-hair bg-card px-3 py-2">
               <span className="text-2xs text-muted">EUR</span>
               <input
-                defaultValue="40"
+                defaultValue={String(campaign?.dailyBudget ?? 40)}
                 className="w-full bg-transparent text-sm text-ink focus:outline-none"
               />
               <span className="text-2xs text-muted">/ day</span>
@@ -125,7 +169,9 @@ export function NewCampaignModal({ open, onClose }: { open: boolean; onClose: ()
         </span>
         <div className="flex gap-2">
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button variant="primary">Create campaign</Button>
+          <Button variant="primary" onClick={save}>
+            {editing ? "Save changes" : "Create campaign"}
+          </Button>
         </div>
       </div>
     </Modal>

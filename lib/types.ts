@@ -145,6 +145,29 @@ export interface AdSet {
   targeting: string;
   ads: number;
   dailyBudget: number;
+  enabled?: boolean;
+}
+
+export interface Ad {
+  id: string;
+  campaignId: string;
+  adSetId: string;
+  adSetName: string;
+  name: string;
+  thumb: string; // tailwind bg-* class
+  spend: number;
+  ctr: string;
+  conversions: number;
+  status: "active" | "paused";
+}
+
+export interface CampaignSeries {
+  spend: number[];
+  impressions: number[];
+  clicks: number[];
+  conversions: number[];
+  ctr: number[]; // %
+  cpc: number[]; // EUR
 }
 
 export interface Campaign {
@@ -160,6 +183,19 @@ export interface Campaign {
   cplLabel?: string;
   enabled: boolean;
   adSets: AdSet[];
+  // Detail-page extras
+  dailyBudget?: number;
+  lifetimeBudget?: number;
+  startDate?: string; // ISO date
+  endDate?: string | null; // null = no end date
+  impressions?: number;
+  clicks?: number;
+  impressionsTrend?: string;
+  clicksTrend?: string;
+  conversionsTrend?: string;
+  spendTrend?: string;
+  series?: CampaignSeries;
+  ads?: Ad[];
 }
 
 export type AudienceType = "saved" | "custom" | "lookalike";

@@ -7,6 +7,8 @@ export function MetricCard({
   trend,
   alert = false,
   href,
+  active = false,
+  onClick,
 }: {
   label: string;
   value: React.ReactNode;
@@ -14,11 +16,13 @@ export function MetricCard({
   trend?: string;
   alert?: boolean;
   href?: string;
+  active?: boolean;
+  onClick?: () => void;
 }) {
   const content = (
     <>
-      <div className="text-2xs text-muted">{label}</div>
-      <div className="mt-1 text-xl font-semibold text-ink">{value}</div>
+      <div className={`text-2xs ${active ? "font-medium text-ai-text" : "text-muted"}`}>{label}</div>
+      <div className={`mt-1 text-xl text-ink ${active ? "font-bold" : "font-semibold"}`}>{value}</div>
       {sub && <div className="text-2xs text-muted">{sub}</div>}
       {trend && (
         <div
@@ -32,8 +36,12 @@ export function MetricCard({
     </>
   );
 
-  const base = `block rounded-lg border-hair px-4 py-3 ${
-    alert ? "border-red-200 bg-red-50" : "border-hair bg-canvas"
+  const base = `block rounded-lg px-4 py-3 ${
+    alert
+      ? "border-hair border-red-200 bg-red-50"
+      : active
+      ? "border-2 border-ai-text bg-ai-textbg"
+      : "border-hair border-hair bg-canvas"
   }`;
 
   if (href) {
@@ -44,6 +52,18 @@ export function MetricCard({
       >
         {content}
       </Link>
+    );
+  }
+
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className={`${base} cursor-pointer text-left transition-shadow hover:border-muted/40 hover:shadow-sm`}
+      >
+        {content}
+      </button>
     );
   }
 

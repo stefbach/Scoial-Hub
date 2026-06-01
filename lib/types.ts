@@ -242,6 +242,32 @@ export interface Audience {
   reach: string;
   created: string;
   inUse: number;
+  // Detail-modal extras
+  config?: {
+    // Saved
+    gender?: string;
+    ageRange?: string;
+    locations?: string[];
+    interests?: string[];
+    behaviors?: string[];
+    // Custom
+    source?: string;
+    fileName?: string;
+    uploadDate?: string;
+    matchRate?: string;
+    refreshedAt?: string;
+    duplicatedFrom?: string;
+    // Lookalike
+    sourceAudienceId?: string;
+    sourceAudienceName?: string;
+    similarity?: string;
+    countries?: string[];
+  };
+  lastSyncedAt?: string; // ISO timestamp
+  usedByAdSetIds?: string[]; // ad set ids currently targeting this audience
+  metaAudienceId?: string;
+  createdAt?: string; // ISO date
+  createdBy?: string;
 }
 
 export interface AdPerf {

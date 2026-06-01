@@ -1167,8 +1167,108 @@ export const ANALYTICS = {
   summary: ANALYTICS_SUMMARY,
 };
 
-export const TEAM = [
-  { name: "Younes O.", email: "younes@ddsgroup.mu", role: "admin" },
-  { name: "Sarah M.", email: "sarah@ddsgroup.mu", role: "editor" },
-  { name: "Priya R.", email: "priya@ddsgroup.mu", role: "viewer" },
+export interface TeamMember {
+  id: string;
+  name: string;
+  email: string;
+  role: "admin" | "editor" | "viewer";
+  status: "active" | "pending";
+  companyAccess: string[]; // company ids
+}
+
+export const TEAM: TeamMember[] = [
+  { id: "u1", name: "Younes O.", email: "younes@ddsgroup.mu", role: "admin", status: "active", companyAccess: ["occ", "tibok", "cvmi"] },
+  { id: "u2", name: "Sarah M.", email: "sarah@ddsgroup.mu", role: "editor", status: "active", companyAccess: ["occ", "tibok", "cvmi"] },
+  { id: "u3", name: "Priya R.", email: "priya@ddsgroup.mu", role: "viewer", status: "active", companyAccess: ["occ", "tibok", "cvmi"] },
+  { id: "u4", name: "Marcus L.", email: "marcus@external.com", role: "editor", status: "pending", companyAccess: ["occ"] },
+];
+
+// ─── AI generation history (Settings → AI preferences) ────────────────
+export interface AiGenLog {
+  id: string;
+  companyId: string;
+  type: "text" | "image" | "video";
+  description: string;
+  model: string;
+  prompt: string;
+  costEur: number;
+  createdAt: string; // ISO timestamp
+}
+
+export const AI_GENERATION_LOGS: AiGenLog[] = [
+  { id: "g1", companyId: "occ", type: "image", description: "Glass of water with lemon and mint", model: "Flux 2 Pro", prompt: "A vibrant glass of water with fresh lemon and mint, warm morning light, wellness photography", costEur: 0.06, createdAt: "2026-05-29T14:22:00" },
+  { id: "g2", companyId: "occ", type: "text", description: "Wellness Wednesday caption rewrite", model: "Anthropic Claude", prompt: "Rewrite the hydration caption with a friendlier opening line", costEur: 0.01, createdAt: "2026-05-29T11:08:00" },
+  { id: "g3", companyId: "occ", type: "image", description: "Healthy breakfast plate flat-lay", model: "Ideogram v3", prompt: "Flat lay healthy breakfast — Greek yoghurt, berries, granola, soft morning light", costEur: 0.07, createdAt: "2026-05-28T17:40:00" },
+  { id: "g4", companyId: "occ", type: "video", description: "Hydration challenge — 5s loop", model: "Kling 3.0", prompt: "Slow pan over a tall glass of water as droplets fall down the sides, cinematic", costEur: 0.48, createdAt: "2026-05-28T10:05:00" },
+  { id: "g5", companyId: "occ", type: "text", description: "January Detox ad copy variant", model: "Anthropic Claude", prompt: "Write 3 variants of the headline for the January Detox program", costEur: 0.02, createdAt: "2026-05-27T15:30:00" },
+  { id: "g6", companyId: "occ", type: "image", description: "Patient testimonial backdrop", model: "Flux 2 Pro", prompt: "Soft neutral background for a testimonial card, warm tones, gentle bokeh", costEur: 0.06, createdAt: "2026-05-26T09:14:00" },
+  { id: "g7", companyId: "occ", type: "text", description: "Hashtag suggestions for IG post", model: "Anthropic Claude", prompt: "Suggest 10 wellness hashtags for an Instagram post about hydration", costEur: 0.005, createdAt: "2026-05-25T12:42:00" },
+  { id: "g8", companyId: "occ", type: "image", description: "Bariatric consultation visual", model: "GPT Image Mini", prompt: "Calming consultation room, soft morning sunlight, medical wellness atmosphere", costEur: 0.04, createdAt: "2026-05-24T16:18:00" },
+  { id: "g9", companyId: "occ", type: "text", description: "Reshorten body text for Stories", model: "Anthropic Claude", prompt: "Shorten this body to under 90 characters for IG Stories", costEur: 0.008, createdAt: "2026-05-23T08:50:00" },
+  { id: "g10", companyId: "occ", type: "video", description: "Sleep wellness teaser", model: "Veo 3.1 Fast", prompt: "Calm bedroom scene at dusk, slow camera drift, warm lamp light, sleep theme", costEur: 0.52, createdAt: "2026-05-21T20:11:00" },
+  { id: "g11", companyId: "tibok", type: "image", description: "Doctor on phone, telehealth", model: "Flux 2 Pro", prompt: "Friendly female doctor on a video consultation, modern minimal background", costEur: 0.06, createdAt: "2026-05-29T13:30:00" },
+  { id: "g12", companyId: "tibok", type: "text", description: "5 reasons to use telehealth", model: "Anthropic Claude", prompt: "Write a 5-point list, friendly tone, accessible language", costEur: 0.02, createdAt: "2026-05-28T11:20:00" },
+  { id: "g13", companyId: "tibok", type: "video", description: "App-installs short video", model: "Kling 3.0", prompt: "Hand holding phone, app opening, calming animation, 5 seconds", costEur: 0.48, createdAt: "2026-05-27T15:55:00" },
+  { id: "g14", companyId: "cvmi", type: "image", description: "Hospital corridor — international patients", model: "Ideogram v3", prompt: "Bright modern hospital corridor with welcoming reception desk, international signage", costEur: 0.07, createdAt: "2026-05-28T09:40:00" },
+  { id: "g15", companyId: "cvmi", type: "text", description: "Patient travel guide outline", model: "Anthropic Claude", prompt: "Outline a 6-step patient travel guide covering visas, treatment, recovery", costEur: 0.015, createdAt: "2026-05-27T10:05:00" },
+];
+
+// ─── Audit log (Settings → Audit log) ──────────────────────────────────
+export type AuditEntity = "post" | "campaign" | "audience" | "ad_safety" | "team" | "settings";
+export type AuditSeverity = "info" | "warning" | "danger";
+
+export interface AuditEvent {
+  id: string;
+  timestamp: string; // ISO timestamp
+  userId: string;
+  userName: string;
+  companyId: string | null; // null = organization-wide
+  companyCode?: string | null;
+  entity: AuditEntity;
+  description: string;
+  severity: AuditSeverity;
+  before?: Record<string, unknown>;
+  after?: Record<string, unknown>;
+  ipAddress: string;
+  userAgent: string;
+}
+
+// 30+ entries spanning all action types, users, companies, severities,
+// spread across the last ~60 days.
+export const AUDIT_LOG: AuditEvent[] = [
+  { id: "a1",  timestamp: "2026-05-29T15:42:00", userId: "u1", userName: "Younes O.", companyId: "occ",   companyCode: "OCC",   entity: "ad_safety",  description: "Increased \"January Detox\" daily budget EUR 60 → EUR 80", severity: "info",    before: { daily_budget: 60 }, after: { daily_budget: 80 }, ipAddress: "196.192.40.12", userAgent: "Mozilla/5.0 (Macintosh)" },
+  { id: "a2",  timestamp: "2026-05-29T11:08:00", userId: "u2", userName: "Sarah M.",  companyId: "occ",   companyCode: "OCC",   entity: "post",       description: "Created post \"Hydration wellness tip\"",                    severity: "info",                                                                                ipAddress: "196.192.40.18", userAgent: "Mozilla/5.0 (Windows)" },
+  { id: "a3",  timestamp: "2026-05-28T22:17:00", userId: "system", userName: "System",companyId: "occ",   companyCode: "OCC",   entity: "ad_safety",  description: "Anomaly auto-paused \"Wellness Webinar\" — spend exceeded 7-day avg by 73%", severity: "warning", before: { status: "active" }, after: { status: "paused" }, ipAddress: "—", userAgent: "system/cron" },
+  { id: "a4",  timestamp: "2026-05-28T14:40:00", userId: "u1", userName: "Younes O.", companyId: null,    companyCode: null,    entity: "team",       description: "Invited marcus@external.com as Editor",                       severity: "info",                                                                                ipAddress: "196.192.40.12", userAgent: "Mozilla/5.0 (Macintosh)" },
+  { id: "a5",  timestamp: "2026-05-28T09:14:00", userId: "u1", userName: "Younes O.", companyId: "tibok", companyCode: "TI",    entity: "settings",   description: "Refreshed Meta connection for Tibok",                          severity: "info",                                                                                ipAddress: "196.192.40.12", userAgent: "Mozilla/5.0 (Macintosh)" },
+  { id: "a6",  timestamp: "2026-05-27T17:02:00", userId: "u2", userName: "Sarah M.",  companyId: "occ",   companyCode: "OCC",   entity: "campaign",   description: "Created campaign \"Wellness Webinar — Awareness\"",            severity: "info",                                                                                ipAddress: "196.192.40.18", userAgent: "Mozilla/5.0 (Windows)" },
+  { id: "a7",  timestamp: "2026-05-27T12:30:00", userId: "u1", userName: "Younes O.", companyId: "occ",   companyCode: "OCC",   entity: "audience",   description: "Created audience \"Lookalike — OCC patients (1%)\"",         severity: "info",                                                                                ipAddress: "196.192.40.12", userAgent: "Mozilla/5.0 (Macintosh)" },
+  { id: "a8",  timestamp: "2026-05-26T16:08:00", userId: "u1", userName: "Younes O.", companyId: null,    companyCode: null,    entity: "settings",   description: "Connected Meta Business Manager (OCC Holdings)",              severity: "info",                                                                                ipAddress: "196.192.40.12", userAgent: "Mozilla/5.0 (Macintosh)" },
+  { id: "a9",  timestamp: "2026-05-26T09:00:00", userId: "u2", userName: "Sarah M.",  companyId: "occ",   companyCode: "OCC",   entity: "post",       description: "Published post \"Patient testimonial — Sarah\"",              severity: "info",                                                                                ipAddress: "196.192.40.18", userAgent: "Mozilla/5.0 (Windows)" },
+  { id: "a10", timestamp: "2026-05-25T13:55:00", userId: "u1", userName: "Younes O.", companyId: "tibok", companyCode: "TI",    entity: "ad_safety",  description: "Lowered monthly cap EUR 5,000 → EUR 4,000",                   severity: "warning", before: { monthly_cap: 5000 }, after: { monthly_cap: 4000 }, ipAddress: "196.192.40.12", userAgent: "Mozilla/5.0 (Macintosh)" },
+  { id: "a11", timestamp: "2026-05-25T10:12:00", userId: "u2", userName: "Sarah M.",  companyId: "tibok", companyCode: "TI",    entity: "post",       description: "Created draft \"How online prescriptions work\"",             severity: "info",                                                                                ipAddress: "196.192.40.18", userAgent: "Mozilla/5.0 (Windows)" },
+  { id: "a12", timestamp: "2026-05-24T19:22:00", userId: "system", userName: "System",companyId: "occ",   companyCode: "OCC",   entity: "post",       description: "Failed to publish to Instagram — invalid image dimensions",    severity: "danger",  after: { error: "OAuthException — aspect ratio 2.1:1 invalid" }, ipAddress: "—", userAgent: "system/publisher" },
+  { id: "a13", timestamp: "2026-05-24T14:00:00", userId: "u3", userName: "Priya R.",  companyId: "occ",   companyCode: "OCC",   entity: "post",       description: "Viewed analytics for \"January Detox\"",                     severity: "info",                                                                                ipAddress: "196.192.40.21", userAgent: "Mozilla/5.0 (iPhone)" },
+  { id: "a14", timestamp: "2026-05-23T11:48:00", userId: "u1", userName: "Younes O.", companyId: "cvmi",  companyCode: "CV",    entity: "campaign",   description: "Created campaign \"International Patients — Awareness\"",      severity: "info",                                                                                ipAddress: "196.192.40.12", userAgent: "Mozilla/5.0 (Macintosh)" },
+  { id: "a15", timestamp: "2026-05-22T16:35:00", userId: "u2", userName: "Sarah M.",  companyId: "occ",   companyCode: "OCC",   entity: "audience",   description: "Uploaded custom audience \"OCC past patients\" (1,500 rows)",  severity: "info",                                                                                ipAddress: "196.192.40.18", userAgent: "Mozilla/5.0 (Windows)" },
+  { id: "a16", timestamp: "2026-05-21T20:14:00", userId: "u1", userName: "Younes O.", companyId: "occ",   companyCode: "OCC",   entity: "campaign",   description: "Paused campaign \"App Installs — Mobile\"",                  severity: "info",  before: { status: "active" }, after: { status: "paused" }, ipAddress: "196.192.40.12", userAgent: "Mozilla/5.0 (Macintosh)" },
+  { id: "a17", timestamp: "2026-05-21T09:30:00", userId: "u1", userName: "Younes O.", companyId: null,    companyCode: null,    entity: "settings",   description: "Updated organization name \"DDS Holdings\" → \"DDS Group\"",  severity: "info",  before: { name: "DDS Holdings" }, after: { name: "DDS Group" }, ipAddress: "196.192.40.12", userAgent: "Mozilla/5.0 (Macintosh)" },
+  { id: "a18", timestamp: "2026-05-20T15:18:00", userId: "u3", userName: "Priya R.",  companyId: "tibok", companyCode: "TI",    entity: "audience",   description: "Viewed audience \"Lookalike — Tibok app users (2%)\"",        severity: "info",                                                                                ipAddress: "196.192.40.21", userAgent: "Mozilla/5.0 (iPhone)" },
+  { id: "a19", timestamp: "2026-05-19T11:00:00", userId: "u2", userName: "Sarah M.",  companyId: "occ",   companyCode: "OCC",   entity: "ad_safety",  description: "Enabled \"Confirm spend before AI actions\"",                  severity: "info",                                                                                ipAddress: "196.192.40.18", userAgent: "Mozilla/5.0 (Windows)" },
+  { id: "a20", timestamp: "2026-05-18T17:42:00", userId: "u1", userName: "Younes O.", companyId: "occ",   companyCode: "OCC",   entity: "campaign",   description: "Paused automation \"OCC Facebook — patient testimonials\"",   severity: "info",                                                                                ipAddress: "196.192.40.12", userAgent: "Mozilla/5.0 (Macintosh)" },
+  { id: "a21", timestamp: "2026-05-17T13:25:00", userId: "u1", userName: "Younes O.", companyId: null,    companyCode: null,    entity: "team",       description: "Changed Priya R. role: Editor → Viewer",                       severity: "info",  before: { role: "editor" }, after: { role: "viewer" }, ipAddress: "196.192.40.12", userAgent: "Mozilla/5.0 (Macintosh)" },
+  { id: "a22", timestamp: "2026-05-16T08:50:00", userId: "system", userName: "System",companyId: "tibok", companyCode: "TI",    entity: "post",       description: "Auto-published \"5 signs you should see a GP\"",              severity: "info",                                                                                ipAddress: "—", userAgent: "system/publisher" },
+  { id: "a23", timestamp: "2026-05-15T22:03:00", userId: "system", userName: "System",companyId: "cvmi",  companyCode: "CV",    entity: "ad_safety",  description: "Daily digest sent — no anomalies",                             severity: "info",                                                                                ipAddress: "—", userAgent: "system/cron" },
+  { id: "a24", timestamp: "2026-05-14T16:11:00", userId: "u2", userName: "Sarah M.",  companyId: "occ",   companyCode: "OCC",   entity: "post",       description: "Edited scheduled post \"Hydration wellness tip\"",            severity: "info",                                                                                ipAddress: "196.192.40.18", userAgent: "Mozilla/5.0 (Windows)" },
+  { id: "a25", timestamp: "2026-05-13T10:34:00", userId: "u1", userName: "Younes O.", companyId: "occ",   companyCode: "OCC",   entity: "ad_safety",  description: "Increased double-confirm threshold EUR 300 → EUR 500",         severity: "info",  before: { threshold: 300 }, after: { threshold: 500 }, ipAddress: "196.192.40.12", userAgent: "Mozilla/5.0 (Macintosh)" },
+  { id: "a26", timestamp: "2026-05-12T14:52:00", userId: "u1", userName: "Younes O.", companyId: "occ",   companyCode: "OCC",   entity: "audience",   description: "Created saved audience \"Women 35-55 Mauritius — Wellness\"",  severity: "info",                                                                                ipAddress: "196.192.40.12", userAgent: "Mozilla/5.0 (Macintosh)" },
+  { id: "a27", timestamp: "2026-05-11T09:18:00", userId: "u1", userName: "Younes O.", companyId: "tibok", companyCode: "TI",    entity: "settings",   description: "Connected Meta Business Manager (Tibok Holdings)",            severity: "info",                                                                                ipAddress: "196.192.40.12", userAgent: "Mozilla/5.0 (Macintosh)" },
+  { id: "a28", timestamp: "2026-05-10T19:46:00", userId: "system", userName: "System",companyId: "tibok", companyCode: "TI",    entity: "post",       description: "Failed to publish — Tibok IG token expired",                  severity: "danger",                                                                              ipAddress: "—", userAgent: "system/publisher" },
+  { id: "a29", timestamp: "2026-05-09T15:02:00", userId: "u2", userName: "Sarah M.",  companyId: "occ",   companyCode: "OCC",   entity: "post",       description: "Deleted draft \"Old Q&A reminder\"",                          severity: "info",                                                                                ipAddress: "196.192.40.18", userAgent: "Mozilla/5.0 (Windows)" },
+  { id: "a30", timestamp: "2026-05-08T11:25:00", userId: "u1", userName: "Younes O.", companyId: null,    companyCode: null,    entity: "team",       description: "Invited sarah@ddsgroup.mu as Editor",                          severity: "info",                                                                                ipAddress: "196.192.40.12", userAgent: "Mozilla/5.0 (Macintosh)" },
+  { id: "a31", timestamp: "2026-05-06T08:48:00", userId: "u1", userName: "Younes O.", companyId: "cvmi",  companyCode: "CV",    entity: "audience",   description: "Created saved audience \"Medical travel — West Africa\"",      severity: "info",                                                                                ipAddress: "196.192.40.12", userAgent: "Mozilla/5.0 (Macintosh)" },
+  { id: "a32", timestamp: "2026-05-04T13:09:00", userId: "u2", userName: "Sarah M.",  companyId: "tibok", companyCode: "TI",    entity: "campaign",   description: "Created campaign \"Telehealth Launch — Traffic\"",            severity: "info",                                                                                ipAddress: "196.192.40.18", userAgent: "Mozilla/5.0 (Windows)" },
+  { id: "a33", timestamp: "2026-05-02T16:30:00", userId: "u1", userName: "Younes O.", companyId: null,    companyCode: null,    entity: "settings",   description: "Updated AI image cap EUR 20 → EUR 25",                         severity: "info",  before: { image_cap: 20 }, after: { image_cap: 25 }, ipAddress: "196.192.40.12", userAgent: "Mozilla/5.0 (Macintosh)" },
+  { id: "a34", timestamp: "2026-05-01T09:42:00", userId: "u1", userName: "Younes O.", companyId: "tibok", companyCode: "TI",    entity: "settings",   description: "Connected Meta Business Manager (Tibok Holdings)",            severity: "info",                                                                                ipAddress: "196.192.40.12", userAgent: "Mozilla/5.0 (Macintosh)" },
+  { id: "a35", timestamp: "2026-04-28T13:58:00", userId: "u1", userName: "Younes O.", companyId: "occ",   companyCode: "OCC",   entity: "audience",   description: "Uploaded custom audience \"OCC past patients\"",              severity: "info",                                                                                ipAddress: "196.192.40.12", userAgent: "Mozilla/5.0 (Macintosh)" },
 ];

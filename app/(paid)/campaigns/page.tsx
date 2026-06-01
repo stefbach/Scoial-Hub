@@ -84,11 +84,21 @@ function CampaignRow({
 }) {
   return (
     <div className="p-3">
-      <div className="flex items-start justify-between">
-        <button onClick={onToggle} className="flex items-start gap-2 text-left">
-          {camp.adSets.length > 0 && (
-            <span className="mt-0.5 text-muted">{open ? "▾" : "▸"}</span>
-          )}
+      <div className="flex items-start justify-between gap-3">
+        <button
+          onClick={onToggle}
+          aria-expanded={open}
+          aria-label={open ? "Collapse campaign" : "Expand campaign"}
+          className="flex flex-1 cursor-pointer items-start gap-2 text-left"
+        >
+          <span
+            className={`mt-0.5 inline-block text-muted transition-transform ${
+              open ? "rotate-90" : ""
+            }`}
+            aria-hidden="true"
+          >
+            ▸
+          </span>
           <div>
             <div className="flex items-center gap-2">
               <span className="text-sm font-semibold text-ink">{camp.name}</span>
@@ -103,30 +113,38 @@ function CampaignRow({
             </div>
           </div>
         </button>
-        <Toggle defaultOn={camp.enabled} />
+        <div onClick={(e) => e.stopPropagation()}>
+          <Toggle defaultOn={camp.enabled} />
+        </div>
       </div>
 
-      {open && camp.adSets.length > 0 && (
+      {open && (
         <div className="ml-5 mt-2">
           <div className="section-label mb-1">Ad sets ({camp.adSets.length})</div>
-          <div className="space-y-2">
-            {camp.adSets.map((set) => (
-              <div
-                key={set.id}
-                className="flex items-center justify-between rounded-md border-hair border-hair bg-canvas px-3 py-2"
-              >
-                <div>
-                  <div className="text-xs font-medium text-ink">{set.name}</div>
+          {camp.adSets.length === 0 ? (
+            <div className="rounded-md border-hair border-hair bg-canvas px-3 py-3 text-2xs text-muted">
+              No ad sets yet.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {camp.adSets.map((set) => (
+                <div
+                  key={set.id}
+                  className="flex items-center justify-between rounded-md border-hair border-hair bg-canvas px-3 py-2"
+                >
+                  <div>
+                    <div className="text-xs font-medium text-ink">{set.name}</div>
+                    <div className="text-2xs text-muted">
+                      {set.placement} · {set.targeting}
+                    </div>
+                  </div>
                   <div className="text-2xs text-muted">
-                    {set.placement} · {set.targeting}
+                    {set.ads} ads · {eur(set.dailyBudget)}/day
                   </div>
                 </div>
-                <div className="text-2xs text-muted">
-                  {set.ads} ads · {eur(set.dailyBudget)}/day
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -1,8 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { Pills } from "@/components/ui/Tabs";
+import { DatePicker } from "@/components/ui/DateTimePicker";
 import { useCompany } from "@/lib/company-context";
 
 const OBJECTIVES = [
@@ -16,6 +18,8 @@ const OBJECTIVES = [
 
 export function NewCampaignModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { company, data } = useCompany();
+  const [startDate, setStartDate] = useState<Date>(new Date("2026-05-27T00:00:00"));
+  const [endDate, setEndDate] = useState<Date | null>(null);
 
   return (
     <Modal open={open} onClose={onClose} width="max-w-xl">
@@ -77,19 +81,36 @@ export function NewCampaignModal({ open, onClose }: { open: boolean; onClose: ()
         <div className="mb-3 grid grid-cols-2 gap-3">
           <div>
             <label className="text-2xs font-medium text-muted">Start date</label>
-            <input
-              readOnly
-              defaultValue="Wed, 27 May 2026"
-              className="mt-1 w-full rounded-md border-hair border-hair bg-card px-3 py-2 text-sm text-ink focus:outline-none"
-            />
+            <div className="mt-1">
+              <DatePicker value={startDate} onChange={setStartDate} />
+            </div>
           </div>
           <div>
             <label className="text-2xs font-medium text-muted">End date</label>
-            <input
-              readOnly
-              placeholder="No end date"
-              className="mt-1 w-full rounded-md border-hair border-hair bg-card px-3 py-2 text-sm text-ink placeholder:text-muted focus:outline-none"
-            />
+            <div className="mt-1 flex items-center gap-2">
+              {endDate ? (
+                <>
+                  <div className="flex-1">
+                    <DatePicker value={endDate} onChange={setEndDate} />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setEndDate(null)}
+                    className="rounded-md px-2 py-2 text-2xs text-muted hover:bg-canvas hover:text-ink"
+                  >
+                    Clear
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setEndDate(startDate)}
+                  className="w-full rounded-md border-hair border-hair bg-card px-3 py-2 text-left text-sm text-muted hover:bg-canvas"
+                >
+                  No end date
+                </button>
+              )}
+            </div>
           </div>
         </div>
 

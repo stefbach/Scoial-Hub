@@ -38,8 +38,22 @@ export function CreateAdModal({ open, onClose }: { open: boolean; onClose: () =>
           />
         </div>
         <div className="mt-2 flex gap-2">
-          <Button variant="secondary" className="py-1 text-2xs">Generate copy</Button>
-          <Button variant="secondary" className="py-1 text-2xs">Rewrite</Button>
+          <Button
+            variant="secondary"
+            disabled
+            title="AI will be enabled when the backend is connected"
+            className="py-1 text-2xs"
+          >
+            Generate copy
+          </Button>
+          <Button
+            variant="secondary"
+            disabled
+            title="AI will be enabled when the backend is connected"
+            className="py-1 text-2xs"
+          >
+            Rewrite
+          </Button>
         </div>
 
         {/* AI Creative */}
@@ -75,7 +89,11 @@ export function CreateAdModal({ open, onClose }: { open: boolean; onClose: () =>
             className="mt-2 h-12 w-full resize-none rounded-md border-hair border-hair bg-card p-2 text-xs text-ink focus:outline-none"
           />
           <div className="mt-2 flex items-center justify-between">
-            <button className="rounded-md bg-ai-visual px-2.5 py-1 text-2xs font-medium text-white">
+            <button
+              disabled
+              title="AI generation will be enabled when the backend is connected"
+              className="cursor-not-allowed rounded-md bg-ai-visual/40 px-2.5 py-1 text-2xs font-medium text-white"
+            >
               Generate 4 creatives
             </button>
             <span className="text-2xs text-muted">~EUR 0.44 (3 sizes x 4)</span>
@@ -88,17 +106,21 @@ export function CreateAdModal({ open, onClose }: { open: boolean; onClose: () =>
                 {[0, 1, 2, 3].map((i) => (
                   <div
                     key={i}
-                    className={`aspect-square rounded-md border-hair ${
-                      i === 0 ? "border-ai-visual" : "border-hair"
-                    } ${i === 0 || i === 2 ? p.tint : "bg-card"}`}
-                  />
+                    title="AI generation will be enabled when the backend is connected"
+                    className="flex aspect-square cursor-not-allowed flex-col items-center justify-center rounded-md border border-dashed border-ai-visual/30 bg-ai-visualbg/40 text-ai-visual/70"
+                  >
+                    <SparkleIcon />
+                    <span className="mt-1 text-[10px] leading-tight text-muted">
+                      AI will generate here
+                    </span>
+                  </div>
                 ))}
               </div>
             </div>
           ))}
 
           <div className="mt-3 text-2xs text-muted">
-            <span className="font-medium text-ink">3 variants selected.</span> Each becomes a separate ad — Meta auto-rotates and learns the winner.
+            <span className="font-medium text-ink">No variants yet.</span> Each generated creative becomes a separate ad — Meta auto-rotates and learns the winner.
           </div>
         </div>
       </div>
@@ -111,7 +133,13 @@ export function CreateAdModal({ open, onClose }: { open: boolean; onClose: () =>
         </div>
         <div className="flex gap-2">
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button variant="primary">Create 3 ads</Button>
+          <Button
+            variant="primary"
+            disabled
+            title="Generate or upload at least one creative first"
+          >
+            Create ad
+          </Button>
         </div>
       </div>
     </Modal>
@@ -135,5 +163,14 @@ function Field({
         className="mt-1 w-full rounded-md border-hair border-hair bg-card px-3 py-2 text-sm text-ink focus:outline-none"
       />
     </div>
+  );
+}
+
+function SparkleIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+      <path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8L12 3z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+      <path d="M19 14l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9.9-2.1z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+    </svg>
   );
 }

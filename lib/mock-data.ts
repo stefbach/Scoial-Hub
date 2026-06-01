@@ -1028,6 +1028,92 @@ export const COMPANY_DATA: Record<string, CompanyData> = {
   cvmi,
 };
 
+// Per-company daily series for the Analytics screen. 30 days × 4 metrics
+// each. Chosen to roll up to plausible aggregates (OCC dominates engagement
+// and conversions, Tibok grew week-over-week, CVMI lags relative to spend).
+//
+// Index 29 is "today" (anchored to 2026-05-30 on the page).
+const occPosts: number[] = [
+  1, 2, 2, 3, 2, 3, 4, 3, 4, 3, 4, 4, 5, 4, 3, 5, 4, 5, 6, 5, 4, 6, 5, 6, 7, 6, 5, 7, 6, 8,
+];
+const occEng: number[] = [
+  62, 70, 78, 84, 90, 96, 104, 96, 102, 110, 118, 126, 134, 128, 116, 132, 124, 138, 152, 138, 128, 148, 134, 152, 168, 152, 142, 178, 162, 196,
+];
+const occSpend: number[] = [
+  60, 72, 80, 88, 94, 100, 108, 100, 108, 116, 122, 130, 138, 132, 120, 136, 128, 142, 156, 142, 132, 152, 138, 156, 172, 156, 146, 182, 166, 196,
+];
+const occConv: number[] = [
+  2, 3, 3, 4, 4, 4, 5, 4, 5, 5, 5, 6, 6, 6, 5, 6, 6, 7, 7, 7, 6, 7, 7, 8, 8, 8, 7, 9, 8, 10,
+];
+
+const tiPosts: number[] = [
+  1, 1, 2, 1, 2, 2, 2, 3, 2, 3, 2, 3, 3, 3, 4, 3, 4, 4, 4, 5, 4, 5, 4, 5, 6, 5, 6, 6, 6, 7,
+];
+const tiEng: number[] = [
+  28, 32, 38, 36, 42, 46, 52, 56, 50, 58, 54, 62, 66, 64, 78, 72, 84, 86, 92, 102, 96, 110, 104, 116, 130, 124, 138, 142, 148, 162,
+];
+const tiSpend: number[] = [
+  32, 34, 38, 40, 44, 46, 50, 52, 48, 54, 52, 58, 62, 60, 70, 66, 76, 78, 82, 90, 86, 96, 92, 100, 110, 104, 114, 118, 122, 128,
+];
+const tiConv: number[] = [
+  1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 6, 5, 6, 6, 6, 6, 7, 7, 7,
+];
+
+const cvPosts: number[] = [
+  0, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 2, 1, 1, 2, 1, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 3, 2, 3,
+];
+const cvEng: number[] = [
+  10, 14, 12, 16, 14, 18, 16, 18, 20, 18, 20, 22, 20, 22, 18, 22, 20, 24, 22, 24, 22, 24, 22, 24, 26, 24, 22, 26, 24, 26,
+];
+const cvSpend: number[] = [
+  16, 18, 20, 18, 20, 22, 20, 22, 18, 22, 20, 22, 24, 22, 20, 22, 18, 22, 20, 22, 18, 20, 18, 20, 22, 18, 16, 22, 20, 22,
+];
+const cvConv: number[] = [
+  0, 0, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1,
+];
+
+export interface AnalyticsSeries {
+  postsPublished: number[];
+  engagement: number[];
+  adSpend: number[];
+  conversions: number[];
+}
+
+export const ANALYTICS_SERIES: Record<string, AnalyticsSeries> = {
+  occ: {
+    postsPublished: occPosts,
+    engagement: occEng,
+    adSpend: occSpend,
+    conversions: occConv,
+  },
+  tibok: {
+    postsPublished: tiPosts,
+    engagement: tiEng,
+    adSpend: tiSpend,
+    conversions: tiConv,
+  },
+  cvmi: {
+    postsPublished: cvPosts,
+    engagement: cvEng,
+    adSpend: cvSpend,
+    conversions: cvConv,
+  },
+};
+
+// Engagement split per company per platform. Rolls up to the platform totals
+// shown in the bar chart. LinkedIn is unconnected for every company.
+export const ANALYTICS_PLATFORM_SHARE: Record<string, { facebook: number; instagram: number; linkedin: number }> = {
+  occ: { facebook: 0.62, instagram: 0.38, linkedin: 0 },
+  tibok: { facebook: 0.45, instagram: 0.55, linkedin: 0 },
+  cvmi: { facebook: 1.0, instagram: 0, linkedin: 0 },
+};
+
+export const ANALYTICS_SUMMARY =
+  'Strong month across all companies. OCC drove 59% of engagement and 70% of conversions, largely from "January Detox". Tibok grew 38% week-over-week. CVMI underperforms relative to ad spend — consider revisiting targeting or creative.';
+
+// Kept for backwards compatibility (any other screen that imported ANALYTICS
+// will still get sensible aggregates). The Analytics page itself derives
+// everything from the series above.
 export const ANALYTICS = {
   overview: {
     postsPublished: 87,
@@ -1049,8 +1135,7 @@ export const ANALYTICS = {
     { name: "Instagram", value: 2180, max: 2640, color: "#d62976", connected: true },
     { name: "LinkedIn", value: 0, max: 2640, color: "#0a66c2", connected: false },
   ],
-  summary:
-    'Strong month across all companies. OCC drove 59% of engagement and 70% of conversions, largely from "January Detox". Tibok grew 38% week-over-week. CVMI underperforms relative to ad spend — consider revisiting targeting or creative.',
+  summary: ANALYTICS_SUMMARY,
 };
 
 export const TEAM = [

@@ -146,7 +146,26 @@ export interface AdSet {
   ads: number;
   dailyBudget: number;
   enabled?: boolean;
+  // Detail-page extras
+  audienceId?: string;
+  audienceName?: string;
+  audienceReach?: string;
+  placementMode?: "automatic" | "advanced";
+  placements?: string[]; // when placementMode === "advanced"
+  budgetType?: "daily" | "lifetime";
+  lifetimeBudget?: number;
+  startDate?: string;
+  endDate?: string | null;
+  optimizationGoal?: "conversions" | "link_clicks" | "reach" | "impressions";
+  status?: "active" | "paused";
+  spend?: number;
+  impressions?: number;
+  clicks?: number;
+  conversions?: number;
+  series?: CampaignSeries;
 }
+
+export type AdSource = "ai_generated" | "uploaded";
 
 export interface Ad {
   id: string;
@@ -154,11 +173,25 @@ export interface Ad {
   adSetId: string;
   adSetName: string;
   name: string;
-  thumb: string; // tailwind bg-* class
+  thumb: string; // tailwind bg-* class for the placeholder block
   spend: number;
   ctr: string;
   conversions: number;
   status: "active" | "paused";
+  // Detail-modal extras
+  headline?: string;
+  bodyText?: string;
+  cta?: string;
+  destinationUrl?: string;
+  source?: AdSource;
+  aiModel?: string;
+  format?: string;
+  dimensions?: string;
+  createdAt?: string; // ISO date
+  createdBy?: string;
+  metaAdId?: string;
+  metaAdSetId?: string;
+  lastSyncedAt?: string; // ISO timestamp
 }
 
 export interface CampaignSeries {

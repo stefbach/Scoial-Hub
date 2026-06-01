@@ -13,15 +13,19 @@ import { Toggle } from "@/components/ui/Toggle";
 import { Dropdown, DropdownItem } from "@/components/ui/Dropdown";
 import { MultiLineChart, type ChartSeries } from "@/components/charts/MultiLineChart";
 import { NewCampaignModal } from "@/components/paid/NewCampaignModal";
+import { AdSetModal } from "@/components/paid/AdSetModal";
+import { AdDetailModal } from "@/components/paid/AdDetailModal";
 import {
+  deleteAdSet,
   deleteCampaign,
+  duplicateAdSet,
   duplicateCampaign,
   findCampaign,
   hydrateCampaigns,
   toggleCampaign,
 } from "@/lib/campaign-store";
 import { eur } from "@/lib/format";
-import type { Campaign } from "@/lib/types";
+import type { Ad, AdSet, Campaign } from "@/lib/types";
 
 type MetricId = "spend" | "impressions" | "clicks" | "conversions" | "ctr" | "cpc";
 
@@ -61,6 +65,9 @@ export default function CampaignDetailPage() {
   const [adFilter, setAdFilter] = useState<string>("all");
   const [editOpen, setEditOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [adSetModal, setAdSetModal] = useState<{ open: boolean; adSet?: AdSet }>({ open: false });
+  const [confirmAdSetDelete, setConfirmAdSetDelete] = useState<AdSet | null>(null);
+  const [openAd, setOpenAd] = useState<Ad | null>(null);
 
   const series: ChartSeries[] = useMemo(() => {
     if (!campaign?.series) return [];
@@ -193,11 +200,7 @@ export default function CampaignDetailPage() {
       {/* Ad sets */}
       <div className="mb-3 flex items-center justify-between">
         <h2 className="text-sm font-semibold text-ink">Ad Sets ({campaign.adSets.length})</h2>
-        <Button
-          variant="secondary"
-          disabled
-          title="Coming in next update — ad set creation arrives shortly"
-        >
+        <Button variant="primary" onClick={() => setAdSetModal({ open: true })}>
           + New ad set
         </Button>
       </div>
@@ -225,13 +228,29 @@ export default function CampaignDetailPage() {
               <span onClick={(e) => e.stopPropagation()}>
                 <Toggle defaultOn={set.enabled ?? true} />
               </span>
-              <IconButton title="Edit" ariaLabel="Edit ad set" onClick={() => {}}>
+              <IconButton
+                title="Edit"
+                ariaLabel="Edit ad set"
+                onClick={() => setAdSetModal({ open: true, adSet: set })}
+              >
                 <PencilIcon />
               </IconButton>
-              <IconButton title="Duplicate" ariaLabel="Duplicate ad set" onClick={() => {}}>
+              <IconButton
+                title="Duplicate"
+                ariaLabel="Duplicate ad set"
+                onClick={() => {
+                  duplicateAdSet(company.id, set.id);
+                  refresh();
+                }}
+              >
                 <CopyIcon />
               </IconButton>
-              <IconButton title="Delete" ariaLabel="Delete ad set" danger onClick={() => {}}>
+              <IconButton
+                title="Delete"
+                ariaLabel="Delete ad set"
+                danger
+                onClick={() => setConfirmAdSetDelete(set)}
+              >
                 <TrashIcon />
               </IconButton>
             </div>
@@ -303,7 +322,11 @@ export default function CampaignDetailPage() {
               </tr>
             ) : (
               filteredAds.map((ad) => (
-                <tr key={ad.id} className="cursor-default">
+                <tr
+                  key={ad.id}
+                  onClick={() => setOpenAd(ad)}
+                  className="cursor-pointer transition-colors hover:bg-canvas"
+                >
                   <td className="px-3 py-2.5">
                     <div className="flex items-center gap-2">
                       <div className={`h-8 w-8 shrink-0 rounded ${ad.thumb}`} />
@@ -333,6 +356,55 @@ export default function CampaignDetailPage() {
           onClose={() => setEditOpen(false)}
           onSaved={refresh}
         />
+      )}
+
+      {adSetModal.open && (
+        <AdSetModal
+          campaignId={campaign.id}
+          adSet={adSetModal.adSet}
+          onClose={() => setAdSetModal({ open: false })}
+          onSaved={refresh}
+        />
+      )}
+
+      <AdDetailModal
+        ad={openAd}
+        context={
+          openAd
+            ? {
+                campaignId: campaign.id,
+                campaignName: campaign.name,
+                adSetId: openAd.adSetId,
+                adSetName: openAd.adSetName,
+              }
+            : undefined
+        }
+        onClose={() => setOpenAd(null)}
+        onChanged={refresh}
+      />
+
+      {confirmAdSetDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-6">
+          <div className="absolute inset-0" onClick={() => setConfirmAdSetDelete(null)} />
+          <div className="relative z-50 w-full max-w-sm rounded-lg border-hair border-hair bg-card p-4 shadow-xl">
+            <p className="text-sm text-ink">
+              Delete &ldquo;{confirmAdSetDelete.name}&rdquo;? This cannot be undone.
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <Button variant="secondary" onClick={() => setConfirmAdSetDelete(null)}>Cancel</Button>
+              <Button
+                variant="danger"
+                onClick={() => {
+                  deleteAdSet(company.id, confirmAdSetDelete.id);
+                  setConfirmAdSetDelete(null);
+                  refresh();
+                }}
+              >
+                Delete
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
 
       {confirmDelete && (

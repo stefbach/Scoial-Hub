@@ -5,10 +5,10 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useCompany } from "@/lib/company-context";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
-import { Modal } from "@/components/ui/Modal";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Dropdown, DropdownItem } from "@/components/ui/Dropdown";
 import { AudienceDetailModal } from "@/components/paid/AudienceDetailModal";
+import { NewAudienceModal } from "@/components/paid/NewAudienceModal";
 import type { Audience, AudienceType } from "@/lib/types";
 
 type TypeFilter = "all" | AudienceType;
@@ -42,7 +42,7 @@ export default function AudiencesPage() {
 }
 
 function AudiencesContent() {
-  const { data } = useCompany();
+  const { company, data } = useCompany();
   const router = useRouter();
   const params = useSearchParams();
 
@@ -212,18 +212,11 @@ function AudiencesContent() {
       />
 
       {newModalOpen && (
-        <Modal open onClose={() => setNewModalOpen(false)} width="max-w-md">
-          <div className="border-b-hair border-hair px-4 py-3 text-sm font-semibold text-ink">
-            New audience
-          </div>
-          <div className="p-4 text-sm text-ink">
-            New audience creation coming in next update — type picker (Saved / Custom / Lookalike)
-            with type-specific forms is being designed.
-          </div>
-          <div className="flex justify-end border-t-hair border-hair px-4 py-3">
-            <Button variant="secondary" onClick={() => setNewModalOpen(false)}>Cancel</Button>
-          </div>
-        </Modal>
+        <NewAudienceModal
+          companyId={company.id}
+          onClose={() => setNewModalOpen(false)}
+          onCreated={refresh}
+        />
       )}
     </div>
   );

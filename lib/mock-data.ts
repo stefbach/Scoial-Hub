@@ -524,6 +524,17 @@ const occ: CompanyData = {
     dailyDigest: true,
     recentAudit: 'Younes increased "January Detox" daily budget EUR 60 to 80 · 21 May 15:42',
   },
+  // 4 days into the 7-day safety period (today = 2026-05-30; connected 26 May).
+  meta: {
+    connected: true,
+    connectedAt: "2026-05-26",
+    businessManagerName: "OCC Holdings",
+    facebookPageName: "OCC Facebook Page",
+    instagramHandle: "@occ_mauritius",
+    readOnly: true,
+    keepReadOnlyAfterSafety: false,
+  },
+  linkedin: { connected: false },
 };
 
 const tibok: CompanyData = {
@@ -801,6 +812,17 @@ const tibok: CompanyData = {
     dailyDigest: true,
     recentAudit: 'Younes paused "App Installs — Mobile" · 19 May 11:08',
   },
+  // Safety period long expired; user kept read-only on (connected 1 May).
+  meta: {
+    connected: true,
+    connectedAt: "2026-05-01",
+    businessManagerName: "Tibok Holdings",
+    facebookPageName: "Tibok Facebook Page",
+    instagramHandle: "@tibok.health",
+    readOnly: true,
+    keepReadOnlyAfterSafety: true,
+  },
+  linkedin: { connected: false },
 };
 
 const cvmi: CompanyData = {
@@ -1020,6 +1042,13 @@ const cvmi: CompanyData = {
     dailyDigest: false,
     recentAudit: 'Younes created "International Patients — Awareness" · 4 May 09:20',
   },
+  // Meta not connected for CVMI — exercises the disconnected card path.
+  meta: {
+    connected: false,
+    readOnly: true,
+    keepReadOnlyAfterSafety: false,
+  },
+  linkedin: { connected: false },
 };
 
 export const COMPANY_DATA: Record<string, CompanyData> = {

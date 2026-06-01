@@ -293,6 +293,20 @@ export interface AdPerf {
   insight: string;
 }
 
+export interface MetaConnection {
+  connected: boolean;
+  connectedAt?: string; // ISO date
+  businessManagerName?: string;
+  facebookPageName?: string;
+  instagramHandle?: string;
+  readOnly: boolean; // current read-only state
+  keepReadOnlyAfterSafety: boolean; // user preference
+}
+
+export interface LinkedinConnection {
+  connected: boolean;
+}
+
 export interface CompanyData {
   dashboard: DashboardData;
   accounts: SocialAccount[];
@@ -336,4 +350,6 @@ export interface CompanyData {
     dailyDigest: boolean;
     recentAudit: string;
   };
+  meta?: MetaConnection;
+  linkedin?: LinkedinConnection;
 }

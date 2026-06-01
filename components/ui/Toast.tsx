@@ -5,14 +5,16 @@ import { useEffect } from "react";
 export function Toast({
   message,
   onDismiss,
+  durationMs = 4000,
 }: {
   message: string;
   onDismiss: () => void;
+  durationMs?: number;
 }) {
   useEffect(() => {
-    const t = setTimeout(onDismiss, 3000);
+    const t = setTimeout(onDismiss, durationMs);
     return () => clearTimeout(t);
-  }, [onDismiss]);
+  }, [onDismiss, durationMs]);
 
   return (
     <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2">

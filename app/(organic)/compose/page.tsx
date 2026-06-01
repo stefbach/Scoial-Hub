@@ -12,6 +12,7 @@ import { DatePicker, TimePicker } from "@/components/ui/DateTimePicker";
 import { PlatformTag } from "@/components/ui/PlatformTag";
 import { saveDraft, findDraft, findPost } from "@/lib/draft-store";
 import { findTemplate } from "@/lib/template-store";
+import { findHistoryItem } from "@/lib/history-store";
 
 const SAMPLE =
   "Staying hydrated isn't just about quenching thirst — it supports metabolism, focus, and recovery. Aim for 2L a day.";
@@ -35,11 +36,17 @@ function ComposeContent() {
   const draftId = params.get("draft");
   const postId = params.get("post");
   const templateId = params.get("template");
+  const duplicateId = params.get("duplicate");
   const draft = draftId ? findDraft(company.id, draftId) : undefined;
   const post = postId ? findPost(company.id, postId) : undefined;
   const template = templateId ? findTemplate(company.id, templateId) : undefined;
-  // A draft being resumed, a scheduled post being edited, or a template used.
-  const source = draft ?? post ?? template;
+  const duplicate = duplicateId ? findHistoryItem(company.id, duplicateId) : undefined;
+  // A draft being resumed, a scheduled post being edited, a template used,
+  // or a published/failed history item being duplicated as a fresh post.
+  const duplicateAsSource = duplicate
+    ? { body: duplicate.fullBody ?? duplicate.body, platform: duplicate.platform }
+    : undefined;
+  const source = draft ?? post ?? template ?? duplicateAsSource;
 
   const [body, setBody] = useState(source?.body ?? SAMPLE);
   const [selected, setSelected] = useState<string[]>(() => {
@@ -104,7 +111,7 @@ function ComposeContent() {
       <div className="card p-4">
         <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <span className="font-semibold text-ink">{draft ? "Edit draft" : post ? "Edit post" : template ? "New post from template" : "New post"}</span>
+            <span className="font-semibold text-ink">{draft ? "Edit draft" : post ? "Edit post" : template ? "New post from template" : duplicate ? "New post (duplicated)" : "New post"}</span>
             <span className="text-hair">|</span>
             <span className="text-sm text-muted">
               Company: <span className="font-semibold text-ink">{company.code}</span>

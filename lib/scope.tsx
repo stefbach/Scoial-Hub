@@ -2,49 +2,59 @@
 
 import { createContext, useContext, useMemo, useState } from "react";
 
-// Scope global de l'app : zone géographique ciblée + période d'analyse.
-// Utilisé par la ScopeBar et consommé par les pages (analytics, ad-perf, agents).
+// Scope global : pays précis + période (préréglage OU plage de dates calendrier).
 
-export type GeoZone = { id: string; label: string; flag: string };
-export type Period = { id: string; label: string; days: number };
+export type Country = { id: string; label: string; flag: string };
 
-export const GEO_ZONES: GeoZone[] = [
+export const COUNTRIES: Country[] = [
   { id: "fr", label: "France", flag: "🇫🇷" },
-  { id: "eu", label: "Europe", flag: "🇪🇺" },
-  { id: "maghreb", label: "Maghreb", flag: "🌍" },
-  { id: "waf", label: "Afrique de l'Ouest", flag: "🌍" },
+  { id: "be", label: "Belgique", flag: "🇧🇪" },
+  { id: "ch", label: "Suisse", flag: "🇨🇭" },
+  { id: "lu", label: "Luxembourg", flag: "🇱🇺" },
+  { id: "pt", label: "Portugal", flag: "🇵🇹" },
+  { id: "es", label: "Espagne", flag: "🇪🇸" },
+  { id: "it", label: "Italie", flag: "🇮🇹" },
+  { id: "de", label: "Allemagne", flag: "🇩🇪" },
+  { id: "gb", label: "Royaume-Uni", flag: "🇬🇧" },
+  { id: "nl", label: "Pays-Bas", flag: "🇳🇱" },
+  { id: "ma", label: "Maroc", flag: "🇲🇦" },
+  { id: "dz", label: "Algérie", flag: "🇩🇿" },
+  { id: "tn", label: "Tunisie", flag: "🇹🇳" },
+  { id: "sn", label: "Sénégal", flag: "🇸🇳" },
+  { id: "ci", label: "Côte d'Ivoire", flag: "🇨🇮" },
+  { id: "cm", label: "Cameroun", flag: "🇨🇲" },
+  { id: "ml", label: "Mali", flag: "🇲🇱" },
   { id: "cv", label: "Cap-Vert", flag: "🇨🇻" },
-  { id: "intl", label: "International", flag: "🌐" },
+  { id: "ca", label: "Canada", flag: "🇨🇦" },
+  { id: "us", label: "États-Unis", flag: "🇺🇸" },
+  { id: "ae", label: "Émirats arabes unis", flag: "🇦🇪" },
+  { id: "mu", label: "Maurice", flag: "🇲🇺" },
 ];
 
-export const PERIODS: Period[] = [
-  { id: "7d", label: "7 derniers jours", days: 7 },
-  { id: "30d", label: "30 derniers jours", days: 30 },
-  { id: "90d", label: "90 derniers jours", days: 90 },
-  { id: "12m", label: "12 derniers mois", days: 365 },
-];
+export type DateRange = { from: Date; to: Date };
 
 interface ScopeValue {
-  geoZone: GeoZone;
-  period: Period;
-  setGeoZoneId: (id: string) => void;
-  setPeriodId: (id: string) => void;
+  country: Country;
+  setCountryId: (id: string) => void;
+  /** Plage de dates précise sélectionnée (null = aucune plage custom). */
+  range: DateRange | null;
+  setRange: (r: DateRange | null) => void;
 }
 
 const ScopeContext = createContext<ScopeValue | null>(null);
 
 export function ScopeProvider({ children }: { children: React.ReactNode }) {
-  const [geoZoneId, setGeoZoneId] = useState("fr");
-  const [periodId, setPeriodId] = useState("30d");
+  const [countryId, setCountryId] = useState("fr");
+  const [range, setRange] = useState<DateRange | null>(null);
 
   const value = useMemo<ScopeValue>(
     () => ({
-      geoZone: GEO_ZONES.find((z) => z.id === geoZoneId) ?? GEO_ZONES[0],
-      period: PERIODS.find((p) => p.id === periodId) ?? PERIODS[1],
-      setGeoZoneId,
-      setPeriodId,
+      country: COUNTRIES.find((c) => c.id === countryId) ?? COUNTRIES[0],
+      setCountryId,
+      range,
+      setRange,
     }),
-    [geoZoneId, periodId]
+    [countryId, range]
   );
 
   return <ScopeContext.Provider value={value}>{children}</ScopeContext.Provider>;

@@ -13,6 +13,34 @@ export type AgentId =
   | "analyst"
   | "compliance";
 
+// ── Cadence éditoriale ─────────────────────────────────────────────────
+/**
+ * Définit le rythme de publication et la période de reporting.
+ * Tous les champs sont optionnels ; les valeurs par défaut sont appliquées
+ * par l'orchestrateur si le champ est absent.
+ */
+export interface Cadence {
+  /** Nombre de publications par jour (défaut : 1) */
+  postingPerDay?: number;
+  /**
+   * Jours de publication dans la semaine.
+   * 0 = dimanche … 6 = samedi (convention JavaScript).
+   * Défaut : [1, 2, 3, 4, 5] (lundi → vendredi)
+   */
+  postingDays?: number[];
+  /**
+   * Heures de publication préférées (format "HH:MM", ex. ["08:00","19:00"]).
+   * Défaut : ["08:00", "19:00"]
+   */
+  postingHours?: string[];
+  /**
+   * Granularité de la période de reporting.
+   * 'day' | 'week' | 'month' | 'quarter' | 'year'
+   * Défaut : 'month'
+   */
+  reportingPeriod: "day" | "week" | "month" | "quarter" | "year";
+}
+
 // ── Niveau d'autonomie ─────────────────────────────────────────────────
 // 1 = recommandation pure (aucune action exécutée, tout est proposé)
 // 2 = semi-auto (actions simulées, validation humaine requise avant publication)
@@ -61,6 +89,70 @@ export interface AgentRunResult {
   finalOutput?: string;
   /** Mode mock : true si l'IA n'est pas configurée */
   mock?: boolean;
+
+  // ── Champs enrichis (optionnels, rétro-compatibles) ──────────────
+  /** Identifiant du profil professionnel utilisé */
+  profileId?: string;
+  /** Cadence éditoriale retenue pour ce run */
+  cadence?: Cadence;
+  /** Cible de benchmark libre saisie par l'utilisateur */
+  benchmarkTarget?: string;
+  /**
+   * Analyse environnementale structurée produite par le Stratège.
+   * Contient le marché, la concurrence, le champ sémantique et le positionnement.
+   */
+  environmentAnalysis?: EnvironmentAnalysis;
+  /**
+   * Benchmark sectoriel produit par l'Analyste.
+   * Contient les KPIs cibles vs sectoriels et la projection de captation d'audience.
+   */
+  benchmark?: BenchmarkResult;
+}
+
+// ── Analyse d'environnement (sortie du Stratège) ─────────────────────
+export interface EnvironmentAnalysis {
+  /** Synthèse du marché et du contexte concurrentiel */
+  marketOverview: string;
+  /** Analyse des intentions de recherche et du champ sémantique */
+  semanticAnalysis: string;
+  /** Positionnement différenciant recommandé */
+  positioning: string;
+  /** Angles d'acquisition prioritaires */
+  acquisitionAngles: string[];
+  /** Plateformes recommandées avec justification */
+  recommendedPlatforms: string[];
+  /** Résumé des risques concurrentiels */
+  competitiveRisks: string;
+}
+
+// ── Benchmark sectoriel (sortie de l'Analyste) ───────────────────────
+export interface BenchmarkKPIRow {
+  /** Nom du KPI */
+  kpi: string;
+  /** Valeur cible pour cette campagne */
+  targetValue: string;
+  /** Valeur de référence sectorielle */
+  sectorReference: string;
+  /** Évaluation : au-dessus / dans la norme / en dessous */
+  assessment: "above" | "inline" | "below";
+}
+
+export interface BenchmarkResult {
+  /** Cible benchmark analysée */
+  benchmarkTarget: string;
+  /** Lignes du tableau de KPIs */
+  kpiRows: BenchmarkKPIRow[];
+  /** Projection de captation d'audience (portée estimée en % de la cible) */
+  audienceCaptureProjection: {
+    targetAudienceSize: number;
+    estimatedReach: number;
+    captureRate: number;
+    timeframe: string;
+  };
+  /** Recommandations d'optimisation prioritaires */
+  optimizationRecommendations: string[];
+  /** Résumé narratif du benchmark */
+  summary: string;
 }
 
 // ── Définition statique d'un agent (roster) ───────────────────────────

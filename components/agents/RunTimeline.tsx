@@ -2,13 +2,19 @@
 
 /**
  * RunTimeline — affiche la séquence des étapes d'une orchestration IA.
- * Chaque étape est colorée selon l'agent et son statut.
- * La conformité est mise en évidence (vert/orange/rouge).
- * Le contenu final généré est présenté dans un encart dédié.
+ * Affiche également :
+ *  - L'analyse d'environnement (pro + sémantique) via EnvironmentAnalysis
+ *  - Le benchmark sectoriel (KPIs cibles vs sectoriels) via BenchmarkCard
+ *  - La cadence retenue et la projection de captation d'audience
+ *  - La conformité (verdict + détail)
+ *  - Le contenu final généré
  */
 
-import type { AgentRunResult, AgentId, AgentStepStatus } from "@/lib/agents/types";
+import type { AgentRunResult, AgentId, AgentStepStatus, Cadence } from "@/lib/agents/types";
 import { AGENTS } from "@/lib/agents/roster";
+import { PRO_PROFILES } from "@/lib/agents/profiles";
+import { EnvironmentAnalysis } from "./EnvironmentAnalysis";
+import { BenchmarkCard } from "./BenchmarkCard";
 
 // ── Couleurs d'accent par agent ────────────────────────────────────────────
 
@@ -25,11 +31,23 @@ const ICON_BG: Record<AgentId, string> = {
 // ── Statuts ────────────────────────────────────────────────────────────────
 
 const STATUS_STYLES: Record<AgentStepStatus, { dot: string; label: string; labelCls: string }> = {
-  done:      { dot: "bg-success-500",  label: "Terminé",    labelCls: "text-success-700" },
-  running:   { dot: "bg-ai-text animate-pulse", label: "En cours", labelCls: "text-ai-text" },
-  blocked:   { dot: "bg-danger-500",   label: "Bloqué",     labelCls: "text-danger-700" },
-  simulated: { dot: "bg-warning-500",  label: "Simulé",     labelCls: "text-warning-700" },
+  done:      { dot: "bg-success-500",            label: "Terminé",   labelCls: "text-success-700" },
+  running:   { dot: "bg-ai-text animate-pulse",   label: "En cours",  labelCls: "text-ai-text" },
+  blocked:   { dot: "bg-danger-500",              label: "Bloqué",    labelCls: "text-danger-700" },
+  simulated: { dot: "bg-warning-500",             label: "Simulé",    labelCls: "text-warning-700" },
 };
+
+// ── Période de reporting ───────────────────────────────────────────────────
+
+const PERIOD_LABELS: Record<Required<Cadence>["reportingPeriod"], string> = {
+  day: "Journalier",
+  week: "Hebdomadaire",
+  month: "Mensuel",
+  quarter: "Trimestriel",
+  year: "Annuel",
+};
+
+const DAY_NAMES = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
 
 // ── Verdict conformité ─────────────────────────────────────────────────────
 
@@ -127,15 +145,53 @@ export function RunTimeline({ result }: RunTimelineProps) {
       ? "Semi-automatique"
       : "Automatique (garde-fous)";
 
+  // Résolution du profil affiché
+  const profile = result.profileId
+    ? PRO_PROFILES.find((p) => p.id === result.profileId)
+    : undefined;
+
+  // Cadence résolue
+  const cadence = result.cadence;
+  const cadenceSummary = cadence
+    ? [
+        `${cadence.postingPerDay ?? 1} publ./jour`,
+        cadence.postingDays
+          ? cadence.postingDays.map((d) => DAY_NAMES[d] ?? d).join(", ")
+          : "Lun–Ven",
+        cadence.postingHours ? cadence.postingHours.join(" / ") : "08:00 / 19:00",
+        `Reporting ${PERIOD_LABELS[cadence.reportingPeriod] ?? cadence.reportingPeriod}`,
+      ].join(" · ")
+    : null;
+
   return (
     <div className="animate-fade-in space-y-4">
-      {/* En-tête du run */}
+      {/* ── En-tête du run ─────────────────────────────────────────── */}
       <div className="card p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <div className="section-label mb-1">Objectif piloté</div>
             <p className="text-sm font-medium text-ink">&ldquo;{result.objective}&rdquo;</p>
+
+            {/* Profil + cadence */}
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {profile && (
+                <span className="inline-flex items-center rounded-full bg-primary-50 px-2 py-0.5 text-2xs font-semibold text-primary-700 ring-1 ring-primary-200">
+                  {profile.label}
+                </span>
+              )}
+              {cadenceSummary && (
+                <span className="inline-flex items-center rounded-full bg-canvas px-2 py-0.5 text-2xs font-semibold text-muted ring-1 ring-hair">
+                  {cadenceSummary}
+                </span>
+              )}
+              {result.benchmarkTarget && (
+                <span className="inline-flex items-center rounded-full bg-success-50 px-2 py-0.5 text-2xs font-semibold text-success-700 ring-1 ring-success-200">
+                  Benchmark : {result.benchmarkTarget}
+                </span>
+              )}
+            </div>
           </div>
+
           <div className="flex flex-wrap items-center gap-2">
             {result.mock && (
               <span className="inline-flex items-center rounded-full bg-canvas px-2 py-0.5 text-2xs font-semibold text-muted ring-1 ring-hair">
@@ -149,12 +205,22 @@ export function RunTimeline({ result }: RunTimelineProps) {
         </div>
       </div>
 
-      {/* Verdict conformité (mis en évidence) */}
+      {/* ── Verdict conformité ─────────────────────────────────────── */}
       {result.complianceVerdict && (
         <ComplianceBanner verdict={result.complianceVerdict} />
       )}
 
-      {/* Timeline des étapes */}
+      {/* ── Analyse d'environnement ─────────────────────────────────── */}
+      {result.environmentAnalysis && (
+        <EnvironmentAnalysis analysis={result.environmentAnalysis} />
+      )}
+
+      {/* ── Benchmark sectoriel ─────────────────────────────────────── */}
+      {result.benchmark && (
+        <BenchmarkCard benchmark={result.benchmark} cadence={result.cadence} />
+      )}
+
+      {/* ── Timeline des étapes ─────────────────────────────────────── */}
       <div className="card divide-y divide-hair overflow-hidden">
         <div className="px-4 py-3">
           <span className="section-label">Séquence d'exécution</span>
@@ -168,7 +234,7 @@ export function RunTimeline({ result }: RunTimelineProps) {
           return (
             <div key={idx} className="group px-4 py-3 hover:bg-canvas/50">
               <div className="flex items-start gap-3">
-                {/* Numéro + icône agent */}
+                {/* Icône agent */}
                 <div className="flex shrink-0 flex-col items-center gap-1">
                   <div
                     className={`flex h-8 w-8 items-center justify-center rounded-lg border text-xs ${iconBg}`}
@@ -184,13 +250,10 @@ export function RunTimeline({ result }: RunTimelineProps) {
                 {/* Contenu de l'étape */}
                 <div className="min-w-0 flex-1 pb-2">
                   <div className="flex flex-wrap items-center gap-2 mb-1">
-                    {/* Nom de l'agent */}
                     <span className="text-2xs font-semibold uppercase text-muted tracking-wide">
                       {agentDef?.name ?? step.agent}
                     </span>
-                    {/* Titre de l'étape */}
                     <span className="text-sm font-medium text-ink">{step.title}</span>
-                    {/* Badge statut */}
                     <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-2xs font-semibold ${
                       step.status === "done"      ? "bg-success-50 text-success-700 ring-1 ring-success-500/20"
                       : step.status === "running"  ? "bg-ai-textbg text-ai-text ring-1 ring-ai-text/20"
@@ -202,19 +265,16 @@ export function RunTimeline({ result }: RunTimelineProps) {
                     </span>
                   </div>
 
-                  {/* Sortie de l'étape */}
                   <pre className="mt-1.5 whitespace-pre-wrap rounded-md bg-canvas px-3 py-2 text-xs text-ink leading-relaxed border border-hair">
                     {step.output}
                   </pre>
 
-                  {/* Détail optionnel (connecteur requis, raison de blocage…) */}
                   {step.detail && (
                     <p className="mt-1.5 text-2xs text-muted italic border-l-2 border-hair pl-2">
                       {step.detail}
                     </p>
                   )}
 
-                  {/* Horodatage */}
                   {step.finishedAt && (
                     <p className="mt-1 text-2xs text-muted/60">
                       {new Date(step.finishedAt).toLocaleTimeString("fr-FR")}
@@ -227,7 +287,7 @@ export function RunTimeline({ result }: RunTimelineProps) {
         })}
       </div>
 
-      {/* Contenu final généré */}
+      {/* ── Contenu final généré ─────────────────────────────────────── */}
       {result.finalOutput ? (
         <div className="card overflow-hidden">
           <div className="flex items-center justify-between border-b border-hair px-4 py-3">

@@ -16,7 +16,8 @@ import { AGENTS } from "@/lib/agents/roster";
 import { AgentCard } from "@/components/agents/AgentCard";
 import { RunPanel } from "@/components/agents/RunPanel";
 import { RunTimeline } from "@/components/agents/RunTimeline";
-import type { AgentId, AgentRunResult, AgentStepStatus, AutonomyLevel } from "@/lib/agents/types";
+import type { AgentId, AgentRunResult, AgentStepStatus } from "@/lib/agents/types";
+import type { RunPayload } from "@/components/agents/RunPanel";
 
 // ── Sélecteur de marque interne (réutilise useCompany) ───────────────────────
 
@@ -97,7 +98,7 @@ export default function AgentsPage() {
 
   const agentStatuses = getAgentStatuses(result);
 
-  async function handleRun(objective: string, autonomy: AutonomyLevel) {
+  async function handleRun(payload: RunPayload) {
     setLoading(true);
     setError(null);
     setResult(null);
@@ -107,10 +108,13 @@ export default function AgentsPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          objective,
+          objective: payload.objective,
           companyId: company.id,
           brandVoice: company.brandVoice,
-          autonomy,
+          autonomy: payload.autonomy,
+          profileId: payload.profileId,
+          cadence: payload.cadence,
+          benchmarkTarget: payload.benchmarkTarget,
         }),
       });
 
@@ -171,7 +175,7 @@ export default function AgentsPage() {
       </div>
 
       {/* ── Panneau de lancement ─────────────────────────────────────── */}
-      <RunPanel loading={loading} onRun={handleRun} />
+      <RunPanel loading={loading} onRun={(payload) => handleRun(payload)} />
 
       {/* ── État de chargement ───────────────────────────────────────── */}
       {loading && (

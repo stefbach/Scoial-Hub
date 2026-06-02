@@ -11,3 +11,7 @@ next-env.d.ts
 # Python hook cache
 __pycache__/
 *.pyc
+
+# MCP server package
+mcp/node_modules
+mcp/dist

@@ -105,131 +105,170 @@ function ComposeContent() {
   const verb = when === "now" ? "Publish" : "Schedule";
   const noun = count === 1 ? "post" : "posts";
 
+  const modeLabel = draft
+    ? "Edit draft"
+    : post
+    ? "Edit post"
+    : template
+    ? "New post from template"
+    : duplicate
+    ? "New post (duplicated)"
+    : "New post";
+
+  const modeSub = draft
+    ? "Resuming a saved draft"
+    : post
+    ? "Editing a scheduled post"
+    : template
+    ? "Using a library template"
+    : duplicate
+    ? "Duplicated from history"
+    : "Compose and schedule a new post";
+
   return (
-    <div className="grid grid-cols-[1fr_320px] gap-4">
-      {/* Editor */}
-      <div className="card p-4">
-        <div className="mb-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <span className="font-semibold text-ink">{draft ? "Edit draft" : post ? "Edit post" : template ? "New post from template" : duplicate ? "New post (duplicated)" : "New post"}</span>
-            <span className="text-hair">|</span>
-            <span className="text-sm text-muted">
-              Company: <span className="font-semibold text-ink">{company.code}</span>
+    <div className="animate-fade-in">
+      {/* Page header */}
+      <div className="mb-6 flex items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-lg font-bold tracking-tight text-ink">{modeLabel}</h1>
+            <span
+              aria-hidden="true"
+              className="h-4 w-px shrink-0 rounded-full bg-hair"
+            />
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-hair bg-canvas px-2.5 py-0.5 text-2xs text-muted shadow-xs">
+              <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-primary-400" />
+              <span className="font-semibold text-ink">{company.code}</span>
             </span>
           </div>
-          <div className="flex gap-2">
-            <Button variant="secondary" onClick={handleSaveDraft}>Save as draft</Button>
-            <Button variant="secondary">Save to library</Button>
-          </div>
+          <p className="mt-0.5 text-2xs text-muted">{modeSub}</p>
         </div>
-
-        <div className="mb-1 text-xs font-medium text-ink">Where should this post?</div>
-        <div className="mb-4 flex flex-wrap gap-2">
-          {data.accounts.map((a) => {
-            const on = selected.includes(a.id);
-            return (
-              <button
-                key={a.id}
-                onClick={() => toggle(a.id)}
-                className={`rounded-md px-3 py-1.5 text-xs font-medium ${
-                  on
-                    ? "bg-ai-textbg text-ai-text ring-1 ring-ai-text/30"
-                    : "border-hair border-hair bg-card text-muted"
-                }`}
-              >
-                {company.code} {platformLabel(a.platform)}
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="mb-1 text-xs font-medium text-ink">Post content</div>
-        <Tabs
-          className="mb-4"
-          tabs={[
-            { id: "all", label: "All platforms", content: <ContentBox value={body} onChange={setBody} /> },
-            { id: "fb", label: "Facebook", content: <ContentBox value={body} onChange={setBody} /> },
-            { id: "ig", label: "Instagram", content: <ContentBox value={body} onChange={setBody} /> },
-          ]}
-        />
-
-        <div className="mb-4">
-          <AiTextPanel brandVoiceLabel={company.code} />
-        </div>
-        <div className="mb-4">
-          <AiVisualsPanel used={data.library.aiBudgetUsed} cap={data.library.aiBudgetCap} />
-        </div>
-
-        <div className="mb-4">
-          <MediaUpload media={upload} onChange={setUpload} />
-        </div>
-
-        <div className="mb-1 text-xs font-medium text-ink">When to publish</div>
-        <div className="mb-3 grid grid-cols-2 gap-2">
-          <button
-            onClick={() => setWhen("now")}
-            className={`rounded-md py-2 text-sm font-medium ${
-              when === "now"
-                ? "bg-ai-textbg text-ai-text ring-1 ring-ai-text/30"
-                : "border-hair border-hair bg-card text-ink"
-            }`}
-          >
-            Now
-          </button>
-          <button
-            onClick={() => setWhen("schedule")}
-            className={`rounded-md py-2 text-sm font-medium ${
-              when === "schedule"
-                ? "bg-ai-textbg text-ai-text ring-1 ring-ai-text/30"
-                : "border-hair border-hair bg-card text-ink"
-            }`}
-          >
-            Schedule
-          </button>
-        </div>
-        {when === "schedule" && (
-          <div className="mb-4 grid grid-cols-2 gap-2">
-            <DatePicker value={date} onChange={setDate} />
-            <TimePicker value={time} onChange={setTime} />
-          </div>
-        )}
-
-        <div className="flex justify-end gap-2 border-t-hair border-hair pt-3">
-          <Button variant="secondary" onClick={() => router.push("/scheduled")}>Cancel</Button>
-          <Button
-            variant="primary"
-            disabled={noneSelected}
-            title={noneSelected ? "Select at least one platform" : undefined}
-          >
-            {`${verb} ${count} ${noun}`}
+        <div className="flex shrink-0 gap-2">
+          <Button variant="secondary" onClick={handleSaveDraft}>
+            Save as draft
           </Button>
+          <Button variant="secondary">Save to library</Button>
         </div>
       </div>
 
-      {/* Preview */}
-      <div className="panel p-3">
-        <div className="mb-2 text-sm font-medium text-ink">Preview</div>
-        <div className="mb-3 flex gap-2 text-2xs">
-          {(["facebook", "instagram"] as const).map((p) => (
-            <button
-              key={p}
-              onClick={() => setPreviewPlatform(p)}
-              className={`rounded px-2 py-0.5 ${
-                effectivePreview === p
-                  ? "border-hair border-hair bg-card text-ink"
-                  : "text-muted"
-              }`}
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_320px]">
+        {/* Editor card */}
+        <div className="card space-y-5 p-5">
+          {/* Platform selector */}
+          <div>
+            <div className="section-label mb-2.5">Post to</div>
+            <div className="flex flex-wrap gap-2">
+              {data.accounts.map((a) => {
+                const on = selected.includes(a.id);
+                return (
+                  <button
+                    key={a.id}
+                    onClick={() => toggle(a.id)}
+                    className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
+                      on
+                        ? "bg-ai-textbg text-ai-text ring-1 ring-ai-text/30 shadow-xs"
+                        : "border border-hair bg-card text-muted hover:bg-canvas hover:text-ink"
+                    }`}
+                  >
+                    {company.code} {platformLabel(a.platform)}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Post content */}
+          <div>
+            <div className="section-label mb-2.5">Post content</div>
+            <Tabs
+              tabs={[
+                { id: "all", label: "All platforms", content: <ContentBox value={body} onChange={setBody} /> },
+                { id: "fb", label: "Facebook", content: <ContentBox value={body} onChange={setBody} /> },
+                { id: "ig", label: "Instagram", content: <ContentBox value={body} onChange={setBody} /> },
+              ]}
+            />
+          </div>
+
+          {/* AI panels */}
+          <AiTextPanel brandVoiceLabel={company.code} />
+          <AiVisualsPanel used={data.library.aiBudgetUsed} cap={data.library.aiBudgetCap} />
+
+          {/* Media upload */}
+          <MediaUpload media={upload} onChange={setUpload} />
+
+          {/* When to publish */}
+          <div>
+            <div className="section-label mb-2.5">When to publish</div>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setWhen("now")}
+                className={`rounded-lg py-2.5 text-sm font-medium transition-all ${
+                  when === "now"
+                    ? "bg-ai-textbg text-ai-text ring-1 ring-ai-text/30 shadow-xs"
+                    : "border border-hair bg-card text-ink hover:bg-canvas"
+                }`}
+              >
+                Now
+              </button>
+              <button
+                onClick={() => setWhen("schedule")}
+                className={`rounded-lg py-2.5 text-sm font-medium transition-all ${
+                  when === "schedule"
+                    ? "bg-ai-textbg text-ai-text ring-1 ring-ai-text/30 shadow-xs"
+                    : "border border-hair bg-card text-ink hover:bg-canvas"
+                }`}
+              >
+                Schedule
+              </button>
+            </div>
+            {when === "schedule" && (
+              <div className="mt-2.5 grid grid-cols-2 gap-2">
+                <DatePicker value={date} onChange={setDate} />
+                <TimePicker value={time} onChange={setTime} />
+              </div>
+            )}
+          </div>
+
+          {/* Footer actions */}
+          <div className="flex justify-end gap-2 border-t border-hair pt-4">
+            <Button variant="secondary" onClick={() => router.push("/scheduled")}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              disabled={noneSelected}
+              title={noneSelected ? "Select at least one platform" : undefined}
             >
-              {platformLabel(p)}
-            </button>
-          ))}
+              {`${verb} ${count} ${noun}`}
+            </Button>
+          </div>
         </div>
 
-        {effectivePreview === "facebook" ? (
-          <FacebookPreview company={company} body={body} upload={upload} />
-        ) : (
-          <InstagramPreview company={company} body={body} upload={upload} />
-        )}
+        {/* Preview panel */}
+        <div className="panel p-4">
+          <div className="section-label mb-3">Preview</div>
+          <div className="mb-3 flex gap-1.5">
+            {(["facebook", "instagram"] as const).map((p) => (
+              <button
+                key={p}
+                onClick={() => setPreviewPlatform(p)}
+                className={`rounded-lg px-3 py-1.5 text-2xs font-medium transition-all ${
+                  effectivePreview === p
+                    ? "bg-card text-ink shadow-xs ring-1 ring-hair"
+                    : "text-muted hover:text-ink"
+                }`}
+              >
+                {platformLabel(p)}
+              </button>
+            ))}
+          </div>
+
+          {effectivePreview === "facebook" ? (
+            <FacebookPreview company={company} body={body} upload={upload} />
+          ) : (
+            <InstagramPreview company={company} body={body} upload={upload} />
+          )}
+        </div>
       </div>
     </div>
   );
@@ -244,7 +283,7 @@ function MediaSlot({
 }) {
   if (upload) {
     return (
-      <div className={`mt-2 overflow-hidden rounded-md border-hair border-hair bg-canvas ${aspect}`}>
+      <div className={`mt-2 overflow-hidden rounded-lg border border-hair bg-canvas ${aspect}`}>
         {upload.kind === "video" ? (
           <video src={upload.url} className="h-full w-full object-cover" muted />
         ) : (
@@ -255,8 +294,8 @@ function MediaSlot({
     );
   }
   return (
-    <div className={`mt-2 flex items-center justify-center rounded-md border-hair border-hair bg-canvas ${aspect}`}>
-      <span className="flex h-7 w-7 items-center justify-center rounded-full bg-ai-visual text-2xs font-bold text-white">
+    <div className={`mt-2 flex items-center justify-center rounded-lg border border-dashed border-hair bg-canvas ${aspect}`}>
+      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-ai-visual text-2xs font-bold text-white shadow-sm">
         AI
       </span>
     </div>
@@ -273,10 +312,10 @@ function FacebookPreview({
   upload: UploadedMedia | null;
 }) {
   return (
-    <div className="card p-3">
-      <div className="mb-2 flex items-center gap-2">
+    <div className="card overflow-hidden p-3">
+      <div className="mb-2.5 flex items-center gap-2">
         <span
-          className="flex h-7 w-7 items-center justify-center rounded-full text-2xs font-bold text-white"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-2xs font-bold text-white shadow-sm"
           style={{ backgroundColor: company.accent }}
         >
           {company.code}
@@ -302,10 +341,10 @@ function InstagramPreview({
   upload: UploadedMedia | null;
 }) {
   return (
-    <div className="overflow-hidden rounded-md border-hair border-hair bg-card">
-      <div className="flex items-center gap-2 px-3 py-2">
+    <div className="overflow-hidden rounded-xl border border-hair bg-card">
+      <div className="flex items-center gap-2 px-3 py-2.5">
         <span
-          className="flex h-7 w-7 items-center justify-center rounded-full text-2xs font-bold text-white ring-2 ring-platform-instagram/40"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-2xs font-bold text-white ring-2 ring-platform-instagram/40 shadow-sm"
           style={{ backgroundColor: company.accent }}
         >
           {company.code}
@@ -313,7 +352,7 @@ function InstagramPreview({
         <div className="text-xs font-semibold text-ink">{company.name}</div>
       </div>
       <MediaSlot upload={upload} aspect="aspect-square" />
-      <p className="px-3 py-2 text-xs leading-relaxed text-ink">{body}</p>
+      <p className="px-3 py-2.5 text-xs leading-relaxed text-ink">{body}</p>
     </div>
   );
 }
@@ -323,7 +362,7 @@ function ContentBox({ value, onChange }: { value: string; onChange: (v: string) 
     <textarea
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="h-20 w-full resize-none rounded-md border-hair border-hair bg-card p-2 text-sm text-ink focus:outline-none"
+      className="input h-28 resize-none"
     />
   );
 }

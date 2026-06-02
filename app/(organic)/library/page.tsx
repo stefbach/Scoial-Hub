@@ -100,7 +100,7 @@ function LibraryContent() {
   const selectedList = [...selectedIds];
 
   return (
-    <div className={selectMode ? "pb-16" : ""}>
+    <div className={`animate-fade-in ${selectMode ? "pb-16" : ""}`}>
       <PageHeader
         title="Library"
         actions={
@@ -109,32 +109,32 @@ function LibraryContent() {
               variant={selectMode ? "primary" : "secondary"}
               onClick={toggleSelectMode}
             >
-              Select
+              {selectMode ? "Cancel select" : "Select"}
             </Button>
             <Button variant="secondary" onClick={() => setBulkGenOpen(true)}>
-              Bulk generate (text + image)
+              Bulk generate
             </Button>
             <Button variant="primary" onClick={() => setNewOpen(true)}>New template</Button>
           </>
         }
       />
 
-      {/* Informational metric cards — intentionally non-interactive */}
-      <div className="mb-4 grid grid-cols-3 gap-3">
+      {/* Metric strips */}
+      <div className="mb-5 grid grid-cols-3 gap-4">
         <div className="metric-strip">
-          <div className="text-2xs text-muted">Unused templates</div>
-          <div className="mt-1 text-xl font-semibold text-ink">{lib.unused}</div>
+          <div className="section-label mb-1">Unused templates</div>
+          <div className="mt-1.5 text-2xl font-bold text-ink">{lib.unused}</div>
         </div>
         <div className="metric-strip">
-          <div className="text-2xs text-muted">Runway</div>
-          <div className="mt-1 text-xl font-semibold text-ink">{lib.runway}</div>
+          <div className="section-label mb-1">Runway</div>
+          <div className="mt-1.5 text-2xl font-bold text-ink">{lib.runway}</div>
         </div>
-        <div className="rounded-lg border-hair border-ai-visual/20 bg-ai-visualbg px-4 py-3">
-          <div className="text-2xs text-ai-visual">AI budget</div>
-          <div className="mt-1 text-xl font-semibold text-ink">
-            EUR {lib.aiBudgetUsed.toFixed(2)}/{lib.aiBudgetCap}
+        <div className="rounded-xl border border-ai-visual/25 bg-ai-visualbg px-4 py-3 shadow-xs">
+          <div className="section-label mb-1 text-ai-visual">AI budget</div>
+          <div className="mt-1.5 text-2xl font-bold text-ink">
+            EUR {lib.aiBudgetUsed.toFixed(2)}<span className="text-sm font-normal text-muted">/{lib.aiBudgetCap}</span>
           </div>
-          <div className="mb-1 text-2xs text-muted">
+          <div className="my-1.5 text-2xs text-muted">
             Image {lib.imageSpend.toFixed(2)}/25 · Video {lib.videoSpend.toFixed(0)}/40
           </div>
           <Meter value={lib.aiBudgetUsed} max={lib.aiBudgetCap} tone="ai" />
@@ -142,12 +142,12 @@ function LibraryContent() {
       </div>
 
       {/* Filters */}
-      <div className="mb-4 flex gap-2">
+      <div className="mb-5 flex gap-2">
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search templates…"
-          className="flex-1 rounded-md border-hair border-hair bg-card px-3 py-2 text-sm placeholder:text-muted focus:outline-none"
+          className="input flex-1"
         />
 
         <Dropdown
@@ -155,7 +155,7 @@ function LibraryContent() {
           trigger={(open, toggle) => (
             <button
               onClick={toggle}
-              className="rounded-md border-hair border-hair bg-card px-3 py-2 text-xs text-ink hover:bg-canvas"
+              className="rounded-lg border border-hair bg-card px-3 py-2 text-xs font-medium text-ink shadow-xs hover:bg-canvas transition-colors"
             >
               Platform: {PLATFORM_LABEL[platformFilter]}
             </button>
@@ -184,7 +184,7 @@ function LibraryContent() {
             trigger={(open, toggle) => (
               <button
                 onClick={toggle}
-                className="rounded-md border-hair border-hair bg-card px-3 py-2 text-xs text-ink hover:bg-canvas"
+                className="rounded-lg border border-hair bg-card px-3 py-2 text-xs font-medium text-ink shadow-xs hover:bg-canvas transition-colors"
               >
                 Status: All
               </button>
@@ -206,11 +206,11 @@ function LibraryContent() {
             }
           </Dropdown>
         ) : (
-          <div className="flex items-center overflow-hidden rounded-md border-hair border-ai-text/30 bg-ai-textbg text-xs text-ai-text">
+          <div className="flex items-center overflow-hidden rounded-lg border border-ai-text/30 bg-ai-textbg text-xs text-ai-text shadow-xs">
             <Dropdown
               align="right"
               trigger={(open, toggle) => (
-                <button onClick={toggle} className="py-2 pl-3 pr-2 hover:bg-ai-text/10">
+                <button onClick={toggle} className="py-2 pl-3 pr-2 font-medium hover:bg-ai-text/10">
                   Status: {STATUS_LABEL[statusFilter]}
                 </button>
               )}
@@ -242,7 +242,7 @@ function LibraryContent() {
       </div>
 
       {/* Grid */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {visible.map((t) => (
           <TemplateCard
             key={t.id}
@@ -255,8 +255,19 @@ function LibraryContent() {
           />
         ))}
         {visible.length === 0 && (
-          <div className="col-span-2 card px-3 py-8 text-center text-sm text-muted">
-            No templates match these filters.
+          <div className="col-span-2 card flex flex-col items-center gap-3 px-4 py-14 text-center lg:col-span-3">
+            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-canvas text-2xl shadow-xs">
+              📚
+            </span>
+            <div>
+              <p className="text-sm font-medium text-ink">No templates match these filters</p>
+              <p className="mt-0.5 text-2xs text-muted">
+                Try adjusting your search or filters, or create a new template.
+              </p>
+            </div>
+            <Button variant="secondary" onClick={() => setNewOpen(true)}>
+              New template
+            </Button>
           </div>
         )}
       </div>
@@ -330,12 +341,14 @@ function TemplateCard({
   return (
     <div
       onClick={handleClick}
-      className="card cursor-pointer overflow-hidden transition-shadow hover:shadow-sm"
+      className={`card cursor-pointer overflow-hidden transition-all hover:shadow-md ${
+        selected ? "ring-2 ring-ai-text/50" : ""
+      }`}
     >
       <div className={`relative flex h-40 items-center justify-center ${t.media.ready ? tint : "bg-canvas"}`}>
         {selectMode && (
           <span
-            className={`absolute left-2 top-2 flex h-5 w-5 items-center justify-center rounded border ${
+            className={`absolute left-2.5 top-2.5 flex h-5 w-5 items-center justify-center rounded-md border shadow-sm ${
               selected ? "border-ai-text bg-ai-text text-white" : "border-muted bg-card"
             }`}
           >
@@ -351,7 +364,7 @@ function TemplateCard({
             // eslint-disable-next-line @next/next/no-img-element
             <img src={t.media.url} alt="" className="h-full w-full object-cover" />
           ) : (
-            <span className="absolute right-2 top-2 rounded bg-ai-visual px-2 py-0.5 text-2xs font-medium text-white">
+            <span className="absolute right-2 top-2 rounded-full bg-ai-visual px-2.5 py-0.5 text-2xs font-semibold text-white shadow-sm">
               {t.media.kind === "video" ? `AI video · ${t.media.seconds}s` : "AI image"}
             </span>
           )
@@ -363,7 +376,7 @@ function TemplateCard({
                 e.stopPropagation();
                 onGenerate();
               }}
-              className="mt-1 rounded-md border-hair border-hair bg-card px-3 py-1 text-2xs text-ink hover:bg-canvas"
+              className="mt-2 rounded-lg border border-hair bg-card px-3 py-1 text-2xs font-medium text-ink shadow-xs hover:bg-canvas transition-colors"
             >
               Generate
             </button>
@@ -371,20 +384,20 @@ function TemplateCard({
         )}
       </div>
       <div className="p-3">
-        <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
+        <div className="mb-2 flex flex-wrap items-center gap-1.5">
           <PlatformTag platform={t.platform} />
           {t.tags.map((tag) => (
-            <span key={tag} className="rounded bg-canvas px-1.5 py-0.5 text-2xs text-muted">
+            <span key={tag} className="chip">
               {tag}
             </span>
           ))}
           {t.status !== "unused" && (
-            <span className="ml-auto rounded bg-canvas px-1.5 py-0.5 text-2xs capitalize text-muted">
+            <span className="ml-auto rounded-full bg-canvas px-2 py-0.5 text-2xs font-medium capitalize text-muted">
               {t.status}
             </span>
           )}
         </div>
-        <p className="text-xs leading-relaxed text-ink">{t.body}</p>
+        <p className="line-clamp-3 text-xs leading-relaxed text-ink">{t.body}</p>
       </div>
     </div>
   );

@@ -116,28 +116,39 @@ function SettingsContent() {
   const auditKey = `audit-${auditInitial.filter ?? ""}-${auditInitial.user ?? ""}-${auditInitial.company ?? ""}-${auditInitial.range ?? ""}`;
 
   return (
-    <div>
-      <div className="mb-5 text-lg font-semibold text-ink">Settings</div>
-      <div className="card flex min-h-[460px] overflow-hidden">
-        <div className="w-48 shrink-0 border-r-hair border-hair p-3">
+    <div className="animate-fade-in">
+      {/* Page heading */}
+      <div className="mb-5 flex items-center justify-between gap-4">
+        <h1 className="text-lg font-bold tracking-tight text-ink">Settings</h1>
+      </div>
+
+      <div className="card flex min-h-[480px] overflow-hidden">
+        {/* Sidebar nav */}
+        <nav className="w-52 shrink-0 border-r border-hair bg-canvas/40 p-3">
           {NAV.map((g) => (
-            <div key={g.group} className="mb-4">
-              <div className="section-label px-2 pb-1">{g.group}</div>
-              {g.items.map((it) => (
-                <button
-                  key={it.id}
-                  onClick={() => navigate(it.id)}
-                  className={`block w-full rounded-md px-2 py-1.5 text-left text-sm ${
-                    section === it.id ? "bg-canvas font-medium text-ink ring-1 ring-hair" : "text-ink/80 hover:bg-canvas"
-                  }`}
-                >
-                  {it.label}
-                </button>
-              ))}
+            <div key={g.group} className="mb-5">
+              <div className="section-label px-2 pb-1.5">{g.group}</div>
+              <div className="space-y-0.5">
+                {g.items.map((it) => (
+                  <button
+                    key={it.id}
+                    onClick={() => navigate(it.id)}
+                    className={`block w-full rounded-lg px-2.5 py-1.5 text-left text-sm transition-colors ${
+                      section === it.id
+                        ? "bg-card font-semibold text-ink shadow-xs ring-1 ring-hair"
+                        : "text-muted hover:bg-card/60 hover:text-ink"
+                    }`}
+                  >
+                    {it.label}
+                  </button>
+                ))}
+              </div>
             </div>
           ))}
-        </div>
-        <div className="flex-1 p-5">
+        </nav>
+
+        {/* Content area */}
+        <div className="flex-1 overflow-auto p-5">
           {section === "profile" && <Profile />}
           {section === "notifications" && <Notifications />}
           {section === "organization" && <Organization onNavigate={navigate} />}

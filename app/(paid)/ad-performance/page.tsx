@@ -411,7 +411,7 @@ function AdPerformanceContent() {
   };
 
   return (
-    <div>
+    <div className="animate-fade-in">
       <PageHeader
         title="Ad Performance"
         actions={
@@ -421,7 +421,7 @@ function AdPerformanceContent() {
               trigger={(open, toggle) => (
                 <button
                   onClick={toggle}
-                  className="rounded-md border-hair border-hair bg-card px-3 py-1.5 text-sm text-ink hover:bg-canvas"
+                  className="rounded-md border border-hair bg-card px-3 py-1.5 text-sm text-ink hover:bg-canvas"
                 >
                   {RANGE_LABEL[range]}
                 </button>
@@ -447,7 +447,7 @@ function AdPerformanceContent() {
               trigger={(open, toggle) => (
                 <button
                   onClick={toggle}
-                  className="rounded-md border-hair border-hair bg-card px-3 py-1.5 text-sm text-ink hover:bg-canvas"
+                  className="rounded-md border border-hair bg-card px-3 py-1.5 text-sm text-ink hover:bg-canvas"
                 >
                   Export
                 </button>
@@ -465,12 +465,12 @@ function AdPerformanceContent() {
       />
 
       {range === "custom" && (
-        <div className="mb-3 flex items-center gap-2">
-          <span className="text-2xs text-muted">From</span>
+        <div className="mb-4 flex items-center gap-2.5 rounded-lg border border-hair bg-card px-4 py-2.5">
+          <span className="text-2xs font-medium text-muted">From</span>
           <div className="w-40">
             <DatePicker value={customFrom ?? NOW} onChange={setCustomFrom} />
           </div>
-          <span className="text-2xs text-muted">to</span>
+          <span className="text-2xs font-medium text-muted">to</span>
           <div className="w-40">
             <DatePicker value={customTo ?? NOW} onChange={setCustomTo} />
           </div>
@@ -478,7 +478,7 @@ function AdPerformanceContent() {
       )}
 
       {/* Metric cards — clickable focus */}
-      <div className="mb-4 grid grid-cols-5 gap-3">
+      <div className="mb-5 grid grid-cols-5 gap-3">
         <MetricCard
           label="Spend"
           value={eur(totalSpend)}
@@ -517,8 +517,8 @@ function AdPerformanceContent() {
       </div>
 
       {/* Chart */}
-      <div className="card mb-4 p-4">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+      <div className="card mb-5 overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-hair bg-canvas/50 px-5 py-3.5">
           <div className="text-sm font-semibold text-ink">Spend &amp; conversions over time</div>
           <div className="flex flex-wrap gap-1.5">
             {(Object.keys(METRICS) as MetricId[]).map((id) => {
@@ -527,10 +527,10 @@ function AdPerformanceContent() {
                 <button
                   key={id}
                   onClick={() => toggleChip(id)}
-                  className={`rounded-md px-2.5 py-1 text-2xs font-medium ${
+                  className={`rounded-md px-2.5 py-1 text-2xs font-medium transition-colors ${
                     on
                       ? "bg-ai-textbg text-ai-text ring-1 ring-ai-text/30"
-                      : "border-hair border-hair bg-card text-muted"
+                      : "border border-hair bg-card text-muted hover:bg-canvas"
                   }`}
                 >
                   {METRICS[id].label}
@@ -539,18 +539,27 @@ function AdPerformanceContent() {
             })}
           </div>
         </div>
-        <MultiLineChart series={chartSeries} />
+        <div className="p-5">
+          <MultiLineChart series={chartSeries} />
+        </div>
       </div>
 
-      {/* Top performing ads */}
-      <div className="mb-2 text-sm font-semibold text-ink">Top performing ads</div>
-      <div className="mb-2 flex flex-wrap items-center gap-2">
+      {/* Top performing ads — filter bar + table */}
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-ink">Top performing ads</h2>
+        <span className="text-2xs text-muted">{sortedRows.length} ads</span>
+      </div>
+
+      <div className="mb-3 flex flex-wrap items-center gap-2">
         <div className="relative flex-1 min-w-[160px]">
+          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted">
+            <SearchIcon />
+          </span>
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search ads…"
-            className="w-full rounded-md border-hair border-hair bg-card px-3 py-2 text-sm text-ink placeholder:text-muted focus:outline-none"
+            className="input pl-9"
           />
         </div>
         <Dropdown
@@ -558,7 +567,7 @@ function AdPerformanceContent() {
           trigger={(open, toggle) => (
             <button
               onClick={toggle}
-              className="rounded-md border-hair border-hair bg-card px-3 py-2 text-xs text-ink hover:bg-canvas"
+              className="rounded-md border border-hair bg-card px-3 py-2 text-xs text-ink hover:bg-canvas"
             >
               Campaign:{" "}
               {campaignFilter === "all"
@@ -592,7 +601,7 @@ function AdPerformanceContent() {
           trigger={(open, toggle) => (
             <button
               onClick={toggle}
-              className="rounded-md border-hair border-hair bg-card px-3 py-2 text-xs text-ink hover:bg-canvas"
+              className="rounded-md border border-hair bg-card px-3 py-2 text-xs text-ink hover:bg-canvas"
             >
               Platform: {PLATFORM_LABEL[platformFilter]}
             </button>
@@ -615,7 +624,7 @@ function AdPerformanceContent() {
           trigger={(open, toggle) => (
             <button
               onClick={toggle}
-              className="rounded-md border-hair border-hair bg-card px-3 py-2 text-xs text-ink hover:bg-canvas"
+              className="rounded-md border border-hair bg-card px-3 py-2 text-xs text-ink hover:bg-canvas"
             >
               Status: {STATUS_LABEL[statusFilter]}
             </button>
@@ -635,22 +644,22 @@ function AdPerformanceContent() {
         </Dropdown>
       </div>
 
-      <div className="card mb-4 overflow-hidden">
+      <div className="card mb-5 overflow-hidden">
         <table className="w-full text-sm">
           <thead>
-            <tr className="section-label border-b-hair border-hair text-left">
-              <th className="px-3 py-2 font-semibold">AD</th>
-              <SortHeader label="SPEND" col="spend" tableSortKey={tableSortKey} tableSortDir={tableSortDir} onSort={onSort} />
+            <tr className="border-b border-hair bg-canvas/50 text-left">
+              <th className="px-5 py-3 text-2xs font-semibold uppercase tracking-wide text-muted">Ad</th>
+              <SortHeader label="Spend" col="spend" tableSortKey={tableSortKey} tableSortDir={tableSortDir} onSort={onSort} />
               <SortHeader label="CTR" col="ctr" tableSortKey={tableSortKey} tableSortDir={tableSortDir} onSort={onSort} />
               <SortHeader label="CPC" col="cpc" tableSortKey={tableSortKey} tableSortDir={tableSortDir} onSort={onSort} />
-              <SortHeader label="CONV." col="conversions" tableSortKey={tableSortKey} tableSortDir={tableSortDir} onSort={onSort} />
-              <th className="px-3 py-2 font-semibold">STATUS</th>
+              <SortHeader label="Conv." col="conversions" tableSortKey={tableSortKey} tableSortDir={tableSortDir} onSort={onSort} />
+              <th className="px-5 py-3 text-2xs font-semibold uppercase tracking-wide text-muted">Status</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-hair">
             {sortedRows.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-3 py-6 text-center text-sm text-muted">
+                <td colSpan={6} className="px-5 py-10 text-center text-sm text-muted">
                   No ads match these filters.
                 </td>
               </tr>
@@ -659,24 +668,29 @@ function AdPerformanceContent() {
                 <tr
                   key={r.ad.id}
                   onClick={() => setOpenAd(r)}
-                  className="cursor-pointer transition-colors hover:bg-canvas"
+                  className="cursor-pointer transition-colors hover:bg-canvas/70"
                 >
-                  <td className="px-3 py-2.5">
-                    <div className="text-ink">{r.ad.name}</div>
-                    <div className="text-2xs text-muted">
+                  <td className="px-5 py-3.5">
+                    <div className="font-medium text-ink">{r.ad.name}</div>
+                    <div className="mt-0.5 text-2xs text-muted">
                       {r.campaign.name} · {r.adSet?.name ?? r.ad.adSetName}
                     </div>
                   </td>
-                  <td className="px-3 py-2.5 text-ink">{eur(r.spend)}</td>
-                  <td className="px-3 py-2.5 text-green-600">{r.ctr.toFixed(2)}%</td>
-                  <td className="px-3 py-2.5 text-ink">{eur(r.cpc, { decimals: true })}</td>
-                  <td className="px-3 py-2.5 text-ink">{r.conversions}</td>
-                  <td className="px-3 py-2.5">
+                  <td className="px-5 py-3.5 tabular-nums text-ink">{eur(r.spend)}</td>
+                  <td className="px-5 py-3.5 tabular-nums font-medium text-success-600">{r.ctr.toFixed(2)}%</td>
+                  <td className="px-5 py-3.5 tabular-nums text-ink">{eur(r.cpc, { decimals: true })}</td>
+                  <td className="px-5 py-3.5 tabular-nums text-ink">{r.conversions}</td>
+                  <td className="px-5 py-3.5">
                     <span
-                      className={`inline-flex items-center rounded-full px-2 py-0.5 text-2xs font-medium ${
-                        r.ad.status === "active" ? "bg-green-50 text-green-700" : "bg-canvas text-muted"
+                      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-2xs font-medium ${
+                        r.ad.status === "active"
+                          ? "bg-success-50 text-success-700"
+                          : "bg-canvas text-muted"
                       }`}
                     >
+                      <span className={`inline-block h-1.5 w-1.5 rounded-full ${
+                        r.ad.status === "active" ? "bg-success-500" : "bg-muted/40"
+                      }`} />
                       {r.ad.status === "active" ? "Active" : "Paused"}
                     </span>
                   </td>
@@ -689,28 +703,35 @@ function AdPerformanceContent() {
 
       {/* AI insight + actions */}
       {topPerformer && (
-        <div className="rounded-lg border-hair border-ai-text/20 bg-ai-textbg px-4 py-3 text-xs text-ai-text">
-          <span className="font-semibold">AI insight:</span>{" "}
-          &ldquo;{topPerformer.ad.name}&rdquo; is your best performer at{" "}
-          {eur(topPerformer.conversions > 0 ? Number((topPerformer.spend / topPerformer.conversions).toFixed(2)) : 0, { decimals: true })}{" "}
-          per conversion. Consider increasing its budget by 30%, or testing similar messaging in other campaigns.
-          <div className="mt-2 flex gap-2">
-            <button
-              onClick={() =>
-                topPerformer.adSet &&
-                setEditAdSet({ adSet: topPerformer.adSet, campaignId: topPerformer.campaign.id })
-              }
-              disabled={!topPerformer.adSet}
-              className="rounded-md bg-page px-2.5 py-1 text-2xs font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Increase budget
-            </button>
-            <button
-              onClick={() => setOpenAd(topPerformer)}
-              className="rounded-md border-hair border-ai-text/30 bg-card px-2.5 py-1 text-2xs font-medium text-ai-text hover:bg-ai-textbg"
-            >
-              Generate similar ads
-            </button>
+        <div className="rounded-xl border border-ai-text/20 bg-ai-textbg px-5 py-4 text-xs text-ai-text">
+          <div className="flex items-start gap-2">
+            <span className="mt-0.5 text-ai-visual">
+              <SparkleIcon />
+            </span>
+            <div className="flex-1">
+              <span className="font-semibold">AI insight:</span>{" "}
+              &ldquo;{topPerformer.ad.name}&rdquo; is your best performer at{" "}
+              {eur(topPerformer.conversions > 0 ? Number((topPerformer.spend / topPerformer.conversions).toFixed(2)) : 0, { decimals: true })}{" "}
+              per conversion. Consider increasing its budget by 30%, or testing similar messaging in other campaigns.
+              <div className="mt-2.5 flex gap-2">
+                <button
+                  onClick={() =>
+                    topPerformer.adSet &&
+                    setEditAdSet({ adSet: topPerformer.adSet, campaignId: topPerformer.campaign.id })
+                  }
+                  disabled={!topPerformer.adSet}
+                  className="rounded-md bg-page px-3 py-1.5 text-2xs font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Increase budget
+                </button>
+                <button
+                  onClick={() => setOpenAd(topPerformer)}
+                  className="rounded-md border border-ai-text/30 bg-card px-3 py-1.5 text-2xs font-medium text-ai-text hover:bg-white"
+                >
+                  Generate similar ads
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -758,17 +779,34 @@ function SortHeader({
 }) {
   const active = tableSortKey === col && tableSortDir !== "off";
   return (
-    <th className="px-3 py-2 font-semibold">
+    <th className="px-5 py-3 text-2xs font-semibold uppercase tracking-wide text-muted">
       <button
         type="button"
         onClick={() => onSort(col)}
-        className={`inline-flex items-center gap-1 ${active ? "text-ink" : "text-muted hover:text-ink"}`}
+        className={`inline-flex items-center gap-1 transition-colors ${active ? "text-ink" : "hover:text-ink"}`}
       >
         {label}
         {active && (
-          <span aria-hidden="true">{tableSortDir === "asc" ? "↑" : "↓"}</span>
+          <span aria-hidden="true" className="text-[10px]">{tableSortDir === "asc" ? "↑" : "↓"}</span>
         )}
       </button>
     </th>
+  );
+}
+
+function SearchIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+      <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="2" />
+      <path d="M20 20l-4-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function SparkleIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+      <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6L12 2z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
 }

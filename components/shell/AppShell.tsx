@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { CompanySwitcher } from "./CompanySwitcher";
 import { Sidebar } from "./Sidebar";
+import { HelpButton } from "@/components/help/HelpButton";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -39,25 +40,30 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <CompanySwitcher />
         </div>
 
-        {/* Avatar utilisateur */}
-        <button
-          aria-label="Profil utilisateur"
-          className="
-            group relative flex h-8 w-8 items-center justify-center rounded-full
-            bg-page text-2xs font-bold text-white
-            shadow-sm ring-2 ring-transparent
-            transition-all duration-[150ms]
-            hover:ring-page/25 hover:shadow-md
-            focus-visible:ring-primary-500 focus-visible:ring-offset-2
-          "
-        >
-          YO
-          {/* Indicateur de statut actif */}
-          <span
-            aria-hidden="true"
-            className="absolute bottom-0 right-0 h-2 w-2 rounded-full border-2 border-white bg-success-500 shadow-xs"
-          />
-        </button>
+        {/* Zone droite : aide + avatar */}
+        <div className="flex items-center gap-2">
+          <HelpButton />
+
+          {/* Avatar utilisateur */}
+          <button
+            aria-label="Profil utilisateur"
+            className="
+              group relative flex h-8 w-8 items-center justify-center rounded-full
+              bg-page text-2xs font-bold text-white
+              shadow-sm ring-2 ring-transparent
+              transition-all duration-[150ms]
+              hover:ring-page/25 hover:shadow-md
+              focus-visible:ring-primary-500 focus-visible:ring-offset-2
+            "
+          >
+            YO
+            {/* Indicateur de statut actif */}
+            <span
+              aria-hidden="true"
+              className="absolute bottom-0 right-0 h-2 w-2 rounded-full border-2 border-white bg-success-500 shadow-xs"
+            />
+          </button>
+        </div>
       </header>
 
       {/* Corps : sidebar + contenu */}

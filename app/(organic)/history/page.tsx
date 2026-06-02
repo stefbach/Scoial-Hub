@@ -146,15 +146,15 @@ function HistoryContent() {
   };
 
   const filterBar = (
-    <>
+    <div className="mb-4 space-y-2.5">
       <input
         value={search}
         onChange={(e) => setSearch(e.target.value)}
         placeholder="Search post history…"
-        className="mb-3 w-full rounded-md border-hair border-hair bg-card px-3 py-2 text-sm placeholder:text-muted focus:outline-none"
+        className="input"
       />
       {range === "custom" && (
-        <div className="mb-3 flex items-center gap-2">
+        <div className="flex items-center gap-2">
           <span className="text-2xs text-muted">From</span>
           <div className="w-40">
             <DatePicker value={customFrom ?? NOW} onChange={setCustomFrom} />
@@ -165,11 +165,11 @@ function HistoryContent() {
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 
   return (
-    <div>
+    <div className="animate-fade-in">
       <PageHeader
         title="History"
         actions={
@@ -179,7 +179,7 @@ function HistoryContent() {
               trigger={(open, toggle) => (
                 <button
                   onClick={toggle}
-                  className="rounded-md border-hair border-hair bg-card px-3 py-1.5 text-sm text-ink hover:bg-canvas"
+                  className="rounded-lg border border-hair bg-card px-3 py-1.5 text-sm font-medium text-ink shadow-xs hover:bg-canvas transition-colors"
                 >
                   {RANGE_LABEL[range]}
                 </button>
@@ -206,7 +206,7 @@ function HistoryContent() {
               trigger={(open, toggle) => (
                 <button
                   onClick={toggle}
-                  className="rounded-md border-hair border-hair bg-card px-3 py-1.5 text-sm text-ink hover:bg-canvas"
+                  className="rounded-lg border border-hair bg-card px-3 py-1.5 text-sm font-medium text-ink shadow-xs hover:bg-canvas transition-colors"
                 >
                   Export
                 </button>
@@ -273,11 +273,13 @@ function HistoryContent() {
       />
 
       {confirmDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-6 backdrop-blur-sm">
           <div className="absolute inset-0" onClick={() => setConfirmDelete(null)} />
-          <div className="relative z-50 w-full max-w-sm rounded-lg border-hair border-hair bg-card p-4 shadow-xl">
-            <p className="text-sm text-ink">Delete this post from history? This cannot be undone.</p>
-            <div className="mt-4 flex justify-end gap-2">
+          <div className="relative z-50 w-full max-w-sm animate-slide-up rounded-xl border border-hair bg-card p-5 shadow-xl">
+            <p className="text-sm leading-relaxed text-ink">
+              Delete this post from history? This cannot be undone.
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
               <Button variant="secondary" onClick={() => setConfirmDelete(null)}>Cancel</Button>
               <Button
                 variant="danger"
@@ -307,26 +309,34 @@ function List({
 }) {
   if (items.length === 0) {
     return (
-      <div className="card px-3 py-8 text-center text-sm text-muted">
-        No posts match these filters.
+      <div className="card flex flex-col items-center gap-3 px-4 py-14 text-center">
+        <span className="flex h-12 w-12 items-center justify-center rounded-full bg-canvas text-2xl shadow-xs">
+          📋
+        </span>
+        <div>
+          <p className="text-sm font-medium text-ink">No posts match these filters</p>
+          <p className="mt-0.5 text-2xs text-muted">
+            Try changing the date range or clearing the search.
+          </p>
+        </div>
       </div>
     );
   }
   return (
-    <div className="card divide-y divide-hair">
+    <div className="card divide-y divide-hair overflow-hidden">
       {items.map((item) => (
         <button
           key={item.id}
           onClick={() => onOpen(item)}
           className={`block w-full cursor-pointer text-left transition-colors hover:bg-canvas ${
-            item.status === "failed" ? "bg-red-50/50" : ""
+            item.status === "failed" ? "bg-danger-50/40" : ""
           }`}
         >
-          <div className="flex items-center gap-3 px-3 py-2.5">
+          <div className="flex items-center gap-3 px-4 py-3">
             <PlatformTag platform={item.platform} />
-            <div className="flex-1">
-              <div className="text-sm text-ink">{item.body}</div>
-              <div className="text-2xs text-muted">
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-sm text-ink">{item.body}</div>
+              <div className="mt-0.5 text-2xs text-muted">
                 {item.when} · {item.source}
                 {item.stats ? ` · ${item.stats}` : ""}
               </div>
@@ -339,11 +349,11 @@ function List({
           </div>
           {item.error && (
             <div
-              className="mx-3 mb-3 flex items-center justify-between rounded-md border-hair border-red-200 bg-card px-3 py-2"
+              className="mx-4 mb-3 flex items-center justify-between rounded-lg border border-danger-200 bg-danger-50 px-3 py-2.5"
               onClick={(e) => e.stopPropagation()}
             >
               <div>
-                <div className="text-2xs font-medium text-red-600">{item.error.title}</div>
+                <div className="text-2xs font-semibold text-danger-700">{item.error.title}</div>
                 <div className="text-2xs text-muted">{item.error.detail}</div>
               </div>
               <span onClick={(e) => e.stopPropagation()}>

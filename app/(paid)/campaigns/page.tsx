@@ -47,7 +47,7 @@ function CampaignsContent() {
   const [expanded, setExpanded] = useState<string | null>(c.list[0]?.id ?? null);
 
   return (
-    <div>
+    <div className="animate-fade-in">
       <PageHeader
         title="Campaigns"
         actions={
@@ -60,29 +60,69 @@ function CampaignsContent() {
         }
       />
 
-      <div className="mb-4 grid grid-cols-4 gap-3">
-        <Strip label="Active campaigns" value={String(c.activeCampaigns)} />
-        <Strip label="Spend this month" value={eur(c.spendMtd)} />
-        <Strip label="Conversions (30d)" value={String(c.conversions)} />
-        <Strip label="Avg. CPC" value={eur(c.avgCpc, { decimals: true })} />
+      {/* KPI strip */}
+      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <KpiCard
+          label="Active campaigns"
+          value={String(c.activeCampaigns)}
+          icon={<CampaignIcon />}
+          accent="blue"
+        />
+        <KpiCard
+          label="Spend this month"
+          value={eur(c.spendMtd)}
+          icon={<SpendIcon />}
+          accent="indigo"
+        />
+        <KpiCard
+          label="Conversions (30d)"
+          value={String(c.conversions)}
+          icon={<ConvIcon />}
+          accent="green"
+        />
+        <KpiCard
+          label="Avg. CPC"
+          value={eur(c.avgCpc, { decimals: true })}
+          icon={<CpcIcon />}
+          accent="amber"
+        />
       </div>
 
-      <div className="card divide-y divide-hair">
-        {c.list.map((camp) => (
-          <CampaignRow
-            key={camp.id}
-            camp={camp}
-            open={expanded === camp.id}
-            onChevron={() => setExpanded((e) => (e === camp.id ? null : camp.id))}
-            onToggleEnabled={() => {
-              toggleCampaign(company.id, camp.id);
-              refresh();
-            }}
-            onEdit={() => setCampaignModal({ open: true, campaign: camp })}
-            onDelete={() => setConfirmDelete(camp)}
-          />
-        ))}
-      </div>
+      {/* Campaign list */}
+      {c.list.length === 0 ? (
+        <EmptyState
+          icon={<CampaignIcon />}
+          title="No campaigns yet"
+          description="Create your first campaign to start driving traffic and conversions."
+          action={
+            <Button variant="primary" onClick={() => setCampaignModal({ open: true })}>
+              New campaign
+            </Button>
+          }
+        />
+      ) : (
+        <div className="card overflow-hidden">
+          <div className="flex items-center justify-between border-b border-hair bg-canvas/60 px-5 py-3">
+            <span className="section-label">All campaigns ({c.list.length})</span>
+          </div>
+          <div className="divide-y divide-hair">
+            {c.list.map((camp) => (
+              <CampaignRow
+                key={camp.id}
+                camp={camp}
+                open={expanded === camp.id}
+                onChevron={() => setExpanded((e) => (e === camp.id ? null : camp.id))}
+                onToggleEnabled={() => {
+                  toggleCampaign(company.id, camp.id);
+                  refresh();
+                }}
+                onEdit={() => setCampaignModal({ open: true, campaign: camp })}
+                onDelete={() => setConfirmDelete(camp)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
 
       <CreateAdModal open={adModal} onClose={() => setAdModal(false)} />
       <NewCampaignModal
@@ -93,13 +133,17 @@ function CampaignsContent() {
       />
 
       {confirmDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-6 backdrop-blur-sm">
           <div className="absolute inset-0" onClick={() => setConfirmDelete(null)} />
-          <div className="relative z-50 w-full max-w-sm rounded-lg border-hair border-hair bg-card p-4 shadow-xl">
-            <p className="text-sm text-ink">
-              Delete &ldquo;{confirmDelete.name}&rdquo;? This cannot be undone.
+          <div className="relative z-50 w-full max-w-sm animate-slide-up rounded-xl border border-hair bg-card p-6 shadow-xl">
+            <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-danger-50 text-danger-600">
+              <TrashIcon />
+            </div>
+            <h3 className="text-base font-semibold text-ink">Delete campaign</h3>
+            <p className="mt-1.5 text-sm text-muted">
+              Delete &ldquo;{confirmDelete.name}&rdquo;? This action cannot be undone.
             </p>
-            <div className="mt-4 flex justify-end gap-2">
+            <div className="mt-5 flex justify-end gap-2">
               <Button variant="secondary" onClick={() => setConfirmDelete(null)}>Cancel</Button>
               <Button
                 variant="danger"
@@ -119,15 +163,66 @@ function CampaignsContent() {
   );
 }
 
-function Strip({ label, value }: { label: string; value: string }) {
+/* ── KPI card ─────────────────────────────────────────────────────────── */
+type Accent = "blue" | "indigo" | "green" | "amber";
+
+const ACCENT_CLASSES: Record<Accent, { icon: string; ring: string }> = {
+  blue:   { icon: "bg-primary-50 text-primary-600",  ring: "border-l-primary-400" },
+  indigo: { icon: "bg-ai-textbg text-ai-text",        ring: "border-l-ai-text" },
+  green:  { icon: "bg-success-50 text-success-600",   ring: "border-l-success-500" },
+  amber:  { icon: "bg-warning-50 text-warning-600",   ring: "border-l-warning-500" },
+};
+
+function KpiCard({
+  label,
+  value,
+  icon,
+  accent,
+}: {
+  label: string;
+  value: string;
+  icon: React.ReactNode;
+  accent: Accent;
+}) {
+  const ac = ACCENT_CLASSES[accent];
   return (
-    <div className="metric-strip">
-      <div className="text-2xs text-muted">{label}</div>
-      <div className="mt-1 text-lg font-semibold text-ink">{value}</div>
+    <div className={`metric-strip flex items-center gap-3.5 border-l-[3px] ${ac.ring}`}>
+      <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${ac.icon}`}>
+        {icon}
+      </div>
+      <div className="min-w-0">
+        <div className="text-2xs font-medium uppercase tracking-wide text-muted">{label}</div>
+        <div className="mt-0.5 text-xl font-semibold leading-tight tabular-nums text-ink">{value}</div>
+      </div>
     </div>
   );
 }
 
+/* ── Empty state ──────────────────────────────────────────────────────── */
+function EmptyState({
+  icon,
+  title,
+  description,
+  action,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  action?: React.ReactNode;
+}) {
+  return (
+    <div className="card flex flex-col items-center px-6 py-20 text-center">
+      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-canvas text-muted shadow-xs">
+        {icon}
+      </div>
+      <h3 className="mt-5 text-sm font-semibold text-ink">{title}</h3>
+      <p className="mt-1.5 max-w-xs text-sm text-muted">{description}</p>
+      {action && <div className="mt-6">{action}</div>}
+    </div>
+  );
+}
+
+/* ── Campaign row ─────────────────────────────────────────────────────── */
 function CampaignRow({
   camp,
   open,
@@ -147,14 +242,16 @@ function CampaignRow({
   const detailHref = `/campaigns/${camp.id}`;
   const status = camp.enabled ? "Active" : "Paused";
   const statusTone = camp.enabled ? "green" : "gray";
+  const budgetPct = camp.budget > 0 ? Math.min(100, Math.round((camp.spend / camp.budget) * 100)) : 0;
 
   return (
     <div
       onClick={() => router.push(detailHref)}
-      className="cursor-pointer p-3 transition-colors hover:bg-canvas"
+      className="group cursor-pointer px-5 py-4 transition-colors hover:bg-canvas/70"
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex flex-1 items-start gap-2">
+      <div className="flex items-start justify-between gap-4">
+        {/* Left — chevron + name block */}
+        <div className="flex flex-1 items-start gap-3 min-w-0">
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -162,11 +259,17 @@ function CampaignRow({
             }}
             aria-expanded={open}
             aria-label={open ? "Collapse campaign" : "Expand campaign"}
-            className="mt-0.5 inline-flex h-5 w-5 items-center justify-center text-muted hover:text-ink"
+            className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted transition-colors hover:bg-hair hover:text-ink"
           >
-            <span className={`inline-block transition-transform ${open ? "rotate-90" : ""}`}>▸</span>
+            <span
+              className={`inline-block text-[10px] transition-transform duration-150 ${open ? "rotate-90" : ""}`}
+            >
+              ▸
+            </span>
           </button>
-          <div className="min-w-0">
+
+          <div className="min-w-0 flex-1">
+            {/* Name + badges */}
             <div className="flex flex-wrap items-center gap-2">
               <Link
                 href={detailHref}
@@ -175,58 +278,108 @@ function CampaignRow({
               >
                 {camp.name}
               </Link>
-              <StatusBadge tone={statusTone}>{status}</StatusBadge>
-              <span className="rounded bg-ai-textbg px-1.5 py-0.5 text-2xs text-ai-text">
-                {camp.platforms.join(" + ")}
-                {camp.platforms.length === 1 ? " only" : ""}
-              </span>
+              <StatusBadge tone={statusTone} dot>{status}</StatusBadge>
+              {camp.platforms.map((p) => (
+                <PlatformChip key={p} platform={p} />
+              ))}
             </div>
-            <div className="mt-0.5 text-2xs text-muted">
-              {camp.objective}   {eur(camp.spend)}/{camp.budget.toLocaleString()}   {camp.metricsLabel}   {camp.metricsValue}
-              {camp.cplLabel ? `   ${camp.cplLabel}` : ""}
+
+            {/* Sub-line: objective + metrics */}
+            <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-2xs text-muted">
+              <span className="font-medium text-ink/70">{camp.objective}</span>
+              <span className="flex items-center gap-1">
+                <span className="inline-block h-1 w-1 rounded-full bg-hair" />
+                Spent{" "}
+                <span className="font-semibold text-ink">{eur(camp.spend)}</span>
+                {" / "}
+                <span>{eur(camp.budget)}</span>
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="inline-block h-1 w-1 rounded-full bg-hair" />
+                {camp.metricsLabel}{" "}
+                <span className="font-semibold text-ink">{camp.metricsValue}</span>
+              </span>
+              {camp.cplLabel && (
+                <span className="flex items-center gap-1">
+                  <span className="inline-block h-1 w-1 rounded-full bg-hair" />
+                  {camp.cplLabel}
+                </span>
+              )}
+            </div>
+
+            {/* Budget progress bar */}
+            <div className="mt-2.5 flex items-center gap-2.5">
+              <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-hair">
+                <div
+                  className={`h-full rounded-full transition-all duration-300 ${
+                    budgetPct >= 90
+                      ? "bg-danger-500"
+                      : budgetPct >= 70
+                      ? "bg-warning-500"
+                      : "bg-primary-400"
+                  }`}
+                  style={{ width: `${budgetPct}%` }}
+                />
+              </div>
+              <span className="w-8 text-right text-2xs tabular-nums text-muted">{budgetPct}%</span>
             </div>
           </div>
         </div>
-        <div className="flex shrink-0 items-center gap-1" onClick={(e) => e.stopPropagation()}>
+
+        {/* Right — actions + toggle */}
+        <div
+          className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100"
+          onClick={(e) => e.stopPropagation()}
+        >
           <IconButton title="Edit" ariaLabel="Edit campaign" onClick={onEdit}>
             <PencilIcon />
           </IconButton>
           <IconButton title="Delete" ariaLabel="Delete campaign" danger onClick={onDelete}>
             <TrashIcon />
           </IconButton>
-          <span className="ml-1">
+          <span className="ml-2">
             <Toggle key={String(camp.enabled)} defaultOn={camp.enabled} onChange={onToggleEnabled} />
           </span>
         </div>
+        {/* Always-visible toggle when not hovering */}
+        <div
+          className="flex shrink-0 items-center group-hover:hidden"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Toggle key={`stable-${String(camp.enabled)}`} defaultOn={camp.enabled} onChange={onToggleEnabled} />
+        </div>
       </div>
 
+      {/* Expanded — ad sets */}
       {open && (
-        <div className="ml-7 mt-2" onClick={(e) => e.stopPropagation()}>
-          <div className="section-label mb-1">Ad sets ({camp.adSets.length})</div>
+        <div className="ml-8 mt-4" onClick={(e) => e.stopPropagation()}>
+          <div className="section-label mb-2.5">Ad sets ({camp.adSets.length})</div>
           {camp.adSets.length === 0 ? (
-            <div className="rounded-md border-hair border-hair bg-canvas px-3 py-3 text-2xs text-muted">
+            <div className="rounded-lg border border-dashed border-hair bg-canvas px-4 py-5 text-center text-xs text-muted">
               No ad sets yet.
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               {camp.adSets.map((set) => (
                 <div
                   key={set.id}
-                  className="flex items-center justify-between rounded-md border-hair border-hair bg-canvas px-3 py-2"
+                  className="flex items-center justify-between rounded-lg border border-hair bg-canvas px-4 py-2.5 transition-colors hover:bg-white hover:border-[#cac4b9]"
                 >
-                  <div>
+                  <div className="min-w-0">
                     <Link
                       href={`/ad-sets/${set.id}`}
-                      className="text-xs font-medium text-ink hover:underline"
+                      className="text-xs font-semibold text-ink hover:underline"
+                      onClick={(e) => e.stopPropagation()}
                     >
                       {set.name}
                     </Link>
-                    <div className="text-2xs text-muted">
+                    <div className="mt-0.5 text-2xs text-muted">
                       {set.placement} · {set.targeting}
                     </div>
                   </div>
-                  <div className="text-2xs text-muted">
-                    {set.ads} ads · {eur(set.dailyBudget)}/day
+                  <div className="ml-4 shrink-0 text-2xs tabular-nums text-muted">
+                    <span className="mr-2 font-medium text-ink">{set.ads} ads</span>
+                    {eur(set.dailyBudget)}/day
                   </div>
                 </div>
               ))}
@@ -238,6 +391,23 @@ function CampaignRow({
   );
 }
 
+/* ── Platform chip ─────────────────────────────────────────────────────── */
+const PLATFORM_STYLES: Record<string, string> = {
+  Facebook:  "bg-[#e7f0fd] text-[#1877f2]",
+  Instagram: "bg-[#fce4ec] text-[#e1306c]",
+  LinkedIn:  "bg-[#e8f0fb] text-[#0a66c2]",
+};
+
+function PlatformChip({ platform }: { platform: string }) {
+  const cls = PLATFORM_STYLES[platform] ?? "bg-canvas text-muted";
+  return (
+    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-2xs font-medium ${cls}`}>
+      {platform}
+    </span>
+  );
+}
+
+/* ── Icon button ─────────────────────────────────────────────────────── */
 function IconButton({
   title,
   ariaLabel,
@@ -257,8 +427,10 @@ function IconButton({
       title={title}
       aria-label={ariaLabel}
       onClick={onClick}
-      className={`flex h-7 w-7 items-center justify-center rounded-md hover:bg-canvas ${
-        danger ? "text-red-600 hover:bg-red-50" : "text-muted hover:text-ink"
+      className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors ${
+        danger
+          ? "text-danger-500 hover:bg-danger-50 hover:text-danger-700"
+          : "text-muted hover:bg-hair hover:text-ink"
       }`}
     >
       {children}
@@ -266,17 +438,47 @@ function IconButton({
   );
 }
 
+/* ── Icons ────────────────────────────────────────────────────────────── */
 function PencilIcon() {
   return (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
       <path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4 12.5-12.5z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
 function TrashIcon() {
   return (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
       <path d="M3 6h18M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2m2 0v14a1 1 0 01-1 1H6a1 1 0 01-1-1V6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+function CampaignIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+      <path d="M3 11l19-9-9 19-2-8-8-2z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+function SpendIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M12 7v10M9.5 9.5C9.5 8.4 10.6 8 12 8s2.5.4 2.5 1.5-1.2 1.8-2.5 2-2.5.9-2.5 2S10.4 16 12 16s2.5-.4 2.5-1.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+function ConvIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+      <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+function CpcIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+      <path d="M22 12h-4l-3 9L9 3l-3 9H2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

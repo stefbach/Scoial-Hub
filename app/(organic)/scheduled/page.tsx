@@ -72,21 +72,30 @@ function ScheduledContent() {
   }, [posts]);
 
   return (
-    <div>
+    <div className="animate-fade-in">
       <PageHeader
         title="Scheduled"
         actions={
           <>
-            <div className="flex rounded-md border-hair border-hair bg-card p-0.5 text-xs">
+            {/* View toggle */}
+            <div className="flex rounded-lg border border-hair bg-card p-0.5 text-xs shadow-xs">
               <button
                 onClick={() => setView("list")}
-                className={`rounded px-3 py-1 ${view === "list" ? "bg-canvas font-medium text-ink" : "text-muted"}`}
+                className={`rounded-md px-3 py-1.5 transition-all ${
+                  view === "list"
+                    ? "bg-canvas font-semibold text-ink shadow-xs"
+                    : "text-muted hover:text-ink"
+                }`}
               >
                 List
               </button>
               <button
                 onClick={() => setView("calendar")}
-                className={`rounded px-3 py-1 ${view === "calendar" ? "bg-canvas font-medium text-ink" : "text-muted"}`}
+                className={`rounded-md px-3 py-1.5 transition-all ${
+                  view === "calendar"
+                    ? "bg-canvas font-semibold text-ink shadow-xs"
+                    : "text-muted hover:text-ink"
+                }`}
               >
                 Calendar
               </button>
@@ -96,36 +105,58 @@ function ScheduledContent() {
         }
       />
 
-      <div className="mb-4 flex gap-5 border-b-hair border-hair">
+      {/* Tab bar */}
+      <div className="mb-5 flex gap-1 border-b border-hair">
         {TABS.map((t) => {
           const c = counts[t.id];
+          const active = t.id === tab;
           return (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              className={`-mb-px border-b-2 px-1 pb-2 text-sm ${
-                t.id === tab
-                  ? "border-page font-medium text-ink"
+              className={`-mb-px inline-flex items-center gap-1.5 border-b-2 px-3 pb-2.5 pt-1 text-sm transition-colors ${
+                active
+                  ? "border-page font-semibold text-ink"
                   : "border-transparent text-muted hover:text-ink"
               }`}
             >
-              {t.label} ({c})
+              {t.label}
+              <span
+                className={`rounded-full px-1.5 py-0.5 text-2xs font-semibold ${
+                  active ? "bg-page/10 text-page" : "bg-canvas text-muted"
+                }`}
+              >
+                {c}
+              </span>
             </button>
           );
         })}
       </div>
 
       {view === "list" ? (
-        <div className="space-y-4">
+        <div className="space-y-5">
           {groups.length === 0 && (
-            <div className="card px-3 py-6 text-center text-sm text-muted">
-              Nothing here yet.
+            <div className="card flex flex-col items-center gap-3 px-4 py-14 text-center">
+              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-canvas text-2xl shadow-xs">
+                🗓️
+              </span>
+              <div>
+                <p className="text-sm font-medium text-ink">Nothing scheduled yet</p>
+                <p className="mt-0.5 text-2xs text-muted">
+                  {tab === "drafts"
+                    ? "No drafts saved. Start composing to save a draft."
+                    : "No posts here. Create and schedule your first post."}
+                </p>
+              </div>
+              <Button variant="secondary" onClick={() => router.push("/compose")}>
+                Create a post
+              </Button>
             </div>
           )}
           {groups.map(([date, items]) => (
-            <div key={date}>
-              <div className="section-label mb-1">{groupDateLabel(date)}</div>
-              <div className="card divide-y divide-hair">
+            <div key={date} className="animate-slide-up">
+              <div className="section-label mb-2">{groupDateLabel(date)}</div>
+              <div className="card divide-y divide-hair overflow-hidden">
                 {items.map((p) => (
                   <PostRow key={p.id} post={p} onOpen={() => setOpenPost(p)} />
                 ))}
@@ -150,19 +181,27 @@ function ScheduledContent() {
 function PostRow({ post: p, onOpen }: { post: ScheduledPost; onOpen: () => void }) {
   const inner = (
     <>
-      <span className="w-12 text-2xs text-muted">{p.time}</span>
+      <span className="w-14 shrink-0 rounded-md bg-canvas px-1.5 py-0.5 text-center text-2xs font-medium text-muted">
+        {p.time}
+      </span>
       <PlatformTag platform={p.platform} />
-      <span className="flex-1 text-ink">{p.title}</span>
+      <span className="flex-1 truncate text-sm text-ink">{p.title}</span>
       {p.needsReview && (
-        <span className="text-2xs font-medium text-amber-600" title="Flagged for review">
-          ⚑ review
+        <span className="rounded-full bg-warning-100 px-2 py-0.5 text-2xs font-semibold text-warning-700">
+          Review
         </span>
       )}
       {isDraft(p) ? (
-        <span className="text-2xs font-medium text-amber-600">Draft</span>
+        <span className="rounded-full bg-warning-100 px-2 py-0.5 text-2xs font-semibold text-warning-700">
+          Draft
+        </span>
       ) : (
         <span
-          className={`text-2xs ${p.source === "automation" ? "text-ai-visual" : "text-muted"}`}
+          className={`rounded-full px-2 py-0.5 text-2xs font-medium ${
+            p.source === "automation"
+              ? "bg-ai-textbg text-ai-text"
+              : "bg-canvas text-muted"
+          }`}
         >
           {p.source === "automation" ? "Automation" : "Manual"}
         </span>
@@ -174,7 +213,7 @@ function PostRow({ post: p, onOpen }: { post: ScheduledPost; onOpen: () => void 
     return (
       <Link
         href={`/compose?draft=${p.id}`}
-        className="flex cursor-pointer items-center gap-3 px-3 py-2.5 text-sm transition-colors hover:bg-canvas"
+        className="flex cursor-pointer items-center gap-3 px-4 py-3 text-sm transition-colors hover:bg-canvas"
       >
         {inner}
       </Link>
@@ -183,7 +222,7 @@ function PostRow({ post: p, onOpen }: { post: ScheduledPost; onOpen: () => void 
   return (
     <button
       onClick={onOpen}
-      className="flex w-full cursor-pointer items-center gap-3 px-3 py-2.5 text-left text-sm transition-colors hover:bg-canvas"
+      className="flex w-full cursor-pointer items-center gap-3 px-4 py-3 text-left text-sm transition-colors hover:bg-canvas"
     >
       {inner}
     </button>
@@ -201,25 +240,36 @@ function CalendarView({ posts }: { posts: ScheduledPost[] }) {
   const cells = Array.from({ length: 35 }, (_, i) => i - firstDow + 1);
 
   return (
-    <div className="card p-3">
-      <div className="mb-2 grid grid-cols-7 gap-1 text-center text-2xs text-muted">
+    <div className="card overflow-hidden p-4">
+      <div className="mb-3 grid grid-cols-7 gap-1 text-center text-2xs font-semibold uppercase tracking-wide text-muted">
         {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
-          <div key={d}>{d}</div>
+          <div key={d} className="py-1">{d}</div>
         ))}
       </div>
       <div className="grid grid-cols-7 gap-1">
         {cells.map((day, i) => {
           const valid = day >= 1 && day <= 31;
           const items = valid ? byDate.get(day) ?? [] : [];
+          const hasItems = items.length > 0;
           return (
             <div
               key={i}
-              className={`min-h-[64px] rounded-md border-hair p-1 ${valid ? "border-hair bg-canvas" : "border-transparent"}`}
+              className={`min-h-[72px] rounded-lg p-1.5 ${
+                valid
+                  ? hasItems
+                    ? "border border-primary-200 bg-primary-50/40"
+                    : "border border-hair bg-canvas/60"
+                  : "border-transparent"
+              }`}
             >
-              {valid && <div className="text-2xs text-muted">{day}</div>}
-              <div className="mt-1 space-y-1">
+              {valid && (
+                <div className={`mb-1 text-2xs font-medium ${hasItems ? "text-page" : "text-muted"}`}>
+                  {day}
+                </div>
+              )}
+              <div className="space-y-1">
                 {items.map((p) => (
-                  <div key={p.id} className="flex items-center gap-1">
+                  <div key={p.id} className="flex items-center gap-1 overflow-hidden rounded bg-card px-1 py-0.5 shadow-xs">
                     <PlatformTag platform={p.platform} />
                     <span className="truncate text-2xs text-ink">{p.time}</span>
                   </div>

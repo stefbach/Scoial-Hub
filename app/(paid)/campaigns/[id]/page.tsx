@@ -87,9 +87,9 @@ export default function CampaignDetailPage() {
     return (
       <div>
         <Breadcrumb trail={[{ href: "/campaigns", label: "Campaigns" }, { label: "Not found" }]} />
-        <div className="card px-3 py-8 text-center text-sm text-muted">
-          Campaign not found.{" "}
-          <Link href="/campaigns" className="text-ai-text underline">
+        <div className="card flex flex-col items-center px-6 py-16 text-center">
+          <div className="text-sm text-muted">Campaign not found.</div>
+          <Link href="/campaigns" className="mt-3 text-sm font-medium text-ai-text hover:underline">
             Back to campaigns
           </Link>
         </div>
@@ -109,7 +109,7 @@ export default function CampaignDetailPage() {
     );
 
   return (
-    <div>
+    <div className="animate-fade-in">
       <Breadcrumb
         trail={[
           { href: "/campaigns", label: "Campaigns" },
@@ -118,22 +118,27 @@ export default function CampaignDetailPage() {
       />
 
       {/* Header */}
-      <div className="mb-3 flex items-start justify-between gap-4">
+      <div className="mb-5 flex items-start justify-between gap-4">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-lg font-semibold text-ink">{campaign.name}</h1>
-            <StatusBadge tone={campaign.enabled ? "green" : "gray"}>
+            <h1 className="text-xl font-semibold text-ink">{campaign.name}</h1>
+            <StatusBadge tone={campaign.enabled ? "green" : "gray"} dot>
               {statusLabel(campaign)}
             </StatusBadge>
-            <span className="rounded bg-ai-textbg px-1.5 py-0.5 text-2xs text-ai-text">
+            <span className="rounded-md bg-ai-textbg px-2 py-0.5 text-2xs font-medium text-ai-text">
               {campaign.platforms.join(" + ")}
               {campaign.platforms.length === 1 ? " only" : ""}
             </span>
             <StatusBadge tone="blue">{campaign.objective}</StatusBadge>
           </div>
-          <div className="mt-1 text-2xs text-muted">
-            Daily budget {eur(campaign.dailyBudget ?? 0)} · Total spent {eur(campaign.spend)} of {eur(campaign.budget)} · Started{" "}
-            {fmtDate(campaign.startDate)} · {fmtDate(campaign.endDate)}
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-2xs text-muted">
+            <span>Daily budget <span className="font-medium text-ink">{eur(campaign.dailyBudget ?? 0)}</span></span>
+            <span className="text-hair">·</span>
+            <span>Spent <span className="font-medium text-ink">{eur(campaign.spend)}</span> of {eur(campaign.budget)}</span>
+            <span className="text-hair">·</span>
+            <span>Started {fmtDate(campaign.startDate)}</span>
+            <span className="text-hair">·</span>
+            <span>{fmtDate(campaign.endDate)}</span>
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
@@ -160,7 +165,7 @@ export default function CampaignDetailPage() {
       </div>
 
       {/* Metric cards */}
-      <div className="mb-4 grid grid-cols-4 gap-3">
+      <div className="mb-5 grid grid-cols-4 gap-3">
         <MetricCard label="Spend" value={eur(campaign.spend)} trend={campaign.spendTrend} />
         <MetricCard label="Impressions" value={(campaign.impressions ?? 0).toLocaleString()} trend={campaign.impressionsTrend} />
         <MetricCard label="Clicks" value={(campaign.clicks ?? 0).toLocaleString()} trend={campaign.clicksTrend} />
@@ -172,8 +177,8 @@ export default function CampaignDetailPage() {
       </div>
 
       {/* Chart */}
-      <div className="card mb-5 p-4">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+      <div className="card mb-6 overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-hair bg-canvas/50 px-5 py-3.5">
           <div className="text-sm font-semibold text-ink">Performance — last 30 days</div>
           <div className="flex flex-wrap gap-1.5">
             {METRICS.map((m) => {
@@ -182,10 +187,10 @@ export default function CampaignDetailPage() {
                 <button
                   key={m.id}
                   onClick={() => toggleMetric(m.id)}
-                  className={`rounded-md px-2.5 py-1 text-2xs font-medium ${
+                  className={`rounded-md px-2.5 py-1 text-2xs font-medium transition-colors ${
                     on
                       ? "bg-ai-textbg text-ai-text ring-1 ring-ai-text/30"
-                      : "border-hair border-hair bg-card text-muted"
+                      : "border border-hair bg-card text-muted hover:bg-canvas"
                   }`}
                 >
                   {m.label}
@@ -194,7 +199,9 @@ export default function CampaignDetailPage() {
             })}
           </div>
         </div>
-        <MultiLineChart series={series} />
+        <div className="p-5">
+          <MultiLineChart series={series} />
+        </div>
       </div>
 
       {/* Ad sets */}
@@ -204,57 +211,61 @@ export default function CampaignDetailPage() {
           + New ad set
         </Button>
       </div>
-      <div className="card mb-6 divide-y divide-hair">
+      <div className="card mb-6 overflow-hidden">
         {campaign.adSets.length === 0 ? (
-          <div className="px-3 py-6 text-center text-sm text-muted">No ad sets yet.</div>
+          <div className="px-5 py-10 text-center text-sm text-muted">No ad sets yet.</div>
         ) : (
-          campaign.adSets.map((set) => (
-            <div
-              key={set.id}
-              className="flex items-center gap-3 px-3 py-2.5 text-sm"
-            >
-              <Link
-                href={`/ad-sets/${set.id}`}
-                className="flex-1 cursor-pointer hover:bg-canvas"
+          <div className="divide-y divide-hair">
+            {campaign.adSets.map((set) => (
+              <div
+                key={set.id}
+                className="group flex items-center gap-3 px-5 py-3 text-sm transition-colors hover:bg-canvas/70"
               >
-                <div className="font-medium text-ink hover:underline">{set.name}</div>
-                <div className="text-2xs text-muted">
-                  {set.placement} · {set.targeting}
+                <Link
+                  href={`/ad-sets/${set.id}`}
+                  className="flex-1 min-w-0"
+                >
+                  <div className="font-medium text-ink hover:underline">{set.name}</div>
+                  <div className="mt-0.5 text-2xs text-muted">
+                    {set.placement} · {set.targeting}
+                  </div>
+                </Link>
+                <div className="shrink-0 text-2xs tabular-nums text-muted">
+                  <span className="font-medium text-ink">{set.ads} ads</span> · {eur(set.dailyBudget)}/day
                 </div>
-              </Link>
-              <div className="text-2xs text-muted">
-                {set.ads} ads · {eur(set.dailyBudget)}/day
+                <span onClick={(e) => e.stopPropagation()}>
+                  <Toggle defaultOn={set.enabled ?? true} />
+                </span>
+                <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+                  <IconButton
+                    title="Edit"
+                    ariaLabel="Edit ad set"
+                    onClick={() => setAdSetModal({ open: true, adSet: set })}
+                  >
+                    <PencilIcon />
+                  </IconButton>
+                  <IconButton
+                    title="Duplicate"
+                    ariaLabel="Duplicate ad set"
+                    onClick={() => {
+                      duplicateAdSet(company.id, set.id);
+                      refresh();
+                    }}
+                  >
+                    <CopyIcon />
+                  </IconButton>
+                  <IconButton
+                    title="Delete"
+                    ariaLabel="Delete ad set"
+                    danger
+                    onClick={() => setConfirmAdSetDelete(set)}
+                  >
+                    <TrashIcon />
+                  </IconButton>
+                </div>
               </div>
-              <span onClick={(e) => e.stopPropagation()}>
-                <Toggle defaultOn={set.enabled ?? true} />
-              </span>
-              <IconButton
-                title="Edit"
-                ariaLabel="Edit ad set"
-                onClick={() => setAdSetModal({ open: true, adSet: set })}
-              >
-                <PencilIcon />
-              </IconButton>
-              <IconButton
-                title="Duplicate"
-                ariaLabel="Duplicate ad set"
-                onClick={() => {
-                  duplicateAdSet(company.id, set.id);
-                  refresh();
-                }}
-              >
-                <CopyIcon />
-              </IconButton>
-              <IconButton
-                title="Delete"
-                ariaLabel="Delete ad set"
-                danger
-                onClick={() => setConfirmAdSetDelete(set)}
-              >
-                <TrashIcon />
-              </IconButton>
-            </div>
-          ))
+            ))}
+          </div>
         )}
       </div>
 
@@ -266,7 +277,7 @@ export default function CampaignDetailPage() {
           trigger={(open, toggle) => (
             <button
               onClick={toggle}
-              className="rounded-md border-hair border-hair bg-card px-3 py-1.5 text-xs text-ink hover:bg-canvas"
+              className="rounded-md border border-hair bg-card px-3 py-1.5 text-xs text-ink hover:bg-canvas"
             >
               {adFilter === "all"
                 ? "All ad sets"
@@ -301,22 +312,22 @@ export default function CampaignDetailPage() {
           )}
         </Dropdown>
       </div>
-      <div className="card overflow-hidden">
+      <div className="card mb-6 overflow-hidden">
         <table className="w-full text-sm">
           <thead>
-            <tr className="section-label border-b-hair border-hair text-left">
-              <th className="px-3 py-2 font-semibold">AD</th>
-              <th className="px-3 py-2 font-semibold">AD SET</th>
-              <th className="px-3 py-2 font-semibold">SPEND</th>
-              <th className="px-3 py-2 font-semibold">CTR</th>
-              <th className="px-3 py-2 font-semibold">CONV.</th>
-              <th className="px-3 py-2 font-semibold">STATUS</th>
+            <tr className="border-b border-hair bg-canvas/50 text-left">
+              <th className="px-5 py-3 text-2xs font-semibold uppercase tracking-wide text-muted">Ad</th>
+              <th className="px-5 py-3 text-2xs font-semibold uppercase tracking-wide text-muted">Ad set</th>
+              <th className="px-5 py-3 text-2xs font-semibold uppercase tracking-wide text-muted">Spend</th>
+              <th className="px-5 py-3 text-2xs font-semibold uppercase tracking-wide text-muted">CTR</th>
+              <th className="px-5 py-3 text-2xs font-semibold uppercase tracking-wide text-muted">Conv.</th>
+              <th className="px-5 py-3 text-2xs font-semibold uppercase tracking-wide text-muted">Status</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-hair">
             {filteredAds.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-3 py-6 text-center text-sm text-muted">
+                <td colSpan={6} className="px-5 py-10 text-center text-sm text-muted">
                   No ads match this filter.
                 </td>
               </tr>
@@ -325,20 +336,20 @@ export default function CampaignDetailPage() {
                 <tr
                   key={ad.id}
                   onClick={() => setOpenAd(ad)}
-                  className="cursor-pointer transition-colors hover:bg-canvas"
+                  className="cursor-pointer transition-colors hover:bg-canvas/70"
                 >
-                  <td className="px-3 py-2.5">
-                    <div className="flex items-center gap-2">
-                      <div className={`h-8 w-8 shrink-0 rounded ${ad.thumb}`} />
-                      <span className="text-ink">{ad.name}</span>
+                  <td className="px-5 py-3">
+                    <div className="flex items-center gap-3">
+                      <div className={`h-9 w-9 shrink-0 rounded-lg ${ad.thumb}`} />
+                      <span className="font-medium text-ink">{ad.name}</span>
                     </div>
                   </td>
-                  <td className="px-3 py-2.5 text-2xs text-muted">{ad.adSetName}</td>
-                  <td className="px-3 py-2.5 text-ink">{eur(ad.spend)}</td>
-                  <td className="px-3 py-2.5 text-green-600">{ad.ctr}</td>
-                  <td className="px-3 py-2.5 text-ink">{ad.conversions}</td>
-                  <td className="px-3 py-2.5">
-                    <StatusBadge tone={ad.status === "active" ? "green" : "gray"}>
+                  <td className="px-5 py-3 text-2xs text-muted">{ad.adSetName}</td>
+                  <td className="px-5 py-3 tabular-nums text-ink">{eur(ad.spend)}</td>
+                  <td className="px-5 py-3 tabular-nums font-medium text-success-600">{ad.ctr}</td>
+                  <td className="px-5 py-3 tabular-nums text-ink">{ad.conversions}</td>
+                  <td className="px-5 py-3">
+                    <StatusBadge tone={ad.status === "active" ? "green" : "gray"} dot>
                       {ad.status === "active" ? "Active" : "Paused"}
                     </StatusBadge>
                   </td>
@@ -384,13 +395,17 @@ export default function CampaignDetailPage() {
       />
 
       {confirmAdSetDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-6 backdrop-blur-sm">
           <div className="absolute inset-0" onClick={() => setConfirmAdSetDelete(null)} />
-          <div className="relative z-50 w-full max-w-sm rounded-lg border-hair border-hair bg-card p-4 shadow-xl">
-            <p className="text-sm text-ink">
-              Delete &ldquo;{confirmAdSetDelete.name}&rdquo;? This cannot be undone.
+          <div className="relative z-50 w-full max-w-sm animate-slide-up rounded-xl border border-hair bg-card p-6 shadow-xl">
+            <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-danger-50 text-danger-600">
+              <TrashIcon />
+            </div>
+            <h3 className="text-base font-semibold text-ink">Delete ad set</h3>
+            <p className="mt-1.5 text-sm text-muted">
+              Delete &ldquo;{confirmAdSetDelete.name}&rdquo;? This action cannot be undone.
             </p>
-            <div className="mt-4 flex justify-end gap-2">
+            <div className="mt-5 flex justify-end gap-2">
               <Button variant="secondary" onClick={() => setConfirmAdSetDelete(null)}>Cancel</Button>
               <Button
                 variant="danger"
@@ -408,13 +423,17 @@ export default function CampaignDetailPage() {
       )}
 
       {confirmDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-6 backdrop-blur-sm">
           <div className="absolute inset-0" onClick={() => setConfirmDelete(false)} />
-          <div className="relative z-50 w-full max-w-sm rounded-lg border-hair border-hair bg-card p-4 shadow-xl">
-            <p className="text-sm text-ink">
-              Delete &ldquo;{campaign.name}&rdquo;? This cannot be undone.
+          <div className="relative z-50 w-full max-w-sm animate-slide-up rounded-xl border border-hair bg-card p-6 shadow-xl">
+            <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-danger-50 text-danger-600">
+              <TrashIcon />
+            </div>
+            <h3 className="text-base font-semibold text-ink">Delete campaign</h3>
+            <p className="mt-1.5 text-sm text-muted">
+              Delete &ldquo;{campaign.name}&rdquo;? This action cannot be undone.
             </p>
-            <div className="mt-4 flex justify-end gap-2">
+            <div className="mt-5 flex justify-end gap-2">
               <Button variant="secondary" onClick={() => setConfirmDelete(false)}>Cancel</Button>
               <Button
                 variant="danger"
@@ -452,8 +471,10 @@ function IconButton({
       title={title}
       aria-label={ariaLabel}
       onClick={onClick}
-      className={`flex h-7 w-7 items-center justify-center rounded-md hover:bg-canvas ${
-        danger ? "text-red-600 hover:bg-red-50" : "text-muted hover:text-ink"
+      className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors ${
+        danger
+          ? "text-danger-500 hover:bg-danger-50 hover:text-danger-700"
+          : "text-muted hover:bg-hair hover:text-ink"
       }`}
     >
       {children}

@@ -51,7 +51,7 @@ export default function AutomationsPage() {
   };
 
   return (
-    <div>
+    <div className="animate-fade-in">
       <PageHeader
         title="Automations"
         actions={
@@ -61,22 +61,24 @@ export default function AutomationsPage() {
         }
       />
 
-      <div className="mb-4 grid grid-cols-3 gap-3">
+      {/* Metric strips */}
+      <div className="mb-5 grid grid-cols-3 gap-4">
         <div className="metric-strip">
-          <div className="text-2xs text-muted">Active</div>
-          <div className="mt-1 text-xl font-semibold text-ink">{activeCount}</div>
+          <div className="section-label mb-1">Active</div>
+          <div className="mt-1.5 text-2xl font-bold text-ink">{activeCount}</div>
         </div>
         <div className="metric-strip">
-          <div className="text-2xs text-muted">Paused</div>
-          <div className="mt-1 text-xl font-semibold text-ink">{pausedCount}</div>
+          <div className="section-label mb-1">Paused</div>
+          <div className="mt-1.5 text-2xl font-bold text-ink">{pausedCount}</div>
         </div>
         <div className="metric-strip">
-          <div className="text-2xs text-muted">Posts this week</div>
-          <div className="mt-1 text-xl font-semibold text-ink">{a.postsThisWeek}</div>
+          <div className="section-label mb-1">Posts this week</div>
+          <div className="mt-1.5 text-2xl font-bold text-ink">{a.postsThisWeek}</div>
         </div>
       </div>
 
-      <div className="card divide-y divide-hair">
+      {/* Rules list */}
+      <div className="card divide-y divide-hair overflow-hidden">
         {a.rules.map((rule) => (
           <AutomationRow
             key={rule.id}
@@ -92,8 +94,19 @@ export default function AutomationsPage() {
           />
         ))}
         {a.rules.length === 0 && (
-          <div className="px-3 py-8 text-center text-sm text-muted">
-            No automations yet. Create one to start posting on a schedule.
+          <div className="flex flex-col items-center gap-3 px-4 py-14 text-center">
+            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-canvas text-2xl shadow-xs">
+              ⚡
+            </span>
+            <div>
+              <p className="text-sm font-medium text-ink">No automations yet</p>
+              <p className="mt-0.5 text-2xs text-muted">
+                Create an automation to post on a recurring schedule without manual effort.
+              </p>
+            </div>
+            <Button variant="secondary" onClick={() => setModal({ open: true })}>
+              Create automation
+            </Button>
           </div>
         )}
       </div>
@@ -153,7 +166,7 @@ function AutomationRow({
   return (
     <div
       onClick={onOpenEdit}
-      className="cursor-pointer p-3 transition-colors hover:bg-canvas"
+      className="cursor-pointer px-4 py-4 transition-colors hover:bg-canvas"
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
@@ -161,16 +174,22 @@ function AutomationRow({
             <span className="text-sm font-semibold text-ink">{rule.name}</span>
             <StatusBadge tone={st.tone}>{st.label}</StatusBadge>
           </div>
-          <div className="mt-0.5 text-2xs text-muted">
+          <div className="mt-1 text-2xs text-muted">
             {rule.account} · {rule.schedule}
             {rule.libraryNote ? ` · ${rule.libraryNote}` : ""}
             {rule.pausedSince ? ` · ${rule.pausedSince}` : ""}
           </div>
           {(rule.next || rule.last || rule.publishedCount != null) && (
-            <div className="mt-0.5 text-2xs text-muted">
-              {rule.next && `Next: ${rule.next}`}
-              {rule.last && `   Last: ${rule.last}`}
-              {rule.publishedCount != null && `   ${rule.publishedCount} published`}
+            <div className="mt-0.5 flex flex-wrap gap-3 text-2xs text-muted">
+              {rule.next && (
+                <span>Next: <span className="font-medium text-ink">{rule.next}</span></span>
+              )}
+              {rule.last && (
+                <span>Last: <span className="font-medium text-ink">{rule.last}</span></span>
+              )}
+              {rule.publishedCount != null && (
+                <span><span className="font-medium text-ink">{rule.publishedCount}</span> published</span>
+              )}
             </div>
           )}
         </div>
@@ -187,17 +206,17 @@ function AutomationRow({
           <IconButton title="Delete" onClick={onDelete} ariaLabel="Delete automation" danger>
             <TrashIcon />
           </IconButton>
-          <span className="ml-1">
+          <span className="ml-2">
             <Toggle key={String(rule.enabled)} defaultOn={rule.enabled} onChange={onToggle} />
           </span>
         </div>
       </div>
       {rule.warning && (
         <div
-          className="mt-2 flex items-center justify-between rounded-md bg-amber-50 px-3 py-2"
+          className="mt-3 flex items-center justify-between rounded-lg bg-warning-50 border border-warning-100 px-3 py-2.5"
           onClick={(e) => e.stopPropagation()}
         >
-          <span className="text-2xs text-amber-700">{rule.warning}</span>
+          <span className="text-2xs text-warning-700">{rule.warning}</span>
           <Button variant="secondary" className="py-1 text-2xs" onClick={onAddTemplates}>
             Add templates
           </Button>
@@ -226,8 +245,8 @@ function IconButton({
       title={title}
       aria-label={ariaLabel}
       onClick={onClick}
-      className={`flex h-7 w-7 items-center justify-center rounded-md hover:bg-canvas ${
-        danger ? "text-red-600 hover:bg-red-50" : "text-muted hover:text-ink"
+      className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors hover:bg-canvas ${
+        danger ? "text-danger-600 hover:bg-danger-50 hover:text-danger-700" : "text-muted hover:text-ink"
       }`}
     >
       {children}
@@ -249,11 +268,11 @@ function ConfirmOverlay({
   onConfirm: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/30 p-6">
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/30 p-6 backdrop-blur-sm">
       <div className="absolute inset-0" onClick={onCancel} />
-      <div className="relative z-50 w-full max-w-sm rounded-lg border-hair border-hair bg-card p-4 shadow-xl">
-        <p className="text-sm text-ink">{message}</p>
-        <div className="mt-4 flex justify-end gap-2">
+      <div className="relative z-50 w-full max-w-sm animate-slide-up rounded-xl border border-hair bg-card p-5 shadow-xl">
+        <p className="text-sm leading-relaxed text-ink">{message}</p>
+        <div className="mt-5 flex justify-end gap-2">
           <Button variant="secondary" onClick={onCancel}>Cancel</Button>
           <Button variant={danger ? "danger" : "primary"} onClick={onConfirm}>
             {confirmLabel}

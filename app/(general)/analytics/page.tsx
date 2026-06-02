@@ -279,16 +279,17 @@ function AnalyticsContent() {
   const scopeLabel = scope === "all" ? "All companies" : COMPANIES.find((c) => c.id === scope)?.name ?? "All companies";
 
   return (
-    <div>
+    <div className="animate-fade-in">
       {/* Header */}
-      <div className="mb-5 flex items-center justify-between">
+      <div className="mb-6 flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <h1 className="text-lg font-semibold text-ink">Analytics</h1>
-          <span className="text-hair">|</span>
+          <h1 className="text-lg font-bold tracking-tight text-ink">Analytics</h1>
+          <span aria-hidden="true" className="h-4 w-px shrink-0 rounded-full bg-hair" />
+          {/* Scope selector */}
           <div className="relative">
             <button
               onClick={() => setScopeOpen((o) => !o)}
-              className="flex items-center gap-2 rounded-md border-hair border-hair bg-card px-3 py-1.5 text-sm"
+              className="flex items-center gap-2 rounded-lg border border-hair bg-card px-3 py-1.5 text-sm shadow-xs transition-colors hover:bg-canvas"
             >
               <span className="text-muted">Scope:</span>
               <span className="font-semibold text-ink">{scopeLabel}</span>
@@ -299,18 +300,23 @@ function AnalyticsContent() {
             {scopeOpen && (
               <>
                 <div className="fixed inset-0 z-10" onClick={() => setScopeOpen(false)} />
-                <div className="absolute left-0 z-20 mt-1 w-56 rounded-md border-hair border-hair bg-card shadow-lg">
+                <div className="absolute left-0 z-20 mt-1.5 w-56 rounded-xl border border-hair bg-card shadow-md">
                   <button
                     onClick={() => { setScope("all"); setScopeOpen(false); }}
-                    className="block w-full px-3 py-2 text-left text-sm hover:bg-canvas"
+                    className={`block w-full px-3 py-2 text-left text-sm transition-colors hover:bg-canvas ${
+                      scope === "all" ? "font-semibold text-ink" : "text-ink/80"
+                    }`}
                   >
                     All companies
                   </button>
+                  <div className="mx-2 my-1 border-t border-hair" />
                   {COMPANIES.map((c) => (
                     <button
                       key={c.id}
                       onClick={() => { setScope(c.id); setScopeOpen(false); }}
-                      className="block w-full px-3 py-2 text-left text-sm hover:bg-canvas"
+                      className={`block w-full px-3 py-2 text-left text-sm transition-colors hover:bg-canvas ${
+                        scope === c.id ? "font-semibold text-ink" : "text-ink/80"
+                      }`}
                     >
                       {c.name}
                     </button>
@@ -326,7 +332,7 @@ function AnalyticsContent() {
             trigger={(open, toggle) => (
               <button
                 onClick={toggle}
-                className="rounded-md border-hair border-hair bg-card px-3 py-1.5 text-sm text-ink hover:bg-canvas"
+                className="rounded-lg border border-hair bg-card px-3 py-1.5 text-sm font-medium text-ink shadow-xs hover:bg-canvas transition-colors"
               >
                 {RANGE_LABEL[range]}
               </button>
@@ -349,7 +355,7 @@ function AnalyticsContent() {
             trigger={(open, toggle) => (
               <button
                 onClick={toggle}
-                className="rounded-md border-hair border-hair bg-card px-3 py-1.5 text-sm text-ink hover:bg-canvas"
+                className="rounded-lg border border-hair bg-card px-3 py-1.5 text-sm font-medium text-ink shadow-xs hover:bg-canvas transition-colors"
               >
                 Export
               </button>
@@ -366,7 +372,7 @@ function AnalyticsContent() {
       </div>
 
       {range === "custom" && (
-        <div className="mb-3 flex items-center gap-2">
+        <div className="mb-4 flex items-center gap-2">
           <span className="text-2xs text-muted">From</span>
           <div className="w-40">
             <DatePicker value={customFrom ?? NOW} onChange={setCustomFrom} />
@@ -378,9 +384,9 @@ function AnalyticsContent() {
         </div>
       )}
 
-      {/* Overview cards — informational only */}
-      <div className="section-label mb-2">Overview</div>
-      <div className="mb-5 grid grid-cols-4 gap-3">
+      {/* Overview metrics */}
+      <div className="section-label mb-3">Overview</div>
+      <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
         <MetricCard label="Posts published" value={totals.postsPublished} trend={trend(totals.postsPublished, prevTotals.postsPublished)} />
         <MetricCard label="Engagement" value={totals.engagement.toLocaleString()} trend={trend(totals.engagement, prevTotals.engagement)} />
         <MetricCard label="Ad spend" value={eur(totals.adSpend)} trend={trend(totals.adSpend, prevTotals.adSpend)} />
@@ -388,8 +394,8 @@ function AnalyticsContent() {
       </div>
 
       {/* Trend chart */}
-      <div className="card mb-5 p-4">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+      <div className="card mb-6 p-4">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <div className="text-sm font-semibold text-ink">{METRICS[trendMetric].label} over time</div>
           <div className="flex flex-wrap gap-1.5">
             {(Object.keys(METRICS) as MetricId[]).map((m) => {
@@ -398,10 +404,10 @@ function AnalyticsContent() {
                 <button
                   key={m}
                   onClick={() => setTrendMetric(m)}
-                  className={`rounded-md px-2.5 py-1 text-2xs font-medium ${
+                  className={`rounded-lg px-2.5 py-1 text-2xs font-medium transition-all ${
                     on
-                      ? "bg-ai-textbg text-ai-text ring-1 ring-ai-text/30"
-                      : "border-hair border-hair bg-card text-muted"
+                      ? "bg-ai-textbg text-ai-text ring-1 ring-ai-text/30 shadow-xs"
+                      : "border border-hair bg-card text-muted hover:bg-canvas hover:text-ink"
                   }`}
                 >
                   {METRICS[m].label}
@@ -414,9 +420,9 @@ function AnalyticsContent() {
       </div>
 
       {/* Bar charts */}
-      <div className="mb-5 grid grid-cols-2 gap-4">
+      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="card p-4">
-          <div className="mb-3 text-sm font-semibold text-ink">Engagement by company</div>
+          <div className="mb-4 text-sm font-semibold text-ink">Engagement by company</div>
           {byCompany.map((c) => (
             <BarRow
               key={c.id}
@@ -436,7 +442,7 @@ function AnalyticsContent() {
           ))}
         </div>
         <div className="card p-4">
-          <div className="mb-3 text-sm font-semibold text-ink">Performance by platform</div>
+          <div className="mb-4 text-sm font-semibold text-ink">Performance by platform</div>
           {byPlatform.map((p) => (
             <BarRow
               key={p.name}
@@ -457,8 +463,8 @@ function AnalyticsContent() {
         </div>
       </div>
 
-      {/* AI summary — read-only */}
-      <div className="rounded-lg border-hair border-ai-text/20 bg-ai-textbg px-4 py-3 text-xs text-ai-text">
+      {/* AI summary */}
+      <div className="rounded-xl border border-ai-text/20 bg-ai-textbg px-4 py-3.5 text-xs text-ai-text shadow-xs">
         <span className="font-semibold">AI summary:</span> {ANALYTICS_SUMMARY}
       </div>
     </div>

@@ -67,15 +67,22 @@ export default function AccountsPage() {
   }, [state, expiry]);
 
   return (
-    <div>
+    <div className="animate-fade-in">
       <PageHeader title="Connected accounts" />
 
-      <div className="mb-4 rounded-md border-hair border-ai-text/20 bg-ai-textbg px-3 py-2.5 text-xs text-ai-text">
-        Connect each platform once per company. Meta&apos;s connection covers Facebook and Instagram
-        (organic + ads) together. LinkedIn is separate.
+      {/* Info banner */}
+      <div className="mb-5 flex items-start gap-2.5 rounded-xl border border-ai-text/20 bg-ai-textbg px-4 py-3 text-xs text-ai-text shadow-xs">
+        <InfoIcon className="mt-0.5 shrink-0" />
+        <span>
+          Connect each platform once per company. Meta&apos;s connection covers Facebook and Instagram
+          (organic + ads) together. LinkedIn is separate.
+        </span>
       </div>
 
-      <div className="mb-2 text-sm font-medium text-ink">Meta (Facebook + Instagram)</div>
+      {/* Meta section */}
+      <div className="mb-2 flex items-center gap-2">
+        <div className="section-label">Meta (Facebook + Instagram)</div>
+      </div>
       {meta?.connected ? (
         <ConnectedMetaCard
           companyCode={company.code}
@@ -89,18 +96,21 @@ export default function AccountsPage() {
         <DisconnectedMetaCard companyCode={company.code} companyName={company.name} />
       )}
 
-      <div className="mb-2 mt-5 text-sm font-medium text-ink">LinkedIn</div>
+      {/* LinkedIn section */}
+      <div className="mb-2 mt-6 flex items-center gap-2">
+        <div className="section-label">LinkedIn</div>
+      </div>
       <div className="card p-4">
-        <div className="flex items-start justify-between">
-          <div>
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <span className="text-sm font-semibold text-ink">LinkedIn Company Page</span>
               <StatusBadge tone="gray">Not connected</StatusBadge>
             </div>
-            <div className="mt-0.5 text-2xs text-muted">
+            <p className="mt-1 text-2xs text-muted">
               Connect {company.code}&apos;s LinkedIn Company Page to publish organic posts. Requires LinkedIn
-              Marketing Developer Platform access (approval takes 5-10 business days).
-            </div>
+              Marketing Developer Platform access (approval takes 5–10 business days).
+            </p>
           </div>
           <Button variant="primary" onClick={() => setLinkedinOpen(true)}>Connect</Button>
         </div>
@@ -166,43 +176,45 @@ function ConnectedMetaCard({
   onManage: () => void;
 }) {
   return (
-    <div className="card mb-5 p-4">
-      <div className="flex items-start justify-between">
-        <div>
+    <div className="card mb-5 overflow-hidden p-4">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <span className="text-sm font-semibold text-ink">Meta Business Manager</span>
             <StatusBadge tone="green">Connected</StatusBadge>
           </div>
-          <div className="mt-0.5 text-2xs text-muted">
-            Connected via Meta Official MCP · {meta.connectedAt ? fmtDate(new Date(`${meta.connectedAt}T00:00:00`)) : "—"}
-          </div>
-          <div className="text-2xs text-muted">
-            Business Manager: {meta.businessManagerName ?? `${companyCode} Holdings`}
+          <div className="mt-1 space-y-0.5 text-2xs text-muted">
+            <div>Connected via Meta Official MCP · {meta.connectedAt ? fmtDate(new Date(`${meta.connectedAt}T00:00:00`)) : "—"}</div>
+            <div>Business Manager: {meta.businessManagerName ?? `${companyCode} Holdings`}</div>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex shrink-0 gap-2">
           <Button variant="secondary" disabled title={onReconnectDisabledTooltip}>Reconnect</Button>
           <Button variant="danger" onClick={onDisconnect}>Disconnect</Button>
         </div>
       </div>
 
-      <div className="mt-3 border-t-hair border-hair pt-3">
-        <div className="section-label mb-2">Pages &amp; accounts available</div>
+      <div className="mt-4 border-t border-hair pt-4">
+        <div className="section-label mb-2.5">Pages &amp; accounts available</div>
         <div className="grid grid-cols-2 gap-2">
-          <div className="rounded-md border-hair border-hair bg-canvas px-3 py-2">
-            <div className="text-xs font-medium text-ink">{meta.facebookPageName ?? `${companyCode} Facebook Page`}</div>
-            <div className="text-2xs text-muted">Organic + Ads</div>
+          <div className="rounded-lg border border-hair bg-canvas px-3 py-2.5">
+            <div className="text-xs font-semibold text-ink">
+              {meta.facebookPageName ?? `${companyCode} Facebook Page`}
+            </div>
+            <div className="mt-0.5 text-2xs text-muted">Organic + Ads</div>
           </div>
-          <div className="rounded-md border-hair border-hair bg-canvas px-3 py-2">
-            <div className="text-xs font-medium text-ink">{meta.instagramHandle ?? `@${companyCode.toLowerCase()}_mauritius`}</div>
-            <div className="text-2xs text-muted">Business · Organic + Ads</div>
+          <div className="rounded-lg border border-hair bg-canvas px-3 py-2.5">
+            <div className="text-xs font-semibold text-ink">
+              {meta.instagramHandle ?? `@${companyCode.toLowerCase()}_mauritius`}
+            </div>
+            <div className="mt-0.5 text-2xs text-muted">Business · Organic + Ads</div>
           </div>
         </div>
       </div>
 
       {notice && (
-        <div className="mt-3 flex items-center justify-between rounded-md bg-amber-50 px-3 py-2">
-          <span className="text-2xs text-amber-700">{notice}</span>
+        <div className="mt-4 flex items-center justify-between rounded-lg border border-warning-200 bg-warning-50 px-3 py-2.5">
+          <span className="text-2xs text-warning-700">{notice}</span>
           <Button variant="secondary" className="py-1 text-2xs" onClick={onManage}>Manage</Button>
         </div>
       )}
@@ -212,16 +224,19 @@ function ConnectedMetaCard({
 
 function DisconnectedMetaCard({ companyCode, companyName }: { companyCode: string; companyName: string }) {
   return (
-    <div className="mb-5 rounded-lg border border-dashed border-hair bg-canvas/60 p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div>
+    <div className="mb-5 rounded-xl border border-dashed border-hair bg-canvas/60 p-4">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <span className="text-sm font-semibold text-ink">Meta Business Manager</span>
             <StatusBadge tone="gray">Not connected</StatusBadge>
           </div>
-          <div className="mt-0.5 text-2xs text-muted">
+          <p className="mt-1 text-2xs text-muted">
             Connect {companyName}&apos;s Facebook Page and Instagram account to publish organic posts and run ads.
-          </div>
+          </p>
+          <p className="mt-1 text-2xs text-muted">
+            {companyCode} has no Meta connection yet.
+          </p>
         </div>
         <Button
           variant="primary"
@@ -230,9 +245,6 @@ function DisconnectedMetaCard({ companyCode, companyName }: { companyCode: strin
         >
           Connect
         </Button>
-      </div>
-      <div className="mt-2 text-2xs text-muted">
-        {companyCode} has no Meta connection yet.
       </div>
     </div>
   );
@@ -249,14 +261,14 @@ function DisconnectModal({
 }) {
   return (
     <Modal open onClose={onCancel} width="max-w-md">
-      <div className="border-b-hair border-hair px-4 py-3 text-sm font-semibold text-ink">
+      <div className="border-b border-hair px-4 py-3 text-sm font-semibold text-ink">
         Disconnect Meta from {companyName}?
       </div>
-      <div className="p-4 text-sm text-ink">
+      <div className="p-4 text-sm leading-relaxed text-ink">
         All scheduled posts and active campaigns for {companyName} will stop. You can reconnect
         later but data Meta may have deleted in the meantime won&apos;t be recoverable.
       </div>
-      <div className="flex items-center justify-between border-t-hair border-hair px-4 py-3">
+      <div className="flex items-center justify-between border-t border-hair px-4 py-3">
         <Button variant="danger" onClick={onConfirm}>Disconnect anyway</Button>
         <Button variant="primary" onClick={onCancel}>Cancel</Button>
       </div>
@@ -292,28 +304,28 @@ function ManageAdsAccessModal({
 
   return (
     <Modal open onClose={onClose} width="max-w-md">
-      <div className="border-b-hair border-hair px-4 py-3 text-sm font-semibold text-ink">
+      <div className="border-b border-hair px-4 py-3 text-sm font-semibold text-ink">
         Manage ads access for {companyName}
       </div>
 
-      <div className="space-y-4 p-4">
+      <div className="space-y-5 p-4">
         <div>
-          <div className="section-label mb-1">Current state</div>
-          <div className="text-sm text-ink">Currently: Read-only mode</div>
-          <div className="text-2xs text-muted">
+          <div className="section-label mb-2">Current state</div>
+          <div className="text-sm font-medium text-ink">Currently: Read-only mode</div>
+          <div className="mt-0.5 text-2xs text-muted">
             Social Hub can view ad data but cannot create, edit, or pause ads.
           </div>
           <div className="mt-1 text-2xs text-muted">{expiryLine}</div>
         </div>
 
         <div>
-          <div className="section-label mb-1">Settings</div>
-          <label className="flex items-start justify-between gap-3 rounded-md border-hair border-hair p-3">
+          <div className="section-label mb-2">Settings</div>
+          <label className="flex cursor-pointer items-start justify-between gap-3 rounded-lg border border-hair bg-canvas/50 p-3 transition-colors hover:bg-canvas">
             <div className="min-w-0 flex-1">
               <div className="text-sm font-medium text-ink">
                 Keep read-only mode after the safety period ends
               </div>
-              <div className="text-2xs text-muted">
+              <div className="mt-0.5 text-2xs text-muted">
                 Recommended if you want to use Social Hub for organic posting and analytics only,
                 without giving it permission to spend on ads.
               </div>
@@ -322,9 +334,9 @@ function ManageAdsAccessModal({
           </label>
         </div>
 
-        <div className="rounded-md border-hair border-amber-200 bg-amber-50 p-3 text-2xs text-amber-700">
+        <div className="rounded-lg border border-warning-200 bg-warning-50 p-3 text-2xs text-warning-700">
           <div className="flex items-start gap-2">
-            <InfoIcon />
+            <InfoIcon className="mt-0.5 shrink-0 text-warning-700" />
             <span>
               Once the safety period ends and read-only mode is off, Social Hub can create campaigns,
               modify budgets, and pause ads on your behalf. All actions remain subject to the spend
@@ -334,7 +346,7 @@ function ManageAdsAccessModal({
         </div>
       </div>
 
-      <div className="flex justify-end gap-2 border-t-hair border-hair px-4 py-3">
+      <div className="flex justify-end gap-2 border-t border-hair px-4 py-3">
         <Button variant="secondary" onClick={onClose}>Cancel</Button>
         <Button variant="primary" onClick={() => onSave(keep)}>Save</Button>
       </div>
@@ -355,10 +367,10 @@ function LinkedInModal({
 }) {
   return (
     <Modal open onClose={onClose} width="max-w-md">
-      <div className="border-b-hair border-hair px-4 py-3 text-sm font-semibold text-ink">
+      <div className="border-b border-hair px-4 py-3 text-sm font-semibold text-ink">
         Connect LinkedIn — coming soon
       </div>
-      <div className="space-y-3 p-4 text-sm text-ink">
+      <div className="space-y-3 p-4 text-sm leading-relaxed text-ink">
         <p>
           LinkedIn integration requires approval from LinkedIn&apos;s Marketing Developer Platform.
           We&apos;ve applied for access — approval typically takes 5–10 business days after the
@@ -372,7 +384,7 @@ function LinkedInModal({
           We&apos;ll notify {email} when integration is ready.
         </p>
       </div>
-      <div className="flex items-center justify-between gap-2 border-t-hair border-hair px-4 py-3">
+      <div className="flex items-center justify-between gap-2 border-t border-hair px-4 py-3">
         <a
           href="https://developer.linkedin.com/product-catalog/marketing"
           target="_blank"
@@ -392,9 +404,9 @@ function LinkedInModal({
   );
 }
 
-function InfoIcon() {
+function InfoIcon({ className }: { className?: string }) {
   return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="mt-0.5 shrink-0 text-amber-700">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className={className}>
       <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.5" />
       <path d="M12 8h.01M11 12h1v5h1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
     </svg>

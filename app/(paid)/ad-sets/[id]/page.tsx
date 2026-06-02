@@ -86,9 +86,9 @@ export default function AdSetDetailPage() {
     return (
       <div>
         <Breadcrumb trail={[{ href: "/campaigns", label: "Campaigns" }, { label: "Not found" }]} />
-        <div className="card px-3 py-8 text-center text-sm text-muted">
-          Ad set not found.{" "}
-          <Link href="/campaigns" className="text-ai-text underline">
+        <div className="card flex flex-col items-center px-6 py-16 text-center">
+          <div className="text-sm text-muted">Ad set not found.</div>
+          <Link href="/campaigns" className="mt-3 text-sm font-medium text-ai-text hover:underline">
             Back to campaigns
           </Link>
         </div>
@@ -105,7 +105,7 @@ export default function AdSetDetailPage() {
     setActiveMetrics((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
 
   return (
-    <div>
+    <div className="animate-fade-in">
       <Breadcrumb
         trail={[
           { href: "/campaigns", label: "Campaigns" },
@@ -115,24 +115,33 @@ export default function AdSetDetailPage() {
       />
 
       {/* Header */}
-      <div className="mb-3 flex items-start justify-between gap-4">
+      <div className="mb-5 flex items-start justify-between gap-4">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-lg font-semibold text-ink">{adSet.name}</h1>
-            <StatusBadge tone={enabled ? "green" : "gray"}>
+            <h1 className="text-xl font-semibold text-ink">{adSet.name}</h1>
+            <StatusBadge tone={enabled ? "green" : "gray"} dot>
               {enabled ? "Active" : "Paused"}
             </StatusBadge>
             <StatusBadge tone="blue">{adSet.placement}</StatusBadge>
           </div>
-          <div className="mt-1 text-2xs text-muted">
-            Audience: <span className="text-ink">{adSet.audienceName ?? "—"}</span>
-            {adSet.audienceReach ? ` (${adSet.audienceReach} reach)` : ""}
-            {" · "}
-            {adSet.budgetType === "lifetime"
-              ? `Lifetime budget ${eur(adSet.lifetimeBudget ?? 0)}`
-              : `Daily budget ${eur(adSet.dailyBudget)}`}
-            {" · "}Optimization: {goal}
-            {" · "}Started {fmtDate(adSet.startDate)} · {fmtDate(adSet.endDate ?? null)}
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-2xs text-muted">
+            <span>
+              Audience: <span className="font-medium text-ink">{adSet.audienceName ?? "—"}</span>
+              {adSet.audienceReach ? ` (${adSet.audienceReach} reach)` : ""}
+            </span>
+            <span className="text-hair">·</span>
+            <span>
+              {adSet.budgetType === "lifetime"
+                ? <>Lifetime budget <span className="font-medium text-ink">{eur(adSet.lifetimeBudget ?? 0)}</span></>
+                : <>Daily budget <span className="font-medium text-ink">{eur(adSet.dailyBudget)}</span></>
+              }
+            </span>
+            <span className="text-hair">·</span>
+            <span>Optimization: <span className="font-medium text-ink">{goal}</span></span>
+            <span className="text-hair">·</span>
+            <span>Started {fmtDate(adSet.startDate)}</span>
+            <span className="text-hair">·</span>
+            <span>{fmtDate(adSet.endDate ?? null)}</span>
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
@@ -159,7 +168,7 @@ export default function AdSetDetailPage() {
       </div>
 
       {/* Metric cards */}
-      <div className="mb-4 grid grid-cols-4 gap-3">
+      <div className="mb-5 grid grid-cols-4 gap-3">
         <MetricCard label="Spend" value={eur(adSet.spend ?? 0)} />
         <MetricCard label="Impressions" value={(adSet.impressions ?? 0).toLocaleString()} />
         <MetricCard label="Clicks" value={(adSet.clicks ?? 0).toLocaleString()} />
@@ -167,8 +176,8 @@ export default function AdSetDetailPage() {
       </div>
 
       {/* Chart */}
-      <div className="card mb-5 p-4">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+      <div className="card mb-6 overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-hair bg-canvas/50 px-5 py-3.5">
           <div className="text-sm font-semibold text-ink">Performance — last 30 days</div>
           <div className="flex flex-wrap gap-1.5">
             {METRICS.map((m) => {
@@ -177,10 +186,10 @@ export default function AdSetDetailPage() {
                 <button
                   key={m.id}
                   onClick={() => toggleMetric(m.id)}
-                  className={`rounded-md px-2.5 py-1 text-2xs font-medium ${
+                  className={`rounded-md px-2.5 py-1 text-2xs font-medium transition-colors ${
                     on
                       ? "bg-ai-textbg text-ai-text ring-1 ring-ai-text/30"
-                      : "border-hair border-hair bg-card text-muted"
+                      : "border border-hair bg-card text-muted hover:bg-canvas"
                   }`}
                 >
                   {m.label}
@@ -189,7 +198,9 @@ export default function AdSetDetailPage() {
             })}
           </div>
         </div>
-        <MultiLineChart series={series} />
+        <div className="p-5">
+          <MultiLineChart series={series} />
+        </div>
       </div>
 
       {/* Ads */}
@@ -197,13 +208,21 @@ export default function AdSetDetailPage() {
         <h2 className="text-sm font-semibold text-ink">Ads ({ads.length})</h2>
         <Button variant="primary" onClick={() => setNewAdOpen(true)}>+ New ad</Button>
       </div>
-      <div className="mb-6 grid grid-cols-2 gap-3">
-        {ads.length === 0 ? (
-          <div className="col-span-2 card px-3 py-8 text-center text-sm text-muted">
-            No ads yet.
+
+      {ads.length === 0 ? (
+        <div className="card mb-6 flex flex-col items-center px-6 py-16 text-center">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-canvas text-muted">
+            <ImageIcon />
           </div>
-        ) : (
-          ads.map((ad) => (
+          <p className="mt-4 text-sm font-medium text-ink">No ads yet</p>
+          <p className="mt-1 text-sm text-muted">Create your first ad for this ad set.</p>
+          <div className="mt-5">
+            <Button variant="primary" onClick={() => setNewAdOpen(true)}>+ New ad</Button>
+          </div>
+        </div>
+      ) : (
+        <div className="mb-6 grid grid-cols-2 gap-3">
+          {ads.map((ad) => (
             <AdCard
               key={ad.id}
               ad={ad}
@@ -213,9 +232,9 @@ export default function AdSetDetailPage() {
                 refresh();
               }}
             />
-          ))
-        )}
-      </div>
+          ))}
+        </div>
+      )}
 
       {editOpen && (
         <AdSetModal
@@ -246,13 +265,17 @@ export default function AdSetDetailPage() {
       />
 
       {confirmDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-6 backdrop-blur-sm">
           <div className="absolute inset-0" onClick={() => setConfirmDelete(false)} />
-          <div className="relative z-50 w-full max-w-sm rounded-lg border-hair border-hair bg-card p-4 shadow-xl">
-            <p className="text-sm text-ink">
-              Delete &ldquo;{adSet.name}&rdquo;? This cannot be undone.
+          <div className="relative z-50 w-full max-w-sm animate-slide-up rounded-xl border border-hair bg-card p-6 shadow-xl">
+            <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-danger-50 text-danger-600">
+              <TrashIcon />
+            </div>
+            <h3 className="text-base font-semibold text-ink">Delete ad set</h3>
+            <p className="mt-1.5 text-sm text-muted">
+              Delete &ldquo;{adSet.name}&rdquo;? This action cannot be undone.
             </p>
-            <div className="mt-4 flex justify-end gap-2">
+            <div className="mt-5 flex justify-end gap-2">
               <Button variant="secondary" onClick={() => setConfirmDelete(false)}>Cancel</Button>
               <Button
                 variant="danger"
@@ -271,6 +294,7 @@ export default function AdSetDetailPage() {
   );
 }
 
+/* ── Ad card ──────────────────────────────────────────────────────────── */
 function AdCard({
   ad,
   onClick,
@@ -283,31 +307,46 @@ function AdCard({
   return (
     <div
       onClick={onClick}
-      className="card cursor-pointer overflow-hidden transition-shadow hover:shadow-sm"
+      className="card cursor-pointer overflow-hidden transition-all hover:shadow-md"
     >
+      {/* Thumbnail */}
       <div className={`relative flex h-32 items-center justify-center ${ad.thumb}`}>
         {ad.source === "ai_generated" && (
-          <span className="absolute right-2 top-2 rounded bg-ai-visual px-2 py-0.5 text-2xs font-medium text-white">
+          <span className="absolute right-2 top-2 rounded-md bg-ai-visual px-2 py-0.5 text-2xs font-semibold text-white">
             AI
           </span>
         )}
         <ImageIcon />
       </div>
-      <div className="p-3">
-        <div className="mb-1 flex items-center justify-between gap-2">
-          <span className="text-sm font-medium text-ink">{ad.name}</span>
-          <StatusBadge tone={ad.status === "active" ? "green" : "gray"}>
+
+      {/* Body */}
+      <div className="p-4">
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <span className="text-sm font-semibold text-ink">{ad.name}</span>
+          <StatusBadge tone={ad.status === "active" ? "green" : "gray"} dot>
             {ad.status === "active" ? "Active" : "Paused"}
           </StatusBadge>
         </div>
         <p className="line-clamp-2 text-2xs text-muted">
-          <span className="font-medium text-ink">{ad.headline}</span> — {ad.bodyText}
+          <span className="font-medium text-ink">{ad.headline}</span>
+          {ad.bodyText ? <> — {ad.bodyText}</> : null}
         </p>
-        <div className="mt-2 flex items-center justify-between text-2xs">
-          <div className="flex gap-3">
-            <span><span className="text-muted">Spend</span> <span className="font-medium text-ink">{eur(ad.spend)}</span></span>
-            <span><span className="text-muted">CTR</span> <span className="font-medium text-green-600">{ad.ctr}</span></span>
-            <span><span className="text-muted">Conv.</span> <span className="font-medium text-ink">{ad.conversions}</span></span>
+
+        {/* Metrics row */}
+        <div className="mt-3 flex items-center justify-between border-t border-hair pt-2.5 text-2xs">
+          <div className="flex gap-4">
+            <span>
+              <span className="text-muted">Spend</span>{" "}
+              <span className="font-semibold tabular-nums text-ink">{eur(ad.spend)}</span>
+            </span>
+            <span>
+              <span className="text-muted">CTR</span>{" "}
+              <span className="font-semibold tabular-nums text-success-600">{ad.ctr}</span>
+            </span>
+            <span>
+              <span className="text-muted">Conv.</span>{" "}
+              <span className="font-semibold tabular-nums text-ink">{ad.conversions}</span>
+            </span>
           </div>
           <span onClick={(e) => e.stopPropagation()}>
             <Toggle key={ad.status} defaultOn={ad.status === "active"} onChange={onToggle} />
@@ -318,12 +357,20 @@ function AdCard({
   );
 }
 
+/* ── Icons ────────────────────────────────────────────────────────────── */
 function ImageIcon() {
   return (
-    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" className="text-muted">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" className="text-muted/60">
       <rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" strokeWidth="1.5" />
       <circle cx="9" cy="11" r="1.5" stroke="currentColor" strokeWidth="1.5" />
       <path d="M21 17l-5-5-9 9" stroke="currentColor" strokeWidth="1.5" />
+    </svg>
+  );
+}
+function TrashIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+      <path d="M3 6h18M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2m2 0v14a1 1 0 01-1 1H6a1 1 0 01-1-1V6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

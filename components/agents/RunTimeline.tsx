@@ -8,13 +8,17 @@
  *  - La cadence retenue et la projection de captation d'audience
  *  - La conformité (verdict + détail)
  *  - Le contenu final généré
+ *  - Des boutons "Enregistrer comme brouillon" et "Créer la campagne" pour
+ *    persister le résultat dans Supabase (visible dans les pages Scheduled/Campaigns).
  */
 
+import { useState, useCallback } from "react";
 import type { AgentRunResult, AgentId, AgentStepStatus, Cadence, PublisherResult } from "@/lib/agents/types";
 import { AGENTS } from "@/lib/agents/roster";
 import { PRO_PROFILES } from "@/lib/agents/profiles";
 import { EnvironmentAnalysis } from "./EnvironmentAnalysis";
 import { BenchmarkCard } from "./BenchmarkCard";
+import { Toast } from "@/components/ui/Toast";
 
 // ── Couleurs d'accent par agent ────────────────────────────────────────────
 
@@ -283,13 +287,220 @@ function PublisherResultCard({ publisherResult }: { publisherResult: PublisherRe
   );
 }
 
+// ── Boutons Appliquer (Brouillon + Campagne) ───────────────────────────────
+
+interface ApplyActionsProps {
+  result: AgentRunResult;
+  companyId: string;
+}
+
+type ToastInfo = { message: string; kind: "success" | "error" };
+
+function ApplyActions({ result, companyId }: ApplyActionsProps) {
+  const [savingDraft, setSavingDraft] = useState(false);
+  const [savingCampaign, setSavingCampaign] = useState(false);
+  const [toast, setToast] = useState<ToastInfo | null>(null);
+  const [draftSaved, setDraftSaved] = useState(false);
+  const [campaignSaved, setCampaignSaved] = useState(false);
+
+  const showToast = useCallback((message: string, kind: "success" | "error") => {
+    setToast({ message, kind });
+  }, []);
+
+  const isDraftDisabled =
+    savingDraft || draftSaved || !result.finalOutput || result.complianceVerdict === "block";
+
+  const draftDisabledReason =
+    !result.finalOutput
+      ? "Aucun contenu généré à enregistrer."
+      : result.complianceVerdict === "block"
+      ? "Contenu bloqué par la conformité — impossible d'enregistrer."
+      : undefined;
+
+  async function handleSaveDraft() {
+    setSavingDraft(true);
+    try {
+      // Dérive un titre court depuis l'objectif (50 chars max)
+      const title = result.objective.length > 50
+        ? result.objective.slice(0, 47) + "…"
+        : result.objective;
+
+      const res = await fetch("/api/scheduled-posts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          companyId,
+          platform: "facebook",
+          title,
+          body: result.finalOutput,
+          status: "draft",
+          source: "automation",
+          automationName: "Agent IA",
+          date: "",
+          time: "",
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({})) as { error?: string };
+        throw new Error(err.error ?? `Erreur ${res.status}`);
+      }
+
+      setDraftSaved(true);
+      showToast("Brouillon enregistré — visible dans Scheduled.", "success");
+    } catch (err) {
+      showToast(
+        err instanceof Error ? err.message : "Erreur lors de l'enregistrement.",
+        "error"
+      );
+    } finally {
+      setSavingDraft(false);
+    }
+  }
+
+  async function handleCreateCampaign() {
+    setSavingCampaign(true);
+    try {
+      // Nom de la campagne : profil + objectif tronqué
+      const profileLabel = result.profileId
+        ? PRO_PROFILES.find((p) => p.id === result.profileId)?.label
+        : undefined;
+      const baseName = profileLabel
+        ? `[${profileLabel}] ${result.objective}`
+        : result.objective;
+      const name = baseName.length > 80 ? baseName.slice(0, 77) + "…" : baseName;
+
+      const res = await fetch("/api/campaigns", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          companyId,
+          name,
+          objective: result.objective,
+          status: "paused",
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({})) as { error?: string };
+        throw new Error(err.error ?? `Erreur ${res.status}`);
+      }
+
+      setCampaignSaved(true);
+      showToast("Campagne créée — visible dans Campaigns.", "success");
+    } catch (err) {
+      showToast(
+        err instanceof Error ? err.message : "Erreur lors de la création de la campagne.",
+        "error"
+      );
+    } finally {
+      setSavingCampaign(false);
+    }
+  }
+
+  return (
+    <>
+      <div className="card p-4">
+        <div className="section-label mb-3">Appliquer le résultat</div>
+        <div className="flex flex-wrap gap-2">
+          {/* Bouton Brouillon */}
+          <div className="relative group/tip">
+            <button
+              type="button"
+              disabled={isDraftDisabled}
+              onClick={handleSaveDraft}
+              className={[
+                "inline-flex items-center justify-center gap-1.5 rounded-lg px-3.5 py-[0.4rem]",
+                "text-sm font-medium select-none transition-all duration-[120ms]",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1",
+                "disabled:pointer-events-none disabled:opacity-50",
+                draftSaved
+                  ? "border border-success-200 bg-success-50 text-success-700"
+                  : "border border-hair bg-card text-ink shadow-xs hover:bg-canvas hover:border-[#cac4b9] hover:shadow-sm active:scale-[0.975]",
+              ].join(" ")}
+            >
+              {savingDraft ? (
+                <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+              ) : draftSaved ? (
+                <svg viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5">
+                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5">
+                  <path d="M7.707 10.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V6h5a2 2 0 012 2v7a2 2 0 01-2 2H4a2 2 0 01-2-2V8a2 2 0 012-2h5v5.586l-1.293-1.293z" />
+                </svg>
+              )}
+              {draftSaved ? "Brouillon enregistré" : "Enregistrer comme brouillon"}
+            </button>
+            {/* Tooltip si désactivé */}
+            {draftDisabledReason && (
+              <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-1.5 -translate-x-1/2 rounded-md bg-ink px-2.5 py-1.5 text-2xs text-white shadow-lg opacity-0 group-hover/tip:opacity-100 transition-opacity whitespace-nowrap">
+                {draftDisabledReason}
+              </div>
+            )}
+          </div>
+
+          {/* Bouton Campagne */}
+          <button
+            type="button"
+            disabled={savingCampaign || campaignSaved}
+            onClick={handleCreateCampaign}
+            className={[
+              "inline-flex items-center justify-center gap-1.5 rounded-lg px-3.5 py-[0.4rem]",
+              "text-sm font-medium select-none transition-all duration-[120ms]",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1",
+              "disabled:pointer-events-none disabled:opacity-50",
+              campaignSaved
+                ? "border border-success-200 bg-success-50 text-success-700"
+                : "bg-page text-white shadow-sm hover:bg-[#1e3e65] active:scale-[0.975]",
+            ].join(" ")}
+          >
+            {savingCampaign ? (
+              <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+            ) : campaignSaved ? (
+              <svg viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5">
+                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+              </svg>
+            ) : (
+              <svg viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5">
+                <path d="M3 11l19-9-9 19-2-8-8-2z" />
+              </svg>
+            )}
+            {campaignSaved ? "Campagne créée" : "Créer la campagne"}
+          </button>
+        </div>
+        <p className="mt-2 text-2xs text-muted">
+          Les entrées créées apparaîtront immédiatement dans les pages{" "}
+          <span className="font-medium text-ink">Scheduled</span> et{" "}
+          <span className="font-medium text-ink">Campaigns</span>.
+        </p>
+      </div>
+
+      {toast && (
+        <Toast
+          message={toast.message}
+          onDismiss={() => setToast(null)}
+        />
+      )}
+    </>
+  );
+}
+
 // ── Composant principal ────────────────────────────────────────────────────
 
 interface RunTimelineProps {
   result: AgentRunResult;
+  /** UUID Supabase de la company active — requis pour POST /api/* */
+  companyId: string;
 }
 
-export function RunTimeline({ result }: RunTimelineProps) {
+export function RunTimeline({ result, companyId }: RunTimelineProps) {
   const autonomyLabel =
     result.autonomy === 1
       ? "Recommandation pure"
@@ -356,6 +567,9 @@ export function RunTimeline({ result }: RunTimelineProps) {
           </div>
         </div>
       </div>
+
+      {/* ── Actions Appliquer (brouillon + campagne) ───────────────── */}
+      <ApplyActions result={result} companyId={companyId} />
 
       {/* ── Verdict conformité ─────────────────────────────────────── */}
       {result.complianceVerdict && (

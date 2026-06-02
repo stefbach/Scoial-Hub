@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCompany } from "@/lib/company-context";
@@ -37,6 +37,50 @@ function ScheduledContent() {
   const [, setTick] = useState(0);
   const refresh = () => setTick((t) => t + 1);
 
+  // ── Fusion des posts réels Supabase ──────────────────────────────────────
+  // On récupère les posts depuis l'API et on les fusionne avec les données mock.
+  // Si le fetch échoue, on continue d'afficher les données locales sans erreur.
+  const [apiPosts, setApiPosts] = useState<ScheduledPost[]>([]);
+  const fetchedForCompany = useRef<string | null>(null);
+
+  useEffect(() => {
+    // Re-fetch si la company change ou au focus de la page
+    let cancelled = false;
+
+    async function fetchPosts() {
+      if (!company.id) return;
+      try {
+        const res = await fetch(`/api/scheduled-posts?companyId=${encodeURIComponent(company.id)}`);
+        if (!res.ok) return; // Silencieux — on garde l'affichage actuel
+        const fetched: ScheduledPost[] = await res.json();
+        if (!cancelled && Array.isArray(fetched)) {
+          setApiPosts(fetched);
+          fetchedForCompany.current = company.id;
+        }
+      } catch {
+        // Silencieux — fallback données locales
+      }
+    }
+
+    fetchPosts();
+
+    const handleFocus = () => { fetchPosts(); };
+    window.addEventListener("focus", handleFocus);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, [company.id]);
+
+  // Fusion : les posts API en premier (incluent les brouillons Agent IA),
+  // les posts locaux complémentaires dédoublonnés par id.
+  const mergedScheduled = useMemo(() => {
+    const apiIds = new Set(apiPosts.map((p) => p.id));
+    const localOnly = data.scheduled.filter((p) => !apiIds.has(p.id));
+    return [...apiPosts, ...localOnly];
+  }, [apiPosts, data.scheduled]);
+
   const param = params.get("tab");
   const tab: TabId = param === "scheduled" || param === "drafts" ? param : "all";
 
@@ -45,7 +89,7 @@ function ScheduledContent() {
   };
 
   // Published posts leave the Scheduled screen entirely.
-  const visible = data.scheduled.filter((p) => p.status !== "published");
+  const visible = mergedScheduled.filter((p) => p.status !== "published");
 
   const isScheduledStatus = (p: ScheduledPost) => !isDraft(p);
   const counts = {
@@ -59,7 +103,7 @@ function ScheduledContent() {
     if (tab === "drafts") return visible.filter(isDraft);
     return visible;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data.scheduled, tab, openPost]);
+  }, [mergedScheduled, tab, openPost]);
 
   const groups = useMemo(() => {
     const map = new Map<string, ScheduledPost[]>();
@@ -204,6 +248,14 @@ function PostRow({ post: p, onOpen }: { post: ScheduledPost; onOpen: () => void 
           }`}
         >
           {p.source === "automation" ? "Automation" : "Manual"}
+        </span>
+      )}
+      {p.automationName === "Agent IA" && (
+        <span className="inline-flex items-center gap-1 rounded-full bg-primary-50 px-2 py-0.5 text-2xs font-semibold text-primary-700 ring-1 ring-primary-200">
+          <svg viewBox="0 0 12 12" fill="currentColor" className="h-2.5 w-2.5">
+            <path d="M6 1l1.545 3.13L11 4.854 8.5 7.29l.59 3.44L6 9.13l-3.09 1.6.59-3.44L1 4.854l3.455-.724L6 1z" />
+          </svg>
+          IA
         </span>
       )}
     </>

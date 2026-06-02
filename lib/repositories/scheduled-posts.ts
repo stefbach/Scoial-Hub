@@ -31,9 +31,10 @@ function scheduledPostToRow(
     company_id: companyId,
     platform: input.platform,
     title: input.title,
-    body: input.body ?? null,
-    date: input.date ?? null,
-    time: input.time ?? null,
+    body: input.body || null,
+    // "" n'est pas null → on force null pour éviter une erreur sur la colonne date
+    date: input.date || null,
+    time: input.time || null,
     source: input.source,
     status: input.status ?? "scheduled",
     needs_review: input.needsReview ?? false,

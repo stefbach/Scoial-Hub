@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCompany } from "@/lib/company-context";
@@ -38,7 +38,55 @@ function CampaignsContent() {
     refresh();
   }, [company.id]);
 
-  const c = data.campaigns;
+  // ── Fusion des campagnes réelles Supabase ────────────────────────────────
+  // Récupère les campagnes depuis l'API et les fusionne avec les données mock.
+  // Si le fetch échoue, on continue d'afficher les données locales sans erreur.
+  const [apiCampaigns, setApiCampaigns] = useState<Campaign[]>([]);
+  const fetchedForCompany = useRef<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function fetchCampaigns() {
+      if (!company.id) return;
+      try {
+        const res = await fetch(`/api/campaigns?companyId=${encodeURIComponent(company.id)}`);
+        if (!res.ok) return; // Silencieux — on garde l'affichage actuel
+        const fetched: Campaign[] = await res.json();
+        if (!cancelled && Array.isArray(fetched)) {
+          setApiCampaigns(fetched);
+          fetchedForCompany.current = company.id;
+        }
+      } catch {
+        // Silencieux — fallback données locales
+      }
+    }
+
+    fetchCampaigns();
+
+    const handleFocus = () => { fetchCampaigns(); };
+    window.addEventListener("focus", handleFocus);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, [company.id]);
+
+  // Fusion : les campagnes API en premier (incluent les campagnes Agent IA),
+  // les campagnes locales complémentaires dédoublonnées par id.
+  const mergedCampaigns = useMemo(() => {
+    const apiIds = new Set(apiCampaigns.map((c) => c.id));
+    const localOnly = data.campaigns.list.filter((c) => !apiIds.has(c.id));
+    return [...apiCampaigns, ...localOnly];
+  }, [apiCampaigns, data.campaigns.list]);
+
+  const c = {
+    ...data.campaigns,
+    list: mergedCampaigns,
+    activeCampaigns: mergedCampaigns.filter((camp) => camp.status === "active").length || data.campaigns.activeCampaigns,
+  };
+
   const [adModal, setAdModal] = useState(false);
   const [campaignModal, setCampaignModal] = useState<{ open: boolean; campaign?: Campaign }>({
     open: params.get("new") === "true",
@@ -110,6 +158,7 @@ function CampaignsContent() {
               <CampaignRow
                 key={camp.id}
                 camp={camp}
+                isFromApi={apiCampaigns.some((a) => a.id === camp.id)}
                 open={expanded === camp.id}
                 onChevron={() => setExpanded((e) => (e === camp.id ? null : camp.id))}
                 onToggleEnabled={() => {
@@ -225,6 +274,7 @@ function EmptyState({
 /* ── Campaign row ─────────────────────────────────────────────────────── */
 function CampaignRow({
   camp,
+  isFromApi,
   open,
   onChevron,
   onToggleEnabled,
@@ -232,6 +282,7 @@ function CampaignRow({
   onDelete,
 }: {
   camp: Campaign;
+  isFromApi?: boolean;
   open: boolean;
   onChevron: () => void;
   onToggleEnabled: () => void;
@@ -282,6 +333,14 @@ function CampaignRow({
               {camp.platforms.map((p) => (
                 <PlatformChip key={p} platform={p} />
               ))}
+              {isFromApi && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-primary-50 px-2 py-0.5 text-2xs font-semibold text-primary-700 ring-1 ring-primary-200">
+                  <svg viewBox="0 0 12 12" fill="currentColor" className="h-2.5 w-2.5">
+                    <path d="M6 1l1.545 3.13L11 4.854 8.5 7.29l.59 3.44L6 9.13l-3.09 1.6.59-3.44L1 4.854l3.455-.724L6 1z" />
+                  </svg>
+                  créé par IA
+                </span>
+              )}
             </div>
 
             {/* Sub-line: objective + metrics */}

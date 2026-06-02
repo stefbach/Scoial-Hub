@@ -211,7 +211,7 @@ export default function AgentsPage() {
       )}
 
       {/* ── Timeline d'exécution ─────────────────────────────────────── */}
-      {result && !loading && <RunTimeline result={result} />}
+      {result && !loading && <RunTimeline result={result} companyId={company.id} />}
 
       {/* ── État vide initial ────────────────────────────────────────── */}
       {!result && !loading && !error && (

@@ -8,7 +8,7 @@ import {
   useMemo,
   useState,
 } from "react";
-import { COMPANIES, COMPANY_DATA, registerCompany } from "./mock-data";
+import { COMPANIES, COMPANY_DATA, registerCompany, makeEmptyCompanyData } from "./mock-data";
 import type { Company, CompanyData } from "./types";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/env";
@@ -66,14 +66,24 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
       .then((fetched) => {
         if (cancelled || !Array.isArray(fetched) || fetched.length === 0) return;
 
-        // Merge fetched companies into the shared mock store so that
-        // COMPANY_DATA look-ups by id remain consistent.
+        // Merge fetched companies (vrais UUID Supabase) dans le store mock.
+        // On matche par CODE (OCC/TI/CV) pour REMPLACER l'entrée mock par la
+        // vraie (UUID), et on aliase les données riches mock sur le nouvel id
+        // afin que les pages continuent de s'afficher tout en utilisant l'UUID.
         for (const c of fetched) {
-          const existing = COMPANIES.findIndex((x) => x.id === c.id);
-          if (existing >= 0) {
-            COMPANIES[existing] = { ...COMPANIES[existing], ...c };
+          const byId = COMPANIES.findIndex((x) => x.id === c.id);
+          const byCode = COMPANIES.findIndex((x) => x.code === c.code);
+          if (byId >= 0) {
+            COMPANIES[byId] = { ...COMPANIES[byId], ...c };
+          } else if (byCode >= 0) {
+            const oldId = COMPANIES[byCode].id;
+            if (COMPANY_DATA[oldId] && !COMPANY_DATA[c.id]) {
+              COMPANY_DATA[c.id] = COMPANY_DATA[oldId]; // alias données riches
+            }
+            COMPANIES[byCode] = { ...COMPANIES[byCode], ...c }; // adopte l'UUID réel
           } else {
             registerCompany(c);
+            if (!COMPANY_DATA[c.id]) COMPANY_DATA[c.id] = makeEmptyCompanyData();
           }
         }
 

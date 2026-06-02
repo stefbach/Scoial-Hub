@@ -10,12 +10,12 @@ const config: Config = {
     extend: {
       colors: {
         // ── Core tokens (noms inchangés) ──────────────────────────────
-        page:   "#1c1d20",   // presque noir neutre — accents/boutons (style Linear)
-        canvas: "#f7f8f9",   // gris très clair froid — fond général épuré
-        card:   "#ffffff",
-        ink:    "#16181d",   // quasi-noir neutre, lisible
-        muted:  "#8a8f98",   // gris doux — textes secondaires (Linear)
-        hair:   "#ececee",   // bordure gris clair discrète
+        page:   "#1e3a5f",   // bleu nuit profond — accent professionnel chaleureux
+        canvas: "#f7f3ec",   // ivoire chaud — fond général haut de gamme
+        card:   "#fffdfa",   // blanc très légèrement chaud
+        ink:    "#2a2521",   // brun-noir chaud, lisible et chaleureux
+        muted:  "#8c8377",   // taupe doux — textes secondaires
+        hair:   "#eae3d8",   // bordure chaude discrète
         // ── AI tokens (noms inchangés) ────────────────────────────────
         ai: {
           text:     "#2563eb",

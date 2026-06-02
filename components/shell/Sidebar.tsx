@@ -169,8 +169,8 @@ export function Sidebar() {
                       "group relative flex items-center gap-2.5 rounded-lg px-3 py-[0.4rem] text-sm",
                       "transition-all duration-[120ms]",
                       active
-                        ? "bg-[#eef0f2] text-ink font-semibold"
-                        : "text-muted hover:bg-[#f1f2f4] hover:text-ink",
+                        ? "bg-[#efe7d9] text-ink font-semibold"
+                        : "text-muted hover:bg-[#f1eadd] hover:text-ink",
                     ].join(" ")}
                   >
                     {/* Barre latérale active */}

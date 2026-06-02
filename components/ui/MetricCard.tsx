@@ -21,13 +21,32 @@ export function MetricCard({
 }) {
   const content = (
     <>
-      <div className={`text-2xs ${active ? "font-medium text-ai-text" : "text-muted"}`}>{label}</div>
-      <div className={`mt-1 text-xl text-ink ${active ? "font-bold" : "font-semibold"}`}>{value}</div>
-      {sub && <div className="text-2xs text-muted">{sub}</div>}
+      <div
+        className={`text-2xs font-medium ${
+          active ? "text-ai-text" : "text-muted"
+        }`}
+      >
+        {label}
+      </div>
+
+      <div
+        className={`mt-1.5 text-xl leading-none text-ink ${
+          active ? "font-bold" : "font-semibold"
+        }`}
+      >
+        {value}
+      </div>
+
+      {sub && (
+        <div className="mt-1 text-2xs text-muted/80">{sub}</div>
+      )}
+
       {trend && (
         <div
-          className={`text-2xs font-medium ${
-            trend.startsWith("DN") ? "text-red-500" : "text-green-600"
+          className={`mt-1 text-2xs font-semibold ${
+            trend.startsWith("DN")
+              ? "text-danger-600"
+              : "text-success-600"
           }`}
         >
           {trend}
@@ -36,20 +55,22 @@ export function MetricCard({
     </>
   );
 
-  const base = `block rounded-lg px-4 py-3 ${
+  // Styles de base selon l'état
+  const base = [
+    "block rounded-xl px-4 py-3 transition-all duration-[150ms]",
     alert
-      ? "border-hair border-red-200 bg-red-50"
+      ? "border border-danger-200 bg-danger-50/60"
       : active
-      ? "border-2 border-ai-text bg-ai-textbg"
-      : "border-hair border-hair bg-canvas"
-  }`;
+      ? "border-2 border-ai-text bg-ai-textbg shadow-xs"
+      : "border border-hair bg-canvas shadow-xs",
+  ].join(" ");
+
+  const interactive =
+    "cursor-pointer hover:shadow-sm hover:border-[#cac4b9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/30";
 
   if (href) {
     return (
-      <Link
-        href={href}
-        className={`${base} cursor-pointer transition-shadow hover:border-muted/40 hover:shadow-sm`}
-      >
+      <Link href={href} className={`${base} ${interactive}`}>
         {content}
       </Link>
     );
@@ -60,7 +81,7 @@ export function MetricCard({
       <button
         type="button"
         onClick={onClick}
-        className={`${base} cursor-pointer text-left transition-shadow hover:border-muted/40 hover:shadow-sm`}
+        className={`${base} ${interactive} w-full text-left`}
       >
         {content}
       </button>

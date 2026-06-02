@@ -10,7 +10,7 @@
  *  - Le contenu final généré
  */
 
-import type { AgentRunResult, AgentId, AgentStepStatus, Cadence } from "@/lib/agents/types";
+import type { AgentRunResult, AgentId, AgentStepStatus, Cadence, PublisherResult } from "@/lib/agents/types";
 import { AGENTS } from "@/lib/agents/roster";
 import { PRO_PROFILES } from "@/lib/agents/profiles";
 import { EnvironmentAnalysis } from "./EnvironmentAnalysis";
@@ -26,6 +26,7 @@ const ICON_BG: Record<AgentId, string> = {
   media_buyer:  "bg-warning-50 border-warning-200 text-warning-700",
   analyst:      "bg-success-50 border-success-200 text-success-700",
   compliance:   "bg-danger-50 border-danger-200 text-danger-700",
+  publisher:    "bg-indigo-50 border-indigo-200 text-indigo-700",
 };
 
 // ── Statuts ────────────────────────────────────────────────────────────────
@@ -129,7 +130,158 @@ const AGENT_ICON: Record<AgentId, React.ReactNode> = {
       <path fillRule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
     </svg>
   ),
+  publisher: (
+    <svg viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5">
+      <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
+    </svg>
+  ),
 };
+
+// ── Galerie de visuels générés (Creative) ─────────────────────────────────
+
+function GeneratedAssetsCard({
+  images,
+  video,
+}: {
+  images?: { url: string }[];
+  video?: { url: string };
+}) {
+  if ((!images || images.length === 0) && !video) return null;
+
+  return (
+    <div className="card overflow-hidden">
+      <div className="flex items-center gap-2 border-b border-hair px-4 py-3">
+        <div className="flex h-6 w-6 items-center justify-center rounded-md bg-ai-visualbg">
+          <svg viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5 text-ai-visual">
+            <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
+          </svg>
+        </div>
+        <span className="text-sm font-semibold text-ink">Visuels générés par l'agent Créatif</span>
+        <span className="ml-auto inline-flex items-center rounded-full bg-ai-visualbg px-2 py-0.5 text-2xs font-semibold text-ai-visual ring-1 ring-ai-visual/20">
+          Replicate IA
+        </span>
+      </div>
+      <div className="p-4 space-y-3">
+        {images && images.length > 0 && (
+          <div>
+            <div className="section-label mb-2">Images</div>
+            <div className="flex flex-wrap gap-3">
+              {images.map((img, i) => (
+                <a
+                  key={i}
+                  href={img.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group relative block overflow-hidden rounded-lg border border-hair bg-canvas hover:border-ai-visual transition-colors"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={img.url}
+                    alt={`Visuel généré ${i + 1}`}
+                    className="h-32 w-32 object-cover"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = "none";
+                    }}
+                  />
+                  <div className="absolute inset-0 flex items-end bg-gradient-to-t from-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+                    <span className="w-full p-1.5 text-center text-2xs text-white font-semibold">
+                      Ouvrir
+                    </span>
+                  </div>
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+        {video && (
+          <div>
+            <div className="section-label mb-2">Vidéo</div>
+            <a
+              href={video.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 rounded-lg border border-ai-visual/30 bg-ai-visualbg px-3 py-2 text-xs font-medium text-ai-visual hover:bg-ai-visualbg/80 transition-colors"
+            >
+              <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zm12.553.106A1 1 0 0014 7v6a1 1 0 001.553.832l3-2a1 1 0 000-1.664l-3-2z" />
+              </svg>
+              Visionner la vidéo générée
+            </a>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Résultat de publication (Publisher) ───────────────────────────────────
+
+function PublisherResultCard({ publisherResult }: { publisherResult: PublisherResult }) {
+  const statusConfig: Record<
+    PublisherResult["status"],
+    { bg: string; icon: string; title: string; labelCls: string }
+  > = {
+    published: {
+      bg: "bg-success-50 border-success-200",
+      icon: "✅",
+      title: "Contenu publié",
+      labelCls: "text-success-700",
+    },
+    scheduled: {
+      bg: "bg-success-50 border-success-200",
+      icon: "📅",
+      title: "Publication programmée",
+      labelCls: "text-success-700",
+    },
+    pending: {
+      bg: "bg-canvas border-hair",
+      icon: "⏳",
+      title: "En attente de validation",
+      labelCls: "text-muted",
+    },
+    simulated: {
+      bg: "bg-warning-50 border-warning-200",
+      icon: "⚠️",
+      title: "Publication simulée — connecteurs requis",
+      labelCls: "text-warning-700",
+    },
+    blocked: {
+      bg: "bg-danger-50 border-danger-200",
+      icon: "🚫",
+      title: "Publication bloquée",
+      labelCls: "text-danger-700",
+    },
+  };
+
+  const conf = statusConfig[publisherResult.status];
+
+  return (
+    <div className={`rounded-lg border p-3 ${conf.bg}`}>
+      <div className={`flex items-center gap-2 font-semibold text-sm ${conf.labelCls}`}>
+        <span>{conf.icon}</span>
+        {conf.title}
+        {publisherResult.platforms.length > 0 && (
+          <div className="ml-2 flex gap-1">
+            {publisherResult.platforms.map((p) => (
+              <span
+                key={p}
+                className="inline-flex items-center rounded-full bg-white/60 px-2 py-0.5 text-2xs font-semibold ring-1 ring-current/20"
+              >
+                {p}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+      <p className="mt-1 text-xs text-muted">{publisherResult.message}</p>
+      {publisherResult.scheduledAt && (
+        <p className="mt-1 text-2xs text-muted">
+          Programmé le : {new Date(publisherResult.scheduledAt).toLocaleString("fr-FR")}
+        </p>
+      )}
+    </div>
+  );
+}
 
 // ── Composant principal ────────────────────────────────────────────────────
 
@@ -218,6 +370,19 @@ export function RunTimeline({ result }: RunTimelineProps) {
       {/* ── Benchmark sectoriel ─────────────────────────────────────── */}
       {result.benchmark && (
         <BenchmarkCard benchmark={result.benchmark} cadence={result.cadence} />
+      )}
+
+      {/* ── Visuels générés par Creative ────────────────────────────── */}
+      {(result.generatedImages || result.generatedVideo) && (
+        <GeneratedAssetsCard
+          images={result.generatedImages}
+          video={result.generatedVideo}
+        />
+      )}
+
+      {/* ── Résultat Publisher ──────────────────────────────────────── */}
+      {result.publisherResult && (
+        <PublisherResultCard publisherResult={result.publisherResult} />
       )}
 
       {/* ── Timeline des étapes ─────────────────────────────────────── */}

@@ -5,10 +5,11 @@
  *   1. Orchestrator  — décompose l'objectif et coordonne
  *   2. Strategist    — analyse professionnelle & sémantique de l'environnement
  *   3. Copywriter    — génère le texte (Claude ou mock)
- *   4. Creative      — brief visuel (simulé si connecteur absent)
+ *   4. Creative      — génération d'images/vidéos réelles via Replicate (ou brief simulé)
  *   5. Compliance    — BLOQUANT — évalue la conformité santé
  *   6. Media Buyer   — configure la campagne Meta (simulé)
  *   7. Analyst       — benchmark sectoriel, KPIs et captation d'audience
+ *   8. Publisher     — programme et publie le contenu validé sur les réseaux
  *
  * Niveaux d'autonomie :
  *   1 = Recommandation pure — aucune action "exécutée", tout reste proposé.
@@ -26,6 +27,11 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { env, isAiConfigured } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/server";
+import {
+  isReplicateConfigured,
+  generateImage,
+  generateVideo,
+} from "@/lib/ai/replicate";
 import type {
   AgentId,
   AgentRunResult,
@@ -35,6 +41,7 @@ import type {
   EnvironmentAnalysis,
   BenchmarkResult,
   BenchmarkKPIRow,
+  PublisherResult,
 } from "./types";
 import { getProfile, getDefaultProfile, type ProProfile } from "./profiles";
 
@@ -589,31 +596,123 @@ ${profile.semanticField.slice(0, 4).map((s) => `#${s.replace(/\s+/g, "")}`).join
 }
 
 /**
+ * Résultat interne de l'étape Créatif, incluant les visuels générés.
+ */
+interface CreativeResult {
+  step: AgentStep;
+  generatedImages?: { url: string }[];
+  generatedVideo?: { url: string };
+}
+
+/**
+ * Construit le prompt visuel à partir du texte du post et du profil.
+ */
+function buildImagePrompt(copyText: string, profile: ProProfile): string {
+  const firstLine = copyText.split("\n")[0].replace(/[#@*_~`]/g, "").trim().slice(0, 120);
+  const tone = profile.recommendedTone.split(".")[0].trim().toLowerCase();
+  const semantics = profile.semanticField.slice(0, 4).join(", ");
+  return `Professional healthcare social media visual for ${profile.label}. ${firstLine}. Style: ${tone}, clean, trustworthy. Themes: ${semantics}. No text overlay, high quality, modern medical aesthetic, warm lighting.`;
+}
+
+/**
  * Étape 4 — Créatif Visuel
+ * Appelle Replicate pour générer images (et vidéo si la cadence implique du contenu vidéo).
+ * Repli élégant si REPLICATE_API_TOKEN absent.
  */
 async function runCreative(
   input: OrchestrationInput,
   profile: ProProfile,
-  copyText: string
-): Promise<AgentStep> {
+  copyText: string,
+  cadence: Required<Cadence>
+): Promise<CreativeResult> {
   const platforms = profile.priorityPlatforms.slice(0, 2).join(" + ");
-  const output = `Brief créatif généré — Profil : ${profile.label}
+  const briefBase = `Brief créatif — Profil : ${profile.label}
 • Format principal : image carrée 1080×1080 px (Feed ${platforms}) + bannière 1200×628 px
-• Palette : codes couleur de la marque — tons doux, professionnels, inspirants confiance
-• Style : photographie médicale/professionnelle, authentique, souriant — pas de stock générique
-• Éléments obligatoires : logo de la marque (coin bas-droit), mention légale si requis par le secteur
+• Palette : tons doux, professionnels, inspirants confiance
+• Style : photographie médicale/professionnelle, authentique, souriant
+• Éléments obligatoires : logo de la marque (coin bas-droit), mention légale si requis
 • Accroche visuelle : "${copyText.split("\n")[0].slice(0, 80)}…"
 • Variantes : Story 9:16 (1080×1920) + Réels 4:5 (1080×1350)
-• Tonalité visuelle recommandée : ${profile.recommendedTone}
-• Vidéo courte (15s) : animation de titre + b-roll thématique — Runway ML requis`;
+• Tonalité visuelle : ${profile.recommendedTone}`;
+
+  if (!isReplicateConfigured) {
+    return {
+      step: {
+        agent: "creative",
+        title: "Brief créatif et assets visuels",
+        status: "simulated",
+        output: briefBase + `\n• Vidéo courte (15s) : animation de titre + b-roll thématique`,
+        detail: "REPLICATE_API_TOKEN requis pour la génération réelle d'images et de vidéos via Replicate (Flux 1.1 Pro / MiniMax Video-01).",
+        finishedAt: ts(),
+      },
+    };
+  }
+
+  // Replicate configuré → génération réelle
+  const imagePrompt = buildImagePrompt(copyText, profile);
+  // Détermine si on génère une vidéo : cadence ≥ 2 publications/jour OU objectif contient "vidéo/video/réels/reels"
+  const needsVideo =
+    cadence.postingPerDay >= 2 ||
+    /vid[eé]o|reels?|r[eé]els?/i.test(input.objective);
+
+  const imageResults: { url: string }[] = [];
+  let videoResult: { url: string } | undefined;
+  const outputLines: string[] = [briefBase];
+  const errors: string[] = [];
+
+  // Génération d'image (format carré Feed + portrait Story)
+  try {
+    const imgRes = await generateImage({
+      prompt: imagePrompt,
+      format: "square",
+      n: 1,
+    });
+    if (!imgRes.simulated && imgRes.images.length > 0) {
+      imageResults.push(...imgRes.images);
+      outputLines.push(`\n✅ Image(s) générée(s) par Replicate (${imgRes.model ?? "Flux 1.1 Pro"}) :`);
+      imgRes.images.forEach((img, i) =>
+        outputLines.push(`  • Image ${i + 1} : ${img.url}`)
+      );
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    errors.push(`Image : ${msg}`);
+  }
+
+  // Génération de vidéo si pertinent
+  if (needsVideo) {
+    try {
+      const vidRes = await generateVideo({
+        prompt: imagePrompt + ". Short 5-second social media video clip.",
+        seconds: 5,
+        aspect: "9:16",
+      });
+      if (!vidRes.simulated && vidRes.video) {
+        videoResult = vidRes.video;
+        outputLines.push(`\n✅ Vidéo générée par Replicate (${vidRes.model ?? "MiniMax Video-01"}) :`);
+        outputLines.push(`  • Vidéo : ${vidRes.video.url}`);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      errors.push(`Vidéo : ${msg}`);
+    }
+  }
+
+  const hasAssets = imageResults.length > 0 || videoResult;
 
   return {
-    agent: "creative",
-    title: "Brief créatif et assets visuels",
-    status: "simulated",
-    output,
-    detail: "Connecteurs requis : DALL·E / Midjourney API (images), Runway ML (vidéo) — assets non générés en l'absence de ces connecteurs.",
-    finishedAt: ts(),
+    step: {
+      agent: "creative",
+      title: hasAssets
+        ? "Génération de visuels (Replicate IA)"
+        : "Brief créatif et assets visuels",
+      status: hasAssets ? "done" : "simulated",
+      output: outputLines.join("\n"),
+      detail: errors.length > 0 ? `Erreurs Replicate : ${errors.join(" | ")}` : undefined,
+      finishedAt: ts(),
+    },
+    generatedImages: imageResults.length > 0 ? imageResults : undefined,
+    generatedVideo: videoResult,
   };
 }
 
@@ -797,7 +896,169 @@ ${
 }
 
 /**
- * Étape 7 — Analyste
+ * Étape 7 — Publisher
+ * Programme et publie le contenu validé sur les réseaux sociaux.
+ * - Niv.1 → propose la publication (status 'pending' — ne publie pas)
+ * - Niv.2/3 → tente la publication via le connecteur (best-effort)
+ *             ou marque 'simulated' si connecteur non configuré
+ * Respecte le veto conformité : jamais publier si blocked.
+ */
+async function runPublisher(
+  input: OrchestrationInput,
+  profile: ProProfile,
+  copyText: string,
+  generatedImages: { url: string }[] | undefined,
+  generatedVideo: { url: string } | undefined,
+  complianceVerdict: "pass" | "warn" | "block"
+): Promise<{ step: AgentStep; publisherResult: PublisherResult }> {
+  // Veto conformité — jamais publier si bloqué
+  if (complianceVerdict === "block") {
+    const result: PublisherResult = {
+      status: "blocked",
+      platforms: [],
+      message: "Publication empêchée par l'agent Conformité (verdict : BLOCK). Aucun contenu n'a été envoyé.",
+    };
+    return {
+      step: {
+        agent: "publisher",
+        title: "Publication — BLOQUÉE (conformité)",
+        status: "blocked",
+        output: result.message,
+        detail: "Le verdict de conformité 'block' empêche toute publication.",
+        finishedAt: ts(),
+      },
+      publisherResult: result,
+    };
+  }
+
+  // Plateformes cibles depuis le profil
+  const platforms = profile.priorityPlatforms
+    .filter((p) => ["Facebook", "Instagram", "LinkedIn"].includes(p))
+    .slice(0, 2);
+  const platformsLabel = platforms.length > 0 ? platforms.join(", ") : "Facebook, Instagram";
+
+  // Niv.1 → recommandation pure, pas de publication
+  if (input.autonomy === 1) {
+    const result: PublisherResult = {
+      status: "pending",
+      platforms,
+      message: `Recommandation de publication préparée pour : ${platformsLabel}. Aucune action initiée (Autonomie N1 — validation manuelle requise).`,
+    };
+    return {
+      step: {
+        agent: "publisher",
+        title: "Proposition de publication (Autonomie N1)",
+        status: "simulated",
+        output: `[RECOMMANDATION — non publiée]\n\nPlateformes cibles : ${platformsLabel}\nContenu préparé : ${copyText.slice(0, 200)}${copyText.length > 200 ? "…" : ""}\n\nVisuels disponibles : ${generatedImages && generatedImages.length > 0 ? generatedImages.map((i) => i.url).join(", ") : "aucun visuel généré"}${generatedVideo ? `\nVidéo : ${generatedVideo.url}` : ""}\n\n⚠️ Autonomie N1 — Aucune publication initiée. Validez et publiez manuellement sur les plateformes.`,
+        detail: "Autonomie 1 : proposition uniquement, aucune action exécutée.",
+        finishedAt: ts(),
+      },
+      publisherResult: result,
+    };
+  }
+
+  // Niv.2 ou Niv.3 → tentative de publication via connecteurs (best-effort)
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  const publishResults: { platform: string; success: boolean; detail: string }[] = [];
+
+  const mediaUrls: string[] = [];
+  if (generatedImages) mediaUrls.push(...generatedImages.map((i) => i.url));
+  if (generatedVideo) mediaUrls.push(generatedVideo.url);
+
+  for (const platform of (platforms.length > 0 ? platforms : ["Facebook"])) {
+    const platformSlug = platform.toLowerCase().replace(/\s+/g, "_");
+    try {
+      const resp = await fetch(`${appUrl}/api/connectors/${platformSlug}/publish`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          companyId: input.companyId,
+          text: copyText,
+          media: mediaUrls.length > 0 ? mediaUrls : undefined,
+        }),
+      });
+      if (resp.ok) {
+        publishResults.push({ platform, success: true, detail: "Publication envoyée avec succès." });
+      } else {
+        const err = await resp.json().catch(() => ({ error: `HTTP ${resp.status}` }));
+        publishResults.push({
+          platform,
+          success: false,
+          detail: (err as { error?: string }).error ?? `HTTP ${resp.status}`,
+        });
+      }
+    } catch {
+      publishResults.push({
+        platform,
+        success: false,
+        detail: "Connecteur non disponible (endpoint introuvable ou non configuré).",
+      });
+    }
+  }
+
+  const anySuccess = publishResults.some((r) => r.success);
+  const allFailed = publishResults.every((r) => !r.success);
+
+  const publisherStatus: PublisherResult["status"] = anySuccess
+    ? input.autonomy === 3 ? "published" : "scheduled"
+    : "simulated";
+
+  const outputLines: string[] = [
+    `Résultat de publication (Autonomie N${input.autonomy}) :`,
+    `Plateformes ciblées : ${platformsLabel}`,
+    "",
+  ];
+
+  publishResults.forEach((r) => {
+    outputLines.push(`${r.success ? "✅" : "⚠️"} ${r.platform} : ${r.detail}`);
+  });
+
+  if (allFailed) {
+    outputLines.push(
+      "",
+      `⚠️ Connecteurs non configurés — le contenu a été préparé mais non publié.`,
+      `Configurez les connecteurs Meta Business API / LinkedIn API pour activer la publication automatique.`
+    );
+  } else if (input.autonomy === 2) {
+    outputLines.push("", "ℹ️ Autonomie N2 — La publication a été soumise mais requiert une validation finale dans les dashboards des plateformes.");
+  } else {
+    outputLines.push("", "✅ Autonomie N3 — Publication déclenchée sous garde-fous conformité.");
+  }
+
+  if (mediaUrls.length > 0) {
+    outputLines.push("", "Médias attachés :");
+    mediaUrls.forEach((u) => outputLines.push(`  • ${u}`));
+  }
+
+  const result: PublisherResult = {
+    status: publisherStatus,
+    platforms,
+    message: allFailed
+      ? `Connecteurs non configurés — contenu préparé pour ${platformsLabel} mais non publié.`
+      : anySuccess
+      ? `Contenu ${input.autonomy === 3 ? "publié" : "programmé"} sur ${publishResults.filter((r) => r.success).map((r) => r.platform).join(", ")}.`
+      : `Publication simulée — connecteurs requis pour ${platformsLabel}.`,
+  };
+
+  return {
+    step: {
+      agent: "publisher",
+      title: anySuccess
+        ? `Publication déclenchée (N${input.autonomy})`
+        : `Publication préparée — connecteurs requis`,
+      status: anySuccess ? "done" : "simulated",
+      output: outputLines.join("\n"),
+      detail: allFailed
+        ? "Connecteurs requis : Meta Business API + LinkedIn API. Configurez-les dans les paramètres de l'application."
+        : undefined,
+      finishedAt: ts(),
+    },
+    publisherResult: result,
+  };
+}
+
+/**
+ * Étape 8 — Analyste
  * Produit un benchmark sectoriel ciblé avec KPIs et projection de captation d'audience.
  */
 async function runAnalyst(
@@ -970,7 +1231,10 @@ export async function runOrchestration(
   const copyText = copyStep.output;
 
   // ── 4. Créatif ──────────────────────────────────────────────────────────────
-  steps.push(await runCreative(input, profile, copyText));
+  const creativeResult = await runCreative(input, profile, copyText, cadence);
+  steps.push(creativeResult.step);
+  const generatedImages = creativeResult.generatedImages;
+  const generatedVideo = creativeResult.generatedVideo;
 
   // ── 5. Conformité (BLOQUANT) ────────────────────────────────────────────────
   const { step: complianceStep, verdict, issues } = await runCompliance(input, profile, copyText);
@@ -984,6 +1248,17 @@ export async function runOrchestration(
   // ── 7. Analyste ─────────────────────────────────────────────────────────────
   const { step: analystStep, benchmark } = await runAnalyst(input, profile, cadence, isBlocked);
   steps.push(analystStep);
+
+  // ── 8. Publisher ─────────────────────────────────────────────────────────────
+  const { step: publisherStep, publisherResult } = await runPublisher(
+    input,
+    profile,
+    copyText,
+    generatedImages,
+    generatedVideo,
+    verdict
+  );
+  steps.push(publisherStep);
 
   // ── Calcul du finalOutput ────────────────────────────────────────────────────
   let finalOutput: string | undefined;
@@ -1007,6 +1282,7 @@ export async function runOrchestration(
     complianceVerdict: verdict,
     stepsCount: steps.length,
     blocked: isBlocked,
+    publisherStatus: publisherResult.status,
   });
 
   return {
@@ -1022,5 +1298,10 @@ export async function runOrchestration(
     benchmarkTarget: input.benchmarkTarget,
     environmentAnalysis: isBlocked ? undefined : environmentAnalysis,
     benchmark: isBlocked ? undefined : benchmark,
+    // Visuels générés par Creative
+    generatedImages,
+    generatedVideo,
+    // Résultat de publication
+    publisherResult,
   };
 }

@@ -10,6 +10,8 @@ import {
 } from "react";
 import { COMPANIES, COMPANY_DATA, registerCompany } from "./mock-data";
 import type { Company, CompanyData } from "./types";
+import { createClient } from "@/lib/supabase/client";
+import { isSupabaseConfigured } from "@/lib/env";
 
 interface CompanyContextValue {
   companies: Company[];
@@ -29,12 +31,34 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
   const [companies, setCompanies] = useState<Company[]>([...COMPANIES]);
 
   // Attempt to hydrate companies from the REST API on mount.
+  // Quand Supabase est configuré et un user connecté existe, on passe son
+  // orgId en query param pour que la RLS filtre correctement.
   // Initialised with mock data, so the app is fully functional before the
   // fetch resolves (and remains functional if it fails or Supabase is absent).
   useEffect(() => {
     let cancelled = false;
 
-    fetch("/api/companies")
+    async function resolveApiUrl(): Promise<string> {
+      if (!isSupabaseConfigured) return "/api/companies";
+      const supabase = createClient();
+      if (!supabase) return "/api/companies";
+      const { data } = await supabase.auth.getUser();
+      if (!data.user) return "/api/companies";
+      // Récupère l'orgId depuis les memberships
+      const { data: membership } = await supabase
+        .from("memberships")
+        .select("org_id")
+        .eq("user_id", data.user.id)
+        .limit(1)
+        .single();
+      if (membership?.org_id) {
+        return `/api/companies?orgId=${encodeURIComponent(membership.org_id as string)}`;
+      }
+      return "/api/companies";
+    }
+
+    resolveApiUrl()
+      .then((url) => fetch(url))
       .then((res) => {
         if (!res.ok) throw new Error(`/api/companies returned ${res.status}`);
         return res.json() as Promise<Company[]>;

@@ -3,7 +3,7 @@
  * Ces types sont utilisés par le roster, l'orchestrateur et l'UI de pilotage.
  */
 
-// ── Identifiants des 7 agents ──────────────────────────────────────────
+// ── Identifiants des 8 agents ──────────────────────────────────────────
 export type AgentId =
   | "orchestrator"
   | "strategist"
@@ -11,7 +11,8 @@ export type AgentId =
   | "creative"
   | "media_buyer"
   | "analyst"
-  | "compliance";
+  | "compliance"
+  | "publisher";
 
 // ── Cadence éditoriale ─────────────────────────────────────────────────
 /**
@@ -107,6 +108,34 @@ export interface AgentRunResult {
    * Contient les KPIs cibles vs sectoriels et la projection de captation d'audience.
    */
   benchmark?: BenchmarkResult;
+
+  // ── Visuels générés par l'agent Créatif (optionnels) ────────────
+  /** URLs des images générées par Replicate (si configuré) */
+  generatedImages?: { url: string }[];
+  /** URL de la vidéo générée par Replicate (si applicable) */
+  generatedVideo?: { url: string };
+
+  // ── Résultat de publication (agent Publisher) ────────────────────
+  /** Résultat de la tentative de publication */
+  publisherResult?: PublisherResult;
+}
+
+// ── Résultat de l'agent Publisher ────────────────────────────────────
+export interface PublisherResult {
+  /**
+   * "published"  → publication déclenchée avec succès via connecteur
+   * "scheduled"  → publication planifiée (connecteur présent, date future)
+   * "pending"    → en attente de validation humaine (autonomie 1)
+   * "simulated"  → connecteur absent ou autonomie < 3
+   * "blocked"    → bloqué par compliance
+   */
+  status: "published" | "scheduled" | "pending" | "simulated" | "blocked";
+  /** Plateformes ciblées */
+  platforms: string[];
+  /** Message de statut lisible */
+  message: string;
+  /** Heure de publication planifiée (ISO) */
+  scheduledAt?: string;
 }
 
 // ── Analyse d'environnement (sortie du Stratège) ─────────────────────

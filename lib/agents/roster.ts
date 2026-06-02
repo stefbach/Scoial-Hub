@@ -69,6 +69,15 @@ export const AGENTS: AgentDef[] = [
     defaultAutonomy: 3, // Toujours actif, quel que soit le niveau d'autonomie global
     requiredConnectors: ["Anthropic Claude API"],
   },
+  {
+    id: "publisher",
+    name: "Publisher",
+    role: "Programme et publie le contenu validé sur les réseaux sociaux.",
+    accentColor: "text-indigo-700",
+    accentBg: "bg-indigo-50 border-indigo-200",
+    defaultAutonomy: 2,
+    requiredConnectors: ["Meta Business API", "LinkedIn API"],
+  },
 ];
 
 /** Retrouve la définition d'un agent par son identifiant. */

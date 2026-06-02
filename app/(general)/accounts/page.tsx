@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { format } from "date-fns";
 import { useCompany } from "@/lib/company-context";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -9,9 +10,11 @@ import { Modal } from "@/components/ui/Modal";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Toggle } from "@/components/ui/Toggle";
 import { Toast } from "@/components/ui/Toast";
-import { disconnectMeta, setMeta } from "@/lib/connection-store";
+import { disconnectMeta, setMeta, mergeConnectorStatus } from "@/lib/connection-store";
 import { TEAM } from "@/lib/mock-data";
 import type { MetaConnection } from "@/lib/types";
+import type { ConnectorStatus } from "@/lib/connectors/types";
+import type { PlatformView } from "@/lib/connection-store";
 
 // Anchor "today" to the same point the rest of the app uses for the seed data.
 const TODAY = new Date("2026-05-30T00:00:00");
@@ -42,8 +45,50 @@ function fmtDate(d?: Date | null) {
 
 const USER_EMAIL = TEAM[0]?.email ?? "you@example.com";
 
+// ---------------------------------------------------------------------------
+// Platform colours / labels
+// ---------------------------------------------------------------------------
+
+const PLATFORM_META = {
+  facebook: {
+    label: "Facebook",
+    color: "text-[#1877F2]",
+    bg: "bg-[#1877F2]/10",
+    ring: "ring-[#1877F2]/20",
+    dot: "bg-[#1877F2]",
+  },
+  instagram: {
+    label: "Instagram",
+    color: "text-[#E1306C]",
+    bg: "bg-[#E1306C]/10",
+    ring: "ring-[#E1306C]/20",
+    dot: "bg-[#E1306C]",
+  },
+  linkedin: {
+    label: "LinkedIn",
+    color: "text-[#0A66C2]",
+    bg: "bg-[#0A66C2]/10",
+    ring: "ring-[#0A66C2]/20",
+    dot: "bg-[#0A66C2]",
+  },
+} as const;
+
+// ---------------------------------------------------------------------------
+// Main page
+// ---------------------------------------------------------------------------
+
 export default function AccountsPage() {
+  return (
+    <Suspense fallback={null}>
+      <AccountsPageInner />
+    </Suspense>
+  );
+}
+
+function AccountsPageInner() {
   const { company, data } = useCompany();
+  const searchParams = useSearchParams();
+
   const [, setTick] = useState(0);
   const refresh = () => setTick((t) => t + 1);
 
@@ -51,6 +96,75 @@ export default function AccountsPage() {
   const [manageOpen, setManageOpen] = useState(false);
   const [linkedinOpen, setLinkedinOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+
+  // Native connector status (from GET /api/connectors)
+  const [connectorStatuses, setConnectorStatuses] = useState<ConnectorStatus[] | null>(null);
+  const [connectorLoading, setConnectorLoading] = useState(true);
+  const [connectorError, setConnectorError] = useState(false);
+
+  // Fetch connector status on mount
+  useEffect(() => {
+    let cancelled = false;
+    setConnectorLoading(true);
+    setConnectorError(false);
+    fetch("/api/connectors")
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json() as Promise<ConnectorStatus[]>;
+      })
+      .then((statuses) => {
+        if (!cancelled) {
+          setConnectorStatuses(statuses);
+          setConnectorLoading(false);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setConnectorError(true);
+          setConnectorLoading(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Handle return from OAuth callback (query params)
+  useEffect(() => {
+    const simulated = searchParams.get("simulated");
+    const connected = searchParams.get("connected");
+    const platform = searchParams.get("platform");
+    const account = searchParams.get("account");
+    const error = searchParams.get("error");
+
+    if (simulated === "true" && connected === "true") {
+      const label = platform ? PLATFORM_META[platform as keyof typeof PLATFORM_META]?.label ?? platform : "plateforme";
+      const name = account ? ` (${account})` : "";
+      setToast(`Connexion simulée — ${label}${name} — clés API requises pour une vraie connexion.`);
+    } else if (connected === "true" && platform) {
+      const label = PLATFORM_META[platform as keyof typeof PLATFORM_META]?.label ?? platform;
+      const name = account ? ` : ${account}` : "";
+      setToast(`${label} connecté${name}.`);
+      // Refresh connector status after successful connection
+      fetch("/api/connectors")
+        .then((r) => r.json() as Promise<ConnectorStatus[]>)
+        .then(setConnectorStatuses)
+        .catch(() => undefined);
+    } else if (error) {
+      const desc =
+        error === "oauth_denied"
+          ? "Autorisation refusée par la plateforme."
+          : error === "missing_code"
+          ? "Code d'autorisation manquant dans le callback."
+          : error === "exchange_failed"
+          ? "Échec de l'échange du code OAuth. Réessayez."
+          : `Erreur OAuth : ${error}`;
+      setToast(desc);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const platformViews = useMemo(() => mergeConnectorStatus(connectorStatuses), [connectorStatuses]);
 
   const meta = data.meta;
   const state = safetyState(meta);
@@ -63,8 +177,12 @@ export default function AccountsPage() {
     if (state === "expired-but-kept") {
       return "Ads access: read-only (kept active after safety period). Disable in Manage settings to allow full ad control.";
     }
-    return null; // expired-and-off ⇒ full control, no notice
+    return null;
   }, [state, expiry]);
+
+  // Helper: find PlatformView for a given platform
+  const viewFor = (platform: "facebook" | "instagram" | "linkedin"): PlatformView | undefined =>
+    platformViews?.find((v) => v.platform === platform);
 
   return (
     <div className="animate-fade-in">
@@ -79,7 +197,7 @@ export default function AccountsPage() {
         </span>
       </div>
 
-      {/* Meta section */}
+      {/* Meta section (legacy mock-based) */}
       <div className="mb-2 flex items-center gap-2">
         <div className="section-label">Meta (Facebook + Instagram)</div>
       </div>
@@ -96,7 +214,7 @@ export default function AccountsPage() {
         <DisconnectedMetaCard companyCode={company.code} companyName={company.name} />
       )}
 
-      {/* LinkedIn section */}
+      {/* LinkedIn section (legacy) */}
       <div className="mb-2 mt-6 flex items-center gap-2">
         <div className="section-label">LinkedIn</div>
       </div>
@@ -115,6 +233,49 @@ export default function AccountsPage() {
           <Button variant="primary" onClick={() => setLinkedinOpen(true)}>Connect</Button>
         </div>
       </div>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Native connectors section                                           */}
+      {/* ------------------------------------------------------------------ */}
+      <div className="mb-2 mt-8 flex items-center gap-2">
+        <div className="section-label">Connecteurs natifs</div>
+      </div>
+
+      {connectorLoading && (
+        <div className="card p-4 text-2xs text-muted">Chargement du statut des connecteurs…</div>
+      )}
+
+      {connectorError && !connectorLoading && (
+        <div className="card p-4 text-2xs text-warning-700">
+          Impossible de récupérer le statut des connecteurs. Vérifiez votre connexion et rechargez la page.
+        </div>
+      )}
+
+      {!connectorLoading && !connectorError && platformViews && (
+        <div className="space-y-3">
+          {(["facebook", "instagram", "linkedin"] as const).map((platform) => {
+            const view = viewFor(platform);
+            return (
+              <NativeConnectorCard
+                key={platform}
+                platform={platform}
+                view={view}
+                onConnected={() => {
+                  fetch("/api/connectors")
+                    .then((r) => r.json() as Promise<ConnectorStatus[]>)
+                    .then(setConnectorStatuses)
+                    .catch(() => undefined);
+                  refresh();
+                }}
+              />
+            );
+          })}
+        </div>
+      )}
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Modals                                                               */}
+      {/* ------------------------------------------------------------------ */}
 
       {confirmDisconnect && (
         <DisconnectModal
@@ -159,6 +320,125 @@ export default function AccountsPage() {
     </div>
   );
 }
+
+// ---------------------------------------------------------------------------
+// NativeConnectorCard
+// ---------------------------------------------------------------------------
+
+function NativeConnectorCard({
+  platform,
+  view,
+  onConnected,
+}: {
+  platform: "facebook" | "instagram" | "linkedin";
+  view: PlatformView | undefined;
+  onConnected: () => void;
+}) {
+  const meta = PLATFORM_META[platform];
+  const configured = view?.configured ?? false;
+  const hasActive = view?.hasActiveAccount ?? false;
+  const accounts = view?.accounts ?? [];
+
+  return (
+    <div className="card p-4">
+      <div className="flex items-start justify-between gap-4">
+        {/* Left: logo + info */}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            {/* Platform colour dot */}
+            <span
+              className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full ring-1 ${meta.bg} ${meta.ring}`}
+              aria-hidden="true"
+            >
+              <span className={`h-2 w-2 rounded-full ${meta.dot}`} />
+            </span>
+            <span className="text-sm font-semibold text-ink">{meta.label}</span>
+
+            {/* Status badge */}
+            {!configured ? (
+              <StatusBadge tone="gray">Mode simulé</StatusBadge>
+            ) : hasActive ? (
+              <StatusBadge tone="green" dot>Connecté</StatusBadge>
+            ) : (
+              <StatusBadge tone="gray">Non connecté</StatusBadge>
+            )}
+          </div>
+
+          {/* Simulated mode notice */}
+          {!configured && (
+            <p className="mt-1 text-2xs text-muted">
+              Mode simulé — clés API requises pour une connexion réelle.{" "}
+              <a
+                href="/docs/CONNECTORS-NATIVE.md"
+                target="_blank"
+                rel="noreferrer"
+                className="underline hover:text-ink"
+              >
+                Voir la documentation
+              </a>
+              .
+            </p>
+          )}
+
+          {/* Connected accounts list */}
+          {configured && accounts.length > 0 && (
+            <ul className="mt-2 space-y-1">
+              {accounts.map((acc) => (
+                <li key={acc.id} className="flex items-center gap-2 text-2xs text-muted">
+                  <span
+                    className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                      acc.status === "active"
+                        ? meta.dot
+                        : "bg-warning-400"
+                    }`}
+                    aria-hidden="true"
+                  />
+                  <span className="font-medium text-ink">{acc.accountName}</span>
+                  {acc.externalId && <span className="opacity-60">· {acc.externalId}</span>}
+                  {acc.status !== "active" && (
+                    <StatusBadge tone="amber">{acc.status}</StatusBadge>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {/* No accounts but configured */}
+          {configured && accounts.length === 0 && (
+            <p className="mt-1 text-2xs text-muted">
+              Aucun compte connecté. Cliquez sur "Connecter" pour démarrer le flux OAuth.
+            </p>
+          )}
+        </div>
+
+        {/* Right: connect button */}
+        <div className="shrink-0">
+          {configured ? (
+            <a
+              href={`/api/connectors/${platform}/auth`}
+              className="btn-primary inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold"
+              onClick={onConnected}
+            >
+              {hasActive ? "Reconnecter" : "Connecter"}
+            </a>
+          ) : (
+            <a
+              href={`/api/connectors/${platform}/auth`}
+              className="btn-secondary inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold"
+              title="En mode simulé — aucune vraie connexion ne sera effectuée"
+            >
+              Simuler
+            </a>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Existing sub-components (unchanged)
+// ---------------------------------------------------------------------------
 
 function ConnectedMetaCard({
   companyCode,

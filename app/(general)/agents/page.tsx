@@ -155,7 +155,7 @@ export default function AgentsPage() {
         </div>
       </div>
 
-      {/* ── Grille des 7 agents ──────────────────────────────────────── */}
+      {/* ── Grille des 8 agents ──────────────────────────────────────── */}
       <div>
         <div className="section-label mb-2">Agents disponibles</div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -192,7 +192,7 @@ export default function AgentsPage() {
           </div>
           <p className="text-sm font-medium text-ink">Orchestration en cours…</p>
           <p className="mt-1 text-xs text-muted">
-            Les 7 agents travaillent en séquence. Cette opération peut prendre quelques secondes.
+            Les 8 agents travaillent en séquence. Cette opération peut prendre quelques secondes.
           </p>
         </div>
       )}
@@ -227,7 +227,7 @@ export default function AgentsPage() {
           </div>
           <h3 className="text-sm font-semibold text-ink">Prêt à piloter</h3>
           <p className="mt-1 max-w-sm mx-auto text-xs text-muted">
-            Décrivez votre objectif de campagne, choisissez un niveau d'autonomie et lancez le pilotage pour voir les 7 agents IA travailler en séquence.
+            Décrivez votre objectif de campagne, choisissez un niveau d'autonomie et lancez le pilotage pour voir les 8 agents IA travailler en séquence.
           </p>
         </div>
       )}

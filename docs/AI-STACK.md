@@ -171,7 +171,85 @@ Séquence complète, de la demande à la publication.
 
 ---
 
-## 5. Garde-fou conformité santé — détail
+## 5. Branchement Replicate (réel)
+
+Implémentation active dans `lib/ai/replicate.ts`. Une seule clé `REPLICATE_API_TOKEN` couvre images et vidéos.
+
+### Modèles utilisés
+
+| Domaine | Modèle Replicate | ID exact |
+|---|---|---|
+| **Image** | Flux 1.1 Pro (Black Forest Labs) | `black-forest-labs/flux-1.1-pro` |
+| **Vidéo** | MiniMax Video-01 | `minimax/video-01` |
+
+### Coûts approximatifs (tarifs Replicate 2026)
+
+| Modèle | Coût approx. | Notes |
+|---|---|---|
+| `flux-1.1-pro` | ~0,04 $/image | Résolution jusqu'à 1440 px, WebP |
+| `minimax/video-01` | ~0,50 $/clip | Clip 5–6 s, polling ~30–90 s |
+
+> Vérifier les tarifs exacts sur [replicate.com/pricing](https://replicate.com/pricing) — ils varient selon la charge GPU.
+
+### Architecture technique
+
+- **Endpoint** : `POST https://api.replicate.com/v1/models/{owner}/{name}/predictions` (cible toujours la dernière version du modèle).
+- **Polling** : intervalle 2 s, timeout global 120 s. L'en-tête `Prefer: wait` permet à Replicate de répondre directement si la prédiction est rapide.
+- **Pas de dépendance npm** : implémentation en `fetch` natif Node.js, aucun paquet tiers ajouté.
+
+### Comment tester
+
+**Sans clé (mode simulé) :**
+```bash
+curl -X POST http://localhost:3000/api/ai/generate-image \
+  -H "Content-Type: application/json" \
+  -d '{"prompt":"test","format":"square","n":1}'
+# → {"images":[],"simulated":true,"model":"simulated"}
+
+curl -X POST http://localhost:3000/api/ai/generate-video \
+  -H "Content-Type: application/json" \
+  -d '{"prompt":"test","seconds":5,"aspect":"9:16"}'
+# → {"simulated":true,"model":"simulated"}
+```
+
+**Avec clé réelle (`.env.local`) :**
+```bash
+echo "REPLICATE_API_TOKEN=r8_xxxxxxxxxxxxxxxxxxxx" >> .env.local
+
+# Image (format Stories Instagram)
+curl -X POST http://localhost:3000/api/ai/generate-image \
+  -H "Content-Type: application/json" \
+  -d '{"prompt":"Medical wellness, warm light, modern clinic interior","format":"story","n":1}'
+# → {"images":[{"url":"https://replicate.delivery/..."}],"model":"black-forest-labs/flux-1.1-pro"}
+
+# Vidéo (Reel 9:16, 5 s)
+curl -X POST http://localhost:3000/api/ai/generate-video \
+  -H "Content-Type: application/json" \
+  -d '{"prompt":"Doctor welcoming patient, warm clinic, smooth cinematic","seconds":5,"aspect":"9:16"}'
+# → {"video":{"url":"https://replicate.delivery/..."},"model":"minimax/video-01"}
+```
+
+### Paramètres acceptés
+
+**`POST /api/ai/generate-image`**
+
+| Champ | Type | Défaut | Description |
+|---|---|---|---|
+| `prompt` | `string` | `""` | Description de l'image à générer |
+| `format` | `string` | `"square"` | `square` (1:1), `portrait` (4:5), `landscape` (16:9), `story` (9:16) |
+| `n` | `number` | `1` | Nombre d'images (1–4) |
+
+**`POST /api/ai/generate-video`**
+
+| Champ | Type | Défaut | Description |
+|---|---|---|---|
+| `prompt` | `string` | `""` | Description de la vidéo à générer |
+| `seconds` | `number` | `5` | Durée (5 ou 6 s, limite MiniMax) |
+| `aspect` | `string` | `"9:16"` | Ratio : `9:16`, `16:9`, `1:1` |
+
+---
+
+## 6. Garde-fou conformité santé — détail
 
 Cette étape est **bloquante** et non contournable pour les 3 marques (cliniques médicales, soins obésité, télémédecine).
 

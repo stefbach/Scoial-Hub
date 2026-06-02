@@ -1057,6 +1057,57 @@ export const COMPANY_DATA: Record<string, CompanyData> = {
   cvmi,
 };
 
+// Build a valid, empty-ish CompanyData for a newly-created company so every
+// screen renders without special-casing. Frontend-only; no backend.
+export function makeEmptyCompanyData(): CompanyData {
+  return {
+    dashboard: {
+      organic: { scheduled: 0, published7d: 0, inLibrary: 0, failed: 0 },
+      paid: { activeCampaigns: 0, spendMtd: 0, spendCap: 5000, conversions: 0, aiBudgetUsed: 0, aiBudgetCap: 65 },
+      upcomingPosts: [],
+      topAd: { platform: "facebook", name: "—", spend: 0, ctr: "0%", conversions: 0 },
+    },
+    accounts: [],
+    scheduled: [],
+    library: { unused: 0, runway: "—", aiBudgetUsed: 0, aiBudgetCap: 65, imageSpend: 0, videoSpend: 0, templates: [] },
+    automations: { active: 0, paused: 0, postsThisWeek: 0, rules: [] },
+    history: [],
+    campaigns: { activeCampaigns: 0, spendMtd: 0, conversions: 0, avgCpc: 0, list: [] },
+    audiences: { total: 0, inUse: 0, combinedReach: "—", list: [] },
+    adPerformance: {
+      spend: 0, spendTrend: "UP 0%",
+      impressions: "0", impressionsTrend: "UP 0%",
+      clicks: "0", clicksTrend: "UP 0%",
+      conversions: 0, conversionsTrend: "UP 0%",
+      avgCpc: 0, avgCpcTrend: "UP 0%",
+      series: { spend: [], conversions: [] },
+      topAds: [],
+      insight: "No ad data yet for this company.",
+    },
+    adSafety: {
+      monthlyCap: 5000, usedThisMonth: 0, requireBudgetCap: true,
+      confirmAiSpend: true, doubleConfirmThreshold: 500, dailyDigest: true,
+      recentAudit: "No changes yet.",
+    },
+    meta: { connected: false, readOnly: true, keepReadOnlyAfterSafety: false },
+    linkedin: { connected: false },
+  };
+}
+
+// Register a freshly-created company in the shared mock stores so the company
+// switcher and every company-scoped screen can resolve it.
+export function registerCompany(company: Company) {
+  COMPANIES.push(company);
+  COMPANY_DATA[company.id] = makeEmptyCompanyData();
+  ANALYTICS_SERIES[company.id] = {
+    postsPublished: Array(30).fill(0),
+    engagement: Array(30).fill(0),
+    adSpend: Array(30).fill(0),
+    conversions: Array(30).fill(0),
+  };
+  ANALYTICS_PLATFORM_SHARE[company.id] = { facebook: 0.6, instagram: 0.4, linkedin: 0 };
+}
+
 // Per-company daily series for the Analytics screen. 30 days × 4 metrics
 // each. Chosen to roll up to plausible aggregates (OCC dominates engagement
 // and conversions, Tibok grew week-over-week, CVMI lags relative to spend).

@@ -1,10 +1,11 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Toggle } from "@/components/ui/Toggle";
 import { Modal } from "@/components/ui/Modal";
 import { Toast } from "@/components/ui/Toast";
+import { ImageUpload, type UploadedImage } from "@/components/ui/ImageUpload";
 import { SubHeader, SectionLabel } from "./shared";
 import { ORG_NAME } from "@/lib/mock-data";
 
@@ -22,15 +23,13 @@ export function Profile() {
   const [email, setEmail] = useState("younes@ddsgroup.mu");
   const [tz, setTz] = useState(TIMEZONES[0]);
   const [lang, setLang] = useState("English");
-  const [avatar, setAvatar] = useState<string | null>(null);
+  const [avatar, setAvatar] = useState<UploadedImage | null>(null);
   const [twoFa, setTwoFa] = useState(false);
 
   const [dirty, setDirty] = useState(false);
   const [pwOpen, setPwOpen] = useState(false);
   const [twoFaOpen, setTwoFaOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
-
-  const fileRef = useRef<HTMLInputElement>(null);
 
   const initials = name
     .split(" ")
@@ -44,16 +43,6 @@ export function Profile() {
     setDirty(true);
   };
 
-  const handleUpload = (file?: File) => {
-    if (!file) return;
-    if (file.size > 5 * 1024 * 1024) {
-      setToast("Image is over 5MB. Choose a smaller file.");
-      return;
-    }
-    setAvatar(URL.createObjectURL(file));
-    setDirty(true);
-  };
-
   const save = () => {
     setDirty(false);
     setToast("Profile saved.");
@@ -64,35 +53,13 @@ export function Profile() {
       <SubHeader title="Profile" scope="org" scopeLabel={ORG_NAME} />
 
       {/* Avatar */}
-      <div className="mb-5 flex items-center gap-4">
-        <div className="relative h-16 w-16">
-          <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full bg-page text-sm font-bold text-white">
-            {avatar ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={avatar} alt="avatar" className="h-full w-full object-cover" />
-            ) : (
-              initials
-            )}
-          </div>
-          <button
-            onClick={() => fileRef.current?.click()}
-            className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full border-hair border-hair bg-card text-muted shadow-sm hover:text-ink"
-            aria-label="Upload avatar"
-          >
-            <CameraIcon />
-          </button>
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={(e) => handleUpload(e.target.files?.[0] ?? undefined)}
-          />
-        </div>
-        <div>
-          <div className="text-sm font-medium text-ink">{name}</div>
-          <div className="text-2xs text-muted">JPG or PNG · up to 5MB</div>
-        </div>
+      <div className="mb-5">
+        <ImageUpload
+          value={avatar}
+          onChange={(img) => { setAvatar(img); setDirty(true); }}
+          variant="avatar"
+          fallback={initials}
+        />
       </div>
 
       <div className="grid grid-cols-2 gap-3">
@@ -219,14 +186,5 @@ function Field({
         className="mt-1 w-full rounded-md border-hair border-hair bg-card px-3 py-2 text-sm text-ink focus:outline-none"
       />
     </div>
-  );
-}
-
-function CameraIcon() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
-      <path d="M5 8h3l2-2h4l2 2h3a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2v-8a2 2 0 012-2z" stroke="currentColor" strokeWidth="1.5" />
-      <circle cx="12" cy="13" r="3.5" stroke="currentColor" strokeWidth="1.5" />
-    </svg>
   );
 }

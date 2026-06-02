@@ -1,9 +1,10 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { Toast } from "@/components/ui/Toast";
+import { ImageUpload, type UploadedImage } from "@/components/ui/ImageUpload";
 import { SubHeader, SectionLabel } from "./shared";
 import { COMPANIES, ORG_NAME, TEAM } from "@/lib/mock-data";
 
@@ -13,11 +14,10 @@ export function Organization({ onNavigate }: { onNavigate: (section: string) => 
   const [name, setName] = useState(ORG_NAME);
   const [pendingName, setPendingName] = useState<string | null>(null);
   const [industry, setIndustry] = useState("Healthcare");
-  const [logo, setLogo] = useState<string | null>(null);
+  const [logo, setLogo] = useState<UploadedImage | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteText, setDeleteText] = useState("");
   const [toast, setToast] = useState<string | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
 
   const orgInitials = name
     .split(" ")
@@ -26,42 +26,13 @@ export function Organization({ onNavigate }: { onNavigate: (section: string) => 
     .join("")
     .toUpperCase();
 
-  const handleLogo = (file?: File) => {
-    if (!file) return;
-    setLogo(URL.createObjectURL(file));
-  };
-
   return (
     <div>
       <SubHeader title="Organization" scope="org" scopeLabel={name} />
 
       {/* Logo */}
-      <div className="mb-5 flex items-center gap-4">
-        <div className="relative">
-          <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-md bg-page text-sm font-bold text-white">
-            {logo ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={logo} alt="logo" className="h-full w-full object-cover" />
-            ) : (
-              orgInitials
-            )}
-          </div>
-          <button
-            onClick={() => fileRef.current?.click()}
-            className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full border-hair border-hair bg-card text-muted shadow-sm hover:text-ink"
-            aria-label="Upload organization logo"
-          >
-            <CameraIcon />
-          </button>
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={(e) => handleLogo(e.target.files?.[0] ?? undefined)}
-          />
-        </div>
-        <div className="text-2xs text-muted">JPG or PNG · displayed in nav and exports.</div>
+      <div className="mb-5">
+        <ImageUpload value={logo} onChange={setLogo} variant="logo" fallback={orgInitials} />
       </div>
 
       <div className="grid grid-cols-2 gap-3">
@@ -181,14 +152,5 @@ export function Organization({ onNavigate }: { onNavigate: (section: string) => 
 
       {toast && <Toast message={toast} onDismiss={() => setToast(null)} />}
     </div>
-  );
-}
-
-function CameraIcon() {
-  return (
-    <svg width="10" height="10" viewBox="0 0 24 24" fill="none">
-      <path d="M5 8h3l2-2h4l2 2h3a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2v-8a2 2 0 012-2z" stroke="currentColor" strokeWidth="1.5" />
-      <circle cx="12" cy="13" r="3.5" stroke="currentColor" strokeWidth="1.5" />
-    </svg>
   );
 }

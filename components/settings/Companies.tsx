@@ -4,17 +4,30 @@ import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { Toast } from "@/components/ui/Toast";
+import { ImageUpload, type UploadedImage } from "@/components/ui/ImageUpload";
 import { SubHeader } from "./shared";
-import { COMPANIES, ORG_NAME } from "@/lib/mock-data";
+import { ORG_NAME } from "@/lib/mock-data";
+import { useCompany } from "@/lib/company-context";
 import type { Company } from "@/lib/types";
 
+const ACCENTS = ["#2563eb", "#d62976", "#16a34a", "#7c3aed", "#ea580c", "#0a66c2"];
+
+function deriveCode(name: string): string {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return "NEW";
+  if (words.length === 1) return words[0].slice(0, 3).toUpperCase();
+  return words.map((w) => w[0]).slice(0, 3).join("").toUpperCase();
+}
+
+function deriveId(name: string): string {
+  const base = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  return `${base || "company"}-${Date.now().toString(36)}`;
+}
+
 export function Companies() {
+  const { companies, addCompany, updateCompany } = useCompany();
   const [open, setOpen] = useState<{ mode: "new" | "edit"; company?: Company } | null>(null);
   const [toast, setToast] = useState<string | null>(null);
-  // Frontend-only: render from the imported COMPANIES list; mutations are
-  // session-only (re-rendering on this page only).
-  const [_, setTick] = useState(0);
-  const refresh = () => setTick((t) => t + 1);
 
   return (
     <div>
@@ -22,17 +35,22 @@ export function Companies() {
       <p className="mb-4 text-sm text-muted">Each company has its own social accounts, library, and campaigns.</p>
 
       <div className="space-y-2">
-        {COMPANIES.map((c) => (
+        {companies.map((c) => (
           <button
             key={c.id}
             onClick={() => setOpen({ mode: "edit", company: c })}
             className="flex w-full cursor-pointer items-center gap-3 rounded-md border-hair border-hair bg-canvas px-3 py-2.5 text-left transition-colors hover:bg-canvas/60"
           >
             <span
-              className="flex h-9 w-9 items-center justify-center rounded-full text-2xs font-bold text-white"
+              className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full text-2xs font-bold text-white"
               style={{ backgroundColor: c.accent }}
             >
-              {c.code}
+              {c.logoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={c.logoUrl} alt={c.name} className="h-full w-full object-cover" />
+              ) : (
+                c.code
+              )}
             </span>
             <div className="min-w-0 flex-1">
               <div className="text-sm font-medium text-ink">{c.name}</div>
@@ -52,9 +70,38 @@ export function Companies() {
           mode={open.mode}
           company={open.company}
           onClose={() => setOpen(null)}
-          onSaved={(msg) => {
-            setToast(msg);
-            refresh();
+          onCreate={(payload) => {
+            const id = deriveId(payload.name);
+            const newCompany: Company = {
+              id,
+              code: deriveCode(payload.name),
+              name: payload.name.trim(),
+              brandVoice: payload.brandVoice.trim(),
+              accent: ACCENTS[companies.length % ACCENTS.length],
+              logoUrl: payload.logoUrl,
+              defaultPlatforms: payload.defaultPlatforms,
+              defaultPostingTime: payload.defaultPostingTime,
+              defaultNeedsReview: payload.defaultNeedsReview,
+            };
+            addCompany(newCompany);
+            setToast(`Created company ${newCompany.name}.`);
+            setOpen(null);
+          }}
+          onSave={(id, payload) => {
+            updateCompany(id, {
+              name: payload.name.trim(),
+              brandVoice: payload.brandVoice.trim(),
+              logoUrl: payload.logoUrl,
+              defaultPlatforms: payload.defaultPlatforms,
+              defaultPostingTime: payload.defaultPostingTime,
+              defaultNeedsReview: payload.defaultNeedsReview,
+            });
+            setToast(`Saved changes to ${payload.name}.`);
+            setOpen(null);
+          }}
+          onDelete={(name) => {
+            setToast(`Company deletion is a mock action — ${name} is preserved.`);
+            setOpen(null);
           }}
         />
       )}
@@ -64,34 +111,56 @@ export function Companies() {
   );
 }
 
+interface CompanyPayload {
+  name: string;
+  brandVoice: string;
+  logoUrl?: string;
+  defaultPlatforms: ("facebook" | "instagram" | "linkedin")[];
+  defaultPostingTime: string;
+  defaultNeedsReview: boolean;
+}
+
 function CompanyModal({
   mode,
   company,
   onClose,
-  onSaved,
+  onCreate,
+  onSave,
+  onDelete,
 }: {
   mode: "new" | "edit";
   company?: Company;
   onClose: () => void;
-  onSaved: (msg: string) => void;
+  onCreate: (payload: CompanyPayload) => void;
+  onSave: (id: string, payload: CompanyPayload) => void;
+  onDelete: (name: string) => void;
 }) {
   const [name, setName] = useState(company?.name ?? "");
   const [brandVoice, setBrandVoice] = useState(company?.brandVoice ?? "");
-  const [platforms, setPlatforms] = useState<{ fb: boolean; ig: boolean; ln: boolean }>({
-    fb: true,
-    ig: true,
-    ln: false,
+  const [logo, setLogo] = useState<UploadedImage | null>(
+    company?.logoUrl ? { url: company.logoUrl, name: "Current logo", size: 0 } : null
+  );
+  const [platforms, setPlatforms] = useState<{ facebook: boolean; instagram: boolean; linkedin: boolean }>({
+    facebook: company?.defaultPlatforms?.includes("facebook") ?? true,
+    instagram: company?.defaultPlatforms?.includes("instagram") ?? true,
+    linkedin: company?.defaultPlatforms?.includes("linkedin") ?? false,
   });
-  const [defaultTime, setDefaultTime] = useState("09:00");
-  const [needsReviewDefault, setNeedsReviewDefault] = useState(false);
+  const [defaultTime, setDefaultTime] = useState(company?.defaultPostingTime ?? "09:00");
+  const [needsReviewDefault, setNeedsReviewDefault] = useState(company?.defaultNeedsReview ?? false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteText, setDeleteText] = useState("");
 
-  const togglePlatform = (key: keyof typeof platforms) =>
-    setPlatforms((p) => ({ ...p, [key]: !p[key] }));
-
   const editing = mode === "edit";
   const canSave = !!name.trim();
+
+  const collectPayload = (): CompanyPayload => ({
+    name,
+    brandVoice,
+    logoUrl: logo?.url,
+    defaultPlatforms: (Object.keys(platforms) as (keyof typeof platforms)[]).filter((k) => platforms[k]),
+    defaultPostingTime: defaultTime,
+    defaultNeedsReview: needsReviewDefault,
+  });
 
   return (
     <Modal open onClose={onClose} width="max-w-lg">
@@ -111,9 +180,8 @@ function CompanyModal({
 
         <div>
           <label className="text-2xs font-medium text-muted">Logo</label>
-          <div className="mt-1 flex items-center gap-2 rounded-md border-hair border-hair bg-canvas/60 px-3 py-2 text-2xs text-muted">
-            <UploadIcon />
-            <span>Drop a logo file here, or click to upload (PNG, JPG · up to 5MB)</span>
+          <div className="mt-1">
+            <ImageUpload value={logo} onChange={setLogo} variant="zone" />
           </div>
         </div>
 
@@ -134,11 +202,11 @@ function CompanyModal({
           <label className="text-2xs font-medium text-muted">Default platforms</label>
           <div className="mt-1 flex flex-wrap gap-3 text-sm text-ink">
             <label className="flex items-center gap-1.5">
-              <input type="checkbox" checked={platforms.fb} onChange={() => togglePlatform("fb")} />
+              <input type="checkbox" checked={platforms.facebook} onChange={() => setPlatforms((p) => ({ ...p, facebook: !p.facebook }))} />
               Facebook
             </label>
             <label className="flex items-center gap-1.5">
-              <input type="checkbox" checked={platforms.ig} onChange={() => togglePlatform("ig")} />
+              <input type="checkbox" checked={platforms.instagram} onChange={() => setPlatforms((p) => ({ ...p, instagram: !p.instagram }))} />
               Instagram
             </label>
             <label
@@ -192,8 +260,8 @@ function CompanyModal({
           variant="primary"
           disabled={!canSave}
           onClick={() => {
-            onSaved(editing ? `Saved changes to ${name}.` : `Created company ${name}.`);
-            onClose();
+            if (editing && company) onSave(company.id, collectPayload());
+            else onCreate(collectPayload());
           }}
         >
           {editing ? "Save changes" : "Create company"}
@@ -203,9 +271,7 @@ function CompanyModal({
       {editing && deleteOpen && company && (
         <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-black/20 p-6">
           <div className="w-full max-w-sm rounded-lg border-hair border-hair bg-card p-4 shadow-xl">
-            <p className="text-sm text-ink">
-              This will permanently delete {company.name}.
-            </p>
+            <p className="text-sm text-ink">This will permanently delete {company.name}.</p>
             <p className="mt-1 text-2xs text-muted">
               Type <span className="font-semibold">&apos;{company.name}&apos;</span> to confirm.
             </p>
@@ -220,12 +286,7 @@ function CompanyModal({
               <Button
                 variant="danger"
                 disabled={deleteText !== company.name}
-                onClick={() => {
-                  setDeleteOpen(false);
-                  setDeleteText("");
-                  onSaved(`Company deletion is a mock action — ${company.name} is preserved.`);
-                  onClose();
-                }}
+                onClick={() => onDelete(company.name)}
               >
                 Delete forever
               </Button>
@@ -234,14 +295,5 @@ function CompanyModal({
         </div>
       )}
     </Modal>
-  );
-}
-
-function UploadIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-      <path d="M12 16V4m0 0L7 9m5-5l5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-    </svg>
   );
 }

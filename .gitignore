@@ -7,3 +7,7 @@ next-env.d.ts
 .DS_Store
 .env*.local
 .vercel
+
+# Python hook cache
+__pycache__/
+*.pyc

@@ -1,5 +1,6 @@
 import { CompanySwitcher } from "./CompanySwitcher";
 import { Sidebar } from "./Sidebar";
+import { UserMenu } from "./UserMenu";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
@@ -12,9 +13,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <span className="text-hair">|</span>
           <CompanySwitcher />
         </div>
-        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-page text-2xs font-semibold text-white">
-          YO
-        </span>
+        <UserMenu />
       </header>
       <div className="mx-auto flex max-w-[1180px]">
         <Sidebar />

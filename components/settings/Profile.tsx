@@ -6,6 +6,8 @@ import { Toggle } from "@/components/ui/Toggle";
 import { Modal } from "@/components/ui/Modal";
 import { Toast } from "@/components/ui/Toast";
 import { ImageUpload, type UploadedImage } from "@/components/ui/ImageUpload";
+import { PasswordInput } from "@/components/ui/PasswordInput";
+import { PasswordStrengthMeter } from "@/components/ui/PasswordStrengthMeter";
 import { SubHeader, SectionLabel } from "./shared";
 import { ORG_NAME } from "@/lib/mock-data";
 import { useAuth } from "@/lib/auth-context";
@@ -202,38 +204,44 @@ function ChangePasswordModal({ onClose, onDone }: { onClose: () => void; onDone:
   const [curr, setCurr] = useState("");
   const [next, setNext] = useState("");
   const [confirm, setConfirm] = useState("");
+  const tooShort = !!next && next.length < 8;
   const mismatch = !!confirm && next !== confirm;
-  const canSave = !!curr && !!next && !mismatch;
+  const canSave = !!curr && !!next && next.length >= 8 && !mismatch;
 
   return (
     <Modal open onClose={onClose} width="max-w-md">
       <div className="border-b-hair border-hair px-4 py-3 text-sm font-semibold text-ink">Change password</div>
       <div className="space-y-3 p-4">
-        <Field label="Current password" value={curr} onChange={setCurr} type="password" />
-        <Field label="New password" value={next} onChange={setNext} type="password" />
-        <Field label="Confirm new password" value={confirm} onChange={setConfirm} type="password" />
-        {mismatch && <div className="text-2xs text-red-600">Passwords don&apos;t match.</div>}
+        <PasswordInput
+          label="Current password"
+          value={curr}
+          onChange={setCurr}
+          autoComplete="current-password"
+        />
+        <div>
+          <PasswordInput
+            label="New password"
+            value={next}
+            onChange={setNext}
+            autoComplete="new-password"
+            helper={tooShort ? <span className="text-red-600">At least 8 characters.</span> : "At least 8 characters."}
+            invalid={tooShort}
+          />
+          <PasswordStrengthMeter password={next} />
+        </div>
+        <PasswordInput
+          label="Confirm new password"
+          value={confirm}
+          onChange={setConfirm}
+          autoComplete="new-password"
+          invalid={mismatch}
+          helper={mismatch ? <span className="text-red-600">Passwords don&apos;t match.</span> : undefined}
+        />
       </div>
       <div className="flex justify-end gap-2 border-t-hair border-hair px-4 py-3">
         <Button variant="secondary" onClick={onClose}>Cancel</Button>
         <Button variant="primary" disabled={!canSave} onClick={onDone}>Save</Button>
       </div>
     </Modal>
-  );
-}
-
-function Field({
-  label, value, onChange, type = "text",
-}: { label: string; value: string; onChange: (v: string) => void; type?: string }) {
-  return (
-    <div>
-      <label className="text-2xs font-medium text-muted">{label}</label>
-      <input
-        type={type}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="mt-1 w-full rounded-md border-hair border-hair bg-card px-3 py-2 text-sm text-ink focus:outline-none"
-      />
-    </div>
   );
 }

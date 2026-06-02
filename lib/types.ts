@@ -15,6 +15,10 @@ export interface Company {
   name: string;
   brandVoice: string;
   accent: string; // tailwind-friendly hex for the avatar chip
+  logoUrl?: string; // object URL of an uploaded logo (frontend-only)
+  defaultPlatforms?: ("facebook" | "instagram" | "linkedin")[];
+  defaultPostingTime?: string; // HH:mm
+  defaultNeedsReview?: boolean;
 }
 
 export interface SocialAccount {

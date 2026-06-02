@@ -16,6 +16,7 @@ export async function GET() {
     .select("id,code,name")
     .limit(5);
   return NextResponse.json({
+    supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL ?? null,
     configured: isSupabaseConfigured,
     client: true,
     error: error ? { message: error.message, code: (error as { code?: string }).code, details: (error as { details?: string }).details, hint: (error as { hint?: string }).hint } : null,

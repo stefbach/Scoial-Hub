@@ -10,12 +10,12 @@ const config: Config = {
     extend: {
       colors: {
         // ── Core tokens (noms inchangés) ──────────────────────────────
-        page:   "#1a3558",   // bleu nuit — identité forte
-        canvas: "#f5f2eb",   // beige chaud — fond général
+        page:   "#1c1d20",   // presque noir neutre — accents/boutons (style Linear)
+        canvas: "#f7f8f9",   // gris très clair froid — fond général épuré
         card:   "#ffffff",
-        ink:    "#1a2332",   // quasi-noir bleuté, lisible
-        muted:  "#64748b",   // slate-500 — textes secondaires
-        hair:   "#e2ddd4",   // bordure beige douce
+        ink:    "#16181d",   // quasi-noir neutre, lisible
+        muted:  "#8a8f98",   // gris doux — textes secondaires (Linear)
+        hair:   "#ececee",   // bordure gris clair discrète
         // ── AI tokens (noms inchangés) ────────────────────────────────
         ai: {
           text:     "#2563eb",
@@ -67,7 +67,7 @@ const config: Config = {
         },
       },
       borderColor: {
-        DEFAULT: "#e2ddd4",
+        DEFAULT: "#ececee",
       },
       fontSize: {
         "2xs": ["0.6875rem", { lineHeight: "1rem" }],

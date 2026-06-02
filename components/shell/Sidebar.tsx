@@ -169,15 +169,15 @@ export function Sidebar() {
                       "group relative flex items-center gap-2.5 rounded-lg px-3 py-[0.4rem] text-sm",
                       "transition-all duration-[120ms]",
                       active
-                        ? "bg-page text-white shadow-sm"
-                        : "text-ink/70 hover:bg-white hover:text-ink hover:shadow-xs",
+                        ? "bg-[#eef0f2] text-ink font-semibold"
+                        : "text-muted hover:bg-[#f1f2f4] hover:text-ink",
                     ].join(" ")}
                   >
                     {/* Barre latérale active */}
                     {active && (
                       <span
                         aria-hidden="true"
-                        className="absolute inset-y-2 left-0 w-[3px] rounded-full bg-white/40"
+                        className="absolute inset-y-2 left-0 w-[2px] rounded-full bg-page"
                       />
                     )}
 

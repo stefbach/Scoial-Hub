@@ -12,12 +12,12 @@
   --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
 
   /* Couleurs (synchronisées avec tokens Tailwind) */
-  --color-page:    #1a3558;
-  --color-canvas:  #f5f2eb;
+  --color-page:    #1c1d20;
+  --color-canvas:  #f7f8f9;
   --color-card:    #ffffff;
-  --color-ink:     #1a2332;
-  --color-muted:   #64748b;
-  --color-hair:    #e2ddd4;
+  --color-ink:     #16181d;
+  --color-muted:   #8a8f98;
+  --color-hair:    #ececee;
 
   /* Transitions globales cohérentes */
   --transition-fast: 120ms cubic-bezier(0.4, 0, 0.2, 1);
@@ -104,8 +104,9 @@
 @layer components {
 
   /* ── Card — surface principale avec ombre douce ────────────────── */
+  /* Épuré : cartes plates, bordure fine, pas d'ombre par défaut (style Linear) */
   .card {
-    @apply rounded-xl border border-hair bg-card shadow-sm;
+    @apply rounded-xl border border-hair bg-card;
     transition: box-shadow var(--transition-base), border-color var(--transition-base);
   }
   /* Hover uniquement pour les cards cliquables */
@@ -113,8 +114,8 @@
     @apply cursor-pointer;
   }
   .card:where([href], [role="button"], button):hover {
-    @apply shadow-md;
-    border-color: #cac4b9;
+    @apply shadow-sm;
+    border-color: #dcdde0;
   }
 
   /* ── Panel — surface secondaire (beige) ───────────────────────── */

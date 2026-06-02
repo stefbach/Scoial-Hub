@@ -69,7 +69,7 @@ export async function listConnectorStatus(): Promise<ConnectorStatus[]> {
 
     if (supabase) {
       const { data, error } = await supabase
-        .from("social_accounts")
+        .from("sh_social_accounts")
         .select("id, company_id, platform, account_name, status, external_id")
         .in("status", ["active", "expired", "revoked"]);
 

@@ -113,7 +113,7 @@ async function auditLog(
   try {
     const sb = createAdminClient();
     if (!sb) return;
-    await sb.from("audit_log").insert({
+    await sb.from("sh_audit_log").insert({
       company_id: companyId,
       actor: `agent:${agentId}`,
       action,

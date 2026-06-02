@@ -8,6 +8,5 @@ import { env, isSupabaseConfigured } from "@/lib/env";
 export function createClient() {
   if (!isSupabaseConfigured) return null;
   return createBrowserClient(env.supabaseUrl, env.supabaseAnonKey, {
-    db: { schema: "social_hub" },
   });
 }

@@ -50,7 +50,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       const supabase = createAdminClient();
 
       if (supabase && tokenSet.externalId) {
-        await supabase.from("social_accounts").upsert(
+        await supabase.from("sh_social_accounts").upsert(
           {
             platform: "facebook",
             external_id: tokenSet.externalId,

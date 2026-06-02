@@ -64,7 +64,7 @@ export async function listCampaigns(companyId: string): Promise<Campaign[]> {
   if (!supabase) return [...(COMPANY_DATA[companyId]?.campaigns.list ?? [])];
 
   const { data, error } = await supabase
-    .from("campaigns")
+    .from("sh_campaigns")
     .select("*")
     .eq("company_id", companyId)
     .order("created_at", { ascending: false });
@@ -100,7 +100,7 @@ export async function getCampaign(id: string): Promise<Campaign | null> {
   }
 
   const { data, error } = await supabase
-    .from("campaigns")
+    .from("sh_campaigns")
     .select("*")
     .eq("id", id)
     .single();
@@ -158,7 +158,7 @@ export async function createCampaign(
 
   const row = campaignToRow(companyId, input);
   const { data, error } = await supabase
-    .from("campaigns")
+    .from("sh_campaigns")
     .insert(row)
     .select()
     .single();
@@ -216,7 +216,7 @@ export async function updateCampaign(
   if (patch.endDate !== undefined) dbPatch.end_date = patch.endDate ?? null;
 
   const { data, error } = await supabase
-    .from("campaigns")
+    .from("sh_campaigns")
     .update(dbPatch)
     .eq("id", id)
     .select()
@@ -258,7 +258,7 @@ export async function deleteCampaign(id: string): Promise<void> {
     return;
   }
 
-  const { error } = await supabase.from("campaigns").delete().eq("id", id);
+  const { error } = await supabase.from("sh_campaigns").delete().eq("id", id);
 
   if (error) {
     console.error("[campaigns] deleteCampaign error:", error);

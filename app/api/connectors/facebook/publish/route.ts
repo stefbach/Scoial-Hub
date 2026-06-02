@@ -57,7 +57,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
       if (supabase) {
         const { data } = await supabase
-          .from("social_accounts")
+          .from("sh_social_accounts")
           .select("access_token, external_id")
           .eq("id", accountId)
           .eq("platform", "facebook")
@@ -100,7 +100,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       const supabase = createAdminClient();
 
       if (supabase) {
-        await supabase.from("audit_log").insert({
+        await supabase.from("sh_audit_log").insert({
           action: "publish_post",
           platform: "facebook",
           company_id: companyId ?? null,

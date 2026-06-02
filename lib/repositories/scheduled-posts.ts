@@ -61,7 +61,7 @@ export async function listScheduledPosts(
   if (!supabase) return [...(COMPANY_DATA[companyId]?.scheduled ?? [])];
 
   const { data, error } = await supabase
-    .from("scheduled_posts")
+    .from("sh_scheduled_posts")
     .select("*")
     .eq("company_id", companyId)
     .order("date", { ascending: true });
@@ -97,7 +97,7 @@ export async function getScheduledPost(id: string): Promise<ScheduledPost | null
   }
 
   const { data, error } = await supabase
-    .from("scheduled_posts")
+    .from("sh_scheduled_posts")
     .select("*")
     .eq("id", id)
     .single();
@@ -139,7 +139,7 @@ export async function createScheduledPost(
 
   const row = scheduledPostToRow(companyId, input);
   const { data, error } = await supabase
-    .from("scheduled_posts")
+    .from("sh_scheduled_posts")
     .insert(row)
     .select()
     .single();
@@ -197,7 +197,7 @@ export async function updateScheduledPost(
   if (patch.publishedAt !== undefined) dbPatch.published_at = patch.publishedAt ?? null;
 
   const { data, error } = await supabase
-    .from("scheduled_posts")
+    .from("sh_scheduled_posts")
     .update(dbPatch)
     .eq("id", id)
     .select()
@@ -240,7 +240,7 @@ export async function deleteScheduledPost(id: string): Promise<void> {
   }
 
   const { error } = await supabase
-    .from("scheduled_posts")
+    .from("sh_scheduled_posts")
     .delete()
     .eq("id", id);
 

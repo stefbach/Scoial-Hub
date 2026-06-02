@@ -12,7 +12,7 @@ export async function GET() {
     return NextResponse.json({ configured: isSupabaseConfigured, client: false });
   }
   const { data, error } = await supabase
-    .from("companies")
+    .from("sh_companies")
     .select("id,code,name")
     .limit(5);
   return NextResponse.json({

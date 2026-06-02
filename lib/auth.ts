@@ -44,7 +44,7 @@ export async function getMyOrgId(): Promise<string | null> {
 
   // Requête en dehors du schéma social_hub : memberships est dans social_hub
   const { data, error } = await supabase
-    .from("memberships")
+    .from("sh_memberships")
     .select("org_id")
     .eq("user_id", user.id)
     .limit(1)

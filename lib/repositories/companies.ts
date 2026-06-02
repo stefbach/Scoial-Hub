@@ -51,7 +51,7 @@ export async function listCompanies(orgId?: string): Promise<Company[]> {
   const supabase = createClient();
   if (!supabase) return [...COMPANIES];
 
-  const query = supabase.from("companies").select("*").order("created_at");
+  const query = supabase.from("sh_companies").select("*").order("created_at");
   const { data, error } = orgId
     ? await query.eq("org_id", orgId)
     : await query;
@@ -77,7 +77,7 @@ export async function getCompany(id: string): Promise<Company | null> {
   if (!supabase) return COMPANIES.find((c) => c.id === id) ?? null;
 
   const { data, error } = await supabase
-    .from("companies")
+    .from("sh_companies")
     .select("*")
     .eq("id", id)
     .single();
@@ -116,7 +116,7 @@ export async function createCompany(
 
   const row = companyToRow(input, orgId);
   const { data, error } = await supabase
-    .from("companies")
+    .from("sh_companies")
     .insert(row)
     .select()
     .single();
@@ -129,7 +129,7 @@ export async function createCompany(
   const company = rowToCompany(data as DbCompany);
 
   // Crée une entrée ad_safety par défaut
-  await supabase.from("ad_safety").insert({ company_id: company.id }).select();
+  await supabase.from("sh_ad_safety").insert({ company_id: company.id }).select();
 
   // Synchronise le mock en mémoire pour la cohérence session
   registerCompany(company);
@@ -170,7 +170,7 @@ export async function updateCompany(
   if (patch.defaultNeedsReview !== undefined) dbPatch.default_needs_review = patch.defaultNeedsReview;
 
   const { data, error } = await supabase
-    .from("companies")
+    .from("sh_companies")
     .update(dbPatch)
     .eq("id", id)
     .select()

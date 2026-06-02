@@ -46,7 +46,7 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
       if (!data.user) return "/api/companies";
       // Récupère l'orgId depuis les memberships
       const { data: membership } = await supabase
-        .from("memberships")
+        .from("sh_memberships")
         .select("org_id")
         .eq("user_id", data.user.id)
         .limit(1)

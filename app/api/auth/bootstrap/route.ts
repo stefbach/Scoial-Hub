@@ -94,7 +94,7 @@ export async function POST(req: NextRequest) {
 
     // Vérifie si l'utilisateur a déjà une organisation (idempotence)
     const { data: existingMembership } = await supabase
-      .from("memberships")
+      .from("sh_memberships")
       .select("org_id")
       .eq("user_id", user.id)
       .limit(1)
@@ -121,7 +121,7 @@ export async function POST(req: NextRequest) {
 
     // 1. Crée l'organisation
     const { data: org, error: orgError } = await admin
-      .from("organizations")
+      .from("sh_organizations")
       .insert({ name: orgName })
       .select("id")
       .single();
@@ -135,7 +135,7 @@ export async function POST(req: NextRequest) {
 
     // 2. Crée le membership owner
     const { error: membershipError } = await admin
-      .from("memberships")
+      .from("sh_memberships")
       .insert({ org_id: orgId, user_id: user.id, role: "owner" });
 
     if (membershipError) {
@@ -148,7 +148,7 @@ export async function POST(req: NextRequest) {
       const { ad_safety: adSafetyDefaults, ...companyData } = company;
 
       const { data: createdCompany, error: companyError } = await admin
-        .from("companies")
+        .from("sh_companies")
         .insert({ ...companyData, org_id: orgId })
         .select("id")
         .single();
@@ -162,7 +162,7 @@ export async function POST(req: NextRequest) {
 
       // 4. Crée ad_safety pour chaque company
       const { error: adSafetyError } = await admin
-        .from("ad_safety")
+        .from("sh_ad_safety")
         .insert({
           company_id: companyId,
           used_this_month: 0,

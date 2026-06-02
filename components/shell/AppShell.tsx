@@ -1,14 +1,23 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { CompanySwitcher } from "./CompanySwitcher";
 import { Sidebar } from "./Sidebar";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+
+  // La landing page (/) est plein écran, sans le shell applicatif.
+  if (pathname === "/") return <>{children}</>;
+
   return (
     <div className="min-h-screen bg-canvas">
       {/* Header sticky — blur + ombre au scroll via CSS */}
       <header className="app-header sticky top-0 z-30 flex items-center justify-between border-b border-hair bg-card/90 px-5 py-2.5 backdrop-blur-md">
         <div className="flex items-center gap-3">
           {/* Logo / wordmark */}
-          <div className="flex items-center gap-2.5">
+          <Link href="/" className="flex items-center gap-2.5" aria-label="Accueil Social Hub">
             {/* Icône Social Hub */}
             <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-page text-white shadow-md">
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
@@ -22,7 +31,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <span className="text-[0.9375rem] font-bold tracking-tight text-ink">
               Social Hub
             </span>
-          </div>
+          </Link>
 
           {/* Séparateur vertical */}
           <span className="h-4 w-px bg-hair" aria-hidden="true" />

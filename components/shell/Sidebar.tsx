@@ -5,9 +5,17 @@ import { usePathname } from "next/navigation";
 
 /* ── Icônes SVG inline ─────────────────────────────────────────────── */
 const ICONS: Record<string, React.ReactNode> = {
-  "/": (
+  "/dashboard": (
     <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
       <path d="M7.5 1.5L1.5 7H3v6h3.5v-4h2v4H12V7h1.5L7.5 1.5Z" fill="currentColor"/>
+    </svg>
+  ),
+  "/agents": (
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+      <path d="M7.5 2a2.2 2.2 0 0 0-2.2 2.2A2.2 2.2 0 0 0 4 8.3 2 2 0 0 0 6 11a1.7 1.7 0 0 0 1.5-.6A1.7 1.7 0 0 0 9 11a2 2 0 0 0 2-2.7 2.2 2.2 0 0 0-1.3-4.1A2.2 2.2 0 0 0 7.5 2Z"
+            stroke="currentColor" strokeWidth="1.1" fill="none"/>
+      <path d="M7.5 4v7" stroke="currentColor" strokeWidth="1" opacity="0.6"/>
+      <circle cx="7.5" cy="13" r="1" fill="currentColor"/>
     </svg>
   ),
   "/compose": (
@@ -89,7 +97,11 @@ const ICONS: Record<string, React.ReactNode> = {
 
 /* ── Groupes de navigation ─────────────────────────────────────────── */
 const GROUPS: { label?: string; items: { href: string; label: string }[] }[] = [
-  { items: [{ href: "/", label: "Dashboard" }] },
+  { items: [{ href: "/dashboard", label: "Dashboard" }] },
+  {
+    label: "Pilotage IA",
+    items: [{ href: "/agents", label: "Agents" }],
+  },
   {
     label: "Organic",
     items: [
@@ -121,8 +133,7 @@ const GROUPS: { label?: string; items: { href: string; label: string }[] }[] = [
 export function Sidebar() {
   const pathname = usePathname();
 
-  const isActive = (href: string) =>
-    href === "/" ? pathname === "/" : pathname.startsWith(href);
+  const isActive = (href: string) => pathname.startsWith(href);
 
   return (
     <nav

@@ -37,10 +37,13 @@ export function BrainCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+    const canvasEl = canvasRef.current;
+    if (!canvasEl) return;
+    const context2d = canvasEl.getContext("2d");
+    if (!context2d) return;
+    // Alias explicitement non-null pour que les closures (build/frame) compilent.
+    const canvas: HTMLCanvasElement = canvasEl;
+    const ctx: CanvasRenderingContext2D = context2d;
 
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 

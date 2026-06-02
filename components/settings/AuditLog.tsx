@@ -28,6 +28,9 @@ const ENTITY_LABEL: Record<AuditEntity | "all", string> = {
   settings: "Settings",
 };
 
+const ENTITY_VALUES: (AuditEntity | "all")[] = ["all", "post", "campaign", "audience", "ad_safety", "team", "settings"];
+const RANGE_VALUES = new Set<RangeId>(["7d", "30d", "90d", "1y", "all", "custom"]);
+
 const NOW = new Date("2026-05-30T00:00:00");
 const PAGE_SIZE = 12;
 
@@ -42,14 +45,32 @@ function rangeStart(r: RangeId, customFrom: Date | null): Date | null {
   return d;
 }
 
-export function AuditLog({ initialFilter }: { initialFilter?: string }) {
+export function AuditLog({
+  initialFilter,
+  initialUser,
+  initialCompany,
+  initialRange,
+}: {
+  initialFilter?: string;
+  initialUser?: string;
+  initialCompany?: string;
+  initialRange?: string;
+}) {
   const [search, setSearch] = useState("");
   const [entityFilter, setEntityFilter] = useState<AuditEntity | "all">(
-    initialFilter === "ad_safety" ? "ad_safety" : "all"
+    initialFilter && ENTITY_VALUES.includes(initialFilter as AuditEntity)
+      ? (initialFilter as AuditEntity)
+      : "all"
   );
-  const [userFilter, setUserFilter] = useState<string>("all");
-  const [companyFilter, setCompanyFilter] = useState<string>("all");
-  const [range, setRange] = useState<RangeId>("30d");
+  const [userFilter, setUserFilter] = useState<string>(
+    initialUser && TEAM.some((t) => t.id === initialUser) ? initialUser : "all"
+  );
+  const [companyFilter, setCompanyFilter] = useState<string>(
+    initialCompany && COMPANIES.some((c) => c.id === initialCompany) ? initialCompany : "all"
+  );
+  const [range, setRange] = useState<RangeId>(
+    initialRange && RANGE_VALUES.has(initialRange as RangeId) ? (initialRange as RangeId) : "30d"
+  );
   const [customFrom, setCustomFrom] = useState<Date | null>(null);
   const [customTo, setCustomTo] = useState<Date | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);

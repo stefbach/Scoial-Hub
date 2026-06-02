@@ -57,6 +57,13 @@ export default function SettingsPage() {
   );
 }
 
+interface AuditInitial {
+  filter?: string;
+  user?: string;
+  company?: string;
+  range?: string;
+}
+
 function SettingsContent() {
   const router = useRouter();
   const params = useSearchParams();
@@ -67,28 +74,46 @@ function SettingsContent() {
     : "profile";
   const [section, setSection] = useState<SectionId>(initialSection);
 
-  const filterParam = params.get("filter") ?? undefined;
+  // Audit deep-link filters (action/user/company/range). Seeded from the URL
+  // on first load and updated when navigating in from another sub-page.
+  const [auditInitial, setAuditInitial] = useState<AuditInitial>(() => ({
+    filter: params.get("filter") ?? undefined,
+    user: params.get("user") ?? undefined,
+    company: params.get("company") ?? undefined,
+    range: params.get("range") ?? undefined,
+  }));
 
-  // Keep URL in sync.
+  // Keep the URL in sync from explicit state (never from a possibly-stale
+  // useSearchParams snapshot, which previously clobbered the audit filter).
   useEffect(() => {
-    const qs = new URLSearchParams(params.toString());
-    if (section === "profile") qs.delete("section");
-    else qs.set("section", section);
-    if (section !== "audit") qs.delete("filter");
+    const qs = new URLSearchParams();
+    if (section !== "profile") qs.set("section", section);
+    if (section === "audit") {
+      if (auditInitial.filter) qs.set("filter", auditInitial.filter);
+      if (auditInitial.user) qs.set("user", auditInitial.user);
+      if (auditInitial.company) qs.set("company", auditInitial.company);
+      if (auditInitial.range) qs.set("range", auditInitial.range);
+    }
     const s = qs.toString();
     router.replace(s ? `/settings?${s}` : "/settings");
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [section]);
+  }, [section, auditInitial]);
 
   const navigate = (s: string, extra?: Record<string, string>) => {
     setSection(s as SectionId);
-    if (extra) {
-      const qs = new URLSearchParams();
-      qs.set("section", s);
-      for (const [k, v] of Object.entries(extra)) qs.set(k, v);
-      router.replace(`/settings?${qs.toString()}`);
+    if (s === "audit") {
+      setAuditInitial({
+        filter: extra?.filter,
+        user: extra?.user,
+        company: extra?.company,
+        range: extra?.range,
+      });
     }
   };
+
+  // Re-mount AuditLog whenever the incoming filter set changes so its
+  // dropdowns pre-select the requested values.
+  const auditKey = `audit-${auditInitial.filter ?? ""}-${auditInitial.user ?? ""}-${auditInitial.company ?? ""}-${auditInitial.range ?? ""}`;
 
   return (
     <div>
@@ -120,7 +145,15 @@ function SettingsContent() {
           {section === "team" && <Team />}
           {section === "ai" && <AiPrefs />}
           {section === "ad-safety" && <AdSafety onNavigate={navigate} />}
-          {section === "audit" && <AuditLog initialFilter={filterParam} />}
+          {section === "audit" && (
+            <AuditLog
+              key={auditKey}
+              initialFilter={auditInitial.filter}
+              initialUser={auditInitial.user}
+              initialCompany={auditInitial.company}
+              initialRange={auditInitial.range}
+            />
+          )}
         </div>
       </div>
     </div>

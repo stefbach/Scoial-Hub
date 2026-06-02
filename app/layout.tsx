@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { CompanyProvider } from "@/lib/company-context";
+import { ScopeProvider } from "@/lib/scope";
 import { AppShell } from "@/components/shell/AppShell";
 
 export const metadata: Metadata = {
@@ -17,7 +18,9 @@ export default function RootLayout({
     <html lang="en">
       <body>
         <CompanyProvider>
-          <AppShell>{children}</AppShell>
+          <ScopeProvider>
+            <AppShell>{children}</AppShell>
+          </ScopeProvider>
         </CompanyProvider>
       </body>
     </html>

@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
 import { CompanySwitcher } from "./CompanySwitcher";
 import { Sidebar } from "./Sidebar";
+import { ScopeBar } from "./ScopeBar";
 import { HelpButton } from "@/components/help/HelpButton";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/env";
@@ -156,6 +157,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <UserMenu />
         </div>
       </header>
+
+      {/* Barre de contexte : zone géographique + période (filtres globaux) */}
+      <ScopeBar />
 
       {/* Corps : sidebar + contenu */}
       <div className="mx-auto flex max-w-[1200px]">

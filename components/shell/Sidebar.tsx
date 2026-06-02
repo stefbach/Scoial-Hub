@@ -93,6 +93,12 @@ const ICONS: Record<string, React.ReactNode> = {
             stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
     </svg>
   ),
+  "/connecteurs": (
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+      <path d="M6 9l3-3M5.5 4.5l1-1a2.1 2.1 0 0 1 3 3l-1 1M9.5 10.5l-1 1a2.1 2.1 0 0 1-3-3l1-1"
+            stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+    </svg>
+  ),
 };
 
 /* ── Groupes de navigation ─────────────────────────────────────────── */
@@ -100,7 +106,10 @@ const GROUPS: { label?: string; items: { href: string; label: string }[] }[] = [
   { items: [{ href: "/dashboard", label: "Dashboard" }] },
   {
     label: "Pilotage IA",
-    items: [{ href: "/agents", label: "Agents" }],
+    items: [
+      { href: "/agents", label: "Agents" },
+      { href: "/connecteurs", label: "Connecteurs" },
+    ],
   },
   {
     label: "Organic",

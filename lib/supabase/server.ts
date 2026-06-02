@@ -10,6 +10,7 @@ export function createClient() {
   const cookieStore = cookies();
 
   return createServerClient(env.supabaseUrl, env.supabaseAnonKey, {
+    db: { schema: "social_hub" },
     cookies: {
       getAll() {
         return cookieStore.getAll();
@@ -33,6 +34,7 @@ export function createClient() {
 export function createAdminClient() {
   if (!env.supabaseUrl || !env.supabaseServiceKey) return null;
   return createServerClient(env.supabaseUrl, env.supabaseServiceKey, {
+    db: { schema: "social_hub" },
     cookies: { getAll: () => [], setAll: () => {} },
   });
 }

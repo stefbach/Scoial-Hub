@@ -59,8 +59,11 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
-  // Route applicative protégée : redirection si non connecté
-  if (!user) {
+  // Verrou d'accès OPT-IN : on ne redirige vers /login QUE si AUTH_REQUIRED=true.
+  // Par défaut, l'app reste accessible (évite tout lock-out tant qu'aucun compte
+  // n'existe). Login/signup restent disponibles pour le multi-comptes.
+  const authRequired = process.env.AUTH_REQUIRED === "true";
+  if (authRequired && !user) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("redirect", pathname);
     return NextResponse.redirect(loginUrl);

@@ -577,6 +577,8 @@ interface XpozNamespace {
   getUser(identifier: string): Promise<Record<string, unknown>>;
 }
 interface XpozClientLike {
+  connect(): Promise<void>;
+  close(): Promise<void>;
   instagram: XpozNamespace;
   tiktok: XpozNamespace;
 }
@@ -605,8 +607,10 @@ class XpozCollector implements Collector {
     try {
       const mod = (await import("@xpoz/xpoz")) as unknown as XpozModule;
       client = new mod.XpozClient({ apiKey });
+      // Indispensable : le SDK xpoz exige une connexion (transport MCP) avant tout appel.
+      await client.connect();
     } catch (err) {
-      console.warn("[xpoz] init échec:", err);
+      console.warn("[xpoz] connexion échec:", err);
       return [];
     }
 
@@ -614,10 +618,18 @@ class XpozCollector implements Collector {
     const limit = query.limit ?? 20;
     const per = Math.max(3, Math.ceil(limit / Math.min(targets.length, 5)));
 
-    const batches = await Promise.all(
-      targets.slice(0, 5).map((c) => this.fetchAccount(ns, c.handle, c.name, per))
-    );
-    return batches.flat().slice(0, limit);
+    try {
+      const batches = await Promise.all(
+        targets.slice(0, 5).map((c) => this.fetchAccount(ns, c.handle, c.name, per))
+      );
+      return batches.flat().slice(0, limit);
+    } finally {
+      try {
+        await client.close();
+      } catch {
+        /* ignore */
+      }
+    }
   }
 
   private async fetchAccount(

@@ -5,6 +5,8 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { Company } from "@/lib/types";
 import { PRO_PROFILES } from "@/lib/agents/profiles";
+import { CHANNELS } from "@/lib/channels";
+import { StatusBadge } from "@/components/ui/StatusBadge";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -72,6 +74,7 @@ export default function CompteDetailPage() {
   const [config, setConfig] = useState<EntityConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [connectedCount, setConnectedCount] = useState<number | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -98,6 +101,16 @@ export default function CompteDetailPage() {
       .catch((e: Error) => {
         setError(e.message ?? "Impossible de charger l'entité.");
         setLoading(false);
+      });
+
+    // Mini-résumé des connexions canaux (silencieux en cas d'erreur)
+    fetch(`/api/channel-connections?companyId=${encodeURIComponent(id)}`)
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((rows: Array<{ status: string }>) => {
+        setConnectedCount(rows.filter((r) => r.status === "connected").length);
+      })
+      .catch(() => {
+        setConnectedCount(0);
       });
   }, [id]);
 
@@ -508,6 +521,33 @@ export default function CompteDetailPage() {
               </div>
             </div>
           )}
+
+          {/* Connexions canaux */}
+          <div className="card p-5">
+            <SectionHeader>Connexions canaux</SectionHeader>
+            <div className="mt-2 mb-3 flex items-center gap-2">
+              {connectedCount === null ? (
+                <span className="text-xs text-muted">Chargement…</span>
+              ) : (
+                <>
+                  <StatusBadge tone={connectedCount > 0 ? "green" : "gray"} dot>
+                    {connectedCount} / {CHANNELS.length} connecté{connectedCount > 1 ? "s" : ""}
+                  </StatusBadge>
+                  {connectedCount < CHANNELS.length && (
+                    <span className="text-xs text-muted">
+                      {CHANNELS.length - connectedCount} en attente
+                    </span>
+                  )}
+                </>
+              )}
+            </div>
+            <Link
+              href={`/admin/comptes/${id}/connexions`}
+              className="btn-primary block w-full text-center"
+            >
+              Gérer les connexions
+            </Link>
+          </div>
 
           {/* Actions */}
           <div className="card p-5">

@@ -8,6 +8,7 @@ import { Toast } from "@/components/ui/Toast";
 import {
   VIDEO_PLATFORMS,
   ASSEMBLY_MODES,
+  MUSIC_TRACKS,
   type AssemblyMode,
   type MediaAsset,
   type MediaKind,
@@ -330,6 +331,25 @@ function CutCard({
   const isStatic = cut.targetDurationSec === 0;
   const badge = ASSEMBLY_BADGE[cut.assemblyType] ?? ["", ""];
 
+  // ── Champs ÉDITABLES (vrai studio) ───────────────────────────────────────────
+  const [hook, setHook] = useState(cut.hook);
+  const [caption, setCaption] = useState(cut.caption);
+  const [overlays, setOverlays] = useState(cut.overlays);
+  const [caps, setCaps] = useState<CaptionSegment[]>(captions);
+  const [musicId, setMusicId] = useState("none");
+  const [customMusic, setCustomMusic] = useState("");
+
+  function resolveMusic(): string {
+    if (customMusic.trim()) return customMusic.trim();
+    return MUSIC_TRACKS.find((m) => m.id === musicId)?.url ?? "";
+  }
+  function setOverlayText(i: number, text: string) {
+    setOverlays((prev) => prev.map((o, j) => (j === i ? { ...o, text } : o)));
+  }
+  function setCapText(i: number, text: string) {
+    setCaps((prev) => prev.map((c, j) => (j === i ? { ...c, text } : c)));
+  }
+
   // ── Rendu vidéo (Shotstack) ──────────────────────────────────────────────────
   const [rState, setRState] = useState<"idle" | "queued" | "rendering" | "done" | "failed" | "unsupported">("idle");
   const [rUrl, setRUrl] = useState<string | null>(null);
@@ -343,10 +363,11 @@ function CutCard({
     setRUrl(null);
     setRState("queued");
     try {
+      const editedCut = { ...cut, hook, caption, overlays, musicUrl: resolveMusic() };
       const res = await fetch("/api/video/render", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cut, assets, captions }),
+        body: JSON.stringify({ cut: editedCut, assets, captions: caps }),
       });
       const data = await res.json();
       if (!res.ok || !data.id) {
@@ -391,12 +412,18 @@ function CutCard({
         </span>
       </div>
 
-      {cut.hook && (
-        <Field label={t("Accroche", "Hook")}>
-          <p className="text-sm font-medium text-ink">{cut.hook}</p>
-          {cut.hookVariants.length > 0 && <ul className="mt-1 space-y-0.5 text-2xs text-muted">{cut.hookVariants.map((h, i) => <li key={i}>• {h}</li>)}</ul>}
-        </Field>
-      )}
+      <Field label={t("Accroche (modifiable)", "Hook (editable)")}>
+        <input className="input w-full text-sm" value={hook} onChange={(e) => setHook(e.target.value)} />
+        {cut.hookVariants.length > 0 && (
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
+            {cut.hookVariants.map((h, i) => (
+              <button key={i} type="button" onClick={() => setHook(h)} className="chip text-2xs hover:bg-primary-50 hover:text-primary-700" title={t("Utiliser cette variante", "Use this variant")}>
+                {h.length > 38 ? h.slice(0, 38) + "…" : h}
+              </button>
+            ))}
+          </div>
+        )}
+      </Field>
 
       {cut.slides.length > 0 && (
         <Field label={t("Slides", "Slides")}>
@@ -421,22 +448,57 @@ function CutCard({
         </Field>
       )}
 
-      {cut.overlays.length > 0 && (
-        <Field label={t("Textes à l'écran", "On-screen text")}>
-          <ul className="space-y-0.5 text-xs text-muted">
-            {cut.overlays.map((o, i) => <li key={i}><span className="font-mono text-2xs text-primary">{o.atSecond}s</span> · {o.text} <span className="text-2xs italic">({o.style})</span></li>)}
-          </ul>
+      {overlays.length > 0 && (
+        <Field label={t("Textes à l'écran (modifiables)", "On-screen text (editable)")}>
+          <div className="space-y-1.5">
+            {overlays.map((o, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <span className="w-9 shrink-0 font-mono text-2xs text-primary">{o.atSecond}s</span>
+                <input className="input flex-1 text-xs" value={o.text} onChange={(e) => setOverlayText(i, e.target.value)} />
+                <span className="shrink-0 text-2xs italic text-muted">{o.style}</span>
+              </div>
+            ))}
+          </div>
         </Field>
       )}
 
-      <Field label={t("Texte du post", "Post caption")}>
-        <p className="whitespace-pre-wrap text-sm text-ink">{cut.caption}</p>
+      {renderable && (
+        <Field label={t("🎵 Musique", "🎵 Music")}>
+          <select className="input w-full text-sm" value={musicId} onChange={(e) => { setMusicId(e.target.value); setCustomMusic(""); }}>
+            {MUSIC_TRACKS.map((m) => (
+              <option key={m.id} value={m.id}>{t(m.labelFr, m.labelEn)}</option>
+            ))}
+          </select>
+          <input
+            className="input mt-1.5 w-full text-xs"
+            placeholder={t("…ou collez l'URL d'un MP3 perso", "…or paste a custom MP3 URL")}
+            value={customMusic}
+            onChange={(e) => setCustomMusic(e.target.value)}
+          />
+        </Field>
+      )}
+
+      {renderable && caps.length > 0 && (
+        <Field label={t("Sous-titres incrustés (modifiables)", "Burned-in subtitles (editable)")}>
+          <div className="space-y-1.5">
+            {caps.map((c, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <span className="w-14 shrink-0 font-mono text-2xs text-primary">{c.start}-{c.end}s</span>
+                <input className="input flex-1 text-xs" value={c.text} onChange={(e) => setCapText(i, e.target.value)} />
+              </div>
+            ))}
+          </div>
+        </Field>
+      )}
+
+      <Field label={t("Message du post (modifiable)", "Post message (editable)")}>
+        <textarea className="input w-full text-sm" rows={3} value={caption} onChange={(e) => setCaption(e.target.value)} />
         {cut.hashtags.length > 0 && <p className="mt-1 text-xs text-primary-600">{cut.hashtags.join(" ")}</p>}
         {cut.cta && <p className="mt-1 text-xs text-muted">📣 {cut.cta}</p>}
       </Field>
 
       <div className="mt-3 flex flex-wrap gap-2 border-t border-hair pt-3">
-        <button className="btn-secondary text-2xs" onClick={() => onCopy(`${cut.caption}\n\n${cut.hashtags.join(" ")}`, t("Légende", "Caption"))}>{t("Copier la légende", "Copy caption")}</button>
+        <button className="btn-secondary text-2xs" onClick={() => onCopy(`${caption}\n\n${cut.hashtags.join(" ")}`, t("Légende", "Caption"))}>{t("Copier la légende", "Copy caption")}</button>
         {cut.hashtags.length > 0 && <button className="btn-secondary text-2xs" onClick={() => onCopy(cut.hashtags.join(" "), t("Hashtags", "Hashtags"))}>{t("Copier hashtags", "Copy hashtags")}</button>}
         {cut.thumbnailText && <button className="btn-secondary text-2xs" onClick={() => onCopy(cut.thumbnailText, t("Vignette", "Thumbnail"))}>{t("Texte vignette", "Thumbnail text")}</button>}
       </div>
@@ -446,7 +508,7 @@ function CutCard({
         <div className="mt-3 border-t border-hair pt-3">
           {rState === "idle" && (
             <button className="btn-primary w-full justify-center text-2xs" onClick={startRender}>
-              🎬 {t("Générer la vidéo", "Render the video")}
+              🎬 {t("Générer la vidéo (avec mes ajustements)", "Render the video (with my edits)")}
             </button>
           )}
           {(rState === "queued" || rState === "rendering") && (
@@ -458,9 +520,14 @@ function CutCard({
           {rState === "done" && rUrl && (
             <div className="space-y-2">
               <video src={rUrl} controls className="w-full rounded-lg border border-hair" />
-              <a href={rUrl} target="_blank" rel="noopener noreferrer" download className="btn-primary w-full justify-center text-2xs">
-                ⬇ {t("Télécharger la vidéo", "Download the video")}
-              </a>
+              <div className="flex gap-2">
+                <a href={rUrl} target="_blank" rel="noopener noreferrer" download className="btn-primary flex-1 justify-center text-2xs">
+                  ⬇ {t("Télécharger", "Download")}
+                </a>
+                <button className="btn-secondary shrink-0 text-2xs" onClick={startRender}>
+                  ↻ {t("Régénérer", "Re-render")}
+                </button>
+              </div>
             </div>
           )}
           {rState === "unsupported" && (

@@ -94,8 +94,20 @@ export interface PlatformCut {
   hashtags: string[];
   cta: string;
   thumbnailText: string;
+  /** URL d'une piste musicale à incruster (vidéo/diaporama). */
+  musicUrl?: string;
   renderStatus: "ready" | "queued" | "simulated";
 }
+
+/** Pistes musicales libres de droits (publiques, exploitables par le rendu). */
+export const MUSIC_TRACKS: { id: string; labelFr: string; labelEn: string; url: string }[] = [
+  { id: "none", labelFr: "Aucune", labelEn: "None", url: "" },
+  { id: "energetic", labelFr: "Énergique", labelEn: "Energetic", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3" },
+  { id: "inspiring", labelFr: "Inspirant", labelEn: "Inspiring", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" },
+  { id: "chill", labelFr: "Chill / posé", labelEn: "Chill", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3" },
+  { id: "corporate", labelFr: "Corporate", labelEn: "Corporate", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-9.mp3" },
+  { id: "punchy", labelFr: "Punchy / urbain", labelEn: "Punchy", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-6.mp3" },
+];
 
 /** Paquet marketing complet produit à partir des médias bruts. */
 export interface VideoMarketingPackage {

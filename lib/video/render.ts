@@ -94,16 +94,31 @@ function buildEdit(cut: PlatformCut, assets: MediaAsset[], captions: CaptionSegm
     });
   }
 
+  // Textes à l'écran (overlays) édités par l'utilisateur (hors hook 0-3s déjà posé).
+  for (const o of cut.overlays ?? []) {
+    if (!o.text || o.atSecond >= duration) continue;
+    if (o.style === "hook" && o.atSecond === 0) continue; // évite doublon avec le hook
+    const position = o.style === "cta" ? "bottom" : o.style === "lower_third" ? "bottom" : "center";
+    textClips.push({
+      asset: { type: "title", text: o.text, style: "minimal", size: "medium", position },
+      start: Math.max(0, o.atSecond),
+      length: 3,
+      transition: { in: "fade", out: "fade" },
+    });
+  }
+
+  const timeline: Record<string, unknown> = {
+    background: "#000000",
+    tracks: [{ clips: textClips }, { clips: mediaClips }].filter((tr) => (tr.clips as unknown[]).length > 0),
+  };
+  // Musique de fond (fondu) si fournie.
+  if (cut.musicUrl) {
+    timeline.soundtrack = { src: cut.musicUrl, effect: "fadeInFadeOut", volume: 0.45 };
+  }
+
   return {
-    timeline: {
-      background: "#000000",
-      tracks: [{ clips: textClips }, { clips: mediaClips }].filter((tr) => (tr.clips as unknown[]).length > 0),
-    },
-    output: {
-      format: "mp4",
-      size,
-      fps: 30,
-    },
+    timeline,
+    output: { format: "mp4", size, fps: 30 },
   };
 }
 

@@ -12,6 +12,7 @@ const NAV_TR: Record<string, [string, string]> = {
   "Centre de pilotage": ["Centre de pilotage", "Command Center"],
   "Agents": ["Agents", "Agents"],
   "Veille & Marché": ["Veille & Marché", "Market Watch"],
+  "Competitor Ads": ["Pubs concurrentes", "Competitor Ads"],
   "Connecteurs": ["Connecteurs", "Connectors"],
   "Organic": ["Organique", "Organic"],
   "Compose": ["Composer", "Compose"],
@@ -173,6 +174,13 @@ const ICONS: Record<string, React.ReactNode> = {
       <path d="M4 4l2 2M11 4L9 6M4 11l2-2M11 11L9 9" stroke="currentColor" strokeWidth="1" strokeLinecap="round" opacity="0.6"/>
     </svg>
   ),
+  "/publicites": (
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+      <rect x="1.5" y="2.5" width="12" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.2" fill="none"/>
+      <path d="M4 13h7" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+      <path d="M5.5 5.5l3 1.5-3 1.5v-3Z" fill="currentColor"/>
+    </svg>
+  ),
   "/studio-video": (
     <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
       <rect x="1.5" y="3.5" width="9" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.2" fill="none"/>
@@ -196,6 +204,7 @@ const GROUPS: { label?: string; items: { href: string; label: string }[] }[] = [
       { href: "/pilotage",    label: "Centre de pilotage" },
       { href: "/agents",      label: "Agents" },
       { href: "/veille",      label: "Veille & Marché" },
+      { href: "/publicites",  label: "Competitor Ads" },
       { href: "/parametres-connecteurs", label: "Connecteurs" },
     ],
   },

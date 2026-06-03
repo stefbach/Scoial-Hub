@@ -54,6 +54,8 @@ export interface ScrapeQuery {
   competitors: { network: ScrapeNetwork; handle: string; name?: string }[];
   /** Nombre max de contenus à collecter par réseau (défaut 20). */
   limit?: number;
+  /** Auth Instagram Business Discovery (API Meta officielle, données réelles). */
+  igAuth?: { businessId: string; token: string };
 }
 
 /** Résultat d'une collecte. */

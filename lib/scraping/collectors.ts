@@ -477,15 +477,105 @@ async function tryOEmbed(network: ScrapeNetwork, postUrl: string): Promise<{ aut
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
+   Collecteur Instagram — API Meta officielle "Business Discovery" (données RÉELLES)
+   Récupère, pour n'importe quel compte concurrent Business/Creator, ses publications
+   réelles (likes, commentaires, date, type) et son nombre d'abonnés.
+   Nécessite : un compte IG Business connecté (businessId) + un token Meta valide
+   (permissions instagram_basic + instagram_manage_insights, app en Live).
+───────────────────────────────────────────────────────────────────────────── */
+
+interface IgMedia {
+  caption?: string;
+  like_count?: number;
+  comments_count?: number;
+  timestamp?: string;
+  media_type?: string;
+  permalink?: string;
+  thumbnail_url?: string;
+  media_url?: string;
+}
+
+class InstagramBusinessCollector implements Collector {
+  network: ScrapeNetwork = "instagram";
+  isReal = true;
+
+  constructor(private businessId: string, private token: string) {}
+
+  async collect(query: ScrapeQuery): Promise<CompetitorContent[]> {
+    const targets = query.competitors.filter((c) => c.network === "instagram");
+    if (targets.length === 0) return [];
+    const limit = query.limit ?? 20;
+    const perAccount = Math.max(3, Math.ceil(limit / Math.min(targets.length, 5)));
+    const batches = await Promise.all(
+      targets.slice(0, 5).map((c) => this.fetchAccount(c.handle, c.name, perAccount))
+    );
+    return batches.flat().slice(0, limit);
+  }
+
+  private async fetchAccount(handle: string, name: string | undefined, max: number): Promise<CompetitorContent[]> {
+    const username = handle.replace(/^@/, "").trim();
+    if (!username) return [];
+    try {
+      const fields = `business_discovery.username(${username}){username,followers_count,media_count,media.limit(${Math.min(max, 25)}){caption,like_count,comments_count,timestamp,media_type,permalink,thumbnail_url,media_url}}`;
+      const url = new URL(`https://graph.facebook.com/v21.0/${this.businessId}`);
+      url.searchParams.set("fields", fields);
+      url.searchParams.set("access_token", this.token);
+      const res = await fetch(url.toString(), { next: { revalidate: 0 } });
+      if (!res.ok) {
+        console.warn("[IG business_discovery] échec:", res.status, await res.text().catch(() => ""));
+        return [];
+      }
+      const data = (await res.json()) as {
+        business_discovery?: { username?: string; followers_count?: number; media?: { data?: IgMedia[] } };
+      };
+      const bd = data.business_discovery;
+      if (!bd) return [];
+      const followers = bd.followers_count ?? 0;
+      const media = bd.media?.data ?? [];
+      const out: CompetitorContent[] = [];
+      for (const m of media) {
+        const likes = m.like_count ?? 0;
+        const comments = m.comments_count ?? 0;
+        const er = followers > 0 ? parseFloat(((likes + comments) / followers).toFixed(4)) : 0;
+        const type: CompetitorContent["type"] = m.media_type === "VIDEO" ? "reel" : "post";
+        out.push({
+          network: "instagram",
+          handle: `@${username}`,
+          accountName: name ?? bd.username ?? username,
+          type,
+          url: m.permalink ?? `https://instagram.com/${username}`,
+          caption: m.caption ?? "",
+          likes,
+          comments,
+          views: 0,
+          shares: 0,
+          engagementRate: er,
+          postedAt: m.timestamp ?? new Date().toISOString(),
+          thumbnailUrl: m.thumbnail_url ?? m.media_url,
+          simulated: false,
+        });
+      }
+      return out;
+    } catch (err) {
+      console.warn("[IG] fetchAccount échec:", username, err);
+      return [];
+    }
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
    Factory : retourne le meilleur collecteur disponible pour chaque réseau
 ───────────────────────────────────────────────────────────────────────────── */
 
-function getCollector(network: ScrapeNetwork): Collector {
+function getCollector(network: ScrapeNetwork, query: ScrapeQuery): Collector {
   if (network === "youtube") {
     const ytKey = process.env.YOUTUBE_API_KEY;
     if (ytKey) return new YouTubeCollector(ytKey);
   }
-  // Pour les autres réseaux (et YouTube sans clé) : simulateur déterministe
+  if (network === "instagram" && query.igAuth?.businessId && query.igAuth?.token) {
+    return new InstagramBusinessCollector(query.igAuth.businessId, query.igAuth.token);
+  }
+  // Autres réseaux (et réseaux sans clé/connexion) : simulateur déterministe
   return new SimulatedCollector(network);
 }
 
@@ -507,7 +597,7 @@ export async function collectAll(query: ScrapeQuery): Promise<ScrapeResult> {
 
   await Promise.allSettled(
     requestedNetworks.map(async (network) => {
-      const collector = getCollector(network);
+      const collector = getCollector(network, query);
       try {
         const contents = await collector.collect(query);
         allContents.push(...contents);

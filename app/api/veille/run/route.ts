@@ -10,11 +10,13 @@
  */
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
 import { NextRequest, NextResponse } from "next/server";
 import { collectAll } from "@/lib/scraping/collectors";
 import { analyzeCompetition } from "@/lib/scraping/analyze";
 import { listCompetitors } from "@/lib/repositories/competitors";
+import { getConnection } from "@/lib/repositories/channel-connections";
 import { createAdminClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/env";
 import type { ScrapeNetwork } from "@/lib/scraping/types";
@@ -74,6 +76,22 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // 2b. Charger l'auth Instagram (Business Discovery) depuis les connecteurs.
+    //     businessId = IG Business Account ID (connecteur Instagram)
+    //     token      = token Meta (connecteur Facebook ou Instagram)
+    let igAuth: { businessId: string; token: string } | undefined;
+    try {
+      const ig = await getConnection(companyId, "instagram");
+      const fb = await getConnection(companyId, "facebook");
+      const businessId = ig?.config?.ig_business_account_id ?? "";
+      const token =
+        ig?.config?.access_token ??
+        fb?.config?.page_access_token ??
+        fb?.config?.access_token ??
+        "";
+      if (businessId && token) igAuth = { businessId, token };
+    } catch { /* best-effort */ }
+
     // 3. Collecter les contenus
     const scrapeResult = await collectAll({
       geo,
@@ -81,6 +99,7 @@ export async function POST(req: NextRequest) {
       theme,
       competitors: queryCompetitors,
       limit: 30,
+      igAuth,
     });
 
     // 4. Analyser via Claude

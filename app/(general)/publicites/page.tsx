@@ -19,6 +19,16 @@ interface AdEntry {
   snapshotUrl: string;
 }
 
+interface AdStrategyAnalysis {
+  resume: string;
+  anglesDominants: { angle: string; exemples: string[] }[];
+  offres: string[];
+  ctas: string[];
+  pourquoiPerformantes: string[];
+  recommandations: { titre: string; detail: string }[];
+  aiGenerated: boolean;
+}
+
 export default function PublicitesPage() {
   const t = useT();
   const [country, setCountry] = useState("MU");
@@ -28,11 +38,14 @@ export default function PublicitesPage() {
   const [ads, setAds] = useState<AdEntry[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; key: number } | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analysis, setAnalysis] = useState<AdStrategyAnalysis | null>(null);
 
   async function search() {
     setLoading(true);
     setErr(null);
     setAds([]);
+    setAnalysis(null);
     try {
       const res = await fetch("/api/veille/ads", {
         method: "POST",
@@ -46,6 +59,26 @@ export default function PublicitesPage() {
       setErr(t("Erreur réseau.", "Network error."));
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function analyze() {
+    if (ads.length === 0) return;
+    setAnalyzing(true);
+    setAnalysis(null);
+    try {
+      const res = await fetch("/api/veille/ads-analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ads, country: country.trim().toUpperCase(), terms: terms.trim() }),
+      });
+      const data = await res.json();
+      if (data.analysis) setAnalysis(data.analysis as AdStrategyAnalysis);
+      else setToast({ message: t("Analyse indisponible.", "Analysis unavailable."), key: Date.now() });
+    } catch {
+      setToast({ message: t("Erreur réseau.", "Network error."), key: Date.now() });
+    } finally {
+      setAnalyzing(false);
     }
   }
 
@@ -104,8 +137,78 @@ export default function PublicitesPage() {
         <div className="rounded-xl border border-warning-200 bg-warning-50 px-4 py-3 text-sm text-warning-800">{err}</div>
       )}
 
+      {/* Analyse IA de la stratégie publicitaire */}
       {ads.length > 0 && (
         <section className="space-y-3">
+          {!analysis && (
+            <button className="btn-primary" onClick={analyze} disabled={analyzing}>
+              {analyzing ? t("Analyse de la stratégie…", "Analyzing strategy…") : t("✨ Analyser la stratégie publicitaire (IA)", "✨ Analyze ad strategy (AI)")}
+            </button>
+          )}
+          {analysis && (
+            <div className="card space-y-4 p-5">
+              <div className="flex items-center gap-2">
+                <span className="section-label text-primary-500">{t("Stratégie publicitaire", "Ad strategy")}</span>
+                <span className={`rounded-full px-2 py-0.5 text-2xs font-semibold ${analysis.aiGenerated ? "bg-success-100 text-success-700" : "bg-warning-50 text-warning-700"}`}>
+                  {analysis.aiGenerated ? t("Analyse IA", "AI analysis") : t("Modèle", "Template")}
+                </span>
+              </div>
+              <p className="text-sm leading-relaxed text-ink">{analysis.resume}</p>
+
+              {analysis.anglesDominants?.length > 0 && (
+                <div>
+                  <p className="section-label mb-2">{t("Angles dominants", "Dominant angles")}</p>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    {analysis.anglesDominants.map((a, i) => (
+                      <div key={i} className="rounded-lg border border-hair bg-canvas p-3">
+                        <p className="text-sm font-semibold text-ink">{a.angle}</p>
+                        {a.exemples?.length > 0 && <p className="mt-0.5 text-2xs text-muted">{a.exemples.join(" · ")}</p>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                {analysis.offres?.length > 0 && (
+                  <div>
+                    <p className="section-label mb-1.5">{t("Offres / promesses", "Offers / promises")}</p>
+                    <ul className="space-y-0.5 text-sm text-ink">{analysis.offres.map((o, i) => <li key={i} className="flex gap-1.5"><span className="text-primary">›</span>{o}</li>)}</ul>
+                  </div>
+                )}
+                {analysis.ctas?.length > 0 && (
+                  <div>
+                    <p className="section-label mb-1.5">{t("Appels à l'action", "Calls to action")}</p>
+                    <div className="flex flex-wrap gap-1.5">{analysis.ctas.map((c, i) => <span key={i} className="chip">{c}</span>)}</div>
+                  </div>
+                )}
+              </div>
+
+              {analysis.pourquoiPerformantes?.length > 0 && (
+                <div>
+                  <p className="section-label mb-1.5">{t("Pourquoi elles performent", "Why they perform")}</p>
+                  <ul className="space-y-1 text-sm text-ink">{analysis.pourquoiPerformantes.map((p, i) => <li key={i} className="flex gap-1.5"><span className="text-success-600">✓</span>{p}</li>)}</ul>
+                </div>
+              )}
+
+              {analysis.recommandations?.length > 0 && (
+                <div>
+                  <p className="section-label mb-2">{t("Recommandations pour vous", "Recommendations for you")}</p>
+                  <div className="space-y-2">
+                    {analysis.recommandations.map((r, i) => (
+                      <div key={i} className="rounded-lg border border-primary-200 bg-primary-50/50 p-3">
+                        <p className="text-sm font-semibold text-ink">{r.titre}</p>
+                        <p className="mt-0.5 text-xs text-muted">{r.detail}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <button className="btn-secondary text-xs" onClick={analyze} disabled={analyzing}>{t("↻ Relancer l'analyse", "↻ Re-run analysis")}</button>
+            </div>
+          )}
+
           <div className="section-label">{ads.length} {t("publicités (triées par impressions)", "ads (sorted by impressions)")}</div>
           <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
             {ads.map((a) => (

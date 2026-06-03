@@ -7,10 +7,12 @@ import { MetricCard } from "@/components/ui/MetricCard";
 import { Button } from "@/components/ui/Button";
 import { PlatformTag } from "@/components/ui/PlatformTag";
 import { eur } from "@/lib/format";
+import { useT } from "@/lib/i18n";
 
 export default function DashboardPage() {
   const { company, data } = useCompany();
   const router = useRouter();
+  const t = useT();
   const d = data.dashboard;
 
   return (
@@ -19,32 +21,32 @@ export default function DashboardPage() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-ink">
-            Tableau de bord
+            {t("Tableau de bord", "Dashboard")}
           </h1>
           <p className="mt-0.5 text-sm text-muted">
-            Vue d&apos;ensemble de{" "}
+            {t("Vue d'ensemble de", "Overview of")}{" "}
             <span className="font-semibold text-ink">{company.name}</span>.
           </p>
         </div>
         <div className="flex shrink-0 gap-2">
           <Button variant="secondary" onClick={() => router.push("/campaigns?new=true")}>
-            New campaign
+            {t("Nouvelle campagne", "New campaign")}
           </Button>
           <Button variant="primary" onClick={() => router.push("/compose")}>
-            New post
+            {t("Nouveau post", "New post")}
           </Button>
         </div>
       </div>
 
       {/* Organic metrics */}
       <section>
-        <div className="section-label mb-3">Organic</div>
+        <div className="section-label mb-3">{t("Organique", "Organic")}</div>
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <MetricCard label="Scheduled" value={d.organic.scheduled} href="/scheduled" />
-          <MetricCard label="Published (7d)" value={d.organic.published7d} href="/history?tab=published" />
-          <MetricCard label="In library" value={d.organic.inLibrary} href="/library" />
+          <MetricCard label={t("Programmés", "Scheduled")} value={d.organic.scheduled} href="/scheduled" />
+          <MetricCard label={t("Publiés (7j)", "Published (7d)")} value={d.organic.published7d} href="/history?tab=published" />
+          <MetricCard label={t("En bibliothèque", "In library")} value={d.organic.inLibrary} href="/library" />
           <MetricCard
-            label="Failed posts"
+            label={t("Posts en échec", "Failed posts")}
             value={d.organic.failed}
             alert={d.organic.failed > 0}
             href="/history?tab=failed"
@@ -54,18 +56,18 @@ export default function DashboardPage() {
 
       {/* Paid Ads metrics */}
       <section>
-        <div className="section-label mb-3">Paid Ads</div>
+        <div className="section-label mb-3">{t("Publicités payantes", "Paid Ads")}</div>
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <MetricCard label="Active campaigns" value={d.paid.activeCampaigns} href="/campaigns" />
+          <MetricCard label={t("Campagnes actives", "Active campaigns")} value={d.paid.activeCampaigns} href="/campaigns" />
           <MetricCard
-            label="Spend (MTD)"
+            label={t("Dépenses (MTD)", "Spend (MTD)")}
             value={eur(d.paid.spendMtd)}
-            sub={`of ${eur(d.paid.spendCap)} cap`}
+            sub={t(`sur ${eur(d.paid.spendCap)} plafond`, `of ${eur(d.paid.spendCap)} cap`)}
             href="/ad-performance"
           />
-          <MetricCard label="Conversions" value={d.paid.conversions} href="/ad-performance" />
+          <MetricCard label={t("Conversions", "Conversions")} value={d.paid.conversions} href="/ad-performance" />
           <MetricCard
-            label="AI budget"
+            label={t("Budget IA", "AI budget")}
             value={`${eur(d.paid.aiBudgetUsed).replace("EUR ", "EUR ")}/${d.paid.aiBudgetCap}`}
           />
         </div>
@@ -75,7 +77,7 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         {/* Upcoming posts */}
         <section className="animate-slide-up">
-          <h2 className="mb-3 text-sm font-semibold text-ink">Upcoming posts</h2>
+          <h2 className="mb-3 text-sm font-semibold text-ink">{t("Posts à venir", "Upcoming posts")}</h2>
           <div className="card overflow-hidden">
             {d.upcomingPosts.length === 0 ? (
               <div className="flex flex-col items-center gap-3 px-4 py-12 text-center">
@@ -83,11 +85,11 @@ export default function DashboardPage() {
                   📅
                 </span>
                 <div>
-                  <p className="text-sm font-medium text-ink">No upcoming posts</p>
-                  <p className="mt-0.5 text-2xs text-muted">Create your first post to get started.</p>
+                  <p className="text-sm font-medium text-ink">{t("Aucun post à venir", "No upcoming posts")}</p>
+                  <p className="mt-0.5 text-2xs text-muted">{t("Créez votre premier post pour commencer.", "Create your first post to get started.")}</p>
                 </div>
                 <Button variant="secondary" onClick={() => router.push("/compose")}>
-                  Create a post
+                  {t("Créer un post", "Create a post")}
                 </Button>
               </div>
             ) : (
@@ -112,7 +114,7 @@ export default function DashboardPage() {
 
         {/* Top performing ad */}
         <section className="animate-slide-up" style={{ animationDelay: "40ms" }}>
-          <h2 className="mb-3 text-sm font-semibold text-ink">Top performing ad</h2>
+          <h2 className="mb-3 text-sm font-semibold text-ink">{t("Publicité la plus performante", "Top performing ad")}</h2>
           <Link
             href="/ad-performance"
             className="card block cursor-pointer p-4 transition-shadow hover:shadow-md"
@@ -123,7 +125,7 @@ export default function DashboardPage() {
             </div>
             <div className="grid grid-cols-3 gap-3">
               <div className="rounded-xl bg-canvas px-3 py-3 shadow-xs">
-                <div className="text-2xs text-muted">Spend</div>
+                <div className="text-2xs text-muted">{t("Dépenses", "Spend")}</div>
                 <div className="mt-1 text-sm font-bold text-ink">{eur(d.topAd.spend)}</div>
               </div>
               <div className="rounded-xl bg-canvas px-3 py-3 shadow-xs">
@@ -131,7 +133,7 @@ export default function DashboardPage() {
                 <div className="mt-1 text-sm font-bold text-ink">{d.topAd.ctr}</div>
               </div>
               <div className="rounded-xl bg-canvas px-3 py-3 shadow-xs">
-                <div className="text-2xs text-muted">Conv.</div>
+                <div className="text-2xs text-muted">{t("Conv.", "Conv.")}</div>
                 <div className="mt-1 text-sm font-bold text-ink">{d.topAd.conversions}</div>
               </div>
             </div>

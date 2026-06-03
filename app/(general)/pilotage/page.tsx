@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useCompany } from "@/lib/company-context";
 import { useScope } from "@/lib/scope";
+import { useT } from "@/lib/i18n";
 import {
   computeNetworkKpis,
   aggregateKpis,
@@ -60,6 +61,7 @@ export default function PilotagePage() {
   const market = country.label;
   const days = range ? Math.max(1, Math.round((+range.to - +range.from) / 86400000)) : 30;
 
+  const t = useT();
   const [autonomy, setAutonomy] = useState(1);
   const [objective, setObjective] = useState("");
   const [running, setRunning] = useState(false);
@@ -145,17 +147,17 @@ export default function PilotagePage() {
       const reco: Decision = {
         id: `live-${Date.now()}`,
         agent: "strategist",
-        title: "Nouveau cycle de pilotage exécuté",
+        title: t("Nouveau cycle de pilotage exécuté", "New steering cycle executed"),
         rationale: data?.complianceVerdict === "block"
-          ? "Contenu bloqué par la conformité — révision nécessaire."
-          : "Les agents ont produit une recommandation prête à valider.",
-        impact: data?.finalOutput ? String(data.finalOutput).slice(0, 120) + "…" : "Voir le centre Agents pour le détail.",
+          ? t("Contenu bloqué par la conformité — révision nécessaire.", "Content blocked by compliance — revision required.")
+          : t("Les agents ont produit une recommandation prête à valider.", "The agents have produced a recommendation ready for review."),
+        impact: data?.finalOutput ? String(data.finalOutput).slice(0, 120) + "…" : t("Voir le centre Agents pour le détail.", "See the Agents center for details."),
         status: "pending",
       };
       setDecisions((ds) => [reco, ...ds]);
-      setToast("Cycle de pilotage terminé — nouvelle recommandation ajoutée.");
+      setToast(t("Cycle de pilotage terminé — nouvelle recommandation ajoutée.", "Steering cycle completed — new recommendation added."));
     } catch {
-      setToast("Erreur lors du cycle. Réessayez.");
+      setToast(t("Erreur lors du cycle. Réessayez.", "Cycle error. Please try again."));
     } finally {
       setRunning(false);
       setTimeout(() => setToast(null), 4000);
@@ -172,14 +174,14 @@ export default function PilotagePage() {
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <span className="flex h-2 w-2 animate-pulse rounded-full bg-success-500" />
-              <span className="section-label text-ink">Centre de pilotage · {company.name}</span>
+              <span className="section-label text-ink">{t("Centre de pilotage", "Steering center")} · {company.name}</span>
             </div>
-            <span className="chip">{country.flag} {market} · {days} j</span>
+            <span className="chip">{country.flag} {market} · {days} {t("j", "d")}</span>
           </div>
         </div>
         <div className="grid gap-4 p-5 md:grid-cols-[1fr_auto]">
           <div>
-            <label className="section-label mb-1 block text-muted">Objectif global</label>
+            <label className="section-label mb-1 block text-muted">{t("Objectif global", "Global objective")}</label>
             <textarea
               value={objective}
               onChange={(e) => setObjective(e.target.value)}
@@ -187,23 +189,23 @@ export default function PilotagePage() {
               className="input resize-none"
             />
             <div className="mt-3 flex flex-wrap items-center gap-2">
-              <span className="text-2xs font-medium uppercase tracking-wide text-muted">Autonomie</span>
+              <span className="text-2xs font-medium uppercase tracking-wide text-muted">{t("Autonomie", "Autonomy")}</span>
               {[1, 2, 3].map((lvl) => (
                 <button
                   key={lvl}
                   onClick={() => setAutonomy(lvl)}
                   className={`chip ${autonomy === lvl ? "border-page bg-page text-white" : ""}`}
                 >
-                  Niv. {lvl} {lvl === 1 ? "· Reco" : lvl === 2 ? "· Semi" : "· Auto"}
+                  {t("Niv.", "Lvl.")} {lvl} {lvl === 1 ? t("· Reco", "· Reco") : lvl === 2 ? t("· Semi", "· Semi") : t("· Auto", "· Auto")}
                 </button>
               ))}
             </div>
           </div>
           <div className="flex flex-col justify-end gap-2">
             <button onClick={runCycle} disabled={running} className="btn-primary whitespace-nowrap">
-              {running ? "Pilotage en cours…" : "▶ Lancer un cycle de pilotage"}
+              {running ? t("Pilotage en cours…", "Running cycle…") : t("▶ Lancer un cycle de pilotage", "▶ Start a steering cycle")}
             </button>
-            <span className="text-center text-2xs text-muted">{pending} décision(s) à valider</span>
+            <span className="text-center text-2xs text-muted">{pending} {t("décision(s) à valider", "decision(s) to review")}</span>
           </div>
         </div>
         {toast && <div className="border-t border-hair bg-success-50 px-5 py-2 text-sm text-success-700">{toast}</div>}
@@ -211,31 +213,31 @@ export default function PilotagePage() {
 
       {/* ── KPIs agrégés ───────────────────────────────── */}
       <section>
-        <div className="section-label mb-2.5">Indicateurs clés · tous réseaux</div>
+        <div className="section-label mb-2.5">{t("Indicateurs clés · tous réseaux", "Key metrics · all networks")}</div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-          <Kpi label="Followers" value={fmt(agg.followers)} />
-          <Kpi label="Engagement" value={`${agg.engagementRate}%`} accent />
-          <Kpi label="Likes" value={fmt(agg.likes)} />
-          <Kpi label="Commentaires" value={fmt(agg.comments)} />
-          <Kpi label="Vues" value={fmt(agg.views)} />
-          <Kpi label="Portée" value={fmt(agg.reach)} />
+          <Kpi label={t("Abonnés", "Followers")} value={fmt(agg.followers)} />
+          <Kpi label={t("Engagement", "Engagement")} value={`${agg.engagementRate}%`} accent />
+          <Kpi label={t("Likes", "Likes")} value={fmt(agg.likes)} />
+          <Kpi label={t("Commentaires", "Comments")} value={fmt(agg.comments)} />
+          <Kpi label={t("Vues", "Views")} value={fmt(agg.views)} />
+          <Kpi label={t("Portée", "Reach")} value={fmt(agg.reach)} />
         </div>
       </section>
 
       {/* ── Insights de veille ─────────────────────────────────────────── */}
       <section>
         <div className="section-label mb-2.5 flex items-center gap-2">
-          Insights de veille concurrentielle
+          {t("Insights de veille concurrentielle", "Competitive intelligence insights")}
           {veilleLoading && <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-page/50" />}
           {veille && (
             <span className="chip">
-              {veille.simulated ? "simulé" : `run ${new Date(veille.finishedAt).toLocaleDateString("fr-FR")}`}
+              {veille.simulated ? t("simulé", "simulated") : `run ${new Date(veille.finishedAt).toLocaleDateString("fr-FR")}`}
             </span>
           )}
         </div>
 
         {!veille && !veilleLoading && (
-          <div className="card p-4 text-sm text-muted">Aucune donnée de veille disponible.</div>
+          <div className="card p-4 text-sm text-muted">{t("Aucune donnée de veille disponible.", "No intelligence data available.")}</div>
         )}
 
         {veille && (
@@ -251,7 +253,7 @@ export default function PilotagePage() {
                 <div key={insight.id} className="card p-3.5">
                   <div className="mb-1 flex items-center gap-2">
                     <span className="rounded-md bg-canvas px-1.5 py-0.5 text-2xs font-semibold uppercase text-muted ring-1 ring-hair">
-                      {insight.type === "format" ? "Format" : insight.type === "angle" ? "Angle" : "Benchmark"}
+                      {insight.type === "format" ? t("Format", "Format") : insight.type === "angle" ? t("Angle", "Angle") : t("Benchmark", "Benchmark")}
                     </span>
                     {insight.reseau && (
                       <span
@@ -280,7 +282,7 @@ export default function PilotagePage() {
       <div className="grid gap-6 lg:grid-cols-3">
         {/* ── File de décisions ────────────────────────── */}
         <section className="lg:col-span-2">
-          <div className="section-label mb-2.5">Recommandations des agents — à valider</div>
+          <div className="section-label mb-2.5">{t("Recommandations des agents — à valider", "Agent recommendations — to review")}</div>
           <div className="space-y-2.5">
             {decisions.map((d) => (
               <div key={d.id} className={`card p-4 ${d.status !== "pending" ? "opacity-60" : ""}`}>
@@ -299,16 +301,16 @@ export default function PilotagePage() {
                     </div>
                     <div className="font-semibold text-ink">{d.title}</div>
                     <p className="mt-1 text-sm text-muted">{d.rationale}</p>
-                    <p className="mt-1.5 text-2xs font-medium text-success-700">Impact estimé : {d.impact}</p>
+                    <p className="mt-1.5 text-2xs font-medium text-success-700">{t("Impact estimé", "Estimated impact")} : {d.impact}</p>
                   </div>
                   {d.status === "pending" ? (
                     <div className="flex shrink-0 flex-col gap-1.5">
-                      <button onClick={() => setStatus(d.id, "approved")} className="btn-primary px-3 py-1 text-2xs">Valider</button>
-                      <button onClick={() => setStatus(d.id, "rejected")} className="btn-ghost px-3 py-1 text-2xs">Ignorer</button>
+                      <button onClick={() => setStatus(d.id, "approved")} className="btn-primary px-3 py-1 text-2xs">{t("Valider", "Approve")}</button>
+                      <button onClick={() => setStatus(d.id, "rejected")} className="btn-ghost px-3 py-1 text-2xs">{t("Ignorer", "Dismiss")}</button>
                     </div>
                   ) : (
                     <span className={`shrink-0 text-2xs font-semibold ${d.status === "approved" ? "text-success-700" : "text-muted"}`}>
-                      {d.status === "approved" ? "✓ Validé" : "Ignoré"}
+                      {d.status === "approved" ? t("✓ Validé", "✓ Approved") : t("Ignoré", "Dismissed")}
                     </span>
                   )}
                 </div>
@@ -320,14 +322,14 @@ export default function PilotagePage() {
         {/* ── Colonne droite : benchmark + alertes + réseaux ── */}
         <div className="space-y-6">
           <section>
-            <div className="section-label mb-2.5">Benchmark marché · {market}</div>
+            <div className="section-label mb-2.5">{t("Benchmark marché", "Market benchmark")} · {market}</div>
             <div className="card divide-y divide-hair">
               {bench.map((b) => (
                 <div key={b.label} className="flex items-center justify-between px-4 py-2.5 text-sm">
                   <span className="text-muted">{b.label}</span>
                   <span className="flex items-center gap-2">
                     <span className="font-semibold text-ink">{b.you}{b.unit}</span>
-                    <span className="text-2xs text-muted">vs {b.market}{b.unit}</span>
+                    <span className="text-2xs text-muted">{t("vs", "vs")} {b.market}{b.unit}</span>
                     <span className={b.better ? "text-success-600" : "text-danger-600"}>{b.better ? "▲" : "▼"}</span>
                   </span>
                 </div>
@@ -336,9 +338,9 @@ export default function PilotagePage() {
           </section>
 
           <section>
-            <div className="section-label mb-2.5">Alertes</div>
+            <div className="section-label mb-2.5">{t("Alertes", "Alerts")}</div>
             <div className="space-y-2">
-              {alerts.length === 0 && <div className="card p-4 text-sm text-muted">Aucune alerte active.</div>}
+              {alerts.length === 0 && <div className="card p-4 text-sm text-muted">{t("Aucune alerte active.", "No active alerts.")}</div>}
               {alerts.map((a) => (
                 <div key={a.id} className={`card border-l-[3px] p-3 ${a.level === "critical" ? "border-l-danger-500" : a.level === "warning" ? "border-l-warning-500" : "border-l-primary-400"}`}>
                   <div className="text-sm font-semibold text-ink">{a.title}</div>
@@ -349,7 +351,7 @@ export default function PilotagePage() {
           </section>
 
           <section>
-            <div className="section-label mb-2.5">Par réseau</div>
+            <div className="section-label mb-2.5">{t("Par réseau", "By network")}</div>
             <div className="space-y-2">
               {kpis.map((k: NetworkKpis) => (
                 <div key={k.network} className="card flex items-center justify-between p-3">
@@ -358,7 +360,7 @@ export default function PilotagePage() {
                     {NET_LABEL[k.network].label}
                   </span>
                   <span className="flex items-center gap-3 text-2xs text-muted">
-                    <span>{fmt(k.followers)} abo.</span>
+                    <span>{fmt(k.followers)} {t("abo.", "subs.")}</span>
                     <span className="font-semibold text-ink">{k.engagementRate}%</span>
                     <span className={k.engagementTrend >= 0 ? "text-success-600" : "text-danger-600"}>
                       {k.engagementTrend >= 0 ? "+" : ""}{k.engagementTrend}%
@@ -372,7 +374,10 @@ export default function PilotagePage() {
       </div>
 
       <p className="text-center text-2xs text-muted">
-        Indicateurs et benchmark estimés à partir du marché et des mots-clés ciblés — basculent sur les données réelles dès la connexion Meta / LinkedIn.
+        {t(
+          "Indicateurs et benchmark estimés à partir du marché et des mots-clés ciblés — basculent sur les données réelles dès la connexion Meta / LinkedIn.",
+          "Metrics and benchmark estimated from the target market and keywords — switch to live data once Meta / LinkedIn is connected."
+        )}
       </p>
     </div>
   );

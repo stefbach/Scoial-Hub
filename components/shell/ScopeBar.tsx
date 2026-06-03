@@ -6,19 +6,24 @@ import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import "react-day-picker/style.css";
 import { COUNTRIES, useScope, type DateRange } from "@/lib/scope";
+import { useT } from "@/lib/i18n";
 
 // Barre de contexte globale : PAYS précis + PLAGE DE DATES (calendrier).
 export function ScopeBar() {
   const { country, setCountryId, range, setRange } = useScope();
+  const t = useT();
 
   return (
     <div className="sticky top-[3.25rem] z-20 border-b border-hair bg-canvas/85 backdrop-blur-md">
       <div className="mx-auto flex max-w-[1200px] flex-wrap items-center gap-3 px-7 py-2.5">
-        <span className="section-label text-muted">Contexte</span>
+        <span className="section-label text-muted">{t("Contexte", "Context")}</span>
         <CountryPicker currentId={country.id} flag={country.flag} label={country.label} onSelect={setCountryId} />
         <DateRangePicker range={range} onChange={setRange} />
         <span className="ml-auto hidden text-2xs text-muted lg:block">
-          Analyses, ciblage et recommandations s'adaptent au pays et à la période.
+          {t(
+            "Analyses, ciblage et recommandations s'adaptent au pays et à la période.",
+            "Analyses, targeting and recommendations adjust to the selected country and period."
+          )}
         </span>
       </div>
     </div>
@@ -40,6 +45,7 @@ function CountryPicker({
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const ref = useRef<HTMLDivElement>(null);
+  const t = useT();
 
   useEffect(() => {
     if (!open) return;
@@ -62,7 +68,7 @@ function CountryPicker({
         className="flex items-center gap-2 rounded-lg border border-hair bg-card px-3 py-1.5 text-sm shadow-xs transition-all hover:border-[#cac4b9] hover:shadow-sm"
       >
         <span className="text-base leading-none">{flag}</span>
-        <span className="text-2xs font-medium uppercase tracking-wide text-muted">Pays</span>
+        <span className="text-2xs font-medium uppercase tracking-wide text-muted">{t("Pays", "Country")}</span>
         <span className="font-semibold text-ink">{label}</span>
         <svg width="10" height="10" viewBox="0 0 10 10" className="text-muted" aria-hidden="true">
           <path d="M1.5 3.5L5 7l3.5-3.5" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
@@ -74,12 +80,12 @@ function CountryPicker({
             autoFocus
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Rechercher un pays…"
+            placeholder={t("Rechercher un pays…", "Search a country…")}
             className="input mb-2"
           />
           <div className="max-h-64 overflow-y-auto">
             {filtered.length === 0 && (
-              <p className="px-2 py-3 text-center text-xs text-muted">Aucun pays</p>
+              <p className="px-2 py-3 text-center text-xs text-muted">{t("Aucun pays", "No country found")}</p>
             )}
             {filtered.map((c) => (
               <button
@@ -106,11 +112,11 @@ function CountryPicker({
 }
 
 /* ── Période : calendrier de plage de dates ───────────────────── */
-const PRESETS: { id: string; label: string; days: number }[] = [
-  { id: "7d", label: "7 jours", days: 7 },
-  { id: "30d", label: "30 jours", days: 30 },
-  { id: "90d", label: "90 jours", days: 90 },
-  { id: "12m", label: "12 mois", days: 365 },
+const PRESETS: { id: string; labelFr: string; labelEn: string; days: number }[] = [
+  { id: "7d", labelFr: "7 jours", labelEn: "7 days", days: 7 },
+  { id: "30d", labelFr: "30 jours", labelEn: "30 days", days: 30 },
+  { id: "90d", labelFr: "90 jours", labelEn: "90 days", days: 90 },
+  { id: "12m", labelFr: "12 mois", labelEn: "12 months", days: 365 },
 ];
 
 function DateRangePicker({
@@ -122,6 +128,7 @@ function DateRangePicker({
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const t = useT();
 
   useEffect(() => {
     if (!open) return;
@@ -142,7 +149,7 @@ function DateRangePicker({
 
   const label = range
     ? `${format(range.from, "d MMM", { locale: fr })} – ${format(range.to, "d MMM yyyy", { locale: fr })}`
-    : "Choisir une période";
+    : t("Choisir une période", "Select a period");
 
   return (
     <div className="relative" ref={ref}>
@@ -155,7 +162,7 @@ function DateRangePicker({
           <rect x="1.5" y="2.5" width="11" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.2" />
           <path d="M1.5 5.5h11M4.5 1v2.5M9.5 1v2.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
         </svg>
-        <span className="text-2xs font-medium uppercase tracking-wide text-muted">Période</span>
+        <span className="text-2xs font-medium uppercase tracking-wide text-muted">{t("Période", "Period")}</span>
         <span className="font-semibold text-ink">{label}</span>
         <svg width="10" height="10" viewBox="0 0 10 10" className="text-muted" aria-hidden="true">
           <path d="M1.5 3.5L5 7l3.5-3.5" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
@@ -171,7 +178,7 @@ function DateRangePicker({
                 onClick={() => applyPreset(p.days)}
                 className="chip hover:bg-primary-50 hover:text-primary-700 hover:border-primary-200"
               >
-                {p.label}
+                {t(p.labelFr, p.labelEn)}
               </button>
             ))}
           </div>
@@ -199,7 +206,7 @@ function DateRangePicker({
               }}
               className="mt-1 w-full text-center text-2xs text-muted hover:text-ink"
             >
-              Réinitialiser
+              {t("Réinitialiser", "Reset")}
             </button>
           )}
         </div>

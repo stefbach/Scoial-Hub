@@ -6,10 +6,12 @@ import { useCompany } from "@/lib/company-context";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/env";
 import { Logo } from "@/components/brand/Logo";
+import { useT } from "@/lib/i18n";
 
 // Hub de comptes : le client choisit l'entité à piloter → interface client dédiée.
 export default function ComptesHubPage() {
   const router = useRouter();
+  const t = useT();
   const { companies, setCompanyId } = useCompany();
   const [email, setEmail] = useState<string | null>(null);
 
@@ -38,20 +40,20 @@ export default function ComptesHubPage() {
         <Logo size={28} />
         <div className="flex items-center gap-3">
           {email && <span className="hidden text-sm text-muted sm:block">{email}</span>}
-          <button onClick={logout} className="btn-ghost text-sm">Se déconnecter</button>
+          <button onClick={logout} className="btn-ghost text-sm">{t("Se déconnecter", "Sign out")}</button>
         </div>
       </header>
 
       <div className="mx-auto max-w-5xl px-6 py-12">
         <div className="mb-8">
-          <h1 className="text-2xl font-bold tracking-tight text-ink">Vos comptes</h1>
-          <p className="mt-1 text-sm text-muted">Sélectionnez un compte pour accéder à son espace de pilotage.</p>
+          <h1 className="text-2xl font-bold tracking-tight text-ink">{t("Vos comptes", "Your accounts")}</h1>
+          <p className="mt-1 text-sm text-muted">{t("Sélectionnez un compte pour accéder à son espace de pilotage.", "Select an account to access its management space.")}</p>
         </div>
 
         {companies.length === 0 ? (
           <div className="card p-10 text-center">
-            <p className="text-sm text-muted">Aucun compte ne vous est rattaché pour l'instant.</p>
-            <p className="mt-1 text-2xs text-muted">Contactez votre administrateur pour qu'il vous donne accès à un compte.</p>
+            <p className="text-sm text-muted">{t("Aucun compte ne vous est rattaché pour l'instant.", "No account is linked to your profile yet.")}</p>
+            <p className="mt-1 text-2xs text-muted">{t("Contactez votre administrateur pour qu'il vous donne accès à un compte.", "Contact your administrator to get access to an account.")}</p>
           </div>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -71,8 +73,8 @@ export default function ComptesHubPage() {
                   </div>
                 </div>
                 <div className="mt-4 flex items-center justify-between border-t border-hair pt-3 text-2xs text-muted">
-                  <span>Pilotage social media</span>
-                  <span className="font-semibold text-page transition-transform group-hover:translate-x-0.5">Ouvrir →</span>
+                  <span>{t("Pilotage social media", "Social media management")}</span>
+                  <span className="font-semibold text-page transition-transform group-hover:translate-x-0.5">{t("Ouvrir →", "Open →")}</span>
                 </div>
               </button>
             ))}

@@ -506,6 +506,117 @@ function ApplyActions({ result, companyId }: ApplyActionsProps) {
   );
 }
 
+// ── Studio visuels (génération à la demande) + export campagne ──────────────
+
+function buildCampaignExport(result: AgentRunResult): string {
+  const lines: string[] = [];
+  lines.push(`# Campagne — ${result.objective}`);
+  lines.push(`Autonomie : ${result.autonomy} · Conformité : ${result.complianceVerdict}`);
+  if (result.finalOutput) lines.push(`\n## Contenu final\n${result.finalOutput}`);
+  if (result.imagePrompt) lines.push(`\n## Prompt image\n${result.imagePrompt}`);
+  if (result.videoPrompt) lines.push(`\n## Prompt vidéo\n${result.videoPrompt}`);
+  lines.push(`\n## Étapes des agents`);
+  for (const s of result.steps) lines.push(`\n### ${s.title} — [${s.status}]\n${s.output ?? ""}`);
+  return lines.join("\n");
+}
+
+function CreativeStudioCard({ result }: { result: AgentRunResult }) {
+  const t = useT();
+  const [img, setImg] = useState<string | null>(null);
+  const [imgState, setImgState] = useState<"idle" | "loading" | "done" | "failed">("idle");
+  const [vid, setVid] = useState<string | null>(null);
+  const [vidState, setVidState] = useState<"idle" | "loading" | "done" | "failed">("idle");
+  const [msg, setMsg] = useState<string | null>(null);
+
+  async function genImage() {
+    if (!result.imagePrompt) return;
+    setImgState("loading"); setMsg(null);
+    try {
+      const r = await fetch("/api/ai/generate-image", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: result.imagePrompt, format: "square", platform: "instagram" }),
+      });
+      const d = await r.json();
+      const first = Array.isArray(d.images) ? d.images[0] : undefined;
+      const url = typeof first === "string" ? first : first?.url;
+      if (d.simulated || !url) { setImgState("failed"); setMsg(d.message ?? t("Image indisponible (REPLICATE_API_TOKEN ?).", "Image unavailable (REPLICATE_API_TOKEN?).")); return; }
+      setImg(url); setImgState("done");
+    } catch { setImgState("failed"); setMsg(t("Erreur réseau.", "Network error.")); }
+  }
+
+  async function genVideo() {
+    if (!result.videoPrompt) return;
+    setVidState("loading"); setMsg(null);
+    try {
+      const r = await fetch("/api/ai/generate-video", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: result.videoPrompt, platform: "tiktok", seconds: 5 }),
+      });
+      const d = await r.json();
+      const url = d.video?.url ?? (typeof d.video === "string" ? d.video : undefined);
+      if (d.simulated || !url) { setVidState("failed"); setMsg(d.message ?? t("Vidéo indisponible (REPLICATE_API_TOKEN ?).", "Video unavailable (REPLICATE_API_TOKEN?).")); return; }
+      setVid(url); setVidState("done");
+    } catch { setVidState("failed"); setMsg(t("Erreur réseau.", "Network error.")); }
+  }
+
+  function exportCampaign() {
+    const blob = new Blob([buildCampaignExport(result)], { type: "text/markdown;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "campagne.md";
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  return (
+    <div className="card space-y-3 p-4">
+      <div className="flex items-center justify-between gap-2">
+        <span className="section-label">{t("Visuels & export", "Visuals & export")}</span>
+        <button className="btn-secondary text-2xs" onClick={exportCampaign}>⬇ {t("Exporter la campagne", "Export campaign")}</button>
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {/* Image */}
+        {result.imagePrompt && (
+          <div className="rounded-lg border border-hair bg-canvas p-3">
+            <p className="mb-2 text-2xs text-muted line-clamp-2">🎨 {result.imagePrompt}</p>
+            {imgState !== "done" && (
+              <button className="btn-primary w-full justify-center text-2xs" onClick={genImage} disabled={imgState === "loading"}>
+                {imgState === "loading" ? t("Génération…", "Generating…") : t("Générer l'image", "Generate image")}
+              </button>
+            )}
+            {img && (
+              <div className="space-y-1.5">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={img} alt="visuel" className="w-full rounded-lg border border-hair" />
+                <a href={img} download target="_blank" rel="noopener noreferrer" className="btn-secondary w-full justify-center text-2xs">⬇ {t("Télécharger", "Download")}</a>
+              </div>
+            )}
+          </div>
+        )}
+        {/* Vidéo */}
+        {result.videoPrompt && (
+          <div className="rounded-lg border border-hair bg-canvas p-3">
+            <p className="mb-2 text-2xs text-muted line-clamp-2">🎬 {result.videoPrompt}</p>
+            {vidState !== "done" && (
+              <button className="btn-primary w-full justify-center text-2xs" onClick={genVideo} disabled={vidState === "loading"}>
+                {vidState === "loading" ? t("Génération… (peut prendre ~1 min)", "Generating… (~1 min)") : t("Générer la vidéo", "Generate video")}
+              </button>
+            )}
+            {vid && (
+              <div className="space-y-1.5">
+                <video src={vid} controls className="w-full rounded-lg border border-hair" />
+                <a href={vid} download target="_blank" rel="noopener noreferrer" className="btn-secondary w-full justify-center text-2xs">⬇ {t("Télécharger", "Download")}</a>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+      {msg && <p className="text-2xs text-warning-700">{msg}</p>}
+    </div>
+  );
+}
+
 // ── Composant principal ────────────────────────────────────────────────────
 
 interface RunTimelineProps {
@@ -638,6 +749,11 @@ export function RunTimeline({ result, companyId }: RunTimelineProps) {
           images={result.generatedImages}
           video={result.generatedVideo}
         />
+      )}
+
+      {/* ── Studio visuels (à la demande) + export campagne ─────────── */}
+      {(result.imagePrompt || result.videoPrompt) && (
+        <CreativeStudioCard result={result} />
       )}
 
       {/* ── Résultat Publisher ──────────────────────────────────────── */}

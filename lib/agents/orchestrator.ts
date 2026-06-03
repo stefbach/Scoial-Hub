@@ -27,11 +27,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { env, isAiConfigured } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/server";
-import {
-  isReplicateConfigured,
-  generateImage,
-  generateVideo,
-} from "@/lib/ai/replicate";
+import { isReplicateConfigured } from "@/lib/ai/replicate";
 import type {
   AgentId,
   AgentRunResult,
@@ -602,6 +598,8 @@ interface CreativeResult {
   step: AgentStep;
   generatedImages?: { url: string }[];
   generatedVideo?: { url: string };
+  imagePrompt?: string;
+  videoPrompt?: string;
 }
 
 /**
@@ -635,84 +633,35 @@ async function runCreative(
 • Variantes : Story 9:16 (1080×1920) + Réels 4:5 (1080×1350)
 • Tonalité visuelle : ${profile.recommendedTone}`;
 
-  if (!isReplicateConfigured) {
-    return {
-      step: {
-        agent: "creative",
-        title: "Brief créatif et assets visuels",
-        status: "simulated",
-        output: briefBase + `\n• Vidéo courte (15s) : animation de titre + b-roll thématique`,
-        detail: "REPLICATE_API_TOKEN requis pour la génération réelle d'images et de vidéos via Replicate (Flux 1.1 Pro / MiniMax Video-01).",
-        finishedAt: ts(),
-      },
-    };
-  }
-
-  // Replicate configuré → génération réelle
+  // Le cycle ne génère PLUS le média en synchrone (Replicate image ~15s + vidéo
+  // ~60-90s ferait dépasser la limite de 60s → 504). Il propose les PROMPTS ;
+  // l'utilisateur génère image/vidéo à la demande (chaque rendu dans sa requête).
   const imagePrompt = buildImagePrompt(copyText, profile);
-  // Détermine si on génère une vidéo : cadence ≥ 2 publications/jour OU objectif contient "vidéo/video/réels/reels"
   const needsVideo =
     cadence.postingPerDay >= 2 ||
     /vid[eé]o|reels?|r[eé]els?/i.test(input.objective);
+  const videoPrompt = needsVideo
+    ? `${imagePrompt}. Clip vidéo vertical 9:16 de 5 secondes, rythmé, pour réseaux sociaux.`
+    : undefined;
 
-  const imageResults: { url: string }[] = [];
-  let videoResult: { url: string } | undefined;
-  const outputLines: string[] = [briefBase];
-  const errors: string[] = [];
-
-  // Génération d'image (format carré Feed + portrait Story)
-  try {
-    const imgRes = await generateImage({
-      prompt: imagePrompt,
-      format: "square",
-      n: 1,
-    });
-    if (!imgRes.simulated && imgRes.images.length > 0) {
-      imageResults.push(...imgRes.images);
-      outputLines.push(`\n✅ Image(s) générée(s) par Replicate (${imgRes.model ?? "Flux 1.1 Pro"}) :`);
-      imgRes.images.forEach((img, i) =>
-        outputLines.push(`  • Image ${i + 1} : ${img.url}`)
-      );
-    }
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    errors.push(`Image : ${msg}`);
-  }
-
-  // Génération de vidéo si pertinent
-  if (needsVideo) {
-    try {
-      const vidRes = await generateVideo({
-        prompt: imagePrompt + ". Short 5-second social media video clip.",
-        seconds: 5,
-        aspect: "9:16",
-      });
-      if (!vidRes.simulated && vidRes.video) {
-        videoResult = vidRes.video;
-        outputLines.push(`\n✅ Vidéo générée par Replicate (${vidRes.model ?? "MiniMax Video-01"}) :`);
-        outputLines.push(`  • Vidéo : ${vidRes.video.url}`);
-      }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      errors.push(`Vidéo : ${msg}`);
-    }
-  }
-
-  const hasAssets = imageResults.length > 0 || videoResult;
+  const lines: string[] = [briefBase, `\n🎨 Prompt image (à générer) :\n  ${imagePrompt}`];
+  if (videoPrompt) lines.push(`\n🎬 Prompt vidéo (à générer) :\n  ${videoPrompt}`);
+  lines.push(
+    isReplicateConfigured
+      ? `\n→ Cliquez sur « Générer l'image » / « Générer la vidéo » ci-dessous pour produire les visuels (Replicate).`
+      : `\n→ Configurez REPLICATE_API_TOKEN, puis générez les visuels en 1 clic.`
+  );
 
   return {
     step: {
       agent: "creative",
-      title: hasAssets
-        ? "Génération de visuels (Replicate IA)"
-        : "Brief créatif et assets visuels",
-      status: hasAssets ? "done" : "simulated",
-      output: outputLines.join("\n"),
-      detail: errors.length > 0 ? `Erreurs Replicate : ${errors.join(" | ")}` : undefined,
+      title: "Brief créatif & prompts visuels",
+      status: "done",
+      output: lines.join("\n"),
       finishedAt: ts(),
     },
-    generatedImages: imageResults.length > 0 ? imageResults : undefined,
-    generatedVideo: videoResult,
+    imagePrompt,
+    videoPrompt,
   };
 }
 
@@ -1235,6 +1184,8 @@ export async function runOrchestration(
   steps.push(creativeResult.step);
   const generatedImages = creativeResult.generatedImages;
   const generatedVideo = creativeResult.generatedVideo;
+  const imagePrompt = creativeResult.imagePrompt;
+  const videoPrompt = creativeResult.videoPrompt;
 
   // ── 5. Conformité (BLOQUANT) ────────────────────────────────────────────────
   const { step: complianceStep, verdict, issues } = await runCompliance(input, profile, copyText);
@@ -1301,6 +1252,9 @@ export async function runOrchestration(
     // Visuels générés par Creative
     generatedImages,
     generatedVideo,
+    // Prompts visuels (génération à la demande, côté UI)
+    imagePrompt,
+    videoPrompt,
     // Résultat de publication
     publisherResult,
   };

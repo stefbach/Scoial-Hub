@@ -114,6 +114,10 @@ export interface AgentRunResult {
   generatedImages?: { url: string }[];
   /** URL de la vidéo générée par Replicate (si applicable) */
   generatedVideo?: { url: string };
+  /** Prompt image recommandé par l'agent Créatif (génération à la demande). */
+  imagePrompt?: string;
+  /** Prompt vidéo recommandé par l'agent Créatif (génération à la demande). */
+  videoPrompt?: string;
 
   // ── Résultat de publication (agent Publisher) ────────────────────
   /** Résultat de la tentative de publication */

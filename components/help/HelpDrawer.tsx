@@ -43,19 +43,6 @@ function IconQuestion() {
   );
 }
 
-function IconAction() {
-  return (
-    <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-      <path
-        d="M2 6h8M7 3l3 3-3 3"
-        stroke="currentColor"
-        strokeWidth="1.3"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
 
 function IconLink() {
   return (
@@ -90,9 +77,9 @@ export function HelpDrawer({ open, onClose }: HelpDrawerProps) {
 
   // Labels d'interface selon la langue
   const ui = {
-    contextualHelp: lang === "en" ? "Contextual help" : "Aide contextuelle",
+    contextualHelp: lang === "en" ? "Help & tutorial" : "Aide & tutoriel",
     whatFor: lang === "en" ? "What it's for" : "À quoi ça sert",
-    actions: lang === "en" ? "Key actions" : "Actions clés",
+    actions: lang === "en" ? "Step-by-step tutorial" : "Tutoriel pas à pas",
     tips: lang === "en" ? "Tips" : "Astuces",
     faq: lang === "en" ? "FAQ" : "FAQ",
     shortcuts: lang === "en" ? "Shortcuts & navigation" : "Raccourcis & navigation",
@@ -139,7 +126,7 @@ export function HelpDrawer({ open, onClose }: HelpDrawerProps) {
         aria-hidden="true"
         onClick={onClose}
         className={[
-          "fixed inset-0 z-40 bg-ink/20 backdrop-blur-[2px]",
+          "fixed inset-0 z-40 bg-ink/60 backdrop-blur-sm",
           "transition-opacity duration-300",
           open ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none",
         ].join(" ")}
@@ -152,8 +139,8 @@ export function HelpDrawer({ open, onClose }: HelpDrawerProps) {
         aria-modal="true"
         aria-label={ui.aria}
         className={[
-          "fixed right-0 top-0 z-50 h-full w-full max-w-[440px]",
-          "flex flex-col bg-card shadow-2xl",
+          "fixed right-0 top-0 z-50 h-full w-full max-w-[480px]",
+          "flex flex-col bg-white shadow-2xl",
           "border-l border-hair",
           "transition-transform duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]",
           open ? "translate-x-0" : "translate-x-full",
@@ -201,39 +188,36 @@ export function HelpDrawer({ open, onClose }: HelpDrawerProps) {
               <h3 id="help-what" className="section-label mb-2 text-ink">
                 {ui.whatFor}
               </h3>
-              <p className="text-sm leading-relaxed text-muted">
+              <p className="rounded-lg bg-primary-50/70 px-3.5 py-3 text-sm leading-relaxed text-ink ring-1 ring-primary-100">
                 {entry.whatFor}
               </p>
             </section>
 
-            {/* ── Actions clés ───────────────────────────────────────────── */}
+            {/* ── Tutoriel pas à pas (numéroté) ──────────────────────────── */}
             {entry.actions.length > 0 && (
               <section aria-labelledby="help-actions">
                 <h3 id="help-actions" className="section-label mb-3 text-ink">
                   {ui.actions}
                 </h3>
-                <ul className="flex flex-col gap-2.5">
+                <ol className="flex flex-col gap-2.5">
                   {entry.actions.map((action, i) => (
                     <li
                       key={i}
-                      className="
-                        rounded-lg border border-hair bg-canvas
-                        px-4 py-3 text-sm leading-relaxed
-                      "
+                      className="flex gap-3 rounded-lg border border-hair bg-white px-4 py-3 text-sm leading-relaxed shadow-xs"
                     >
-                      <div className="mb-1 flex items-center gap-1.5">
-                        <span
-                          aria-hidden="true"
-                          className="flex h-4 w-4 shrink-0 items-center justify-center rounded bg-primary-100 text-primary-600"
-                        >
-                          <IconAction />
-                        </span>
-                        <span className="font-semibold text-ink">{action.label}</span>
+                      <span
+                        aria-hidden="true"
+                        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-page text-2xs font-bold text-white"
+                      >
+                        {i + 1}
+                      </span>
+                      <div className="min-w-0">
+                        <span className="block font-semibold text-ink">{action.label}</span>
+                        <p className="mt-0.5 text-ink/80">{action.detail}</p>
                       </div>
-                      <p className="text-muted">{action.detail}</p>
                     </li>
                   ))}
-                </ul>
+                </ol>
               </section>
             )}
 

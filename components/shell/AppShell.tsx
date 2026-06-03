@@ -148,10 +148,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <CompanySwitcher />
         </div>
 
-        {/* Zone droite : langue + aide + avatar */}
+        {/* Zone droite : langue + avatar (l'aide est un bouton flottant) */}
         <div className="flex items-center gap-2">
           <LanguageSwitcher />
-          <HelpButton />
           <UserMenu />
         </div>
       </header>
@@ -166,6 +165,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {children}
         </main>
       </div>
+
+      {/* Bouton d'aide flottant (hors header pour un positionnement viewport) */}
+      <HelpButton />
     </div>
   );
 }

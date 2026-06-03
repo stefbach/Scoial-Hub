@@ -15,6 +15,7 @@ const NAV_TR: Record<string, [string, string]> = {
   "Connecteurs": ["Connecteurs", "Connectors"],
   "Organic": ["Organique", "Organic"],
   "Compose": ["Composer", "Compose"],
+  "Video Studio": ["Studio Vidéo", "Video Studio"],
   "Scheduled": ["Programmés", "Scheduled"],
   "Library": ["Bibliothèque", "Library"],
   "Automations": ["Automatisations", "Automations"],
@@ -172,6 +173,13 @@ const ICONS: Record<string, React.ReactNode> = {
       <path d="M4 4l2 2M11 4L9 6M4 11l2-2M11 11L9 9" stroke="currentColor" strokeWidth="1" strokeLinecap="round" opacity="0.6"/>
     </svg>
   ),
+  "/studio-video": (
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+      <rect x="1.5" y="3.5" width="9" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.2" fill="none"/>
+      <path d="M10.5 6.5 13.5 5v5l-3-1.5" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" fill="none"/>
+      <path d="M4.5 6.5 7 7.5 4.5 8.5V6.5Z" fill="currentColor"/>
+    </svg>
+  ),
 };
 
 /* ── Groupes de navigation ─────────────────────────────────────────── */
@@ -194,7 +202,8 @@ const GROUPS: { label?: string; items: { href: string; label: string }[] }[] = [
   {
     label: "Organic",
     items: [
-      { href: "/compose",     label: "Compose" },
+      { href: "/compose",      label: "Compose" },
+      { href: "/studio-video", label: "Video Studio" },
       { href: "/scheduled",   label: "Scheduled" },
       { href: "/library",     label: "Library" },
       { href: "/automations", label: "Automations" },

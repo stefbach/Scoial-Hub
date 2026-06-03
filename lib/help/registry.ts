@@ -1905,6 +1905,73 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
       { label: { fr: "Agents IA", en: "AI agents" }, href: "/agents" },
     ],
   },
+
+  // ── /studio-video ───────────────────────────────────────────────────────────
+  "/studio-video": {
+    title: { fr: "Studio Vidéo", en: "Video Studio" },
+    tagline: {
+      fr: "Transformez une vidéo simple en déclinaisons marketing professionnelles.",
+      en: "Turn a simple video into professional marketing cuts.",
+    },
+    whatFor: {
+      fr: "Le Studio Vidéo retraite et markète automatiquement une vidéo brute. Vous importez votre vidéo (ou collez son URL), indiquez votre objectif et les réseaux visés, puis l'IA produit un dispositif professionnel complet pour chaque réseau : recadrage au bon format (9:16, 1:1, 16:9), accroche des 3 premières secondes (+ variantes), sous-titres incrustés, textes à l'écran, ambiance musicale et rythme de montage, instructions de coupe, légende prête à publier, hashtags, CTA et texte de vignette.",
+      en: "The Video Studio automatically reprocesses and markets a raw video. You upload your video (or paste its URL), set your objective and target networks, then the AI produces a complete professional kit for each network: reframing to the right format (9:16, 1:1, 16:9), a 3-second hook (+ variants), burned-in subtitles, on-screen text, music mood and editing pace, cut instructions, a publish-ready caption, hashtags, CTA and thumbnail text.",
+    },
+    actions: [
+      {
+        label: { fr: "Importer la vidéo", en: "Upload the video" },
+        detail: {
+          fr: "Glissez-déposez votre fichier (MP4, MOV, WebM) ou collez l'URL d'une vidéo en ligne. Le fichier est stocké de façon sécurisée pour le traitement.",
+          en: "Drag and drop your file (MP4, MOV, WebM) or paste the URL of a video already online. The file is stored securely for processing.",
+        },
+      },
+      {
+        label: { fr: "Définir objectif & réseaux", en: "Set objective & networks" },
+        detail: {
+          fr: "Décrivez l'objectif et cochez les réseaux : TikTok, Instagram Reels, YouTube Shorts, Facebook, LinkedIn. Chaque réseau reçoit un montage au bon format.",
+          en: "Describe the objective and tick the networks: TikTok, Instagram Reels, YouTube Shorts, Facebook, LinkedIn. Each network gets a correctly-formatted cut.",
+        },
+      },
+      {
+        label: { fr: "Lancer le marketing automatique", en: "Run auto-marketing" },
+        detail: {
+          fr: "Cliquez sur « Marketer automatiquement » : l'IA génère une carte par réseau avec accroches, sous-titres, montage, légende, hashtags et CTA.",
+          en: "Click “Auto-market this video”: the AI generates one card per network with hooks, subtitles, edit notes, caption, hashtags and CTA.",
+        },
+      },
+      {
+        label: { fr: "Récupérer les livrables", en: "Grab the deliverables" },
+        detail: {
+          fr: "Téléchargez les sous-titres .srt et copiez légendes, hashtags et textes de vignette en un clic pour publier ou transmettre à un monteur.",
+          en: "Download the .srt subtitles and copy captions, hashtags and thumbnail texts in one click to publish or hand to an editor.",
+        },
+      },
+    ],
+    tips: [
+      {
+        fr: "Une vidéo verticale filmée au smartphone suffit : le studio s'occupe du recadrage et du rythme.",
+        en: "A vertical clip shot on a phone is enough: the studio handles reframing and pacing.",
+      },
+      {
+        fr: "Pour un export vidéo entièrement automatique, un moteur de rendu doit être branché (VIDEO_RENDER_API_KEY). Sinon, vous obtenez le plan de montage complet à exécuter.",
+        en: "For a fully automatic video export, a render engine must be connected (VIDEO_RENDER_API_KEY). Otherwise you get the complete edit plan to execute.",
+      },
+    ],
+    faq: [
+      {
+        q: { fr: "Le studio exporte-t-il la vidéo montée finale ?", en: "Does the studio export the final edited video?" },
+        a: {
+          fr: "Il produit le plan de montage professionnel complet (coupes, sous-titres .srt, overlays, specs par format). L'export automatique du fichier rendu nécessite un moteur de rendu branché.",
+          en: "It produces the complete professional edit plan (cuts, .srt subtitles, overlays, per-format specs). Automatic export of the rendered file requires a connected render engine.",
+        },
+      },
+    ],
+    related: [
+      { label: { fr: "Composer", en: "Compose" }, href: "/compose" },
+      { label: { fr: "Bibliothèque", en: "Library" }, href: "/library" },
+      { label: { fr: "Programmés", en: "Scheduled" }, href: "/scheduled" },
+    ],
+  },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

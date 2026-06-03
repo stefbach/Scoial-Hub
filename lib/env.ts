@@ -26,3 +26,6 @@ export const isAiConfigured = Boolean(env.anthropicKey);
 /** True quand le bot Telegram central est configuré (token + username). */
 export const isTelegramBotConfigured =
   Boolean(env.telegramBotToken) && Boolean(env.telegramBotUsername);
+
+/** True quand un moteur de rendu vidéo (Creatomate/Shotstack/worker FFmpeg) est branché. */
+export const isVideoRenderConfigured = Boolean(process.env.VIDEO_RENDER_API_KEY);

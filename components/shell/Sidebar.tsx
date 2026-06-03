@@ -10,6 +10,13 @@ const ICONS: Record<string, React.ReactNode> = {
       <path d="M7.5 1.5L1.5 7H3v6h3.5v-4h2v4H12V7h1.5L7.5 1.5Z" fill="currentColor"/>
     </svg>
   ),
+  "/pilotage": (
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+      <circle cx="7.5" cy="7.5" r="5.5" stroke="currentColor" strokeWidth="1.2" fill="none"/>
+      <circle cx="7.5" cy="7.5" r="1.6" fill="currentColor"/>
+      <path d="M7.5 2v2M7.5 11v2M2 7.5h2M11 7.5h2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+    </svg>
+  ),
   "/agents": (
     <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
       <path d="M7.5 2a2.2 2.2 0 0 0-2.2 2.2A2.2 2.2 0 0 0 4 8.3 2 2 0 0 0 6 11a1.7 1.7 0 0 0 1.5-.6A1.7 1.7 0 0 0 9 11a2 2 0 0 0 2-2.7 2.2 2.2 0 0 0-1.3-4.1A2.2 2.2 0 0 0 7.5 2Z"
@@ -107,6 +114,7 @@ const GROUPS: { label?: string; items: { href: string; label: string }[] }[] = [
   {
     label: "Pilotage IA",
     items: [
+      { href: "/pilotage", label: "Centre de pilotage" },
       { href: "/agents", label: "Agents" },
       { href: "/connecteurs", label: "Connecteurs" },
     ],

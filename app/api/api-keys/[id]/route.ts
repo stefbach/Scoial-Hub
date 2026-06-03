@@ -6,6 +6,7 @@ export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from "next/server";
 import { revokeApiKey } from "@/lib/api-keys";
+import { resolveCompanyUuid } from "@/lib/repositories/resolve-company";
 
 export async function DELETE(
   req: NextRequest,
@@ -16,7 +17,7 @@ export async function DELETE(
     if (!body.companyId) {
       return NextResponse.json({ error: "companyId requis" }, { status: 400 });
     }
-    const ok = await revokeApiKey(body.companyId, params.id);
+    const ok = await revokeApiKey(await resolveCompanyUuid(body.companyId), params.id);
     return NextResponse.json({ ok });
   } catch (err) {
     console.error("[DELETE /api/api-keys/:id]", err);

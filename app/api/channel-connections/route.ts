@@ -9,6 +9,7 @@ export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from "next/server";
 import { listConnections, upsertConnection } from "@/lib/repositories/channel-connections";
+import { resolveCompanyUuid } from "@/lib/repositories/resolve-company";
 import { channelById, CHANNELS } from "@/lib/channels";
 import type { ConnectionStatus } from "@/lib/repositories/channel-connections";
 
@@ -52,7 +53,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "companyId requis" }, { status: 400 });
     }
 
-    const rows = await listConnections(companyId);
+    const rows = await listConnections(await resolveCompanyUuid(companyId));
 
     // Enrichit avec les canaux manquants (status "disconnected") pour que le
     // client ait toujours un objet par canal défini dans CHANNELS.
@@ -114,7 +115,7 @@ export async function POST(req: NextRequest) {
     }
 
     const result = await upsertConnection(
-      companyId,
+      await resolveCompanyUuid(companyId),
       channel,
       config ?? {},
       status ?? "pending"

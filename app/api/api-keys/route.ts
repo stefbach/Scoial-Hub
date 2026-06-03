@@ -8,13 +8,14 @@ export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from "next/server";
 import { createApiKey, listApiKeys } from "@/lib/api-keys";
+import { resolveCompanyUuid } from "@/lib/repositories/resolve-company";
 
 export async function GET(req: NextRequest) {
   const companyId = req.nextUrl.searchParams.get("companyId");
   if (!companyId) {
     return NextResponse.json({ error: "companyId requis" }, { status: 400 });
   }
-  const keys = await listApiKeys(companyId);
+  const keys = await listApiKeys(await resolveCompanyUuid(companyId));
   return NextResponse.json(keys);
 }
 
@@ -24,7 +25,7 @@ export async function POST(req: NextRequest) {
     if (!body.companyId) {
       return NextResponse.json({ error: "companyId requis" }, { status: 400 });
     }
-    const created = await createApiKey(body.companyId, body.name ?? "Clé MCP");
+    const created = await createApiKey(await resolveCompanyUuid(body.companyId), body.name ?? "Clé MCP");
     if (!created) {
       return NextResponse.json({ error: "Échec de la création" }, { status: 500 });
     }

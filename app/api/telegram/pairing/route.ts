@@ -11,6 +11,7 @@ export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from "next/server";
 import { getConnection, upsertConnection } from "@/lib/repositories/channel-connections";
+import { resolveCompanyUuid } from "@/lib/repositories/resolve-company";
 import { env, isTelegramBotConfigured } from "@/lib/env";
 
 function genCode(): string {
@@ -26,8 +27,9 @@ export async function GET(req: NextRequest) {
   if (!companyId) {
     return NextResponse.json({ error: "companyId requis" }, { status: 400 });
   }
+  const cid = await resolveCompanyUuid(companyId);
 
-  const conn = await getConnection(companyId, "telegram");
+  const conn = await getConnection(cid, "telegram");
   let code = conn?.config?.pairing_code ?? "";
   const linkedRaw = conn?.config?.linked_chat_ids ?? "";
   const linked = linkedRaw.trim().length > 0;
@@ -36,7 +38,7 @@ export async function GET(req: NextRequest) {
   if (!code) {
     code = genCode();
     await upsertConnection(
-      companyId,
+      cid,
       "telegram",
       { pairing_code: code },
       conn?.status === "connected" ? "connected" : "pending"

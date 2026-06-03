@@ -9,6 +9,7 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { useCompany } from "@/lib/company-context";
 import { findAdSet } from "@/lib/campaign-store";
 import { deleteAudience, duplicateAudience, updateAudience } from "@/lib/audience-store";
+import { useT } from "@/lib/i18n";
 import type { Audience, AudienceType } from "@/lib/types";
 import {
   CustomFields,
@@ -27,12 +28,6 @@ import {
   type LookalikeConfig,
   type SavedConfig,
 } from "./audience-form";
-
-const TYPE_LABEL: Record<AudienceType, string> = {
-  saved: "Saved",
-  custom: "Custom",
-  lookalike: "Lookalike",
-};
 
 const TYPE_STYLE: Record<AudienceType, { bg: string; text: string }> = {
   saved: { bg: "bg-ai-textbg", text: "text-ai-text" },
@@ -60,12 +55,19 @@ export function AudienceDetailModal({
   onChanged: () => void;
 }) {
   const { company, data } = useCompany();
+  const t = useT();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [showTechnical, setShowTechnical] = useState(false);
   const [editing, setEditing] = useState(false);
   const [savedConfig, setSavedConfig] = useState<SavedConfig>(makeSavedConfig());
   const [customConfig, setCustomConfig] = useState<CustomConfig>(makeCustomConfig());
   const [lookConfig, setLookConfig] = useState<LookalikeConfig>(makeLookalikeConfig());
+
+  const TYPE_LABEL: Record<AudienceType, string> = {
+    saved: t("Enregistrée", "Saved"),
+    custom: t("Personnalisée", "Custom"),
+    lookalike: t("Sosie", "Lookalike"),
+  };
 
   useEffect(() => {
     if (audience) {
@@ -160,17 +162,17 @@ export function AudienceDetailModal({
               {TYPE_LABEL[audience.type]}
             </span>
             {inUseCount > 0 ? (
-              <StatusBadge tone="green">In use ({inUseCount})</StatusBadge>
+              <StatusBadge tone="green">{t("En cours d'utilisation", "In use")} ({inUseCount})</StatusBadge>
             ) : (
-              <StatusBadge tone="gray">Not in use</StatusBadge>
+              <StatusBadge tone="gray">{t("Non utilisée", "Not in use")}</StatusBadge>
             )}
-            {editing && <StatusBadge tone="blue">Editing</StatusBadge>}
+            {editing && <StatusBadge tone="blue">{t("En édition", "Editing")}</StatusBadge>}
           </div>
           <h2 className="text-sm font-semibold text-ink">{audience.name}</h2>
         </div>
         <button
           onClick={onClose}
-          aria-label="Close"
+          aria-label={t("Fermer", "Close")}
           className="-mr-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-muted hover:bg-canvas hover:text-ink"
         >
           ✕
@@ -180,7 +182,7 @@ export function AudienceDetailModal({
       <div className="max-h-[70vh] overflow-y-auto px-4 py-3">
         {/* Configuration */}
         <div className="mb-4">
-          <div className="section-label mb-1">Configuration</div>
+          <div className="section-label mb-1">{t("Configuration", "Configuration")}</div>
 
           {editing ? (
             <>
@@ -202,42 +204,42 @@ export function AudienceDetailModal({
             <dl className="space-y-1 text-2xs">
               {audience.type === "saved" && audience.config && (
                 <>
-                  <Row label="Gender" value={audience.config.gender ?? "—"} />
-                  <Row label="Age range" value={audience.config.ageRange ?? "—"} />
-                  <Row label="Locations" value={(audience.config.locations ?? []).join(", ") || "—"} />
-                  <Row label="Interests" value={(audience.config.interests ?? []).join(", ") || "—"} />
+                  <Row label={t("Genre", "Gender")} value={audience.config.gender ?? "—"} />
+                  <Row label={t("Tranche d'âge", "Age range")} value={audience.config.ageRange ?? "—"} />
+                  <Row label={t("Localisations", "Locations")} value={(audience.config.locations ?? []).join(", ") || "—"} />
+                  <Row label={t("Centres d'intérêt", "Interests")} value={(audience.config.interests ?? []).join(", ") || "—"} />
                   {audience.config.behaviors && audience.config.behaviors.length > 0 && (
-                    <Row label="Behaviors" value={audience.config.behaviors.join(", ")} />
+                    <Row label={t("Comportements", "Behaviors")} value={audience.config.behaviors.join(", ")} />
                   )}
                 </>
               )}
               {audience.type === "custom" && audience.config && (
                 <>
-                  <Row label="Source" value={audience.config.source ?? "—"} />
-                  <Row label="File name" value={audience.config.fileName ?? "—"} />
-                  <Row label="Upload date" value={fmtDate(audience.config.uploadDate)} />
-                  <Row label="Match rate" value={audience.config.matchRate ?? "—"} />
-                  <Row label="Refreshed" value={fmtDate(audience.config.refreshedAt)} />
+                  <Row label={t("Source", "Source")} value={audience.config.source ?? "—"} />
+                  <Row label={t("Nom du fichier", "File name")} value={audience.config.fileName ?? "—"} />
+                  <Row label={t("Date de téléchargement", "Upload date")} value={fmtDate(audience.config.uploadDate)} />
+                  <Row label={t("Taux de correspondance", "Match rate")} value={audience.config.matchRate ?? "—"} />
+                  <Row label={t("Actualisé le", "Refreshed")} value={fmtDate(audience.config.refreshedAt)} />
                   {audience.config.duplicatedFrom && (
-                    <Row label="Duplicated from" value={audience.config.duplicatedFrom} />
+                    <Row label={t("Dupliqué depuis", "Duplicated from")} value={audience.config.duplicatedFrom} />
                   )}
                 </>
               )}
               {audience.type === "lookalike" && audience.config && (
                 <>
                   <div className="grid grid-cols-[120px_1fr]">
-                    <dt className="text-muted">Source audience</dt>
+                    <dt className="text-muted">{t("Audience source", "Source audience")}</dt>
                     <dd className="flex items-center justify-end gap-1 text-right text-ink">
                       {audience.config.sourceAudienceName ?? "—"}
                       {sourceAudience && (
-                        <span title="View source audience" className="text-muted">
+                        <span title={t("Voir l'audience source", "View source audience")} className="text-muted">
                           <LinkIcon />
                         </span>
                       )}
                     </dd>
                   </div>
-                  <Row label="Similarity" value={audience.config.similarity ?? "—"} />
-                  <Row label="Countries" value={(audience.config.countries ?? []).join(", ") || "—"} />
+                  <Row label={t("Similarité", "Similarity")} value={audience.config.similarity ?? "—"} />
+                  <Row label={t("Pays", "Countries")} value={(audience.config.countries ?? []).join(", ") || "—"} />
                 </>
               )}
             </dl>
@@ -246,14 +248,14 @@ export function AudienceDetailModal({
 
         {/* Reach */}
         <div className="mb-4">
-          <div className="section-label mb-1">Reach</div>
+          <div className="section-label mb-1">{t("Portée", "Reach")}</div>
           <div className="rounded-md border-hair border-hair bg-canvas p-3 text-xs text-ink">
-            <div className="font-medium">{audience.reach} people</div>
+            <div className="font-medium">{audience.reach} {t("personnes", "people")}</div>
             <div className="mt-1 text-2xs text-muted">
-              Last synced from Meta: {fmtStamp(audience.lastSyncedAt)}
+              {t("Dernière synchronisation Meta :", "Last synced from Meta:")} {fmtStamp(audience.lastSyncedAt)}
             </div>
             <div className="text-2xs text-muted">
-              Reach updates automatically when Meta is connected.
+              {t("La portée se met à jour automatiquement lorsque Meta est connecté.", "Reach updates automatically when Meta is connected.")}
             </div>
           </div>
         </div>
@@ -261,7 +263,7 @@ export function AudienceDetailModal({
         {/* Used by */}
         {inUseCount > 0 && (
           <div className="mb-4">
-            <div className="section-label mb-1">Used by</div>
+            <div className="section-label mb-1">{t("Utilisée par", "Used by")}</div>
             <div className="card divide-y divide-hair">
               {usedBy.map(({ adSet, campaign }) => (
                 <Link
@@ -279,7 +281,7 @@ export function AudienceDetailModal({
               ))}
             </div>
             <div className="mt-1 text-2xs text-muted">
-              Deleting this audience will remove targeting from these ad sets.
+              {t("La suppression de cette audience retirera le ciblage de ces ensembles de publicités.", "Deleting this audience will remove targeting from these ad sets.")}
             </div>
           </div>
         )}
@@ -291,15 +293,15 @@ export function AudienceDetailModal({
               onClick={() => setShowTechnical((s) => !s)}
               className="flex w-full items-center justify-between rounded-md px-2 py-1 text-2xs text-muted hover:bg-canvas"
             >
-              <span>Technical details</span>
+              <span>{t("Détails techniques", "Technical details")}</span>
               <span className="inline-block transition-transform" style={{ transform: showTechnical ? "rotate(90deg)" : undefined }}>▸</span>
             </button>
             {showTechnical && (
               <dl className="mt-2 space-y-1 text-2xs">
-                <Row label="Audience ID" value={audience.id} />
-                <Row label="Meta audience ID" value={audience.metaAudienceId ?? "—"} />
-                <Row label="Created" value={fmtDate(audience.createdAt)} />
-                <Row label="Created by" value={audience.createdBy ?? "—"} />
+                <Row label={t("ID Audience", "Audience ID")} value={audience.id} />
+                <Row label={t("ID Audience Meta", "Meta audience ID")} value={audience.metaAudienceId ?? "—"} />
+                <Row label={t("Créée le", "Created")} value={fmtDate(audience.createdAt)} />
+                <Row label={t("Créée par", "Created by")} value={audience.createdBy ?? "—"} />
               </dl>
             )}
           </div>
@@ -310,30 +312,30 @@ export function AudienceDetailModal({
       <div className="flex items-center justify-between gap-2 border-t-hair border-hair px-4 py-3">
         {editing ? (
           <>
-            <span className="text-2xs text-muted">Changes apply only to future ad set runs.</span>
+            <span className="text-2xs text-muted">{t("Les modifications s'appliquent uniquement aux futures diffusions.", "Changes apply only to future ad set runs.")}</span>
             <div className="flex gap-2">
-              <Button variant="secondary" onClick={() => setEditing(false)}>Cancel</Button>
+              <Button variant="secondary" onClick={() => setEditing(false)}>{t("Annuler", "Cancel")}</Button>
               <Button
                 variant="primary"
                 disabled={!canSave}
-                title={canSave ? undefined : "Fill required fields to continue."}
+                title={canSave ? undefined : t("Remplissez les champs requis pour continuer.", "Fill required fields to continue.")}
                 onClick={handleSave}
               >
-                Save changes
+                {t("Enregistrer les modifications", "Save changes")}
               </Button>
             </div>
           </>
         ) : (
           <>
             <Button variant="danger" onClick={() => setConfirmDelete(true)}>
-              <span className="flex items-center gap-1.5"><TrashIcon /> Delete</span>
+              <span className="flex items-center gap-1.5"><TrashIcon /> {t("Supprimer", "Delete")}</span>
             </Button>
             <div className="flex gap-2">
               <Button variant="secondary" onClick={handleDuplicate}>
-                <span className="flex items-center gap-1.5"><CopyIcon /> Duplicate</span>
+                <span className="flex items-center gap-1.5"><CopyIcon /> {t("Dupliquer", "Duplicate")}</span>
               </Button>
               <Button variant="primary" onClick={() => setEditing(true)}>
-                <span className="flex items-center gap-1.5"><EditIcon /> Edit</span>
+                <span className="flex items-center gap-1.5"><EditIcon /> {t("Modifier", "Edit")}</span>
               </Button>
             </div>
           </>
@@ -346,20 +348,22 @@ export function AudienceDetailModal({
             {inUseCount > 0 ? (
               <>
                 <p className="text-sm text-ink">
-                  This audience is used by {inUseCount} ad set{inUseCount === 1 ? "" : "s"}. Deleting it
-                  will leave those ad sets without targeting and may pause them. Continue anyway?
+                  {t(
+                    `Cette audience est utilisée par ${inUseCount} ensemble${inUseCount === 1 ? "" : "s"} de publicités. Sa suppression retirera le ciblage et pourrait les mettre en pause. Continuer quand même ?`,
+                    `This audience is used by ${inUseCount} ad set${inUseCount === 1 ? "" : "s"}. Deleting it will leave those ad sets without targeting and may pause them. Continue anyway?`
+                  )}
                 </p>
                 <div className="mt-4 flex justify-end gap-2">
-                  <Button variant="primary" onClick={() => setConfirmDelete(false)}>Cancel</Button>
-                  <Button variant="danger" onClick={handleDelete}>Delete anyway</Button>
+                  <Button variant="primary" onClick={() => setConfirmDelete(false)}>{t("Annuler", "Cancel")}</Button>
+                  <Button variant="danger" onClick={handleDelete}>{t("Supprimer quand même", "Delete anyway")}</Button>
                 </div>
               </>
             ) : (
               <>
-                <p className="text-sm text-ink">Delete this audience? This cannot be undone.</p>
+                <p className="text-sm text-ink">{t("Supprimer cette audience ? Cette action est irréversible.", "Delete this audience? This cannot be undone.")}</p>
                 <div className="mt-4 flex justify-end gap-2">
-                  <Button variant="secondary" onClick={() => setConfirmDelete(false)}>Cancel</Button>
-                  <Button variant="danger" onClick={handleDelete}>Delete</Button>
+                  <Button variant="secondary" onClick={() => setConfirmDelete(false)}>{t("Annuler", "Cancel")}</Button>
+                  <Button variant="danger" onClick={handleDelete}>{t("Supprimer", "Delete")}</Button>
                 </div>
               </>
             )}

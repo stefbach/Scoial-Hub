@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { TagInput } from "@/components/ui/TagInput";
+import { useT } from "@/lib/i18n";
 import type { Audience } from "@/lib/types";
 
 const LOCATION_SUGGESTIONS = [
@@ -61,13 +62,20 @@ export function SavedFields({
   config: SavedConfig;
   onChange: (c: SavedConfig) => void;
 }) {
+  const t = useT();
   const set = <K extends keyof SavedConfig>(k: K, v: SavedConfig[K]) =>
     onChange({ ...config, [k]: v });
+
+  const GENDER_LABELS: Record<"All" | "Women" | "Men", string> = {
+    All: t("Tous", "All"),
+    Women: t("Femmes", "Women"),
+    Men: t("Hommes", "Men"),
+  };
 
   return (
     <div className="space-y-4">
       <div>
-        <label className="text-2xs font-medium text-muted">Audience name</label>
+        <label className="text-2xs font-medium text-muted">{t("Nom de l'audience", "Audience name")}</label>
         <input
           value={config.name}
           onChange={(e) => set("name", e.target.value)}
@@ -77,7 +85,7 @@ export function SavedFields({
       </div>
 
       <div>
-        <div className="text-2xs font-medium text-muted">Gender</div>
+        <div className="text-2xs font-medium text-muted">{t("Genre", "Gender")}</div>
         <div className="mt-1 flex gap-2">
           {(["All", "Women", "Men"] as const).map((g) => {
             const on = config.gender === g;
@@ -92,7 +100,7 @@ export function SavedFields({
                     : "border-hair border-hair bg-card text-muted"
                 }`}
               >
-                {g}
+                {GENDER_LABELS[g]}
               </button>
             );
           })}
@@ -100,7 +108,7 @@ export function SavedFields({
       </div>
 
       <div>
-        <div className="text-2xs font-medium text-muted">Age range</div>
+        <div className="text-2xs font-medium text-muted">{t("Tranche d'âge", "Age range")}</div>
         <div className="mt-1 flex items-center gap-2 text-sm text-ink">
           <input
             type="number"
@@ -110,7 +118,7 @@ export function SavedFields({
             onChange={(e) => set("ageMin", Number(e.target.value))}
             className="w-16 rounded-md border-hair border-hair bg-card px-2 py-1.5 text-center focus:outline-none"
           />
-          <span className="text-muted">to</span>
+          <span className="text-muted">{t("à", "to")}</span>
           <input
             type="number"
             min={13}
@@ -119,36 +127,36 @@ export function SavedFields({
             onChange={(e) => set("ageMax", Number(e.target.value))}
             className="w-16 rounded-md border-hair border-hair bg-card px-2 py-1.5 text-center focus:outline-none"
           />
-          <span className="text-2xs text-muted">Meta requires 13 minimum</span>
+          <span className="text-2xs text-muted">{t("Meta requiert un minimum de 13 ans", "Meta requires 13 minimum")}</span>
         </div>
       </div>
 
       <div>
-        <div className="text-2xs font-medium text-muted">Locations</div>
+        <div className="text-2xs font-medium text-muted">{t("Localisations", "Locations")}</div>
         <div className="mt-1">
           <SuggestingTagInput
             tags={config.locations}
             onChange={(v) => set("locations", v)}
             suggestions={LOCATION_SUGGESTIONS}
-            placeholder="Add country, region, or city…"
+            placeholder={t("Ajouter un pays, une région ou une ville…", "Add country, region, or city…")}
           />
         </div>
       </div>
 
       <div>
         <div className="text-2xs font-medium text-muted">
-          Interests <span className="text-muted">(optional)</span>
+          {t("Centres d'intérêt", "Interests")} <span className="text-muted">({t("optionnel", "optional")})</span>
         </div>
         <div className="mt-1">
           <SuggestingTagInput
             tags={config.interests}
             onChange={(v) => set("interests", v)}
             suggestions={INTEREST_SUGGESTIONS}
-            placeholder="Search interests…"
+            placeholder={t("Rechercher des centres d'intérêt…", "Search interests…")}
           />
         </div>
         <div className="mt-1 text-2xs text-muted">
-          Meta has thousands of interests. Type to search.
+          {t("Meta propose des milliers de centres d'intérêt. Tapez pour rechercher.", "Meta has thousands of interests. Type to search.")}
         </div>
       </div>
     </div>
@@ -186,6 +194,7 @@ export function CustomFields({
   onChange: (c: CustomConfig) => void;
   editing?: boolean;
 }) {
+  const t = useT();
   const set = <K extends keyof CustomConfig>(k: K, v: CustomConfig[K]) =>
     onChange({ ...config, [k]: v });
 
@@ -196,11 +205,11 @@ export function CustomFields({
   const accept = (file: File) => {
     setError(null);
     if (file.size > 10 * 1024 * 1024) {
-      setError("File is over 10MB. Please choose a smaller list.");
+      setError(t("Le fichier dépasse 10 Mo. Veuillez choisir une liste plus petite.", "File is over 10MB. Please choose a smaller list."));
       return;
     }
     if (!/\.csv$/i.test(file.name)) {
-      setError("Only .csv files are accepted.");
+      setError(t("Seuls les fichiers .csv sont acceptés.", "Only .csv files are accepted."));
       return;
     }
     onChange({ ...config, fileName: file.name, fileSize: file.size });
@@ -219,7 +228,7 @@ export function CustomFields({
         <button
           type="button"
           onClick={() => onChange({ ...config, fileName: undefined, fileSize: undefined })}
-          aria-label="Remove file"
+          aria-label={t("Supprimer le fichier", "Remove file")}
           className="flex h-6 w-6 items-center justify-center rounded-full text-muted hover:bg-hair hover:text-ink"
         >
           ✕
@@ -230,7 +239,7 @@ export function CustomFields({
   return (
     <div className="space-y-4">
       <div>
-        <label className="text-2xs font-medium text-muted">Audience name</label>
+        <label className="text-2xs font-medium text-muted">{t("Nom de l'audience", "Audience name")}</label>
         <input
           value={config.name}
           onChange={(e) => set("name", e.target.value)}
@@ -240,7 +249,7 @@ export function CustomFields({
       </div>
 
       <div>
-        <label className="text-2xs font-medium text-muted">Source description</label>
+        <label className="text-2xs font-medium text-muted">{t("Description de la source", "Source description")}</label>
         <input
           value={config.source}
           onChange={(e) => set("source", e.target.value)}
@@ -248,13 +257,15 @@ export function CustomFields({
           className="mt-1 w-full rounded-md border-hair border-hair bg-card px-3 py-2 text-sm text-ink placeholder:text-muted focus:outline-none"
         />
         <div className="mt-1 text-2xs text-muted">
-          Internal note so you remember where this list came from.
+          {t("Note interne pour vous rappeler l'origine de cette liste.", "Internal note so you remember where this list came from.")}
         </div>
       </div>
 
       <div>
         <div className="text-2xs font-medium text-muted">
-          {editing && config.fileName ? "Customer list" : "Upload your customer list"}
+          {editing && config.fileName
+            ? t("Liste de clients", "Customer list")
+            : t("Télécharger votre liste de clients", "Upload your customer list")}
         </div>
         <div className="mt-1">
           {config.fileName ? renderFile() : null}
@@ -264,7 +275,7 @@ export function CustomFields({
               onClick={() => inputRef.current?.click()}
               className="mt-2 rounded-md border-hair border-hair bg-card px-3 py-1.5 text-xs text-ink hover:bg-canvas"
             >
-              Re-upload list
+              {t("Mettre à jour la liste", "Re-upload list")}
             </button>
           ) : (
             !config.fileName && (
@@ -284,8 +295,8 @@ export function CustomFields({
                 }`}
               >
                 <UploadIcon />
-                <span className="text-xs text-ink">Drag &amp; drop your CSV here, or click to browse</span>
-                <span className="text-2xs text-muted">CSV only · up to 10MB</span>
+                <span className="text-xs text-ink">{t("Glissez-déposez votre CSV ici, ou cliquez pour parcourir", "Drag & drop your CSV here, or click to browse")}</span>
+                <span className="text-2xs text-muted">{t("CSV uniquement · jusqu'à 10 Mo", "CSV only · up to 10MB")}</span>
               </button>
             )
           )}
@@ -303,7 +314,10 @@ export function CustomFields({
           {error && <div className="mt-1 text-2xs text-red-600">{error}</div>}
         </div>
         <div className="mt-1 text-2xs text-muted">
-          CSV with one column: email or phone number. We never send your file anywhere — Meta hashes it on your side.
+          {t(
+            "CSV avec une colonne : e-mail ou numéro de téléphone. Nous n'envoyons jamais votre fichier — Meta le hache de votre côté.",
+            "CSV with one column: email or phone number. We never send your file anywhere — Meta hashes it on your side."
+          )}
         </div>
       </div>
     </div>
@@ -349,6 +363,7 @@ export function LookalikeFields({
   onChange: (c: LookalikeConfig) => void;
   sourceOptions: Audience[];
 }) {
+  const t = useT();
   const set = <K extends keyof LookalikeConfig>(k: K, v: LookalikeConfig[K]) =>
     onChange({ ...config, [k]: v });
 
@@ -357,7 +372,7 @@ export function LookalikeFields({
   return (
     <div className="space-y-4">
       <div>
-        <label className="text-2xs font-medium text-muted">Audience name</label>
+        <label className="text-2xs font-medium text-muted">{t("Nom de l'audience", "Audience name")}</label>
         <input
           value={config.name}
           onChange={(e) => set("name", e.target.value)}
@@ -367,7 +382,7 @@ export function LookalikeFields({
       </div>
 
       <div>
-        <label className="text-2xs font-medium text-muted">Source audience</label>
+        <label className="text-2xs font-medium text-muted">{t("Audience source", "Source audience")}</label>
         <select
           disabled={disabled}
           value={config.sourceAudienceId}
@@ -376,21 +391,21 @@ export function LookalikeFields({
             disabled ? "cursor-not-allowed opacity-60" : ""
           }`}
         >
-          <option value="">Select a source audience…</option>
+          <option value="">{t("Sélectionner une audience source…", "Select a source audience…")}</option>
           {sourceOptions.map((a) => (
             <option key={a.id} value={a.id}>
-              {a.name} · {a.type === "custom" ? "Custom" : "Saved"}
+              {a.name} · {a.type === "custom" ? t("Personnalisée", "Custom") : t("Enregistrée", "Saved")}
             </option>
           ))}
         </select>
         {disabled && (
-          <div className="mt-1 text-2xs text-muted">Create a Custom audience first.</div>
+          <div className="mt-1 text-2xs text-muted">{t("Créez d'abord une audience personnalisée.", "Create a Custom audience first.")}</div>
         )}
       </div>
 
       <div>
         <div className="flex items-center justify-between">
-          <label className="text-2xs font-medium text-muted">Similarity</label>
+          <label className="text-2xs font-medium text-muted">{t("Similarité", "Similarity")}</label>
           <span className="text-2xs font-medium text-ink">{config.similarity}%</span>
         </div>
         <input
@@ -402,23 +417,23 @@ export function LookalikeFields({
           className="mt-1 w-full accent-page"
         />
         <div className="flex justify-between text-2xs text-muted">
-          <span>Most similar (small)</span>
-          <span>Broader reach (large)</span>
+          <span>{t("Plus similaire (petite)", "Most similar (small)")}</span>
+          <span>{t("Portée plus large (grande)", "Broader reach (large)")}</span>
         </div>
       </div>
 
       <div>
-        <div className="text-2xs font-medium text-muted">Countries</div>
+        <div className="text-2xs font-medium text-muted">{t("Pays", "Countries")}</div>
         <div className="mt-1">
           <SuggestingTagInput
             tags={config.countries}
             onChange={(v) => set("countries", v)}
             suggestions={LOCATION_SUGGESTIONS}
-            placeholder="Add a country…"
+            placeholder={t("Ajouter un pays…", "Add a country…")}
           />
         </div>
         <div className="mt-1 text-2xs text-muted">
-          Lookalikes find similar people in the countries you choose.
+          {t("Les sosies trouvent des personnes similaires dans les pays que vous choisissez.", "Lookalikes find similar people in the countries you choose.")}
         </div>
       </div>
     </div>
@@ -443,6 +458,7 @@ export function ReachEstimator({
   label?: string;
   trailing?: string;
 }) {
+  const t = useT();
   // Zone:
   // < 10K too narrow; 10K-50K narrow; 50K-500K good; 500K-1M broad; > 1M too broad.
   let zone: "narrow" | "good" | "broad" = "good";
@@ -460,14 +476,14 @@ export function ReachEstimator({
   return (
     <div className="space-y-4">
       <div>
-        <div className="section-label">Estimated reach</div>
+        <div className="section-label">{t("Portée estimée", "Estimated reach")}</div>
         <div className="mt-1 text-xl font-semibold text-ink">
           {formatReach(low)} – {formatReach(high)}
         </div>
         <div className="text-2xs text-muted">{label}</div>
       </div>
       <div>
-        <div className="section-label mb-1">Audience size</div>
+        <div className="section-label mb-1">{t("Taille de l'audience", "Audience size")}</div>
         <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-hair">
           <div
             className="h-full rounded-full"
@@ -479,9 +495,9 @@ export function ReachEstimator({
           />
         </div>
         <div className="mt-1 flex justify-between text-2xs">
-          <span className={zone === "narrow" ? "font-medium text-red-600" : "text-muted"}>Too narrow</span>
-          <span className={zone === "good" ? "font-medium text-green-600" : "text-muted"}>Good</span>
-          <span className={zone === "broad" ? "font-medium text-amber-600" : "text-muted"}>Too broad</span>
+          <span className={zone === "narrow" ? "font-medium text-red-600" : "text-muted"}>{t("Trop étroite", "Too narrow")}</span>
+          <span className={zone === "good" ? "font-medium text-green-600" : "text-muted"}>{t("Bonne", "Good")}</span>
+          <span className={zone === "broad" ? "font-medium text-amber-600" : "text-muted"}>{t("Trop large", "Too broad")}</span>
         </div>
       </div>
       {trailing && <div className="text-2xs text-muted">{trailing}</div>}
@@ -512,16 +528,16 @@ function SuggestingTagInput({
   return (
     <div className="relative">
       <div className="flex flex-wrap items-center gap-1.5 rounded-md border-hair border-hair bg-card p-2">
-        {tags.map((t) => (
+        {tags.map((tag) => (
           <span
-            key={t}
+            key={tag}
             className="inline-flex items-center gap-1 rounded bg-canvas px-1.5 py-0.5 text-2xs text-ink"
           >
-            {t}
+            {tag}
             <button
               type="button"
-              onClick={() => onChange(tags.filter((x) => x !== t))}
-              aria-label={`Remove ${t}`}
+              onClick={() => onChange(tags.filter((x) => x !== tag))}
+              aria-label={`Remove ${tag}`}
               className="text-muted hover:text-ink"
             >
               ✕

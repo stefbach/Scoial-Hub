@@ -1,6 +1,7 @@
 "use client";
 
 import type { AnalysisResult } from "@/lib/scraping/analyze";
+import { useT } from "@/lib/i18n";
 
 const PRIORITE_STYLE: Record<string, string> = {
   haute:   "bg-danger-50 border-danger-200 text-danger-700",
@@ -25,30 +26,38 @@ interface Props {
 }
 
 export function AnalysisPanel({ analysis }: Props) {
+  const t = useT();
+
+  function priorityLabel(priorite: string): string {
+    if (priorite === "haute") return t("Priorité haute", "High priority");
+    if (priorite === "moyenne") return t("Priorité moyenne", "Medium priority");
+    return t("Priorité basse", "Low priority");
+  }
+
   return (
     <div className="space-y-5">
       {/* Badge IA / Mock */}
       <div className="flex items-center gap-2">
         {analysis.aiGenerated ? (
           <span className="inline-flex items-center gap-1.5 rounded-full border border-ai-text/20 bg-ai-textbg px-2.5 py-0.5 text-2xs font-semibold text-ai-text">
-            <span aria-hidden="true">✦</span> Analyse Claude
+            <span aria-hidden="true">✦</span> {t("Analyse Claude", "Claude analysis")}
           </span>
         ) : (
           <span className="inline-flex items-center gap-1.5 rounded-full border border-warning-200 bg-warning-50 px-2.5 py-0.5 text-2xs font-medium text-warning-700">
-            Analyse simulée (clé Claude non configurée)
+            {t("Analyse simulée (clé Claude non configurée)", "Simulated analysis (Claude key not configured)")}
           </span>
         )}
       </div>
 
       {/* Résumé exécutif */}
       <div className="card p-4 bg-ai-textbg border-ai-text/15">
-        <p className="section-label mb-2">Résumé exécutif</p>
+        <p className="section-label mb-2">{t("Résumé exécutif", "Executive summary")}</p>
         <p className="text-sm text-ink leading-relaxed">{analysis.resume}</p>
       </div>
 
       {/* Formats gagnants */}
       <section>
-        <p className="section-label mb-3">Formats gagnants</p>
+        <p className="section-label mb-3">{t("Formats gagnants", "Winning formats")}</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
           {analysis.formatsGagnants.map((f, i) => (
             <div key={i} className="card p-3 space-y-1">
@@ -58,7 +67,7 @@ export function AnalysisPanel({ analysis }: Props) {
               </div>
               <p className="text-xs text-muted leading-snug">{f.description}</p>
               <div className="flex items-center gap-1 pt-0.5">
-                <span className="text-2xs text-muted">ER moyen</span>
+                <span className="text-2xs text-muted">{t("ER moyen", "Avg. ER")}</span>
                 <span className="text-xs font-bold text-primary-600">{(f.engagementMoyen * 100).toFixed(1)}%</span>
               </div>
             </div>
@@ -68,7 +77,7 @@ export function AnalysisPanel({ analysis }: Props) {
 
       {/* Angles thématiques */}
       <section>
-        <p className="section-label mb-3">Angles & thématiques performants</p>
+        <p className="section-label mb-3">{t("Angles & thématiques performants", "High-performing angles & themes")}</p>
         <div className="space-y-2">
           {analysis.anglesThematiques.map((a, i) => (
             <div key={i} className="card p-3 flex items-start gap-3">
@@ -91,7 +100,7 @@ export function AnalysisPanel({ analysis }: Props) {
       <div className="card p-4 flex items-start gap-3">
         <CalendarIcon />
         <div>
-          <p className="section-label mb-1">Fréquence recommandée</p>
+          <p className="section-label mb-1">{t("Fréquence recommandée", "Recommended frequency")}</p>
           <p className="text-sm text-ink">{analysis.frequenceRecommandee}</p>
         </div>
       </div>
@@ -99,16 +108,16 @@ export function AnalysisPanel({ analysis }: Props) {
       {/* Benchmark par réseau */}
       {analysis.benchmarkParReseau.length > 0 && (
         <section>
-          <p className="section-label mb-3">Benchmark par réseau</p>
+          <p className="section-label mb-3">{t("Benchmark par réseau", "Benchmark by network")}</p>
           <div className="overflow-x-auto rounded-xl border border-hair">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-hair bg-canvas">
-                  <th className="text-left px-4 py-2.5 text-2xs section-label">Réseau</th>
-                  <th className="text-right px-4 py-2.5 text-2xs section-label">Likes moy.</th>
-                  <th className="text-right px-4 py-2.5 text-2xs section-label">Vues moy.</th>
-                  <th className="text-right px-4 py-2.5 text-2xs section-label">Taux ER</th>
-                  <th className="text-right px-4 py-2.5 text-2xs section-label">Posts/sem.</th>
+                  <th className="text-left px-4 py-2.5 text-2xs section-label">{t("Réseau", "Network")}</th>
+                  <th className="text-right px-4 py-2.5 text-2xs section-label">{t("Likes moy.", "Avg. likes")}</th>
+                  <th className="text-right px-4 py-2.5 text-2xs section-label">{t("Vues moy.", "Avg. views")}</th>
+                  <th className="text-right px-4 py-2.5 text-2xs section-label">{t("Taux ER", "ER rate")}</th>
+                  <th className="text-right px-4 py-2.5 text-2xs section-label">{t("Posts/sem.", "Posts/wk.")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-hair bg-card">
@@ -131,13 +140,13 @@ export function AnalysisPanel({ analysis }: Props) {
 
       {/* Recommandations */}
       <section>
-        <p className="section-label mb-3">Recommandations stratégiques</p>
+        <p className="section-label mb-3">{t("Recommandations stratégiques", "Strategic recommendations")}</p>
         <div className="space-y-2.5">
           {analysis.recommandations.map((r, i) => (
             <div key={i} className="card p-4 space-y-2">
               <div className="flex items-center gap-2">
                 <span className={`inline-flex items-center rounded border px-1.5 py-0.5 text-2xs font-semibold ${PRIORITE_STYLE[r.priorite] ?? "bg-canvas border-hair text-muted"}`}>
-                  {r.priorite === "haute" ? "Priorité haute" : r.priorite === "moyenne" ? "Priorité moyenne" : "Priorité basse"}
+                  {priorityLabel(r.priorite)}
                 </span>
                 <h4 className="text-sm font-semibold text-ink">{r.titre}</h4>
               </div>

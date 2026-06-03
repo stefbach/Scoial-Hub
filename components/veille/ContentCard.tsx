@@ -1,6 +1,7 @@
 "use client";
 
 import type { CompetitorContent } from "@/lib/scraping/types";
+import { useT } from "@/lib/i18n";
 
 function fmt(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
@@ -8,14 +9,14 @@ function fmt(n: number): string {
   return String(n);
 }
 
-function relativeDate(iso: string): string {
+function relativeDate(iso: string, t: (fr: string, en: string) => string): string {
   const diff = Date.now() - new Date(iso).getTime();
   const days = Math.floor(diff / 86_400_000);
-  if (days === 0) return "Aujourd'hui";
-  if (days === 1) return "Hier";
-  if (days < 7) return `Il y a ${days} j`;
-  if (days < 30) return `Il y a ${Math.floor(days / 7)} sem.`;
-  return `Il y a ${Math.floor(days / 30)} mois`;
+  if (days === 0) return t("Aujourd'hui", "Today");
+  if (days === 1) return t("Hier", "Yesterday");
+  if (days < 7) return t(`Il y a ${days} j`, `${days}d ago`);
+  if (days < 30) return t(`Il y a ${Math.floor(days / 7)} sem.`, `${Math.floor(days / 7)}wk ago`);
+  return t(`Il y a ${Math.floor(days / 30)} mois`, `${Math.floor(days / 30)}mo ago`);
 }
 
 const NETWORK_BADGE: Record<string, { label: string; cls: string }> = {
@@ -27,15 +28,20 @@ const NETWORK_BADGE: Record<string, { label: string; cls: string }> = {
   facebook:  { label: "Facebook",   cls: "bg-indigo-100 text-indigo-700 border-indigo-200" },
 };
 
-const TYPE_LABEL: Record<string, string> = {
-  post: "Post", video: "Vidéo", reel: "Reel", story: "Story",
-};
-
 interface Props {
   content: CompetitorContent;
 }
 
 export function ContentCard({ content }: Props) {
+  const t = useT();
+
+  const TYPE_LABEL: Record<string, string> = {
+    post: t("Post", "Post"),
+    video: t("Vidéo", "Video"),
+    reel: t("Reel", "Reel"),
+    story: t("Story", "Story"),
+  };
+
   const badge = NETWORK_BADGE[content.network] ?? { label: content.network, cls: "bg-canvas text-muted border-hair" };
 
   return (
@@ -49,7 +55,7 @@ export function ContentCard({ content }: Props) {
           <span className="text-xs font-medium text-ink truncate">{content.handle}</span>
           {content.simulated && (
             <span className="shrink-0 inline-flex items-center rounded border border-warning-200 bg-warning-50 px-1.5 py-0.5 text-2xs font-medium text-warning-700">
-              Simulé
+              {t("Simulé", "Simulated")}
             </span>
           )}
         </div>
@@ -62,8 +68,8 @@ export function ContentCard({ content }: Props) {
       {/* Métriques */}
       <div className="flex items-center gap-3 pt-1 border-t border-hair">
         <Metric icon={<HeartIcon />} value={fmt(content.likes)} label="Likes" />
-        <Metric icon={<EyeIcon />}   value={fmt(content.views)} label="Vues" />
-        <Metric icon={<ChatIcon />}  value={fmt(content.comments)} label="Comments" />
+        <Metric icon={<EyeIcon />}   value={fmt(content.views)} label={t("Vues", "Views")} />
+        <Metric icon={<ChatIcon />}  value={fmt(content.comments)} label={t("Comments", "Comments")} />
         <div className="ml-auto">
           <span className="text-xs font-semibold text-primary-600">
             {(content.engagementRate * 100).toFixed(1)}% ER
@@ -73,7 +79,7 @@ export function ContentCard({ content }: Props) {
 
       {/* Footer */}
       <div className="flex items-center justify-between gap-2 text-2xs text-muted">
-        <span>{relativeDate(content.postedAt)}</span>
+        <span>{relativeDate(content.postedAt, t)}</span>
         {content.url && (
           <a
             href={content.url}
@@ -81,7 +87,7 @@ export function ContentCard({ content }: Props) {
             rel="noopener noreferrer"
             className="hover:text-primary-600 transition-colors"
           >
-            Voir →
+            {t("Voir →", "View →")}
           </a>
         )}
       </div>

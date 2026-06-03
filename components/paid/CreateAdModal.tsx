@@ -9,6 +9,7 @@ import { Toggle } from "@/components/ui/Toggle";
 import { MediaUpload, type UploadedMedia } from "@/components/ui/MediaUpload";
 import { useCompany } from "@/lib/company-context";
 import { hydrateCampaigns } from "@/lib/campaign-store";
+import { useT } from "@/lib/i18n";
 
 const PLACEMENTS = [
   { id: "fb", label: "FB Feed 1.91:1", tint: "bg-[#eef4fe]" },
@@ -29,6 +30,7 @@ export function CreateAdModal({
 }) {
   const router = useRouter();
   const { company, data } = useCompany();
+  const t = useT();
 
   // Make sure we read enriched campaigns (ad sets always present).
   if (open) hydrateCampaigns(company.id);
@@ -54,10 +56,10 @@ export function CreateAdModal({
   return (
     <Modal open={open} onClose={onClose} width="max-w-2xl">
       <div className="border-b-hair border-hair px-4 py-3">
-        <div className="text-sm font-semibold text-ink">New ad</div>
+        <div className="text-sm font-semibold text-ink">{t("Nouvelle publicité", "New ad")}</div>
         <div className="mt-2 grid grid-cols-2 gap-2">
           <div>
-            <label className="text-2xs font-medium text-muted">Campaign</label>
+            <label className="text-2xs font-medium text-muted">{t("Campagne", "Campaign")}</label>
             <div className="relative mt-1">
               <select
                 value={campaignId}
@@ -70,7 +72,7 @@ export function CreateAdModal({
                 className={`block w-full rounded-md border-hair border-hair bg-card px-3 py-2 text-sm text-ink focus:outline-none ${
                   locked ? "cursor-not-allowed pr-7 opacity-70" : ""
                 }`}
-                title={locked ? "Locked — opened from ad set detail page" : undefined}
+                title={locked ? t("Verrouillé — ouvert depuis la page de détail de l'ensemble", "Locked — opened from ad set detail page") : undefined}
               >
                 {campaigns.map((c) => (
                   <option key={c.id} value={c.id}>
@@ -86,7 +88,7 @@ export function CreateAdModal({
             </div>
           </div>
           <div>
-            <label className="text-2xs font-medium text-muted">Ad set</label>
+            <label className="text-2xs font-medium text-muted">{t("Ensemble de publicités", "Ad set")}</label>
             <div className="relative mt-1">
               <select
                 value={adSetId}
@@ -95,10 +97,10 @@ export function CreateAdModal({
                 className={`block w-full rounded-md border-hair border-hair bg-card px-3 py-2 text-sm text-ink focus:outline-none ${
                   locked ? "cursor-not-allowed pr-7 opacity-70" : ""
                 }`}
-                title={locked ? "Locked — opened from ad set detail page" : undefined}
+                title={locked ? t("Verrouillé — ouvert depuis la page de détail de l'ensemble", "Locked — opened from ad set detail page") : undefined}
               >
                 {adSetOptions.length === 0 ? (
-                  <option value="">No ad sets</option>
+                  <option value="">{t("Aucun ensemble de publicités", "No ad sets")}</option>
                 ) : (
                   adSetOptions.map((s) => (
                     <option key={s.id} value={s.id}>
@@ -121,7 +123,7 @@ export function CreateAdModal({
         {noAdSets && currentCampaign ? (
           <div className="rounded-md border-hair border-amber-200 bg-amber-50 p-3">
             <div className="text-sm font-medium text-amber-700">
-              This campaign has no ad sets yet. Create one first.
+              {t("Cette campagne n'a pas encore d'ensembles de publicités. Créez-en un d'abord.", "This campaign has no ad sets yet. Create one first.")}
             </div>
             <Button
               variant="secondary"
@@ -131,18 +133,18 @@ export function CreateAdModal({
                 router.push(`/campaigns/${currentCampaign.id}`);
               }}
             >
-              Go to campaign
+              {t("Aller à la campagne", "Go to campaign")}
             </Button>
           </div>
         ) : (
           <>
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Ad name" value="Hydration tip — FB Feed" />
-              <Field label="Call-to-action" value="Book now" />
+              <Field label={t("Nom de la publicité", "Ad name")} value="Hydration tip — FB Feed" />
+              <Field label={t("Bouton d'action", "Call-to-action")} value="Book now" />
             </div>
-            <Field className="mt-3" label="Headline" value="Reclaim your energy this January" />
+            <Field className="mt-3" label={t("Titre", "Headline")} value="Reclaim your energy this January" />
             <div className="mt-3">
-              <label className="text-2xs font-medium text-muted">Body text</label>
+              <label className="text-2xs font-medium text-muted">{t("Corps du texte", "Body text")}</label>
               <textarea
                 defaultValue="Our supervised January Detox Program helps reset your metabolism with personalized care. Free initial consultation this month."
                 className="mt-1 h-16 w-full resize-none rounded-md border-hair border-hair bg-card p-2 text-xs text-ink focus:outline-none"
@@ -152,44 +154,47 @@ export function CreateAdModal({
               <Button
                 variant="secondary"
                 disabled
-                title="AI will be enabled when the backend is connected"
+                title={t("L'IA sera activée une fois le backend connecté", "AI will be enabled when the backend is connected")}
                 className="py-1 text-2xs"
               >
-                Generate copy
+                {t("Générer le texte", "Generate copy")}
               </Button>
               <Button
                 variant="secondary"
                 disabled
-                title="AI will be enabled when the backend is connected"
+                title={t("L'IA sera activée une fois le backend connecté", "AI will be enabled when the backend is connected")}
                 className="py-1 text-2xs"
               >
-                Rewrite
+                {t("Réécrire", "Rewrite")}
               </Button>
             </div>
 
             {/* AI Creative */}
             <div className="mt-4 rounded-lg border-hair border-ai-visual/20 bg-ai-visualbg p-3">
               <div className="mb-2 flex items-center justify-between">
-                <span className="text-xs font-medium text-ai-visual">AI Creative</span>
+                <span className="text-xs font-medium text-ai-visual">{t("Créatif IA", "AI Creative")}</span>
                 <span className="text-2xs text-ai-visual">
-                  EUR {data.library.aiBudgetUsed.toFixed(2)} / {data.library.aiBudgetCap} this month
+                  EUR {data.library.aiBudgetUsed.toFixed(2)} / {data.library.aiBudgetCap} {t("ce mois-ci", "this month")}
                 </span>
               </div>
 
               <div className="mb-2 rounded-md border-hair border-amber-200 bg-amber-50 px-3 py-2 text-2xs text-amber-700">
-                OCC is a medical/wellness brand. Avoid before/after body imagery — Meta restricts this. AI follows these rules automatically.
+                {t(
+                  "OCC est une marque médicale/bien-être. Évitez les images avant/après — Meta les restreint. L'IA applique ces règles automatiquement.",
+                  "OCC is a medical/wellness brand. Avoid before/after body imagery — Meta restricts this. AI follows these rules automatically."
+                )}
               </div>
 
-              <div className="mb-1 text-2xs text-muted">Generate creatives for:</div>
+              <div className="mb-1 text-2xs text-muted">{t("Générer des créatifs pour :", "Generate creatives for:")}</div>
               <div className="mb-2">
                 <Pills options={PLACEMENTS.map((p) => ({ id: p.id, label: p.label }))} tone="ai" />
               </div>
               <Pills
                 options={[
-                  { id: "photo", label: "Photo" },
-                  { id: "illustration", label: "Illustration" },
-                  { id: "poster", label: "Poster with text" },
-                  { id: "video", label: "Video" },
+                  { id: "photo", label: t("Photo", "Photo") },
+                  { id: "illustration", label: t("Illustration", "Illustration") },
+                  { id: "poster", label: t("Affiche avec texte", "Poster with text") },
+                  { id: "video", label: t("Vidéo", "Video") },
                 ]}
               />
               <textarea
@@ -199,10 +204,10 @@ export function CreateAdModal({
               <div className="mt-2 flex items-center justify-between">
                 <button
                   disabled
-                  title="AI generation will be enabled when the backend is connected"
+                  title={t("La génération IA sera activée une fois le backend connecté", "AI generation will be enabled when the backend is connected")}
                   className="cursor-not-allowed rounded-md bg-ai-visual/40 px-2.5 py-1 text-2xs font-medium text-white"
                 >
-                  Generate 4 creatives
+                  {t("Générer 4 créatifs", "Generate 4 creatives")}
                 </button>
                 <span className="text-2xs text-muted">~EUR 0.44 (3 sizes x 4)</span>
               </div>
@@ -214,12 +219,12 @@ export function CreateAdModal({
                     {[0, 1, 2, 3].map((i) => (
                       <div
                         key={i}
-                        title="AI generation will be enabled when the backend is connected"
+                        title={t("La génération IA sera activée une fois le backend connecté", "AI generation will be enabled when the backend is connected")}
                         className="flex aspect-square cursor-not-allowed flex-col items-center justify-center rounded-md border border-dashed border-ai-visual/30 bg-ai-visualbg/40 text-ai-visual/70"
                       >
                         <SparkleIcon />
                         <span className="mt-1 text-[10px] leading-tight text-muted">
-                          AI will generate here
+                          {t("L'IA générera ici", "AI will generate here")}
                         </span>
                       </div>
                     ))}
@@ -228,13 +233,17 @@ export function CreateAdModal({
               ))}
 
               <div className="mt-3 text-2xs text-muted">
-                <span className="font-medium text-ink">No variants yet.</span> Each generated creative becomes a separate ad — Meta auto-rotates and learns the winner.
+                <span className="font-medium text-ink">{t("Aucune variante pour l'instant.", "No variants yet.")}</span>{" "}
+                {t(
+                  "Chaque créatif généré devient une publicité distincte — Meta les alterne automatiquement et apprend laquelle gagne.",
+                  "Each generated creative becomes a separate ad — Meta auto-rotates and learns the winner."
+                )}
               </div>
             </div>
 
             {/* Manual upload */}
             <div className="mt-4">
-              <div className="mb-1 text-2xs text-muted">Or upload your own creative</div>
+              <div className="mb-1 text-2xs text-muted">{t("Ou téléchargez votre propre créatif", "Or upload your own creative")}</div>
               <MediaUpload media={upload} onChange={setUpload} />
             </div>
           </>
@@ -244,11 +253,11 @@ export function CreateAdModal({
       <div className="flex items-center justify-between border-t-hair border-hair px-4 py-3">
         <div className="flex items-center gap-2 text-2xs text-muted">
           <Toggle defaultOn={false} />
-          Launch immediately
-          <span className="ml-2">Safeguards active · Read-only off · EUR 500/day double-confirm</span>
+          {t("Lancer immédiatement", "Launch immediately")}
+          <span className="ml-2">{t("Protections actives · Lecture seule désactivée · Confirmation double EUR 500/jour", "Safeguards active · Read-only off · EUR 500/day double-confirm")}</span>
         </div>
         <div className="flex gap-2">
-          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button variant="secondary" onClick={onClose}>{t("Annuler", "Cancel")}</Button>
           <Button
             variant="primary"
             disabled={!upload && !noAdSets}
@@ -257,10 +266,10 @@ export function CreateAdModal({
                 ? undefined
                 : upload
                 ? undefined
-                : "Generate or upload at least one creative first"
+                : t("Générez ou téléchargez au moins un créatif d'abord", "Generate or upload at least one creative first")
             }
           >
-            {upload ? "Create ad" : "Create ad"}
+            {t("Créer la publicité", "Create ad")}
           </Button>
         </div>
       </div>

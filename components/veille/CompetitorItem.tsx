@@ -2,6 +2,7 @@
 
 import type { Competitor } from "@/lib/repositories/competitors";
 import type { ScrapeNetwork } from "@/lib/scraping/types";
+import { useT } from "@/lib/i18n";
 
 const NETWORK_COLORS: Record<ScrapeNetwork, string> = {
   youtube:   "bg-red-100 text-red-700 border-red-200",
@@ -28,6 +29,7 @@ interface Props {
 }
 
 export function CompetitorItem({ competitor, onRemove, removing }: Props) {
+  const t = useT();
   return (
     <div className="flex items-center justify-between gap-3 rounded-lg border border-hair bg-card px-3 py-2.5 shadow-xs">
       <div className="flex items-center gap-2.5 min-w-0">
@@ -42,7 +44,7 @@ export function CompetitorItem({ competitor, onRemove, removing }: Props) {
       <button
         onClick={() => onRemove(competitor.id)}
         disabled={removing}
-        aria-label={`Supprimer ${competitor.name}`}
+        aria-label={t(`Supprimer ${competitor.name}`, `Remove ${competitor.name}`)}
         className="shrink-0 rounded-md p-1.5 text-muted hover:bg-danger-50 hover:text-danger-600 transition-colors disabled:opacity-40"
       >
         <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">

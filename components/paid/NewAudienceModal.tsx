@@ -5,6 +5,7 @@ import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { addAudience } from "@/lib/audience-store";
 import { useCompany } from "@/lib/company-context";
+import { useT } from "@/lib/i18n";
 import {
   CustomFields,
   LookalikeFields,
@@ -33,18 +34,6 @@ const TYPE_BADGE_STYLE: Record<AudienceType, { bg: string; text: string }> = {
   lookalike: { bg: "bg-amber-50", text: "text-amber-700" },
 };
 
-const TYPE_LABEL: Record<AudienceType, string> = {
-  saved: "Saved",
-  custom: "Custom",
-  lookalike: "Lookalike",
-};
-
-const SUBSTEP_LABEL: Record<AudienceType, string> = {
-  saved: "Step 2 of 2 — Define targeting",
-  custom: "Step 2 of 2 — Upload your list",
-  lookalike: "Step 2 of 2 — Configure your lookalike",
-};
-
 export function NewAudienceModal({
   companyId,
   onClose,
@@ -55,11 +44,24 @@ export function NewAudienceModal({
   onCreated: (audience: Audience) => void;
 }) {
   const { data } = useCompany();
+  const t = useT();
   const [step, setStep] = useState<1 | 2>(1);
   const [type, setType] = useState<AudienceType>("saved");
   const [savedConfig, setSavedConfig] = useState<SavedConfig>(makeSavedConfig());
   const [customConfig, setCustomConfig] = useState<CustomConfig>(makeCustomConfig());
   const [lookConfig, setLookConfig] = useState<LookalikeConfig>(makeLookalikeConfig());
+
+  const TYPE_LABEL: Record<AudienceType, string> = {
+    saved: t("Enregistrée", "Saved"),
+    custom: t("Personnalisée", "Custom"),
+    lookalike: t("Sosie", "Lookalike"),
+  };
+
+  const SUBSTEP_LABEL: Record<AudienceType, string> = {
+    saved: t("Étape 2 sur 2 — Définir le ciblage", "Step 2 of 2 — Define targeting"),
+    custom: t("Étape 2 sur 2 — Télécharger votre liste", "Step 2 of 2 — Upload your list"),
+    lookalike: t("Étape 2 sur 2 — Configurer votre sosie", "Step 2 of 2 — Configure your lookalike"),
+  };
 
   const hasCustom = data.audiences.list.some((a) => a.type === "custom");
 
@@ -68,8 +70,8 @@ export function NewAudienceModal({
     [data.audiences.list]
   );
 
-  const choose = (t: AudienceType) => {
-    setType(t);
+  const choose = (audienceType: AudienceType) => {
+    setType(audienceType);
     setStep(2);
   };
 
@@ -97,22 +99,22 @@ export function NewAudienceModal({
   const stepHeader =
     step === 1 ? (
       <div className="border-b-hair border-hair px-4 py-3">
-        <div className="text-sm font-semibold text-ink">New audience</div>
-        <div className="text-2xs text-muted">Step 1 of 2 — Choose audience type</div>
+        <div className="text-sm font-semibold text-ink">{t("Nouvelle audience", "New audience")}</div>
+        <div className="text-2xs text-muted">{t("Étape 1 sur 2 — Choisir le type d'audience", "Step 1 of 2 — Choose audience type")}</div>
       </div>
     ) : (
       <div className="flex items-center justify-between gap-2 border-b-hair border-hair px-4 py-3">
         <div className="flex items-center gap-3">
           <button
             onClick={() => setStep(1)}
-            aria-label="Back"
+            aria-label={t("Retour", "Back")}
             className="flex h-7 w-7 items-center justify-center rounded-md text-muted hover:bg-canvas hover:text-ink"
           >
             ←
           </button>
           <div>
             <div className="flex items-center gap-2 text-sm font-semibold text-ink">
-              New audience
+              {t("Nouvelle audience", "New audience")}
               <span
                 className={`rounded px-1.5 py-0.5 text-2xs font-medium ${TYPE_BADGE_STYLE[type].bg} ${TYPE_BADGE_STYLE[type].text}`}
               >
@@ -124,7 +126,7 @@ export function NewAudienceModal({
         </div>
         <button
           onClick={onClose}
-          aria-label="Close"
+          aria-label={t("Fermer", "Close")}
           className="-mr-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-muted hover:bg-canvas hover:text-ink"
         >
           ✕
@@ -139,39 +141,60 @@ export function NewAudienceModal({
       {step === 1 ? (
         <div className="px-4 py-3">
           <p className="mb-3 text-sm text-muted">
-            Audiences define who sees your ads. Pick the type that matches how you want to target.
+            {t(
+              "Les audiences définissent qui voit vos publicités. Choisissez le type qui correspond à votre façon de cibler.",
+              "Audiences define who sees your ads. Pick the type that matches how you want to target."
+            )}
           </p>
           <div className="space-y-2">
             <TypeCard
               type="saved"
-              title="Saved audience"
-              badge="Most common"
-              description="Target by demographics and interests — gender, age, location, hobbies. Start here if you don't have a customer list yet."
-              example="Example: Women 35-55 in Mauritius interested in wellness"
+              title={t("Audience enregistrée", "Saved audience")}
+              badge={t("Le plus courant", "Most common")}
+              description={t(
+                "Ciblez par données démographiques et centres d'intérêt — genre, âge, lieu, loisirs. Commencez ici si vous n'avez pas encore de liste de clients.",
+                "Target by demographics and interests — gender, age, location, hobbies. Start here if you don't have a customer list yet."
+              )}
+              example={t(
+                "Exemple : Femmes 35-55 à l'Île Maurice intéressées par le bien-être",
+                "Example: Women 35-55 in Mauritius interested in wellness"
+              )}
               icon={<TargetIcon />}
               onClick={() => choose("saved")}
             />
             <TypeCard
               type="custom"
-              title="Custom audience"
-              description="Upload a list of your existing customers (emails or phone numbers). Meta will match them to their accounts."
-              example="Example: All past OCC patients — re-engagement campaign"
+              title={t("Audience personnalisée", "Custom audience")}
+              description={t(
+                "Téléchargez une liste de vos clients existants (e-mails ou numéros de téléphone). Meta les associera à leurs comptes.",
+                "Upload a list of your existing customers (emails or phone numbers). Meta will match them to their accounts."
+              )}
+              example={t(
+                "Exemple : Tous les anciens patients OCC — campagne de réengagement",
+                "Example: All past OCC patients — re-engagement campaign"
+              )}
               icon={<UsersIcon />}
               onClick={() => choose("custom")}
             />
             <TypeCard
               type="lookalike"
-              title="Lookalike audience"
-              description="Find new people similar to your existing customers. Requires a Custom audience first."
-              example="Example: People like our top patients — broaden reach"
+              title={t("Audience sosie", "Lookalike audience")}
+              description={t(
+                "Trouvez de nouvelles personnes similaires à vos clients existants. Nécessite une audience personnalisée.",
+                "Find new people similar to your existing customers. Requires a Custom audience first."
+              )}
+              example={t(
+                "Exemple : Personnes comme nos meilleurs patients — élargir la portée",
+                "Example: People like our top patients — broaden reach"
+              )}
               icon={<AffiliateIcon />}
               disabled={!hasCustom}
-              disabledTooltip="Create a Custom audience first to build a Lookalike."
+              disabledTooltip={t("Créez d'abord une audience personnalisée pour créer un sosie.", "Create a Custom audience first to build a Lookalike.")}
               onClick={() => choose("lookalike")}
             />
           </div>
           <div className="mt-4 flex justify-end border-t-hair border-hair pt-3">
-            <Button variant="secondary" onClick={onClose}>Cancel</Button>
+            <Button variant="secondary" onClick={onClose}>{t("Annuler", "Cancel")}</Button>
           </div>
         </div>
       ) : (
@@ -216,6 +239,7 @@ function TypeCard({
   onClick: () => void;
 }) {
   const style = TYPE_BADGE_STYLE[type];
+  const t = useT();
   return (
     <button
       type="button"
@@ -242,7 +266,7 @@ function TypeCard({
         </div>
         <div className="text-2xs text-muted">{description}</div>
         <div className="mt-1.5 text-2xs text-muted">
-          <span className="font-medium text-ink/80">Example:</span> {example.replace(/^Example:\s*/, "")}
+          <span className="font-medium text-ink/80">{t("Exemple :", "Example:")}</span> {example.replace(/^(Example|Exemple)\s*:\s*/i, "")}
         </div>
       </div>
       <span className="mt-1 shrink-0 text-muted">›</span>
@@ -277,12 +301,13 @@ function Step2({
   onSubmit: () => void;
   canSubmit: boolean;
 }) {
+  const t = useT();
   const requiredHint =
     type === "saved"
-      ? "Fill required fields to continue."
+      ? t("Remplissez les champs requis pour continuer.", "Fill required fields to continue.")
       : type === "custom"
-      ? "Add a name and upload a CSV to continue."
-      : "Add a name, source audience, and at least one country to continue.";
+      ? t("Ajoutez un nom et téléchargez un CSV pour continuer.", "Add a name and upload a CSV to continue.")
+      : t("Ajoutez un nom, une audience source et au moins un pays pour continuer.", "Add a name, source audience, and at least one country to continue.");
 
   return (
     <>
@@ -308,8 +333,11 @@ function Step2({
           {type === "saved" && (
             <ReachEstimator
               reach={estimateSavedReach(savedConfig)}
-              label="people in this audience"
-              trailing="Reach is estimated by Meta and updates as you change targeting."
+              label={t("personnes dans cette audience", "people in this audience")}
+              trailing={t(
+                "La portée est estimée par Meta et se met à jour à mesure que vous modifiez le ciblage.",
+                "Reach is estimated by Meta and updates as you change targeting."
+              )}
             />
           )}
           {type === "custom" && (
@@ -322,24 +350,27 @@ function Step2({
           {type === "lookalike" && (
             <ReachEstimator
               reach={estimateLookalikeReach(lookConfig)}
-              label="similar people on Meta"
-              trailing="Lookalikes broaden reach beyond your existing customers."
+              label={t("personnes similaires sur Meta", "similar people on Meta")}
+              trailing={t(
+                "Les sosies élargissent la portée au-delà de vos clients existants.",
+                "Lookalikes broaden reach beyond your existing customers."
+              )}
             />
           )}
         </div>
       </div>
 
       <div className="flex items-center justify-between gap-2 border-t-hair border-hair px-4 py-3">
-        <Button variant="secondary" onClick={onBack}>← Back</Button>
+        <Button variant="secondary" onClick={onBack}>← {t("Retour", "Back")}</Button>
         <div className="flex items-center gap-2">
-          <Button variant="secondary" onClick={onCancel}>Cancel</Button>
+          <Button variant="secondary" onClick={onCancel}>{t("Annuler", "Cancel")}</Button>
           <Button
             variant="primary"
             disabled={!canSubmit}
             title={canSubmit ? undefined : requiredHint}
             onClick={onSubmit}
           >
-            Create audience
+            {t("Créer l'audience", "Create audience")}
           </Button>
         </div>
       </div>
@@ -356,13 +387,17 @@ function CustomInfoPanel({
   fileName?: string;
   fileSize?: number;
 }) {
+  const t = useT();
   if (!hasFile) {
     return (
       <div className="space-y-3">
-        <div className="section-label">Audience size</div>
-        <div className="text-sm text-muted">Upload a file to see size.</div>
+        <div className="section-label">{t("Taille de l'audience", "Audience size")}</div>
+        <div className="text-sm text-muted">{t("Téléchargez un fichier pour voir la taille.", "Upload a file to see size.")}</div>
         <div className="text-2xs text-muted">
-          Your CSV is hashed locally before being sent to Meta — we never see or store raw emails or phone numbers.
+          {t(
+            "Votre CSV est haché localement avant d'être envoyé à Meta — nous ne voyons ni ne stockons jamais les e-mails ou numéros de téléphone bruts.",
+            "Your CSV is hashed locally before being sent to Meta — we never see or store raw emails or phone numbers."
+          )}
         </div>
       </div>
     );
@@ -373,20 +408,23 @@ function CustomInfoPanel({
   return (
     <div className="space-y-4">
       <div>
-        <div className="section-label">Audience size</div>
+        <div className="section-label">{t("Taille de l'audience", "Audience size")}</div>
         <div className="mt-1 text-xl font-semibold text-ink">
-          ~{detected.toLocaleString()} rows detected
+          ~{detected.toLocaleString()} {t("lignes détectées", "rows detected")}
         </div>
-        <div className="text-2xs text-muted">in {fileName}</div>
+        <div className="text-2xs text-muted">{t("dans", "in")} {fileName}</div>
       </div>
       <div>
-        <div className="section-label">Estimated Meta match</div>
+        <div className="section-label">{t("Correspondance Meta estimée", "Estimated Meta match")}</div>
         <div className="mt-1 text-sm text-ink">
-          ~{matched.toLocaleString()} of {detected.toLocaleString()} will match · 83%
+          ~{matched.toLocaleString()} {t("sur", "of")} {detected.toLocaleString()} {t("correspondront · 83%", "will match · 83%")}
         </div>
       </div>
       <div className="text-2xs text-muted">
-        Meta hashes your file on your side before matching. Raw values never leave your browser.
+        {t(
+          "Meta hache votre fichier de votre côté avant la mise en correspondance. Les valeurs brutes ne quittent jamais votre navigateur.",
+          "Meta hashes your file on your side before matching. Raw values never leave your browser."
+        )}
       </div>
     </div>
   );

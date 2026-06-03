@@ -22,6 +22,7 @@ import type { CompetitorContent } from "@/lib/scraping/types";
 import type { AnalysisResult } from "@/lib/scraping/analyze";
 import type { IdentifiedCompetitor } from "@/app/api/veille/identify/route";
 import type { ScrapeNetwork } from "@/lib/scraping/types";
+import { useT } from "@/lib/i18n";
 
 /* ─────────────────────────────────────────────────────────────────────────────
    Types locaux
@@ -56,10 +57,12 @@ function TagInput({
   tags,
   onChange,
   placeholder,
+  addMoreLabel,
 }: {
   tags: string[];
   onChange: (t: string[]) => void;
   placeholder?: string;
+  addMoreLabel?: string;
 }) {
   const [input, setInput] = useState("");
 
@@ -71,14 +74,14 @@ function TagInput({
 
   return (
     <div className="flex flex-wrap gap-1.5 rounded-lg border border-hair bg-card px-3 py-2 shadow-inner-sm focus-within:border-primary-400 focus-within:ring-2 focus-within:ring-primary-500/20">
-      {tags.map((t) => (
-        <span key={t} className="inline-flex items-center gap-1 rounded-full border border-primary-200 bg-primary-50 px-2 py-0.5 text-xs font-medium text-primary-700">
-          #{t}
+      {tags.map((tag) => (
+        <span key={tag} className="inline-flex items-center gap-1 rounded-full border border-primary-200 bg-primary-50 px-2 py-0.5 text-xs font-medium text-primary-700">
+          #{tag}
           <button
             type="button"
-            onClick={() => onChange(tags.filter((x) => x !== t))}
+            onClick={() => onChange(tags.filter((x) => x !== tag))}
             className="ml-0.5 text-primary-400 hover:text-primary-700"
-            aria-label={`Supprimer ${t}`}
+            aria-label={`Remove ${tag}`}
           >
             ×
           </button>
@@ -92,7 +95,7 @@ function TagInput({
           if (e.key === "Backspace" && !input && tags.length) onChange(tags.slice(0, -1));
         }}
         onBlur={addTag}
-        placeholder={tags.length === 0 ? placeholder : "Ajouter..."}
+        placeholder={tags.length === 0 ? placeholder : (addMoreLabel ?? "Add…")}
         className="flex-1 min-w-[120px] bg-transparent text-sm text-ink placeholder:text-muted/50 outline-none"
       />
     </div>
@@ -104,6 +107,7 @@ function TagInput({
 ───────────────────────────────────────────────────────────────────────────── */
 
 export default function VeillePage() {
+  const t = useT();
   const { company } = useCompany();
   const { country, setCountryId } = useScope();
 
@@ -260,7 +264,7 @@ export default function VeillePage() {
         setActiveTab("analyse");
       }
     } catch (err) {
-      setRunError("Impossible de lancer l'analyse. Vérifiez votre connexion.");
+      setRunError(t("Impossible de lancer l'analyse. Vérifiez votre connexion.", "Unable to start analysis. Check your connection."));
       console.error("[veille run]", err);
     } finally {
       setRunning(false);
@@ -273,7 +277,7 @@ export default function VeillePage() {
     <div className="min-h-full bg-canvas">
       <div className="mx-auto max-w-6xl px-6 py-8 space-y-8">
         <PageHeader
-          title="Veille & Marché"
+          title={t("Veille & Marché", "Market Intelligence")}
           actions={
             <button
               onClick={handleRun}
@@ -283,12 +287,12 @@ export default function VeillePage() {
               {running ? (
                 <>
                   <Spinner />
-                  Analyse en cours...
+                  {t("Analyse en cours...", "Analysis in progress...")}
                 </>
               ) : (
                 <>
                   <BarIcon />
-                  Lancer l'analyse
+                  {t("Lancer l'analyse", "Run analysis")}
                 </>
               )}
             </button>
@@ -300,7 +304,7 @@ export default function VeillePage() {
           <aside className="space-y-4">
             {/* Zone géographique */}
             <div className="card p-4 space-y-3">
-              <p className="section-label">Zone géographique</p>
+              <p className="section-label">{t("Zone géographique", "Geographic area")}</p>
               <select
                 value={geo}
                 onChange={(e) => {
@@ -319,23 +323,24 @@ export default function VeillePage() {
 
             {/* Thématique + mots-clés */}
             <div className="card p-4 space-y-3">
-              <p className="section-label">Thématique & mots-clés</p>
+              <p className="section-label">{t("Thématique & mots-clés", "Theme & keywords")}</p>
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted">Thématique principale</label>
+                <label className="text-xs font-medium text-muted">{t("Thématique principale", "Main theme")}</label>
                 <input
                   type="text"
                   value={theme}
                   onChange={(e) => setTheme(e.target.value)}
-                  placeholder="ex. Mode durable, Fintech B2B..."
+                  placeholder={t("ex. Mode durable, Fintech B2B...", "e.g. Sustainable fashion, B2B Fintech...")}
                   className="input"
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted">Mots-clés (Entrée pour valider)</label>
+                <label className="text-xs font-medium text-muted">{t("Mots-clés (Entrée pour valider)", "Keywords (Enter to confirm)")}</label>
                 <TagInput
                   tags={keywords}
                   onChange={setKeywords}
-                  placeholder="ex. développement durable, éco-mode..."
+                  placeholder={t("ex. développement durable, éco-mode...", "e.g. sustainability, eco-fashion...")}
+                  addMoreLabel={t("Ajouter...", "Add…")}
                 />
               </div>
             </div>
@@ -343,7 +348,7 @@ export default function VeillePage() {
             {/* Compétiteurs */}
             <div className="card p-4 space-y-3">
               <div className="flex items-center justify-between gap-2">
-                <p className="section-label">Compétiteurs à suivre</p>
+                <p className="section-label">{t("Compétiteurs à suivre", "Competitors to monitor")}</p>
                 <span className="chip">{competitors.length}</span>
               </div>
 
@@ -370,7 +375,7 @@ export default function VeillePage() {
                   type="text"
                   value={addName}
                   onChange={(e) => setAddName(e.target.value)}
-                  placeholder="Nom affiché (optionnel)"
+                  placeholder={t("Nom affiché (optionnel)", "Display name (optional)")}
                   className="input"
                 />
                 <button
@@ -378,7 +383,7 @@ export default function VeillePage() {
                   disabled={!addHandle.trim() || adding}
                   className="btn-secondary w-full text-xs disabled:opacity-50"
                 >
-                  + Ajouter manuellement
+                  {t("+ Ajouter manuellement", "+ Add manually")}
                 </button>
               </div>
 
@@ -388,13 +393,15 @@ export default function VeillePage() {
                 disabled={identifying || !hasEnough}
                 className="btn-ghost w-full text-xs flex items-center justify-center gap-2 disabled:opacity-50 border border-hair"
               >
-                {identifying ? <><Spinner /> Identification...</> : <><SparkleIcon /> Identifier des concurrents</>}
+                {identifying
+                  ? <><Spinner /> {t("Identification...", "Identifying...")}</>
+                  : <><SparkleIcon /> {t("Identifier des concurrents", "Identify competitors")}</>}
               </button>
 
               {/* Compétiteurs identifiés */}
               {identified.length > 0 && (
                 <div className="space-y-2 pt-1">
-                  <p className="text-2xs font-semibold text-muted uppercase tracking-widest">Suggérés</p>
+                  <p className="text-2xs font-semibold text-muted uppercase tracking-widest">{t("Suggérés", "Suggested")}</p>
                   {identified.map((c) => (
                     <div key={c.handle} className="rounded-lg border border-dashed border-primary-200 bg-primary-50/40 p-2.5 space-y-1">
                       <div className="flex items-center justify-between gap-2">
@@ -407,7 +414,7 @@ export default function VeillePage() {
                           disabled={adding}
                           className="shrink-0 btn-primary text-2xs px-2 py-1 disabled:opacity-50"
                         >
-                          + Ajouter
+                          {t("+ Ajouter", "+ Add")}
                         </button>
                       </div>
                       <p className="text-2xs text-muted leading-snug">{c.rationale}</p>
@@ -421,7 +428,7 @@ export default function VeillePage() {
                 <div className="flex justify-center py-4"><Spinner /></div>
               ) : competitors.length > 0 ? (
                 <div className="space-y-1.5 pt-1">
-                  <p className="text-2xs font-semibold text-muted uppercase tracking-widest">Liste active</p>
+                  <p className="text-2xs font-semibold text-muted uppercase tracking-widest">{t("Liste active", "Active list")}</p>
                   {competitors.map((c) => (
                     <CompetitorItem
                       key={c.id}
@@ -433,7 +440,10 @@ export default function VeillePage() {
                 </div>
               ) : (
                 <p className="text-xs text-muted text-center py-2">
-                  Aucun compétiteur — ajoutez-en ou utilisez &laquo; Identifier &raquo;.
+                  {t(
+                    "Aucun compétiteur — ajoutez-en ou utilisez « Identifier ».",
+                    "No competitors — add some or use \"Identify\"."
+                  )}
                 </p>
               )}
             </div>
@@ -448,9 +458,12 @@ export default function VeillePage() {
                   <BarIcon size={24} className="text-primary-500" />
                 </div>
                 <div>
-                  <h3 className="text-base font-semibold text-ink">Prêt pour la veille</h3>
+                  <h3 className="text-base font-semibold text-ink">{t("Prêt pour la veille", "Ready for monitoring")}</h3>
                   <p className="mt-1 text-sm text-muted max-w-xs">
-                    Configurez vos paramètres, ajoutez des compétiteurs et lancez l'analyse pour obtenir des insights concurrentiels.
+                    {t(
+                      "Configurez vos paramètres, ajoutez des compétiteurs et lancez l'analyse pour obtenir des insights concurrentiels.",
+                      "Configure your settings, add competitors and run the analysis to get competitive insights."
+                    )}
                   </p>
                 </div>
                 <button
@@ -459,7 +472,7 @@ export default function VeillePage() {
                   className="btn-primary disabled:opacity-50"
                 >
                   <BarIcon size={14} />
-                  Lancer l'analyse
+                  {t("Lancer l'analyse", "Run analysis")}
                 </button>
               </div>
             )}
@@ -471,8 +484,8 @@ export default function VeillePage() {
                   <div className="h-14 w-14 rounded-full border-2 border-primary-100 border-t-primary-500 animate-spin" />
                 </div>
                 <div>
-                  <p className="text-base font-semibold text-ink">Analyse en cours...</p>
-                  <p className="mt-1 text-sm text-muted">Collecte des contenus concurrents et analyse par IA</p>
+                  <p className="text-base font-semibold text-ink">{t("Analyse en cours...", "Analysis in progress...")}</p>
+                  <p className="mt-1 text-sm text-muted">{t("Collecte des contenus concurrents et analyse par IA", "Collecting competitor content and running AI analysis")}</p>
                 </div>
               </div>
             )}
@@ -494,32 +507,32 @@ export default function VeillePage() {
                 {/* Barre de statut */}
                 <div className="card p-3 flex flex-wrap items-center gap-3 text-xs">
                   <span className="font-semibold text-ink">
-                    {result.scrape.contents.length} contenus collectés
+                    {result.scrape.contents.length} {t("contenus collectés", "contents collected")}
                   </span>
-                  <span className="text-muted">en {result.scrape.durationMs}ms</span>
+                  <span className="text-muted">{t("en", "in")} {result.scrape.durationMs}ms</span>
                   {result.scrape.realNetworks.length > 0 && (
                     <span className="inline-flex items-center gap-1 rounded-full border border-success-200 bg-success-50 px-2 py-0.5 text-success-700 font-medium">
-                      Réel : {result.scrape.realNetworks.join(", ")}
+                      {t("Réel :", "Real:")} {result.scrape.realNetworks.join(", ")}
                     </span>
                   )}
                   {result.scrape.simulatedNetworks.length > 0 && (
                     <span className="inline-flex items-center gap-1 rounded-full border border-warning-200 bg-warning-50 px-2 py-0.5 text-warning-700 font-medium">
-                      Simulé : {result.scrape.simulatedNetworks.join(", ")}
+                      {t("Simulé :", "Simulated:")} {result.scrape.simulatedNetworks.join(", ")}
                     </span>
                   )}
                   <button
                     onClick={handleRun}
                     className="ml-auto btn-ghost text-xs border border-hair"
                   >
-                    Relancer
+                    {t("Relancer", "Re-run")}
                   </button>
                 </div>
 
                 {/* Onglets */}
                 <div className="flex gap-1 border-b border-hair">
                   {[
-                    { key: "analyse" as const, label: "Analyse IA" },
-                    { key: "contenus" as const, label: `Contenus (${result.scrape.contents.length})` },
+                    { key: "analyse" as const, labelFr: "Analyse IA", labelEn: "AI Analysis" },
+                    { key: "contenus" as const, labelFr: `Contenus (${result.scrape.contents.length})`, labelEn: `Content (${result.scrape.contents.length})` },
                   ].map((tab) => (
                     <button
                       key={tab.key}
@@ -531,7 +544,7 @@ export default function VeillePage() {
                           : "border-transparent text-muted hover:text-ink",
                       ].join(" ")}
                     >
-                      {tab.label}
+                      {t(tab.labelFr, tab.labelEn)}
                     </button>
                   ))}
                 </div>
@@ -541,7 +554,7 @@ export default function VeillePage() {
                   <div>
                     {result.scrape.contents.length === 0 ? (
                       <div className="card p-8 text-center">
-                        <p className="text-sm text-muted">Aucun contenu collecté pour cette requête.</p>
+                        <p className="text-sm text-muted">{t("Aucun contenu collecté pour cette requête.", "No content collected for this query.")}</p>
                       </div>
                     ) : (
                       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
@@ -560,7 +573,7 @@ export default function VeillePage() {
                       <AnalysisPanel analysis={result.analysis} />
                     ) : (
                       <div className="card p-8 text-center">
-                        <p className="text-sm text-muted">Analyse IA non disponible pour cette exécution.</p>
+                        <p className="text-sm text-muted">{t("Analyse IA non disponible pour cette exécution.", "AI analysis not available for this run.")}</p>
                       </div>
                     )}
                   </div>

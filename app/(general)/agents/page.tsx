@@ -18,6 +18,7 @@ import { RunPanel } from "@/components/agents/RunPanel";
 import { RunTimeline } from "@/components/agents/RunTimeline";
 import type { AgentId, AgentRunResult, AgentStepStatus } from "@/lib/agents/types";
 import type { RunPayload } from "@/components/agents/RunPanel";
+import { useT } from "@/lib/i18n";
 
 // ── Sélecteur de marque interne (réutilise useCompany) ───────────────────────
 
@@ -91,6 +92,7 @@ function getAgentStatuses(result: AgentRunResult | null): Map<AgentId, AgentStep
 // ── Page principale ────────────────────────────────────────────────────────────
 
 export default function AgentsPage() {
+  const t = useT();
   const { company } = useCompany();
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<AgentRunResult | null>(null);
@@ -122,7 +124,7 @@ export default function AgentsPage() {
         const body = await res.json().catch(() => ({}));
         throw new Error(
           (body as { error?: string }).error ??
-            `Erreur serveur (${res.status})`
+            t(`Erreur serveur (${res.status})`, `Server error (${res.status})`)
         );
       }
 
@@ -132,7 +134,7 @@ export default function AgentsPage() {
       setError(
         err instanceof Error
           ? err.message
-          : "Une erreur inattendue s'est produite."
+          : t("Une erreur inattendue s'est produite.", "An unexpected error occurred.")
       );
     } finally {
       setLoading(false);
@@ -144,20 +146,23 @@ export default function AgentsPage() {
       {/* ── En-tête ─────────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-lg font-semibold text-ink">Centre de pilotage IA</h1>
+          <h1 className="text-lg font-semibold text-ink">{t("Centre de pilotage IA", "AI Control Center")}</h1>
           <p className="text-xs text-muted">
-            Système multi-agent pour piloter les campagnes sociales DDS Group de bout en bout.
+            {t(
+              "Système multi-agent pour piloter les campagnes sociales DDS Group de bout en bout.",
+              "Multi-agent system to manage DDS Group social campaigns end-to-end."
+            )}
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-muted">Marque active :</span>
+          <span className="text-xs text-muted">{t("Marque active :", "Active brand:")}</span>
           <BrandSelector />
         </div>
       </div>
 
       {/* ── Grille des 8 agents ──────────────────────────────────────── */}
       <div>
-        <div className="section-label mb-2">Agents disponibles</div>
+        <div className="section-label mb-2">{t("Agents disponibles", "Available agents")}</div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {AGENTS.map((agent) => (
             <AgentCard
@@ -190,9 +195,12 @@ export default function AgentsPage() {
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
             </svg>
           </div>
-          <p className="text-sm font-medium text-ink">Orchestration en cours…</p>
+          <p className="text-sm font-medium text-ink">{t("Orchestration en cours…", "Orchestration in progress…")}</p>
           <p className="mt-1 text-xs text-muted">
-            Les 8 agents travaillent en séquence. Cette opération peut prendre quelques secondes.
+            {t(
+              "Les 8 agents travaillent en séquence. Cette opération peut prendre quelques secondes.",
+              "All 8 agents are working in sequence. This may take a few seconds."
+            )}
           </p>
         </div>
       )}
@@ -204,7 +212,7 @@ export default function AgentsPage() {
             <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
               <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clipRule="evenodd" />
             </svg>
-            Erreur d'orchestration
+            {t("Erreur d'orchestration", "Orchestration error")}
           </div>
           <p className="mt-1 text-xs text-muted">{error}</p>
         </div>
@@ -225,9 +233,12 @@ export default function AgentsPage() {
               />
             </svg>
           </div>
-          <h3 className="text-sm font-semibold text-ink">Prêt à piloter</h3>
+          <h3 className="text-sm font-semibold text-ink">{t("Prêt à piloter", "Ready to run")}</h3>
           <p className="mt-1 max-w-sm mx-auto text-xs text-muted">
-            Décrivez votre objectif de campagne, choisissez un niveau d'autonomie et lancez le pilotage pour voir les 8 agents IA travailler en séquence.
+            {t(
+              "Décrivez votre objectif de campagne, choisissez un niveau d'autonomie et lancez le pilotage pour voir les 8 agents IA travailler en séquence.",
+              "Describe your campaign objective, choose an autonomy level, and start the run to see all 8 AI agents work in sequence."
+            )}
           </p>
         </div>
       )}

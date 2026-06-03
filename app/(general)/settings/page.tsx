@@ -10,6 +10,7 @@ import { Team } from "@/components/settings/Team";
 import { AiPrefs } from "@/components/settings/AiPrefs";
 import { AdSafety } from "@/components/settings/AdSafety";
 import { AuditLog } from "@/components/settings/AuditLog";
+import { useT } from "@/lib/i18n";
 
 type SectionId =
   | "profile"
@@ -21,28 +22,33 @@ type SectionId =
   | "ad-safety"
   | "audit";
 
-const NAV: { group: string; items: { id: SectionId; label: string }[] }[] = [
+type NavGroup = { groupFr: string; groupEn: string; items: { id: SectionId; labelFr: string; labelEn: string }[] };
+
+const NAV: NavGroup[] = [
   {
-    group: "Account",
+    groupFr: "Compte",
+    groupEn: "Account",
     items: [
-      { id: "profile", label: "Profile" },
-      { id: "notifications", label: "Notifications" },
+      { id: "profile", labelFr: "Profil", labelEn: "Profile" },
+      { id: "notifications", labelFr: "Notifications", labelEn: "Notifications" },
     ],
   },
   {
-    group: "Organization",
+    groupFr: "Organisation",
+    groupEn: "Organization",
     items: [
-      { id: "organization", label: "Organization" },
-      { id: "companies", label: "Companies" },
-      { id: "team", label: "Team & roles" },
+      { id: "organization", labelFr: "Organisation", labelEn: "Organization" },
+      { id: "companies", labelFr: "Entreprises", labelEn: "Companies" },
+      { id: "team", labelFr: "Équipe & rôles", labelEn: "Team & roles" },
     ],
   },
   {
-    group: "Platform",
+    groupFr: "Plateforme",
+    groupEn: "Platform",
     items: [
-      { id: "ai", label: "AI preferences" },
-      { id: "ad-safety", label: "Ad Safety" },
-      { id: "audit", label: "Audit log" },
+      { id: "ai", labelFr: "Préférences IA", labelEn: "AI preferences" },
+      { id: "ad-safety", labelFr: "Sécurité publicitaire", labelEn: "Ad Safety" },
+      { id: "audit", labelFr: "Journal d'audit", labelEn: "Audit log" },
     ],
   },
 ];
@@ -65,6 +71,7 @@ interface AuditInitial {
 }
 
 function SettingsContent() {
+  const t = useT();
   const router = useRouter();
   const params = useSearchParams();
 
@@ -119,15 +126,15 @@ function SettingsContent() {
     <div className="animate-fade-in">
       {/* Page heading */}
       <div className="mb-5 flex items-center justify-between gap-4">
-        <h1 className="text-lg font-bold tracking-tight text-ink">Settings</h1>
+        <h1 className="text-lg font-bold tracking-tight text-ink">{t("Paramètres", "Settings")}</h1>
       </div>
 
       <div className="card flex min-h-[480px] overflow-hidden">
         {/* Sidebar nav */}
         <nav className="w-52 shrink-0 border-r border-hair bg-canvas/40 p-3">
           {NAV.map((g) => (
-            <div key={g.group} className="mb-5">
-              <div className="section-label px-2 pb-1.5">{g.group}</div>
+            <div key={g.groupEn} className="mb-5">
+              <div className="section-label px-2 pb-1.5">{t(g.groupFr, g.groupEn)}</div>
               <div className="space-y-0.5">
                 {g.items.map((it) => (
                   <button
@@ -139,7 +146,7 @@ function SettingsContent() {
                         : "text-muted hover:bg-card/60 hover:text-ink"
                     }`}
                   >
-                    {it.label}
+                    {t(it.labelFr, it.labelEn)}
                   </button>
                 ))}
               </div>

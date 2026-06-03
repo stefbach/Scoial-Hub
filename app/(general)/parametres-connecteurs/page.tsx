@@ -11,6 +11,7 @@ import type {
   ConnectorAccessCardProps,
 } from "@/components/settings/ConnectorAccessCard";
 import { Toast } from "@/components/ui/Toast";
+import { useT } from "@/lib/i18n";
 
 // ── Types internes ──────────────────────────────────────────────────────────────
 
@@ -252,44 +253,54 @@ const CONNECTOR_CATALOG: ConnectorMeta[] = [
   },
 ];
 
-// ── Groupes d'affichage ──────────────────────────────────────────────────────────
-
-const GROUPS: { id: ConnectorMeta["group"]; label: string; subtitle: string }[] = [
-  {
-    id: "social",
-    label: "Réseaux sociaux",
-    subtitle: "Publication organique, insights et gestion de communauté",
-  },
-  {
-    id: "ads",
-    label: "Publicité & Ads",
-    subtitle: "Création, optimisation et reporting de campagnes payantes",
-  },
-  {
-    id: "measure",
-    label: "Mesure & conversions",
-    subtitle: "Suivi des événements, attribution et analytics",
-  },
-  {
-    id: "ai",
-    label: "IA & génération",
-    subtitle: "Modèles de langage et génération de visuels/vidéos",
-  },
-  {
-    id: "scraping",
-    label: "Veille & scraping",
-    subtitle: "Collecte de données et surveillance des tendances",
-  },
-];
-
 // Identifiants gérés par /api/channel-connections (ceux de CHANNELS)
 const CHANNEL_IDS: Set<string> = new Set(CHANNELS.map((c) => c.id));
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function ParametresConnecteursPage() {
+  const t = useT();
   const { company } = useCompany();
   const companyId = company.id;
+
+  // ── Groupes d'affichage ──────────────────────────────────────────────────────────
+  const GROUPS: { id: ConnectorMeta["group"]; labelFr: string; labelEn: string; subtitleFr: string; subtitleEn: string }[] = [
+    {
+      id: "social",
+      labelFr: "Réseaux sociaux",
+      labelEn: "Social networks",
+      subtitleFr: "Publication organique, insights et gestion de communauté",
+      subtitleEn: "Organic publishing, insights and community management",
+    },
+    {
+      id: "ads",
+      labelFr: "Publicité & Ads",
+      labelEn: "Advertising & Ads",
+      subtitleFr: "Création, optimisation et reporting de campagnes payantes",
+      subtitleEn: "Creation, optimization and reporting of paid campaigns",
+    },
+    {
+      id: "measure",
+      labelFr: "Mesure & conversions",
+      labelEn: "Measurement & conversions",
+      subtitleFr: "Suivi des événements, attribution et analytics",
+      subtitleEn: "Event tracking, attribution and analytics",
+    },
+    {
+      id: "ai",
+      labelFr: "IA & génération",
+      labelEn: "AI & generation",
+      subtitleFr: "Modèles de langage et génération de visuels/vidéos",
+      subtitleEn: "Language models and visual/video generation",
+    },
+    {
+      id: "scraping",
+      labelFr: "Veille & scraping",
+      labelEn: "Monitoring & scraping",
+      subtitleFr: "Collecte de données et surveillance des tendances",
+      subtitleEn: "Data collection and trend monitoring",
+    },
+  ];
 
   // Connexions chargées depuis /api/channel-connections
   const [connections, setConnections] = useState<Record<string, RawConnection>>({});
@@ -355,22 +366,22 @@ export default function ParametresConnecteursPage() {
 
         if (!res.ok) {
           const body = await res.json().catch(() => ({}));
-          const msg = (body as { error?: string }).error ?? "Erreur lors de l'enregistrement.";
+          const msg = (body as { error?: string }).error ?? t("Erreur lors de l'enregistrement.", "Error while saving.");
           setToast({ ok: false, msg });
           return { ok: false, error: msg };
         }
 
         const updated = (await res.json()) as RawConnection;
         setConnections((prev) => ({ ...prev, [id]: updated }));
-        setToast({ ok: true, msg: `${meta?.label ?? id} : configuration enregistrée.` });
+        setToast({ ok: true, msg: `${meta?.label ?? id} : ${t("configuration enregistrée.", "configuration saved.")}` });
         return { ok: true };
       } catch {
-        const msg = "Erreur réseau. Vérifiez votre connexion.";
+        const msg = t("Erreur réseau. Vérifiez votre connexion.", "Network error. Check your connection.");
         setToast({ ok: false, msg });
         return { ok: false, error: msg };
       }
     },
-    [companyId, connections]
+    [companyId, connections, t]
   );
 
   // ── Résolution statut connecteur ─────────────────────────────────────────────
@@ -394,18 +405,20 @@ export default function ParametresConnecteursPage() {
       {/* En-tête de page */}
       <div>
         <h1 className="text-xl font-bold tracking-tight text-ink">
-          Connecteurs &amp; accès données
+          {t("Connecteurs & accès données", "Connectors & data access")}
         </h1>
         <p className="mt-1 text-sm text-muted">
-          Centralisez ici tous vos accès externes. Configurez chaque connecteur
-          pour que AXON-AI puisse consulter vos données ou agir en votre nom.
+          {t(
+            "Centralisez ici tous vos accès externes. Configurez chaque connecteur pour que AXON-AI puisse consulter vos données ou agir en votre nom.",
+            "Centralize all your external access here. Configure each connector so AXON-AI can read your data or act on your behalf."
+          )}
         </p>
       </div>
 
       {/* Encart explicatif */}
       <div className="rounded-xl border border-primary-200 bg-primary-50/60 px-5 py-4 space-y-3">
         <h2 className="text-sm font-semibold text-ink">
-          Comprendre les niveaux d&apos;accès
+          {t("Comprendre les niveaux d'accès", "Understanding access levels")}
         </h2>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="flex gap-3">
@@ -416,10 +429,12 @@ export default function ParametresConnecteursPage() {
               </svg>
             </span>
             <div>
-              <p className="text-xs font-semibold text-ink">Lecture (consultation)</p>
+              <p className="text-xs font-semibold text-ink">{t("Lecture (consultation)", "Read (consultation)")}</p>
               <p className="text-xs text-muted leading-relaxed">
-                Récupère vos statistiques, insights et données analytiques pour les afficher
-                dans les tableaux de bord. Aucune action n&apos;est effectuée sur vos comptes.
+                {t(
+                  "Récupère vos statistiques, insights et données analytiques pour les afficher dans les tableaux de bord. Aucune action n'est effectuée sur vos comptes.",
+                  "Retrieves your statistics, insights and analytics data to display in dashboards. No action is taken on your accounts."
+                )}
               </p>
             </div>
           </div>
@@ -430,10 +445,12 @@ export default function ParametresConnecteursPage() {
               </svg>
             </span>
             <div>
-              <p className="text-xs font-semibold text-ink">Écriture (action / publication)</p>
+              <p className="text-xs font-semibold text-ink">{t("Écriture (action / publication)", "Write (action / publishing)")}</p>
               <p className="text-xs text-muted leading-relaxed">
-                Autorise les agents à publier, répondre, créer des campagnes ou envoyer
-                des événements. Chaque action reste dans les limites définies par votre équipe.
+                {t(
+                  "Autorise les agents à publier, répondre, créer des campagnes ou envoyer des événements. Chaque action reste dans les limites définies par votre équipe.",
+                  "Allows agents to publish, reply, create campaigns or send events. Every action stays within the limits defined by your team."
+                )}
               </p>
             </div>
           </div>
@@ -450,12 +467,12 @@ export default function ParametresConnecteursPage() {
             {/* Titre de section */}
             <div className="flex items-end justify-between gap-4 border-b border-hair pb-2">
               <div>
-                <h2 className="text-sm font-bold text-ink">{group.label}</h2>
-                <p className="text-xs text-muted mt-0.5">{group.subtitle}</p>
+                <h2 className="text-sm font-bold text-ink">{t(group.labelFr, group.labelEn)}</h2>
+                <p className="text-xs text-muted mt-0.5">{t(group.subtitleFr, group.subtitleEn)}</p>
               </div>
               <span className="section-label shrink-0">
                 {items.filter((c) => resolveStatus(c) === "connected").length}/
-                {items.length} connectés
+                {items.length} {t("connectés", "connected")}
               </span>
             </div>
 

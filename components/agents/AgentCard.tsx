@@ -6,6 +6,7 @@
  */
 
 import type { AgentDef, AgentId, AgentStepStatus } from "@/lib/agents/types";
+import { useT } from "@/lib/i18n";
 
 // ── Couleurs d'accent par agent (texte + fond) ─────────────────────────────
 const ACCENT_TEXT: Record<AgentId, string> = {
@@ -28,12 +29,6 @@ const ACCENT_BG: Record<AgentId, string> = {
   analyst:      "bg-success-50 border-success-200",
   compliance:   "bg-danger-50 border-danger-200",
   publisher:    "bg-indigo-50 border-indigo-200",
-};
-
-const AUTONOMY_LABEL: Record<number, string> = {
-  1: "Recommandation",
-  2: "Semi-auto",
-  3: "Auto",
 };
 
 const AUTONOMY_TONE: Record<number, string> = {
@@ -88,12 +83,13 @@ const AGENT_ICON: Record<AgentId, React.ReactNode> = {
 
 // Mapping statut → badge
 function StatusChip({ status }: { status: AgentStepStatus | "idle" }) {
+  const t = useT();
   const map: Record<AgentStepStatus | "idle", { label: string; cls: string }> = {
-    idle:      { label: "En veille",    cls: "bg-canvas text-muted ring-1 ring-hair" },
-    done:      { label: "Terminé",      cls: "bg-success-50 text-success-700 ring-1 ring-success-500/20" },
-    running:   { label: "En cours…",   cls: "bg-ai-textbg text-ai-text ring-1 ring-ai-text/20" },
-    blocked:   { label: "Bloqué",      cls: "bg-danger-50 text-danger-700 ring-1 ring-danger-500/20" },
-    simulated: { label: "Simulé",      cls: "bg-warning-50 text-warning-700 ring-1 ring-warning-500/20" },
+    idle:      { label: t("En veille", "Idle"),       cls: "bg-canvas text-muted ring-1 ring-hair" },
+    done:      { label: t("Terminé", "Done"),         cls: "bg-success-50 text-success-700 ring-1 ring-success-500/20" },
+    running:   { label: t("En cours…", "Running…"),  cls: "bg-ai-textbg text-ai-text ring-1 ring-ai-text/20" },
+    blocked:   { label: t("Bloqué", "Blocked"),       cls: "bg-danger-50 text-danger-700 ring-1 ring-danger-500/20" },
+    simulated: { label: t("Simulé", "Simulated"),    cls: "bg-warning-50 text-warning-700 ring-1 ring-warning-500/20" },
   };
   const { label, cls } = map[status];
   return (
@@ -115,9 +111,16 @@ interface AgentCardProps {
 }
 
 export function AgentCard({ agent, stepStatus, active }: AgentCardProps) {
+  const t = useT();
   const accentText = ACCENT_TEXT[agent.id];
   const accentBg = ACCENT_BG[agent.id];
   const status = stepStatus ?? "idle";
+
+  const AUTONOMY_LABEL: Record<number, string> = {
+    1: t("Recommandation", "Recommendation"),
+    2: t("Semi-auto", "Semi-auto"),
+    3: t("Auto", "Auto"),
+  };
 
   return (
     <div
@@ -136,7 +139,7 @@ export function AgentCard({ agent, stepStatus, active }: AgentCardProps) {
           </div>
           <div>
             <div className={`text-sm font-semibold ${accentText}`}>{agent.name}</div>
-            <div className="text-2xs text-muted">Autonomie par défaut : {AUTONOMY_LABEL[agent.defaultAutonomy]}</div>
+            <div className="text-2xs text-muted">{t("Autonomie par défaut :", "Default autonomy:")} {AUTONOMY_LABEL[agent.defaultAutonomy]}</div>
           </div>
         </div>
         <StatusChip status={status} />
@@ -154,7 +157,7 @@ export function AgentCard({ agent, stepStatus, active }: AgentCardProps) {
           <span
             key={c}
             className="chip text-2xs"
-            title={`Connecteur requis : ${c}`}
+            title={`${t("Connecteur requis :", "Required connector:")} ${c}`}
           >
             {c}
           </span>

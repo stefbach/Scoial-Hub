@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import { useCompany } from "@/lib/company-context";
+import { useT } from "@/lib/i18n";
 
 export function CompanySwitcher() {
+  const t = useT();
   const { companies, company, setCompanyId } = useCompany();
   const [open, setOpen] = useState(false);
 
@@ -66,7 +68,7 @@ export function CompanySwitcher() {
           {/* Dropdown */}
           <div
             role="listbox"
-            aria-label="Sélectionner un espace de travail"
+            aria-label={t("Sélectionner un espace de travail", "Select a workspace")}
             className="
               absolute left-0 z-20 mt-2 min-w-[15rem] overflow-hidden
               rounded-xl border border-hair bg-card shadow-lg
@@ -75,7 +77,7 @@ export function CompanySwitcher() {
           >
             {/* En-tête */}
             <div className="border-b border-hair px-3 py-2">
-              <p className="section-label">Workspace</p>
+              <p className="section-label">{t("Espace de travail", "Workspace")}</p>
             </div>
 
             {/* Liste */}

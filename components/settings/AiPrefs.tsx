@@ -10,11 +10,13 @@ import { SubHeader, SectionLabel } from "./shared";
 import { AI_GENERATION_LOGS, type AiGenLog } from "@/lib/mock-data";
 import { useCompany } from "@/lib/company-context";
 import { eur } from "@/lib/format";
+import { useT } from "@/lib/i18n";
 
 const IMAGE_MODELS = ["Flux 2 Pro", "Ideogram v3", "GPT Image Mini"];
 const VIDEO_MODELS = ["Kling 3.0", "Veo 3.1 Fast"];
 
 export function AiPrefs() {
+  const t = useT();
   const { company, data } = useCompany();
 
   const [imageModel, setImageModel] = useState(IMAGE_MODELS[0]);
@@ -45,55 +47,58 @@ export function AiPrefs() {
     if (kind === "text") setTextCap(v);
     if (kind === "image") setImageCap(v);
     if (kind === "video") setVideoCap(v);
-    setToast(`${kind === "text" ? "Text" : kind === "image" ? "Image" : "Video"} cap updated.`);
+    setToast(t(
+      `Plafond ${kind === "text" ? "texte" : kind === "image" ? "image" : "vidéo"} mis à jour.`,
+      `${kind === "text" ? "Text" : kind === "image" ? "Image" : "Video"} cap updated.`
+    ));
   };
 
   return (
     <div>
-      <SubHeader title="AI preferences" scope="company" scopeLabel={company.name} />
-      <p className="mb-4 text-sm text-muted">Default models, monthly spend caps, and recent AI activity.</p>
+      <SubHeader title={t("Préférences IA", "AI preferences")} scope="company" scopeLabel={company.name} />
+      <p className="mb-4 text-sm text-muted">{t("Modèles par défaut, plafonds de dépenses mensuels et activité IA récente.", "Default models, monthly spend caps, and recent AI activity.")}</p>
 
-      <SectionLabel>Default models</SectionLabel>
+      <SectionLabel>{t("Modèles par défaut", "Default models")}</SectionLabel>
       <div className="space-y-2">
         <div className="rounded-md border-hair border-hair p-3 text-sm">
           <div className="flex items-center justify-between">
             <div>
-              <div className="font-medium text-ink">AI text</div>
-              <div className="text-2xs text-muted">Used for captions, ad copy, rewrites</div>
+              <div className="font-medium text-ink">{t("Texte IA", "AI text")}</div>
+              <div className="text-2xs text-muted">{t("Utilisé pour les légendes, copies publicitaires, reformulations", "Used for captions, ad copy, rewrites")}</div>
             </div>
             <span className="text-ink">Anthropic Claude</span>
           </div>
         </div>
-        <ModelRow label="AI images" options={IMAGE_MODELS} value={imageModel} onChange={setImageModel} />
-        <ModelRow label="AI video" options={VIDEO_MODELS} value={videoModel} onChange={setVideoModel} />
+        <ModelRow label={t("Images IA", "AI images")} options={IMAGE_MODELS} value={imageModel} onChange={setImageModel} />
+        <ModelRow label={t("Vidéo IA", "AI video")} options={VIDEO_MODELS} value={videoModel} onChange={setVideoModel} />
       </div>
       <div className="mt-1 text-2xs text-muted">
-        Models can be overridden per generation in the Compose and Create Ad screens.
+        {t("Les modèles peuvent être remplacés par génération dans les écrans Composer et Créer une annonce.", "Models can be overridden per generation in the Compose and Create Ad screens.")}
       </div>
 
-      <SectionLabel>Monthly spend caps</SectionLabel>
+      <SectionLabel>{t("Plafonds de dépenses mensuels", "Monthly spend caps")}</SectionLabel>
       <div className="grid grid-cols-3 gap-3">
-        <CapCard label="Text" used={textSpend} cap={textCap} onChange={(v) => saveCap("text", v)} />
-        <CapCard label="Images" used={imageSpend} cap={imageCap} onChange={(v) => saveCap("image", v)} />
-        <CapCard label="Video" used={videoSpend} cap={videoCap} onChange={(v) => saveCap("video", v)} />
+        <CapCard label={t("Texte", "Text")} used={textSpend} cap={textCap} onChange={(v) => saveCap("text", v)} />
+        <CapCard label={t("Images", "Images")} used={imageSpend} cap={imageCap} onChange={(v) => saveCap("image", v)} />
+        <CapCard label={t("Vidéo", "Video")} used={videoSpend} cap={videoCap} onChange={(v) => saveCap("video", v)} />
       </div>
-      <div className="mt-1 text-2xs text-muted">Caps reset on the 1st of each month.</div>
+      <div className="mt-1 text-2xs text-muted">{t("Les plafonds sont réinitialisés le 1er de chaque mois.", "Caps reset on the 1st of each month.")}</div>
 
-      <SectionLabel>Brand voice defaults</SectionLabel>
+      <SectionLabel>{t("Voix de marque par défaut", "Brand voice defaults")}</SectionLabel>
       <div className="flex items-center justify-between rounded-md border-hair border-hair p-3">
         <div>
-          <div className="text-sm font-medium text-ink">Use brand voice by default</div>
+          <div className="text-sm font-medium text-ink">{t("Utiliser la voix de marque par défaut", "Use brand voice by default")}</div>
           <div className="text-2xs text-muted">
-            When ON, AI text generation automatically applies {company.code}&apos;s brand voice. Can be overridden per generation.
+            {t(`Quand activé, la génération de texte IA applique automatiquement la voix de marque de ${company.code}. Peut être remplacé par génération.`, `When ON, AI text generation automatically applies ${company.code}'s brand voice. Can be overridden per generation.`)}
           </div>
         </div>
         <Toggle key={String(brandVoiceDefault)} defaultOn={brandVoiceDefault} onChange={setBrandVoiceDefault} />
       </div>
 
-      <SectionLabel>Recent AI generations</SectionLabel>
+      <SectionLabel>{t("Générations IA récentes", "Recent AI generations")}</SectionLabel>
       <div className="card divide-y divide-hair">
         {history.length === 0 ? (
-          <div className="px-3 py-6 text-center text-sm text-muted">No AI generations yet.</div>
+          <div className="px-3 py-6 text-center text-sm text-muted">{t("Aucune génération IA.", "No AI generations yet.")}</div>
         ) : (
           history.slice(0, 8).map((g) => (
             <button
@@ -114,7 +119,7 @@ export function AiPrefs() {
         )}
       </div>
       {history.length > 8 && (
-        <button className="mt-2 text-2xs text-ai-text hover:underline">View all →</button>
+        <button className="mt-2 text-2xs text-ai-text hover:underline">{t("Voir tout →", "View all →")}</button>
       )}
 
       {openLog && <LogDetailModal log={openLog} onClose={() => setOpenLog(null)} />}
@@ -185,6 +190,7 @@ function TypeBadge({ type }: { type: AiGenLog["type"] }) {
 }
 
 function LogDetailModal({ log, onClose }: { log: AiGenLog; onClose: () => void }) {
+  const t = useT();
   return (
     <Modal open onClose={onClose} width="max-w-md">
       <div className="border-b-hair border-hair px-4 py-3">
@@ -193,12 +199,12 @@ function LogDetailModal({ log, onClose }: { log: AiGenLog; onClose: () => void }
       </div>
       <div className="space-y-2 p-4 text-sm">
         <dl className="space-y-1 text-2xs">
-          <Row label="Type" value={log.type} />
-          <Row label="Model" value={log.model} />
-          <Row label="Cost" value={eur(log.costEur, { decimals: true })} />
+          <Row label={t("Type", "Type")} value={log.type} />
+          <Row label={t("Modèle", "Model")} value={log.model} />
+          <Row label={t("Coût", "Cost")} value={eur(log.costEur, { decimals: true })} />
         </dl>
         <div>
-          <div className="section-label mb-1">Prompt</div>
+          <div className="section-label mb-1">{t("Prompt", "Prompt")}</div>
           <div className="rounded-md border-hair border-hair bg-canvas p-2 text-xs text-ink">{log.prompt}</div>
         </div>
       </div>

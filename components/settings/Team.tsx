@@ -7,22 +7,19 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Toast } from "@/components/ui/Toast";
 import { SubHeader } from "./shared";
 import { COMPANIES, ORG_NAME, TEAM, type TeamMember } from "@/lib/mock-data";
+import { useT } from "@/lib/i18n";
 
 type Role = "admin" | "editor" | "viewer";
 
-const ROLE_HELP: Record<Role, string> = {
-  admin: "Full access including billing and team management",
-  editor: "Can create, edit, schedule posts and campaigns. Cannot change billing or invite users.",
-  viewer: "Read-only access to all data",
-};
-
-const ROLE_LABEL: Record<Role, string> = {
-  admin: "Admin",
-  editor: "Editor",
-  viewer: "Viewer",
-};
-
 export function Team() {
+  const t = useT();
+
+  const ROLE_LABEL: Record<Role, string> = {
+    admin: t("Admin", "Admin"),
+    editor: t("Éditeur", "Editor"),
+    viewer: t("Lecteur", "Viewer"),
+  };
+
   const [team, setTeam] = useState<TeamMember[]>(TEAM);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [editing, setEditing] = useState<TeamMember | null>(null);
@@ -31,18 +28,18 @@ export function Team() {
   const allCompanyIds = useMemo(() => COMPANIES.map((c) => c.id), []);
 
   const addMember = (m: TeamMember) => {
-    setTeam((t) => [...t, m]);
-    TEAM.push(m); // mutate the shared list so other screens see it
+    setTeam((prev) => [...prev, m]);
+    TEAM.push(m);
   };
 
   const updateMember = (id: string, patch: Partial<TeamMember>) => {
-    setTeam((t) => t.map((m) => (m.id === id ? { ...m, ...patch } : m)));
+    setTeam((prev) => prev.map((m) => (m.id === id ? { ...m, ...patch } : m)));
     const idx = TEAM.findIndex((m) => m.id === id);
     if (idx >= 0) TEAM[idx] = { ...TEAM[idx], ...patch };
   };
 
   const removeMember = (id: string) => {
-    setTeam((t) => t.filter((m) => m.id !== id));
+    setTeam((prev) => prev.filter((m) => m.id !== id));
     const idx = TEAM.findIndex((m) => m.id === id);
     if (idx >= 0) TEAM.splice(idx, 1);
   };
@@ -50,8 +47,8 @@ export function Team() {
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
-        <SubHeader title="Team & roles" scope="org" scopeLabel={ORG_NAME} />
-        <Button variant="primary" onClick={() => setInviteOpen(true)}>+ Invite team member</Button>
+        <SubHeader title={t("Équipe & rôles", "Team & roles")} scope="org" scopeLabel={ORG_NAME} />
+        <Button variant="primary" onClick={() => setInviteOpen(true)}>{t("+ Inviter un membre", "+ Invite team member")}</Button>
       </div>
 
       <div className="card overflow-hidden">
@@ -74,8 +71,8 @@ export function Team() {
                 <td className="px-3 py-2.5 text-muted">{m.email}</td>
                 <td className="px-3 py-2.5 text-right">
                   <div className="flex justify-end gap-2">
-                    {m.status === "pending" && <StatusBadge tone="amber">Pending</StatusBadge>}
-                    <StatusBadge tone={m.role === "admin" ? "blue" : "gray"}>{ROLE_LABEL[m.role]}</StatusBadge>
+                    {m.status === "pending" && <StatusBadge tone="amber">{t("En attente", "Pending")}</StatusBadge>}
+                    <StatusBadge tone={m.role === "admin" ? "blue" : "gray"}>{ROLE_LABEL[m.role as Role] ?? m.role}</StatusBadge>
                   </div>
                 </td>
               </tr>
@@ -100,7 +97,7 @@ export function Team() {
             };
             addMember(member);
             setInviteOpen(false);
-            setToast(`Invite sent to ${payload.email}.`);
+            setToast(t(`Invitation envoyée à ${payload.email}.`, `Invite sent to ${payload.email}.`));
           }}
         />
       )}
@@ -114,12 +111,12 @@ export function Team() {
           onSubmit={(payload) => {
             updateMember(editing.id, { role: payload.role, companyAccess: payload.companyAccess });
             setEditing(null);
-            setToast(`Saved changes to ${editing.name}.`);
+            setToast(t(`Modifications enregistrées pour ${editing.name}.`, `Saved changes to ${editing.name}.`));
           }}
           onRemove={() => {
             removeMember(editing.id);
             setEditing(null);
-            setToast(`${editing.name} removed from the team.`);
+            setToast(t(`${editing.name} retiré de l'équipe.`, `${editing.name} removed from the team.`));
           }}
         />
       )}
@@ -144,6 +141,14 @@ function TeamMemberModal({
   onSubmit: (payload: { email: string; role: Role; companyAccess: string[] }) => void;
   onRemove?: () => void;
 }) {
+  const t = useT();
+
+  const ROLE_HELP: Record<Role, string> = {
+    admin: t("Accès complet incluant facturation et gestion d'équipe", "Full access including billing and team management"),
+    editor: t("Peut créer, modifier, planifier des publications et campagnes. Ne peut pas modifier la facturation ni inviter des utilisateurs.", "Can create, edit, schedule posts and campaigns. Cannot change billing or invite users."),
+    viewer: t("Accès en lecture seule à toutes les données", "Read-only access to all data"),
+  };
+
   const [email, setEmail] = useState(member?.email ?? "");
   const [role, setRole] = useState<Role>((member?.role as Role) ?? "editor");
   const [access, setAccess] = useState<string[]>(member?.companyAccess ?? allCompanyIds);
@@ -160,12 +165,12 @@ function TeamMemberModal({
   return (
     <Modal open onClose={onClose} width="max-w-lg">
       <div className="border-b-hair border-hair px-4 py-3 text-sm font-semibold text-ink">
-        {editing ? `Edit ${member?.name}` : "Invite team member"}
+        {editing ? `${t("Modifier", "Edit")} ${member?.name}` : t("Inviter un membre de l'équipe", "Invite team member")}
       </div>
 
       <div className="space-y-3 p-4">
         <div>
-          <label className="text-2xs font-medium text-muted">Email</label>
+          <label className="text-2xs font-medium text-muted">{t("Email", "Email")}</label>
           <input
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -177,21 +182,21 @@ function TeamMemberModal({
         </div>
 
         <div>
-          <label className="text-2xs font-medium text-muted">Role</label>
+          <label className="text-2xs font-medium text-muted">{t("Rôle", "Role")}</label>
           <select
             value={role}
             onChange={(e) => setRole(e.target.value as Role)}
             className="mt-1 block w-full rounded-md border-hair border-hair bg-card px-3 py-2 text-sm text-ink focus:outline-none"
           >
-            <option value="admin">Admin</option>
-            <option value="editor">Editor</option>
-            <option value="viewer">Viewer</option>
+            <option value="admin">{t("Admin", "Admin")}</option>
+            <option value="editor">{t("Éditeur", "Editor")}</option>
+            <option value="viewer">{t("Lecteur", "Viewer")}</option>
           </select>
           <div className="mt-1 text-2xs text-muted">{ROLE_HELP[role]}</div>
         </div>
 
         <div>
-          <label className="text-2xs font-medium text-muted">Company access</label>
+          <label className="text-2xs font-medium text-muted">{t("Accès aux entreprises", "Company access")}</label>
           <div className="mt-1 flex flex-wrap gap-3 rounded-md border-hair border-hair bg-canvas/40 p-3">
             {COMPANIES.map((c) => (
               <label key={c.id} className="flex items-center gap-1.5 text-sm text-ink">
@@ -205,38 +210,38 @@ function TeamMemberModal({
             ))}
           </div>
           <div className="mt-1 text-2xs text-muted">
-            Multi-tenant: this user will only see data for the companies you select.
+            {t("Multi-tenant : cet utilisateur ne verra que les données des entreprises sélectionnées.", "Multi-tenant: this user will only see data for the companies you select.")}
           </div>
         </div>
 
         {editing && onRemove && (
           <div className="mt-2 rounded-md border-hair border-red-200 bg-red-50/40 p-3">
             <div className="flex items-center justify-between">
-              <div className="text-2xs text-red-700">Remove this person from the team.</div>
-              <Button variant="danger" onClick={() => setConfirmRemove(true)}>Remove from team</Button>
+              <div className="text-2xs text-red-700">{t("Retirer cette personne de l'équipe.", "Remove this person from the team.")}</div>
+              <Button variant="danger" onClick={() => setConfirmRemove(true)}>{t("Retirer de l'équipe", "Remove from team")}</Button>
             </div>
           </div>
         )}
       </div>
 
       <div className="flex justify-end gap-2 border-t-hair border-hair px-4 py-3">
-        <Button variant="secondary" onClick={onClose}>Cancel</Button>
+        <Button variant="secondary" onClick={onClose}>{t("Annuler", "Cancel")}</Button>
         <Button
           variant="primary"
           disabled={!canSubmit}
           onClick={() => onSubmit({ email, role, companyAccess: access })}
         >
-          {editing ? "Save changes" : "Send invite"}
+          {editing ? t("Enregistrer", "Save changes") : t("Envoyer l'invitation", "Send invite")}
         </Button>
       </div>
 
       {confirmRemove && member && onRemove && (
         <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-black/20 p-6">
           <div className="w-full max-w-xs rounded-lg border-hair border-hair bg-card p-4 shadow-xl">
-            <p className="text-sm text-ink">Remove {member.name} from the team?</p>
+            <p className="text-sm text-ink">{t(`Retirer ${member.name} de l'équipe ?`, `Remove ${member.name} from the team?`)}</p>
             <div className="mt-3 flex justify-end gap-2">
-              <Button variant="secondary" onClick={() => setConfirmRemove(false)}>Cancel</Button>
-              <Button variant="danger" onClick={onRemove}>Remove</Button>
+              <Button variant="secondary" onClick={() => setConfirmRemove(false)}>{t("Annuler", "Cancel")}</Button>
+              <Button variant="danger" onClick={onRemove}>{t("Retirer", "Remove")}</Button>
             </div>
           </div>
         </div>

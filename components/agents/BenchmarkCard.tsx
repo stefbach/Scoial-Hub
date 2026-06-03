@@ -6,22 +6,16 @@
  */
 
 import type { BenchmarkResult, BenchmarkKPIRow, Cadence } from "@/lib/agents/types";
+import { useT } from "@/lib/i18n";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
-const PERIOD_LABELS: Record<Required<Cadence>["reportingPeriod"], string> = {
-  day: "Journalier",
-  week: "Hebdomadaire",
-  month: "Mensuel",
-  quarter: "Trimestriel",
-  year: "Annuel",
-};
-
 function AssessmentBadge({ assessment }: { assessment: BenchmarkKPIRow["assessment"] }) {
+  const t = useT();
   const config = {
-    above: { label: "↑ Au-dessus", cls: "bg-success-50 text-success-700 ring-1 ring-success-500/20" },
-    inline: { label: "≈ Dans la norme", cls: "bg-canvas text-muted ring-1 ring-hair" },
-    below: { label: "↓ En dessous", cls: "bg-danger-50 text-danger-700 ring-1 ring-danger-500/20" },
+    above: { label: t("↑ Au-dessus", "↑ Above"), cls: "bg-success-50 text-success-700 ring-1 ring-success-500/20" },
+    inline: { label: t("≈ Dans la norme", "≈ On target"), cls: "bg-canvas text-muted ring-1 ring-hair" },
+    below: { label: t("↓ En dessous", "↓ Below"), cls: "bg-danger-50 text-danger-700 ring-1 ring-danger-500/20" },
   }[assessment];
 
   return (
@@ -39,6 +33,16 @@ interface BenchmarkCardProps {
 }
 
 export function BenchmarkCard({ benchmark, cadence }: BenchmarkCardProps) {
+  const t = useT();
+
+  const PERIOD_LABELS: Record<Required<Cadence>["reportingPeriod"], string> = {
+    day: t("Journalier", "Daily"),
+    week: t("Hebdomadaire", "Weekly"),
+    month: t("Mensuel", "Monthly"),
+    quarter: t("Trimestriel", "Quarterly"),
+    year: t("Annuel", "Annual"),
+  };
+
   const reportingPeriod = cadence?.reportingPeriod ?? "month";
   const periodLabel = PERIOD_LABELS[reportingPeriod];
   const proj = benchmark.audienceCaptureProjection;
@@ -52,7 +56,7 @@ export function BenchmarkCard({ benchmark, cadence }: BenchmarkCardProps) {
             <path fillRule="evenodd" d="M3 3a1 1 0 000 2v8a2 2 0 002 2h2.586l-1.293 1.293a1 1 0 101.414 1.414L10 15.414l2.293 2.293a1 1 0 001.414-1.414L12.414 15H15a2 2 0 002-2V5a1 1 0 100-2H3zm11 4a1 1 0 10-2 0v4a1 1 0 102 0V7zm-3 1a1 1 0 10-2 0v3a1 1 0 102 0V8zM8 9a1 1 0 00-2 0v2a1 1 0 102 0V9z" clipRule="evenodd" />
           </svg>
         </div>
-        <span className="text-sm font-semibold text-ink">Benchmark sectoriel ciblé</span>
+        <span className="text-sm font-semibold text-ink">{t("Benchmark sectoriel ciblé", "Targeted sector benchmark")}</span>
         <span className="inline-flex items-center rounded-full bg-success-50 px-2 py-0.5 text-2xs font-semibold text-success-700 ring-1 ring-success-500/20">
           {periodLabel}
         </span>
@@ -65,15 +69,15 @@ export function BenchmarkCard({ benchmark, cadence }: BenchmarkCardProps) {
         {/* Tableau KPIs */}
         {benchmark.kpiRows.length > 0 && (
           <div className="px-4 py-3">
-            <div className="section-label mb-2">KPIs — Cible vs Référence sectorielle</div>
+            <div className="section-label mb-2">{t("KPIs — Cible vs Référence sectorielle", "KPIs — Campaign target vs sector reference")}</div>
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
                   <tr className="border-b border-hair">
-                    <th className="pb-1.5 text-left font-semibold text-muted">Indicateur</th>
-                    <th className="pb-1.5 text-right font-semibold text-muted">Cible campagne</th>
-                    <th className="pb-1.5 text-right font-semibold text-muted">Secteur</th>
-                    <th className="pb-1.5 text-right font-semibold text-muted">Évaluation</th>
+                    <th className="pb-1.5 text-left font-semibold text-muted">{t("Indicateur", "Indicator")}</th>
+                    <th className="pb-1.5 text-right font-semibold text-muted">{t("Cible campagne", "Campaign target")}</th>
+                    <th className="pb-1.5 text-right font-semibold text-muted">{t("Secteur", "Sector")}</th>
+                    <th className="pb-1.5 text-right font-semibold text-muted">{t("Évaluation", "Assessment")}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-hair">
@@ -97,28 +101,28 @@ export function BenchmarkCard({ benchmark, cadence }: BenchmarkCardProps) {
 
         {/* Projection de captation d'audience */}
         <div className="px-4 py-3">
-          <div className="section-label mb-2">Projection de captation d'audience</div>
+          <div className="section-label mb-2">{t("Projection de captation d'audience", "Audience capture projection")}</div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <MetricTile
-              label="Audience cible"
+              label={t("Audience cible", "Target audience")}
               value={proj.targetAudienceSize.toLocaleString("fr-FR")}
-              unit="personnes"
+              unit={t("personnes", "people")}
               color="text-ink"
             />
             <MetricTile
-              label="Portée projetée"
+              label={t("Portée projetée", "Projected reach")}
               value={proj.estimatedReach.toLocaleString("fr-FR")}
-              unit="contacts uniques"
+              unit={t("contacts uniques", "unique contacts")}
               color="text-primary-700"
             />
             <MetricTile
-              label="Taux de captation"
+              label={t("Taux de captation", "Capture rate")}
               value={`${proj.captureRate}%`}
-              unit="de l'audience cible"
+              unit={t("de l'audience cible", "of target audience")}
               color="text-success-700"
             />
             <MetricTile
-              label="Horizon"
+              label={t("Horizon", "Timeframe")}
               value={proj.timeframe}
               unit=""
               color="text-ai-text"
@@ -128,7 +132,7 @@ export function BenchmarkCard({ benchmark, cadence }: BenchmarkCardProps) {
           {/* Barre de progression du taux de captation */}
           <div className="mt-3">
             <div className="mb-1 flex items-center justify-between">
-              <span className="text-2xs text-muted">Captation de l'audience cible</span>
+              <span className="text-2xs text-muted">{t("Captation de l'audience cible", "Target audience capture")}</span>
               <span className="text-2xs font-semibold text-success-700">{proj.captureRate}%</span>
             </div>
             <div className="h-1.5 w-full overflow-hidden rounded-full bg-canvas border border-hair">
@@ -143,7 +147,7 @@ export function BenchmarkCard({ benchmark, cadence }: BenchmarkCardProps) {
         {/* Recommandations d'optimisation */}
         {benchmark.optimizationRecommendations.length > 0 && (
           <div className="px-4 py-3">
-            <div className="section-label mb-2">Recommandations d'optimisation</div>
+            <div className="section-label mb-2">{t("Recommandations d'optimisation", "Optimization recommendations")}</div>
             <ul className="space-y-1.5">
               {benchmark.optimizationRecommendations.map((rec, i) => (
                 <li key={i} className="flex items-start gap-2 text-xs text-ink">
@@ -160,7 +164,7 @@ export function BenchmarkCard({ benchmark, cadence }: BenchmarkCardProps) {
         {/* Synthèse */}
         {benchmark.summary && (
           <div className="bg-canvas px-4 py-3">
-            <div className="section-label mb-1">Synthèse</div>
+            <div className="section-label mb-1">{t("Synthèse", "Summary")}</div>
             <p className="text-xs leading-relaxed text-ink">{benchmark.summary}</p>
           </div>
         )}

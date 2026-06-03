@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { useT } from "@/lib/i18n";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -44,30 +45,30 @@ export interface ConnectorAccessCardProps {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function statusBadge(status: ConnectorStatus, loading = false) {
+function statusBadge(status: ConnectorStatus, tFn: (fr: string, en: string) => string, loading = false) {
   if (loading)
     return (
       <StatusBadge tone="gray" dot>
-        <span className="animate-pulse">Chargement…</span>
+        <span className="animate-pulse">{tFn("Chargement…", "Loading…")}</span>
       </StatusBadge>
     );
   if (status === "connected")
     return (
       <StatusBadge tone="green" dot>
-        Connecté
+        {tFn("Connecté", "Connected")}
       </StatusBadge>
     );
   if (status === "pending")
     return (
       <StatusBadge tone="amber" dot>
-        En attente
+        {tFn("En attente", "Pending")}
       </StatusBadge>
     );
   if (status === "simulated")
-    return <StatusBadge tone="blue">Mode simulé</StatusBadge>;
+    return <StatusBadge tone="blue">{tFn("Mode simulé", "Simulated mode")}</StatusBadge>;
   return (
     <StatusBadge tone="gray" dot>
-      Non configuré
+      {tFn("Non configuré", "Not configured")}
     </StatusBadge>
   );
 }
@@ -125,6 +126,7 @@ export function ConnectorAccessCard({
   envHint,
   comingSoon,
 }: ConnectorAccessCardProps) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [showWhere, setShowWhere] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -152,8 +154,8 @@ export function ConnectorAccessCard({
       setFeedback({
         ok: result.ok,
         msg: result.ok
-          ? "Configuration enregistrée avec succès."
-          : result.error ?? "Une erreur est survenue.",
+          ? t("Configuration enregistrée avec succès.", "Configuration saved successfully.")
+          : result.error ?? t("Une erreur est survenue.", "An error occurred."),
       });
       if (result.ok) setOpen(false);
     } finally {
@@ -189,9 +191,9 @@ export function ConnectorAccessCard({
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="text-sm font-bold text-ink">{label}</h3>
             {comingSoon ? (
-              <span className="chip">Bientôt</span>
+              <span className="chip">{t("Bientôt", "Coming soon")}</span>
             ) : (
-              statusBadge(status)
+              statusBadge(status, t)
             )}
           </div>
           <p className="mt-0.5 text-xs text-muted leading-relaxed">{description}</p>
@@ -227,7 +229,7 @@ export function ConnectorAccessCard({
             }}
             className="btn-secondary shrink-0 text-xs"
           >
-            {open ? "Fermer" : "Configurer"}
+            {open ? t("Fermer", "Close") : t("Configurer", "Configure")}
           </button>
         )}
       </div>
@@ -238,7 +240,7 @@ export function ConnectorAccessCard({
           {/* Envhint (connecteurs sans champs directs) */}
           {envHint && (
             <div className="mb-4 rounded-lg border border-hair bg-card px-4 py-3 text-xs text-muted leading-relaxed">
-              <span className="font-semibold text-ink">Configuration via variables d&apos;environnement : </span>
+              <span className="font-semibold text-ink">{t("Configuration via variables d'environnement :", "Configuration via environment variables:")} </span>
               {envHint}
             </div>
           )}
@@ -263,7 +265,7 @@ export function ConnectorAccessCard({
                     clipRule="evenodd"
                   />
                 </svg>
-                {showWhere ? "Masquer les instructions" : "Où trouver ces informations ?"}
+                {showWhere ? t("Masquer les instructions", "Hide instructions") : t("Où trouver ces informations ?", "Where to find this information?")}
               </button>
               {showWhere && (
                 <p className="mt-2 rounded-lg border border-hair bg-card px-3 py-2.5 text-xs text-muted leading-relaxed">
@@ -299,7 +301,7 @@ export function ConnectorAccessCard({
                       value={values[field.key]}
                       placeholder={
                         hadValue
-                          ? "••••••••  (déjà enregistré — laisser vide pour conserver)"
+                          ? t("••••••••  (déjà enregistré — laisser vide pour conserver)", "••••••••  (already saved — leave blank to keep)")
                           : (field.placeholder ?? "")
                       }
                       autoComplete={isSecret ? "new-password" : "off"}
@@ -335,7 +337,7 @@ export function ConnectorAccessCard({
                   disabled={saving}
                   className="btn-primary disabled:opacity-60 text-xs"
                 >
-                  {saving ? "Enregistrement…" : "Enregistrer"}
+                  {saving ? t("Enregistrement…", "Saving…") : t("Enregistrer", "Save")}
                 </button>
               </div>
             </form>

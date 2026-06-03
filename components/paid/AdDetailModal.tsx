@@ -10,6 +10,7 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { useCompany } from "@/lib/company-context";
 import { deleteAd, duplicateAd, toggleAd, updateAd } from "@/lib/campaign-store";
 import { eur } from "@/lib/format";
+import { useT } from "@/lib/i18n";
 import type { Ad } from "@/lib/types";
 
 interface Context {
@@ -32,6 +33,7 @@ export function AdDetailModal({
 }) {
   const router = useRouter();
   const { company } = useCompany();
+  const t = useT();
 
   const [editing, setEditing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -64,10 +66,10 @@ export function AdDetailModal({
 
   if (!ad) return null;
 
-  const status = ad.status === "active" ? "Active" : "Paused";
+  const statusLabel = ad.status === "active" ? t("Actif", "Active") : t("En pause", "Paused");
   const sourceLabel =
     ad.source === "uploaded"
-      ? "Manual upload"
+      ? t("Téléchargement manuel", "Manual upload")
       : ad.aiModel
       ? `AI · ${ad.aiModel}`
       : "AI";
@@ -98,14 +100,14 @@ export function AdDetailModal({
       <div className="flex items-start justify-between gap-3 border-b-hair border-hair px-4 py-3">
         <div className="flex items-center gap-2">
           <span className="rounded bg-canvas px-1.5 py-0.5 text-2xs font-semibold uppercase text-muted">
-            Ad
+            {t("Publicité", "Ad")}
           </span>
           <span className="text-sm font-semibold text-ink">{ad.name}</span>
-          <StatusBadge tone={ad.status === "active" ? "green" : "gray"}>{status}</StatusBadge>
+          <StatusBadge tone={ad.status === "active" ? "green" : "gray"}>{statusLabel}</StatusBadge>
         </div>
         <button
           onClick={onClose}
-          aria-label="Close"
+          aria-label={t("Fermer", "Close")}
           className="-mr-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-muted hover:bg-canvas hover:text-ink"
         >
           ✕
@@ -115,7 +117,7 @@ export function AdDetailModal({
       <div className="grid max-h-[75vh] grid-cols-[280px_1fr] overflow-hidden">
         {/* Left column */}
         <div className="overflow-y-auto bg-canvas/40 p-4">
-          <div className="section-label mb-2">Creative</div>
+          <div className="section-label mb-2">{t("Créatif", "Creative")}</div>
           <div className={`relative flex aspect-video items-center justify-center rounded-md border-hair border-hair ${ad.thumb}`}>
             {ad.source === "ai_generated" && (
               <span className="absolute right-2 top-2 inline-flex items-center gap-1 rounded bg-ai-visual px-1.5 py-0.5 text-2xs font-medium text-white">
@@ -125,9 +127,9 @@ export function AdDetailModal({
             <ImageIcon />
           </div>
           <dl className="mt-3 space-y-1 text-2xs">
-            <Row label="Format" value={ad.format ?? "—"} />
-            <Row label="Source" value={sourceLabel} />
-            <Row label="Dimensions" value={ad.dimensions ?? "—"} />
+            <Row label={t("Format", "Format")} value={ad.format ?? "—"} />
+            <Row label={t("Source", "Source")} value={sourceLabel} />
+            <Row label={t("Dimensions", "Dimensions")} value={ad.dimensions ?? "—"} />
           </dl>
         </div>
 
@@ -135,10 +137,10 @@ export function AdDetailModal({
         <div className="overflow-y-auto p-4">
           {context && (
             <>
-              <div className="section-label mb-1">Where it lives</div>
+              <div className="section-label mb-1">{t("Emplacement", "Where it lives")}</div>
               <div className="mb-3 text-xs">
                 <button onClick={goToCampaign} className="text-ai-text hover:underline">
-                  Campaigns
+                  {t("Campagnes", "Campaigns")}
                 </button>
                 <span className="mx-1 text-hair">›</span>
                 <button onClick={goToCampaign} className="text-ai-text hover:underline">
@@ -152,11 +154,11 @@ export function AdDetailModal({
             </>
           )}
 
-          <div className="section-label mb-1">Copy</div>
+          <div className="section-label mb-1">{t("Texte publicitaire", "Copy")}</div>
           {editing ? (
             <div className="mb-3 space-y-2 rounded-md border-hair border-hair bg-card p-3">
               <div>
-                <label className="text-2xs font-medium text-muted">Headline</label>
+                <label className="text-2xs font-medium text-muted">{t("Titre", "Headline")}</label>
                 <input
                   value={headline}
                   onChange={(e) => setHeadline(e.target.value)}
@@ -164,7 +166,7 @@ export function AdDetailModal({
                 />
               </div>
               <div>
-                <label className="text-2xs font-medium text-muted">Body text</label>
+                <label className="text-2xs font-medium text-muted">{t("Corps du texte", "Body text")}</label>
                 <textarea
                   value={bodyText}
                   onChange={(e) => setBodyText(e.target.value)}
@@ -173,7 +175,7 @@ export function AdDetailModal({
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="text-2xs font-medium text-muted">CTA</label>
+                  <label className="text-2xs font-medium text-muted">{t("Bouton d'action", "CTA")}</label>
                   <input
                     value={cta}
                     onChange={(e) => setCta(e.target.value)}
@@ -181,7 +183,7 @@ export function AdDetailModal({
                   />
                 </div>
                 <div>
-                  <label className="text-2xs font-medium text-muted">Destination URL</label>
+                  <label className="text-2xs font-medium text-muted">{t("URL de destination", "Destination URL")}</label>
                   <input
                     value={destination}
                     onChange={(e) => setDestination(e.target.value)}
@@ -190,8 +192,8 @@ export function AdDetailModal({
                 </div>
               </div>
               <div className="flex justify-end gap-2">
-                <Button variant="ghost" onClick={() => setEditing(false)}>Cancel</Button>
-                <Button variant="primary" onClick={saveEdit}>Save</Button>
+                <Button variant="ghost" onClick={() => setEditing(false)}>{t("Annuler", "Cancel")}</Button>
+                <Button variant="primary" onClick={saveEdit}>{t("Enregistrer", "Save")}</Button>
               </div>
             </div>
           ) : (
@@ -213,12 +215,12 @@ export function AdDetailModal({
             </div>
           )}
 
-          <div className="section-label mb-1">Performance · last 30 days</div>
+          <div className="section-label mb-1">{t("Performance · 30 derniers jours", "Performance · last 30 days")}</div>
           <div className="mb-3 grid grid-cols-4 gap-2">
-            <MiniMetric label="Spend" value={eur(ad.spend)} />
+            <MiniMetric label={t("Dépenses", "Spend")} value={eur(ad.spend)} />
             <MiniMetric label="CTR" value={ad.ctr} tone="green" />
             <MiniMetric label="CPC" value={eur(Number((ad.spend / Math.max(1, ad.conversions || 10)).toFixed(2)), { decimals: true })} />
-            <MiniMetric label="Conv." value={String(ad.conversions)} />
+            <MiniMetric label={t("Conv.", "Conv.")} value={String(ad.conversions)} />
           </div>
 
           <div>
@@ -226,17 +228,17 @@ export function AdDetailModal({
               onClick={() => setShowTechnical((s) => !s)}
               className="flex w-full items-center justify-between rounded-md px-2 py-1 text-2xs text-muted hover:bg-canvas"
             >
-              <span>Technical details</span>
+              <span>{t("Détails techniques", "Technical details")}</span>
               <span className="inline-block transition-transform" style={{ transform: showTechnical ? "rotate(90deg)" : undefined }}>▸</span>
             </button>
             {showTechnical && (
               <dl className="mt-2 grid grid-cols-2 gap-y-1 text-2xs">
-                <Row label="Created" value={ad.createdAt ? format(new Date(`${ad.createdAt}T00:00:00`), "d MMM yyyy") : "—"} />
-                <Row label="Created by" value={ad.createdBy ?? "—"} />
+                <Row label={t("Créé le", "Created")} value={ad.createdAt ? format(new Date(`${ad.createdAt}T00:00:00`), "d MMM yyyy") : "—"} />
+                <Row label={t("Créé par", "Created by")} value={ad.createdBy ?? "—"} />
                 <Row label="Meta Ad ID" value={ad.metaAdId ?? "—"} />
                 <Row label="Meta Ad Set ID" value={ad.metaAdSetId ?? "—"} />
                 <Row
-                  label="Last synced"
+                  label={t("Dernière synchro", "Last synced")}
                   value={ad.lastSyncedAt ? format(new Date(ad.lastSyncedAt), "d MMM HH:mm") : "—"}
                 />
               </dl>
@@ -248,7 +250,7 @@ export function AdDetailModal({
       {/* Footer */}
       <div className="flex items-center justify-between gap-2 border-t-hair border-hair px-4 py-3">
         <Button variant="danger" onClick={() => setConfirmDelete(true)}>
-          <span className="flex items-center gap-1.5"><TrashIcon /> Delete</span>
+          <span className="flex items-center gap-1.5"><TrashIcon /> {t("Supprimer", "Delete")}</span>
         </Button>
         <div className="flex gap-2">
           <Button
@@ -258,7 +260,7 @@ export function AdDetailModal({
               onChanged();
             }}
           >
-            {ad.status === "active" ? "Pause" : "Activate"}
+            {ad.status === "active" ? t("Mettre en pause", "Pause") : t("Activer", "Activate")}
           </Button>
           <Button
             variant="secondary"
@@ -267,10 +269,10 @@ export function AdDetailModal({
               onChanged();
             }}
           >
-            Duplicate
+            {t("Dupliquer", "Duplicate")}
           </Button>
           <Button variant="primary" onClick={() => setEditing((e) => !e)}>
-            {editing ? "Close edit" : "Edit"}
+            {editing ? t("Fermer l'édition", "Close edit") : t("Modifier", "Edit")}
           </Button>
         </div>
       </div>
@@ -278,9 +280,9 @@ export function AdDetailModal({
       {confirmDelete && (
         <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-black/20 p-6">
           <div className="w-full max-w-xs rounded-lg border-hair border-hair bg-card p-4 shadow-xl">
-            <p className="text-sm text-ink">Delete this ad? This cannot be undone.</p>
+            <p className="text-sm text-ink">{t("Supprimer cette publicité ? Cette action est irréversible.", "Delete this ad? This cannot be undone.")}</p>
             <div className="mt-4 flex justify-end gap-2">
-              <Button variant="secondary" onClick={() => setConfirmDelete(false)}>Cancel</Button>
+              <Button variant="secondary" onClick={() => setConfirmDelete(false)}>{t("Annuler", "Cancel")}</Button>
               <Button
                 variant="danger"
                 onClick={() => {
@@ -289,7 +291,7 @@ export function AdDetailModal({
                   onClose();
                 }}
               >
-                Delete
+                {t("Supprimer", "Delete")}
               </Button>
             </div>
           </div>

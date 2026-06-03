@@ -7,26 +7,9 @@ import { DatePicker } from "@/components/ui/DateTimePicker";
 import { SubHeader } from "./shared";
 import { AUDIT_LOG, COMPANIES, ORG_NAME, TEAM, type AuditEntity, type AuditEvent } from "@/lib/mock-data";
 import { downloadFile } from "@/lib/history-store";
+import { useT } from "@/lib/i18n";
 
 type RangeId = "7d" | "30d" | "90d" | "1y" | "all" | "custom";
-const RANGE_LABEL: Record<RangeId, string> = {
-  "7d": "Last 7 days",
-  "30d": "Last 30 days",
-  "90d": "Last 90 days",
-  "1y": "Last year",
-  all: "All time",
-  custom: "Custom range",
-};
-
-const ENTITY_LABEL: Record<AuditEntity | "all", string> = {
-  all: "All",
-  post: "Posts",
-  campaign: "Campaigns",
-  audience: "Audiences",
-  ad_safety: "Ad Safety",
-  team: "Team",
-  settings: "Settings",
-};
 
 const ENTITY_VALUES: (AuditEntity | "all")[] = ["all", "post", "campaign", "audience", "ad_safety", "team", "settings"];
 const RANGE_VALUES = new Set<RangeId>(["7d", "30d", "90d", "1y", "all", "custom"]);
@@ -56,6 +39,27 @@ export function AuditLog({
   initialCompany?: string;
   initialRange?: string;
 }) {
+  const t = useT();
+
+  const RANGE_LABEL: Record<RangeId, string> = {
+    "7d": t("7 derniers jours", "Last 7 days"),
+    "30d": t("30 derniers jours", "Last 30 days"),
+    "90d": t("90 derniers jours", "Last 90 days"),
+    "1y": t("Dernière année", "Last year"),
+    all: t("Tout le temps", "All time"),
+    custom: t("Plage personnalisée", "Custom range"),
+  };
+
+  const ENTITY_LABEL: Record<AuditEntity | "all", string> = {
+    all: t("Tous", "All"),
+    post: t("Publications", "Posts"),
+    campaign: t("Campagnes", "Campaigns"),
+    audience: t("Audiences", "Audiences"),
+    ad_safety: t("Sécurité pub.", "Ad Safety"),
+    team: t("Équipe", "Team"),
+    settings: t("Paramètres", "Settings"),
+  };
+
   const [search, setSearch] = useState("");
   const [entityFilter, setEntityFilter] = useState<AuditEntity | "all">(
     initialFilter && ENTITY_VALUES.includes(initialFilter as AuditEntity)
@@ -90,9 +94,9 @@ export function AuditLog({
       if (userFilter !== "all" && e.userId !== userFilter) return false;
       if (companyFilter !== "all" && e.companyId !== companyFilter) return false;
       if (search.trim() && !e.description.toLowerCase().includes(search.toLowerCase())) return false;
-      const t = new Date(e.timestamp);
-      if (start && t < start) return false;
-      if (end && t > end) return false;
+      const ts = new Date(e.timestamp);
+      if (start && ts < start) return false;
+      if (end && ts > end) return false;
       return true;
     });
   }, [search, entityFilter, userFilter, companyFilter, start, end]);
@@ -131,7 +135,7 @@ export function AuditLog({
   return (
     <div>
       <div className="mb-3 flex items-center justify-between">
-        <SubHeader title="Audit log" scope="org" scopeLabel={ORG_NAME} />
+        <SubHeader title={t("Journal d'audit", "Audit log")} scope="org" scopeLabel={ORG_NAME} />
         <Dropdown
           align="right"
           trigger={(open, toggle) => (
@@ -139,14 +143,14 @@ export function AuditLog({
               onClick={toggle}
               className="rounded-md border-hair border-hair bg-card px-3 py-1.5 text-sm text-ink hover:bg-canvas"
             >
-              Export
+              {t("Exporter", "Export")}
             </button>
           )}
         >
           {(close) => (
             <>
-              <DropdownItem onClick={() => { onExport("csv"); close(); }}>Export as CSV</DropdownItem>
-              <DropdownItem onClick={() => { onExport("json"); close(); }}>Export as JSON</DropdownItem>
+              <DropdownItem onClick={() => { onExport("csv"); close(); }}>{t("Exporter en CSV", "Export as CSV")}</DropdownItem>
+              <DropdownItem onClick={() => { onExport("json"); close(); }}>{t("Exporter en JSON", "Export as JSON")}</DropdownItem>
             </>
           )}
         </Dropdown>
@@ -156,14 +160,14 @@ export function AuditLog({
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search descriptions…"
+          placeholder={t("Rechercher dans les descriptions…", "Search descriptions…")}
           className="flex-1 min-w-[180px] rounded-md border-hair border-hair bg-card px-3 py-2 text-sm text-ink placeholder:text-muted focus:outline-none"
         />
         <Dropdown
           align="right"
           trigger={(open, toggle) => (
             <button onClick={toggle} className="rounded-md border-hair border-hair bg-card px-3 py-2 text-xs text-ink hover:bg-canvas">
-              Action: {ENTITY_LABEL[entityFilter]}
+              {t("Action :", "Action:")} {ENTITY_LABEL[entityFilter]}
             </button>
           )}
         >
@@ -179,13 +183,13 @@ export function AuditLog({
           align="right"
           trigger={(open, toggle) => (
             <button onClick={toggle} className="rounded-md border-hair border-hair bg-card px-3 py-2 text-xs text-ink hover:bg-canvas">
-              User: {userFilter === "all" ? "All" : TEAM.find((t) => t.id === userFilter)?.name ?? "All"}
+              {t("Utilisateur :", "User:")} {userFilter === "all" ? t("Tous", "All") : TEAM.find((u) => u.id === userFilter)?.name ?? t("Tous", "All")}
             </button>
           )}
         >
           {(close) => (
             <>
-              <DropdownItem active={userFilter === "all"} onClick={() => { setUserFilter("all"); close(); }}>All</DropdownItem>
+              <DropdownItem active={userFilter === "all"} onClick={() => { setUserFilter("all"); close(); }}>{t("Tous", "All")}</DropdownItem>
               {TEAM.map((u) => (
                 <DropdownItem key={u.id} active={userFilter === u.id} onClick={() => { setUserFilter(u.id); close(); }}>
                   {u.name}
@@ -198,13 +202,13 @@ export function AuditLog({
           align="right"
           trigger={(open, toggle) => (
             <button onClick={toggle} className="rounded-md border-hair border-hair bg-card px-3 py-2 text-xs text-ink hover:bg-canvas">
-              Company: {companyFilter === "all" ? "All" : COMPANIES.find((c) => c.id === companyFilter)?.code ?? "All"}
+              {t("Entreprise :", "Company:")} {companyFilter === "all" ? t("Toutes", "All") : COMPANIES.find((c) => c.id === companyFilter)?.code ?? t("Toutes", "All")}
             </button>
           )}
         >
           {(close) => (
             <>
-              <DropdownItem active={companyFilter === "all"} onClick={() => { setCompanyFilter("all"); close(); }}>All</DropdownItem>
+              <DropdownItem active={companyFilter === "all"} onClick={() => { setCompanyFilter("all"); close(); }}>{t("Toutes", "All")}</DropdownItem>
               {COMPANIES.map((c) => (
                 <DropdownItem key={c.id} active={companyFilter === c.id} onClick={() => { setCompanyFilter(c.id); close(); }}>
                   {c.name}
@@ -233,16 +237,16 @@ export function AuditLog({
 
       {range === "custom" && (
         <div className="mb-3 flex items-center gap-2">
-          <span className="text-2xs text-muted">From</span>
+          <span className="text-2xs text-muted">{t("Du", "From")}</span>
           <div className="w-40"><DatePicker value={customFrom ?? NOW} onChange={setCustomFrom} /></div>
-          <span className="text-2xs text-muted">to</span>
+          <span className="text-2xs text-muted">{t("au", "to")}</span>
           <div className="w-40"><DatePicker value={customTo ?? NOW} onChange={setCustomTo} /></div>
         </div>
       )}
 
       <div className="card divide-y divide-hair">
         {pageRows.length === 0 ? (
-          <div className="px-3 py-8 text-center text-sm text-muted">No events match these filters.</div>
+          <div className="px-3 py-8 text-center text-sm text-muted">{t("Aucun événement ne correspond à ces filtres.", "No events match these filters.")}</div>
         ) : (
           pageRows.map((e) => (
             <div key={e.id}>
@@ -264,14 +268,14 @@ export function AuditLog({
                 <div className="bg-canvas/40 px-3 py-3 text-2xs text-muted">
                   <dl className="space-y-1">
                     {e.before && (
-                      <Row label="Before" value={JSON.stringify(e.before)} />
+                      <Row label={t("Avant", "Before")} value={JSON.stringify(e.before)} />
                     )}
                     {e.after && (
-                      <Row label="After" value={JSON.stringify(e.after)} />
+                      <Row label={t("Après", "After")} value={JSON.stringify(e.after)} />
                     )}
-                    <Row label="IP address" value={e.ipAddress} />
-                    <Row label="User agent" value={e.userAgent} />
-                    <Row label="Event ID" value={e.id} />
+                    <Row label={t("Adresse IP", "IP address")} value={e.ipAddress} />
+                    <Row label={t("Agent utilisateur", "User agent")} value={e.userAgent} />
+                    <Row label={t("ID événement", "Event ID")} value={e.id} />
                   </dl>
                 </div>
               )}
@@ -281,21 +285,21 @@ export function AuditLog({
       </div>
 
       <div className="mt-3 flex items-center justify-between text-2xs text-muted">
-        <span>Page {page} of {totalPages} · {filtered.length} event{filtered.length === 1 ? "" : "s"}</span>
+        <span>{t("Page", "Page")} {page} {t("sur", "of")} {totalPages} · {filtered.length} {filtered.length === 1 ? t("événement", "event") : t("événements", "events")}</span>
         <div className="flex gap-2">
           <button
             onClick={() => setPage((p) => Math.max(1, p - 1))}
             disabled={page === 1}
             className="rounded-md border-hair border-hair bg-card px-2 py-1 text-ink hover:bg-canvas disabled:cursor-not-allowed disabled:opacity-50"
           >
-            ← Prev
+            {t("← Préc.", "← Prev")}
           </button>
           <button
             onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
             disabled={page === totalPages}
             className="rounded-md border-hair border-hair bg-card px-2 py-1 text-ink hover:bg-canvas disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Next →
+            {t("Suiv. →", "Next →")}
           </button>
         </div>
       </div>

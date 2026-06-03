@@ -10,61 +10,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import type { AutonomyLevel, Cadence } from "@/lib/agents/types";
 import { PRO_PROFILES } from "@/lib/agents/profiles";
-
-// ── Données statiques ─────────────────────────────────────────────────────────
-
-const AUTONOMY_OPTIONS: {
-  level: AutonomyLevel;
-  label: string;
-  description: string;
-  badge: string;
-}[] = [
-  {
-    level: 1,
-    label: "Recommandation",
-    description:
-      "Les agents produisent uniquement des suggestions. Aucune action n'est exécutée, aucune publication n'est initiée.",
-    badge: "bg-canvas text-muted ring-1 ring-hair",
-  },
-  {
-    level: 2,
-    label: "Semi-auto",
-    description:
-      "Les agents simulent l'exécution complète. Vous validez manuellement avant publication ou activation de la campagne.",
-    badge: "bg-ai-textbg text-ai-text ring-1 ring-ai-text/20",
-  },
-  {
-    level: 3,
-    label: "Auto (garde-fous)",
-    description:
-      "Exécution automatique si la conformité est validée et si le budget reste dans les limites autorisées (≤ 500€/j). Bloqué sinon.",
-    badge: "bg-success-50 text-success-700 ring-1 ring-success-500/20",
-  },
-];
-
-const DAY_OPTIONS = [
-  { value: 1, label: "Lun" },
-  { value: 2, label: "Mar" },
-  { value: 3, label: "Mer" },
-  { value: 4, label: "Jeu" },
-  { value: 5, label: "Ven" },
-  { value: 6, label: "Sam" },
-  { value: 0, label: "Dim" },
-];
-
-const REPORTING_OPTIONS: { value: Cadence["reportingPeriod"]; label: string }[] = [
-  { value: "day", label: "Journalier" },
-  { value: "week", label: "Hebdomadaire" },
-  { value: "month", label: "Mensuel" },
-  { value: "quarter", label: "Trimestriel" },
-  { value: "year", label: "Annuel" },
-];
-
-const EXAMPLE_OBJECTIVES = [
-  "Lance une campagne d'acquisition pour Tibok à 50€/j",
-  "Crée un post de notoriété pour Obesity Care Clinic",
-  "Génère une annonce Meta pour Cabo Verde Medical à 100€/j",
-];
+import { useT } from "@/lib/i18n";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -81,9 +27,76 @@ interface RunPanelProps {
   onRun: (payload: RunPayload) => void;
 }
 
+// ── Données statiques (valeurs sans label) ────────────────────────────────────
+
+type AutonomyOption = {
+  level: AutonomyLevel;
+  labelFr: string;
+  labelEn: string;
+  descFr: string;
+  descEn: string;
+  badge: string;
+};
+
+const AUTONOMY_OPTIONS: AutonomyOption[] = [
+  {
+    level: 1,
+    labelFr: "Recommandation",
+    labelEn: "Recommendation",
+    descFr: "Les agents produisent uniquement des suggestions. Aucune action n'est exécutée, aucune publication n'est initiée.",
+    descEn: "Agents produce suggestions only. No action is taken, no post is initiated.",
+    badge: "bg-canvas text-muted ring-1 ring-hair",
+  },
+  {
+    level: 2,
+    labelFr: "Semi-auto",
+    labelEn: "Semi-auto",
+    descFr: "Les agents simulent l'exécution complète. Vous validez manuellement avant publication ou activation de la campagne.",
+    descEn: "Agents simulate the full execution. You validate manually before publishing or activating the campaign.",
+    badge: "bg-ai-textbg text-ai-text ring-1 ring-ai-text/20",
+  },
+  {
+    level: 3,
+    labelFr: "Auto (garde-fous)",
+    labelEn: "Auto (guardrails)",
+    descFr: "Exécution automatique si la conformité est validée et si le budget reste dans les limites autorisées (≤ 500€/j). Bloqué sinon.",
+    descEn: "Automatic execution if compliance passes and budget stays within allowed limits (≤ €500/day). Blocked otherwise.",
+    badge: "bg-success-50 text-success-700 ring-1 ring-success-500/20",
+  },
+];
+
+type DayOption = { value: number; labelFr: string; labelEn: string };
+
+const DAY_OPTIONS: DayOption[] = [
+  { value: 1, labelFr: "Lun", labelEn: "Mon" },
+  { value: 2, labelFr: "Mar", labelEn: "Tue" },
+  { value: 3, labelFr: "Mer", labelEn: "Wed" },
+  { value: 4, labelFr: "Jeu", labelEn: "Thu" },
+  { value: 5, labelFr: "Ven", labelEn: "Fri" },
+  { value: 6, labelFr: "Sam", labelEn: "Sat" },
+  { value: 0, labelFr: "Dim", labelEn: "Sun" },
+];
+
+type ReportingOption = { value: Cadence["reportingPeriod"]; labelFr: string; labelEn: string };
+
+const REPORTING_OPTIONS: ReportingOption[] = [
+  { value: "day", labelFr: "Journalier", labelEn: "Daily" },
+  { value: "week", labelFr: "Hebdomadaire", labelEn: "Weekly" },
+  { value: "month", labelFr: "Mensuel", labelEn: "Monthly" },
+  { value: "quarter", labelFr: "Trimestriel", labelEn: "Quarterly" },
+  { value: "year", labelFr: "Annuel", labelEn: "Annual" },
+];
+
+const EXAMPLE_OBJECTIVES = [
+  "Lance une campagne d'acquisition pour Tibok à 50€/j",
+  "Crée un post de notoriété pour Obesity Care Clinic",
+  "Génère une annonce Meta pour Cabo Verde Medical à 100€/j",
+];
+
 // ── Composant principal ────────────────────────────────────────────────────────
 
 export function RunPanel({ loading, onRun }: RunPanelProps) {
+  const t = useT();
   const [objective, setObjective] = useState("");
   const [autonomy, setAutonomy] = useState<AutonomyLevel>(2);
   const [profileId, setProfileId] = useState(PRO_PROFILES[0].id);
@@ -135,18 +148,21 @@ export function RunPanel({ loading, onRun }: RunPanelProps) {
           <SparklesIcon className="h-4 w-4 text-primary-700" />
         </div>
         <div>
-          <h2 className="text-sm font-semibold text-ink">Lancer un pilotage IA</h2>
-          <p className="text-2xs text-muted">Décrivez votre objectif en langage naturel</p>
+          <h2 className="text-sm font-semibold text-ink">{t("Lancer un pilotage IA", "Launch AI orchestration")}</h2>
+          <p className="text-2xs text-muted">{t("Décrivez votre objectif en langage naturel", "Describe your goal in natural language")}</p>
         </div>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5">
         {/* ── Objectif ─────────────────────────────────────────────── */}
         <div>
-          <label className="section-label mb-1.5 block">Objectif de campagne</label>
+          <label className="section-label mb-1.5 block">{t("Objectif de campagne", "Campaign objective")}</label>
           <textarea
             className="input min-h-[80px] resize-y"
-            placeholder="Ex : Lance une campagne d'acquisition pour Tibok à 50€/j sur Facebook et Instagram"
+            placeholder={t(
+              "Ex : Lance une campagne d'acquisition pour Tibok à 50€/j sur Facebook et Instagram",
+              "E.g.: Launch an acquisition campaign for Tibok at €50/day on Facebook and Instagram"
+            )}
             value={objective}
             onChange={(e) => setObjective(e.target.value)}
             disabled={loading}
@@ -169,7 +185,7 @@ export function RunPanel({ loading, onRun }: RunPanelProps) {
 
         {/* ── Profil professionnel ──────────────────────────────────── */}
         <div>
-          <label className="section-label mb-1.5 block">Profil professionnel</label>
+          <label className="section-label mb-1.5 block">{t("Profil professionnel", "Professional profile")}</label>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {PRO_PROFILES.map((profile) => {
               const selected = profileId === profile.id;
@@ -196,11 +212,11 @@ export function RunPanel({ loading, onRun }: RunPanelProps) {
           {/* Détail du profil sélectionné */}
           <div className="mt-2 rounded-lg border border-hair bg-canvas px-3 py-2">
             <div className="flex flex-wrap gap-1.5">
-              <span className="section-label">Plateformes :</span>
+              <span className="section-label">{t("Plateformes :", "Platforms:")}</span>
               {selectedProfile.priorityPlatforms.slice(0, 3).map((p) => (
                 <span key={p} className="chip text-2xs">{p}</span>
               ))}
-              <span className="section-label ml-2">KPI cible :</span>
+              <span className="section-label ml-2">{t("KPI cible :", "Target KPI:")}</span>
               <span className="chip text-2xs">
                 CTR {selectedProfile.sectorKPIs.ctr.min}–{selectedProfile.sectorKPIs.ctr.max}%
               </span>
@@ -219,7 +235,7 @@ export function RunPanel({ loading, onRun }: RunPanelProps) {
             disabled={loading}
             className="flex w-full items-center justify-between px-4 py-2.5 bg-canvas hover:bg-card transition-colors"
           >
-            <span className="section-label">Cadence & benchmark</span>
+            <span className="section-label">{t("Cadence & benchmark", "Cadence & benchmark")}</span>
             <svg
               viewBox="0 0 20 20"
               fill="currentColor"
@@ -234,7 +250,7 @@ export function RunPanel({ loading, onRun }: RunPanelProps) {
               {/* Publications par jour */}
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
                 <div>
-                  <label className="section-label mb-1 block">Publications/jour</label>
+                  <label className="section-label mb-1 block">{t("Publications/jour", "Posts/day")}</label>
                   <input
                     type="number"
                     min={1}
@@ -248,7 +264,7 @@ export function RunPanel({ loading, onRun }: RunPanelProps) {
 
                 {/* Période de reporting */}
                 <div className="sm:col-span-1">
-                  <label className="section-label mb-1 block">Période de reporting</label>
+                  <label className="section-label mb-1 block">{t("Période de reporting", "Reporting period")}</label>
                   <select
                     value={reportingPeriod}
                     onChange={(e) => setReportingPeriod(e.target.value as Cadence["reportingPeriod"])}
@@ -257,7 +273,7 @@ export function RunPanel({ loading, onRun }: RunPanelProps) {
                   >
                     {REPORTING_OPTIONS.map((opt) => (
                       <option key={opt.value} value={opt.value}>
-                        {opt.label}
+                        {t(opt.labelFr, opt.labelEn)}
                       </option>
                     ))}
                   </select>
@@ -265,7 +281,7 @@ export function RunPanel({ loading, onRun }: RunPanelProps) {
 
                 {/* Heure 1 */}
                 <div>
-                  <label className="section-label mb-1 block">Heure 1</label>
+                  <label className="section-label mb-1 block">{t("Heure 1", "Time slot 1")}</label>
                   <input
                     type="time"
                     value={postingHour1}
@@ -277,7 +293,7 @@ export function RunPanel({ loading, onRun }: RunPanelProps) {
 
                 {/* Heure 2 */}
                 <div>
-                  <label className="section-label mb-1 block">Heure 2 (optionnel)</label>
+                  <label className="section-label mb-1 block">{t("Heure 2 (optionnel)", "Time slot 2 (optional)")}</label>
                   <input
                     type="time"
                     value={postingHour2}
@@ -290,7 +306,7 @@ export function RunPanel({ loading, onRun }: RunPanelProps) {
 
               {/* Jours de publication */}
               <div>
-                <label className="section-label mb-1.5 block">Jours de publication</label>
+                <label className="section-label mb-1.5 block">{t("Jours de publication", "Publishing days")}</label>
                 <div className="flex flex-wrap gap-1.5">
                   {DAY_OPTIONS.map((day) => {
                     const active = postingDays.includes(day.value);
@@ -306,7 +322,7 @@ export function RunPanel({ loading, onRun }: RunPanelProps) {
                             : "border border-hair bg-card text-muted hover:border-primary-200 hover:text-ink"
                         }`}
                       >
-                        {day.label}
+                        {t(day.labelFr, day.labelEn)}
                       </button>
                     );
                   })}
@@ -315,18 +331,24 @@ export function RunPanel({ loading, onRun }: RunPanelProps) {
 
               {/* Cible de benchmark */}
               <div>
-                <label className="section-label mb-1.5 block">Cible de benchmark</label>
+                <label className="section-label mb-1.5 block">{t("Cible de benchmark", "Benchmark target")}</label>
                 <input
                   type="text"
                   className="input w-full"
-                  placeholder="Ex : concurrents téléconsultation France, Doctolib, Qare…"
+                  placeholder={t(
+                    "Ex : concurrents téléconsultation France, Doctolib, Qare…",
+                    "E.g.: telemedicine competitors France, Doctolib, Qare…"
+                  )}
                   value={benchmarkTarget}
                   onChange={(e) => setBenchmarkTarget(e.target.value)}
                   disabled={loading}
                   maxLength={200}
                 />
                 <p className="mt-1 text-2xs text-muted">
-                  Décrivez les concurrents ou références sectorielles à utiliser pour le benchmark. Laissez vide pour utiliser les benchmarks sectoriels du profil.
+                  {t(
+                    "Décrivez les concurrents ou références sectorielles à utiliser pour le benchmark. Laissez vide pour utiliser les benchmarks sectoriels du profil.",
+                    "Describe the competitors or sector references to use for benchmarking. Leave blank to use the profile's sector benchmarks."
+                  )}
                 </p>
               </div>
             </div>
@@ -335,7 +357,7 @@ export function RunPanel({ loading, onRun }: RunPanelProps) {
 
         {/* ── Niveau d'autonomie ────────────────────────────────────── */}
         <div>
-          <label className="section-label mb-1.5 block">Niveau d'autonomie</label>
+          <label className="section-label mb-1.5 block">{t("Niveau d'autonomie", "Autonomy level")}</label>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
             {AUTONOMY_OPTIONS.map((opt) => {
               const selected = autonomy === opt.level;
@@ -357,9 +379,9 @@ export function RunPanel({ loading, onRun }: RunPanelProps) {
                     >
                       N{opt.level}
                     </span>
-                    <span className="text-xs font-semibold text-ink">{opt.label}</span>
+                    <span className="text-xs font-semibold text-ink">{t(opt.labelFr, opt.labelEn)}</span>
                   </div>
-                  <p className="text-2xs leading-relaxed text-muted">{opt.description}</p>
+                  <p className="text-2xs leading-relaxed text-muted">{t(opt.descFr, opt.descEn)}</p>
                 </button>
               );
             })}
@@ -377,12 +399,12 @@ export function RunPanel({ loading, onRun }: RunPanelProps) {
             {loading ? (
               <>
                 <LoadingSpinner />
-                Pilotage en cours…
+                {t("Pilotage en cours…", "Orchestrating…")}
               </>
             ) : (
               <>
                 <SparklesIcon className="h-3.5 w-3.5" />
-                Lancer le pilotage
+                {t("Lancer le pilotage", "Launch orchestration")}
               </>
             )}
           </Button>

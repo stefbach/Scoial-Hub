@@ -8,16 +8,8 @@ import { Pills } from "@/components/ui/Tabs";
 import { DatePicker } from "@/components/ui/DateTimePicker";
 import { useCompany } from "@/lib/company-context";
 import { updateCampaign } from "@/lib/campaign-store";
+import { useT } from "@/lib/i18n";
 import type { Campaign } from "@/lib/types";
-
-const OBJECTIVES = [
-  { id: "awareness", label: "Awareness" },
-  { id: "traffic", label: "Traffic" },
-  { id: "engagement", label: "Engagement" },
-  { id: "leads", label: "Leads" },
-  { id: "sales", label: "Sales" },
-  { id: "conversions", label: "Conversions" },
-];
 
 function platformsToId(platforms: ("FB" | "IG")[]): string {
   if (platforms.includes("FB") && platforms.includes("IG")) return "fbig";
@@ -37,6 +29,7 @@ export function NewCampaignModal({
   onSaved?: () => void;
 }) {
   const { company, data } = useCompany();
+  const t = useT();
   const editing = !!campaign;
 
   const [name, setName] = useState(campaign?.name ?? "");
@@ -46,6 +39,15 @@ export function NewCampaignModal({
   const [endDate, setEndDate] = useState<Date | null>(
     campaign?.endDate ? new Date(`${campaign.endDate}T00:00:00`) : null
   );
+
+  const OBJECTIVES = [
+    { id: "awareness", label: t("Notoriété", "Awareness") },
+    { id: "traffic", label: t("Trafic", "Traffic") },
+    { id: "engagement", label: t("Engagement", "Engagement") },
+    { id: "leads", label: t("Prospects", "Leads") },
+    { id: "sales", label: t("Ventes", "Sales") },
+    { id: "conversions", label: t("Conversions", "Conversions") },
+  ];
 
   const save = () => {
     if (!editing || !campaign) {
@@ -65,16 +67,16 @@ export function NewCampaignModal({
     <Modal open={open} onClose={onClose} width="max-w-xl">
       <div className="border-b-hair border-hair px-4 py-3">
         <div className="text-sm font-semibold text-ink">
-          {editing ? "Edit campaign" : "New campaign"}
+          {editing ? t("Modifier la campagne", "Edit campaign") : t("Nouvelle campagne", "New campaign")}
         </div>
         <div className="text-2xs text-muted">
-          Company: <span className="font-medium text-ink">{company.code}</span>
+          {t("Entreprise", "Company")}: <span className="font-medium text-ink">{company.code}</span>
         </div>
       </div>
 
       <div className="max-h-[70vh] overflow-y-auto p-4">
         <div className="mb-3">
-          <label className="text-2xs font-medium text-muted">Campaign name</label>
+          <label className="text-2xs font-medium text-muted">{t("Nom de la campagne", "Campaign name")}</label>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -84,12 +86,12 @@ export function NewCampaignModal({
         </div>
 
         <div className="mb-3">
-          <label className="mb-1 block text-2xs font-medium text-muted">Objective</label>
+          <label className="mb-1 block text-2xs font-medium text-muted">{t("Objectif", "Objective")}</label>
           <Pills options={OBJECTIVES} defaultId={(campaign?.objective ?? "leads").toLowerCase()} />
         </div>
 
         <div className="mb-3">
-          <label className="mb-1 block text-2xs font-medium text-muted">Platforms</label>
+          <label className="mb-1 block text-2xs font-medium text-muted">{t("Plateformes", "Platforms")}</label>
           <Pills
             options={[
               { id: "fb", label: "Facebook" },
@@ -103,34 +105,34 @@ export function NewCampaignModal({
 
         <div className="mb-3 grid grid-cols-2 gap-3">
           <div>
-            <label className="text-2xs font-medium text-muted">Budget type</label>
+            <label className="text-2xs font-medium text-muted">{t("Type de budget", "Budget type")}</label>
             <select className="mt-1 w-full rounded-md border-hair border-hair bg-card px-3 py-2 text-sm text-ink focus:outline-none">
-              <option>Daily budget</option>
-              <option>Lifetime budget</option>
+              <option>{t("Budget journalier", "Daily budget")}</option>
+              <option>{t("Budget total", "Lifetime budget")}</option>
             </select>
           </div>
           <div>
-            <label className="text-2xs font-medium text-muted">Amount</label>
+            <label className="text-2xs font-medium text-muted">{t("Montant", "Amount")}</label>
             <div className="mt-1 flex items-center gap-2 rounded-md border-hair border-hair bg-card px-3 py-2">
               <span className="text-2xs text-muted">EUR</span>
               <input
                 defaultValue={String(campaign?.dailyBudget ?? 40)}
                 className="w-full bg-transparent text-sm text-ink focus:outline-none"
               />
-              <span className="text-2xs text-muted">/ day</span>
+              <span className="text-2xs text-muted">{t("/ jour", "/ day")}</span>
             </div>
           </div>
         </div>
 
         <div className="mb-3 grid grid-cols-2 gap-3">
           <div>
-            <label className="text-2xs font-medium text-muted">Start date</label>
+            <label className="text-2xs font-medium text-muted">{t("Date de début", "Start date")}</label>
             <div className="mt-1">
               <DatePicker value={startDate} onChange={setStartDate} />
             </div>
           </div>
           <div>
-            <label className="text-2xs font-medium text-muted">End date</label>
+            <label className="text-2xs font-medium text-muted">{t("Date de fin", "End date")}</label>
             <div className="mt-1 flex items-center gap-2">
               {endDate ? (
                 <>
@@ -142,7 +144,7 @@ export function NewCampaignModal({
                     onClick={() => setEndDate(null)}
                     className="rounded-md px-2 py-2 text-2xs text-muted hover:bg-canvas hover:text-ink"
                   >
-                    Clear
+                    {t("Effacer", "Clear")}
                   </button>
                 </>
               ) : (
@@ -151,7 +153,7 @@ export function NewCampaignModal({
                   onClick={() => setEndDate(startDate)}
                   className="w-full rounded-md border-hair border-hair bg-card px-3 py-2 text-left text-sm text-muted hover:bg-canvas"
                 >
-                  No end date
+                  {t("Pas de date de fin", "No end date")}
                 </button>
               )}
             </div>
@@ -159,18 +161,24 @@ export function NewCampaignModal({
         </div>
 
         <div className="rounded-md border-hair border-amber-200 bg-amber-50 px-3 py-2 text-2xs text-amber-700">
-          A budget cap is required on every campaign. Spend stops at {company.code}&apos;s monthly cap of EUR {data.adSafety.monthlyCap.toLocaleString()}.
+          {t(
+            `Un plafond budgétaire est requis pour chaque campagne. Les dépenses s'arrêtent au plafond mensuel de ${company.code} : EUR ${data.adSafety.monthlyCap.toLocaleString()}.`,
+            `A budget cap is required on every campaign. Spend stops at ${company.code}'s monthly cap of EUR ${data.adSafety.monthlyCap.toLocaleString()}.`
+          )}
         </div>
       </div>
 
       <div className="flex items-center justify-between border-t-hair border-hair px-4 py-3">
         <span className="text-2xs text-muted">
-          Safeguards active · Read-only off · EUR {data.adSafety.doubleConfirmThreshold}/day double-confirm
+          {t(
+            `Protections actives · Lecture seule désactivée · Confirmation double EUR ${data.adSafety.doubleConfirmThreshold}/jour`,
+            `Safeguards active · Read-only off · EUR ${data.adSafety.doubleConfirmThreshold}/day double-confirm`
+          )}
         </span>
         <div className="flex gap-2">
-          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button variant="secondary" onClick={onClose}>{t("Annuler", "Cancel")}</Button>
           <Button variant="primary" onClick={save}>
-            {editing ? "Save changes" : "Create campaign"}
+            {editing ? t("Enregistrer les modifications", "Save changes") : t("Créer la campagne", "Create campaign")}
           </Button>
         </div>
       </div>

@@ -7,12 +7,14 @@
  */
 
 import type { EnvironmentAnalysis as IEnvironmentAnalysis } from "@/lib/agents/types";
+import { useT } from "@/lib/i18n";
 
 interface EnvironmentAnalysisProps {
   analysis: IEnvironmentAnalysis;
 }
 
 export function EnvironmentAnalysis({ analysis }: EnvironmentAnalysisProps) {
+  const t = useT();
   return (
     <div className="card overflow-hidden">
       {/* En-tête */}
@@ -22,9 +24,9 @@ export function EnvironmentAnalysis({ analysis }: EnvironmentAnalysisProps) {
             <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zm6-4a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zm6-3a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
           </svg>
         </div>
-        <span className="text-sm font-semibold text-ink">Analyse d'environnement</span>
+        <span className="text-sm font-semibold text-ink">{t("Analyse d'environnement", "Environment analysis")}</span>
         <span className="ml-auto inline-flex items-center rounded-full bg-primary-50 px-2 py-0.5 text-2xs font-semibold text-primary-700 ring-1 ring-primary-200">
-          Pro + Sémantique
+          {t("Pro + Sémantique", "Pro + Semantic")}
         </span>
       </div>
 
@@ -33,7 +35,7 @@ export function EnvironmentAnalysis({ analysis }: EnvironmentAnalysisProps) {
         <Section
           icon={<MarketIcon />}
           iconBg="bg-primary-50 border-primary-200 text-primary-700"
-          title="Marché & concurrence"
+          title={t("Marché & concurrence", "Market & competition")}
         >
           <p className="text-xs leading-relaxed text-ink">{analysis.marketOverview}</p>
         </Section>
@@ -42,7 +44,7 @@ export function EnvironmentAnalysis({ analysis }: EnvironmentAnalysisProps) {
         <Section
           icon={<SemanticsIcon />}
           iconBg="bg-ai-textbg border-blue-200 text-ai-text"
-          title="Analyse sémantique & intentions"
+          title={t("Analyse sémantique & intentions", "Semantic analysis & intent")}
         >
           <p className="text-xs leading-relaxed text-ink">{analysis.semanticAnalysis}</p>
         </Section>
@@ -51,7 +53,7 @@ export function EnvironmentAnalysis({ analysis }: EnvironmentAnalysisProps) {
         <Section
           icon={<TargetIcon />}
           iconBg="bg-success-50 border-success-200 text-success-700"
-          title="Positionnement recommandé"
+          title={t("Positionnement recommandé", "Recommended positioning")}
         >
           <p className="text-xs leading-relaxed text-ink">{analysis.positioning}</p>
         </Section>
@@ -60,7 +62,7 @@ export function EnvironmentAnalysis({ analysis }: EnvironmentAnalysisProps) {
         <Section
           icon={<AcquisitionIcon />}
           iconBg="bg-warning-50 border-warning-200 text-warning-700"
-          title="Angles d'acquisition"
+          title={t("Angles d'acquisition", "Acquisition angles")}
         >
           <ul className="space-y-1">
             {analysis.acquisitionAngles.map((angle, i) => (
@@ -76,7 +78,7 @@ export function EnvironmentAnalysis({ analysis }: EnvironmentAnalysisProps) {
         <Section
           icon={<PlatformIcon />}
           iconBg="bg-ai-visualbg border-violet-200 text-ai-visual"
-          title="Plateformes recommandées"
+          title={t("Plateformes recommandées", "Recommended platforms")}
         >
           <ul className="space-y-1">
             {analysis.recommendedPlatforms.map((platform, i) => (
@@ -92,7 +94,7 @@ export function EnvironmentAnalysis({ analysis }: EnvironmentAnalysisProps) {
         <Section
           icon={<RiskIcon />}
           iconBg="bg-danger-50 border-danger-200 text-danger-700"
-          title="Risques concurrentiels"
+          title={t("Risques concurrentiels", "Competitive risks")}
         >
           <p className="text-xs leading-relaxed text-ink">{analysis.competitiveRisks}</p>
         </Section>

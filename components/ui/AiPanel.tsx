@@ -3,18 +3,12 @@
 import { useState } from "react";
 import { Pills } from "./Tabs";
 import { Toggle } from "./Toggle";
+import { useT } from "@/lib/i18n";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
 type Action = "generate" | "rewrite" | "shorten" | "hashtags";
 type Platform = "facebook" | "instagram" | "linkedin";
-
-const ACTION_LABEL: Record<Action, string> = {
-  generate: "Generate",
-  rewrite: "Rewrite tone",
-  shorten: "Make shorter",
-  hashtags: "Add hashtags",
-};
 
 // ─── Shared helpers ─────────────────────────────────────────────────────────
 
@@ -51,6 +45,7 @@ export function AiTextPanel({
 }: {
   brandVoiceLabel: string;
 }) {
+  const t = useT();
   const [useBrandVoice, setUseBrandVoice] = useState(true);
   const [prompt, setPrompt] = useState("");
   const [result, setResult] = useState("");
@@ -59,6 +54,13 @@ export function AiTextPanel({
   const [copied, setCopied] = useState(false);
   // Platform defaults to facebook; can be enhanced by receiving it as a prop later.
   const platform: Platform = "facebook";
+
+  const ACTION_LABEL: Record<Action, string> = {
+    generate: t("Generate", "Generate"),
+    rewrite: t("Rewrite tone", "Rewrite tone"),
+    shorten: t("Make shorter", "Make shorter"),
+    hashtags: t("Add hashtags", "Add hashtags"),
+  };
 
   const handleAction = async (action: Action) => {
     const text = prompt.trim();
@@ -104,9 +106,9 @@ export function AiTextPanel({
     <div className="rounded-lg border-hair border-ai-text/20 bg-ai-textbg p-3">
       {/* Header */}
       <div className="mb-2 flex items-center justify-between">
-        <span className="text-xs font-medium text-ai-text">AI assist · Text</span>
+        <span className="text-xs font-medium text-ai-text">{t("AI assist · Text", "AI assist · Text")}</span>
         <label className="flex cursor-pointer items-center gap-1.5 text-2xs text-ai-text">
-          Use {brandVoiceLabel} brand voice
+          {t(`Use ${brandVoiceLabel} brand voice`, `Use ${brandVoiceLabel} brand voice`)}
           <Toggle defaultOn onChange={setUseBrandVoice} />
         </label>
       </div>
@@ -115,7 +117,10 @@ export function AiTextPanel({
       <textarea
         value={prompt}
         onChange={(e) => setPrompt(e.target.value)}
-        placeholder="Describe what to post — angle, tone, call-to-action…"
+        placeholder={t(
+          "Décrivez ce que vous souhaitez publier — angle, ton, appel à l'action…",
+          "Describe what to post — angle, tone, call-to-action…"
+        )}
         className="h-16 w-full resize-none rounded-md border-hair border-hair bg-card p-2 text-xs text-ink placeholder:text-muted focus:outline-none"
       />
 
@@ -143,13 +148,13 @@ export function AiTextPanel({
       {result && (
         <div className="mt-3">
           <div className="mb-1 flex items-center justify-between">
-            <span className="text-2xs font-medium text-ai-text">Generated text</span>
+            <span className="text-2xs font-medium text-ai-text">{t("Texte généré", "Generated text")}</span>
             <div className="flex gap-1.5">
               <button
                 onClick={handleCopy}
                 className="rounded-md border-hair border-ai-text/30 bg-card px-2 py-0.5 text-2xs font-medium text-ai-text hover:bg-ai-textbg"
               >
-                {copied ? "Copied!" : "Copy"}
+                {copied ? t("Copié !", "Copied!") : t("Copier", "Copy")}
               </button>
               <button
                 onClick={() => {
@@ -158,7 +163,7 @@ export function AiTextPanel({
                 }}
                 className="rounded-md bg-ai-text px-2 py-0.5 text-2xs font-medium text-white hover:opacity-90"
               >
-                Use
+                {t("Utiliser", "Use")}
               </button>
             </div>
           </div>
@@ -175,7 +180,7 @@ export function AiTextPanel({
       {loading && !result && (
         <div className="mt-2 flex items-center gap-1.5 text-2xs text-ai-text">
           <Spinner />
-          <span>Generating…</span>
+          <span>{t("Génération…", "Generating…")}</span>
         </div>
       )}
     </div>
@@ -192,6 +197,7 @@ export function AiVisualsPanel({
   used: number;
   cap: number;
 }) {
+  const t = useT();
   const [mode, setMode] = useState<"image" | "video">("image");
   const [style, setStyle] = useState("photo");
   const [prompt, setPrompt] = useState("");
@@ -218,7 +224,7 @@ export function AiVisualsPanel({
       }
       const data = await res.json() as { images?: unknown[]; mock?: boolean; message?: string };
       if (data.mock) {
-        setMockMessage(data.message ?? "Image generation not configured.");
+        setMockMessage(data.message ?? t("Génération d'image non configurée.", "Image generation not configured."));
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unexpected error");
@@ -231,9 +237,9 @@ export function AiVisualsPanel({
     <div className="rounded-lg border-hair border-ai-visual/20 bg-ai-visualbg p-3">
       {/* Header */}
       <div className="mb-2 flex items-center justify-between">
-        <span className="text-xs font-medium text-ai-visual">AI assist · Visuals</span>
+        <span className="text-xs font-medium text-ai-visual">{t("AI assist · Visuels", "AI assist · Visuals")}</span>
         <span className="text-2xs text-ai-visual">
-          EUR {used.toFixed(2)} / {cap} used this month
+          {t(`EUR ${used.toFixed(2)} / ${cap} utilisés ce mois`, `EUR ${used.toFixed(2)} / ${cap} used this month`)}
         </span>
       </div>
 
@@ -243,13 +249,13 @@ export function AiVisualsPanel({
           onClick={() => setMode("image")}
           className={mode === "image" ? "font-medium text-ai-visual underline" : "text-muted"}
         >
-          Image
+          {t("Image", "Image")}
         </button>
         <button
           onClick={() => setMode("video")}
           className={mode === "video" ? "font-medium text-ai-visual underline" : "text-muted"}
         >
-          Video
+          {t("Vidéo", "Video")}
         </button>
       </div>
 
@@ -272,14 +278,14 @@ export function AiVisualsPanel({
           options={
             isVideo
               ? [
-                  { id: "photo", label: "Realistic" },
-                  { id: "cinematic", label: "Cinematic" },
-                  { id: "animated", label: "Animated" },
+                  { id: "photo", label: t("Réaliste", "Realistic") },
+                  { id: "cinematic", label: t("Cinématique", "Cinematic") },
+                  { id: "animated", label: t("Animé", "Animated") },
                 ]
               : [
-                  { id: "photo", label: "Photo" },
-                  { id: "illustration", label: "Illustration" },
-                  { id: "poster", label: "Poster with text" },
+                  { id: "photo", label: t("Photo", "Photo") },
+                  { id: "illustration", label: t("Illustration", "Illustration") },
+                  { id: "poster", label: t("Poster avec texte", "Poster with text") },
                 ]
           }
           tone="ai"
@@ -298,14 +304,14 @@ export function AiVisualsPanel({
           className="flex items-center gap-1 rounded-md bg-ai-visual px-2.5 py-1 text-2xs font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
         >
           {loading && <Spinner />}
-          {isVideo ? "Generate video" : "Generate 4 options"}
+          {isVideo ? t("Générer la vidéo", "Generate video") : t("Générer 4 options", "Generate 4 options")}
         </button>
         <button
           disabled
-          title="Select an image first to generate variations"
+          title={t("Sélectionnez une image pour générer des variations", "Select an image first to generate variations")}
           className="cursor-not-allowed rounded-md border-hair border-ai-visual/20 bg-card px-2.5 py-1 text-2xs font-medium text-ai-visual/40"
         >
-          Variations
+          {t("Variations", "Variations")}
         </button>
       </div>
 

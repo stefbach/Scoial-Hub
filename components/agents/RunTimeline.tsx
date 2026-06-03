@@ -19,6 +19,7 @@ import { PRO_PROFILES } from "@/lib/agents/profiles";
 import { EnvironmentAnalysis } from "./EnvironmentAnalysis";
 import { BenchmarkCard } from "./BenchmarkCard";
 import { Toast } from "@/components/ui/Toast";
+import { useT } from "@/lib/i18n";
 
 // ── Couleurs d'accent par agent ────────────────────────────────────────────
 
@@ -35,66 +36,13 @@ const ICON_BG: Record<AgentId, string> = {
 
 // ── Statuts ────────────────────────────────────────────────────────────────
 
-const STATUS_STYLES: Record<AgentStepStatus, { dot: string; label: string; labelCls: string }> = {
-  done:      { dot: "bg-success-500",            label: "Terminé",   labelCls: "text-success-700" },
-  running:   { dot: "bg-ai-text animate-pulse",   label: "En cours",  labelCls: "text-ai-text" },
-  blocked:   { dot: "bg-danger-500",              label: "Bloqué",    labelCls: "text-danger-700" },
-  simulated: { dot: "bg-warning-500",             label: "Simulé",    labelCls: "text-warning-700" },
+type StatusStyleBase = { dot: string; labelCls: string };
+const STATUS_STYLES_BASE: Record<AgentStepStatus, StatusStyleBase> = {
+  done:      { dot: "bg-success-500",           labelCls: "text-success-700" },
+  running:   { dot: "bg-ai-text animate-pulse",  labelCls: "text-ai-text" },
+  blocked:   { dot: "bg-danger-500",             labelCls: "text-danger-700" },
+  simulated: { dot: "bg-warning-500",            labelCls: "text-warning-700" },
 };
-
-// ── Période de reporting ───────────────────────────────────────────────────
-
-const PERIOD_LABELS: Record<Required<Cadence>["reportingPeriod"], string> = {
-  day: "Journalier",
-  week: "Hebdomadaire",
-  month: "Mensuel",
-  quarter: "Trimestriel",
-  year: "Annuel",
-};
-
-const DAY_NAMES = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
-
-// ── Verdict conformité ─────────────────────────────────────────────────────
-
-function ComplianceBanner({
-  verdict,
-}: {
-  verdict: "pass" | "warn" | "block";
-}) {
-  const config = {
-    pass: {
-      bg: "bg-success-50 border-success-200",
-      icon: "✅",
-      title: "Contenu conforme",
-      text: "Le contenu a passé tous les contrôles ANSM et Meta. Il peut être publié.",
-      titleCls: "text-success-700",
-    },
-    warn: {
-      bg: "bg-warning-50 border-warning-200",
-      icon: "⚠️",
-      title: "Avertissements de conformité",
-      text: "Des points d'attention ont été identifiés. Une révision manuelle est recommandée avant publication.",
-      titleCls: "text-warning-700",
-    },
-    block: {
-      bg: "bg-danger-50 border-danger-200",
-      icon: "🚫",
-      title: "Contenu bloqué — Non conforme",
-      text: "Le contenu a été bloqué pour non-conformité réglementaire (ANSM / Meta). Aucune publication ni campagne ne sera créée.",
-      titleCls: "text-danger-700",
-    },
-  }[verdict];
-
-  return (
-    <div className={`rounded-lg border p-3 ${config.bg}`}>
-      <div className={`flex items-center gap-2 font-semibold text-sm ${config.titleCls}`}>
-        <span>{config.icon}</span>
-        {config.title}
-      </div>
-      <p className="mt-1 text-xs text-muted">{config.text}</p>
-    </div>
-  );
-}
 
 // ── Icônes SVG par agent ───────────────────────────────────────────────────
 
@@ -141,6 +89,58 @@ const AGENT_ICON: Record<AgentId, React.ReactNode> = {
   ),
 };
 
+// ── Verdict conformité ─────────────────────────────────────────────────────
+
+function ComplianceBanner({
+  verdict,
+}: {
+  verdict: "pass" | "warn" | "block";
+}) {
+  const t = useT();
+  const config = {
+    pass: {
+      bg: "bg-success-50 border-success-200",
+      icon: "✅",
+      title: t("Contenu conforme", "Content compliant"),
+      text: t(
+        "Le contenu a passé tous les contrôles ANSM et Meta. Il peut être publié.",
+        "Content passed all ANSM and Meta checks. It is ready to publish."
+      ),
+      titleCls: "text-success-700",
+    },
+    warn: {
+      bg: "bg-warning-50 border-warning-200",
+      icon: "⚠️",
+      title: t("Avertissements de conformité", "Compliance warnings"),
+      text: t(
+        "Des points d'attention ont été identifiés. Une révision manuelle est recommandée avant publication.",
+        "Some issues were flagged. Manual review is recommended before publishing."
+      ),
+      titleCls: "text-warning-700",
+    },
+    block: {
+      bg: "bg-danger-50 border-danger-200",
+      icon: "🚫",
+      title: t("Contenu bloqué — Non conforme", "Content blocked — Non-compliant"),
+      text: t(
+        "Le contenu a été bloqué pour non-conformité réglementaire (ANSM / Meta). Aucune publication ni campagne ne sera créée.",
+        "Content was blocked due to regulatory non-compliance (ANSM / Meta). No post or campaign will be created."
+      ),
+      titleCls: "text-danger-700",
+    },
+  }[verdict];
+
+  return (
+    <div className={`rounded-lg border p-3 ${config.bg}`}>
+      <div className={`flex items-center gap-2 font-semibold text-sm ${config.titleCls}`}>
+        <span>{config.icon}</span>
+        {config.title}
+      </div>
+      <p className="mt-1 text-xs text-muted">{config.text}</p>
+    </div>
+  );
+}
+
 // ── Galerie de visuels générés (Creative) ─────────────────────────────────
 
 function GeneratedAssetsCard({
@@ -150,6 +150,7 @@ function GeneratedAssetsCard({
   images?: { url: string }[];
   video?: { url: string };
 }) {
+  const t = useT();
   if ((!images || images.length === 0) && !video) return null;
 
   return (
@@ -160,7 +161,9 @@ function GeneratedAssetsCard({
             <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
           </svg>
         </div>
-        <span className="text-sm font-semibold text-ink">Visuels générés par l'agent Créatif</span>
+        <span className="text-sm font-semibold text-ink">
+          {t("Visuels générés par l'agent Créatif", "Visuals generated by the Creative agent")}
+        </span>
         <span className="ml-auto inline-flex items-center rounded-full bg-ai-visualbg px-2 py-0.5 text-2xs font-semibold text-ai-visual ring-1 ring-ai-visual/20">
           Replicate IA
         </span>
@@ -168,7 +171,7 @@ function GeneratedAssetsCard({
       <div className="p-4 space-y-3">
         {images && images.length > 0 && (
           <div>
-            <div className="section-label mb-2">Images</div>
+            <div className="section-label mb-2">{t("Images", "Images")}</div>
             <div className="flex flex-wrap gap-3">
               {images.map((img, i) => (
                 <a
@@ -181,7 +184,7 @@ function GeneratedAssetsCard({
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={img.url}
-                    alt={`Visuel généré ${i + 1}`}
+                    alt={t(`Visuel généré ${i + 1}`, `Generated visual ${i + 1}`)}
                     className="h-32 w-32 object-cover"
                     onError={(e) => {
                       (e.target as HTMLImageElement).style.display = "none";
@@ -189,7 +192,7 @@ function GeneratedAssetsCard({
                   />
                   <div className="absolute inset-0 flex items-end bg-gradient-to-t from-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
                     <span className="w-full p-1.5 text-center text-2xs text-white font-semibold">
-                      Ouvrir
+                      {t("Ouvrir", "Open")}
                     </span>
                   </div>
                 </a>
@@ -199,7 +202,7 @@ function GeneratedAssetsCard({
         )}
         {video && (
           <div>
-            <div className="section-label mb-2">Vidéo</div>
+            <div className="section-label mb-2">{t("Vidéo", "Video")}</div>
             <a
               href={video.url}
               target="_blank"
@@ -209,7 +212,7 @@ function GeneratedAssetsCard({
               <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
                 <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zm12.553.106A1 1 0 0014 7v6a1 1 0 001.553.832l3-2a1 1 0 000-1.664l-3-2z" />
               </svg>
-              Visionner la vidéo générée
+              {t("Visionner la vidéo générée", "Watch the generated video")}
             </a>
           </div>
         )}
@@ -221,6 +224,7 @@ function GeneratedAssetsCard({
 // ── Résultat de publication (Publisher) ───────────────────────────────────
 
 function PublisherResultCard({ publisherResult }: { publisherResult: PublisherResult }) {
+  const t = useT();
   const statusConfig: Record<
     PublisherResult["status"],
     { bg: string; icon: string; title: string; labelCls: string }
@@ -228,31 +232,31 @@ function PublisherResultCard({ publisherResult }: { publisherResult: PublisherRe
     published: {
       bg: "bg-success-50 border-success-200",
       icon: "✅",
-      title: "Contenu publié",
+      title: t("Contenu publié", "Content published"),
       labelCls: "text-success-700",
     },
     scheduled: {
       bg: "bg-success-50 border-success-200",
       icon: "📅",
-      title: "Publication programmée",
+      title: t("Publication programmée", "Scheduled publication"),
       labelCls: "text-success-700",
     },
     pending: {
       bg: "bg-canvas border-hair",
       icon: "⏳",
-      title: "En attente de validation",
+      title: t("En attente de validation", "Pending validation"),
       labelCls: "text-muted",
     },
     simulated: {
       bg: "bg-warning-50 border-warning-200",
       icon: "⚠️",
-      title: "Publication simulée — connecteurs requis",
+      title: t("Publication simulée — connecteurs requis", "Simulated publication — connectors required"),
       labelCls: "text-warning-700",
     },
     blocked: {
       bg: "bg-danger-50 border-danger-200",
       icon: "🚫",
-      title: "Publication bloquée",
+      title: t("Publication bloquée", "Publication blocked"),
       labelCls: "text-danger-700",
     },
   };
@@ -280,7 +284,7 @@ function PublisherResultCard({ publisherResult }: { publisherResult: PublisherRe
       <p className="mt-1 text-xs text-muted">{publisherResult.message}</p>
       {publisherResult.scheduledAt && (
         <p className="mt-1 text-2xs text-muted">
-          Programmé le : {new Date(publisherResult.scheduledAt).toLocaleString("fr-FR")}
+          {t("Programmé le :", "Scheduled for:")} {new Date(publisherResult.scheduledAt).toLocaleString("fr-FR")}
         </p>
       )}
     </div>
@@ -297,6 +301,7 @@ interface ApplyActionsProps {
 type ToastInfo = { message: string; kind: "success" | "error" };
 
 function ApplyActions({ result, companyId }: ApplyActionsProps) {
+  const t = useT();
   const [savingDraft, setSavingDraft] = useState(false);
   const [savingCampaign, setSavingCampaign] = useState(false);
   const [toast, setToast] = useState<ToastInfo | null>(null);
@@ -312,9 +317,9 @@ function ApplyActions({ result, companyId }: ApplyActionsProps) {
 
   const draftDisabledReason =
     !result.finalOutput
-      ? "Aucun contenu généré à enregistrer."
+      ? t("Aucun contenu généré à enregistrer.", "No generated content to save.")
       : result.complianceVerdict === "block"
-      ? "Contenu bloqué par la conformité — impossible d'enregistrer."
+      ? t("Contenu bloqué par la conformité — impossible d'enregistrer.", "Content blocked by compliance — cannot save.")
       : undefined;
 
   async function handleSaveDraft() {
@@ -347,10 +352,10 @@ function ApplyActions({ result, companyId }: ApplyActionsProps) {
       }
 
       setDraftSaved(true);
-      showToast("Brouillon enregistré — visible dans Scheduled.", "success");
+      showToast(t("Brouillon enregistré — visible dans Scheduled.", "Draft saved — visible in Scheduled."), "success");
     } catch (err) {
       showToast(
-        err instanceof Error ? err.message : "Erreur lors de l'enregistrement.",
+        err instanceof Error ? err.message : t("Erreur lors de l'enregistrement.", "Error while saving."),
         "error"
       );
     } finally {
@@ -387,10 +392,10 @@ function ApplyActions({ result, companyId }: ApplyActionsProps) {
       }
 
       setCampaignSaved(true);
-      showToast("Campagne créée — visible dans Campaigns.", "success");
+      showToast(t("Campagne créée — visible dans Campaigns.", "Campaign created — visible in Campaigns."), "success");
     } catch (err) {
       showToast(
-        err instanceof Error ? err.message : "Erreur lors de la création de la campagne.",
+        err instanceof Error ? err.message : t("Erreur lors de la création de la campagne.", "Error while creating the campaign."),
         "error"
       );
     } finally {
@@ -401,7 +406,7 @@ function ApplyActions({ result, companyId }: ApplyActionsProps) {
   return (
     <>
       <div className="card p-4">
-        <div className="section-label mb-3">Appliquer le résultat</div>
+        <div className="section-label mb-3">{t("Appliquer le résultat", "Apply result")}</div>
         <div className="flex flex-wrap gap-2">
           {/* Bouton Brouillon */}
           <div className="relative group/tip">
@@ -433,7 +438,9 @@ function ApplyActions({ result, companyId }: ApplyActionsProps) {
                   <path d="M7.707 10.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V6h5a2 2 0 012 2v7a2 2 0 01-2 2H4a2 2 0 01-2-2V8a2 2 0 012-2h5v5.586l-1.293-1.293z" />
                 </svg>
               )}
-              {draftSaved ? "Brouillon enregistré" : "Enregistrer comme brouillon"}
+              {draftSaved
+                ? t("Brouillon enregistré", "Draft saved")
+                : t("Enregistrer comme brouillon", "Save as draft")}
             </button>
             {/* Tooltip si désactivé */}
             {draftDisabledReason && (
@@ -472,13 +479,20 @@ function ApplyActions({ result, companyId }: ApplyActionsProps) {
                 <path d="M3 11l19-9-9 19-2-8-8-2z" />
               </svg>
             )}
-            {campaignSaved ? "Campagne créée" : "Créer la campagne"}
+            {campaignSaved
+              ? t("Campagne créée", "Campaign created")
+              : t("Créer la campagne", "Create campaign")}
           </button>
         </div>
         <p className="mt-2 text-2xs text-muted">
-          Les entrées créées apparaîtront immédiatement dans les pages{" "}
-          <span className="font-medium text-ink">Scheduled</span> et{" "}
-          <span className="font-medium text-ink">Campaigns</span>.
+          {t(
+            "Les entrées créées apparaîtront immédiatement dans les pages",
+            "Created entries will appear immediately in the"
+          )}{" "}
+          <span className="font-medium text-ink">Scheduled</span>{" "}
+          {t("et", "and")}{" "}
+          <span className="font-medium text-ink">Campaigns</span>
+          {t(" pages.", " pages.")}
         </p>
       </div>
 
@@ -501,12 +515,41 @@ interface RunTimelineProps {
 }
 
 export function RunTimeline({ result, companyId }: RunTimelineProps) {
-  const autonomyLabel =
-    result.autonomy === 1
-      ? "Recommandation pure"
-      : result.autonomy === 2
-      ? "Semi-automatique"
-      : "Automatique (garde-fous)";
+  const t = useT();
+
+  const AUTONOMY_LABEL: Record<number, string> = {
+    1: t("Recommandation pure", "Pure recommendation"),
+    2: t("Semi-automatique", "Semi-automatic"),
+    3: t("Automatique (garde-fous)", "Automatic (guardrails)"),
+  };
+
+  const PERIOD_LABELS: Record<Required<Cadence>["reportingPeriod"], string> = {
+    day: t("Journalier", "Daily"),
+    week: t("Hebdomadaire", "Weekly"),
+    month: t("Mensuel", "Monthly"),
+    quarter: t("Trimestriel", "Quarterly"),
+    year: t("Annuel", "Annual"),
+  };
+
+  type DayEntry = { labelFr: string; labelEn: string };
+  const DAY_NAMES: DayEntry[] = [
+    { labelFr: "Dim", labelEn: "Sun" },
+    { labelFr: "Lun", labelEn: "Mon" },
+    { labelFr: "Mar", labelEn: "Tue" },
+    { labelFr: "Mer", labelEn: "Wed" },
+    { labelFr: "Jeu", labelEn: "Thu" },
+    { labelFr: "Ven", labelEn: "Fri" },
+    { labelFr: "Sam", labelEn: "Sat" },
+  ];
+
+  const STATUS_LABELS: Record<AgentStepStatus, string> = {
+    done:      t("Terminé", "Done"),
+    running:   t("En cours", "Running"),
+    blocked:   t("Bloqué", "Blocked"),
+    simulated: t("Simulé", "Simulated"),
+  };
+
+  const autonomyLabel = AUTONOMY_LABEL[result.autonomy] ?? "";
 
   // Résolution du profil affiché
   const profile = result.profileId
@@ -517,12 +560,15 @@ export function RunTimeline({ result, companyId }: RunTimelineProps) {
   const cadence = result.cadence;
   const cadenceSummary = cadence
     ? [
-        `${cadence.postingPerDay ?? 1} publ./jour`,
+        t(`${cadence.postingPerDay ?? 1} publ./jour`, `${cadence.postingPerDay ?? 1} posts/day`),
         cadence.postingDays
-          ? cadence.postingDays.map((d) => DAY_NAMES[d] ?? d).join(", ")
-          : "Lun–Ven",
+          ? cadence.postingDays.map((d) => {
+              const entry = DAY_NAMES[d];
+              return entry ? t(entry.labelFr, entry.labelEn) : String(d);
+            }).join(", ")
+          : t("Lun–Ven", "Mon–Fri"),
         cadence.postingHours ? cadence.postingHours.join(" / ") : "08:00 / 19:00",
-        `Reporting ${PERIOD_LABELS[cadence.reportingPeriod] ?? cadence.reportingPeriod}`,
+        t(`Reporting ${PERIOD_LABELS[cadence.reportingPeriod] ?? cadence.reportingPeriod}`, `${PERIOD_LABELS[cadence.reportingPeriod] ?? cadence.reportingPeriod} reporting`),
       ].join(" · ")
     : null;
 
@@ -532,7 +578,7 @@ export function RunTimeline({ result, companyId }: RunTimelineProps) {
       <div className="card p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <div className="section-label mb-1">Objectif piloté</div>
+            <div className="section-label mb-1">{t("Objectif piloté", "Managed objective")}</div>
             <p className="text-sm font-medium text-ink">&ldquo;{result.objective}&rdquo;</p>
 
             {/* Profil + cadence */}
@@ -549,7 +595,7 @@ export function RunTimeline({ result, companyId }: RunTimelineProps) {
               )}
               {result.benchmarkTarget && (
                 <span className="inline-flex items-center rounded-full bg-success-50 px-2 py-0.5 text-2xs font-semibold text-success-700 ring-1 ring-success-200">
-                  Benchmark : {result.benchmarkTarget}
+                  {t("Benchmark :", "Benchmark:")} {result.benchmarkTarget}
                 </span>
               )}
             </div>
@@ -558,11 +604,11 @@ export function RunTimeline({ result, companyId }: RunTimelineProps) {
           <div className="flex flex-wrap items-center gap-2">
             {result.mock && (
               <span className="inline-flex items-center rounded-full bg-canvas px-2 py-0.5 text-2xs font-semibold text-muted ring-1 ring-hair">
-                Mode mock
+                {t("Mode mock", "Mock mode")}
               </span>
             )}
             <span className="inline-flex items-center rounded-full bg-ai-textbg px-2 py-0.5 text-2xs font-semibold text-ai-text ring-1 ring-ai-text/20">
-              Autonomie N{result.autonomy} · {autonomyLabel}
+              {t(`Autonomie N${result.autonomy} · ${autonomyLabel}`, `Autonomy L${result.autonomy} · ${autonomyLabel}`)}
             </span>
           </div>
         </div>
@@ -602,12 +648,13 @@ export function RunTimeline({ result, companyId }: RunTimelineProps) {
       {/* ── Timeline des étapes ─────────────────────────────────────── */}
       <div className="card divide-y divide-hair overflow-hidden">
         <div className="px-4 py-3">
-          <span className="section-label">Séquence d'exécution</span>
-          <span className="ml-2 text-2xs text-muted">({result.steps.length} étapes)</span>
+          <span className="section-label">{t("Séquence d'exécution", "Execution sequence")}</span>
+          <span className="ml-2 text-2xs text-muted">({result.steps.length} {t("étapes", "steps")})</span>
         </div>
         {result.steps.map((step, idx) => {
           const agentDef = AGENTS.find((a) => a.id === step.agent);
-          const statusConf = STATUS_STYLES[step.status];
+          const statusBase = STATUS_STYLES_BASE[step.status];
+          const statusLabel = STATUS_LABELS[step.status];
           const iconBg = ICON_BG[step.agent];
 
           return (
@@ -639,8 +686,8 @@ export function RunTimeline({ result, companyId }: RunTimelineProps) {
                       : step.status === "blocked"  ? "bg-danger-50 text-danger-700 ring-1 ring-danger-500/20"
                       : /* simulated */              "bg-warning-50 text-warning-700 ring-1 ring-warning-500/20"
                     }`}>
-                      <span className={`h-1.5 w-1.5 rounded-full ${statusConf.dot}`} />
-                      {statusConf.label}
+                      <span className={`h-1.5 w-1.5 rounded-full ${statusBase.dot}`} />
+                      {statusLabel}
                     </span>
                   </div>
 
@@ -676,7 +723,7 @@ export function RunTimeline({ result, companyId }: RunTimelineProps) {
                   <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                 </svg>
               </div>
-              <span className="text-sm font-semibold text-ink">Contenu final généré</span>
+              <span className="text-sm font-semibold text-ink">{t("Contenu final généré", "Final generated content")}</span>
             </div>
             <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-2xs font-semibold ${
               result.autonomy === 1
@@ -686,10 +733,10 @@ export function RunTimeline({ result, companyId }: RunTimelineProps) {
                 : "bg-success-50 text-success-700 ring-1 ring-success-500/20"
             }`}>
               {result.autonomy === 1
-                ? "Recommandation non publiée"
+                ? t("Recommandation non publiée", "Unpublished recommendation")
                 : result.autonomy === 2
-                ? "En attente de validation"
-                : "Prêt à publier"}
+                ? t("En attente de validation", "Pending validation")
+                : t("Prêt à publier", "Ready to publish")}
             </span>
           </div>
           <div className="p-4">
@@ -698,11 +745,20 @@ export function RunTimeline({ result, companyId }: RunTimelineProps) {
             </pre>
             <div className="mt-3 text-2xs text-muted">
               {result.autonomy === 1 &&
-                "Autonomie N1 — Aucune publication ni campagne initiée. Copiez ce contenu pour le publier manuellement."}
+                t(
+                  "Autonomie N1 — Aucune publication ni campagne initiée. Copiez ce contenu pour le publier manuellement.",
+                  "Autonomy L1 — No post or campaign initiated. Copy this content to publish it manually."
+                )}
               {result.autonomy === 2 &&
-                "Autonomie N2 — Validez ce contenu puis activez la campagne manuellement dans Meta Business Manager."}
+                t(
+                  "Autonomie N2 — Validez ce contenu puis activez la campagne manuellement dans Meta Business Manager.",
+                  "Autonomy L2 — Validate this content then activate the campaign manually in Meta Business Manager."
+                )}
               {result.autonomy === 3 &&
-                "Autonomie N3 — Contenu conforme et budget validé. Connectez Meta Ads API pour activer la publication automatique."}
+                t(
+                  "Autonomie N3 — Contenu conforme et budget validé. Connectez Meta Ads API pour activer la publication automatique.",
+                  "Autonomy L3 — Content compliant and budget validated. Connect Meta Ads API to enable automatic publishing."
+                )}
             </div>
           </div>
         </div>
@@ -711,11 +767,13 @@ export function RunTimeline({ result, companyId }: RunTimelineProps) {
           <div className="card border-danger-200 bg-danger-50 p-4">
             <div className="flex items-center gap-2 text-sm font-semibold text-danger-700">
               <span>🚫</span>
-              <span>Publication bloquée</span>
+              <span>{t("Publication bloquée", "Publication blocked")}</span>
             </div>
             <p className="mt-1 text-xs text-muted">
-              Le contenu n'a pas passé la vérification de conformité. Aucune publication ni campagne n'a été générée.
-              Révisez l'objectif ou le contenu et relancez un pilotage.
+              {t(
+                "Le contenu n'a pas passé la vérification de conformité. Aucune publication ni campagne n'a été générée. Révisez l'objectif ou le contenu et relancez un pilotage.",
+                "Content did not pass the compliance check. No post or campaign was generated. Revise the objective or content and start a new run."
+              )}
             </p>
           </div>
         )

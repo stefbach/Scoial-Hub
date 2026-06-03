@@ -55,6 +55,39 @@ export function AnalysisPanel({ analysis }: Props) {
         <p className="text-sm text-ink leading-relaxed">{analysis.resume}</p>
       </div>
 
+      {/* Concurrents les plus puissants */}
+      {analysis.competiteurs && analysis.competiteurs.length > 0 && (
+        <section>
+          <p className="section-label mb-3">{t("Concurrents les plus puissants", "Most powerful competitors")}</p>
+          <div className="space-y-3">
+            {analysis.competiteurs.map((c, i) => (
+              <div key={i} className="card p-4">
+                <div className="mb-2 flex items-center gap-2">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-2xs font-bold text-white">{i + 1}</span>
+                  <span className="font-semibold text-ink">{c.handle}</span>
+                  <span className="chip">{c.network}</span>
+                  <span className="ml-auto flex items-center gap-1 text-2xs font-semibold text-primary-700" title={t("Score de puissance", "Power score")}>
+                    ⚡ {c.scorePuissance}/100
+                  </span>
+                </div>
+                <div className="mb-2 flex flex-wrap gap-3 text-2xs text-muted">
+                  <span>{c.nbPosts} {t("contenus", "posts")}</span>
+                  <span>❤ {c.engagementMoyen.toLocaleString()} {t("eng./post", "eng./post")}</span>
+                  {c.vuesMoyennes > 0 && <span>👁 {c.vuesMoyennes.toLocaleString()} {t("vues/post", "views/post")}</span>}
+                  <span className="chip">{c.formatDominant}</span>
+                </div>
+                {c.strategie && (
+                  <p className="text-sm text-ink"><span className="font-semibold text-primary-700">{t("Stratégie : ", "Strategy: ")}</span>{c.strategie}</p>
+                )}
+                {c.pourquoiPuissant && (
+                  <p className="mt-1 text-sm text-ink"><span className="font-semibold text-primary-700">{t("Pourquoi puissant : ", "Why powerful: ")}</span>{c.pourquoiPuissant}</p>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* Formats gagnants */}
       <section>
         <p className="section-label mb-3">{t("Formats gagnants", "Winning formats")}</p>

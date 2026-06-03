@@ -41,6 +41,26 @@ export interface Recommandation {
   action: string;
 }
 
+/** Profil d'un concurrent puissant + analyse de sa stratégie. */
+export interface CompetitorProfile {
+  handle: string;
+  network: string;
+  /** Nombre de contenus analysés. */
+  nbPosts: number;
+  /** Engagement moyen (likes+commentaires) par post. */
+  engagementMoyen: number;
+  /** Vues moyennes par post. */
+  vuesMoyennes: number;
+  /** Format dominant observé. */
+  formatDominant: string;
+  /** Score de puissance relatif (0-100). */
+  scorePuissance: number;
+  /** Synthèse de sa stratégie de contenu (par l'IA). */
+  strategie: string;
+  /** Pourquoi ce concurrent est puissant (par l'IA). */
+  pourquoiPuissant: string;
+}
+
 export interface AnalysisResult {
   /** Résumé exécutif (2-3 phrases). */
   resume: string;
@@ -54,10 +74,53 @@ export interface AnalysisResult {
   benchmarkParReseau: BenchmarkMetrics[];
   /** Recommandations stratégiques actionnables. */
   recommandations: Recommandation[];
+  /** Concurrents les plus puissants, classés, avec analyse de leur stratégie. */
+  competiteurs: CompetitorProfile[];
   /** Indique si l'analyse est issue de Claude (true) ou du mock (false). */
   aiGenerated: boolean;
   /** Horodatage de l'analyse. */
   analyzedAt: string;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Agrégation par concurrent (chiffres réels) + score de puissance
+───────────────────────────────────────────────────────────────────────────── */
+
+function computeProfiles(contents: CompetitorContent[]): CompetitorProfile[] {
+  const byHandle = new Map<string, CompetitorContent[]>();
+  for (const c of contents) {
+    const key = `${c.network}|${c.handle}`;
+    const arr = byHandle.get(key);
+    if (arr) arr.push(c);
+    else byHandle.set(key, [c]);
+  }
+  const profiles: CompetitorProfile[] = [];
+  for (const [key, items] of byHandle) {
+    const [network, handle] = key.split("|");
+    const n = items.length || 1;
+    const eng = items.reduce((s, c) => s + c.likes + c.comments, 0) / n;
+    const vues = items.reduce((s, c) => s + c.views, 0) / n;
+    const typeCount: Record<string, number> = {};
+    for (const c of items) typeCount[c.type] = (typeCount[c.type] || 0) + 1;
+    const formatDominant = Object.entries(typeCount).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "post";
+    profiles.push({
+      handle,
+      network,
+      nbPosts: items.length,
+      engagementMoyen: Math.round(eng),
+      vuesMoyennes: Math.round(vues),
+      formatDominant,
+      scorePuissance: 0,
+      strategie: "",
+      pourquoiPuissant: "",
+    });
+  }
+  const maxScore = Math.max(...profiles.map((p) => p.engagementMoyen + p.vuesMoyennes * 0.1), 1);
+  for (const p of profiles) {
+    p.scorePuissance = Math.round(((p.engagementMoyen + p.vuesMoyennes * 0.1) / maxScore) * 100);
+  }
+  profiles.sort((a, b) => b.scorePuissance - a.scorePuissance);
+  return profiles.slice(0, 6);
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -111,6 +174,11 @@ function buildMockAnalysis(query: ScrapeQuery, contents: CompetitorContent[]): A
       { priorite: "moyenne", titre: "Exploiter les angles éducatifs", detail: "Les contenus \"comment faire\" génèrent +40 % de sauvegardes, signal fort pour l'algorithme.", action: "Produire une série de posts éducatifs sur les fondamentaux de votre secteur." },
       { priorite: "basse", titre: "Tester les collaborations", detail: "Plusieurs concurrents utilisent les UGC et les collab-posts avec des micro-influenceurs locaux.", action: "Identifier 3 créateurs alignés avec votre marque pour des partenariats test." },
     ],
+    competiteurs: computeProfiles(contents).map((p) => ({
+      ...p,
+      strategie: `Publie majoritairement des ${p.formatDominant}s (${p.nbPosts} contenus analysés), avec un engagement moyen de ${p.engagementMoyen} par publication.`,
+      pourquoiPuissant: `Forte régularité et un engagement supérieur à la moyenne du marché — audience fidèle et formats calibrés pour l'algorithme.`,
+    })),
     aiGenerated: false,
     analyzedAt: new Date().toISOString(),
   };
@@ -127,49 +195,56 @@ async function analyzeWithClaude(
   const Anthropic = (await import("@anthropic-ai/sdk")).default;
   const client = new Anthropic({ apiKey: env.anthropicKey });
 
+  // Profils agrégés (chiffres réels) classés par puissance
+  const profiles = computeProfiles(contents);
+  const profilesResume = profiles.map((p) => ({
+    handle: p.handle,
+    network: p.network,
+    nbPosts: p.nbPosts,
+    engagementMoyen: p.engagementMoyen,
+    vuesMoyennes: p.vuesMoyennes,
+    formatDominant: p.formatDominant,
+    scorePuissance: p.scorePuissance,
+  }));
+
   // Résumé compact des contenus pour limiter les tokens
-  const contentsResume = contents.slice(0, 24).map((c) => ({
+  const contentsResume = contents.slice(0, 20).map((c) => ({
+    handle: c.handle,
     network: c.network,
     type: c.type,
-    caption: c.caption.slice(0, 120),
+    caption: c.caption.slice(0, 110),
     likes: c.likes,
     comments: c.comments,
     views: c.views,
-    engagementRate: c.engagementRate,
     postedAt: c.postedAt,
-    simulated: c.simulated ?? false,
   }));
 
-  const prompt = `Tu es un expert en stratégie social media. Analyse ces ${contents.length} contenus concurrents et produis une analyse structurée.
+  const prompt = `Tu es un expert en veille concurrentielle social media. À partir des PROFILS concurrents (chiffres réels, classés par puissance) et d'un échantillon de leurs contenus, identifie les concurrents les PLUS PUISSANTS et explique précisément LEUR STRATÉGIE et POURQUOI ils dominent.
 
 Contexte :
 - Thématique : ${query.theme || "non précisée"}
 - Mots-clés : ${query.keywords.join(", ") || "aucun"}
 - Zone géographique : ${query.geo.toUpperCase()}
-- Réseaux analysés : ${[...new Set(contents.map((c) => c.network))].join(", ")}
+- Réseaux : ${[...new Set(contents.map((c) => c.network))].join(", ")}
 
-Contenus (résumé JSON) :
+Profils concurrents (classés par puissance, chiffres RÉELS) :
+${JSON.stringify(profilesResume, null, 2)}
+
+Échantillon de contenus :
 ${JSON.stringify(contentsResume, null, 2)}
 
-Produis une analyse JSON stricte avec cette structure exacte (AUCUN texte avant ou après le JSON) :
+Produis UNIQUEMENT ce JSON strict (aucun texte autour) :
 {
-  "resume": "string (2-3 phrases résumant les insights clés)",
-  "formatsGagnants": [
-    { "type": "string", "network": "string", "engagementMoyen": number, "description": "string" }
-  ],
-  "anglesThematiques": [
-    { "angle": "string", "exemples": ["string"], "potentiel": "fort|moyen|faible" }
-  ],
+  "resume": "2-3 phrases : qui domine ce marché et pourquoi",
+  "formatsGagnants": [ { "type": "string", "network": "string", "engagementMoyen": number, "description": "string" } ],
+  "anglesThematiques": [ { "angle": "string", "exemples": ["string"], "potentiel": "fort|moyen|faible" } ],
   "frequenceRecommandee": "string",
-  "benchmarkParReseau": [
-    { "network": "string", "medianeLikes": number, "medianeVues": number, "tauxEngagementMoyen": number, "fréquencePostsSemaine": number }
-  ],
-  "recommandations": [
-    { "priorite": "haute|moyenne|basse", "titre": "string", "detail": "string", "action": "string" }
-  ]
+  "benchmarkParReseau": [ { "network": "string", "medianeLikes": number, "medianeVues": number, "tauxEngagementMoyen": number, "fréquencePostsSemaine": number } ],
+  "recommandations": [ { "priorite": "haute|moyenne|basse", "titre": "string", "detail": "string", "action": "string" } ],
+  "competiteurs": [ { "handle": "exactement le handle fourni", "strategie": "2 phrases : piliers de contenu, formats, ton, cadence", "pourquoiPuissant": "2 phrases : ce qui explique sa domination (audience, régularité, angle, communauté…)" } ]
 }
 
-Réponds en français. Sois précis, concret et actionnable.`;
+Règles : max 3 formatsGagnants, max 3 anglesThematiques, max 4 recommandations. Un objet "competiteurs" par profil fourni, du plus puissant au moins puissant. Réponds en français, concret.`;
 
   const message = await client.messages.create({
     model: env.anthropicModel,
@@ -182,14 +257,33 @@ Réponds en français. Sois précis, concret et actionnable.`;
     .map((b) => (b as { type: "text"; text: string }).text)
     .join("");
 
-  // Parse JSON — extraire le bloc JSON si entouré de texte
   const jsonMatch = rawText.match(/\{[\s\S]*\}/);
   if (!jsonMatch) throw new Error("Claude n'a pas retourné de JSON valide");
 
-  const parsed = JSON.parse(jsonMatch[0]) as Omit<AnalysisResult, "aiGenerated" | "analyzedAt">;
+  const parsed = JSON.parse(jsonMatch[0]) as Omit<
+    AnalysisResult,
+    "aiGenerated" | "analyzedAt" | "competiteurs"
+  > & { competiteurs?: Array<{ handle: string; strategie?: string; pourquoiPuissant?: string }> };
+
+  // Fusionne le texte IA (stratégie / pourquoi puissant) avec les chiffres réels.
+  const norm = (h: string) => h.replace(/^@/, "").toLowerCase();
+  const aiMap = new Map<string, { strategie?: string; pourquoiPuissant?: string }>();
+  for (const c of parsed.competiteurs ?? []) aiMap.set(norm(c.handle), c);
+  const competiteurs: CompetitorProfile[] = profiles.map((p) => {
+    const m = aiMap.get(norm(p.handle));
+    return {
+      ...p,
+      strategie: m?.strategie || p.strategie || "",
+      pourquoiPuissant: m?.pourquoiPuissant || p.pourquoiPuissant || "",
+    };
+  });
+
+  const { competiteurs: _raw, ...rest } = parsed;
+  void _raw;
 
   return {
-    ...parsed,
+    ...rest,
+    competiteurs,
     aiGenerated: true,
     analyzedAt: new Date().toISOString(),
   };

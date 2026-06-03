@@ -572,15 +572,19 @@ class InstagramBusinessCollector implements Collector {
 interface XpozNamespace {
   getPostsByUser(
     identifier: string,
-    options?: { limit?: number; startDate?: string; fields?: string[] }
+    options?: { limit?: number; startDate?: string }
   ): Promise<{ data?: Array<Record<string, unknown>> }>;
   getUser(identifier: string): Promise<Record<string, unknown>>;
 }
 
-const XPOZ_FIELDS: Record<"instagram" | "tiktok", string[]> = {
-  instagram: ["caption", "likeCount", "commentCount", "videoPlayCount", "reshareCount", "mediaType", "codeUrl", "imageUrl", "videoUrl", "timestamp", "createdAtDate", "username", "fullName"],
-  tiktok: ["description", "likeCount", "commentCount", "playCount", "forwardCount", "videoUrl", "videoThumbnail", "createdAtDate", "username", "nickname"],
-};
+/** Lit la 1re clé présente parmi plusieurs (camelCase OU snake_case selon l'API). */
+function xpick(p: Record<string, unknown>, keys: string[]): unknown {
+  for (const k of keys) {
+    const v = p[k];
+    if (v !== undefined && v !== null) return v;
+  }
+  return undefined;
+}
 interface XpozClientLike {
   connect(): Promise<void>;
   close(): Promise<void>;
@@ -650,16 +654,14 @@ class XpozCollector implements Collector {
     if (!username) return [];
     try {
       // Un seul appel MCP par compte (pas de getUser) pour rester rapide.
-      // On demande explicitement les champs de métriques, sinon xpoz renvoie
-      // des posts sans likes/commentaires (→ engagement 0).
-      const fields = XPOZ_FIELDS[this.network === "tiktok" ? "tiktok" : "instagram"];
-      const postsRes = await ns.getPostsByUser(username, { limit: per, fields });
+      const postsRes = await ns.getPostsByUser(username, { limit: per });
       const posts = postsRes?.data ?? [];
       const out: CompetitorContent[] = [];
 
       for (const p of posts) {
-        const likes = xnum(p.likeCount);
-        const comments = xnum(p.commentCount);
+        // Les clés peuvent être en camelCase OU snake_case selon la réponse API.
+        const likes = xnum(xpick(p, ["likeCount", "like_count", "likes", "diggCount", "digg_count"]));
+        const comments = xnum(xpick(p, ["commentCount", "comment_count", "comments"]));
         let views = 0;
         let url = "";
         let caption = "";
@@ -667,19 +669,21 @@ class XpozCollector implements Collector {
         let type: CompetitorContent["type"] = "post";
 
         if (this.network === "tiktok") {
-          views = xnum(p.playCount);
-          const vu = p.videoUrl;
+          views = xnum(xpick(p, ["playCount", "play_count", "viewCount", "view_count", "views"]));
+          const vu = xpick(p, ["videoUrl", "video_url", "shareUrl", "share_url"]);
           url = Array.isArray(vu) ? xstr(vu[0]) : xstr(vu);
           if (!url) url = `https://www.tiktok.com/@${username}`;
-          caption = xstr(p.description);
-          thumb = xstr(p.videoThumbnail) || undefined;
+          caption = xstr(xpick(p, ["description", "desc", "title"]));
+          thumb = xstr(xpick(p, ["videoThumbnail", "video_thumbnail", "cover", "coverUrl"])) || undefined;
           type = "video";
         } else {
-          views = xnum(p.videoPlayCount);
-          url = xstr(p.codeUrl) || `https://instagram.com/${username}`;
-          caption = xstr(p.caption);
-          thumb = xstr(p.imageUrl) || undefined;
-          type = xstr(p.videoUrl) || xstr(p.mediaType).toLowerCase().includes("video") ? "reel" : "post";
+          views = xnum(xpick(p, ["videoPlayCount", "video_play_count", "playCount", "play_count", "viewCount", "view_count"]));
+          url = xstr(xpick(p, ["codeUrl", "code_url", "permalink", "url"])) || `https://instagram.com/${username}`;
+          caption = xstr(xpick(p, ["caption", "text", "title"]));
+          thumb = xstr(xpick(p, ["imageUrl", "image_url", "displayUrl", "display_url", "thumbnailUrl"])) || undefined;
+          const mt = xstr(xpick(p, ["mediaType", "media_type", "type"]));
+          const vurl = xstr(xpick(p, ["videoUrl", "video_url"]));
+          type = vurl || mt.toLowerCase().includes("video") ? "reel" : "post";
         }
 
         const er = views > 0 ? parseFloat(((likes + comments) / views).toFixed(4)) : 0;
@@ -687,16 +691,16 @@ class XpozCollector implements Collector {
         out.push({
           network: this.network,
           handle: `@${username}`,
-          accountName: name ?? xstr(p.nickname) ?? xstr(p.fullName) ?? username,
+          accountName: name ?? xstr(xpick(p, ["nickname", "fullName", "full_name", "username"])) ?? username,
           type,
           url,
           caption,
           likes,
           comments,
           views,
-          shares: xnum(p.forwardCount) || xnum(p.reshareCount),
+          shares: xnum(xpick(p, ["forwardCount", "forward_count", "reshareCount", "reshare_count", "shareCount", "share_count"])),
           engagementRate: er,
-          postedAt: xstr(p.createdAtDate) || xstr(p.createdAt) || new Date().toISOString(),
+          postedAt: xstr(xpick(p, ["createdAtDate", "created_at_date", "createdAt", "created_at", "timestamp"])) || new Date().toISOString(),
           thumbnailUrl: thumb,
           simulated: false,
         });

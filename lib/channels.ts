@@ -3,7 +3,7 @@
 // dans public.sh_channel_connections (config jsonb).
 
 export type ChannelId =
-  | "facebook" | "instagram" | "linkedin" | "tiktok" | "meta_pixel" | "ga4" | "meta_app";
+  | "facebook" | "instagram" | "linkedin" | "tiktok" | "meta_pixel" | "ga4" | "meta_app" | "telegram";
 
 export interface ChannelField {
   key: string;
@@ -16,7 +16,7 @@ export interface ChannelField {
 export interface ChannelDef {
   id: ChannelId;
   label: string;
-  group: "social" | "ads" | "measure";
+  group: "social" | "ads" | "measure" | "messaging";
   color: string;
   description: string;
   where: string;          // où récupérer les infos
@@ -77,6 +77,29 @@ export const CHANNELS: ChannelDef[] = [
       { key: "property_id", label: "Property ID", placeholder: "GA4 property" },
       { key: "measurement_id", label: "Measurement ID", placeholder: "G-XXXXXXX" },
       { key: "api_secret", label: "API Secret (Measurement Protocol)", secret: true },
+    ],
+  },
+  {
+    id: "telegram",
+    label: "Telegram",
+    group: "messaging",
+    color: "#229ED9",
+    description: "Bot Telegram par compte — pilotez agents et campagnes via chat.",
+    where: "Ouvrez Telegram → @BotFather → /newbot → copiez le token API fourni. Configurez-le ci-dessous, puis activez le webhook pour connecter le bot à cet espace de travail.",
+    fields: [
+      {
+        key: "bot_token",
+        label: "Token du bot",
+        secret: true,
+        placeholder: "1234567890:ABCdef...",
+        help: "Obtenu via @BotFather sur Telegram. Format : <id>:<token>",
+      },
+      {
+        key: "allowed_chat_ids",
+        label: "Chat IDs autorisés (optionnel)",
+        placeholder: "123456789, -987654321",
+        help: "IDs séparés par des virgules. Laissez vide pour tout autoriser. Utilisez @userinfobot pour connaître votre ID.",
+      },
     ],
   },
 ];

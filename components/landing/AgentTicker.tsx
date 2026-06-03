@@ -38,15 +38,15 @@ export function AgentTicker() {
   }, []);
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-white/10 bg-black/20 p-4 font-mono text-xs backdrop-blur">
-      <div className="mb-3 flex items-center gap-2 text-white/50">
+    <div className="card overflow-hidden rounded-2xl p-4 font-mono text-xs">
+      <div className="mb-3 flex items-center gap-2 text-muted">
         <span className="flex gap-1">
           <span className="h-2 w-2 rounded-full bg-danger-500/70" />
           <span className="h-2 w-2 rounded-full bg-warning-500/70" />
           <span className="h-2 w-2 rounded-full bg-success-500/70" />
         </span>
         <span className="ml-1">agents · activité en direct</span>
-        <span className="ml-auto flex items-center gap-1.5 text-success-500">
+        <span className="ml-auto flex items-center gap-1.5 text-success-600">
           <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-success-500" /> live
         </span>
       </div>
@@ -54,15 +54,15 @@ export function AgentTicker() {
         {lines.map((l, i) => (
           <div
             key={`${l.agent}-${i}`}
-            className="flex animate-[swap_400ms_ease-out] items-start gap-2 text-white/80"
+            className="flex animate-[swap_400ms_ease-out] items-start gap-2"
           >
             <span
               className="mt-px shrink-0 rounded px-1.5 py-0.5 text-[0.625rem] font-semibold"
-              style={{ background: `rgba(${l.accent},0.18)`, color: `rgb(${l.accent})` }}
+              style={{ background: `rgba(${l.accent},0.12)`, color: `rgb(${l.accent})` }}
             >
               {l.agent}
             </span>
-            <span className="leading-relaxed text-white/70">{l.text}</span>
+            <span className="leading-relaxed text-muted">{l.text}</span>
           </div>
         ))}
       </div>

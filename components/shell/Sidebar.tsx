@@ -106,6 +106,12 @@ const ICONS: Record<string, React.ReactNode> = {
             stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
     </svg>
   ),
+  "/parametres-connecteurs": (
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+      <path d="M6 9l3-3M5.5 4.5l1-1a2.1 2.1 0 0 1 3 3l-1 1M9.5 10.5l-1 1a2.1 2.1 0 0 1-3-3l1-1"
+            stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+    </svg>
+  ),
   "/veille": (
     <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
       <rect x="1.5" y="9" width="2.5" height="4.5" rx="0.5" fill="currentColor" opacity="0.45"/>
@@ -125,7 +131,7 @@ const GROUPS: { label?: string; items: { href: string; label: string }[] }[] = [
       { href: "/pilotage",    label: "Centre de pilotage" },
       { href: "/agents",      label: "Agents" },
       { href: "/veille",      label: "Veille & Marché" },
-      { href: "/connecteurs", label: "Connecteurs" },
+      { href: "/parametres-connecteurs", label: "Connecteurs" },
     ],
   },
   {
@@ -150,7 +156,6 @@ const GROUPS: { label?: string; items: { href: string; label: string }[] }[] = [
     label: "General",
     items: [
       { href: "/analytics", label: "Analytics" },
-      { href: "/parametres-connecteurs", label: "Connecteurs (accès)" },
       { href: "/accounts",  label: "Accounts" },
       { href: "/settings",  label: "Settings" },
     ],

@@ -84,7 +84,7 @@ export default function SignupPage() {
               <line x1="7" y1="5.7" x2="10.7" y2="8.7" stroke="currentColor" strokeWidth="0.85" opacity="0.45" />
             </svg>
           </div>
-          <h1 className="text-2xl font-bold text-ink tracking-tight">Social Hub</h1>
+          <h1 className="text-2xl font-bold text-ink tracking-tight">AXON-AI</h1>
           <p className="text-sm text-muted mt-1">Créez votre espace de travail</p>
         </div>
 

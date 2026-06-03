@@ -276,8 +276,16 @@
   background-size: 40px 40px;
   animation: gridpan 12s linear infinite;
 }
+/* Grille claire pour fond lavande — lignes prune très douces */
+.grid-bg-light {
+  background-image:
+    linear-gradient(rgba(124,58,237,0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(124,58,237,0.055) 1px, transparent 1px);
+  background-size: 40px 40px;
+  animation: gridpan 12s linear infinite;
+}
 @media (prefers-reduced-motion: reduce) {
-  .animate-floaty, .animate-blob, .animate-marquee, .grid-bg { animation: none; }
+  .animate-floaty, .animate-blob, .animate-marquee, .grid-bg, .grid-bg-light { animation: none; }
 }
 
 /* ── AppShell — header avec ombre au scroll (CSS only) ─────────────── */

@@ -19,11 +19,11 @@ export default function DashboardPage() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-ink">
-            Good morning, Younes
+            Tableau de bord
           </h1>
           <p className="mt-0.5 text-sm text-muted">
-            Here&apos;s what&apos;s happening across{" "}
-            <span className="font-semibold text-ink">{company.code}</span> today.
+            Vue d&apos;ensemble de{" "}
+            <span className="font-semibold text-ink">{company.name}</span>.
           </p>
         </div>
         <div className="flex shrink-0 gap-2">

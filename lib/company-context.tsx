@@ -76,10 +76,8 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
           if (byId >= 0) {
             COMPANIES[byId] = { ...COMPANIES[byId], ...c };
           } else if (byCode >= 0) {
-            const oldId = COMPANIES[byCode].id;
-            if (COMPANY_DATA[oldId] && !COMPANY_DATA[c.id]) {
-              COMPANY_DATA[c.id] = COMPANY_DATA[oldId]; // alias données riches
-            }
+            // Compte réel : on démarre sur des données VIDES (pas de mock fictif).
+            if (!COMPANY_DATA[c.id]) COMPANY_DATA[c.id] = makeEmptyCompanyData();
             COMPANIES[byCode] = { ...COMPANIES[byCode], ...c }; // adopte l'UUID réel
           } else {
             registerCompany(c);

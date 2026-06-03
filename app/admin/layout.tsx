@@ -35,7 +35,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <span className="rounded-md bg-page/10 px-2 py-0.5 text-2xs font-semibold uppercase tracking-wide text-page">Admin</span>
         </div>
         <div className="flex items-center gap-2">
-          <Link href="/dashboard" className="btn-secondary">Ouvrir l'app</Link>
           <button onClick={logout} className="btn-ghost text-sm">Se déconnecter</button>
         </div>
       </header>

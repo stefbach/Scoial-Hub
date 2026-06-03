@@ -248,7 +248,7 @@ export function HelpDrawer({ open, onClose }: HelpDrawerProps) {
         {/* ── Pied du tiroir ────────────────────────────────────────────── */}
         <div className="shrink-0 border-t border-hair px-6 py-4">
           <p className="text-center text-xs text-muted">
-            Social Hub · Aide contextuelle
+            AXON-AI · Aide contextuelle
           </p>
         </div>
       </div>

@@ -118,34 +118,36 @@ export function BrainCanvas() {
       t0 = now;
       ctx.clearRect(0, 0, width, height);
 
-      // Edges
+      // Edges — lignes prune-lavande subtiles sur fond clair
       ctx.lineWidth = 1;
       for (const e of edges) {
         const a = nodes[e.a];
         const b = nodes[e.b];
-        ctx.strokeStyle = "rgba(59, 113, 243, 0.10)";
+        ctx.strokeStyle = "rgba(124, 58, 237, 0.13)";
         ctx.beginPath();
         ctx.moveTo(a.x, a.y);
         ctx.lineTo(b.x, b.y);
         ctx.stroke();
       }
 
-      // Nodes (pulsing)
+      // Nodes (pulsing) — halo violet sur fond clair, nœud violet foncé
       for (const n of nodes) {
         n.pulse += dt * n.speed * (reduced ? 0 : 1);
         const glow = 0.5 + Math.sin(n.pulse) * 0.5;
         const r = n.r * (1 + glow * 0.5);
+        // Halo améthyste doux (visible sur fond lavande clair)
         const grd = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, r * 4);
-        grd.addColorStop(0, `rgba(59, 113, 243, ${0.35 + glow * 0.4})`);
-        grd.addColorStop(1, "rgba(59, 113, 243, 0)");
+        grd.addColorStop(0, `rgba(124, 58, 237, ${0.18 + glow * 0.22})`);
+        grd.addColorStop(1, "rgba(124, 58, 237, 0)");
         ctx.fillStyle = grd;
         ctx.beginPath();
         ctx.arc(n.x, n.y, r * 4, 0, Math.PI * 2);
         ctx.fill();
 
-        ctx.fillStyle = `rgba(255, 255, 255, ${0.6 + glow * 0.4})`;
+        // Centre du nœud — violet prune foncé bien visible sur fond clair
+        ctx.fillStyle = `rgba(91, 45, 142, ${0.55 + glow * 0.35})`;
         ctx.beginPath();
-        ctx.arc(n.x, n.y, r * 0.7, 0, Math.PI * 2);
+        ctx.arc(n.x, n.y, r * 0.75, 0, Math.PI * 2);
         ctx.fill();
       }
 

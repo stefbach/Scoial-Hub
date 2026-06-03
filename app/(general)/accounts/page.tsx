@@ -593,7 +593,7 @@ function ManageAdsAccessModal({
           <div className="section-label mb-2">Current state</div>
           <div className="text-sm font-medium text-ink">Currently: Read-only mode</div>
           <div className="mt-0.5 text-2xs text-muted">
-            Social Hub can view ad data but cannot create, edit, or pause ads.
+            AXON-AI can view ad data but cannot create, edit, or pause ads.
           </div>
           <div className="mt-1 text-2xs text-muted">{expiryLine}</div>
         </div>
@@ -606,7 +606,7 @@ function ManageAdsAccessModal({
                 Keep read-only mode after the safety period ends
               </div>
               <div className="mt-0.5 text-2xs text-muted">
-                Recommended if you want to use Social Hub for organic posting and analytics only,
+                Recommended if you want to use AXON-AI for organic posting and analytics only,
                 without giving it permission to spend on ads.
               </div>
             </div>
@@ -618,7 +618,7 @@ function ManageAdsAccessModal({
           <div className="flex items-start gap-2">
             <InfoIcon className="mt-0.5 shrink-0 text-warning-700" />
             <span>
-              Once the safety period ends and read-only mode is off, Social Hub can create campaigns,
+              Once the safety period ends and read-only mode is off, AXON-AI can create campaigns,
               modify budgets, and pause ads on your behalf. All actions remain subject to the spend
               safeguards configured in Settings → Ad Safety.
             </span>

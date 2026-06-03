@@ -42,7 +42,7 @@ export default function AdminLoginPage() {
               <path d="M7 1.5l5 2.5v3c0 3-2.2 4.8-5 5.5C4.2 11.8 2 10 2 7V4L7 1.5Z" stroke="currentColor" strokeWidth="1.1" fill="none" />
             </svg>
           </span>
-          <span className="text-lg font-bold tracking-tight text-ink">Social Hub — Admin</span>
+          <span className="text-lg font-bold tracking-tight text-ink">AXON-AI — Admin</span>
         </div>
         <div className="card p-6">
           <h1 className="text-base font-semibold text-ink">Console d'administration</h1>

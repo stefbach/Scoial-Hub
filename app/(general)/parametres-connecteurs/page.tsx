@@ -398,7 +398,7 @@ export default function ParametresConnecteursPage() {
         </h1>
         <p className="mt-1 text-sm text-muted">
           Centralisez ici tous vos accès externes. Configurez chaque connecteur
-          pour que Social Hub puisse consulter vos données ou agir en votre nom.
+          pour que AXON-AI puisse consulter vos données ou agir en votre nom.
         </p>
       </div>
 

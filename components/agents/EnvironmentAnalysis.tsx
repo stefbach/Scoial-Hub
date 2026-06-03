@@ -3,7 +3,7 @@
 /**
  * EnvironmentAnalysis — affiche l'analyse d'environnement professionnelle et
  * sémantique produite par l'agent Stratège.
- * Design compact et lisible, cohérent avec le design system Social Hub.
+ * Design compact et lisible, cohérent avec le design system AXON-AI.
  */
 
 import type { EnvironmentAnalysis as IEnvironmentAnalysis } from "@/lib/agents/types";

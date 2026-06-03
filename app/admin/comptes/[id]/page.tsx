@@ -47,6 +47,11 @@ const APP_LINKS = [
   { href: "/connecteurs", label: "Connecteurs", icon: "🔗" },
 ];
 
+// Liens spécifiques à l'entité (utilise l'id dynamiquement dans le rendu)
+const ENTITY_TOOL_LINKS = [
+  { href: (id: string) => `/admin/comptes/${id}/telegram`, label: "Chatbot Telegram", icon: "✈️" },
+];
+
 // ── Composants ────────────────────────────────────────────────────────────────
 
 function SectionHeader({ children }: { children: React.ReactNode }) {
@@ -447,6 +452,41 @@ export default function CompteDetailPage() {
                 <Link
                   key={link.href}
                   href={link.href}
+                  className="flex items-center gap-3 rounded-lg border border-transparent px-3 py-2.5 text-sm font-medium text-ink transition-all hover:border-hair hover:bg-canvas"
+                >
+                  <span className="text-base" aria-hidden="true">
+                    {link.icon}
+                  </span>
+                  {link.label}
+                  <svg
+                    className="ml-auto text-muted"
+                    width="14"
+                    height="14"
+                    viewBox="0 0 20 20"
+                    fill="none"
+                    aria-hidden="true"
+                  >
+                    <path
+                      d="M7 5l5 5-5 5"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </Link>
+              ))}
+            </div>
+          </div>
+
+          {/* Outils par entité */}
+          <div className="card p-5">
+            <SectionHeader>Outils de ce compte</SectionHeader>
+            <div className="space-y-1.5">
+              {ENTITY_TOOL_LINKS.map((link) => (
+                <Link
+                  key={link.label}
+                  href={link.href(id)}
                   className="flex items-center gap-3 rounded-lg border border-transparent px-3 py-2.5 text-sm font-medium text-ink transition-all hover:border-hair hover:bg-canvas"
                 >
                   <span className="text-base" aria-hidden="true">

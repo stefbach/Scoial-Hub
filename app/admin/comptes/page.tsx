@@ -89,7 +89,7 @@ export default function ComptesPage() {
         <div>
           <h1 className="text-xl font-bold text-ink">Comptes & entités</h1>
           <p className="mt-0.5 text-sm text-muted">
-            Gérez vos comptes clients et entités Social Hub.
+            Gérez vos comptes clients et entités AXON-AI.
           </p>
         </div>
         <Link href="/admin/comptes/nouveau" className="btn-primary shrink-0">

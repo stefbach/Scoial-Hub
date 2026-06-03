@@ -1,0 +1,32 @@
+/**
+ * POST /api/video/render
+ * Body : { cut: PlatformCut, assets: MediaAsset[], captions?: CaptionSegment[] }
+ * Soumet un rendu vidéo (Shotstack) et renvoie { id, status }.
+ */
+
+export const runtime = "nodejs";
+
+import { NextRequest, NextResponse } from "next/server";
+import { submitRender } from "@/lib/video/render";
+import type { CaptionSegment, MediaAsset, PlatformCut } from "@/lib/video/types";
+
+export async function POST(req: NextRequest) {
+  try {
+    const body = (await req.json()) as {
+      cut?: PlatformCut;
+      assets?: MediaAsset[];
+      captions?: CaptionSegment[];
+    };
+    if (!body.cut || !Array.isArray(body.assets)) {
+      return NextResponse.json({ error: "cut et assets requis." }, { status: 400 });
+    }
+    const result = await submitRender(body.cut, body.assets, body.captions ?? []);
+    if (!result.ok) {
+      return NextResponse.json({ error: result.error, status: result.status }, { status: result.status === "unsupported" ? 422 : 400 });
+    }
+    return NextResponse.json({ id: result.id, status: result.status });
+  } catch (err) {
+    console.error("[POST /api/video/render]", err);
+    return NextResponse.json({ error: "Erreur serveur." }, { status: 500 });
+  }
+}

@@ -28,4 +28,13 @@ export const isTelegramBotConfigured =
   Boolean(env.telegramBotToken) && Boolean(env.telegramBotUsername);
 
 /** True quand un moteur de rendu vidéo (Creatomate/Shotstack/worker FFmpeg) est branché. */
-export const isVideoRenderConfigured = Boolean(process.env.VIDEO_RENDER_API_KEY);
+export const isVideoRenderConfigured =
+  Boolean(process.env.SHOTSTACK_API_KEY) || Boolean(process.env.VIDEO_RENDER_API_KEY);
+
+/** Config Shotstack (rendu vidéo à partir d'un timeline JSON). */
+export const shotstack = {
+  apiKey: process.env.SHOTSTACK_API_KEY ?? "",
+  // "stage" (bac à sable, par défaut) ou "v1" (production).
+  env: process.env.SHOTSTACK_ENV === "v1" ? "v1" : "stage",
+};
+export const isShotstackConfigured = Boolean(shotstack.apiKey);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useCompany } from "@/lib/company-context";
 import { useT, useLang } from "@/lib/i18n";
 import { createClient } from "@/lib/supabase/client";
@@ -14,6 +14,7 @@ import {
   type VideoMarketingPackage,
   type VideoPlatform,
   type PlatformCut,
+  type CaptionSegment,
 } from "@/lib/video/types";
 import { captionsToSrt } from "@/lib/video/srt";
 
@@ -287,7 +288,9 @@ export default function StudioPage() {
           </div>
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            {pkg.cuts.map((c) => <CutCard key={c.platform} cut={c} onCopy={copy} t={t} />)}
+            {pkg.cuts.map((c) => (
+              <CutCard key={c.platform} cut={c} assets={pkg.assets} captions={pkg.captions} onCopy={copy} t={t} />
+            ))}
           </div>
         </section>
       )}
@@ -309,9 +312,71 @@ const ASSEMBLY_BADGE: Record<AssemblyMode, [string, string]> = {
   video_montage: ["Montage", "Montage"],
 };
 
-function CutCard({ cut, onCopy, t }: { cut: PlatformCut; onCopy: (text: string, label: string) => void; t: (fr: string, en: string) => string }) {
+const RENDERABLE = new Set<AssemblyMode>(["video", "video_montage", "slideshow"]);
+
+function CutCard({
+  cut,
+  assets,
+  captions,
+  onCopy,
+  t,
+}: {
+  cut: PlatformCut;
+  assets: MediaAsset[];
+  captions: CaptionSegment[];
+  onCopy: (text: string, label: string) => void;
+  t: (fr: string, en: string) => string;
+}) {
   const isStatic = cut.targetDurationSec === 0;
   const badge = ASSEMBLY_BADGE[cut.assemblyType] ?? ["", ""];
+
+  // ── Rendu vidéo (Shotstack) ──────────────────────────────────────────────────
+  const [rState, setRState] = useState<"idle" | "queued" | "rendering" | "done" | "failed" | "unsupported">("idle");
+  const [rUrl, setRUrl] = useState<string | null>(null);
+  const [rErr, setRErr] = useState<string | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
+
+  async function startRender() {
+    setRErr(null);
+    setRUrl(null);
+    setRState("queued");
+    try {
+      const res = await fetch("/api/video/render", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cut, assets, captions }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.id) {
+        setRState(res.status === 422 ? "unsupported" : "failed");
+        setRErr(data.error ?? `Erreur ${res.status}`);
+        return;
+      }
+      const id = data.id as string;
+      setRState("rendering");
+      pollRef.current = setInterval(async () => {
+        try {
+          const s = await fetch(`/api/video/render/${id}`).then((r) => r.json());
+          if (s.status === "done") {
+            if (pollRef.current) clearInterval(pollRef.current);
+            setRUrl(s.url ?? null);
+            setRState("done");
+          } else if (s.status === "failed") {
+            if (pollRef.current) clearInterval(pollRef.current);
+            setRErr(s.error ?? "Échec du rendu");
+            setRState("failed");
+          }
+        } catch { /* retry next tick */ }
+      }, 4000);
+    } catch {
+      setRState("failed");
+      setRErr("Erreur réseau");
+    }
+  }
+
+  const renderable = RENDERABLE.has(cut.assemblyType);
   return (
     <div className="card p-4">
       <div className="mb-2 flex items-center justify-between">
@@ -375,6 +440,40 @@ function CutCard({ cut, onCopy, t }: { cut: PlatformCut; onCopy: (text: string, 
         {cut.hashtags.length > 0 && <button className="btn-secondary text-2xs" onClick={() => onCopy(cut.hashtags.join(" "), t("Hashtags", "Hashtags"))}>{t("Copier hashtags", "Copy hashtags")}</button>}
         {cut.thumbnailText && <button className="btn-secondary text-2xs" onClick={() => onCopy(cut.thumbnailText, t("Vignette", "Thumbnail"))}>{t("Texte vignette", "Thumbnail text")}</button>}
       </div>
+
+      {/* Rendu vidéo réel */}
+      {renderable && (
+        <div className="mt-3 border-t border-hair pt-3">
+          {rState === "idle" && (
+            <button className="btn-primary w-full justify-center text-2xs" onClick={startRender}>
+              🎬 {t("Générer la vidéo", "Render the video")}
+            </button>
+          )}
+          {(rState === "queued" || rState === "rendering") && (
+            <div className="flex items-center gap-2 text-2xs text-muted">
+              <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-primary" />
+              {t("Rendu en cours… (peut prendre 1-2 min)", "Rendering… (may take 1-2 min)")}
+            </div>
+          )}
+          {rState === "done" && rUrl && (
+            <div className="space-y-2">
+              <video src={rUrl} controls className="w-full rounded-lg border border-hair" />
+              <a href={rUrl} target="_blank" rel="noopener noreferrer" download className="btn-primary w-full justify-center text-2xs">
+                ⬇ {t("Télécharger la vidéo", "Download the video")}
+              </a>
+            </div>
+          )}
+          {rState === "unsupported" && (
+            <p className="text-2xs text-muted">{t("Format statique — pas de rendu vidéo.", "Static format — no video render.")}</p>
+          )}
+          {rState === "failed" && (
+            <div className="text-2xs text-danger">
+              {rErr ?? t("Échec du rendu.", "Render failed.")}
+              <button className="ml-2 underline" onClick={startRender}>{t("Réessayer", "Retry")}</button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

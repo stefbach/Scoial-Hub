@@ -24,8 +24,11 @@ import type {
 // Configuration
 // ---------------------------------------------------------------------------
 
-const META_APP_ID = process.env.META_APP_ID ?? "";
-const META_APP_SECRET = process.env.META_APP_SECRET ?? "";
+// Tolérance : si l'App ID a été collé sous la forme "appId|appSecret"
+// (format token d'app), on en extrait l'App ID seul et, si besoin, le secret.
+const RAW_APP_ID = (process.env.META_APP_ID ?? "").trim();
+const META_APP_ID = RAW_APP_ID.split("|")[0].trim();
+const META_APP_SECRET = (process.env.META_APP_SECRET ?? RAW_APP_ID.split("|")[1] ?? "").trim();
 const META_API_VERSION = process.env.META_API_VERSION ?? "v21.0";
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 

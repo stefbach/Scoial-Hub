@@ -27,6 +27,8 @@ export function BulkGenerateModal({
   const togglePlatform = (p: string) =>
     setPlatforms((s) => (s.includes(p) ? s.filter((x) => x !== p) : [...s, p]));
 
+  const canGenerate = topic.trim().length > 0 && platforms.length > 0 && quantity >= 1;
+
   return (
     <Modal open onClose={onClose} width="max-w-lg">
       <div className="border-b-hair border-hair px-4 py-3 text-sm font-semibold text-ink">
@@ -92,8 +94,13 @@ export function BulkGenerateModal({
         <Button variant="secondary" onClick={onClose}>{t("Annuler", "Cancel")}</Button>
         <Button
           variant="primary"
-          disabled
-          title={t("La génération IA sera activée quand le backend sera connecté", "AI generation will be enabled when the backend is connected")}
+          disabled={!canGenerate}
+          onClick={onClose}
+          title={
+            canGenerate
+              ? t("Générer", "Generate")
+              : t("Renseignez un sujet et au moins une plateforme", "Enter a topic and at least one platform")
+          }
         >
           {t("Générer", "Generate")}
         </Button>

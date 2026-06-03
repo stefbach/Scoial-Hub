@@ -206,7 +206,7 @@ function ScheduledContent() {
           ))}
         </div>
       ) : (
-        <CalendarView posts={posts} />
+        <CalendarView posts={posts} onOpen={setOpenPost} />
       )}
 
       <ScheduledDetailModal
@@ -279,7 +279,7 @@ function PostRow({ post: p, onOpen }: { post: ScheduledPost; onOpen: () => void 
   );
 }
 
-function CalendarView({ posts }: { posts: ScheduledPost[] }) {
+function CalendarView({ posts, onOpen }: { posts: ScheduledPost[]; onOpen: (post: ScheduledPost) => void }) {
   const t = useT();
   const byDate = new Map<number, ScheduledPost[]>();
   for (const p of posts) {
@@ -310,10 +310,23 @@ function CalendarView({ posts }: { posts: ScheduledPost[] }) {
           return (
             <div
               key={i}
+              onClick={hasItems ? () => onOpen(items[0]) : undefined}
+              role={hasItems ? "button" : undefined}
+              tabIndex={hasItems ? 0 : undefined}
+              onKeyDown={
+                hasItems
+                  ? (e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        onOpen(items[0]);
+                      }
+                    }
+                  : undefined
+              }
               className={`min-h-[72px] rounded-lg p-1.5 ${
                 valid
                   ? hasItems
-                    ? "border border-primary-200 bg-primary-50/40"
+                    ? "cursor-pointer border border-primary-200 bg-primary-50/40 transition-colors hover:bg-primary-50"
                     : "border border-hair bg-canvas/60"
                   : "border-transparent"
               }`}
@@ -325,10 +338,18 @@ function CalendarView({ posts }: { posts: ScheduledPost[] }) {
               )}
               <div className="space-y-1">
                 {items.map((p) => (
-                  <div key={p.id} className="flex items-center gap-1 overflow-hidden rounded bg-card px-1 py-0.5 shadow-xs">
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onOpen(p);
+                    }}
+                    className="flex w-full cursor-pointer items-center gap-1 overflow-hidden rounded bg-card px-1 py-0.5 text-left shadow-xs transition-colors hover:bg-canvas"
+                  >
                     <PlatformTag platform={p.platform} />
                     <span className="truncate text-2xs text-ink">{p.time}</span>
-                  </div>
+                  </button>
                 ))}
               </div>
             </div>

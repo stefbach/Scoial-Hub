@@ -95,12 +95,14 @@ export function ScheduledDetailModal({
 
       <div className="px-4 py-3">
         {/* Status + platform + when */}
-        <div className="mb-2 flex flex-wrap items-center gap-2">
-          <StatusBadge tone="blue">{t("Planifié", "Scheduled")}</StatusBadge>
-          <PlatformTag platform={post.platform} />
-          <span className="text-xs font-medium text-ink">
+        <div className="mb-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <StatusBadge tone="blue">{t("Planifié", "Scheduled")}</StatusBadge>
+            <PlatformTag platform={post.platform} />
+          </div>
+          <div className="mt-1.5 text-xs font-medium text-ink">
             {whenLabel(post.date, post.time)}
-          </span>
+          </div>
         </div>
 
         {/* Source */}

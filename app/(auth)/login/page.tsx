@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/env";
@@ -17,7 +17,6 @@ export default function LoginPage() {
 }
 
 function LoginPageInner() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const redirect = searchParams.get("redirect") ?? "/comptes";
   const urlError = searchParams.get("error");
@@ -56,14 +55,17 @@ function LoginPageInner() {
             ? "Email ou mot de passe incorrect."
             : signInError.message
         );
+        setLoading(false);
         return;
       }
 
-      router.push(redirect);
-      router.refresh();
+      // Navigation « dure » : garantit que les cookies de session fraîchement
+      // écrits par Supabase sont envoyés au middleware dès la première requête.
+      // Évite la course cookie / soft-navigation qui imposait un 2e clic.
+      // On ne remet pas `loading` à false : la page va être remplacée.
+      window.location.assign(redirect);
     } catch {
       setError("Une erreur inattendue s'est produite.");
-    } finally {
       setLoading(false);
     }
   }

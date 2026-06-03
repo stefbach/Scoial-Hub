@@ -149,7 +149,7 @@ function LibraryContent() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder={t("Rechercher des modèles…", "Search templates…")}
-          className="input flex-1"
+          className="input min-w-0 flex-1"
         />
 
         <Dropdown
@@ -157,7 +157,7 @@ function LibraryContent() {
           trigger={(open, toggle) => (
             <button
               onClick={toggle}
-              className="rounded-lg border border-hair bg-card px-3 py-2 text-xs font-medium text-ink shadow-xs hover:bg-canvas transition-colors"
+              className="shrink-0 whitespace-nowrap rounded-lg border border-hair bg-card px-3 py-2 text-xs font-medium text-ink shadow-xs hover:bg-canvas transition-colors"
             >
               {t("Plateforme", "Platform")}: {PLATFORM_LABEL[platformFilter]}
             </button>
@@ -186,7 +186,7 @@ function LibraryContent() {
             trigger={(open, toggle) => (
               <button
                 onClick={toggle}
-                className="rounded-lg border border-hair bg-card px-3 py-2 text-xs font-medium text-ink shadow-xs hover:bg-canvas transition-colors"
+                className="shrink-0 whitespace-nowrap rounded-lg border border-hair bg-card px-3 py-2 text-xs font-medium text-ink shadow-xs hover:bg-canvas transition-colors"
               >
                 {t("Statut", "Status")}: {t("Tout", "All")}
               </button>
@@ -208,11 +208,11 @@ function LibraryContent() {
             }
           </Dropdown>
         ) : (
-          <div className="flex items-center overflow-hidden rounded-lg border border-ai-text/30 bg-ai-textbg text-xs text-ai-text shadow-xs">
+          <div className="flex shrink-0 items-center overflow-hidden rounded-lg border border-ai-text/30 bg-ai-textbg text-xs text-ai-text shadow-xs">
             <Dropdown
               align="right"
               trigger={(open, toggle) => (
-                <button onClick={toggle} className="py-2 pl-3 pr-2 font-medium hover:bg-ai-text/10">
+                <button onClick={toggle} className="whitespace-nowrap py-2 pl-3 pr-2 font-medium hover:bg-ai-text/10">
                   {t("Statut", "Status")}: {STATUS_LABEL[statusFilter]}
                 </button>
               )}

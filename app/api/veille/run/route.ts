@@ -19,6 +19,7 @@ import { listCompetitors } from "@/lib/repositories/competitors";
 import { getConnection } from "@/lib/repositories/channel-connections";
 import { createAdminClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/env";
+import { resolveCompanyUuid } from "@/lib/repositories/resolve-company";
 import type { ScrapeNetwork } from "@/lib/scraping/types";
 
 export async function POST(req: NextRequest) {
@@ -46,8 +47,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "companyId requis" }, { status: 400 });
     }
 
+    // 0. Résout l'UUID réel (les sociétés démo ont un id non‑UUID type "occ").
+    const cid = await resolveCompanyUuid(companyId);
+
     // 1. Charger la liste des compétiteurs sélectionnés
-    const allCompetitors = await listCompetitors(companyId);
+    const allCompetitors = await listCompetitors(cid);
     const selectedCompetitors = competitorIds.length > 0
       ? allCompetitors.filter((c) => competitorIds.includes(c.id))
       : allCompetitors;
@@ -65,7 +69,7 @@ export async function POST(req: NextRequest) {
         const { data } = await supabase
           .from("sh_benchmark_runs")
           .insert({
-            company_id: companyId,
+            company_id: cid,
             params: { geo, keywords, theme, competitorIds },
             status: "running",
             results: null,
@@ -81,8 +85,8 @@ export async function POST(req: NextRequest) {
     //     token      = token Meta (connecteur Facebook ou Instagram)
     let igAuth: { businessId: string; token: string } | undefined;
     try {
-      const ig = await getConnection(companyId, "instagram");
-      const fb = await getConnection(companyId, "facebook");
+      const ig = await getConnection(cid, "instagram");
+      const fb = await getConnection(cid, "facebook");
       const businessId = ig?.config?.ig_business_account_id ?? "";
       const token =
         ig?.config?.access_token ??

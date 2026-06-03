@@ -85,7 +85,9 @@ export async function listCompetitors(companyId: string): Promise<Competitor[]> 
   }
 
   const supabase = createAdminClient();
-  if (!supabase) return getMock(companyId);
+  // En mode Supabase : jamais de faux concurrents. Un vrai compte démarre vide,
+  // l'utilisateur ajoute ses propres concurrents réels.
+  if (!supabase) return [];
 
   const { data, error } = await supabase
     .from("sh_competitors")
@@ -94,8 +96,8 @@ export async function listCompetitors(companyId: string): Promise<Competitor[]> 
     .order("created_at", { ascending: false });
 
   if (error) {
-    console.warn("[competitors] Supabase list error, fallback mock:", error.message);
-    return getMock(companyId);
+    console.warn("[competitors] Supabase list error:", error.message);
+    return [];
   }
 
   return (data ?? []).map(rowToCompetitor);

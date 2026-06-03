@@ -265,11 +265,11 @@ function PublisherResultCard({ publisherResult }: { publisherResult: PublisherRe
 
   return (
     <div className={`rounded-lg border p-3 ${conf.bg}`}>
-      <div className={`flex items-center gap-2 font-semibold text-sm ${conf.labelCls}`}>
+      <div className={`flex flex-wrap items-center gap-2 font-semibold text-sm ${conf.labelCls}`}>
         <span>{conf.icon}</span>
-        {conf.title}
+        <span className="min-w-0 break-words">{conf.title}</span>
         {publisherResult.platforms.length > 0 && (
-          <div className="ml-2 flex gap-1">
+          <div className="flex flex-wrap gap-1">
             {publisherResult.platforms.map((p) => (
               <span
                 key={p}
@@ -584,24 +584,24 @@ export function RunTimeline({ result, companyId }: RunTimelineProps) {
             {/* Profil + cadence */}
             <div className="mt-2 flex flex-wrap gap-1.5">
               {profile && (
-                <span className="inline-flex items-center rounded-full bg-primary-50 px-2 py-0.5 text-2xs font-semibold text-primary-700 ring-1 ring-primary-200">
+                <span className="inline-flex max-w-full items-center whitespace-normal break-words rounded-full bg-primary-50 px-2 py-0.5 text-2xs font-semibold text-primary-700 ring-1 ring-primary-200">
                   {profile.label}
                 </span>
               )}
               {cadenceSummary && (
-                <span className="inline-flex items-center rounded-full bg-canvas px-2 py-0.5 text-2xs font-semibold text-muted ring-1 ring-hair">
+                <span className="inline-flex max-w-full items-center whitespace-normal break-words rounded-full bg-canvas px-2 py-0.5 text-2xs font-semibold text-muted ring-1 ring-hair">
                   {cadenceSummary}
                 </span>
               )}
               {result.benchmarkTarget && (
-                <span className="inline-flex items-center rounded-full bg-success-50 px-2 py-0.5 text-2xs font-semibold text-success-700 ring-1 ring-success-200">
+                <span className="inline-flex max-w-full items-center whitespace-normal break-words rounded-full bg-success-50 px-2 py-0.5 text-2xs font-semibold text-success-700 ring-1 ring-success-200">
                   {t("Benchmark :", "Benchmark:")} {result.benchmarkTarget}
                 </span>
               )}
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
             {result.mock && (
               <span className="inline-flex items-center rounded-full bg-canvas px-2 py-0.5 text-2xs font-semibold text-muted ring-1 ring-hair">
                 {t("Mode mock", "Mock mode")}
@@ -679,8 +679,8 @@ export function RunTimeline({ result, companyId }: RunTimelineProps) {
                     <span className="text-2xs font-semibold uppercase text-muted tracking-wide">
                       {agentDef?.name ?? step.agent}
                     </span>
-                    <span className="text-sm font-medium text-ink">{step.title}</span>
-                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-2xs font-semibold ${
+                    <span className="min-w-0 break-words text-sm font-medium text-ink">{step.title}</span>
+                    <span className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-2xs font-semibold ${
                       step.status === "done"      ? "bg-success-50 text-success-700 ring-1 ring-success-500/20"
                       : step.status === "running"  ? "bg-ai-textbg text-ai-text ring-1 ring-ai-text/20"
                       : step.status === "blocked"  ? "bg-danger-50 text-danger-700 ring-1 ring-danger-500/20"

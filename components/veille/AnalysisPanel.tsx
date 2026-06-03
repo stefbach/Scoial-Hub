@@ -44,7 +44,7 @@ export function AnalysisPanel({ analysis }: Props) {
           </span>
         ) : (
           <span className="inline-flex items-center gap-1.5 rounded-full border border-warning-200 bg-warning-50 px-2.5 py-0.5 text-2xs font-medium text-warning-700">
-            {t("Analyse simulée (clé Claude non configurée)", "Simulated analysis (Claude key not configured)")}
+            {t("Analyse simulée (aucun contenu réel collecté — ajoutez des concurrents et une source de données)", "Simulated analysis (no real content collected — add competitors and a data source)")}
           </span>
         )}
       </div>

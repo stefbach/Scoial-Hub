@@ -6,6 +6,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { listCompetitors, addCompetitor, removeCompetitor } from "@/lib/repositories/competitors";
+import { resolveCompanyUuid } from "@/lib/repositories/resolve-company";
 import type { ScrapeNetwork } from "@/lib/scraping/types";
 
 export async function GET(req: NextRequest) {
@@ -14,7 +15,7 @@ export async function GET(req: NextRequest) {
     if (!companyId) {
       return NextResponse.json({ error: "companyId requis" }, { status: 400 });
     }
-    const competitors = await listCompetitors(companyId);
+    const competitors = await listCompetitors(await resolveCompanyUuid(companyId));
     return NextResponse.json({ competitors });
   } catch (err) {
     console.error("[GET /api/veille/competitors]", err);
@@ -47,7 +48,7 @@ export async function POST(req: NextRequest) {
     }
 
     const competitor = await addCompetitor({
-      companyId,
+      companyId: await resolveCompanyUuid(companyId),
       network: network as ScrapeNetwork,
       handle: handle.startsWith("@") ? handle : `@${handle}`,
       name: name ?? handle,

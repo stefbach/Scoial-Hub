@@ -190,15 +190,24 @@ export default function PilotagePage() {
             />
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <span className="text-2xs font-medium uppercase tracking-wide text-muted">{t("Autonomie", "Autonomy")}</span>
-              {[1, 2, 3].map((lvl) => (
-                <button
-                  key={lvl}
-                  onClick={() => setAutonomy(lvl)}
-                  className={`chip ${autonomy === lvl ? "border-page bg-page text-white" : ""}`}
-                >
-                  {t("Niv.", "Lvl.")} {lvl} {lvl === 1 ? t("· Reco", "· Reco") : lvl === 2 ? t("· Semi", "· Semi") : t("· Auto", "· Auto")}
-                </button>
-              ))}
+              {[1, 2, 3].map((lvl) => {
+                const selected = autonomy === lvl;
+                return (
+                  <button
+                    key={lvl}
+                    type="button"
+                    aria-pressed={selected}
+                    onClick={() => setAutonomy(lvl)}
+                    className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-2xs font-medium transition-colors ${
+                      selected
+                        ? "border-page bg-page text-white hover:bg-page hover:border-page"
+                        : "border-hair bg-canvas text-ink hover:bg-white hover:border-[#bb9fff]"
+                    }`}
+                  >
+                    {t("Niv.", "Lvl.")} {lvl} {lvl === 1 ? t("· Reco", "· Reco") : lvl === 2 ? t("· Semi", "· Semi") : t("· Auto", "· Auto")}
+                  </button>
+                );
+              })}
             </div>
           </div>
           <div className="flex flex-col justify-end gap-2">

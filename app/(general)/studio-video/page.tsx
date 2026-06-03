@@ -358,7 +358,7 @@ function CutCard({
       setRState("rendering");
       pollRef.current = setInterval(async () => {
         try {
-          const s = await fetch(`/api/video/render/${id}`).then((r) => r.json());
+          const s = await fetch(`/api/video/render/${encodeURIComponent(id)}`).then((r) => r.json());
           if (s.status === "done") {
             if (pollRef.current) clearInterval(pollRef.current);
             setRUrl(s.url ?? null);

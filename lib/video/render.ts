@@ -27,8 +27,12 @@ export interface RenderStatus {
 
 const RENDERABLE = new Set(["video", "video_montage", "slideshow"]);
 
-function base(): string {
-  return `https://api.shotstack.io/edit/${shotstack.env}`;
+function endpoint(env: string): string {
+  return `https://api.shotstack.io/edit/${env}`;
+}
+/** Ordre d'essai des environnements : celui configuré d'abord, puis l'autre. */
+function envOrder(): string[] {
+  return shotstack.env === "v1" ? ["v1", "stage"] : ["stage", "v1"];
 }
 
 /** Construit le timeline Shotstack pour un cut + ses médias. */
@@ -122,30 +126,46 @@ export async function submitRender(
     return { ok: false, error: "Aucun média à rendre." };
   }
 
-  try {
-    const res = await fetch(`${base()}/render`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-api-key": shotstack.apiKey },
-      body: JSON.stringify(buildEdit(cut, assets, captions)),
-    });
-    const data = (await res.json().catch(() => ({}))) as {
-      success?: boolean;
-      message?: string;
-      response?: { id?: string };
-    };
-    if (!res.ok || !data.success || !data.response?.id) {
+  const body = JSON.stringify(buildEdit(cut, assets, captions));
+  let lastErr = "Erreur Shotstack";
+  // Essaie l'environnement configuré, puis bascule sur l'autre si la clé
+  // ne correspond pas (401/403). L'env retenu est encodé dans l'id renvoyé.
+  for (const env of envOrder()) {
+    try {
+      const res = await fetch(`${endpoint(env)}/render`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-api-key": shotstack.apiKey },
+        body,
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        success?: boolean;
+        message?: string;
+        response?: { id?: string };
+      };
+      if (res.ok && data.success && data.response?.id) {
+        return { ok: true, id: `${env}:${data.response.id}`, status: "queued" };
+      }
+      // 401/403 = mauvais environnement pour cette clé → on tente l'autre.
+      if (res.status === 401 || res.status === 403) {
+        lastErr = `Clé refusée par l'environnement « ${env} » (${res.status}). Vérifiez SHOTSTACK_ENV (stage vs v1).`;
+        continue;
+      }
       return { ok: false, error: data.message ?? `Erreur Shotstack (${res.status})` };
+    } catch (err) {
+      lastErr = err instanceof Error ? err.message : "Erreur réseau";
     }
-    return { ok: true, id: data.response.id, status: "queued" };
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Erreur réseau" };
   }
+  return { ok: false, error: lastErr };
 }
 
-export async function getRenderStatus(id: string): Promise<RenderStatus> {
+export async function getRenderStatus(idWithEnv: string): Promise<RenderStatus> {
   if (!isShotstackConfigured) return { status: "failed", error: "Non configuré." };
+  // id encodé "env:id" — par défaut, env configuré pour compat ascendante.
+  const sep = idWithEnv.indexOf(":");
+  const env = sep > 0 ? idWithEnv.slice(0, sep) : shotstack.env;
+  const id = sep > 0 ? idWithEnv.slice(sep + 1) : idWithEnv;
   try {
-    const res = await fetch(`${base()}/render/${encodeURIComponent(id)}`, {
+    const res = await fetch(`${endpoint(env)}/render/${encodeURIComponent(id)}`, {
       headers: { "x-api-key": shotstack.apiKey },
     });
     const data = (await res.json().catch(() => ({}))) as {

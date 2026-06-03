@@ -17,6 +17,13 @@ export async function GET() {
       REPLICATE_API_TOKEN: Boolean(process.env.REPLICATE_API_TOKEN),
       META_APP_ID: Boolean(process.env.META_APP_ID),
       LINKEDIN_CLIENT_ID: Boolean(process.env.LINKEDIN_CLIENT_ID),
+      SHOTSTACK_API_KEY: Boolean(process.env.SHOTSTACK_API_KEY),
+      TELEGRAM_BOT_TOKEN: Boolean(process.env.TELEGRAM_BOT_TOKEN),
+      TELEGRAM_BOT_USERNAME: Boolean(process.env.TELEGRAM_BOT_USERNAME),
+    },
+    config: {
+      // Valeur non secrète — utile pour diagnostiquer le rendu Shotstack.
+      SHOTSTACK_ENV: process.env.SHOTSTACK_ENV === "v1" ? "v1" : "stage",
     },
   });
 }

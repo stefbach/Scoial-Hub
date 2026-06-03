@@ -459,7 +459,7 @@ Cadence éditoriale retenue : ${formatCadence(cadence)}`;
     const client = new Anthropic({ apiKey: env.anthropicKey });
     const resp = await client.messages.create({
       model: env.anthropicModel,
-      max_tokens: 1024,
+      max_tokens: 700,
       system: buildStrategistSystemPrompt(profile),
       messages: [
         {
@@ -558,7 +558,7 @@ ${profile.semanticField.slice(0, 4).map((s) => `#${s.replace(/\s+/g, "")}`).join
     const client = new Anthropic({ apiKey: env.anthropicKey });
     const resp = await client.messages.create({
       model: env.anthropicModel,
-      max_tokens: 600,
+      max_tokens: 500,
       system: buildCopywriterSystemPrompt(profile, voice),
       messages: [
         {
@@ -699,7 +699,7 @@ async function runCompliance(
 
     const resp = await client.messages.create({
       model: env.anthropicModel,
-      max_tokens: 512,
+      max_tokens: 420,
       system: COMPLIANCE_SYSTEM_PROMPT,
       messages: [
         {
@@ -1061,7 +1061,7 @@ async function runAnalyst(
     const client = new Anthropic({ apiKey: env.anthropicKey });
     const resp = await client.messages.create({
       model: env.anthropicModel,
-      max_tokens: 1024,
+      max_tokens: 700,
       system: buildAnalystSystemPrompt(profile, cadence),
       messages: [
         {

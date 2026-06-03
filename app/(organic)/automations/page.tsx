@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useCompany } from "@/lib/company-context";
+import { useT } from "@/lib/i18n";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -16,12 +17,6 @@ import {
 } from "@/lib/automation-store";
 import type { Automation } from "@/lib/types";
 
-const STATUS: Record<Automation["status"], { label: string; tone: "green" | "amber" | "gray" }> = {
-  active: { label: "Active", tone: "green" },
-  library_low: { label: "Library low", tone: "amber" },
-  paused: { label: "Paused", tone: "gray" },
-};
-
 type Confirm =
   | { kind: "run"; id: string; name: string }
   | { kind: "delete"; id: string; name: string }
@@ -30,14 +25,21 @@ type Confirm =
 export default function AutomationsPage() {
   const { company, data } = useCompany();
   const router = useRouter();
+  const t = useT();
   const a = data.automations;
 
   const [, setTick] = useState(0);
-  const refresh = () => setTick((t) => t + 1);
+  const refresh = () => setTick((n) => n + 1);
 
   const [modal, setModal] = useState<{ open: boolean; automation?: Automation }>({ open: false });
   const [confirm, setConfirm] = useState<Confirm>(null);
   const [toast, setToast] = useState<string | null>(null);
+
+  const STATUS: Record<Automation["status"], { label: string; tone: "green" | "amber" | "gray" }> = {
+    active: { label: t("Actif", "Active"), tone: "green" },
+    library_low: { label: t("Bibliothèque faible", "Library low"), tone: "amber" },
+    paused: { label: t("En pause", "Paused"), tone: "gray" },
+  };
 
   // Live counters derived from the rules list.
   const activeCount = a.rules.filter((r) => r.enabled).length;
@@ -53,10 +55,10 @@ export default function AutomationsPage() {
   return (
     <div className="animate-fade-in">
       <PageHeader
-        title="Automations"
+        title={t("Automatisations", "Automations")}
         actions={
           <Button variant="primary" onClick={() => setModal({ open: true })}>
-            New automation
+            {t("Nouvelle automatisation", "New automation")}
           </Button>
         }
       />
@@ -64,15 +66,15 @@ export default function AutomationsPage() {
       {/* Metric strips */}
       <div className="mb-5 grid grid-cols-3 gap-4">
         <div className="metric-strip">
-          <div className="section-label mb-1">Active</div>
+          <div className="section-label mb-1">{t("Actives", "Active")}</div>
           <div className="mt-1.5 text-2xl font-bold text-ink">{activeCount}</div>
         </div>
         <div className="metric-strip">
-          <div className="section-label mb-1">Paused</div>
+          <div className="section-label mb-1">{t("En pause", "Paused")}</div>
           <div className="mt-1.5 text-2xl font-bold text-ink">{pausedCount}</div>
         </div>
         <div className="metric-strip">
-          <div className="section-label mb-1">Posts this week</div>
+          <div className="section-label mb-1">{t("Publications cette semaine", "Posts this week")}</div>
           <div className="mt-1.5 text-2xl font-bold text-ink">{a.postsThisWeek}</div>
         </div>
       </div>
@@ -83,6 +85,7 @@ export default function AutomationsPage() {
           <AutomationRow
             key={rule.id}
             rule={rule}
+            status={STATUS[rule.status]}
             onOpenEdit={() => setModal({ open: true, automation: rule })}
             onToggle={() => {
               toggleAutomation(company.id, rule.id);
@@ -99,13 +102,13 @@ export default function AutomationsPage() {
               ⚡
             </span>
             <div>
-              <p className="text-sm font-medium text-ink">No automations yet</p>
+              <p className="text-sm font-medium text-ink">{t("Aucune automatisation pour l'instant", "No automations yet")}</p>
               <p className="mt-0.5 text-2xs text-muted">
-                Create an automation to post on a recurring schedule without manual effort.
+                {t("Créez une automatisation pour publier selon un calendrier récurrent sans effort manuel.", "Create an automation to post on a recurring schedule without manual effort.")}
               </p>
             </div>
             <Button variant="secondary" onClick={() => setModal({ open: true })}>
-              Create automation
+              {t("Créer une automatisation", "Create automation")}
             </Button>
           </div>
         )}
@@ -123,16 +126,22 @@ export default function AutomationsPage() {
         <ConfirmOverlay
           message={
             confirm.kind === "run"
-              ? "Run this automation now? It will pull the next template from the library and create a post immediately."
-              : "Delete this automation? This cannot be undone."
+              ? t(
+                  "Lancer cette automatisation maintenant ? Elle va extraire le prochain modèle de la bibliothèque et créer une publication immédiatement.",
+                  "Run this automation now? It will pull the next template from the library and create a post immediately."
+                )
+              : t(
+                  "Supprimer cette automatisation ? Cette action est irréversible.",
+                  "Delete this automation? This cannot be undone."
+                )
           }
-          confirmLabel={confirm.kind === "run" ? "Run now" : "Delete"}
+          confirmLabel={confirm.kind === "run" ? t("Lancer maintenant", "Run now") : t("Supprimer", "Delete")}
           danger={confirm.kind === "delete"}
           onCancel={() => setConfirm(null)}
           onConfirm={() => {
             if (confirm.kind === "run") {
               runAutomationNow(company.id, confirm.id);
-              setToast("Automation ran successfully");
+              setToast(t("Automatisation exécutée avec succès", "Automation ran successfully"));
             } else {
               deleteAutomation(company.id, confirm.id);
             }
@@ -149,6 +158,7 @@ export default function AutomationsPage() {
 
 function AutomationRow({
   rule,
+  status,
   onOpenEdit,
   onToggle,
   onRun,
@@ -156,13 +166,14 @@ function AutomationRow({
   onAddTemplates,
 }: {
   rule: Automation;
+  status: { label: string; tone: "green" | "amber" | "gray" };
   onOpenEdit: () => void;
   onToggle: () => void;
   onRun: () => void;
   onDelete: () => void;
   onAddTemplates: () => void;
 }) {
-  const st = STATUS[rule.status];
+  const t = useT();
   return (
     <div
       onClick={onOpenEdit}
@@ -172,7 +183,7 @@ function AutomationRow({
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <span className="text-sm font-semibold text-ink">{rule.name}</span>
-            <StatusBadge tone={st.tone}>{st.label}</StatusBadge>
+            <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
           </div>
           <div className="mt-1 text-2xs text-muted">
             {rule.account} · {rule.schedule}
@@ -182,13 +193,13 @@ function AutomationRow({
           {(rule.next || rule.last || rule.publishedCount != null) && (
             <div className="mt-0.5 flex flex-wrap gap-3 text-2xs text-muted">
               {rule.next && (
-                <span>Next: <span className="font-medium text-ink">{rule.next}</span></span>
+                <span>{t("Prochain", "Next")}: <span className="font-medium text-ink">{rule.next}</span></span>
               )}
               {rule.last && (
-                <span>Last: <span className="font-medium text-ink">{rule.last}</span></span>
+                <span>{t("Dernier", "Last")}: <span className="font-medium text-ink">{rule.last}</span></span>
               )}
               {rule.publishedCount != null && (
-                <span><span className="font-medium text-ink">{rule.publishedCount}</span> published</span>
+                <span><span className="font-medium text-ink">{rule.publishedCount}</span> {t("publiés", "published")}</span>
               )}
             </div>
           )}
@@ -197,13 +208,13 @@ function AutomationRow({
           className="flex shrink-0 items-center gap-1"
           onClick={(e) => e.stopPropagation()}
         >
-          <IconButton title="Run now" onClick={onRun} ariaLabel="Run now">
+          <IconButton title={t("Lancer maintenant", "Run now")} onClick={onRun} ariaLabel={t("Lancer maintenant", "Run now")}>
             <PlayIcon />
           </IconButton>
-          <IconButton title="Edit" onClick={onOpenEdit} ariaLabel="Edit automation">
+          <IconButton title={t("Modifier", "Edit")} onClick={onOpenEdit} ariaLabel={t("Modifier l'automatisation", "Edit automation")}>
             <PencilIcon />
           </IconButton>
-          <IconButton title="Delete" onClick={onDelete} ariaLabel="Delete automation" danger>
+          <IconButton title={t("Supprimer", "Delete")} onClick={onDelete} ariaLabel={t("Supprimer l'automatisation", "Delete automation")} danger>
             <TrashIcon />
           </IconButton>
           <span className="ml-2">
@@ -218,7 +229,7 @@ function AutomationRow({
         >
           <span className="text-2xs text-warning-700">{rule.warning}</span>
           <Button variant="secondary" className="py-1 text-2xs" onClick={onAddTemplates}>
-            Add templates
+            {t("Ajouter des modèles", "Add templates")}
           </Button>
         </div>
       )}
@@ -267,13 +278,14 @@ function ConfirmOverlay({
   onCancel: () => void;
   onConfirm: () => void;
 }) {
+  const t = useT();
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/30 p-6 backdrop-blur-sm">
       <div className="absolute inset-0" onClick={onCancel} />
       <div className="relative z-50 w-full max-w-sm animate-slide-up rounded-xl border border-hair bg-card p-5 shadow-xl">
         <p className="text-sm leading-relaxed text-ink">{message}</p>
         <div className="mt-5 flex justify-end gap-2">
-          <Button variant="secondary" onClick={onCancel}>Cancel</Button>
+          <Button variant="secondary" onClick={onCancel}>{t("Annuler", "Cancel")}</Button>
           <Button variant={danger ? "danger" : "primary"} onClick={onConfirm}>
             {confirmLabel}
           </Button>

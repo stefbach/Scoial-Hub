@@ -7,6 +7,7 @@ import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { PlatformTag } from "@/components/ui/PlatformTag";
+import { useT } from "@/lib/i18n";
 import type { HistoryItem } from "@/lib/types";
 
 function header(p: HistoryItem) {
@@ -36,6 +37,7 @@ export function HistoryDetailModal({
   onDelete: (id: string) => void;
 }) {
   const router = useRouter();
+  const t = useT();
 
   useEffect(() => {
     if (!post) return;
@@ -58,7 +60,7 @@ export function HistoryDetailModal({
         <div className="text-sm font-semibold text-ink">{header(post)}</div>
         <button
           onClick={onClose}
-          aria-label="Close"
+          aria-label={t("Fermer", "Close")}
           className="-mr-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-muted hover:bg-canvas hover:text-ink"
         >
           ✕
@@ -68,22 +70,22 @@ export function HistoryDetailModal({
       <div className="px-4 py-3">
         <div className="mb-2 flex flex-wrap items-center gap-2">
           {post.status === "published" ? (
-            <StatusBadge tone="green">Published</StatusBadge>
+            <StatusBadge tone="green">{t("Publié", "Published")}</StatusBadge>
           ) : (
-            <StatusBadge tone="red">Failed</StatusBadge>
+            <StatusBadge tone="red">{t("Échoué", "Failed")}</StatusBadge>
           )}
           <PlatformTag platform={post.platform} />
         </div>
 
         <div className="mb-3 text-xs font-medium text-ink">
-          Scheduled: {scheduled}
-          {published && !sameTime && <> · Published: {published}</>}
+          {t("Planifié", "Scheduled")}: {scheduled}
+          {published && !sameTime && <> · {t("Publié", "Published")}: {published}</>}
         </div>
 
         <div className="mb-3 text-2xs text-muted">
           {post.source === "automation" && post.automationName
-            ? `From automation: ${post.automationName}`
-            : "Manual post"}
+            ? `${t("Depuis l'automatisation", "From automation")}: ${post.automationName}`
+            : t("Publication manuelle", "Manual post")}
         </div>
 
         <div className="whitespace-pre-line rounded-md border-hair border-hair bg-canvas p-3 text-sm leading-relaxed text-ink">
@@ -92,10 +94,10 @@ export function HistoryDetailModal({
 
         {post.media && (
           <div className="mt-3">
-            <div className="section-label mb-1">Media</div>
+            <div className="section-label mb-1">{t("Média", "Media")}</div>
             <div className="flex h-[110px] w-[150px] items-center justify-center rounded-md border-hair border-hair bg-canvas">
               <span className="text-2xs text-muted">
-                {post.media.kind === "video" ? "Video" : "Image"}
+                {post.media.kind === "video" ? t("Vidéo", "Video") : t("Image", "Image")}
               </span>
             </div>
           </div>
@@ -103,12 +105,12 @@ export function HistoryDetailModal({
 
         {post.status === "published" && post.metrics && (
           <div className="mt-3">
-            <div className="section-label mb-1">Engagement</div>
+            <div className="section-label mb-1">{t("Engagement", "Engagement")}</div>
             <div className="grid grid-cols-4 gap-2">
-              <Metric label="Reactions" value={post.metrics.reactions} />
-              <Metric label="Comments" value={post.metrics.comments} />
-              <Metric label="Shares" value={post.metrics.shares} />
-              <Metric label="Link clicks" value={post.metrics.linkClicks} />
+              <Metric label={t("Réactions", "Reactions")} value={post.metrics.reactions} />
+              <Metric label={t("Commentaires", "Comments")} value={post.metrics.comments} />
+              <Metric label={t("Partages", "Shares")} value={post.metrics.shares} />
+              <Metric label={t("Clics sur le lien", "Link clicks")} value={post.metrics.linkClicks} />
             </div>
             {post.externalUrl && (
               <a
@@ -117,7 +119,7 @@ export function HistoryDetailModal({
                 rel="noreferrer"
                 className="mt-3 inline-flex items-center gap-1.5 rounded-md border-hair border-hair bg-card px-3 py-1.5 text-xs text-ink hover:bg-canvas"
               >
-                View on {PLATFORM_NAME[post.platform]}
+                {t("Voir sur", "View on")} {PLATFORM_NAME[post.platform]}
                 <ExternalIcon />
               </a>
             )}
@@ -130,23 +132,23 @@ export function HistoryDetailModal({
               <div className="text-2xs font-medium text-red-600">{post.error.title}</div>
               <div className="text-2xs text-muted">{post.error.detail}</div>
             </div>
-            <Button variant="secondary" className="mt-2 py-1 text-2xs">Retry</Button>
+            <Button variant="secondary" className="mt-2 py-1 text-2xs">{t("Réessayer", "Retry")}</Button>
           </div>
         )}
       </div>
 
       <div className="flex items-center justify-between gap-2 border-t-hair border-hair px-4 py-3">
         <Button variant="danger" onClick={() => onDelete(post.id)}>
-          <span className="flex items-center gap-1.5"><TrashIcon /> Delete</span>
+          <span className="flex items-center gap-1.5"><TrashIcon /> {t("Supprimer", "Delete")}</span>
         </Button>
         <div className="flex gap-2">
           <Button
             variant="secondary"
             onClick={() => router.push(`/compose?duplicate=${post.id}`)}
           >
-            Duplicate as new post
+            {t("Dupliquer en nouvelle publication", "Duplicate as new post")}
           </Button>
-          <Button variant="primary" onClick={onClose}>Close</Button>
+          <Button variant="primary" onClick={onClose}>{t("Fermer", "Close")}</Button>
         </div>
       </div>
     </Modal>

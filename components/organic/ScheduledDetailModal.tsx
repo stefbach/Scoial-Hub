@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { PlatformTag } from "@/components/ui/PlatformTag";
 import { DatePicker, TimePicker } from "@/components/ui/DateTimePicker";
+import { useT } from "@/lib/i18n";
 import { deletePost, publishPost, reschedulePost } from "@/lib/draft-store";
 import type { ScheduledPost } from "@/lib/types";
 
@@ -33,6 +34,7 @@ export function ScheduledDetailModal({
   onChanged: () => void;
 }) {
   const router = useRouter();
+  const t = useT();
   const [rescheduling, setRescheduling] = useState(false);
   const [date, setDate] = useState<Date>(new Date());
   const [time, setTime] = useState("09:00");
@@ -84,7 +86,7 @@ export function ScheduledDetailModal({
         <div className="text-sm font-semibold text-ink">{headerLabel(post)}</div>
         <button
           onClick={onClose}
-          aria-label="Close"
+          aria-label={t("Fermer", "Close")}
           className="-mr-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-muted hover:bg-canvas hover:text-ink"
         >
           ✕
@@ -94,7 +96,7 @@ export function ScheduledDetailModal({
       <div className="px-4 py-3">
         {/* Status + platform + when */}
         <div className="mb-2 flex flex-wrap items-center gap-2">
-          <StatusBadge tone="blue">Scheduled</StatusBadge>
+          <StatusBadge tone="blue">{t("Planifié", "Scheduled")}</StatusBadge>
           <PlatformTag platform={post.platform} />
           <span className="text-xs font-medium text-ink">
             {whenLabel(post.date, post.time)}
@@ -106,12 +108,12 @@ export function ScheduledDetailModal({
           {post.source === "automation" ? (
             <>
               <RefreshIcon />
-              <span>From automation: {post.automationName ?? "Recurring rule"}</span>
+              <span>{t("Depuis l'automatisation", "From automation")}: {post.automationName ?? t("Règle récurrente", "Recurring rule")}</span>
             </>
           ) : (
             <>
               <EditIcon />
-              <span>Manual post</span>
+              <span>{t("Publication manuelle", "Manual post")}</span>
             </>
           )}
         </div>
@@ -124,10 +126,10 @@ export function ScheduledDetailModal({
         {/* Media */}
         {post.media && (
           <div className="mt-3">
-            <div className="section-label mb-1">Media</div>
+            <div className="section-label mb-1">{t("Média", "Media")}</div>
             <div className="flex h-[90px] w-[120px] items-center justify-center rounded-md border-hair border-hair bg-canvas">
               <span className="text-2xs text-muted">
-                {post.media.kind === "video" ? "Video" : "Image"}
+                {post.media.kind === "video" ? t("Vidéo", "Video") : t("Image", "Image")}
               </span>
             </div>
           </div>
@@ -136,14 +138,14 @@ export function ScheduledDetailModal({
         {/* Reschedule inline */}
         {rescheduling && (
           <div className="mt-3 rounded-md border-hair border-hair bg-canvas p-3">
-            <div className="section-label mb-2">Reschedule</div>
+            <div className="section-label mb-2">{t("Replanifier", "Reschedule")}</div>
             <div className="grid grid-cols-2 gap-2">
               <DatePicker value={date} onChange={setDate} />
               <TimePicker value={time} onChange={setTime} />
             </div>
             <div className="mt-2 flex justify-end gap-2">
-              <Button variant="ghost" onClick={() => setRescheduling(false)}>Cancel</Button>
-              <Button variant="primary" onClick={handleSaveReschedule}>Save</Button>
+              <Button variant="ghost" onClick={() => setRescheduling(false)}>{t("Annuler", "Cancel")}</Button>
+              <Button variant="primary" onClick={handleSaveReschedule}>{t("Enregistrer", "Save")}</Button>
             </div>
           </div>
         )}
@@ -152,17 +154,17 @@ export function ScheduledDetailModal({
       {/* Actions */}
       <div className="flex items-center justify-between gap-2 border-t-hair border-hair px-4 py-3">
         <Button variant="danger" onClick={() => setConfirm("delete")}>
-          <span className="flex items-center gap-1.5"><TrashIcon /> Delete</span>
+          <span className="flex items-center gap-1.5"><TrashIcon /> {t("Supprimer", "Delete")}</span>
         </Button>
         <div className="flex gap-2">
           <Button variant="secondary" onClick={() => setRescheduling((r) => !r)}>
-            Reschedule
+            {t("Replanifier", "Reschedule")}
           </Button>
           <Button variant="secondary" onClick={() => router.push(`/compose?post=${post.id}`)}>
-            Edit in Compose
+            {t("Modifier dans Compose", "Edit in Compose")}
           </Button>
           <Button variant="primary" onClick={() => setConfirm("publish")}>
-            <span className="flex items-center gap-1.5"><PlayIcon /> Publish now</span>
+            <span className="flex items-center gap-1.5"><PlayIcon /> {t("Publier maintenant", "Publish now")}</span>
           </Button>
         </div>
       </div>
@@ -172,10 +174,10 @@ export function ScheduledDetailModal({
         <ConfirmDialog
           message={
             confirm === "publish"
-              ? "Publish this post immediately? This cannot be undone."
-              : "Delete this post? This cannot be undone."
+              ? t("Publier cette publication immédiatement ? Cette action est irréversible.", "Publish this post immediately? This cannot be undone.")
+              : t("Supprimer cette publication ? Cette action est irréversible.", "Delete this post? This cannot be undone.")
           }
-          confirmLabel={confirm === "publish" ? "Publish" : "Delete"}
+          confirmLabel={confirm === "publish" ? t("Publier", "Publish") : t("Supprimer", "Delete")}
           danger={confirm === "delete"}
           onCancel={() => setConfirm(null)}
           onConfirm={confirm === "publish" ? handlePublish : handleDelete}
@@ -198,12 +200,13 @@ function ConfirmDialog({
   onCancel: () => void;
   onConfirm: () => void;
 }) {
+  const t = useT();
   return (
     <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-black/20 p-6">
       <div className="w-full max-w-xs rounded-lg border-hair border-hair bg-card p-4 shadow-xl">
         <p className="text-sm text-ink">{message}</p>
         <div className="mt-4 flex justify-end gap-2">
-          <Button variant="secondary" onClick={onCancel}>Cancel</Button>
+          <Button variant="secondary" onClick={onCancel}>{t("Annuler", "Cancel")}</Button>
           <Button variant={danger ? "danger" : "primary"} onClick={onConfirm}>
             {confirmLabel}
           </Button>

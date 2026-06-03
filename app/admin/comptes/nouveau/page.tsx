@@ -7,6 +7,7 @@ import { Stepper } from "@/components/admin/Stepper";
 import { NetworkToggle, NetworksState, NetworkId } from "@/components/admin/NetworkToggle";
 import { Toast } from "@/components/ui/Toast";
 import { PRO_PROFILES } from "@/lib/agents/profiles";
+import { useT } from "@/lib/i18n";
 
 // ── Types internes du wizard ─────────────────────────────────────────────────
 
@@ -36,13 +37,6 @@ interface Step3Data {
 }
 
 // ── Constantes ───────────────────────────────────────────────────────────────
-
-const WIZARD_STEPS = [
-  { label: "Entité" },
-  { label: "Réseaux" },
-  { label: "Objectifs" },
-  { label: "Récapitulatif" },
-];
 
 const NETWORKS: NetworkId[] = ["facebook", "instagram", "linkedin"];
 
@@ -77,9 +71,11 @@ function slugify(str: string): string {
 function Step1Entity({
   data,
   onChange,
+  t,
 }: {
   data: Step1Data;
   onChange: (d: Step1Data) => void;
+  t: (fr: string, en: string) => string;
 }) {
   function handleNameBlur(e: React.FocusEvent<HTMLInputElement>) {
     if (!data.code && e.target.value) {
@@ -90,9 +86,9 @@ function Step1Entity({
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
-        <h2 className="text-base font-semibold text-ink">Informations de l'entité</h2>
+        <h2 className="text-base font-semibold text-ink">{t("Informations de l'entité", "Entity information")}</h2>
         <p className="mt-0.5 text-sm text-muted">
-          Nommez et configurez l'identité de ce compte.
+          {t("Nommez et configurez l'identité de ce compte.", "Name and configure the identity of this account.")}
         </p>
       </div>
 
@@ -100,12 +96,12 @@ function Step1Entity({
         {/* Nom */}
         <div className="sm:col-span-2">
           <label className="section-label mb-1.5 block" htmlFor="ent-name">
-            Nom du compte <span className="text-danger-600">*</span>
+            {t("Nom du compte", "Account name")} <span className="text-danger-600">*</span>
           </label>
           <input
             id="ent-name"
             type="text"
-            placeholder="Ex : Clinique du Soleil"
+            placeholder={t("Ex : Clinique du Soleil", "E.g. Sunshine Clinic")}
             value={data.name}
             onBlur={handleNameBlur}
             onChange={(e) => onChange({ ...data, name: e.target.value })}
@@ -117,25 +113,25 @@ function Step1Entity({
         {/* Code */}
         <div>
           <label className="section-label mb-1.5 block" htmlFor="ent-code">
-            Code court <span className="text-danger-600">*</span>
+            {t("Code court", "Short code")} <span className="text-danger-600">*</span>
           </label>
           <input
             id="ent-code"
             type="text"
-            placeholder="Ex : CDS"
+            placeholder={t("Ex : CDS", "E.g. CDS")}
             maxLength={6}
             value={data.code}
             onChange={(e) => onChange({ ...data, code: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "") })}
             className="input w-full font-mono uppercase"
           />
           <p className="mt-1 text-xs text-muted">
-            Identifiant court (2–6 caractères), auto-suggéré depuis le nom.
+            {t("Identifiant court (2–6 caractères), auto-suggéré depuis le nom.", "Short identifier (2–6 characters), auto-suggested from the name.")}
           </p>
         </div>
 
         {/* Couleur d'accent */}
         <div>
-          <label className="section-label mb-1.5 block">Couleur d'accent</label>
+          <label className="section-label mb-1.5 block">{t("Couleur d'accent", "Accent colour")}</label>
           <div className="flex flex-wrap items-center gap-2">
             {ACCENT_PRESETS.map((color) => (
               <button
@@ -150,7 +146,7 @@ function Step1Entity({
                     : "border-transparent hover:scale-105",
                 ].join(" ")}
                 style={{ backgroundColor: color }}
-                aria-label={`Choisir la couleur ${color}`}
+                aria-label={`${t("Choisir la couleur", "Select colour")} ${color}`}
               />
             ))}
             <input
@@ -158,7 +154,7 @@ function Step1Entity({
               value={data.accent}
               onChange={(e) => onChange({ ...data, accent: e.target.value })}
               className="h-7 w-7 cursor-pointer rounded-full border border-hair bg-transparent p-0.5"
-              title="Couleur personnalisée"
+              title={t("Couleur personnalisée", "Custom colour")}
             />
           </div>
         </div>
@@ -166,7 +162,7 @@ function Step1Entity({
 
       {/* Profil professionnel */}
       <div>
-        <label className="section-label mb-2 block">Profil professionnel</label>
+        <label className="section-label mb-2 block">{t("Profil professionnel", "Professional profile")}</label>
         <div className="grid gap-2 sm:grid-cols-2">
           {PRO_PROFILES.map((p) => (
             <button
@@ -202,13 +198,19 @@ function Step1Entity({
         <textarea
           id="ent-brandvoice"
           rows={3}
-          placeholder="Ex : Ton chaleureux, accessible, expert. Communication orientée patient et proximité locale."
+          placeholder={t(
+            "Ex : Ton chaleureux, accessible, expert. Communication orientée patient et proximité locale.",
+            "E.g. Warm, accessible, expert tone. Patient-oriented communication with a local focus."
+          )}
           value={data.brandVoice}
           onChange={(e) => onChange({ ...data, brandVoice: e.target.value })}
           className="input w-full resize-none"
         />
         <p className="mt-1 text-xs text-muted">
-          Décrivez le ton, le style et les valeurs communicationnelles de ce compte.
+          {t(
+            "Décrivez le ton, le style et les valeurs communicationnelles de ce compte.",
+            "Describe the tone, style and communication values of this account."
+          )}
         </p>
       </div>
     </div>
@@ -218,24 +220,26 @@ function Step1Entity({
 function Step2Networks({
   networks,
   onChange,
+  t,
 }: {
   networks: NetworksState;
   onChange: (n: NetworksState) => void;
+  t: (fr: string, en: string) => string;
 }) {
   const anyEnabled = NETWORKS.some((n) => networks[n].enabled);
 
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
-        <h2 className="text-base font-semibold text-ink">Réseaux & canaux</h2>
+        <h2 className="text-base font-semibold text-ink">{t("Réseaux & canaux", "Networks & channels")}</h2>
         <p className="mt-0.5 text-sm text-muted">
-          Activez les réseaux à piloter et configurez les canaux associés.
+          {t("Activez les réseaux à piloter et configurez les canaux associés.", "Enable the networks to manage and configure the associated channels.")}
         </p>
       </div>
 
       {!anyEnabled && (
         <div className="rounded-xl border border-warning-100 bg-warning-50 px-4 py-3 text-sm text-warning-700">
-          Activez au moins un réseau pour continuer.
+          {t("Activez au moins un réseau pour continuer.", "Enable at least one network to continue.")}
         </div>
       )}
 
@@ -251,9 +255,11 @@ function Step2Networks({
       </div>
 
       <div className="rounded-xl border border-hair bg-canvas p-4 text-xs text-muted">
-        <strong className="text-ink">Note :</strong> Les comptes réseaux seront connectés dans l'écran
-        «&nbsp;Connecteurs&nbsp;» après la création. Cette étape configure les canaux activés dans le
-        moteur de pilotage.
+        <strong className="text-ink">{t("Note :", "Note:")}</strong>{" "}
+        {t(
+          "Les comptes réseaux seront connectés dans l'écran « Connecteurs » après la création. Cette étape configure les canaux activés dans le moteur de pilotage.",
+          "Network accounts will be connected in the \"Connectors\" screen after creation. This step configures the enabled channels in the management engine."
+        )}
       </div>
     </div>
   );
@@ -263,10 +269,12 @@ function Step3Objectives({
   data,
   networks,
   onChange,
+  t,
 }: {
   data: Step3Data;
   networks: NetworksState;
   onChange: (d: Step3Data) => void;
+  t: (fr: string, en: string) => string;
 }) {
   const activeNets = NETWORKS.filter((n) => networks[n].enabled);
 
@@ -287,21 +295,27 @@ function Step3Objectives({
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
-        <h2 className="text-base font-semibold text-ink">Objectifs & consignes d'alerte</h2>
+        <h2 className="text-base font-semibold text-ink">{t("Objectifs & consignes d'alerte", "Objectives & alert rules")}</h2>
         <p className="mt-0.5 text-sm text-muted">
-          Définissez les objectifs stratégiques et les seuils de surveillance pour l'agent de pilotage.
+          {t(
+            "Définissez les objectifs stratégiques et les seuils de surveillance pour l'agent de pilotage.",
+            "Define the strategic objectives and monitoring thresholds for the management agent."
+          )}
         </p>
       </div>
 
       {/* Objectif global */}
       <div className="card p-4">
         <label className="section-label mb-2 block" htmlFor="obj-global">
-          Objectif global du compte
+          {t("Objectif global du compte", "Account global objective")}
         </label>
         <textarea
           id="obj-global"
           rows={3}
-          placeholder="Ex : Accroître la notoriété locale, générer des leads qualifiés dans un rayon de 15 km, atteindre 500 nouveaux patients en 90 jours."
+          placeholder={t(
+            "Ex : Accroître la notoriété locale, générer des leads qualifiés dans un rayon de 15 km, atteindre 500 nouveaux patients en 90 jours.",
+            "E.g. Increase local brand awareness, generate qualified leads within a 15 km radius, reach 500 new patients in 90 days."
+          )}
           value={data.objectifGlobal}
           onChange={(e) => onChange({ ...data, objectifGlobal: e.target.value })}
           className="input w-full resize-none"
@@ -311,7 +325,7 @@ function Step3Objectives({
       {/* Objectifs par réseau */}
       {activeNets.length > 0 && (
         <div>
-          <div className="section-label mb-2">Objectifs par réseau</div>
+          <div className="section-label mb-2">{t("Objectifs par réseau", "Objectives by network")}</div>
           <div className="space-y-3">
             {activeNets.map((net) => (
               <div key={net} className="card p-4">
@@ -335,7 +349,7 @@ function Step3Objectives({
                 <textarea
                   id={`obj-net-${net}`}
                   rows={2}
-                  placeholder={`Objectif spécifique pour ${NETWORK_LABELS[net]}…`}
+                  placeholder={`${t("Objectif spécifique pour", "Specific objective for")} ${NETWORK_LABELS[net]}…`}
                   value={data.objectifsReseau[net]?.objectif ?? ""}
                   onChange={(e) => updateNetObj(net, e.target.value)}
                   className="input w-full resize-none"
@@ -348,63 +362,66 @@ function Step3Objectives({
 
       {/* Consignes d'alerte */}
       <div className="card p-4">
-        <div className="section-label mb-3">Consignes d'alerte</div>
+        <div className="section-label mb-3">{t("Consignes d'alerte", "Alert rules")}</div>
         <div className="grid gap-3 sm:grid-cols-3">
           <div>
             <label className="mb-1 block text-xs font-medium text-ink" htmlFor="alerte-budget">
-              Seuil budget (€/mois)
+              {t("Seuil budget (€/mois)", "Budget threshold (€/month)")}
             </label>
             <input
               id="alerte-budget"
               type="number"
               min={0}
-              placeholder="Ex : 2000"
+              placeholder={t("Ex : 2000", "E.g. 2000")}
               value={data.alertes.budgetSeuil}
               onChange={(e) => updateAlertes("budgetSeuil", e.target.value)}
               className="input w-full"
             />
-            <p className="mt-0.5 text-2xs text-muted">Alerte si dépense dépasse ce seuil</p>
+            <p className="mt-0.5 text-2xs text-muted">{t("Alerte si dépense dépasse ce seuil", "Alert if spend exceeds this threshold")}</p>
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-ink" htmlFor="alerte-cpa">
-              CPA max (€)
+              {t("CPA max (€)", "Max CPA (€)")}
             </label>
             <input
               id="alerte-cpa"
               type="number"
               min={0}
-              placeholder="Ex : 45"
+              placeholder={t("Ex : 45", "E.g. 45")}
               value={data.alertes.cpaMax}
               onChange={(e) => updateAlertes("cpaMax", e.target.value)}
               className="input w-full"
             />
-            <p className="mt-0.5 text-2xs text-muted">Alerte si coût par acquisition dépasse</p>
+            <p className="mt-0.5 text-2xs text-muted">{t("Alerte si coût par acquisition dépasse", "Alert if cost per acquisition exceeds")}</p>
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-ink" htmlFor="alerte-engagement">
-              Chute engagement (%)
+              {t("Chute engagement (%)", "Engagement drop (%)")}
             </label>
             <input
               id="alerte-engagement"
               type="number"
               min={0}
               max={100}
-              placeholder="Ex : 30"
+              placeholder={t("Ex : 30", "E.g. 30")}
               value={data.alertes.engagementChute}
               onChange={(e) => updateAlertes("engagementChute", e.target.value)}
               className="input w-full"
             />
-            <p className="mt-0.5 text-2xs text-muted">Alerte si baisse relative d'engagement</p>
+            <p className="mt-0.5 text-2xs text-muted">{t("Alerte si baisse relative d'engagement", "Alert on relative engagement drop")}</p>
           </div>
         </div>
         <div className="mt-3">
           <label className="mb-1 block text-xs font-medium text-ink" htmlFor="alertes-libres">
-            Consignes libres pour l'agent
+            {t("Consignes libres pour l'agent", "Free-form instructions for the agent")}
           </label>
           <textarea
             id="alertes-libres"
             rows={3}
-            placeholder="Ex : Bloquer toute dépense non approuvée le week-end. Alerter si CTR < 0.8% pendant 3 jours consécutifs. Ne jamais dépasser 150€/jour de budget publicitaire."
+            placeholder={t(
+              "Ex : Bloquer toute dépense non approuvée le week-end. Alerter si CTR < 0.8% pendant 3 jours consécutifs. Ne jamais dépasser 150€/jour de budget publicitaire.",
+              "E.g. Block any unapproved spend over the weekend. Alert if CTR < 0.8% for 3 consecutive days. Never exceed €150/day ad budget."
+            )}
             value={data.alertes.alertesLibres}
             onChange={(e) => updateAlertes("alertesLibres", e.target.value)}
             className="input w-full resize-none"
@@ -419,10 +436,12 @@ function Step4Summary({
   step1,
   networks,
   step3,
+  t,
 }: {
   step1: Step1Data;
   networks: NetworksState;
   step3: Step3Data;
+  t: (fr: string, en: string) => string;
 }) {
   const profil = PRO_PROFILES.find((p) => p.id === step1.profilId);
   const activeNets = NETWORKS.filter((n) => networks[n].enabled);
@@ -430,15 +449,15 @@ function Step4Summary({
   return (
     <div className="space-y-5 animate-fade-in">
       <div>
-        <h2 className="text-base font-semibold text-ink">Récapitulatif</h2>
+        <h2 className="text-base font-semibold text-ink">{t("Récapitulatif", "Summary")}</h2>
         <p className="mt-0.5 text-sm text-muted">
-          Vérifiez les informations avant de créer le compte.
+          {t("Vérifiez les informations avant de créer le compte.", "Review the information before creating the account.")}
         </p>
       </div>
 
       {/* Entité */}
       <div className="card p-4">
-        <div className="section-label mb-3">Entité</div>
+        <div className="section-label mb-3">{t("Entité", "Entity")}</div>
         <div className="flex items-center gap-3">
           <span
             className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-sm font-bold text-white shadow-sm"
@@ -462,9 +481,9 @@ function Step4Summary({
 
       {/* Réseaux */}
       <div className="card p-4">
-        <div className="section-label mb-3">Réseaux activés</div>
+        <div className="section-label mb-3">{t("Réseaux activés", "Enabled networks")}</div>
         {activeNets.length === 0 ? (
-          <p className="text-sm text-muted italic">Aucun réseau activé.</p>
+          <p className="text-sm text-muted italic">{t("Aucun réseau activé.", "No network enabled.")}</p>
         ) : (
           <div className="space-y-2">
             {activeNets.map((net) => {
@@ -484,7 +503,7 @@ function Step4Summary({
                   />
                   <span className="text-sm font-medium text-ink">{NETWORK_LABELS[net]}</span>
                   <div className="flex gap-1.5">
-                    {cfg.organic && <span className="chip">Organique</span>}
+                    {cfg.organic && <span className="chip">{t("Organique", "Organic")}</span>}
                     {cfg.ads && <span className="chip">Ads</span>}
                   </div>
                 </div>
@@ -497,7 +516,7 @@ function Step4Summary({
       {/* Objectifs */}
       {step3.objectifGlobal && (
         <div className="card p-4">
-          <div className="section-label mb-2">Objectif global</div>
+          <div className="section-label mb-2">{t("Objectif global", "Global objective")}</div>
           <p className="text-sm text-ink">{step3.objectifGlobal}</p>
         </div>
       )}
@@ -508,23 +527,23 @@ function Step4Summary({
         step3.alertes.engagementChute ||
         step3.alertes.alertesLibres) && (
         <div className="card p-4">
-          <div className="section-label mb-3">Consignes d'alerte</div>
+          <div className="section-label mb-3">{t("Consignes d'alerte", "Alert rules")}</div>
           <div className="space-y-1.5 text-sm">
             {step3.alertes.budgetSeuil && (
               <div className="flex gap-2">
-                <span className="text-muted">Seuil budget :</span>
-                <span className="font-medium text-ink">{step3.alertes.budgetSeuil} €/mois</span>
+                <span className="text-muted">{t("Seuil budget :", "Budget threshold:")}</span>
+                <span className="font-medium text-ink">{step3.alertes.budgetSeuil} €/{t("mois", "month")}</span>
               </div>
             )}
             {step3.alertes.cpaMax && (
               <div className="flex gap-2">
-                <span className="text-muted">CPA max :</span>
+                <span className="text-muted">{t("CPA max :", "Max CPA:")}</span>
                 <span className="font-medium text-ink">{step3.alertes.cpaMax} €</span>
               </div>
             )}
             {step3.alertes.engagementChute && (
               <div className="flex gap-2">
-                <span className="text-muted">Chute engagement :</span>
+                <span className="text-muted">{t("Chute engagement :", "Engagement drop:")}</span>
                 <span className="font-medium text-ink">−{step3.alertes.engagementChute} %</span>
               </div>
             )}
@@ -536,9 +555,13 @@ function Step4Summary({
       )}
 
       <div className="rounded-xl border border-primary-200 bg-primary-50 px-4 py-3 text-sm text-page">
-        <strong>Phase 1 :</strong> L'entité sera créée en base via l'API. La configuration réseaux,
-        objectifs et alertes sera stockée localement (<code className="font-mono text-xs">sh_entity_config_&lt;id&gt;</code>).
-        La persistance complète en base arrivera en Phase 2.
+        <strong>{t("Phase 1 :", "Phase 1:")}</strong>{" "}
+        {t(
+          "L'entité sera créée en base via l'API. La configuration réseaux, objectifs et alertes sera stockée localement",
+          "The entity will be created in the database via the API. The network configuration, objectives and alerts will be stored locally"
+        )}{" "}
+        (<code className="font-mono text-xs">sh_entity_config_&lt;id&gt;</code>).{" "}
+        {t("La persistance complète en base arrivera en Phase 2.", "Full database persistence will be available in Phase 2.")}
       </div>
     </div>
   );
@@ -548,6 +571,14 @@ function Step4Summary({
 
 export default function NouveauComptePage() {
   const router = useRouter();
+  const t = useT();
+
+  const WIZARD_STEPS = [
+    { label: t("Entité", "Entity") },
+    { label: t("Réseaux", "Networks") },
+    { label: t("Objectifs", "Objectives") },
+    { label: t("Récapitulatif", "Summary") },
+  ];
 
   const [step, setStep] = useState(0);
   const [creating, setCreating] = useState(false);
@@ -588,13 +619,13 @@ export default function NouveauComptePage() {
 
   function validateStep(): string | null {
     if (step === 0) {
-      if (!step1.name.trim()) return "Le nom du compte est requis.";
-      if (!step1.code.trim()) return "Le code court est requis.";
-      if (step1.code.length < 2) return "Le code doit contenir au moins 2 caractères.";
+      if (!step1.name.trim()) return t("Le nom du compte est requis.", "Account name is required.");
+      if (!step1.code.trim()) return t("Le code court est requis.", "Short code is required.");
+      if (step1.code.length < 2) return t("Le code doit contenir au moins 2 caractères.", "The code must be at least 2 characters long.");
     }
     if (step === 1) {
       const anyEnabled = NETWORKS.some((n) => networks[n].enabled);
-      if (!anyEnabled) return "Activez au moins un réseau pour continuer.";
+      if (!anyEnabled) return t("Activez au moins un réseau pour continuer.", "Enable at least one network to continue.");
     }
     return null;
   }
@@ -630,7 +661,7 @@ export default function NouveauComptePage() {
 
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        throw new Error(body.error ?? `Erreur ${res.status}`);
+        throw new Error(body.error ?? `${t("Erreur", "Error")} ${res.status}`);
       }
 
       const entity = await res.json();
@@ -651,10 +682,10 @@ export default function NouveauComptePage() {
       }
 
       setCreatedEntity({ id: entity.id, name: entity.name });
-      setToast("Compte créé avec succès !");
+      setToast(t("Compte créé avec succès !", "Account created successfully!"));
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "Erreur inconnue";
-      setToast(`Erreur : ${msg}`);
+      const msg = e instanceof Error ? e.message : t("Erreur inconnue", "Unknown error");
+      setToast(`${t("Erreur :", "Error:")} ${msg}`);
     } finally {
       setCreating(false);
     }
@@ -678,25 +709,27 @@ export default function NouveauComptePage() {
         </div>
 
         <h1 className="mt-5 text-xl font-bold text-ink">
-          Compte «&nbsp;{createdEntity.name}&nbsp;» créé !
+          {t("Compte «", "Account «")}&nbsp;{createdEntity.name}&nbsp;» {t("créé !", "created!")}
         </h1>
         <p className="mt-2 max-w-sm text-sm text-muted">
-          L'entité a été enregistrée en base. La configuration réseaux, objectifs et alertes
-          est sauvegardée localement (Phase 1).
+          {t(
+            "L'entité a été enregistrée en base. La configuration réseaux, objectifs et alertes est sauvegardée localement (Phase 1).",
+            "The entity has been saved to the database. The network configuration, objectives and alerts are stored locally (Phase 1)."
+          )}
         </p>
 
         <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row">
           <Link href="/dashboard" className="btn-primary">
-            Ouvrir l'app
+            {t("Ouvrir l'app", "Open app")}
           </Link>
           <Link
             href={`/admin/comptes/${createdEntity.id}`}
             className="btn-secondary"
           >
-            Gérer l'entité →
+            {t("Gérer l'entité →", "Manage entity →")}
           </Link>
           <Link href="/admin/comptes" className="btn-ghost">
-            Retour aux comptes
+            {t("Retour aux comptes", "Back to accounts")}
           </Link>
         </div>
 
@@ -714,11 +747,11 @@ export default function NouveauComptePage() {
       {/* En-tête */}
       <div className="mb-6 flex items-center gap-3">
         <Link href="/admin/comptes" className="btn-ghost px-2 py-1 text-muted hover:text-ink">
-          ← Retour
+          ← {t("Retour", "Back")}
         </Link>
         <div>
-          <h1 className="text-xl font-bold text-ink">Créer un nouveau compte</h1>
-          <p className="mt-0.5 text-sm text-muted">Tunnel de création guidé — {WIZARD_STEPS.length} étapes</p>
+          <h1 className="text-xl font-bold text-ink">{t("Créer un nouveau compte", "Create a new account")}</h1>
+          <p className="mt-0.5 text-sm text-muted">{t("Tunnel de création guidé —", "Guided creation wizard —")} {WIZARD_STEPS.length} {t("étapes", "steps")}</p>
         </div>
       </div>
 
@@ -728,13 +761,13 @@ export default function NouveauComptePage() {
 
         {/* Corps de l'étape */}
         <div className="card p-6">
-          {step === 0 && <Step1Entity data={step1} onChange={setStep1} />}
-          {step === 1 && <Step2Networks networks={networks} onChange={setNetworks} />}
+          {step === 0 && <Step1Entity data={step1} onChange={setStep1} t={t} />}
+          {step === 1 && <Step2Networks networks={networks} onChange={setNetworks} t={t} />}
           {step === 2 && (
-            <Step3Objectives data={step3} networks={networks} onChange={setStep3} />
+            <Step3Objectives data={step3} networks={networks} onChange={setStep3} t={t} />
           )}
           {step === 3 && (
-            <Step4Summary step1={step1} networks={networks} step3={step3} />
+            <Step4Summary step1={step1} networks={networks} step3={step3} t={t} />
           )}
 
           {/* Navigation */}
@@ -745,16 +778,16 @@ export default function NouveauComptePage() {
               disabled={step === 0}
               className="btn-secondary"
             >
-              ← Précédent
+              ← {t("Précédent", "Previous")}
             </button>
 
             <span className="text-xs text-muted">
-              Étape {step + 1} / {WIZARD_STEPS.length}
+              {t("Étape", "Step")} {step + 1} / {WIZARD_STEPS.length}
             </span>
 
             {step < WIZARD_STEPS.length - 1 ? (
               <button type="button" onClick={handleNext} className="btn-primary">
-                Suivant →
+                {t("Suivant →", "Next →")}
               </button>
             ) : (
               <button
@@ -769,10 +802,10 @@ export default function NouveauComptePage() {
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
                     </svg>
-                    Création en cours…
+                    {t("Création en cours…", "Creating…")}
                   </span>
                 ) : (
-                  "Créer le compte & lancer le paramétrage"
+                  t("Créer le compte & lancer le paramétrage", "Create account & launch setup")
                 )}
               </button>
             )}

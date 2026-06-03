@@ -4,6 +4,7 @@ import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCompany } from "@/lib/company-context";
+import { useT } from "@/lib/i18n";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { PlatformTag } from "@/components/ui/PlatformTag";
@@ -12,11 +13,6 @@ import { groupDateLabel } from "@/lib/format";
 import type { ScheduledPost } from "@/lib/types";
 
 type TabId = "all" | "scheduled" | "drafts";
-const TABS: { id: TabId; label: string }[] = [
-  { id: "all", label: "All" },
-  { id: "scheduled", label: "Scheduled" },
-  { id: "drafts", label: "Drafts" },
-];
 
 const isDraft = (p: ScheduledPost) => p.status === "draft";
 
@@ -32,26 +28,24 @@ function ScheduledContent() {
   const { company, data } = useCompany();
   const router = useRouter();
   const params = useSearchParams();
+  const t = useT();
   const [view, setView] = useState<"list" | "calendar">("list");
   const [openPost, setOpenPost] = useState<ScheduledPost | null>(null);
   const [, setTick] = useState(0);
-  const refresh = () => setTick((t) => t + 1);
+  const refresh = () => setTick((n) => n + 1);
 
   // ── Fusion des posts réels Supabase ──────────────────────────────────────
-  // On récupère les posts depuis l'API et on les fusionne avec les données mock.
-  // Si le fetch échoue, on continue d'afficher les données locales sans erreur.
   const [apiPosts, setApiPosts] = useState<ScheduledPost[]>([]);
   const fetchedForCompany = useRef<string | null>(null);
 
   useEffect(() => {
-    // Re-fetch si la company change ou au focus de la page
     let cancelled = false;
 
     async function fetchPosts() {
       if (!company.id) return;
       try {
         const res = await fetch(`/api/scheduled-posts?companyId=${encodeURIComponent(company.id)}`);
-        if (!res.ok) return; // Silencieux — on garde l'affichage actuel
+        if (!res.ok) return;
         const fetched: ScheduledPost[] = await res.json();
         if (!cancelled && Array.isArray(fetched)) {
           setApiPosts(fetched);
@@ -73,8 +67,6 @@ function ScheduledContent() {
     };
   }, [company.id]);
 
-  // Fusion : les posts API en premier (incluent les brouillons Agent IA),
-  // les posts locaux complémentaires dédoublonnés par id.
   const mergedScheduled = useMemo(() => {
     const apiIds = new Set(apiPosts.map((p) => p.id));
     const localOnly = data.scheduled.filter((p) => !apiIds.has(p.id));
@@ -84,11 +76,10 @@ function ScheduledContent() {
   const param = params.get("tab");
   const tab: TabId = param === "scheduled" || param === "drafts" ? param : "all";
 
-  const setTab = (t: TabId) => {
-    router.push(t === "all" ? "/scheduled" : `/scheduled?tab=${t}`);
+  const setTab = (id: TabId) => {
+    router.push(id === "all" ? "/scheduled" : `/scheduled?tab=${id}`);
   };
 
-  // Published posts leave the Scheduled screen entirely.
   const visible = mergedScheduled.filter((p) => p.status !== "published");
 
   const isScheduledStatus = (p: ScheduledPost) => !isDraft(p);
@@ -97,6 +88,12 @@ function ScheduledContent() {
     scheduled: visible.filter(isScheduledStatus).length,
     drafts: visible.filter(isDraft).length,
   };
+
+  const TABS: { id: TabId; label: string }[] = [
+    { id: "all", label: t("Tout", "All") },
+    { id: "scheduled", label: t("Planifiés", "Scheduled") },
+    { id: "drafts", label: t("Brouillons", "Drafts") },
+  ];
 
   const posts = useMemo(() => {
     if (tab === "scheduled") return visible.filter(isScheduledStatus);
@@ -118,7 +115,7 @@ function ScheduledContent() {
   return (
     <div className="animate-fade-in">
       <PageHeader
-        title="Scheduled"
+        title={t("Planifiés", "Scheduled")}
         actions={
           <>
             {/* View toggle */}
@@ -131,7 +128,7 @@ function ScheduledContent() {
                     : "text-muted hover:text-ink"
                 }`}
               >
-                List
+                {t("Liste", "List")}
               </button>
               <button
                 onClick={() => setView("calendar")}
@@ -141,30 +138,30 @@ function ScheduledContent() {
                     : "text-muted hover:text-ink"
                 }`}
               >
-                Calendar
+                {t("Calendrier", "Calendar")}
               </button>
             </div>
-            <Button variant="primary" onClick={() => router.push("/compose")}>New post</Button>
+            <Button variant="primary" onClick={() => router.push("/compose")}>{t("Nouvelle publication", "New post")}</Button>
           </>
         }
       />
 
       {/* Tab bar */}
       <div className="mb-5 flex gap-1 border-b border-hair">
-        {TABS.map((t) => {
-          const c = counts[t.id];
-          const active = t.id === tab;
+        {TABS.map((tb) => {
+          const c = counts[tb.id];
+          const active = tb.id === tab;
           return (
             <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
+              key={tb.id}
+              onClick={() => setTab(tb.id)}
               className={`-mb-px inline-flex items-center gap-1.5 border-b-2 px-3 pb-2.5 pt-1 text-sm transition-colors ${
                 active
                   ? "border-page font-semibold text-ink"
                   : "border-transparent text-muted hover:text-ink"
               }`}
             >
-              {t.label}
+              {tb.label}
               <span
                 className={`rounded-full px-1.5 py-0.5 text-2xs font-semibold ${
                   active ? "bg-page/10 text-page" : "bg-canvas text-muted"
@@ -185,15 +182,15 @@ function ScheduledContent() {
                 🗓️
               </span>
               <div>
-                <p className="text-sm font-medium text-ink">Nothing scheduled yet</p>
+                <p className="text-sm font-medium text-ink">{t("Aucune publication planifiée", "Nothing scheduled yet")}</p>
                 <p className="mt-0.5 text-2xs text-muted">
                   {tab === "drafts"
-                    ? "No drafts saved. Start composing to save a draft."
-                    : "No posts here. Create and schedule your first post."}
+                    ? t("Aucun brouillon enregistré. Commencez à composer pour sauvegarder un brouillon.", "No drafts saved. Start composing to save a draft.")
+                    : t("Aucune publication ici. Créez et planifiez votre première publication.", "No posts here. Create and schedule your first post.")}
                 </p>
               </div>
               <Button variant="secondary" onClick={() => router.push("/compose")}>
-                Create a post
+                {t("Créer une publication", "Create a post")}
               </Button>
             </div>
           )}
@@ -223,6 +220,7 @@ function ScheduledContent() {
 }
 
 function PostRow({ post: p, onOpen }: { post: ScheduledPost; onOpen: () => void }) {
+  const t = useT();
   const inner = (
     <>
       <span className="w-14 shrink-0 rounded-md bg-canvas px-1.5 py-0.5 text-center text-2xs font-medium text-muted">
@@ -232,12 +230,12 @@ function PostRow({ post: p, onOpen }: { post: ScheduledPost; onOpen: () => void 
       <span className="flex-1 truncate text-sm text-ink">{p.title}</span>
       {p.needsReview && (
         <span className="rounded-full bg-warning-100 px-2 py-0.5 text-2xs font-semibold text-warning-700">
-          Review
+          {t("À relire", "Review")}
         </span>
       )}
       {isDraft(p) ? (
         <span className="rounded-full bg-warning-100 px-2 py-0.5 text-2xs font-semibold text-warning-700">
-          Draft
+          {t("Brouillon", "Draft")}
         </span>
       ) : (
         <span
@@ -247,7 +245,7 @@ function PostRow({ post: p, onOpen }: { post: ScheduledPost; onOpen: () => void 
               : "bg-canvas text-muted"
           }`}
         >
-          {p.source === "automation" ? "Automation" : "Manual"}
+          {p.source === "automation" ? t("Automatisation", "Automation") : t("Manuel", "Manual")}
         </span>
       )}
       {p.automationName === "Agent IA" && (
@@ -282,6 +280,7 @@ function PostRow({ post: p, onOpen }: { post: ScheduledPost; onOpen: () => void 
 }
 
 function CalendarView({ posts }: { posts: ScheduledPost[] }) {
+  const t = useT();
   const byDate = new Map<number, ScheduledPost[]>();
   for (const p of posts) {
     const day = Number(p.date.slice(-2));
@@ -291,10 +290,15 @@ function CalendarView({ posts }: { posts: ScheduledPost[] }) {
   const firstDow = 5;
   const cells = Array.from({ length: 35 }, (_, i) => i - firstDow + 1);
 
+  const DAY_LABELS = [
+    t("Dim", "Sun"), t("Lun", "Mon"), t("Mar", "Tue"),
+    t("Mer", "Wed"), t("Jeu", "Thu"), t("Ven", "Fri"), t("Sam", "Sat"),
+  ];
+
   return (
     <div className="card overflow-hidden p-4">
       <div className="mb-3 grid grid-cols-7 gap-1 text-center text-2xs font-semibold uppercase tracking-wide text-muted">
-        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
+        {DAY_LABELS.map((d) => (
           <div key={d} className="py-1">{d}</div>
         ))}
       </div>

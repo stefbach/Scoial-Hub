@@ -14,18 +14,10 @@ import { AdSetModal } from "@/components/paid/AdSetModal";
 import { hydrateCampaigns } from "@/lib/campaign-store";
 import { downloadFile } from "@/lib/history-store";
 import { eur } from "@/lib/format";
+import { useT } from "@/lib/i18n";
 import type { Ad, AdSet, Campaign, CampaignSeries } from "@/lib/types";
 
 type RangeId = "7d" | "30d" | "90d" | "1y" | "all" | "custom";
-
-const RANGE_LABEL: Record<RangeId, string> = {
-  "7d": "Last 7 days",
-  "30d": "Last 30 days",
-  "90d": "Last 90 days",
-  "1y": "Last year",
-  all: "All time",
-  custom: "Custom range",
-};
 
 type MetricId = "spend" | "impressions" | "clicks" | "conversions" | "ctr" | "cpc";
 
@@ -45,17 +37,6 @@ type PlatformFilter = "all" | "facebook" | "instagram";
 type StatusFilter = "all" | "active" | "paused";
 type SortDir = "desc" | "asc" | "off";
 type SortKey = "spend" | "ctr" | "cpc" | "conversions";
-
-const PLATFORM_LABEL: Record<PlatformFilter, string> = {
-  all: "All",
-  facebook: "Facebook",
-  instagram: "Instagram",
-};
-const STATUS_LABEL: Record<StatusFilter, string> = {
-  all: "All",
-  active: "Active",
-  paused: "Paused",
-};
 
 // Anchor "now" to a fixed point matching the seed dates.
 const NOW = new Date("2026-05-30T00:00:00");
@@ -91,9 +72,6 @@ interface AdRow {
 }
 
 function buildAdRows(campaigns: Campaign[], days: number): AdRow[] {
-  // 30-day baseline. We scale the totals linearly to the requested window
-  // so changing the range visibly moves the numbers without inventing
-  // brand-new mock arrays.
   const factor = days / 30;
   return campaigns.flatMap((c) => {
     return (c.ads ?? []).map((ad): AdRow => {
@@ -182,10 +160,30 @@ export default function AdPerformancePage() {
 
 function AdPerformanceContent() {
   const { company, data } = useCompany();
+  const t = useT();
   const router = useRouter();
   const params = useSearchParams();
   const [, setTick] = useState(0);
-  const refresh = () => setTick((t) => t + 1);
+  const refresh = () => setTick((n) => n + 1);
+
+  const RANGE_LABEL: Record<RangeId, string> = {
+    "7d": t("7 derniers jours", "Last 7 days"),
+    "30d": t("30 derniers jours", "Last 30 days"),
+    "90d": t("90 derniers jours", "Last 90 days"),
+    "1y": t("Année écoulée", "Last year"),
+    all: t("Tout le temps", "All time"),
+    custom: t("Période personnalisée", "Custom range"),
+  };
+  const PLATFORM_LABEL: Record<PlatformFilter, string> = {
+    all: t("Tous", "All"),
+    facebook: "Facebook",
+    instagram: "Instagram",
+  };
+  const STATUS_LABEL: Record<StatusFilter, string> = {
+    all: t("Tous", "All"),
+    active: t("Actif", "Active"),
+    paused: t("En pause", "Paused"),
+  };
 
   // Hydration is idempotent — call synchronously so the first render has
   // ads available (otherwise the table body is empty until the effect runs).
@@ -256,7 +254,6 @@ function AdPerformanceContent() {
     [data.campaigns.list, days]
   );
 
-  // Page-level focused metric drives both chart and table-default sort.
   const filteredRows = useMemo(() => {
     return allRows.filter((r) => {
       if (campaignFilter !== "all" && r.campaign.id !== campaignFilter) return false;
@@ -267,17 +264,12 @@ function AdPerformanceContent() {
     });
   }, [allRows, campaignFilter, platformFilter, statusFilter, search]);
 
-  // Top-line aggregates respecting the date range only (so the cards stay
-  // a stable "overall" view as the user filters the table further down).
   const totalSpend = allRows.reduce((s, r) => s + r.spend, 0);
   const totalImpressions = allRows.reduce((s, r) => s + r.impressions, 0);
   const totalClicks = allRows.reduce((s, r) => s + r.clicks, 0);
   const totalConversions = allRows.reduce((s, r) => s + r.conversions, 0);
   const avgCpc = totalClicks > 0 ? Number((totalSpend / totalClicks).toFixed(2)) : 0;
 
-  // Trend: compare the last "days" window to the prior equivalent window.
-  // We only have 30 baseline days, so we synthesise a sensible previous
-  // period proportional to "days".
   const prevSpend = Math.max(1, Math.round(totalSpend * 0.88));
   const prevImpressions = Math.max(1, Math.round(totalImpressions * 0.92));
   const prevClicks = Math.max(1, Math.round(totalClicks * 0.85));
@@ -286,7 +278,6 @@ function AdPerformanceContent() {
 
   const series = useMemo(() => aggregateSeries(allRows, days), [allRows, days]);
 
-  // Chart series — chips drive selection; focus collapses it to one.
   const activeChips: MetricId[] = useMemo(() => {
     if (focus) return [focus];
     return Array.from(chips);
@@ -306,10 +297,9 @@ function AdPerformanceContent() {
     });
   }, [activeChips, series]);
 
-  // Table — sort & focus interplay.
   const tableSortKey: SortKey = focus
     ? focus === "impressions" || focus === "clicks"
-      ? "spend" // those columns aren't in the table — fall back to spend
+      ? "spend"
       : (focus as SortKey)
     : sortKey;
   const tableSortDir: SortDir = focus ? "desc" : sortDir;
@@ -326,7 +316,6 @@ function AdPerformanceContent() {
     return rows;
   }, [filteredRows, tableSortKey, tableSortDir]);
 
-  // ── Top performer (drives AI insight + its buttons) ───────────────
   const topPerformer = useMemo(() => {
     const candidates = [...allRows];
     candidates.sort((a, b) => {
@@ -337,11 +326,9 @@ function AdPerformanceContent() {
     return candidates[0];
   }, [allRows]);
 
-  // ── Modals ────────────────────────────────────────────────────────
   const [openAd, setOpenAd] = useState<AdRow | null>(null);
   const [editAdSet, setEditAdSet] = useState<{ adSet: AdSet; campaignId: string } | null>(null);
 
-  // ── Handlers ──────────────────────────────────────────────────────
   const toggleChip = (id: MetricId) => {
     if (focus) setFocus(null);
     setChips((s) => {
@@ -363,7 +350,7 @@ function AdPerformanceContent() {
   };
 
   const onSort = (key: SortKey) => {
-    if (focus) return; // table sort follows focus
+    if (focus) return;
     if (sortKey !== key) {
       setSortKey(key);
       setSortDir("desc");
@@ -413,7 +400,7 @@ function AdPerformanceContent() {
   return (
     <div className="animate-fade-in">
       <PageHeader
-        title="Ad Performance"
+        title={t("Performance des publicités", "Ad Performance")}
         actions={
           <>
             <Dropdown
@@ -449,14 +436,14 @@ function AdPerformanceContent() {
                   onClick={toggle}
                   className="rounded-md border border-hair bg-card px-3 py-1.5 text-sm text-ink hover:bg-canvas"
                 >
-                  Export
+                  {t("Exporter", "Export")}
                 </button>
               )}
             >
               {(close) => (
                 <>
-                  <DropdownItem onClick={() => { exportRows("csv"); close(); }}>Export as CSV</DropdownItem>
-                  <DropdownItem onClick={() => { exportRows("json"); close(); }}>Export as JSON</DropdownItem>
+                  <DropdownItem onClick={() => { exportRows("csv"); close(); }}>{t("Exporter en CSV", "Export as CSV")}</DropdownItem>
+                  <DropdownItem onClick={() => { exportRows("json"); close(); }}>{t("Exporter en JSON", "Export as JSON")}</DropdownItem>
                 </>
               )}
             </Dropdown>
@@ -466,11 +453,11 @@ function AdPerformanceContent() {
 
       {range === "custom" && (
         <div className="mb-4 flex items-center gap-2.5 rounded-lg border border-hair bg-card px-4 py-2.5">
-          <span className="text-2xs font-medium text-muted">From</span>
+          <span className="text-2xs font-medium text-muted">{t("Du", "From")}</span>
           <div className="w-40">
             <DatePicker value={customFrom ?? NOW} onChange={setCustomFrom} />
           </div>
-          <span className="text-2xs font-medium text-muted">to</span>
+          <span className="text-2xs font-medium text-muted">{t("au", "to")}</span>
           <div className="w-40">
             <DatePicker value={customTo ?? NOW} onChange={setCustomTo} />
           </div>
@@ -480,35 +467,35 @@ function AdPerformanceContent() {
       {/* Metric cards — clickable focus */}
       <div className="mb-5 grid grid-cols-5 gap-3">
         <MetricCard
-          label="Spend"
+          label={t("Dépenses", "Spend")}
           value={eur(totalSpend)}
           trend={trend(totalSpend, prevSpend)}
           active={focus === "spend"}
           onClick={() => handleFocus("spend")}
         />
         <MetricCard
-          label="Impressions"
+          label={t("Impressions", "Impressions")}
           value={totalImpressions.toLocaleString()}
           trend={trend(totalImpressions, prevImpressions)}
           active={focus === "impressions"}
           onClick={() => handleFocus("impressions")}
         />
         <MetricCard
-          label="Clicks"
+          label={t("Clics", "Clicks")}
           value={totalClicks.toLocaleString()}
           trend={trend(totalClicks, prevClicks)}
           active={focus === "clicks"}
           onClick={() => handleFocus("clicks")}
         />
         <MetricCard
-          label="Conversions"
+          label={t("Conversions", "Conversions")}
           value={String(totalConversions)}
           trend={trend(totalConversions, prevConversions)}
           active={focus === "conversions"}
           onClick={() => handleFocus("conversions")}
         />
         <MetricCard
-          label="Avg. CPC"
+          label={t("CPC moyen", "Avg. CPC")}
           value={eur(avgCpc, { decimals: true })}
           trend={trend(prevCpc, avgCpc)}
           active={focus === "cpc"}
@@ -519,7 +506,7 @@ function AdPerformanceContent() {
       {/* Chart */}
       <div className="card mb-5 overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-hair bg-canvas/50 px-5 py-3.5">
-          <div className="text-sm font-semibold text-ink">Spend &amp; conversions over time</div>
+          <div className="text-sm font-semibold text-ink">{t("Dépenses & conversions dans le temps", "Spend & conversions over time")}</div>
           <div className="flex flex-wrap gap-1.5">
             {(Object.keys(METRICS) as MetricId[]).map((id) => {
               const on = activeChips.includes(id);
@@ -546,8 +533,8 @@ function AdPerformanceContent() {
 
       {/* Top performing ads — filter bar + table */}
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-ink">Top performing ads</h2>
-        <span className="text-2xs text-muted">{sortedRows.length} ads</span>
+        <h2 className="text-sm font-semibold text-ink">{t("Meilleures publicités", "Top performing ads")}</h2>
+        <span className="text-2xs text-muted">{sortedRows.length} {t("pubs", "ads")}</span>
       </div>
 
       <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -558,7 +545,7 @@ function AdPerformanceContent() {
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search ads…"
+            placeholder={t("Rechercher des publicités…", "Search ads…")}
             className="input pl-9"
           />
         </div>
@@ -569,10 +556,10 @@ function AdPerformanceContent() {
               onClick={toggle}
               className="rounded-md border border-hair bg-card px-3 py-2 text-xs text-ink hover:bg-canvas"
             >
-              Campaign:{" "}
+              {t("Campagne", "Campaign")}:{" "}
               {campaignFilter === "all"
-                ? "All"
-                : data.campaigns.list.find((c) => c.id === campaignFilter)?.name ?? "All"}
+                ? t("Toutes", "All")
+                : data.campaigns.list.find((c) => c.id === campaignFilter)?.name ?? t("Toutes", "All")}
             </button>
           )}
         >
@@ -582,7 +569,7 @@ function AdPerformanceContent() {
                 active={campaignFilter === "all"}
                 onClick={() => { setCampaignFilter("all"); close(); }}
               >
-                All
+                {t("Toutes", "All")}
               </DropdownItem>
               {data.campaigns.list.map((c) => (
                 <DropdownItem
@@ -603,7 +590,7 @@ function AdPerformanceContent() {
               onClick={toggle}
               className="rounded-md border border-hair bg-card px-3 py-2 text-xs text-ink hover:bg-canvas"
             >
-              Platform: {PLATFORM_LABEL[platformFilter]}
+              {t("Plateforme", "Platform")}: {PLATFORM_LABEL[platformFilter]}
             </button>
           )}
         >
@@ -626,7 +613,7 @@ function AdPerformanceContent() {
               onClick={toggle}
               className="rounded-md border border-hair bg-card px-3 py-2 text-xs text-ink hover:bg-canvas"
             >
-              Status: {STATUS_LABEL[statusFilter]}
+              {t("Statut", "Status")}: {STATUS_LABEL[statusFilter]}
             </button>
           )}
         >
@@ -648,19 +635,19 @@ function AdPerformanceContent() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-hair bg-canvas/50 text-left">
-              <th className="px-5 py-3 text-2xs font-semibold uppercase tracking-wide text-muted">Ad</th>
-              <SortHeader label="Spend" col="spend" tableSortKey={tableSortKey} tableSortDir={tableSortDir} onSort={onSort} />
+              <th className="px-5 py-3 text-2xs font-semibold uppercase tracking-wide text-muted">{t("Publicité", "Ad")}</th>
+              <SortHeader label={t("Dépenses", "Spend")} col="spend" tableSortKey={tableSortKey} tableSortDir={tableSortDir} onSort={onSort} />
               <SortHeader label="CTR" col="ctr" tableSortKey={tableSortKey} tableSortDir={tableSortDir} onSort={onSort} />
               <SortHeader label="CPC" col="cpc" tableSortKey={tableSortKey} tableSortDir={tableSortDir} onSort={onSort} />
-              <SortHeader label="Conv." col="conversions" tableSortKey={tableSortKey} tableSortDir={tableSortDir} onSort={onSort} />
-              <th className="px-5 py-3 text-2xs font-semibold uppercase tracking-wide text-muted">Status</th>
+              <SortHeader label={t("Conv.", "Conv.")} col="conversions" tableSortKey={tableSortKey} tableSortDir={tableSortDir} onSort={onSort} />
+              <th className="px-5 py-3 text-2xs font-semibold uppercase tracking-wide text-muted">{t("Statut", "Status")}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-hair">
             {sortedRows.length === 0 ? (
               <tr>
                 <td colSpan={6} className="px-5 py-10 text-center text-sm text-muted">
-                  No ads match these filters.
+                  {t("Aucune publicité ne correspond à ces filtres.", "No ads match these filters.")}
                 </td>
               </tr>
             ) : (
@@ -691,7 +678,7 @@ function AdPerformanceContent() {
                       <span className={`inline-block h-1.5 w-1.5 rounded-full ${
                         r.ad.status === "active" ? "bg-success-500" : "bg-muted/40"
                       }`} />
-                      {r.ad.status === "active" ? "Active" : "Paused"}
+                      {r.ad.status === "active" ? t("Actif", "Active") : t("En pause", "Paused")}
                     </span>
                   </td>
                 </tr>
@@ -709,10 +696,10 @@ function AdPerformanceContent() {
               <SparkleIcon />
             </span>
             <div className="flex-1">
-              <span className="font-semibold">AI insight:</span>{" "}
-              &ldquo;{topPerformer.ad.name}&rdquo; is your best performer at{" "}
+              <span className="font-semibold">{t("Insight IA :", "AI insight:")}</span>{" "}
+              &ldquo;{topPerformer.ad.name}&rdquo; {t("est votre meilleure publicité à", "is your best performer at")}{" "}
               {eur(topPerformer.conversions > 0 ? Number((topPerformer.spend / topPerformer.conversions).toFixed(2)) : 0, { decimals: true })}{" "}
-              per conversion. Consider increasing its budget by 30%, or testing similar messaging in other campaigns.
+              {t("par conversion. Envisagez d'augmenter son budget de 30 %, ou testez des messages similaires dans d'autres campagnes.", "per conversion. Consider increasing its budget by 30%, or testing similar messaging in other campaigns.")}
               <div className="mt-2.5 flex gap-2">
                 <button
                   onClick={() =>
@@ -722,13 +709,13 @@ function AdPerformanceContent() {
                   disabled={!topPerformer.adSet}
                   className="rounded-md bg-page px-3 py-1.5 text-2xs font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  Increase budget
+                  {t("Augmenter le budget", "Increase budget")}
                 </button>
                 <button
                   onClick={() => setOpenAd(topPerformer)}
                   className="rounded-md border border-ai-text/30 bg-card px-3 py-1.5 text-2xs font-medium text-ai-text hover:bg-white"
                 >
-                  Generate similar ads
+                  {t("Générer des publicités similaires", "Generate similar ads")}
                 </button>
               </div>
             </div>

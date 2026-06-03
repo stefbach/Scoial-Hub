@@ -1,5 +1,7 @@
 "use client";
 
+import { useT } from "@/lib/i18n";
+
 export interface Step {
   label: string;
   description?: string;
@@ -11,8 +13,10 @@ interface StepperProps {
 }
 
 export function Stepper({ steps, current }: StepperProps) {
+  const t = useT();
+
   return (
-    <nav aria-label="Étapes du tunnel de création" className="mb-8">
+    <nav aria-label={t("Étapes du tunnel de création", "Creation wizard steps")} className="mb-8">
       {/* Barre de progression */}
       <div className="relative mb-6">
         <div className="h-1 w-full rounded-full bg-hair" />

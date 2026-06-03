@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useT } from "@/lib/i18n";
 
 type User = { id: string; email: string; createdAt: string; lastSignInAt: string | null; orgName: string | null };
 
 export default function AdminUsersPage() {
+  const t = useT();
   const [users, setUsers] = useState<User[] | null>(null);
   const [configured, setConfigured] = useState(true);
   const [email, setEmail] = useState("");
@@ -37,14 +39,14 @@ export default function AdminUsersPage() {
       });
       const d = await res.json();
       if (!res.ok) {
-        setMsg({ ok: false, text: d.error ?? "Échec de la création." });
+        setMsg({ ok: false, text: d.error ?? t("Échec de la création.", "Creation failed.") });
       } else {
-        setMsg({ ok: true, text: `Utilisateur ${email} créé. Il peut se connecter sur /login.` });
+        setMsg({ ok: true, text: t(`Utilisateur ${email} créé. Il peut se connecter sur /login.`, `User ${email} created. They can sign in at /login.`) });
         setEmail(""); setPassword(""); setOrgName("");
         load();
       }
     } catch {
-      setMsg({ ok: false, text: "Erreur réseau." });
+      setMsg({ ok: false, text: t("Erreur réseau.", "Network error.") });
     } finally {
       setBusy(false);
     }
@@ -53,42 +55,46 @@ export default function AdminUsersPage() {
   return (
     <div className="animate-fade-in space-y-6">
       <div>
-        <h1 className="text-xl font-bold tracking-tight text-ink">Utilisateurs</h1>
-        <p className="mt-0.5 text-sm text-muted">Crée les comptes qui pourront se connecter à l'application.</p>
+        <h1 className="text-xl font-bold tracking-tight text-ink">{t("Utilisateurs", "Users")}</h1>
+        <p className="mt-0.5 text-sm text-muted">{t("Crée les comptes qui pourront se connecter à l'application.", "Create accounts that can sign in to the application.")}</p>
       </div>
 
       {!configured && (
         <div className="card border-l-[3px] border-l-warning-500 p-4 text-sm text-muted">
-          Supabase (service role) non configuré — la création d'utilisateurs nécessite <span className="font-medium text-ink">SUPABASE_SERVICE_ROLE_KEY</span>.
+          {t(
+            "Supabase (service role) non configuré — la création d'utilisateurs nécessite",
+            "Supabase (service role) not configured — user creation requires"
+          )}{" "}
+          <span className="font-medium text-ink">SUPABASE_SERVICE_ROLE_KEY</span>.
         </div>
       )}
 
       <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
         {/* Création */}
         <form onSubmit={create} className="card h-fit space-y-3 p-5">
-          <div className="section-label">Nouvel utilisateur</div>
+          <div className="section-label">{t("Nouvel utilisateur", "New user")}</div>
           <div>
-            <label className="mb-1 block text-2xs font-medium uppercase tracking-wide text-muted">Email</label>
-            <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="utilisateur@entreprise.com" className="input" />
+            <label className="mb-1 block text-2xs font-medium uppercase tracking-wide text-muted">{t("Email", "Email")}</label>
+            <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder={t("utilisateur@entreprise.com", "user@company.com")} className="input" />
           </div>
           <div>
-            <label className="mb-1 block text-2xs font-medium uppercase tracking-wide text-muted">Mot de passe (8+ car.)</label>
+            <label className="mb-1 block text-2xs font-medium uppercase tracking-wide text-muted">{t("Mot de passe (8+ car.)", "Password (8+ chars)")}</label>
             <input type="password" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" className="input" />
           </div>
           <div>
-            <label className="mb-1 block text-2xs font-medium uppercase tracking-wide text-muted">Organisation (optionnel)</label>
-            <input value={orgName} onChange={(e) => setOrgName(e.target.value)} placeholder="Nom de l'entreprise" className="input" />
+            <label className="mb-1 block text-2xs font-medium uppercase tracking-wide text-muted">{t("Organisation (optionnel)", "Organisation (optional)")}</label>
+            <input value={orgName} onChange={(e) => setOrgName(e.target.value)} placeholder={t("Nom de l'entreprise", "Company name")} className="input" />
           </div>
           {msg && <p className={`rounded-lg px-3 py-2 text-sm ${msg.ok ? "bg-success-50 text-success-700" : "bg-danger-50 text-danger-700"}`}>{msg.text}</p>}
-          <button type="submit" disabled={busy} className="btn-primary w-full">{busy ? "Création…" : "Créer l'utilisateur"}</button>
+          <button type="submit" disabled={busy} className="btn-primary w-full">{busy ? t("Création…", "Creating…") : t("Créer l'utilisateur", "Create user")}</button>
         </form>
 
         {/* Liste */}
         <div>
-          <div className="section-label mb-2.5">Comptes existants</div>
+          <div className="section-label mb-2.5">{t("Comptes existants", "Existing accounts")}</div>
           <div className="card divide-y divide-hair">
-            {users === null && <div className="px-4 py-6 text-sm text-muted">Chargement…</div>}
-            {users?.length === 0 && <div className="px-4 py-8 text-center text-sm text-muted">Aucun utilisateur. Créez le premier compte.</div>}
+            {users === null && <div className="px-4 py-6 text-sm text-muted">{t("Chargement…", "Loading…")}</div>}
+            {users?.length === 0 && <div className="px-4 py-8 text-center text-sm text-muted">{t("Aucun utilisateur. Créez le premier compte.", "No users yet. Create the first account.")}</div>}
             {users?.map((u) => (
               <div key={u.id} className="flex items-center gap-3 px-4 py-3 text-sm">
                 <span className="flex h-8 w-8 items-center justify-center rounded-full bg-page text-2xs font-bold text-white">
@@ -96,7 +102,7 @@ export default function AdminUsersPage() {
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="truncate font-medium text-ink">{u.email}</div>
-                  <div className="text-2xs text-muted">{u.orgName ?? "—"} · {u.lastSignInAt ? "déjà connecté" : "jamais connecté"}</div>
+                  <div className="text-2xs text-muted">{u.orgName ?? "—"} · {u.lastSignInAt ? t("déjà connecté", "signed in before") : t("jamais connecté", "never signed in")}</div>
                 </div>
               </div>
             ))}

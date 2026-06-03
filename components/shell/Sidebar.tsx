@@ -7,6 +7,7 @@ import { useT } from "@/lib/i18n";
 // Traductions des libellés de navigation (FR par défaut → EN).
 const NAV_TR: Record<string, [string, string]> = {
   "Dashboard": ["Tableau de bord", "Dashboard"],
+  "Get started": ["Démarrage guidé", "Get started"],
   "Pilotage IA": ["Pilotage IA", "AI Piloting"],
   "Centre de pilotage": ["Centre de pilotage", "Command Center"],
   "Agents": ["Agents", "Agents"],
@@ -26,6 +27,9 @@ const NAV_TR: Record<string, [string, string]> = {
   "Analytics": ["Analytics", "Analytics"],
   "Accounts": ["Comptes sociaux", "Accounts"],
   "Settings": ["Paramètres", "Settings"],
+  "Pilotage & Bots": ["Pilotage & Bots", "Pilot & Bots"],
+  "Telegram": ["Telegram", "Telegram"],
+  "MCP Claude": ["Connecteur MCP", "MCP Connector"],
 };
 
 /* ── Icônes SVG inline ─────────────────────────────────────────────── */
@@ -145,11 +149,39 @@ const ICONS: Record<string, React.ReactNode> = {
       <path d="M1.5 7 5 4.5 8 6.5 13 2" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round" fill="none" opacity="0.5"/>
     </svg>
   ),
+  "/demarrage": (
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+      <path d="M7.5 1.5l1.6 3.3 3.6.5-2.6 2.5.6 3.6-3.2-1.7-3.2 1.7.6-3.6L2 5.3l3.6-.5L7.5 1.5Z"
+            stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round" fill="none"/>
+    </svg>
+  ),
+  "/telegram": (
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+      <path d="M13 2.5L1.8 6.9c-.6.2-.6.8 0 1l2.7.85 1.05 3.3c.13.4.35.45.6.2L7.9 10.3l2.6 1.9c.35.25.65.12.74-.32L13.8 3.2c.12-.55-.2-.85-.8-.7Z"
+            stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round" fill="none"/>
+      <path d="M4.5 7.9 11 4.2 6.1 8.5" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" fill="none" opacity="0.6"/>
+    </svg>
+  ),
+  "/mcp": (
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+      <circle cx="7.5" cy="7.5" r="2" stroke="currentColor" strokeWidth="1.2" fill="none"/>
+      <circle cx="3" cy="3" r="1.3" stroke="currentColor" strokeWidth="1.1" fill="none"/>
+      <circle cx="12" cy="3" r="1.3" stroke="currentColor" strokeWidth="1.1" fill="none"/>
+      <circle cx="3" cy="12" r="1.3" stroke="currentColor" strokeWidth="1.1" fill="none"/>
+      <circle cx="12" cy="12" r="1.3" stroke="currentColor" strokeWidth="1.1" fill="none"/>
+      <path d="M4 4l2 2M11 4L9 6M4 11l2-2M11 11L9 9" stroke="currentColor" strokeWidth="1" strokeLinecap="round" opacity="0.6"/>
+    </svg>
+  ),
 };
 
 /* ── Groupes de navigation ─────────────────────────────────────────── */
 const GROUPS: { label?: string; items: { href: string; label: string }[] }[] = [
-  { items: [{ href: "/dashboard", label: "Dashboard" }] },
+  {
+    items: [
+      { href: "/dashboard",  label: "Dashboard" },
+      { href: "/demarrage",  label: "Get started" },
+    ],
+  },
   {
     label: "Pilotage IA",
     items: [
@@ -175,6 +207,13 @@ const GROUPS: { label?: string; items: { href: string; label: string }[] }[] = [
       { href: "/campaigns",      label: "Campaigns" },
       { href: "/audiences",      label: "Audiences" },
       { href: "/ad-performance", label: "Ad Performance" },
+    ],
+  },
+  {
+    label: "Pilotage & Bots",
+    items: [
+      { href: "/telegram", label: "Telegram" },
+      { href: "/mcp",      label: "MCP Claude" },
     ],
   },
   {

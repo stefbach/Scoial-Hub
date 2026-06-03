@@ -2,9 +2,11 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useT } from "@/lib/i18n";
 
 export default function AdminLoginPage() {
   const router = useRouter();
+  const t = useT();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -21,14 +23,14 @@ export default function AdminLoginPage() {
         body: JSON.stringify({ email, password }),
       });
       if (!res.ok) {
-        setError("Identifiants invalides.");
+        setError(t("Identifiants invalides.", "Invalid credentials."));
         setLoading(false);
         return;
       }
       router.push("/admin");
       router.refresh();
     } catch {
-      setError("Erreur réseau, réessayez.");
+      setError(t("Erreur réseau, réessayez.", "Network error, please try again."));
       setLoading(false);
     }
   }
@@ -45,20 +47,20 @@ export default function AdminLoginPage() {
           <span className="text-lg font-bold tracking-tight text-ink">AXON-AI — Admin</span>
         </div>
         <div className="card p-6">
-          <h1 className="text-base font-semibold text-ink">Console d'administration</h1>
-          <p className="mt-1 text-sm text-muted">Connectez-vous pour gérer les comptes et le paramétrage.</p>
+          <h1 className="text-base font-semibold text-ink">{t("Console d'administration", "Administration console")}</h1>
+          <p className="mt-1 text-sm text-muted">{t("Connectez-vous pour gérer les comptes et le paramétrage.", "Sign in to manage accounts and settings.")}</p>
           <form onSubmit={submit} className="mt-5 space-y-3">
             <div>
-              <label className="section-label mb-1 block text-muted">Email</label>
+              <label className="section-label mb-1 block text-muted">{t("Email", "Email")}</label>
               <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="admin@socialhub.com" className="input" />
             </div>
             <div>
-              <label className="section-label mb-1 block text-muted">Mot de passe</label>
+              <label className="section-label mb-1 block text-muted">{t("Mot de passe", "Password")}</label>
               <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" className="input" />
             </div>
             {error && <p className="rounded-lg bg-danger-50 px-3 py-2 text-sm text-danger-700">{error}</p>}
             <button type="submit" disabled={loading} className="btn-primary w-full">
-              {loading ? "Connexion…" : "Se connecter"}
+              {loading ? t("Connexion…", "Signing in…") : t("Se connecter", "Sign in")}
             </button>
           </form>
         </div>

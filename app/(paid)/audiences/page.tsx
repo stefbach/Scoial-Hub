@@ -9,28 +9,16 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Dropdown, DropdownItem } from "@/components/ui/Dropdown";
 import { AudienceDetailModal } from "@/components/paid/AudienceDetailModal";
 import { NewAudienceModal } from "@/components/paid/NewAudienceModal";
+import { useT } from "@/lib/i18n";
 import type { Audience, AudienceType } from "@/lib/types";
 
 type TypeFilter = "all" | AudienceType;
 type StatusFilter = "all" | "in_use" | "not_in_use";
 
-const TYPE: Record<AudienceType, { label: string; ring: string; bg: string }> = {
-  saved:     { label: "Saved",     ring: "border-l-platform-facebook", bg: "bg-[#e7f0fd] text-[#1877f2]" },
-  custom:    { label: "Custom",    ring: "border-l-ai-visual",          bg: "bg-ai-visualbg text-ai-visual" },
-  lookalike: { label: "Lookalike", ring: "border-l-warning-500",        bg: "bg-warning-50 text-warning-700" },
-};
-
-const TYPE_LABEL: Record<TypeFilter, string> = {
-  all: "All",
-  saved: "Saved",
-  custom: "Custom",
-  lookalike: "Lookalike",
-};
-
-const STATUS_LABEL: Record<StatusFilter, string> = {
-  all: "All",
-  in_use: "In use",
-  not_in_use: "Not in use",
+const TYPE: Record<AudienceType, { labelFr: string; labelEn: string; ring: string; bg: string }> = {
+  saved:     { labelFr: "Enregistrée", labelEn: "Saved",     ring: "border-l-platform-facebook", bg: "bg-[#e7f0fd] text-[#1877f2]" },
+  custom:    { labelFr: "Personnalisée", labelEn: "Custom",    ring: "border-l-ai-visual",          bg: "bg-ai-visualbg text-ai-visual" },
+  lookalike: { labelFr: "Sosie",   labelEn: "Lookalike", ring: "border-l-warning-500",        bg: "bg-warning-50 text-warning-700" },
 };
 
 export default function AudiencesPage() {
@@ -43,6 +31,7 @@ export default function AudiencesPage() {
 
 function AudiencesContent() {
   const { company, data } = useCompany();
+  const t = useT();
   const router = useRouter();
   const params = useSearchParams();
 
@@ -92,21 +81,33 @@ function AudiencesContent() {
   const total = a.list.length;
   const inUseCount = a.list.filter((aud) => aud.inUse > 0).length;
 
+  const TYPE_LABEL_MAP: Record<TypeFilter, string> = {
+    all: t("Tous", "All"),
+    saved: t("Enregistrée", "Saved"),
+    custom: t("Personnalisée", "Custom"),
+    lookalike: t("Sosie", "Lookalike"),
+  };
+  const STATUS_LABEL_MAP: Record<StatusFilter, string> = {
+    all: t("Tous", "All"),
+    in_use: t("En cours d'utilisation", "In use"),
+    not_in_use: t("Non utilisée", "Not in use"),
+  };
+
   return (
     <div className="animate-fade-in">
       <PageHeader
-        title="Audiences"
+        title={t("Audiences", "Audiences")}
         actions={
           <>
             <Button
               variant="secondary"
               disabled
-              title="Audience sync will be enabled when Meta is connected."
+              title={t("La synchronisation sera disponible une fois Meta connecté.", "Audience sync will be enabled when Meta is connected.")}
             >
-              Sync from Meta
+              {t("Sync depuis Meta", "Sync from Meta")}
             </Button>
             <Button variant="primary" onClick={() => setNewModalOpen(true)}>
-              New audience
+              {t("Nouvelle audience", "New audience")}
             </Button>
           </>
         }
@@ -115,19 +116,19 @@ function AudiencesContent() {
       {/* KPI strips */}
       <div className="mb-5 grid grid-cols-3 gap-3">
         <KpiStrip
-          label="Total audiences"
+          label={t("Total audiences", "Total audiences")}
           value={String(total)}
           icon={<UsersIcon />}
           accent="blue"
         />
         <KpiStrip
-          label="In use"
+          label={t("En cours d'utilisation", "In use")}
           value={String(inUseCount)}
           icon={<CheckIcon />}
           accent="green"
         />
         <KpiStrip
-          label="Combined reach"
+          label={t("Portée combinée", "Combined reach")}
           value={a.combinedReach}
           icon={<ReachIcon />}
           accent="indigo"
@@ -143,7 +144,7 @@ function AudiencesContent() {
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search audiences…"
+            placeholder={t("Rechercher des audiences…", "Search audiences…")}
             className="input pl-9"
           />
         </div>
@@ -154,21 +155,21 @@ function AudiencesContent() {
               onClick={toggle}
               className="rounded-md border border-hair bg-card px-3 py-2 text-xs text-ink hover:bg-canvas"
             >
-              Type: {TYPE_LABEL[typeFilter]}
+              {t("Type", "Type")}: {TYPE_LABEL_MAP[typeFilter]}
             </button>
           )}
         >
           {(close) =>
-            (["all", "saved", "custom", "lookalike"] as TypeFilter[]).map((t) => (
+            (["all", "saved", "custom", "lookalike"] as TypeFilter[]).map((tf) => (
               <DropdownItem
-                key={t}
-                active={t === typeFilter}
+                key={tf}
+                active={tf === typeFilter}
                 onClick={() => {
-                  setTypeFilter(t);
+                  setTypeFilter(tf);
                   close();
                 }}
               >
-                {TYPE_LABEL[t]}
+                {TYPE_LABEL_MAP[tf]}
               </DropdownItem>
             ))
           }
@@ -180,21 +181,21 @@ function AudiencesContent() {
               onClick={toggle}
               className="rounded-md border border-hair bg-card px-3 py-2 text-xs text-ink hover:bg-canvas"
             >
-              Status: {STATUS_LABEL[statusFilter]}
+              {t("Statut", "Status")}: {STATUS_LABEL_MAP[statusFilter]}
             </button>
           )}
         >
           {(close) =>
-            (["all", "in_use", "not_in_use"] as StatusFilter[]).map((s) => (
+            (["all", "in_use", "not_in_use"] as StatusFilter[]).map((sf) => (
               <DropdownItem
-                key={s}
-                active={s === statusFilter}
+                key={sf}
+                active={sf === statusFilter}
                 onClick={() => {
-                  setStatusFilter(s);
+                  setStatusFilter(sf);
                   close();
                 }}
               >
-                {STATUS_LABEL[s]}
+                {STATUS_LABEL_MAP[sf]}
               </DropdownItem>
             ))
           }
@@ -207,8 +208,8 @@ function AudiencesContent() {
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-canvas text-muted">
             <UsersIcon />
           </div>
-          <p className="mt-4 text-sm font-medium text-ink">No audiences match these filters</p>
-          <p className="mt-1 text-sm text-muted">Try adjusting the type or status filter.</p>
+          <p className="mt-4 text-sm font-medium text-ink">{t("Aucune audience ne correspond à ces filtres", "No audiences match these filters")}</p>
+          <p className="mt-1 text-sm text-muted">{t("Essayez d'ajuster le filtre de type ou de statut.", "Try adjusting the type or status filter.")}</p>
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-3">
@@ -216,14 +217,14 @@ function AudiencesContent() {
             <AudienceCard key={aud.id} aud={aud} onClick={() => setOpenAudience(aud)} />
           ))}
           <div
-            title="AI audience suggestions will be enabled when the backend is connected."
+            title={t("Les suggestions IA seront disponibles une fois le backend connecté.", "AI audience suggestions will be enabled when the backend is connected.")}
             className="flex cursor-not-allowed flex-col items-center justify-center rounded-xl border border-dashed border-ai-visual/40 bg-ai-visualbg/30 p-6 text-center opacity-60"
           >
             <div className="mb-2 flex h-9 w-9 items-center justify-center rounded-lg bg-ai-visualbg text-ai-visual">
               <SparkleIcon />
             </div>
-            <span className="text-sm font-medium text-ink">Let AI suggest an audience</span>
-            <span className="mt-0.5 text-2xs text-ai-visual">Describe your target in plain English</span>
+            <span className="text-sm font-medium text-ink">{t("Laisser l'IA suggérer une audience", "Let AI suggest an audience")}</span>
+            <span className="mt-0.5 text-2xs text-ai-visual">{t("Décrivez votre cible en langage naturel", "Describe your target in plain English")}</span>
           </div>
         </div>
       )}
@@ -280,16 +281,18 @@ function KpiStrip({
 
 /* ── Audience card ──────────────────────────────────────────────────── */
 function AudienceCard({ aud, onClick }: { aud: Audience; onClick: () => void }) {
-  const t = TYPE[aud.type];
+  const tFn = useT();
+  const typeStyle = TYPE[aud.type];
+  const typeLabel = tFn(typeStyle.labelFr, typeStyle.labelEn);
   return (
     <div
       onClick={onClick}
-      className={`card cursor-pointer border-l-[3px] p-4 transition-all hover:shadow-md ${t.ring}`}
+      className={`card cursor-pointer border-l-[3px] p-4 transition-all hover:shadow-md ${typeStyle.ring}`}
     >
       <div className="mb-2 flex items-center gap-2">
-        <span className={`rounded-md px-2 py-0.5 text-2xs font-semibold ${t.bg}`}>{t.label}</span>
+        <span className={`rounded-md px-2 py-0.5 text-2xs font-semibold ${typeStyle.bg}`}>{typeLabel}</span>
         {aud.inUse > 0 && (
-          <StatusBadge tone="green" dot>In use ({aud.inUse})</StatusBadge>
+          <StatusBadge tone="green" dot>{tFn("En cours d'utilisation", "In use")} ({aud.inUse})</StatusBadge>
         )}
       </div>
       <div className="text-sm font-semibold text-ink">{aud.name}</div>

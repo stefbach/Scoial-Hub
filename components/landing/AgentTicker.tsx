@@ -1,26 +1,28 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useT } from "@/lib/i18n";
 
-type Line = { agent: string; text: string; accent: string };
+type Line = { agent: string; textFr: string; textEn: string; accent: string };
 
 // Flux simulé d'actions d'agents — donne l'impression d'un cerveau au travail.
 const STREAM: Line[] = [
-  { agent: "Orchestrateur", text: "Objectif reçu — découpage en 6 tâches", accent: "59,113,243" },
-  { agent: "Stratège", text: "Analyse sémantique du marché téléconsultation FR…", accent: "37,99,235" },
-  { agent: "Stratège", text: "Audience cible identifiée : 38–55 ans, intention santé", accent: "37,99,235" },
-  { agent: "Copywriter", text: "Génération de 4 variantes de hook (brand voice Tibok)", accent: "59,113,243" },
-  { agent: "Creative", text: "Brief visuel — format 9:16 Stories + reel 8s", accent: "124,58,237" },
-  { agent: "Conformité", text: "Contrôle ANSM / politiques Meta santé… ✓ conforme", accent: "16,185,129" },
-  { agent: "Media Buyer", text: "Configuration campagne Meta — 50 €/j, plafond OK", accent: "245,158,11" },
-  { agent: "Analyste", text: "Benchmark secteur : CTR cible 2,1 % · CPA 14 €", accent: "16,185,129" },
-  { agent: "Analyste", text: "Projection : +1 240 audience captée / 30 j", accent: "16,185,129" },
-  { agent: "Orchestrateur", text: "Recommandation prête — en attente de validation", accent: "59,113,243" },
+  { agent: "Orchestrateur", textFr: "Objectif reçu — découpage en 6 tâches", textEn: "Objective received — broken into 6 tasks", accent: "59,113,243" },
+  { agent: "Stratège", textFr: "Analyse sémantique du marché téléconsultation FR…", textEn: "Semantic analysis of the teleconsultation market FR…", accent: "37,99,235" },
+  { agent: "Stratège", textFr: "Audience cible identifiée : 38–55 ans, intention santé", textEn: "Target audience identified: 38–55 y.o., health intent", accent: "37,99,235" },
+  { agent: "Copywriter", textFr: "Génération de 4 variantes de hook (brand voice Tibok)", textEn: "Generating 4 hook variants (Tibok brand voice)", accent: "59,113,243" },
+  { agent: "Creative", textFr: "Brief visuel — format 9:16 Stories + reel 8s", textEn: "Visual brief — 9:16 Stories + 8s reel format", accent: "124,58,237" },
+  { agent: "Conformité", textFr: "Contrôle ANSM / politiques Meta santé… ✓ conforme", textEn: "ANSM / Meta health policy check… ✓ compliant", accent: "16,185,129" },
+  { agent: "Media Buyer", textFr: "Configuration campagne Meta — 50 €/j, plafond OK", textEn: "Meta campaign setup — €50/day, cap OK", accent: "245,158,11" },
+  { agent: "Analyste", textFr: "Benchmark secteur : CTR cible 2,1 % · CPA 14 €", textEn: "Industry benchmark: target CTR 2.1% · CPA €14", accent: "16,185,129" },
+  { agent: "Analyste", textFr: "Projection : +1 240 audience captée / 30 j", textEn: "Projection: +1,240 captured audience / 30 days", accent: "16,185,129" },
+  { agent: "Orchestrateur", textFr: "Recommandation prête — en attente de validation", textEn: "Recommendation ready — awaiting approval", accent: "59,113,243" },
 ];
 
 export function AgentTicker() {
   const [lines, setLines] = useState<Line[]>([STREAM[0]]);
   const idx = useRef(1);
+  const t = useT();
 
   useEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
@@ -45,7 +47,7 @@ export function AgentTicker() {
           <span className="h-2 w-2 rounded-full bg-warning-500/70" />
           <span className="h-2 w-2 rounded-full bg-success-500/70" />
         </span>
-        <span className="ml-1">agents · activité en direct</span>
+        <span className="ml-1">{t("agents · activité en direct", "agents · live activity")}</span>
         <span className="ml-auto flex items-center gap-1.5 text-success-600">
           <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-success-500" /> live
         </span>
@@ -62,7 +64,7 @@ export function AgentTicker() {
             >
               {l.agent}
             </span>
-            <span className="leading-relaxed text-muted">{l.text}</span>
+            <span className="leading-relaxed text-muted">{t(l.textFr, l.textEn)}</span>
           </div>
         ))}
       </div>

@@ -23,6 +23,7 @@ import {
   toggleAd,
 } from "@/lib/campaign-store";
 import { eur } from "@/lib/format";
+import { useT } from "@/lib/i18n";
 import type { Ad } from "@/lib/types";
 
 type MetricId = "spend" | "impressions" | "clicks" | "conversions" | "ctr" | "cpc";
@@ -43,8 +44,8 @@ const GOAL_LABEL = {
   impressions: "Impressions",
 } as const;
 
-function fmtDate(iso?: string | null) {
-  if (!iso) return "No end date";
+function fmtDate(iso?: string | null, fallback = "No end date") {
+  if (!iso) return fallback;
   return format(new Date(`${iso}T00:00:00`), "d MMM yyyy");
 }
 
@@ -52,8 +53,9 @@ export default function AdSetDetailPage() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
   const { company } = useCompany();
+  const t = useT();
   const [, setTick] = useState(0);
-  const refresh = () => setTick((t) => t + 1);
+  const refresh = () => setTick((n) => n + 1);
 
   useEffect(() => {
     hydrateCampaigns(company.id);
@@ -85,11 +87,11 @@ export default function AdSetDetailPage() {
   if (!found) {
     return (
       <div>
-        <Breadcrumb trail={[{ href: "/campaigns", label: "Campaigns" }, { label: "Not found" }]} />
+        <Breadcrumb trail={[{ href: "/campaigns", label: t("Campagnes", "Campaigns") }, { label: t("Introuvable", "Not found") }]} />
         <div className="card flex flex-col items-center px-6 py-16 text-center">
-          <div className="text-sm text-muted">Ad set not found.</div>
+          <div className="text-sm text-muted">{t("Ensemble de publicités introuvable.", "Ad set not found.")}</div>
           <Link href="/campaigns" className="mt-3 text-sm font-medium text-ai-text hover:underline">
-            Back to campaigns
+            {t("Retour aux campagnes", "Back to campaigns")}
           </Link>
         </div>
       </div>
@@ -108,7 +110,7 @@ export default function AdSetDetailPage() {
     <div className="animate-fade-in">
       <Breadcrumb
         trail={[
-          { href: "/campaigns", label: "Campaigns" },
+          { href: "/campaigns", label: t("Campagnes", "Campaigns") },
           { href: `/campaigns/${campaign.id}`, label: campaign.name },
           { label: adSet.name },
         ]}
@@ -120,28 +122,28 @@ export default function AdSetDetailPage() {
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-xl font-semibold text-ink">{adSet.name}</h1>
             <StatusBadge tone={enabled ? "green" : "gray"} dot>
-              {enabled ? "Active" : "Paused"}
+              {enabled ? t("Actif", "Active") : t("En pause", "Paused")}
             </StatusBadge>
             <StatusBadge tone="blue">{adSet.placement}</StatusBadge>
           </div>
           <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-2xs text-muted">
             <span>
-              Audience: <span className="font-medium text-ink">{adSet.audienceName ?? "—"}</span>
-              {adSet.audienceReach ? ` (${adSet.audienceReach} reach)` : ""}
+              {t("Audience", "Audience")}: <span className="font-medium text-ink">{adSet.audienceName ?? "—"}</span>
+              {adSet.audienceReach ? ` (${adSet.audienceReach} ${t("portée", "reach")})` : ""}
             </span>
             <span className="text-hair">·</span>
             <span>
               {adSet.budgetType === "lifetime"
-                ? <>Lifetime budget <span className="font-medium text-ink">{eur(adSet.lifetimeBudget ?? 0)}</span></>
-                : <>Daily budget <span className="font-medium text-ink">{eur(adSet.dailyBudget)}</span></>
+                ? <>{t("Budget total", "Lifetime budget")} <span className="font-medium text-ink">{eur(adSet.lifetimeBudget ?? 0)}</span></>
+                : <>{t("Budget journalier", "Daily budget")} <span className="font-medium text-ink">{eur(adSet.dailyBudget)}</span></>
               }
             </span>
             <span className="text-hair">·</span>
-            <span>Optimization: <span className="font-medium text-ink">{goal}</span></span>
+            <span>{t("Optimisation", "Optimization")}: <span className="font-medium text-ink">{goal}</span></span>
             <span className="text-hair">·</span>
-            <span>Started {fmtDate(adSet.startDate)}</span>
+            <span>{t("Démarré le", "Started")} {fmtDate(adSet.startDate, t("Aucune date de début", "No start date"))}</span>
             <span className="text-hair">·</span>
-            <span>{fmtDate(adSet.endDate ?? null)}</span>
+            <span>{fmtDate(adSet.endDate ?? null, t("Aucune date de fin", "No end date"))}</span>
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
@@ -153,7 +155,7 @@ export default function AdSetDetailPage() {
               refresh();
             }}
           />
-          <Button variant="secondary" onClick={() => setEditOpen(true)}>Edit</Button>
+          <Button variant="secondary" onClick={() => setEditOpen(true)}>{t("Modifier", "Edit")}</Button>
           <Button
             variant="secondary"
             onClick={() => {
@@ -161,24 +163,24 @@ export default function AdSetDetailPage() {
               if (copy) router.push(`/ad-sets/${copy.id}`);
             }}
           >
-            Duplicate
+            {t("Dupliquer", "Duplicate")}
           </Button>
-          <Button variant="danger" onClick={() => setConfirmDelete(true)}>Delete</Button>
+          <Button variant="danger" onClick={() => setConfirmDelete(true)}>{t("Supprimer", "Delete")}</Button>
         </div>
       </div>
 
       {/* Metric cards */}
       <div className="mb-5 grid grid-cols-4 gap-3">
-        <MetricCard label="Spend" value={eur(adSet.spend ?? 0)} />
-        <MetricCard label="Impressions" value={(adSet.impressions ?? 0).toLocaleString()} />
-        <MetricCard label="Clicks" value={(adSet.clicks ?? 0).toLocaleString()} />
-        <MetricCard label="Conversions" value={String(adSet.conversions ?? 0)} />
+        <MetricCard label={t("Dépenses", "Spend")} value={eur(adSet.spend ?? 0)} />
+        <MetricCard label={t("Impressions", "Impressions")} value={(adSet.impressions ?? 0).toLocaleString()} />
+        <MetricCard label={t("Clics", "Clicks")} value={(adSet.clicks ?? 0).toLocaleString()} />
+        <MetricCard label={t("Conversions", "Conversions")} value={String(adSet.conversions ?? 0)} />
       </div>
 
       {/* Chart */}
       <div className="card mb-6 overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-hair bg-canvas/50 px-5 py-3.5">
-          <div className="text-sm font-semibold text-ink">Performance — last 30 days</div>
+          <div className="text-sm font-semibold text-ink">{t("Performance — 30 derniers jours", "Performance — last 30 days")}</div>
           <div className="flex flex-wrap gap-1.5">
             {METRICS.map((m) => {
               const on = activeMetrics.includes(m.id);
@@ -205,8 +207,8 @@ export default function AdSetDetailPage() {
 
       {/* Ads */}
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-ink">Ads ({ads.length})</h2>
-        <Button variant="primary" onClick={() => setNewAdOpen(true)}>+ New ad</Button>
+        <h2 className="text-sm font-semibold text-ink">{t("Publicités", "Ads")} ({ads.length})</h2>
+        <Button variant="primary" onClick={() => setNewAdOpen(true)}>+ {t("Nouvelle pub", "New ad")}</Button>
       </div>
 
       {ads.length === 0 ? (
@@ -214,10 +216,10 @@ export default function AdSetDetailPage() {
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-canvas text-muted">
             <ImageIcon />
           </div>
-          <p className="mt-4 text-sm font-medium text-ink">No ads yet</p>
-          <p className="mt-1 text-sm text-muted">Create your first ad for this ad set.</p>
+          <p className="mt-4 text-sm font-medium text-ink">{t("Aucune publicité pour l'instant", "No ads yet")}</p>
+          <p className="mt-1 text-sm text-muted">{t("Créez votre première publicité pour cet ensemble.", "Create your first ad for this ad set.")}</p>
           <div className="mt-5">
-            <Button variant="primary" onClick={() => setNewAdOpen(true)}>+ New ad</Button>
+            <Button variant="primary" onClick={() => setNewAdOpen(true)}>+ {t("Nouvelle pub", "New ad")}</Button>
           </div>
         </div>
       ) : (
@@ -271,12 +273,12 @@ export default function AdSetDetailPage() {
             <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-danger-50 text-danger-600">
               <TrashIcon />
             </div>
-            <h3 className="text-base font-semibold text-ink">Delete ad set</h3>
+            <h3 className="text-base font-semibold text-ink">{t("Supprimer l'ensemble de publicités", "Delete ad set")}</h3>
             <p className="mt-1.5 text-sm text-muted">
-              Delete &ldquo;{adSet.name}&rdquo;? This action cannot be undone.
+              {t("Supprimer", "Delete")} &ldquo;{adSet.name}&rdquo;? {t("Cette action est irréversible.", "This action cannot be undone.")}
             </p>
             <div className="mt-5 flex justify-end gap-2">
-              <Button variant="secondary" onClick={() => setConfirmDelete(false)}>Cancel</Button>
+              <Button variant="secondary" onClick={() => setConfirmDelete(false)}>{t("Annuler", "Cancel")}</Button>
               <Button
                 variant="danger"
                 onClick={() => {
@@ -284,7 +286,7 @@ export default function AdSetDetailPage() {
                   router.push(`/campaigns/${campaign.id}`);
                 }}
               >
-                Delete
+                {t("Supprimer", "Delete")}
               </Button>
             </div>
           </div>
@@ -304,6 +306,7 @@ function AdCard({
   onClick: () => void;
   onToggle: () => void;
 }) {
+  const t = useT();
   return (
     <div
       onClick={onClick}
@@ -324,7 +327,7 @@ function AdCard({
         <div className="mb-2 flex items-center justify-between gap-2">
           <span className="text-sm font-semibold text-ink">{ad.name}</span>
           <StatusBadge tone={ad.status === "active" ? "green" : "gray"} dot>
-            {ad.status === "active" ? "Active" : "Paused"}
+            {ad.status === "active" ? t("Actif", "Active") : t("En pause", "Paused")}
           </StatusBadge>
         </div>
         <p className="line-clamp-2 text-2xs text-muted">
@@ -336,7 +339,7 @@ function AdCard({
         <div className="mt-3 flex items-center justify-between border-t border-hair pt-2.5 text-2xs">
           <div className="flex gap-4">
             <span>
-              <span className="text-muted">Spend</span>{" "}
+              <span className="text-muted">{t("Dépenses", "Spend")}</span>{" "}
               <span className="font-semibold tabular-nums text-ink">{eur(ad.spend)}</span>
             </span>
             <span>
@@ -344,7 +347,7 @@ function AdCard({
               <span className="font-semibold tabular-nums text-success-600">{ad.ctr}</span>
             </span>
             <span>
-              <span className="text-muted">Conv.</span>{" "}
+              <span className="text-muted">{t("Conv.", "Conv.")}</span>{" "}
               <span className="font-semibold tabular-nums text-ink">{ad.conversions}</span>
             </span>
           </div>

@@ -7,6 +7,7 @@ import { Company } from "@/lib/types";
 import { PRO_PROFILES } from "@/lib/agents/profiles";
 import { CHANNELS } from "@/lib/channels";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { useT } from "@/lib/i18n";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -40,30 +41,18 @@ const NETWORK_META: Record<NetworkId, { label: string; color: string }> = {
 
 const NETWORKS: NetworkId[] = ["facebook", "instagram", "linkedin"];
 
-const APP_LINKS = [
-  { href: "/dashboard", label: "Tableau de bord", icon: "📊" },
-  { href: "/agents", label: "Agents IA", icon: "🤖" },
-  { href: "/campaigns", label: "Campagnes", icon: "📣" },
-  { href: "/connecteurs", label: "Connecteurs", icon: "🔗" },
-];
-
-// Liens spécifiques à l'entité (utilise l'id dynamiquement dans le rendu)
-const ENTITY_TOOL_LINKS = [
-  { href: (id: string) => `/admin/comptes/${id}/telegram`, label: "Chatbot Telegram", icon: "✈️" },
-];
-
 // ── Composants ────────────────────────────────────────────────────────────────
 
 function SectionHeader({ children }: { children: React.ReactNode }) {
   return <div className="section-label mb-3">{children}</div>;
 }
 
-function InfoRow({ label, value }: { label: string; value?: string | null }) {
+function InfoRow({ label, value, notDefined }: { label: string; value?: string | null; notDefined: string }) {
   return (
     <div className="flex items-start gap-3 py-1.5">
       <span className="w-28 shrink-0 text-xs text-muted">{label}</span>
       <span className="text-sm font-medium text-ink">
-        {value || <span className="italic text-muted/60">Non défini</span>}
+        {value || <span className="italic text-muted/60">{notDefined}</span>}
       </span>
     </div>
   );
@@ -73,6 +62,7 @@ function InfoRow({ label, value }: { label: string; value?: string | null }) {
 
 export default function CompteDetailPage() {
   const params = useParams();
+  const t = useT();
   const id = typeof params.id === "string" ? params.id : Array.isArray(params.id) ? params.id[0] : "";
 
   const [company, setCompany] = useState<Company | null>(null);
@@ -80,6 +70,17 @@ export default function CompteDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [connectedCount, setConnectedCount] = useState<number | null>(null);
+
+  const APP_LINKS = [
+    { href: "/dashboard", label: t("Tableau de bord", "Dashboard"), icon: "📊" },
+    { href: "/agents", label: t("Agents IA", "AI Agents"), icon: "🤖" },
+    { href: "/campaigns", label: t("Campagnes", "Campaigns"), icon: "📣" },
+    { href: "/connecteurs", label: t("Connecteurs", "Connectors"), icon: "🔗" },
+  ];
+
+  const ENTITY_TOOL_LINKS = [
+    { href: (id: string) => `/admin/comptes/${id}/telegram`, label: t("Chatbot Telegram", "Telegram Chatbot"), icon: "✈️" },
+  ];
 
   useEffect(() => {
     if (!id) return;
@@ -95,7 +96,7 @@ export default function CompteDetailPage() {
     // Chargement de l'entité via l'API
     fetch("/api/companies")
       .then((r) => {
-        if (!r.ok) throw new Error(`Erreur ${r.status}`);
+        if (!r.ok) throw new Error(`${t("Erreur", "Error")} ${r.status}`);
         return r.json();
       })
       .then((data: Company[]) => {
@@ -104,7 +105,7 @@ export default function CompteDetailPage() {
         setLoading(false);
       })
       .catch((e: Error) => {
-        setError(e.message ?? "Impossible de charger l'entité.");
+        setError(e.message ?? t("Impossible de charger l'entité.", "Unable to load entity."));
         setLoading(false);
       });
 
@@ -128,7 +129,7 @@ export default function CompteDetailPage() {
           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
         </svg>
-        <span className="ml-3 text-sm text-muted">Chargement de la fiche entité…</span>
+        <span className="ml-3 text-sm text-muted">{t("Chargement de la fiche entité…", "Loading entity details…")}</span>
       </div>
     );
   }
@@ -137,10 +138,10 @@ export default function CompteDetailPage() {
     return (
       <div className="animate-fade-in">
         <Link href="/admin/comptes" className="btn-ghost mb-4 inline-block px-2 py-1 text-muted">
-          ← Retour aux comptes
+          ← {t("Retour aux comptes", "Back to accounts")}
         </Link>
         <div className="rounded-xl border border-danger-200 bg-danger-50 px-5 py-4 text-sm text-danger-700">
-          <strong>Erreur :</strong> {error}
+          <strong>{t("Erreur :", "Error:")}</strong> {error}
         </div>
       </div>
     );
@@ -150,13 +151,13 @@ export default function CompteDetailPage() {
     return (
       <div className="animate-fade-in">
         <Link href="/admin/comptes" className="btn-ghost mb-4 inline-block px-2 py-1 text-muted">
-          ← Retour aux comptes
+          ← {t("Retour aux comptes", "Back to accounts")}
         </Link>
         <div className="flex flex-col items-center gap-3 py-20 text-center">
-          <p className="text-base font-semibold text-ink">Entité introuvable</p>
-          <p className="text-sm text-muted">Aucune entité ne correspond à l'identifiant «&nbsp;{id}&nbsp;».</p>
+          <p className="text-base font-semibold text-ink">{t("Entité introuvable", "Entity not found")}</p>
+          <p className="text-sm text-muted">{t("Aucune entité ne correspond à l'identifiant «", "No entity matches the identifier «")}&nbsp;{id}&nbsp;».</p>
           <Link href="/admin/comptes" className="btn-primary mt-2">
-            Retour aux comptes
+            {t("Retour aux comptes", "Back to accounts")}
           </Link>
         </div>
       </div>
@@ -176,7 +177,7 @@ export default function CompteDetailPage() {
       {/* Fil d'Ariane & nav */}
       <div className="flex items-center gap-2 text-sm text-muted">
         <Link href="/admin/comptes" className="hover:text-ink hover:underline underline-offset-2">
-          Comptes & entités
+          {t("Comptes & entités", "Accounts & entities")}
         </Link>
         <span aria-hidden="true">/</span>
         <span className="text-ink font-medium">{company.name}</span>
@@ -188,8 +189,11 @@ export default function CompteDetailPage() {
           <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
         </svg>
         <span>
-          <strong>Phase 2 :</strong> Les indicateurs détaillés par réseau (reach, engagement,
-          dépenses, ROAS…) seront disponibles prochainement.
+          <strong>{t("Phase 2 :", "Phase 2:")}</strong>{" "}
+          {t(
+            "Les indicateurs détaillés par réseau (reach, engagement, dépenses, ROAS…) seront disponibles prochainement.",
+            "Detailed per-network metrics (reach, engagement, spend, ROAS…) will be available soon."
+          )}
         </span>
       </div>
 
@@ -200,7 +204,7 @@ export default function CompteDetailPage() {
             <span
               className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl text-sm font-bold text-white shadow-sm"
               style={{ backgroundColor: company.accent || "#1e3a5f" }}
-              aria-label={`Avatar de ${company.name}`}
+              aria-label={`${t("Avatar de", "Avatar for")} ${company.name}`}
             >
               {company.code}
             </span>
@@ -212,7 +216,7 @@ export default function CompteDetailPage() {
                   <span className="chip">{profil.label}</span>
                 )}
                 {activeNets.length > 0 && (
-                  <span className="chip">{activeNets.length} réseau{activeNets.length > 1 ? "x" : ""}</span>
+                  <span className="chip">{activeNets.length} {t("réseau", "network")}{activeNets.length > 1 ? t("x", "s") : ""}</span>
                 )}
               </div>
             </div>
@@ -221,7 +225,7 @@ export default function CompteDetailPage() {
             href={`/admin/comptes/nouveau`}
             className="btn-secondary shrink-0 text-xs"
           >
-            + Nouveau compte
+            + {t("Nouveau compte", "New account")}
           </Link>
         </div>
       </div>
@@ -231,14 +235,14 @@ export default function CompteDetailPage() {
         <div className="space-y-5">
           {/* Informations de l'entité */}
           <div className="card p-5">
-            <SectionHeader>Informations</SectionHeader>
+            <SectionHeader>{t("Informations", "Information")}</SectionHeader>
             <div className="divide-y divide-hair">
-              <InfoRow label="Identifiant" value={company.id} />
-              <InfoRow label="Nom" value={company.name} />
-              <InfoRow label="Code" value={company.code} />
-              <InfoRow label="Brand voice" value={company.brandVoice} />
+              <InfoRow label={t("Identifiant", "Identifier")} value={company.id} notDefined={t("Non défini", "Not defined")} />
+              <InfoRow label={t("Nom", "Name")} value={company.name} notDefined={t("Non défini", "Not defined")} />
+              <InfoRow label={t("Code", "Code")} value={company.code} notDefined={t("Non défini", "Not defined")} />
+              <InfoRow label="Brand voice" value={company.brandVoice} notDefined={t("Non défini", "Not defined")} />
               <div className="flex items-start gap-3 py-1.5">
-                <span className="w-28 shrink-0 text-xs text-muted">Couleur accent</span>
+                <span className="w-28 shrink-0 text-xs text-muted">{t("Couleur accent", "Accent colour")}</span>
                 <div className="flex items-center gap-2">
                   <span
                     className="h-4 w-4 rounded-full border border-hair"
@@ -251,7 +255,7 @@ export default function CompteDetailPage() {
               </div>
               {profil && (
                 <div className="flex items-start gap-3 py-1.5">
-                  <span className="w-28 shrink-0 text-xs text-muted">Profil</span>
+                  <span className="w-28 shrink-0 text-xs text-muted">{t("Profil", "Profile")}</span>
                   <div>
                     <div className="text-sm font-medium text-ink">{profil.label}</div>
                     <div className="mt-0.5 text-xs text-muted">{profil.description}</div>
@@ -260,7 +264,7 @@ export default function CompteDetailPage() {
               )}
               {config?.createdAt && (
                 <InfoRow
-                  label="Configuré le"
+                  label={t("Configuré le", "Configured on")}
                   value={new Date(config.createdAt).toLocaleDateString("fr-FR", {
                     day: "2-digit",
                     month: "long",
@@ -268,6 +272,7 @@ export default function CompteDetailPage() {
                     hour: "2-digit",
                     minute: "2-digit",
                   })}
+                  notDefined={t("Non défini", "Not defined")}
                 />
               )}
             </div>
@@ -275,20 +280,20 @@ export default function CompteDetailPage() {
 
           {/* Réseaux activés */}
           <div className="card p-5">
-            <SectionHeader>Réseaux & canaux activés</SectionHeader>
+            <SectionHeader>{t("Réseaux & canaux activés", "Enabled networks & channels")}</SectionHeader>
             {!config?.networks ? (
               <div className="rounded-lg border border-hair bg-canvas px-4 py-5 text-center text-sm text-muted">
-                Aucune configuration réseau trouvée.
+                {t("Aucune configuration réseau trouvée.", "No network configuration found.")}
                 <br />
                 <Link
                   href={`/admin/comptes/nouveau`}
                   className="mt-2 inline-block text-page underline underline-offset-2 hover:no-underline"
                 >
-                  Reconfigurer via le tunnel
+                  {t("Reconfigurer via le tunnel", "Reconfigure via the wizard")}
                 </Link>
               </div>
             ) : activeNets.length === 0 ? (
-              <p className="text-sm italic text-muted">Aucun réseau activé.</p>
+              <p className="text-sm italic text-muted">{t("Aucun réseau activé.", "No network enabled.")}</p>
             ) : (
               <div className="space-y-3">
                 {activeNets.map((net) => {
@@ -306,13 +311,13 @@ export default function CompteDetailPage() {
                       <span className="text-sm font-semibold text-ink">{meta.label}</span>
                       <div className="ml-auto flex gap-1.5">
                         {cfg.organic && (
-                          <span className="chip bg-success-50 text-success-700">Organique</span>
+                          <span className="chip bg-success-50 text-success-700">{t("Organique", "Organic")}</span>
                         )}
                         {cfg.ads && (
                           <span className="chip bg-primary-50 text-primary-700">Ads / SEA</span>
                         )}
                         {!cfg.organic && !cfg.ads && (
-                          <span className="chip">Activé</span>
+                          <span className="chip">{t("Activé", "Enabled")}</span>
                         )}
                       </div>
                     </div>
@@ -328,7 +333,7 @@ export default function CompteDetailPage() {
                       style={{ backgroundColor: NETWORK_META[net].color }}
                     />
                     <span className="text-sm text-muted">{NETWORK_META[net].label}</span>
-                    <span className="ml-auto chip">Inactif</span>
+                    <span className="ml-auto chip">{t("Inactif", "Inactive")}</span>
                   </div>
                 ))}
               </div>
@@ -337,28 +342,28 @@ export default function CompteDetailPage() {
 
           {/* Objectifs */}
           <div className="card p-5">
-            <SectionHeader>Objectifs stratégiques</SectionHeader>
+            <SectionHeader>{t("Objectifs stratégiques", "Strategic objectives")}</SectionHeader>
             {!config ? (
               <p className="text-sm italic text-muted">
-                Aucun objectif configuré. Utilisez le tunnel de création pour définir vos objectifs.
+                {t("Aucun objectif configuré. Utilisez le tunnel de création pour définir vos objectifs.", "No objectives configured. Use the creation wizard to define your objectives.")}
               </p>
             ) : (
               <div className="space-y-4">
                 {config.objectifGlobal ? (
                   <div>
                     <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted">
-                      Objectif global
+                      {t("Objectif global", "Global objective")}
                     </div>
                     <p className="text-sm text-ink">{config.objectifGlobal}</p>
                   </div>
                 ) : (
-                  <p className="text-sm italic text-muted">Objectif global non défini.</p>
+                  <p className="text-sm italic text-muted">{t("Objectif global non défini.", "Global objective not defined.")}</p>
                 )}
 
                 {activeNets.length > 0 && (
                   <div>
                     <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">
-                      Par réseau
+                      {t("Par réseau", "By network")}
                     </div>
                     <div className="space-y-2">
                       {activeNets.map((net) => {
@@ -376,7 +381,7 @@ export default function CompteDetailPage() {
                               {obj ? (
                                 <p className="mt-0.5 text-sm text-ink">{obj}</p>
                               ) : (
-                                <p className="mt-0.5 text-xs italic text-muted/60">Non défini</p>
+                                <p className="mt-0.5 text-xs italic text-muted/60">{t("Non défini", "Not defined")}</p>
                               )}
                             </div>
                           </div>
@@ -396,13 +401,13 @@ export default function CompteDetailPage() {
               config.alertes.engagementChute ||
               config.alertes.alertesLibres) && (
               <div className="card p-5">
-                <SectionHeader>Consignes d'alerte</SectionHeader>
+                <SectionHeader>{t("Consignes d'alerte", "Alert rules")}</SectionHeader>
                 <div className="space-y-2">
                   {config.alertes.budgetSeuil && (
                     <div className="flex items-center gap-3 rounded-lg border border-hair bg-canvas px-3 py-2.5">
                       <span className="text-lg">💰</span>
                       <div>
-                        <div className="text-xs text-muted">Seuil budget mensuel</div>
+                        <div className="text-xs text-muted">{t("Seuil budget mensuel", "Monthly budget threshold")}</div>
                         <div className="text-sm font-semibold text-ink">
                           {config.alertes.budgetSeuil} €
                         </div>
@@ -413,7 +418,7 @@ export default function CompteDetailPage() {
                     <div className="flex items-center gap-3 rounded-lg border border-hair bg-canvas px-3 py-2.5">
                       <span className="text-lg">🎯</span>
                       <div>
-                        <div className="text-xs text-muted">CPA maximum</div>
+                        <div className="text-xs text-muted">{t("CPA maximum", "Maximum CPA")}</div>
                         <div className="text-sm font-semibold text-ink">
                           {config.alertes.cpaMax} €
                         </div>
@@ -424,7 +429,7 @@ export default function CompteDetailPage() {
                     <div className="flex items-center gap-3 rounded-lg border border-hair bg-canvas px-3 py-2.5">
                       <span className="text-lg">📉</span>
                       <div>
-                        <div className="text-xs text-muted">Seuil chute d'engagement</div>
+                        <div className="text-xs text-muted">{t("Seuil chute d'engagement", "Engagement drop threshold")}</div>
                         <div className="text-sm font-semibold text-ink">
                           −{config.alertes.engagementChute} %
                         </div>
@@ -433,7 +438,7 @@ export default function CompteDetailPage() {
                   )}
                   {config.alertes.alertesLibres && (
                     <div className="mt-3 rounded-lg border border-hair bg-canvas px-3 py-3">
-                      <div className="mb-1 text-xs font-medium text-muted">Consignes libres</div>
+                      <div className="mb-1 text-xs font-medium text-muted">{t("Consignes libres", "Free-form instructions")}</div>
                       <p className="text-sm italic text-ink">{config.alertes.alertesLibres}</p>
                     </div>
                   )}
@@ -446,7 +451,7 @@ export default function CompteDetailPage() {
         <div className="space-y-5">
           {/* Liens rapides vers l'app */}
           <div className="card p-5">
-            <SectionHeader>Accès rapide — App</SectionHeader>
+            <SectionHeader>{t("Accès rapide — App", "Quick access — App")}</SectionHeader>
             <div className="space-y-1.5">
               {APP_LINKS.map((link) => (
                 <Link
@@ -481,7 +486,7 @@ export default function CompteDetailPage() {
 
           {/* Outils par entité */}
           <div className="card p-5">
-            <SectionHeader>Outils de ce compte</SectionHeader>
+            <SectionHeader>{t("Outils de ce compte", "Account tools")}</SectionHeader>
             <div className="space-y-1.5">
               {ENTITY_TOOL_LINKS.map((link) => (
                 <Link
@@ -517,14 +522,14 @@ export default function CompteDetailPage() {
           {/* Profil pro (si défini) */}
           {profil && (
             <div className="card p-5">
-              <SectionHeader>Profil professionnel</SectionHeader>
+              <SectionHeader>{t("Profil professionnel", "Professional profile")}</SectionHeader>
               <div className="space-y-3 text-sm">
                 <div>
-                  <div className="text-xs text-muted">Tone recommandé</div>
+                  <div className="text-xs text-muted">{t("Tone recommandé", "Recommended tone")}</div>
                   <p className="mt-0.5 text-ink">{profil.recommendedTone}</p>
                 </div>
                 <div>
-                  <div className="text-xs text-muted">KPIs sectoriels</div>
+                  <div className="text-xs text-muted">{t("KPIs sectoriels", "Sector KPIs")}</div>
                   <div className="mt-1.5 grid grid-cols-2 gap-1.5">
                     <div className="rounded-lg bg-canvas px-2.5 py-2 text-center">
                       <div className="text-xs text-muted">CPM</div>
@@ -545,7 +550,7 @@ export default function CompteDetailPage() {
                       </div>
                     </div>
                     <div className="rounded-lg bg-canvas px-2.5 py-2 text-center">
-                      <div className="text-xs text-muted">Engagement</div>
+                      <div className="text-xs text-muted">{t("Engagement", "Engagement")}</div>
                       <div className="text-sm font-semibold text-ink">
                         {profil.sectorKPIs.engagementRate.min}–{profil.sectorKPIs.engagementRate.max} %
                       </div>
@@ -553,7 +558,7 @@ export default function CompteDetailPage() {
                   </div>
                 </div>
                 <div>
-                  <div className="text-xs text-muted">Cible captation 90 j</div>
+                  <div className="text-xs text-muted">{t("Cible captation 90 j", "90-day acquisition target")}</div>
                   <div className="mt-0.5 text-sm font-semibold text-ink">
                     {profil.audienceCaptureTarget90d} %
                   </div>
@@ -564,18 +569,18 @@ export default function CompteDetailPage() {
 
           {/* Connexions canaux */}
           <div className="card p-5">
-            <SectionHeader>Connexions canaux</SectionHeader>
+            <SectionHeader>{t("Connexions canaux", "Channel connections")}</SectionHeader>
             <div className="mt-2 mb-3 flex items-center gap-2">
               {connectedCount === null ? (
-                <span className="text-xs text-muted">Chargement…</span>
+                <span className="text-xs text-muted">{t("Chargement…", "Loading…")}</span>
               ) : (
                 <>
                   <StatusBadge tone={connectedCount > 0 ? "green" : "gray"} dot>
-                    {connectedCount} / {CHANNELS.length} connecté{connectedCount > 1 ? "s" : ""}
+                    {connectedCount} / {CHANNELS.length} {t("connecté", "connected")}{connectedCount > 1 ? t("s", "s") : ""}
                   </StatusBadge>
                   {connectedCount < CHANNELS.length && (
                     <span className="text-xs text-muted">
-                      {CHANNELS.length - connectedCount} en attente
+                      {CHANNELS.length - connectedCount} {t("en attente", "pending")}
                     </span>
                   )}
                 </>
@@ -585,22 +590,22 @@ export default function CompteDetailPage() {
               href={`/admin/comptes/${id}/connexions`}
               className="btn-primary block w-full text-center"
             >
-              Gérer les connexions
+              {t("Gérer les connexions", "Manage connections")}
             </Link>
           </div>
 
           {/* Actions */}
           <div className="card p-5">
-            <SectionHeader>Actions</SectionHeader>
+            <SectionHeader>{t("Actions", "Actions")}</SectionHeader>
             <div className="space-y-2">
               <Link href="/dashboard" className="btn-primary block w-full text-center">
-                Ouvrir l'app
+                {t("Ouvrir l'app", "Open app")}
               </Link>
               <Link
                 href="/admin/comptes"
                 className="btn-secondary block w-full text-center"
               >
-                ← Tous les comptes
+                ← {t("Tous les comptes", "All accounts")}
               </Link>
             </div>
           </div>

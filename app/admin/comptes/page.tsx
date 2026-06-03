@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { Company } from "@/lib/types";
+import { useT } from "@/lib/i18n";
 
 function AvatarBubble({ code, accent }: { code: string; accent: string }) {
   return (
@@ -16,13 +17,13 @@ function AvatarBubble({ code, accent }: { code: string; accent: string }) {
   );
 }
 
-function EmptyState({ query }: { query: string }) {
+function EmptyState({ query, t }: { query: string; t: (fr: string, en: string) => string }) {
   if (query) {
     return (
       <div className="flex flex-col items-center gap-3 py-20 text-center animate-fade-in">
         <span className="flex h-12 w-12 items-center justify-center rounded-full bg-canvas text-2xl">🔍</span>
-        <p className="text-sm text-muted">Aucun compte ne correspond à «&nbsp;<strong className="text-ink">{query}</strong>&nbsp;».</p>
-        <p className="text-xs text-muted">Essayez un autre terme ou vérifiez l'orthographe.</p>
+        <p className="text-sm text-muted">{t("Aucun compte ne correspond à «", "No account matches «")}&nbsp;<strong className="text-ink">{query}</strong>&nbsp;».</p>
+        <p className="text-xs text-muted">{t("Essayez un autre terme ou vérifiez l'orthographe.", "Try a different term or check the spelling.")}</p>
       </div>
     );
   }
@@ -30,19 +31,20 @@ function EmptyState({ query }: { query: string }) {
     <div className="flex flex-col items-center gap-4 py-20 text-center animate-fade-in">
       <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-page/10 text-3xl">🏢</span>
       <div>
-        <p className="text-base font-semibold text-ink">Aucun compte créé</p>
+        <p className="text-base font-semibold text-ink">{t("Aucun compte créé", "No accounts yet")}</p>
         <p className="mt-1 text-sm text-muted">
-          Créez votre premier compte pour commencer à piloter vos réseaux sociaux.
+          {t("Créez votre premier compte pour commencer à piloter vos réseaux sociaux.", "Create your first account to start managing your social networks.")}
         </p>
       </div>
       <Link href="/admin/comptes/nouveau" className="btn-primary mt-2">
-        + Créer un compte
+        + {t("Créer un compte", "Create account")}
       </Link>
     </div>
   );
 }
 
 export default function ComptesPage() {
+  const t = useT();
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -53,7 +55,7 @@ export default function ComptesPage() {
     setLoading(true);
     fetch("/api/companies")
       .then((r) => {
-        if (!r.ok) throw new Error(`Erreur ${r.status}`);
+        if (!r.ok) throw new Error(`${t("Erreur", "Error")} ${r.status}`);
         return r.json();
       })
       .then((data: Company[]) => {
@@ -64,7 +66,7 @@ export default function ComptesPage() {
       })
       .catch((e) => {
         if (!cancelled) {
-          setError(e.message ?? "Impossible de charger les comptes.");
+          setError(e.message ?? t("Impossible de charger les comptes.", "Unable to load accounts."));
           setLoading(false);
         }
       });
@@ -87,13 +89,13 @@ export default function ComptesPage() {
       {/* En-tête */}
       <div className="mb-6 flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-ink">Comptes & entités</h1>
+          <h1 className="text-xl font-bold text-ink">{t("Comptes & entités", "Accounts & entities")}</h1>
           <p className="mt-0.5 text-sm text-muted">
-            Gérez vos comptes clients et entités AXON-AI.
+            {t("Gérez vos comptes clients et entités AXON-AI.", "Manage your client accounts and AXON-AI entities.")}
           </p>
         </div>
         <Link href="/admin/comptes/nouveau" className="btn-primary shrink-0">
-          + Créer un compte
+          + {t("Créer un compte", "Create account")}
         </Link>
       </div>
 
@@ -110,16 +112,16 @@ export default function ComptesPage() {
             </svg>
             <input
               type="search"
-              placeholder="Rechercher un compte…"
+              placeholder={t("Rechercher un compte…", "Search an account…")}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               className="input pl-8 pr-3 py-2 text-sm max-w-xs"
-              aria-label="Rechercher un compte"
+              aria-label={t("Rechercher un compte", "Search an account")}
             />
           </div>
           {query && (
             <p className="mt-1.5 text-xs text-muted">
-              {filtered.length} résultat{filtered.length !== 1 ? "s" : ""} pour «&nbsp;{query}&nbsp;»
+              {filtered.length} {t("résultat", "result")}{filtered.length !== 1 ? (t("s", "s")) : ""} {t("pour «", "for «")}&nbsp;{query}&nbsp;»
             </p>
           )}
         </div>
@@ -132,19 +134,19 @@ export default function ComptesPage() {
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
           </svg>
-          <span className="text-sm text-muted">Chargement des comptes…</span>
+          <span className="text-sm text-muted">{t("Chargement des comptes…", "Loading accounts…")}</span>
         </div>
       )}
 
       {/* Erreur */}
       {!loading && error && (
         <div className="rounded-xl border border-danger-200 bg-danger-50 px-5 py-4 text-sm text-danger-700">
-          <strong>Erreur :</strong> {error}
+          <strong>{t("Erreur :", "Error:")}</strong> {error}
           <button
             onClick={() => window.location.reload()}
             className="ml-3 underline underline-offset-2 hover:no-underline"
           >
-            Réessayer
+            {t("Réessayer", "Retry")}
           </button>
         </div>
       )}
@@ -153,16 +155,16 @@ export default function ComptesPage() {
       {!loading && !error && (
         <>
           {filtered.length === 0 ? (
-            <EmptyState query={query} />
+            <EmptyState query={query} t={t} />
           ) : (
             <div className="space-y-2">
               {/* Tableau header */}
               <div className="hidden grid-cols-[auto_1fr_auto_auto_auto] items-center gap-4 px-4 py-1.5 sm:grid">
                 <span />
-                <span className="section-label">Nom / Code</span>
+                <span className="section-label">{t("Nom / Code", "Name / Code")}</span>
                 <span className="section-label text-right">Brand voice</span>
-                <span className="section-label text-right">Accent</span>
-                <span className="section-label text-right">Action</span>
+                <span className="section-label text-right">{t("Accent", "Accent")}</span>
+                <span className="section-label text-right">{t("Action", "Action")}</span>
               </div>
 
               {filtered.map((company) => (
@@ -189,7 +191,7 @@ export default function ComptesPage() {
                     {company.brandVoice ? (
                       <p className="line-clamp-2 text-xs text-muted">{company.brandVoice}</p>
                     ) : (
-                      <span className="text-xs text-muted/50 italic">Non défini</span>
+                      <span className="text-xs text-muted/50 italic">{t("Non défini", "Not defined")}</span>
                     )}
                   </div>
 
@@ -198,7 +200,7 @@ export default function ComptesPage() {
                     <span
                       className="h-4 w-4 rounded-full border border-hair"
                       style={{ backgroundColor: company.accent || "#1e3a5f" }}
-                      aria-label={`Couleur accent : ${company.accent}`}
+                      aria-label={`${t("Couleur accent :", "Accent colour:")} ${company.accent}`}
                     />
                     <span className="font-mono text-xs text-muted">{company.accent || "—"}</span>
                   </div>
@@ -209,7 +211,7 @@ export default function ComptesPage() {
                       href={`/admin/comptes/${company.id}`}
                       className="btn-secondary text-xs py-1 px-2.5"
                     >
-                      Gérer →
+                      {t("Gérer →", "Manage →")}
                     </Link>
                   </div>
                 </div>

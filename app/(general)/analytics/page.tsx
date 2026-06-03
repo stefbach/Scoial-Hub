@@ -16,26 +16,39 @@ import { BarRow } from "@/components/charts/BarRow";
 import { MultiLineChart, type ChartSeries } from "@/components/charts/MultiLineChart";
 import { downloadFile } from "@/lib/history-store";
 import { eur } from "@/lib/format";
+import { useT } from "@/lib/i18n";
 
 type RangeId = "7d" | "30d" | "90d" | "1y" | "all" | "custom";
-const RANGE_LABEL: Record<RangeId, string> = {
-  "7d": "Last 7 days",
-  "30d": "Last 30 days",
-  "90d": "Last 90 days",
-  "1y": "Last year",
-  all: "All time",
-  custom: "Custom range",
-};
 
 type MetricId = "engagement" | "postsPublished" | "adSpend" | "conversions";
 const METRICS: Record<
   MetricId,
-  { label: string; color: string; format: (n: number) => string }
+  { labelFr: string; labelEn: string; color: string; format: (n: number) => string }
 > = {
-  engagement: { label: "Engagement", color: "#166534", format: (n) => n.toLocaleString() },
-  postsPublished: { label: "Posts published", color: "#2563eb", format: (n) => `${n}` },
-  adSpend: { label: "Ad spend", color: "#7c3aed", format: (n) => eur(n) },
-  conversions: { label: "Conversions", color: "#ea580c", format: (n) => `${n}` },
+  engagement: {
+    labelFr: "Engagement",
+    labelEn: "Engagement",
+    color: "#166534",
+    format: (n) => n.toLocaleString(),
+  },
+  postsPublished: {
+    labelFr: "Publications",
+    labelEn: "Posts published",
+    color: "#2563eb",
+    format: (n) => `${n}`,
+  },
+  adSpend: {
+    labelFr: "Dépenses pub.",
+    labelEn: "Ad spend",
+    color: "#7c3aed",
+    format: (n) => eur(n),
+  },
+  conversions: {
+    labelFr: "Conversions",
+    labelEn: "Conversions",
+    color: "#ea580c",
+    format: (n) => `${n}`,
+  },
 };
 
 const COMPANY_COLOR: Record<string, string> = {
@@ -84,8 +97,18 @@ export default function AnalyticsPage() {
 }
 
 function AnalyticsContent() {
+  const t = useT();
   const router = useRouter();
   const params = useSearchParams();
+
+  const RANGE_LABEL: Record<RangeId, string> = {
+    "7d": t("7 derniers jours", "Last 7 days"),
+    "30d": t("30 derniers jours", "Last 30 days"),
+    "90d": t("90 derniers jours", "Last 90 days"),
+    "1y": t("Dernière année", "Last year"),
+    all: t("Toute la période", "All time"),
+    custom: t("Période personnalisée", "Custom range"),
+  };
 
   // URL-driven state
   const scopeParam = params.get("scope");
@@ -163,16 +186,14 @@ function AnalyticsContent() {
     };
     for (const c of inScope) {
       const s = ANALYTICS_SERIES[c.id];
-      // Previous equivalent window from the same 30 days, falling back to a
-      // shrunk version when not enough history.
       const total = s.engagement.length;
       const prevStart = Math.max(0, total - days * 2);
       const prevEnd = Math.max(0, total - days);
-      const range = (a: number[]) => a.slice(prevStart, prevEnd);
-      acc.postsPublished += sum(range(s.postsPublished));
-      acc.engagement += sum(range(s.engagement));
-      acc.adSpend += sum(range(s.adSpend));
-      acc.conversions += sum(range(s.conversions));
+      const r = (a: number[]) => a.slice(prevStart, prevEnd);
+      acc.postsPublished += sum(r(s.postsPublished));
+      acc.engagement += sum(r(s.engagement));
+      acc.adSpend += sum(r(s.adSpend));
+      acc.conversions += sum(r(s.conversions));
     }
     // If the previous window doesn't exist, fall back to ~80% of current.
     for (const m of Object.keys(acc) as MetricId[]) {
@@ -276,14 +297,17 @@ function AnalyticsContent() {
     else router.push(`/ad-performance?platform=${target}`);
   };
 
-  const scopeLabel = scope === "all" ? "All companies" : COMPANIES.find((c) => c.id === scope)?.name ?? "All companies";
+  const scopeLabel =
+    scope === "all"
+      ? t("Toutes les entreprises", "All companies")
+      : COMPANIES.find((c) => c.id === scope)?.name ?? t("Toutes les entreprises", "All companies");
 
   return (
     <div className="animate-fade-in">
       {/* Header */}
       <div className="mb-6 flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <h1 className="text-lg font-bold tracking-tight text-ink">Analytics</h1>
+          <h1 className="text-lg font-bold tracking-tight text-ink">{t("Analytiques", "Analytics")}</h1>
           <span aria-hidden="true" className="h-4 w-px shrink-0 rounded-full bg-hair" />
           {/* Scope selector */}
           <div className="relative">
@@ -291,7 +315,7 @@ function AnalyticsContent() {
               onClick={() => setScopeOpen((o) => !o)}
               className="flex items-center gap-2 rounded-lg border border-hair bg-card px-3 py-1.5 text-sm shadow-xs transition-colors hover:bg-canvas"
             >
-              <span className="text-muted">Scope:</span>
+              <span className="text-muted">{t("Portée :", "Scope:")}</span>
               <span className="font-semibold text-ink">{scopeLabel}</span>
               <svg width="10" height="10" viewBox="0 0 10 10" className="text-muted">
                 <path d="M1 3l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.2" />
@@ -307,7 +331,7 @@ function AnalyticsContent() {
                       scope === "all" ? "font-semibold text-ink" : "text-ink/80"
                     }`}
                   >
-                    All companies
+                    {t("Toutes les entreprises", "All companies")}
                   </button>
                   <div className="mx-2 my-1 border-t border-hair" />
                   {COMPANIES.map((c) => (
@@ -357,14 +381,14 @@ function AnalyticsContent() {
                 onClick={toggle}
                 className="rounded-lg border border-hair bg-card px-3 py-1.5 text-sm font-medium text-ink shadow-xs hover:bg-canvas transition-colors"
               >
-                Export
+                {t("Exporter", "Export")}
               </button>
             )}
           >
             {(close) => (
               <>
-                <DropdownItem onClick={() => { handleExport("csv"); close(); }}>Export as CSV</DropdownItem>
-                <DropdownItem onClick={() => { handleExport("json"); close(); }}>Export as JSON</DropdownItem>
+                <DropdownItem onClick={() => { handleExport("csv"); close(); }}>{t("Exporter en CSV", "Export as CSV")}</DropdownItem>
+                <DropdownItem onClick={() => { handleExport("json"); close(); }}>{t("Exporter en JSON", "Export as JSON")}</DropdownItem>
               </>
             )}
           </Dropdown>
@@ -373,11 +397,11 @@ function AnalyticsContent() {
 
       {range === "custom" && (
         <div className="mb-4 flex items-center gap-2">
-          <span className="text-2xs text-muted">From</span>
+          <span className="text-2xs text-muted">{t("Du", "From")}</span>
           <div className="w-40">
             <DatePicker value={customFrom ?? NOW} onChange={setCustomFrom} />
           </div>
-          <span className="text-2xs text-muted">to</span>
+          <span className="text-2xs text-muted">{t("au", "to")}</span>
           <div className="w-40">
             <DatePicker value={customTo ?? NOW} onChange={setCustomTo} />
           </div>
@@ -385,18 +409,20 @@ function AnalyticsContent() {
       )}
 
       {/* Overview metrics */}
-      <div className="section-label mb-3">Overview</div>
+      <div className="section-label mb-3">{t("Vue d'ensemble", "Overview")}</div>
       <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <MetricCard label="Posts published" value={totals.postsPublished} trend={trend(totals.postsPublished, prevTotals.postsPublished)} />
-        <MetricCard label="Engagement" value={totals.engagement.toLocaleString()} trend={trend(totals.engagement, prevTotals.engagement)} />
-        <MetricCard label="Ad spend" value={eur(totals.adSpend)} trend={trend(totals.adSpend, prevTotals.adSpend)} />
-        <MetricCard label="Conversions" value={totals.conversions} trend={trend(totals.conversions, prevTotals.conversions)} />
+        <MetricCard label={t("Publications", "Posts published")} value={totals.postsPublished} trend={trend(totals.postsPublished, prevTotals.postsPublished)} />
+        <MetricCard label={t("Engagement", "Engagement")} value={totals.engagement.toLocaleString()} trend={trend(totals.engagement, prevTotals.engagement)} />
+        <MetricCard label={t("Dépenses pub.", "Ad spend")} value={eur(totals.adSpend)} trend={trend(totals.adSpend, prevTotals.adSpend)} />
+        <MetricCard label={t("Conversions", "Conversions")} value={totals.conversions} trend={trend(totals.conversions, prevTotals.conversions)} />
       </div>
 
       {/* Trend chart */}
       <div className="card mb-6 p-4">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-          <div className="text-sm font-semibold text-ink">{METRICS[trendMetric].label} over time</div>
+          <div className="text-sm font-semibold text-ink">
+            {t(METRICS[trendMetric].labelFr, METRICS[trendMetric].labelEn)} {t("dans le temps", "over time")}
+          </div>
           <div className="flex flex-wrap gap-1.5">
             {(Object.keys(METRICS) as MetricId[]).map((m) => {
               const on = trendMetric === m;
@@ -410,7 +436,7 @@ function AnalyticsContent() {
                       : "border border-hair bg-card text-muted hover:bg-canvas hover:text-ink"
                   }`}
                 >
-                  {METRICS[m].label}
+                  {t(METRICS[m].labelFr, METRICS[m].labelEn)}
                 </button>
               );
             })}
@@ -422,7 +448,7 @@ function AnalyticsContent() {
       {/* Bar charts */}
       <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="card p-4">
-          <div className="mb-4 text-sm font-semibold text-ink">Engagement by company</div>
+          <div className="mb-4 text-sm font-semibold text-ink">{t("Engagement par entreprise", "Engagement by company")}</div>
           {byCompany.map((c) => (
             <BarRow
               key={c.id}
@@ -433,16 +459,16 @@ function AnalyticsContent() {
               caption={
                 c.visible
                   ? `${c.value.toLocaleString()} · ${c.pct}%`
-                  : "Hidden by scope"
+                  : t("Masqué par la portée", "Hidden by scope")
               }
               muted={!c.visible}
               onClick={c.visible ? () => setScope(c.id) : undefined}
-              title={c.visible ? `Scope to ${c.name}` : undefined}
+              title={c.visible ? `${t("Filtrer sur", "Scope to")} ${c.name}` : undefined}
             />
           ))}
         </div>
         <div className="card p-4">
-          <div className="mb-4 text-sm font-semibold text-ink">Performance by platform</div>
+          <div className="mb-4 text-sm font-semibold text-ink">{t("Performance par plateforme", "Performance by platform")}</div>
           {byPlatform.map((p) => (
             <BarRow
               key={p.name}
@@ -450,13 +476,13 @@ function AnalyticsContent() {
               value={p.value}
               max={p.max}
               color={p.color}
-              caption={p.connected ? p.value.toLocaleString() : "Not connected"}
+              caption={p.connected ? p.value.toLocaleString() : t("Non connecté", "Not connected")}
               muted={!p.connected}
               onClick={() => goToPlatform(p.target)}
               title={
                 p.connected
-                  ? `View ${p.name} performance`
-                  : "Connect LinkedIn to see performance"
+                  ? `${t("Voir les performances", "View performance")} ${p.name}`
+                  : t("Connectez LinkedIn pour voir les performances", "Connect LinkedIn to see performance")
               }
             />
           ))}
@@ -465,7 +491,7 @@ function AnalyticsContent() {
 
       {/* AI summary */}
       <div className="rounded-xl border border-ai-text/20 bg-ai-textbg px-4 py-3.5 text-xs text-ai-text shadow-xs">
-        <span className="font-semibold">AI summary:</span> {ANALYTICS_SUMMARY}
+        <span className="font-semibold">{t("Synthèse IA :", "AI summary:")}</span> {ANALYTICS_SUMMARY}
       </div>
     </div>
   );

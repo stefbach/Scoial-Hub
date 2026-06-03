@@ -25,6 +25,7 @@ import {
   toggleCampaign,
 } from "@/lib/campaign-store";
 import { eur } from "@/lib/format";
+import { useT } from "@/lib/i18n";
 import type { Ad, AdSet, Campaign } from "@/lib/types";
 
 type MetricId = "spend" | "impressions" | "clicks" | "conversions" | "ctr" | "cpc";
@@ -38,19 +39,16 @@ const METRICS: { id: MetricId; label: string; color: string; dashed?: boolean }[
   { id: "cpc", label: "CPC", color: "#0a66c2" },
 ];
 
-function fmtDate(iso?: string | null) {
-  if (!iso) return "No end date";
+function fmtDate(iso?: string | null, noEndLabel = "No end date") {
+  if (!iso) return noEndLabel;
   return format(new Date(`${iso}T00:00:00`), "d MMM yyyy");
-}
-
-function statusLabel(c: Campaign) {
-  return c.enabled ? "Active" : "Paused";
 }
 
 export default function CampaignDetailPage() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
   const { company } = useCompany();
+  const t = useT();
   const [, setTick] = useState(0);
   const refresh = () => setTick((t) => t + 1);
 
@@ -86,11 +84,11 @@ export default function CampaignDetailPage() {
   if (!campaign) {
     return (
       <div>
-        <Breadcrumb trail={[{ href: "/campaigns", label: "Campaigns" }, { label: "Not found" }]} />
+        <Breadcrumb trail={[{ href: "/campaigns", label: t("Campagnes", "Campaigns") }, { label: t("Introuvable", "Not found") }]} />
         <div className="card flex flex-col items-center px-6 py-16 text-center">
-          <div className="text-sm text-muted">Campaign not found.</div>
+          <div className="text-sm text-muted">{t("Campagne introuvable.", "Campaign not found.")}</div>
           <Link href="/campaigns" className="mt-3 text-sm font-medium text-ai-text hover:underline">
-            Back to campaigns
+            {t("Retour aux campagnes", "Back to campaigns")}
           </Link>
         </div>
       </div>
@@ -112,7 +110,7 @@ export default function CampaignDetailPage() {
     <div className="animate-fade-in">
       <Breadcrumb
         trail={[
-          { href: "/campaigns", label: "Campaigns" },
+          { href: "/campaigns", label: t("Campagnes", "Campaigns") },
           { label: campaign.name },
         ]}
       />
@@ -123,22 +121,22 @@ export default function CampaignDetailPage() {
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-xl font-semibold text-ink">{campaign.name}</h1>
             <StatusBadge tone={campaign.enabled ? "green" : "gray"} dot>
-              {statusLabel(campaign)}
+              {campaign.enabled ? t("Actif", "Active") : t("En pause", "Paused")}
             </StatusBadge>
             <span className="rounded-md bg-ai-textbg px-2 py-0.5 text-2xs font-medium text-ai-text">
               {campaign.platforms.join(" + ")}
-              {campaign.platforms.length === 1 ? " only" : ""}
+              {campaign.platforms.length === 1 ? t(" seulement", " only") : ""}
             </span>
             <StatusBadge tone="blue">{campaign.objective}</StatusBadge>
           </div>
           <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-2xs text-muted">
-            <span>Daily budget <span className="font-medium text-ink">{eur(campaign.dailyBudget ?? 0)}</span></span>
+            <span>{t("Budget journalier", "Daily budget")} <span className="font-medium text-ink">{eur(campaign.dailyBudget ?? 0)}</span></span>
             <span className="text-hair">·</span>
-            <span>Spent <span className="font-medium text-ink">{eur(campaign.spend)}</span> of {eur(campaign.budget)}</span>
+            <span>{t("Dépensé", "Spent")} <span className="font-medium text-ink">{eur(campaign.spend)}</span> {t("sur", "of")} {eur(campaign.budget)}</span>
             <span className="text-hair">·</span>
-            <span>Started {fmtDate(campaign.startDate)}</span>
+            <span>{t("Démarré le", "Started")} {fmtDate(campaign.startDate, t("Aucune date de début", "No start date"))}</span>
             <span className="text-hair">·</span>
-            <span>{fmtDate(campaign.endDate)}</span>
+            <span>{fmtDate(campaign.endDate, t("Aucune date de fin", "No end date"))}</span>
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
@@ -150,7 +148,7 @@ export default function CampaignDetailPage() {
               refresh();
             }}
           />
-          <Button variant="secondary" onClick={() => setEditOpen(true)}>Edit</Button>
+          <Button variant="secondary" onClick={() => setEditOpen(true)}>{t("Modifier", "Edit")}</Button>
           <Button
             variant="secondary"
             onClick={() => {
@@ -158,19 +156,19 @@ export default function CampaignDetailPage() {
               if (copy) router.push(`/campaigns/${copy.id}`);
             }}
           >
-            Duplicate
+            {t("Dupliquer", "Duplicate")}
           </Button>
-          <Button variant="danger" onClick={() => setConfirmDelete(true)}>Delete</Button>
+          <Button variant="danger" onClick={() => setConfirmDelete(true)}>{t("Supprimer", "Delete")}</Button>
         </div>
       </div>
 
       {/* Metric cards */}
       <div className="mb-5 grid grid-cols-4 gap-3">
-        <MetricCard label="Spend" value={eur(campaign.spend)} trend={campaign.spendTrend} />
-        <MetricCard label="Impressions" value={(campaign.impressions ?? 0).toLocaleString()} trend={campaign.impressionsTrend} />
-        <MetricCard label="Clicks" value={(campaign.clicks ?? 0).toLocaleString()} trend={campaign.clicksTrend} />
+        <MetricCard label={t("Dépenses", "Spend")} value={eur(campaign.spend)} trend={campaign.spendTrend} />
+        <MetricCard label={t("Impressions", "Impressions")} value={(campaign.impressions ?? 0).toLocaleString()} trend={campaign.impressionsTrend} />
+        <MetricCard label={t("Clics", "Clicks")} value={(campaign.clicks ?? 0).toLocaleString()} trend={campaign.clicksTrend} />
         <MetricCard
-          label="Conversions"
+          label={t("Conversions", "Conversions")}
           value={String(parseInt(campaign.metricsValue.match(/(\d+)/)?.[0] ?? "0", 10) || 0)}
           trend={campaign.conversionsTrend}
         />
@@ -179,7 +177,7 @@ export default function CampaignDetailPage() {
       {/* Chart */}
       <div className="card mb-6 overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-hair bg-canvas/50 px-5 py-3.5">
-          <div className="text-sm font-semibold text-ink">Performance — last 30 days</div>
+          <div className="text-sm font-semibold text-ink">{t("Performance — 30 derniers jours", "Performance — last 30 days")}</div>
           <div className="flex flex-wrap gap-1.5">
             {METRICS.map((m) => {
               const on = activeMetrics.includes(m.id);
@@ -206,14 +204,14 @@ export default function CampaignDetailPage() {
 
       {/* Ad sets */}
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-ink">Ad Sets ({campaign.adSets.length})</h2>
+        <h2 className="text-sm font-semibold text-ink">{t("Ensembles de publicités", "Ad Sets")} ({campaign.adSets.length})</h2>
         <Button variant="primary" onClick={() => setAdSetModal({ open: true })}>
-          + New ad set
+          + {t("Nouvel ensemble", "New ad set")}
         </Button>
       </div>
       <div className="card mb-6 overflow-hidden">
         {campaign.adSets.length === 0 ? (
-          <div className="px-5 py-10 text-center text-sm text-muted">No ad sets yet.</div>
+          <div className="px-5 py-10 text-center text-sm text-muted">{t("Aucun ensemble de publicités pour l'instant.", "No ad sets yet.")}</div>
         ) : (
           <div className="divide-y divide-hair">
             {campaign.adSets.map((set) => (
@@ -231,22 +229,22 @@ export default function CampaignDetailPage() {
                   </div>
                 </Link>
                 <div className="shrink-0 text-2xs tabular-nums text-muted">
-                  <span className="font-medium text-ink">{set.ads} ads</span> · {eur(set.dailyBudget)}/day
+                  <span className="font-medium text-ink">{set.ads} {t("pubs", "ads")}</span> · {eur(set.dailyBudget)}/{t("jour", "day")}
                 </div>
                 <span onClick={(e) => e.stopPropagation()}>
                   <Toggle defaultOn={set.enabled ?? true} />
                 </span>
                 <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
                   <IconButton
-                    title="Edit"
-                    ariaLabel="Edit ad set"
+                    title={t("Modifier", "Edit")}
+                    ariaLabel={t("Modifier l'ensemble", "Edit ad set")}
                     onClick={() => setAdSetModal({ open: true, adSet: set })}
                   >
                     <PencilIcon />
                   </IconButton>
                   <IconButton
-                    title="Duplicate"
-                    ariaLabel="Duplicate ad set"
+                    title={t("Dupliquer", "Duplicate")}
+                    ariaLabel={t("Dupliquer l'ensemble", "Duplicate ad set")}
                     onClick={() => {
                       duplicateAdSet(company.id, set.id);
                       refresh();
@@ -255,8 +253,8 @@ export default function CampaignDetailPage() {
                     <CopyIcon />
                   </IconButton>
                   <IconButton
-                    title="Delete"
-                    ariaLabel="Delete ad set"
+                    title={t("Supprimer", "Delete")}
+                    ariaLabel={t("Supprimer l'ensemble", "Delete ad set")}
                     danger
                     onClick={() => setConfirmAdSetDelete(set)}
                   >
@@ -271,7 +269,7 @@ export default function CampaignDetailPage() {
 
       {/* All ads */}
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-ink">All Ads in this campaign ({totalAds})</h2>
+        <h2 className="text-sm font-semibold text-ink">{t("Toutes les publicités de cette campagne", "All Ads in this campaign")} ({totalAds})</h2>
         <Dropdown
           align="right"
           trigger={(open, toggle) => (
@@ -280,8 +278,8 @@ export default function CampaignDetailPage() {
               className="rounded-md border border-hair bg-card px-3 py-1.5 text-xs text-ink hover:bg-canvas"
             >
               {adFilter === "all"
-                ? "All ad sets"
-                : campaign.adSets.find((s) => s.id === adFilter)?.name ?? "Ad set"}
+                ? t("Tous les ensembles", "All ad sets")
+                : campaign.adSets.find((s) => s.id === adFilter)?.name ?? t("Ensemble", "Ad set")}
             </button>
           )}
         >
@@ -294,7 +292,7 @@ export default function CampaignDetailPage() {
                   close();
                 }}
               >
-                All ad sets
+                {t("Tous les ensembles", "All ad sets")}
               </DropdownItem>
               {campaign.adSets.map((set) => (
                 <DropdownItem
@@ -316,19 +314,19 @@ export default function CampaignDetailPage() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-hair bg-canvas/50 text-left">
-              <th className="px-5 py-3 text-2xs font-semibold uppercase tracking-wide text-muted">Ad</th>
-              <th className="px-5 py-3 text-2xs font-semibold uppercase tracking-wide text-muted">Ad set</th>
-              <th className="px-5 py-3 text-2xs font-semibold uppercase tracking-wide text-muted">Spend</th>
+              <th className="px-5 py-3 text-2xs font-semibold uppercase tracking-wide text-muted">{t("Publicité", "Ad")}</th>
+              <th className="px-5 py-3 text-2xs font-semibold uppercase tracking-wide text-muted">{t("Ensemble", "Ad set")}</th>
+              <th className="px-5 py-3 text-2xs font-semibold uppercase tracking-wide text-muted">{t("Dépenses", "Spend")}</th>
               <th className="px-5 py-3 text-2xs font-semibold uppercase tracking-wide text-muted">CTR</th>
-              <th className="px-5 py-3 text-2xs font-semibold uppercase tracking-wide text-muted">Conv.</th>
-              <th className="px-5 py-3 text-2xs font-semibold uppercase tracking-wide text-muted">Status</th>
+              <th className="px-5 py-3 text-2xs font-semibold uppercase tracking-wide text-muted">{t("Conv.", "Conv.")}</th>
+              <th className="px-5 py-3 text-2xs font-semibold uppercase tracking-wide text-muted">{t("Statut", "Status")}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-hair">
             {filteredAds.length === 0 ? (
               <tr>
                 <td colSpan={6} className="px-5 py-10 text-center text-sm text-muted">
-                  No ads match this filter.
+                  {t("Aucune publicité ne correspond à ce filtre.", "No ads match this filter.")}
                 </td>
               </tr>
             ) : (
@@ -350,7 +348,7 @@ export default function CampaignDetailPage() {
                   <td className="px-5 py-3 tabular-nums text-ink">{ad.conversions}</td>
                   <td className="px-5 py-3">
                     <StatusBadge tone={ad.status === "active" ? "green" : "gray"} dot>
-                      {ad.status === "active" ? "Active" : "Paused"}
+                      {ad.status === "active" ? t("Actif", "Active") : t("En pause", "Paused")}
                     </StatusBadge>
                   </td>
                 </tr>
@@ -401,12 +399,12 @@ export default function CampaignDetailPage() {
             <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-danger-50 text-danger-600">
               <TrashIcon />
             </div>
-            <h3 className="text-base font-semibold text-ink">Delete ad set</h3>
+            <h3 className="text-base font-semibold text-ink">{t("Supprimer l'ensemble de publicités", "Delete ad set")}</h3>
             <p className="mt-1.5 text-sm text-muted">
-              Delete &ldquo;{confirmAdSetDelete.name}&rdquo;? This action cannot be undone.
+              {t("Supprimer", "Delete")} &ldquo;{confirmAdSetDelete.name}&rdquo;? {t("Cette action est irréversible.", "This action cannot be undone.")}
             </p>
             <div className="mt-5 flex justify-end gap-2">
-              <Button variant="secondary" onClick={() => setConfirmAdSetDelete(null)}>Cancel</Button>
+              <Button variant="secondary" onClick={() => setConfirmAdSetDelete(null)}>{t("Annuler", "Cancel")}</Button>
               <Button
                 variant="danger"
                 onClick={() => {
@@ -415,7 +413,7 @@ export default function CampaignDetailPage() {
                   refresh();
                 }}
               >
-                Delete
+                {t("Supprimer", "Delete")}
               </Button>
             </div>
           </div>
@@ -429,12 +427,12 @@ export default function CampaignDetailPage() {
             <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-danger-50 text-danger-600">
               <TrashIcon />
             </div>
-            <h3 className="text-base font-semibold text-ink">Delete campaign</h3>
+            <h3 className="text-base font-semibold text-ink">{t("Supprimer la campagne", "Delete campaign")}</h3>
             <p className="mt-1.5 text-sm text-muted">
-              Delete &ldquo;{campaign.name}&rdquo;? This action cannot be undone.
+              {t("Supprimer", "Delete")} &ldquo;{campaign.name}&rdquo;? {t("Cette action est irréversible.", "This action cannot be undone.")}
             </p>
             <div className="mt-5 flex justify-end gap-2">
-              <Button variant="secondary" onClick={() => setConfirmDelete(false)}>Cancel</Button>
+              <Button variant="secondary" onClick={() => setConfirmDelete(false)}>{t("Annuler", "Cancel")}</Button>
               <Button
                 variant="danger"
                 onClick={() => {
@@ -442,7 +440,7 @@ export default function CampaignDetailPage() {
                   router.push("/campaigns");
                 }}
               >
-                Delete
+                {t("Supprimer", "Delete")}
               </Button>
             </div>
           </div>

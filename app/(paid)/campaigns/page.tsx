@@ -16,6 +16,7 @@ import {
   toggleCampaign,
 } from "@/lib/campaign-store";
 import { eur } from "@/lib/format";
+import { useT } from "@/lib/i18n";
 import type { Campaign } from "@/lib/types";
 
 export default function CampaignsPage() {
@@ -27,10 +28,11 @@ export default function CampaignsPage() {
 }
 
 function CampaignsContent() {
+  const t = useT();
   const { company, data } = useCompany();
   const params = useSearchParams();
   const [, setTick] = useState(0);
-  const refresh = () => setTick((t) => t + 1);
+  const refresh = () => setTick((tick) => tick + 1);
 
   // Make sure every campaign has its detail fields ready.
   useEffect(() => {
@@ -97,12 +99,12 @@ function CampaignsContent() {
   return (
     <div className="animate-fade-in">
       <PageHeader
-        title="Campaigns"
+        title={t("Campagnes", "Campaigns")}
         actions={
           <>
-            <Button variant="secondary" onClick={() => setAdModal(true)}>New ad</Button>
+            <Button variant="secondary" onClick={() => setAdModal(true)}>{t("Nouvelle pub", "New ad")}</Button>
             <Button variant="primary" onClick={() => setCampaignModal({ open: true })}>
-              New campaign
+              {t("Nouvelle campagne", "New campaign")}
             </Button>
           </>
         }
@@ -111,25 +113,25 @@ function CampaignsContent() {
       {/* KPI strip */}
       <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <KpiCard
-          label="Active campaigns"
+          label={t("Campagnes actives", "Active campaigns")}
           value={String(c.activeCampaigns)}
           icon={<CampaignIcon />}
           accent="blue"
         />
         <KpiCard
-          label="Spend this month"
+          label={t("Dépenses du mois", "Spend this month")}
           value={eur(c.spendMtd)}
           icon={<SpendIcon />}
           accent="indigo"
         />
         <KpiCard
-          label="Conversions (30d)"
+          label={t("Conversions (30j)", "Conversions (30d)")}
           value={String(c.conversions)}
           icon={<ConvIcon />}
           accent="green"
         />
         <KpiCard
-          label="Avg. CPC"
+          label={t("CPC moyen", "Avg. CPC")}
           value={eur(c.avgCpc, { decimals: true })}
           icon={<CpcIcon />}
           accent="amber"
@@ -140,18 +142,21 @@ function CampaignsContent() {
       {c.list.length === 0 ? (
         <EmptyState
           icon={<CampaignIcon />}
-          title="No campaigns yet"
-          description="Create your first campaign to start driving traffic and conversions."
+          title={t("Aucune campagne pour l'instant", "No campaigns yet")}
+          description={t(
+            "Créez votre première campagne pour commencer à générer du trafic et des conversions.",
+            "Create your first campaign to start driving traffic and conversions."
+          )}
           action={
             <Button variant="primary" onClick={() => setCampaignModal({ open: true })}>
-              New campaign
+              {t("Nouvelle campagne", "New campaign")}
             </Button>
           }
         />
       ) : (
         <div className="card overflow-hidden">
           <div className="flex items-center justify-between border-b border-hair bg-canvas/60 px-5 py-3">
-            <span className="section-label">All campaigns ({c.list.length})</span>
+            <span className="section-label">{t("Toutes les campagnes", "All campaigns")} ({c.list.length})</span>
           </div>
           <div className="divide-y divide-hair">
             {c.list.map((camp) => (
@@ -188,12 +193,12 @@ function CampaignsContent() {
             <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-danger-50 text-danger-600">
               <TrashIcon />
             </div>
-            <h3 className="text-base font-semibold text-ink">Delete campaign</h3>
+            <h3 className="text-base font-semibold text-ink">{t("Supprimer la campagne", "Delete campaign")}</h3>
             <p className="mt-1.5 text-sm text-muted">
-              Delete &ldquo;{confirmDelete.name}&rdquo;? This action cannot be undone.
+              {t("Supprimer", "Delete")} &ldquo;{confirmDelete.name}&rdquo;? {t("Cette action est irréversible.", "This action cannot be undone.")}
             </p>
             <div className="mt-5 flex justify-end gap-2">
-              <Button variant="secondary" onClick={() => setConfirmDelete(null)}>Cancel</Button>
+              <Button variant="secondary" onClick={() => setConfirmDelete(null)}>{t("Annuler", "Cancel")}</Button>
               <Button
                 variant="danger"
                 onClick={() => {
@@ -202,7 +207,7 @@ function CampaignsContent() {
                   refresh();
                 }}
               >
-                Delete
+                {t("Supprimer", "Delete")}
               </Button>
             </div>
           </div>
@@ -289,9 +294,10 @@ function CampaignRow({
   onEdit: () => void;
   onDelete: () => void;
 }) {
+  const t = useT();
   const router = useRouter();
   const detailHref = `/campaigns/${camp.id}`;
-  const status = camp.enabled ? "Active" : "Paused";
+  const status = camp.enabled ? t("Actif", "Active") : t("En pause", "Paused");
   const statusTone = camp.enabled ? "green" : "gray";
   const budgetPct = camp.budget > 0 ? Math.min(100, Math.round((camp.spend / camp.budget) * 100)) : 0;
 
@@ -309,7 +315,7 @@ function CampaignRow({
               onChevron();
             }}
             aria-expanded={open}
-            aria-label={open ? "Collapse campaign" : "Expand campaign"}
+            aria-label={open ? t("Réduire la campagne", "Collapse campaign") : t("Développer la campagne", "Expand campaign")}
             className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted transition-colors hover:bg-hair hover:text-ink"
           >
             <span
@@ -338,7 +344,7 @@ function CampaignRow({
                   <svg viewBox="0 0 12 12" fill="currentColor" className="h-2.5 w-2.5">
                     <path d="M6 1l1.545 3.13L11 4.854 8.5 7.29l.59 3.44L6 9.13l-3.09 1.6.59-3.44L1 4.854l3.455-.724L6 1z" />
                   </svg>
-                  créé par IA
+                  {t("créé par IA", "created by AI")}
                 </span>
               )}
             </div>
@@ -348,7 +354,7 @@ function CampaignRow({
               <span className="font-medium text-ink/70">{camp.objective}</span>
               <span className="flex items-center gap-1">
                 <span className="inline-block h-1 w-1 rounded-full bg-hair" />
-                Spent{" "}
+                {t("Dépensé", "Spent")}{" "}
                 <span className="font-semibold text-ink">{eur(camp.spend)}</span>
                 {" / "}
                 <span>{eur(camp.budget)}</span>
@@ -390,10 +396,10 @@ function CampaignRow({
           className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100"
           onClick={(e) => e.stopPropagation()}
         >
-          <IconButton title="Edit" ariaLabel="Edit campaign" onClick={onEdit}>
+          <IconButton title={t("Modifier", "Edit")} ariaLabel={t("Modifier la campagne", "Edit campaign")} onClick={onEdit}>
             <PencilIcon />
           </IconButton>
-          <IconButton title="Delete" ariaLabel="Delete campaign" danger onClick={onDelete}>
+          <IconButton title={t("Supprimer", "Delete")} ariaLabel={t("Supprimer la campagne", "Delete campaign")} danger onClick={onDelete}>
             <TrashIcon />
           </IconButton>
           <span className="ml-2">
@@ -412,10 +418,10 @@ function CampaignRow({
       {/* Expanded — ad sets */}
       {open && (
         <div className="ml-8 mt-4" onClick={(e) => e.stopPropagation()}>
-          <div className="section-label mb-2.5">Ad sets ({camp.adSets.length})</div>
+          <div className="section-label mb-2.5">{t("Ensembles de publicités", "Ad sets")} ({camp.adSets.length})</div>
           {camp.adSets.length === 0 ? (
             <div className="rounded-lg border border-dashed border-hair bg-canvas px-4 py-5 text-center text-xs text-muted">
-              No ad sets yet.
+              {t("Aucun ensemble de publicités pour l'instant.", "No ad sets yet.")}
             </div>
           ) : (
             <div className="space-y-1.5">
@@ -437,8 +443,8 @@ function CampaignRow({
                     </div>
                   </div>
                   <div className="ml-4 shrink-0 text-2xs tabular-nums text-muted">
-                    <span className="mr-2 font-medium text-ink">{set.ads} ads</span>
-                    {eur(set.dailyBudget)}/day
+                    <span className="mr-2 font-medium text-ink">{set.ads} {t("pubs", "ads")}</span>
+                    {eur(set.dailyBudget)}/{t("jour", "day")}
                   </div>
                 </div>
               ))}

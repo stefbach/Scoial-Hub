@@ -4,6 +4,7 @@ import { Suspense, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { format } from "date-fns";
 import { useCompany } from "@/lib/company-context";
+import { useT } from "@/lib/i18n";
 import { Button } from "@/components/ui/Button";
 import { Tabs } from "@/components/ui/Tabs";
 import { AiTextPanel, AiVisualsPanel } from "@/components/ui/AiPanel";
@@ -32,6 +33,7 @@ function ComposeContent() {
   const { company, data } = useCompany();
   const router = useRouter();
   const params = useSearchParams();
+  const t = useT();
 
   const draftId = params.get("draft");
   const postId = params.get("post");
@@ -102,28 +104,28 @@ function ComposeContent() {
     router.push("/scheduled?tab=drafts");
   };
 
-  const verb = when === "now" ? "Publish" : "Schedule";
-  const noun = count === 1 ? "post" : "posts";
+  const verb = when === "now" ? t("Publier", "Publish") : t("Planifier", "Schedule");
+  const noun = count === 1 ? t("publication", "post") : t("publications", "posts");
 
   const modeLabel = draft
-    ? "Edit draft"
+    ? t("Modifier le brouillon", "Edit draft")
     : post
-    ? "Edit post"
+    ? t("Modifier la publication", "Edit post")
     : template
-    ? "New post from template"
+    ? t("Nouvelle publication depuis un modèle", "New post from template")
     : duplicate
-    ? "New post (duplicated)"
-    : "New post";
+    ? t("Nouvelle publication (dupliquée)", "New post (duplicated)")
+    : t("Nouvelle publication", "New post");
 
   const modeSub = draft
-    ? "Resuming a saved draft"
+    ? t("Reprise d'un brouillon sauvegardé", "Resuming a saved draft")
     : post
-    ? "Editing a scheduled post"
+    ? t("Modification d'une publication planifiée", "Editing a scheduled post")
     : template
-    ? "Using a library template"
+    ? t("Utilisation d'un modèle de bibliothèque", "Using a library template")
     : duplicate
-    ? "Duplicated from history"
-    : "Compose and schedule a new post";
+    ? t("Dupliquée depuis l'historique", "Duplicated from history")
+    : t("Composez et planifiez une nouvelle publication", "Compose and schedule a new post");
 
   return (
     <div className="animate-fade-in">
@@ -145,9 +147,9 @@ function ComposeContent() {
         </div>
         <div className="flex shrink-0 gap-2">
           <Button variant="secondary" onClick={handleSaveDraft}>
-            Save as draft
+            {t("Enregistrer comme brouillon", "Save as draft")}
           </Button>
-          <Button variant="secondary">Save to library</Button>
+          <Button variant="secondary">{t("Enregistrer dans la bibliothèque", "Save to library")}</Button>
         </div>
       </div>
 
@@ -156,7 +158,7 @@ function ComposeContent() {
         <div className="card space-y-5 p-5">
           {/* Platform selector */}
           <div>
-            <div className="section-label mb-2.5">Post to</div>
+            <div className="section-label mb-2.5">{t("Publier sur", "Post to")}</div>
             <div className="flex flex-wrap gap-2">
               {data.accounts.map((a) => {
                 const on = selected.includes(a.id);
@@ -179,10 +181,10 @@ function ComposeContent() {
 
           {/* Post content */}
           <div>
-            <div className="section-label mb-2.5">Post content</div>
+            <div className="section-label mb-2.5">{t("Contenu de la publication", "Post content")}</div>
             <Tabs
               tabs={[
-                { id: "all", label: "All platforms", content: <ContentBox value={body} onChange={setBody} /> },
+                { id: "all", label: t("Toutes les plateformes", "All platforms"), content: <ContentBox value={body} onChange={setBody} /> },
                 { id: "fb", label: "Facebook", content: <ContentBox value={body} onChange={setBody} /> },
                 { id: "ig", label: "Instagram", content: <ContentBox value={body} onChange={setBody} /> },
               ]}
@@ -198,7 +200,7 @@ function ComposeContent() {
 
           {/* When to publish */}
           <div>
-            <div className="section-label mb-2.5">When to publish</div>
+            <div className="section-label mb-2.5">{t("Quand publier", "When to publish")}</div>
             <div className="grid grid-cols-2 gap-2">
               <button
                 onClick={() => setWhen("now")}
@@ -208,7 +210,7 @@ function ComposeContent() {
                     : "border border-hair bg-card text-ink hover:bg-canvas"
                 }`}
               >
-                Now
+                {t("Maintenant", "Now")}
               </button>
               <button
                 onClick={() => setWhen("schedule")}
@@ -218,7 +220,7 @@ function ComposeContent() {
                     : "border border-hair bg-card text-ink hover:bg-canvas"
                 }`}
               >
-                Schedule
+                {t("Planifier", "Schedule")}
               </button>
             </div>
             {when === "schedule" && (
@@ -232,12 +234,12 @@ function ComposeContent() {
           {/* Footer actions */}
           <div className="flex justify-end gap-2 border-t border-hair pt-4">
             <Button variant="secondary" onClick={() => router.push("/scheduled")}>
-              Cancel
+              {t("Annuler", "Cancel")}
             </Button>
             <Button
               variant="primary"
               disabled={noneSelected}
-              title={noneSelected ? "Select at least one platform" : undefined}
+              title={noneSelected ? t("Sélectionnez au moins une plateforme", "Select at least one platform") : undefined}
             >
               {`${verb} ${count} ${noun}`}
             </Button>
@@ -246,7 +248,7 @@ function ComposeContent() {
 
         {/* Preview panel */}
         <div className="panel p-4">
-          <div className="section-label mb-3">Preview</div>
+          <div className="section-label mb-3">{t("Aperçu", "Preview")}</div>
           <div className="mb-3 flex gap-1.5">
             {(["facebook", "instagram"] as const).map((p) => (
               <button
@@ -311,6 +313,7 @@ function FacebookPreview({
   body: string;
   upload: UploadedMedia | null;
 }) {
+  const t = useT();
   return (
     <div className="card overflow-hidden p-3">
       <div className="mb-2.5 flex items-center gap-2">
@@ -322,7 +325,7 @@ function FacebookPreview({
         </span>
         <div>
           <div className="text-xs font-semibold text-ink">{company.name}</div>
-          <div className="text-2xs text-muted">Scheduled · Wed at 09:00</div>
+          <div className="text-2xs text-muted">{t("Planifié · Mer à 09:00", "Scheduled · Wed at 09:00")}</div>
         </div>
       </div>
       <p className="text-xs leading-relaxed text-ink">{body}</p>

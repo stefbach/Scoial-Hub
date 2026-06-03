@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { TagInput } from "@/components/ui/TagInput";
+import { useT } from "@/lib/i18n";
 
 export function BulkActionBar({
   selectedCount,
@@ -19,6 +20,7 @@ export function BulkActionBar({
   onRetag: (tags: string[]) => void;
   onDelete: () => void;
 }) {
+  const t = useT();
   const [retagOpen, setRetagOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [tags, setTags] = useState<string[]>([]);
@@ -26,10 +28,10 @@ export function BulkActionBar({
   return (
     <div className="fixed inset-x-0 bottom-0 z-30 border-t-hair border-hair bg-card shadow-[0_-2px_8px_rgba(0,0,0,0.06)]">
       <div className="mx-auto flex max-w-[1180px] items-center gap-3 px-6 py-3">
-        <span className="text-sm font-medium text-ink">{selectedCount} selected</span>
-        <Button variant="ghost" onClick={onSelectAll}>Select all ({visibleCount})</Button>
+        <span className="text-sm font-medium text-ink">{selectedCount} {t("sélectionné(s)", "selected")}</span>
+        <Button variant="ghost" onClick={onSelectAll}>{t("Tout sélectionner", "Select all")} ({visibleCount})</Button>
         <button onClick={onClear} className="text-sm text-muted underline hover:text-ink">
-          Clear
+          {t("Effacer", "Clear")}
         </button>
 
         <div className="ml-auto flex items-center gap-2">
@@ -39,14 +41,14 @@ export function BulkActionBar({
               disabled={selectedCount === 0}
               onClick={() => setRetagOpen((o) => !o)}
             >
-              Re-tag
+              {t("Re-tagger", "Re-tag")}
             </Button>
             {retagOpen && (
               <div className="absolute bottom-full right-0 mb-2 w-64 rounded-md border-hair border-hair bg-card p-3 shadow-lg">
-                <div className="mb-2 text-2xs font-medium text-muted">Set tags for selected</div>
+                <div className="mb-2 text-2xs font-medium text-muted">{t("Définir les tags pour la sélection", "Set tags for selected")}</div>
                 <TagInput tags={tags} onChange={setTags} />
                 <div className="mt-2 flex justify-end gap-2">
-                  <Button variant="ghost" onClick={() => setRetagOpen(false)}>Cancel</Button>
+                  <Button variant="ghost" onClick={() => setRetagOpen(false)}>{t("Annuler", "Cancel")}</Button>
                   <Button
                     variant="primary"
                     onClick={() => {
@@ -54,7 +56,7 @@ export function BulkActionBar({
                       setRetagOpen(false);
                     }}
                   >
-                    Apply
+                    {t("Appliquer", "Apply")}
                   </Button>
                 </div>
               </div>
@@ -67,15 +69,18 @@ export function BulkActionBar({
               disabled={selectedCount === 0}
               onClick={() => setConfirmDelete(true)}
             >
-              Delete
+              {t("Supprimer", "Delete")}
             </Button>
             {confirmDelete && (
               <div className="absolute bottom-full right-0 mb-2 w-64 rounded-md border-hair border-hair bg-card p-3 shadow-lg">
                 <p className="text-sm text-ink">
-                  Delete {selectedCount} template{selectedCount === 1 ? "" : "s"}? This cannot be undone.
+                  {t(
+                    `Supprimer ${selectedCount} modèle${selectedCount === 1 ? "" : "s"} ? Cette action est irréversible.`,
+                    `Delete ${selectedCount} template${selectedCount === 1 ? "" : "s"}? This cannot be undone.`
+                  )}
                 </p>
                 <div className="mt-3 flex justify-end gap-2">
-                  <Button variant="secondary" onClick={() => setConfirmDelete(false)}>Cancel</Button>
+                  <Button variant="secondary" onClick={() => setConfirmDelete(false)}>{t("Annuler", "Cancel")}</Button>
                   <Button
                     variant="danger"
                     onClick={() => {
@@ -83,7 +88,7 @@ export function BulkActionBar({
                       setConfirmDelete(false);
                     }}
                   >
-                    Delete
+                    {t("Supprimer", "Delete")}
                   </Button>
                 </div>
               </div>

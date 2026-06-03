@@ -1,5 +1,7 @@
 "use client";
 
+import { useT } from "@/lib/i18n";
+
 export function SubHeader({
   title,
   scope,
@@ -9,12 +11,13 @@ export function SubHeader({
   scope: "org" | "company";
   scopeLabel: string;
 }) {
+  const t = useT();
   return (
     <div className="mb-3 flex items-center gap-3">
       <h2 className="text-base font-semibold text-ink">{title}</h2>
       <span className="text-hair">|</span>
       <span className="text-sm text-muted">
-        {scope === "org" ? "Organization:" : "Settings for"}{" "}
+        {scope === "org" ? t("Organisation :", "Organization:") : t("Paramètres pour", "Settings for")}{" "}
         <span className="font-semibold text-ink">{scopeLabel}</span>
       </span>
     </div>

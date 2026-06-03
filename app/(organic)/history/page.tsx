@@ -4,6 +4,7 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { format } from "date-fns";
 import { useCompany } from "@/lib/company-context";
+import { useT } from "@/lib/i18n";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { Tabs } from "@/components/ui/Tabs";
@@ -21,15 +22,6 @@ import {
 import type { HistoryItem } from "@/lib/types";
 
 type RangeId = "7d" | "30d" | "90d" | "1y" | "all" | "custom";
-
-const RANGE_LABEL: Record<RangeId, string> = {
-  "7d": "Last 7 days",
-  "30d": "Last 30 days",
-  "90d": "Last 90 days",
-  "1y": "Last year",
-  all: "All time",
-  custom: "Custom range",
-};
 
 // Anchor "now" to a fixed point matching the seed dates so filtering looks
 // natural even months after these mock items were authored.
@@ -58,6 +50,16 @@ function HistoryContent() {
   const { company, data } = useCompany();
   const router = useRouter();
   const params = useSearchParams();
+  const t = useT();
+
+  const RANGE_LABEL: Record<RangeId, string> = {
+    "7d": t("7 derniers jours", "Last 7 days"),
+    "30d": t("30 derniers jours", "Last 30 days"),
+    "90d": t("90 derniers jours", "Last 90 days"),
+    "1y": t("Dernière année", "Last year"),
+    all: t("Tout le temps", "All time"),
+    custom: t("Plage personnalisée", "Custom range"),
+  };
 
   const tabParam = params.get("tab");
   const defaultActiveId =
@@ -78,7 +80,7 @@ function HistoryContent() {
   const [openPost, setOpenPost] = useState<HistoryItem | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<HistoryItem | null>(null);
   const [, setTick] = useState(0);
-  const refresh = () => setTick((t) => t + 1);
+  const refresh = () => setTick((n) => n + 1);
 
   // Keep URL in sync with the range selection.
   useEffect(() => {
@@ -103,9 +105,9 @@ function HistoryContent() {
   const inRange = (i: HistoryItem) => {
     const ts = i.publishedAt ?? i.scheduledAt;
     if (!ts) return true;
-    const t = new Date(ts);
-    if (start && t < start) return false;
-    if (end && t > end) return false;
+    const d = new Date(ts);
+    if (start && d < start) return false;
+    if (end && d > end) return false;
     return true;
   };
 
@@ -128,8 +130,6 @@ function HistoryContent() {
   const published = baseFiltered.filter((i) => i.status === "published");
   const failed = baseFiltered.filter((i) => i.status === "failed");
 
-  // What's actually visible right now depends on which tab is rendered;
-  // for export, derive from the URL's tab param.
   const tabItems =
     tabParam === "published"
       ? published
@@ -150,16 +150,16 @@ function HistoryContent() {
       <input
         value={search}
         onChange={(e) => setSearch(e.target.value)}
-        placeholder="Search post history…"
+        placeholder={t("Rechercher dans l'historique…", "Search post history…")}
         className="input"
       />
       {range === "custom" && (
         <div className="flex items-center gap-2">
-          <span className="text-2xs text-muted">From</span>
+          <span className="text-2xs text-muted">{t("Du", "From")}</span>
           <div className="w-40">
             <DatePicker value={customFrom ?? NOW} onChange={setCustomFrom} />
           </div>
-          <span className="text-2xs text-muted">to</span>
+          <span className="text-2xs text-muted">{t("au", "to")}</span>
           <div className="w-40">
             <DatePicker value={customTo ?? NOW} onChange={setCustomTo} />
           </div>
@@ -171,7 +171,7 @@ function HistoryContent() {
   return (
     <div className="animate-fade-in">
       <PageHeader
-        title="History"
+        title={t("Historique", "History")}
         actions={
           <>
             <Dropdown
@@ -208,17 +208,17 @@ function HistoryContent() {
                   onClick={toggle}
                   className="rounded-lg border border-hair bg-card px-3 py-1.5 text-sm font-medium text-ink shadow-xs hover:bg-canvas transition-colors"
                 >
-                  Export
+                  {t("Exporter", "Export")}
                 </button>
               )}
             >
               {(close) => (
                 <>
                   <DropdownItem onClick={() => { onExport("csv"); close(); }}>
-                    Export as CSV
+                    {t("Exporter en CSV", "Export as CSV")}
                   </DropdownItem>
                   <DropdownItem onClick={() => { onExport("json"); close(); }}>
-                    Export as JSON
+                    {t("Exporter en JSON", "Export as JSON")}
                   </DropdownItem>
                 </>
               )}
@@ -232,7 +232,7 @@ function HistoryContent() {
         tabs={[
           {
             id: "all",
-            label: `All (${allItems.length})`,
+            label: `${t("Tout", "All")} (${allItems.length})`,
             content: (
               <>
                 {filterBar}
@@ -242,7 +242,7 @@ function HistoryContent() {
           },
           {
             id: "pub",
-            label: `Published (${published.length})`,
+            label: `${t("Publiés", "Published")} (${published.length})`,
             content: (
               <>
                 {filterBar}
@@ -252,7 +252,7 @@ function HistoryContent() {
           },
           {
             id: "fail",
-            label: `Failed (${failed.length})`,
+            label: `${t("Échoués", "Failed")} (${failed.length})`,
             content: (
               <>
                 {filterBar}
@@ -277,10 +277,10 @@ function HistoryContent() {
           <div className="absolute inset-0" onClick={() => setConfirmDelete(null)} />
           <div className="relative z-50 w-full max-w-sm animate-slide-up rounded-xl border border-hair bg-card p-5 shadow-xl">
             <p className="text-sm leading-relaxed text-ink">
-              Delete this post from history? This cannot be undone.
+              {t("Supprimer cette publication de l'historique ? Cette action est irréversible.", "Delete this post from history? This cannot be undone.")}
             </p>
             <div className="mt-5 flex justify-end gap-2">
-              <Button variant="secondary" onClick={() => setConfirmDelete(null)}>Cancel</Button>
+              <Button variant="secondary" onClick={() => setConfirmDelete(null)}>{t("Annuler", "Cancel")}</Button>
               <Button
                 variant="danger"
                 onClick={() => {
@@ -290,7 +290,7 @@ function HistoryContent() {
                   refresh();
                 }}
               >
-                Delete
+                {t("Supprimer", "Delete")}
               </Button>
             </div>
           </div>
@@ -307,6 +307,7 @@ function List({
   items: HistoryItem[];
   onOpen: (i: HistoryItem) => void;
 }) {
+  const t = useT();
   if (items.length === 0) {
     return (
       <div className="card flex flex-col items-center gap-3 px-4 py-14 text-center">
@@ -314,9 +315,9 @@ function List({
           📋
         </span>
         <div>
-          <p className="text-sm font-medium text-ink">No posts match these filters</p>
+          <p className="text-sm font-medium text-ink">{t("Aucune publication ne correspond à ces filtres", "No posts match these filters")}</p>
           <p className="mt-0.5 text-2xs text-muted">
-            Try changing the date range or clearing the search.
+            {t("Essayez de changer la plage de dates ou d'effacer la recherche.", "Try changing the date range or clearing the search.")}
           </p>
         </div>
       </div>
@@ -342,9 +343,9 @@ function List({
               </div>
             </div>
             {item.status === "published" ? (
-              <StatusBadge tone="green">Published</StatusBadge>
+              <StatusBadge tone="green">{t("Publié", "Published")}</StatusBadge>
             ) : (
-              <StatusBadge tone="red">Failed</StatusBadge>
+              <StatusBadge tone="red">{t("Échoué", "Failed")}</StatusBadge>
             )}
           </div>
           {item.error && (
@@ -358,7 +359,7 @@ function List({
               </div>
               <span onClick={(e) => e.stopPropagation()}>
                 <Button variant="secondary" className="py-1 text-2xs">
-                  Retry
+                  {t("Réessayer", "Retry")}
                 </Button>
               </span>
             </div>

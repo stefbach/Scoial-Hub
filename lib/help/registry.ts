@@ -1704,6 +1704,214 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
       { label: { fr: "Tableau de bord", en: "Dashboard" }, href: "/dashboard" },
     ],
   },
+
+  // ── /demarrage ──────────────────────────────────────────────────────────────
+  "/demarrage": {
+    title: { fr: "Démarrage guidé", en: "Guided onboarding" },
+    tagline: {
+      fr: "Votre parcours pas-à-pas pour devenir totalement autonome.",
+      en: "Your step-by-step path to becoming fully autonomous.",
+    },
+    whatFor: {
+      fr: "Le démarrage guidé est conçu pour qu'un nouveau client puisse mettre son compte en pilotage automatique sans aucune assistance. Il enchaîne, dans le bon ordre, les 6 étapes essentielles : connecter ses réseaux, analyser son marché, fixer un objectif et lancer les agents, créer et programmer du contenu, activer le bot Telegram, puis brancher Claude (MCP). Une barre de progression indique en temps réel ce qui est déjà fait (réseaux connectés, Telegram activé) et ce qu'il reste à faire. Chaque étape comporte un bouton qui ouvre directement la page concernée.",
+      en: "Guided onboarding is designed so a new client can put their account on autopilot with zero assistance. It walks, in the right order, through the 6 essential steps: connect your networks, analyse your market, set an objective and launch the agents, create and schedule content, activate the Telegram bot, then connect Claude (MCP). A progress bar shows in real time what is already done (networks connected, Telegram activated) and what remains. Each step has a button that opens the relevant page directly.",
+    },
+    actions: [
+      {
+        label: { fr: "Suivre les étapes dans l'ordre", en: "Follow the steps in order" },
+        detail: {
+          fr: "Chaque carte numérotée décrit une étape, son utilité et l'action concrète à réaliser. Cliquez sur le bouton de la carte pour ouvrir la page correspondante, faites l'action, puis revenez : la pastille devient verte une fois l'étape accomplie.",
+          en: "Each numbered card describes a step, its purpose and the concrete action to take. Click the card button to open the matching page, perform the action, then come back: the dot turns green once the step is complete.",
+        },
+      },
+      {
+        label: { fr: "Suivre votre progression", en: "Track your progress" },
+        detail: {
+          fr: "La barre de progression en haut compte les étapes actionnables réalisées (réseaux connectés, Telegram activé). Les étapes « À explorer » sont des découvertes recommandées qui ne bloquent pas la progression.",
+          en: "The progress bar at the top counts completed actionable steps (networks connected, Telegram activated). 'To explore' steps are recommended discoveries that do not block progress.",
+        },
+      },
+    ],
+    tips: [
+      {
+        fr: "Ne sautez pas l'étape 1 (Connecteurs) : sans réseaux connectés, les agents travaillent en mode estimation et ne peuvent pas publier réellement.",
+        en: "Don't skip step 1 (Connectors): without connected networks, agents work in estimation mode and cannot publish for real.",
+      },
+      {
+        fr: "Vous pouvez revenir sur cette page à tout moment via « Démarrage guidé » dans la barre latérale.",
+        en: "You can return to this page anytime via 'Get started' in the sidebar.",
+      },
+    ],
+    faq: [
+      {
+        q: { fr: "Dois-je tout configurer d'un coup ?", en: "Do I have to set everything up at once?" },
+        a: {
+          fr: "Non. Faites au moins les étapes 1 et 3 pour un premier résultat ; le reste (Telegram, MCP) peut être ajouté plus tard. Votre progression est sauvegardée automatiquement.",
+          en: "No. Do at least steps 1 and 3 for a first result; the rest (Telegram, MCP) can be added later. Your progress is saved automatically.",
+        },
+      },
+    ],
+    related: [
+      { label: { fr: "Connecteurs", en: "Connectors" }, href: "/parametres-connecteurs" },
+      { label: { fr: "Centre de pilotage", en: "Piloting center" }, href: "/pilotage" },
+      { label: { fr: "Telegram", en: "Telegram" }, href: "/telegram" },
+    ],
+  },
+
+  // ── /telegram ───────────────────────────────────────────────────────────────
+  "/telegram": {
+    title: { fr: "Chatbot Telegram", en: "Telegram Chatbot" },
+    tagline: {
+      fr: "Pilotez vos agents et campagnes depuis Telegram, jour et nuit.",
+      en: "Pilot your agents and campaigns from Telegram, day and night.",
+    },
+    whatFor: {
+      fr: "Chaque compte dispose de son propre bot Telegram dédié. Une fois configuré, ce bot devient un agent à part entière qui dialogue avec les autres : vous lui écrivez (ou lui parlez) en langage naturel pour lancer une orchestration, demander une veille concurrentielle, fixer un objectif ou consulter vos KPIs — où que vous soyez. La page vous guide en 5 étapes : créer le bot via @BotFather, copier son token, l'enregistrer ici, activer le webhook, puis tester.",
+      en: "Each account has its own dedicated Telegram bot. Once configured, this bot becomes a full agent that talks to the others: you write (or speak) to it in natural language to launch an orchestration, request a competitive watch, set an objective or check your KPIs — wherever you are. The page guides you in 5 steps: create the bot via @BotFather, copy its token, save it here, activate the webhook, then test.",
+    },
+    actions: [
+      {
+        label: { fr: "Créer le bot via @BotFather", en: "Create the bot via @BotFather" },
+        detail: {
+          fr: "Dans Telegram, ouvrez @BotFather, envoyez /newbot, nommez votre bot et copiez le token API au format 1234567890:ABCdef… que BotFather vous renvoie.",
+          en: "In Telegram, open @BotFather, send /newbot, name your bot and copy the API token in the form 1234567890:ABCdef… that BotFather returns.",
+        },
+      },
+      {
+        label: { fr: "Enregistrer le token", en: "Save the token" },
+        detail: {
+          fr: "Collez le token dans le champ « Token du bot » puis cliquez sur Enregistrer. Le token est stocké comme secret : il n'est plus jamais affiché en clair ensuite.",
+          en: "Paste the token into the 'Bot token' field then click Save. The token is stored as a secret: it is never shown in clear text again.",
+        },
+      },
+      {
+        label: { fr: "Activer le webhook", en: "Activate the webhook" },
+        detail: {
+          fr: "Cliquez sur « Activer le webhook » : AXON-AI enregistre l'URL auprès de Telegram et met le bot en ligne. Un secret de sécurité est généré automatiquement.",
+          en: "Click 'Activate webhook': AXON-AI registers the URL with Telegram and brings the bot online. A security secret is generated automatically.",
+        },
+      },
+      {
+        label: { fr: "Restreindre l'accès (optionnel)", en: "Restrict access (optional)" },
+        detail: {
+          fr: "Renseignez des Chat IDs autorisés (séparés par des virgules) pour limiter qui peut piloter le bot. Trouvez votre ID via @userinfobot. Laissez vide pour autoriser tout le monde.",
+          en: "Enter allowed Chat IDs (comma-separated) to limit who can pilot the bot. Find your ID via @userinfobot. Leave empty to allow everyone.",
+        },
+      },
+      {
+        label: { fr: "Tester le bot", en: "Test the bot" },
+        detail: {
+          fr: "Entrez votre Chat ID et cliquez sur Envoyer pour recevoir un message test et confirmer que le bot répond correctement.",
+          en: "Enter your Chat ID and click Send to receive a test message and confirm the bot responds correctly.",
+        },
+      },
+    ],
+    tips: [
+      {
+        fr: "Commandes utiles : /lancer <objectif> démarre une orchestration, /veille lance une analyse concurrentielle, /status donne un résumé du compte.",
+        en: "Useful commands: /lancer <objective> starts an orchestration, /veille launches a competitive analysis, /status gives an account summary.",
+      },
+      {
+        fr: "Tout texte libre envoyé au bot est traité comme un /lancer — décrivez simplement ce que vous voulez.",
+        en: "Any free text sent to the bot is treated as a /lancer — just describe what you want.",
+      },
+    ],
+    faq: [
+      {
+        q: { fr: "Le bot fonctionne-t-il pour tous mes comptes ?", en: "Does the bot work for all my accounts?" },
+        a: {
+          fr: "Chaque entité a son propre bot. Sélectionnez d'abord le bon compte (en haut), puis configurez son bot sur cette page.",
+          en: "Each entity has its own bot. First select the right account (top), then configure its bot on this page.",
+        },
+      },
+      {
+        q: { fr: "Que faire si le bouton Activer est grisé ?", en: "What if the Activate button is greyed out?" },
+        a: {
+          fr: "Vous devez d'abord enregistrer un token bot valide. Le bouton s'active automatiquement une fois le token sauvegardé.",
+          en: "You must first save a valid bot token. The button activates automatically once the token is saved.",
+        },
+      },
+    ],
+    related: [
+      { label: { fr: "Démarrage guidé", en: "Guided onboarding" }, href: "/demarrage" },
+      { label: { fr: "Connecteur MCP", en: "MCP connector" }, href: "/mcp" },
+      { label: { fr: "Centre de pilotage", en: "Piloting center" }, href: "/pilotage" },
+    ],
+  },
+
+  // ── /mcp ────────────────────────────────────────────────────────────────────
+  "/mcp": {
+    title: { fr: "Connecteur MCP Claude", en: "Claude MCP Connector" },
+    tagline: {
+      fr: "Pilotez AXON-AI directement depuis Claude Desktop, en langage naturel.",
+      en: "Pilot AXON-AI straight from Claude Desktop, in natural language.",
+    },
+    whatFor: {
+      fr: "Le Model Context Protocol (MCP) est un standard ouvert qui permet à un assistant IA comme Claude d'utiliser des outils externes. Le serveur MCP d'AXON-AI expose vos comptes, agents et campagnes : depuis Claude Desktop, vous demandez « lance une campagne pour la rentrée » et Claude exécute réellement l'action dans votre espace. Cette page vous guide en 4 étapes (installer Claude Desktop + Node.js, compiler le serveur, coller la configuration, redémarrer) et fournit le bloc de configuration prêt à copier, déjà pré-rempli avec l'URL de votre espace.",
+      en: "The Model Context Protocol (MCP) is an open standard that lets an AI assistant like Claude use external tools. The AXON-AI MCP server exposes your accounts, agents and campaigns: from Claude Desktop, you ask 'launch a back-to-school campaign' and Claude actually performs the action in your workspace. This page guides you in 4 steps (install Claude Desktop + Node.js, build the server, paste the configuration, restart) and provides the ready-to-copy configuration block, already pre-filled with your workspace URL.",
+    },
+    actions: [
+      {
+        label: { fr: "Installer les prérequis", en: "Install prerequisites" },
+        detail: {
+          fr: "Installez Claude Desktop et Node.js 18+ sur votre ordinateur. Les liens de téléchargement sont fournis dans l'étape 1 de la page.",
+          en: "Install Claude Desktop and Node.js 18+ on your computer. Download links are provided in step 1 of the page.",
+        },
+      },
+      {
+        label: { fr: "Compiler le serveur MCP", en: "Build the MCP server" },
+        detail: {
+          fr: "Dans le dossier mcp/ du projet, exécutez npm install && npm run build. Le binaire est généré dans mcp/dist/index.js.",
+          en: "In the project's mcp/ folder, run npm install && npm run build. The binary is generated in mcp/dist/index.js.",
+        },
+      },
+      {
+        label: { fr: "Coller la configuration", en: "Paste the configuration" },
+        detail: {
+          fr: "Copiez le bloc fourni (bouton Copier) dans le fichier de configuration de Claude Desktop, sous la clé mcpServers. Remplacez le chemin par l'emplacement réel du dossier sur votre machine.",
+          en: "Copy the provided block (Copy button) into the Claude Desktop configuration file, under the mcpServers key. Replace the path with the real folder location on your machine.",
+        },
+      },
+      {
+        label: { fr: "Redémarrer Claude Desktop", en: "Restart Claude Desktop" },
+        detail: {
+          fr: "Après le redémarrage, le serveur « axon-ai » apparaît dans la liste des outils de Claude, prêt à piloter votre espace.",
+          en: "After restart, the 'axon-ai' server appears in Claude's tools list, ready to pilot your workspace.",
+        },
+      },
+    ],
+    tips: [
+      {
+        fr: "L'URL de votre espace est déjà insérée dans la configuration — vous n'avez qu'à corriger le chemin du fichier local.",
+        en: "Your workspace URL is already inserted in the configuration — you only need to fix the local file path.",
+      },
+      {
+        fr: "Vous pouvez brancher plusieurs serveurs MCP en parallèle (ex. GitHub) pour étendre les capacités de Claude.",
+        en: "You can plug several MCP servers in parallel (e.g. GitHub) to extend Claude's capabilities.",
+      },
+    ],
+    faq: [
+      {
+        q: { fr: "MCP est-il obligatoire ?", en: "Is MCP mandatory?" },
+        a: {
+          fr: "Non, c'est une option avancée. Vous pouvez tout piloter depuis l'interface web ou Telegram. MCP s'adresse à ceux qui veulent travailler depuis Claude Desktop.",
+          en: "No, it is an advanced option. You can pilot everything from the web interface or Telegram. MCP is for those who want to work from Claude Desktop.",
+        },
+      },
+      {
+        q: { fr: "Mes actions via Claude sont-elles tracées ?", en: "Are my actions via Claude logged?" },
+        a: {
+          fr: "Oui. Chaque action effectuée via le connecteur MCP est enregistrée dans votre historique, comme une action réalisée depuis l'interface.",
+          en: "Yes. Every action performed via the MCP connector is recorded in your history, like an action done from the interface.",
+        },
+      },
+    ],
+    related: [
+      { label: { fr: "Telegram", en: "Telegram" }, href: "/telegram" },
+      { label: { fr: "Démarrage guidé", en: "Guided onboarding" }, href: "/demarrage" },
+      { label: { fr: "Agents IA", en: "AI agents" }, href: "/agents" },
+    ],
+  },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

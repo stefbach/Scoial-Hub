@@ -1,5 +1,7 @@
 "use client";
 
+import { useT } from "@/lib/i18n";
+
 export type NetworkId = "facebook" | "instagram" | "linkedin";
 
 export interface NetworkConfig {
@@ -47,6 +49,7 @@ const NETWORK_META: Record<NetworkId, { label: string; color: string; icon: Reac
 };
 
 export function NetworkToggle({ network, config, onChange }: NetworkToggleProps) {
+  const t = useT();
   const meta = NETWORK_META[network];
 
   return (
@@ -73,7 +76,7 @@ export function NetworkToggle({ network, config, onChange }: NetworkToggleProps)
             config.enabled ? "bg-page" : "bg-hair",
           ].join(" ")}
         >
-          <span className="sr-only">Activer {meta.label}</span>
+          <span className="sr-only">{t("Activer", "Enable")} {meta.label}</span>
           <span
             className={[
               "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform duration-200",
@@ -93,7 +96,7 @@ export function NetworkToggle({ network, config, onChange }: NetworkToggleProps)
               onChange={(e) => onChange({ ...config, organic: e.target.checked })}
               className="h-4 w-4 rounded border-hair accent-page"
             />
-            <span className="text-ink">Organique</span>
+            <span className="text-ink">{t("Organique", "Organic")}</span>
           </label>
           <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-hair bg-canvas px-3 py-2 text-sm hover:bg-card transition-colors">
             <input

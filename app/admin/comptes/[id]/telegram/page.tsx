@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { Toast } from "@/components/ui/Toast";
+import { useT } from "@/lib/i18n";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -33,6 +34,7 @@ interface ToastState {
 
 export default function TelegramConfigPage() {
   const params = useParams();
+  const t = useT();
   const id =
     typeof params.id === "string"
       ? params.id
@@ -71,7 +73,7 @@ export default function TelegramConfigPage() {
     if (!id) return;
     try {
       const res = await fetch(`/api/telegram/config?companyId=${encodeURIComponent(id)}`);
-      if (!res.ok) throw new Error(`Erreur ${res.status}`);
+      if (!res.ok) throw new Error(`${t("Erreur", "Error")} ${res.status}`);
       const data: TelegramConfig = await res.json();
       setTelegramConfig(data);
       // Ne pas pré-remplir le token (c'est un secret masqué)
@@ -105,14 +107,14 @@ export default function TelegramConfigPage() {
       });
       const data: TelegramConfig & { error?: string } = await res.json();
       if (!res.ok) {
-        showToast(`Erreur : ${data.error ?? res.status}`);
+        showToast(`${t("Erreur :", "Error:")} ${data.error ?? res.status}`);
         return;
       }
       setTelegramConfig(data);
       setBotToken(""); // effacer après enregistrement
-      showToast("Configuration enregistrée avec succès.");
+      showToast(t("Configuration enregistrée avec succès.", "Configuration saved successfully."));
     } catch (err) {
-      showToast(`Erreur : ${err instanceof Error ? err.message : "inconnue"}`);
+      showToast(`${t("Erreur :", "Error:")} ${err instanceof Error ? err.message : t("inconnue", "unknown")}`);
     } finally {
       setSaving(false);
     }
@@ -131,14 +133,14 @@ export default function TelegramConfigPage() {
       });
       const data: BotInfo & { error?: string } = await res.json();
       if (!res.ok) {
-        showToast(`Erreur : ${data.error ?? res.status}`);
+        showToast(`${t("Erreur :", "Error:")} ${data.error ?? res.status}`);
         return;
       }
       setBotInfo(data);
       await loadConfig();
-      showToast(`Bot @${data.username} activé avec succès !`);
+      showToast(t(`Bot @${data.username} activé avec succès !`, `Bot @${data.username} activated successfully!`));
     } catch (err) {
-      showToast(`Erreur : ${err instanceof Error ? err.message : "inconnue"}`);
+      showToast(`${t("Erreur :", "Error:")} ${err instanceof Error ? err.message : t("inconnue", "unknown")}`);
     } finally {
       setActivating(false);
     }
@@ -157,14 +159,14 @@ export default function TelegramConfigPage() {
       });
       const data: { error?: string } = await res.json();
       if (!res.ok) {
-        showToast(`Erreur : ${data.error ?? res.status}`);
+        showToast(`${t("Erreur :", "Error:")} ${data.error ?? res.status}`);
         return;
       }
       setBotInfo(null);
       await loadConfig();
-      showToast("Bot désactivé et webhook supprimé.");
+      showToast(t("Bot désactivé et webhook supprimé.", "Bot deactivated and webhook removed."));
     } catch (err) {
-      showToast(`Erreur : ${err instanceof Error ? err.message : "inconnue"}`);
+      showToast(`${t("Erreur :", "Error:")} ${err instanceof Error ? err.message : t("inconnue", "unknown")}`);
     } finally {
       setDeactivating(false);
     }
@@ -174,7 +176,7 @@ export default function TelegramConfigPage() {
 
   const handleTest = async () => {
     if (!id || !testChatId.trim()) {
-      showToast("Entrez un Chat ID pour envoyer le message test.");
+      showToast(t("Entrez un Chat ID pour envoyer le message test.", "Enter a Chat ID to send the test message."));
       return;
     }
     setTesting(true);
@@ -186,12 +188,12 @@ export default function TelegramConfigPage() {
       });
       const data: { ok?: boolean; error?: string } = await res.json();
       if (!res.ok || !data.ok) {
-        showToast(`Erreur : ${data.error ?? res.status}`);
+        showToast(`${t("Erreur :", "Error:")} ${data.error ?? res.status}`);
         return;
       }
-      showToast("Message test envoyé avec succès !");
+      showToast(t("Message test envoyé avec succès !", "Test message sent successfully!"));
     } catch (err) {
-      showToast(`Erreur : ${err instanceof Error ? err.message : "inconnue"}`);
+      showToast(`${t("Erreur :", "Error:")} ${err instanceof Error ? err.message : t("inconnue", "unknown")}`);
     } finally {
       setTesting(false);
     }
@@ -211,7 +213,7 @@ export default function TelegramConfigPage() {
           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
         </svg>
-        <span className="ml-3 text-sm text-muted">Chargement…</span>
+        <span className="ml-3 text-sm text-muted">{t("Chargement…", "Loading…")}</span>
       </div>
     );
   }
@@ -221,14 +223,14 @@ export default function TelegramConfigPage() {
       {/* Fil d'Ariane */}
       <div className="flex items-center gap-2 text-sm text-muted">
         <Link href="/admin/comptes" className="hover:text-ink hover:underline underline-offset-2">
-          Comptes & entités
+          {t("Comptes & entités", "Accounts & entities")}
         </Link>
         <span aria-hidden>/</span>
         <Link href={`/admin/comptes/${id}`} className="hover:text-ink hover:underline underline-offset-2">
-          Fiche entité
+          {t("Fiche entité", "Entity details")}
         </Link>
         <span aria-hidden>/</span>
-        <span className="font-medium text-ink">Chatbot Telegram</span>
+        <span className="font-medium text-ink">{t("Chatbot Telegram", "Telegram Chatbot")}</span>
       </div>
 
       {/* En-tête */}
@@ -245,14 +247,14 @@ export default function TelegramConfigPage() {
             </svg>
           </span>
           <div>
-            <h1 className="text-xl font-bold text-ink">Chatbot Telegram</h1>
+            <h1 className="text-xl font-bold text-ink">{t("Chatbot Telegram", "Telegram Chatbot")}</h1>
             <p className="text-sm text-muted">
-              Pilotez vos agents et campagnes depuis Telegram.
+              {t("Pilotez vos agents et campagnes depuis Telegram.", "Manage your agents and campaigns from Telegram.")}
             </p>
           </div>
         </div>
         <Link href={`/admin/comptes/${id}`} className="btn-secondary shrink-0 text-xs">
-          ← Fiche entité
+          ← {t("Fiche entité", "Entity details")}
         </Link>
       </div>
 
@@ -273,7 +275,7 @@ export default function TelegramConfigPage() {
         <div className="text-sm">
           {isConnected ? (
             <>
-              <span className="font-semibold text-success-700">Bot connecté</span>
+              <span className="font-semibold text-success-700">{t("Bot connecté", "Bot connected")}</span>
               {botInfo && (
                 <span className="ml-2 text-success-600">@{botInfo.username}</span>
               )}
@@ -284,7 +286,7 @@ export default function TelegramConfigPage() {
               )}
               {telegramConfig?.connected_at && (
                 <div className="mt-0.5 text-xs text-muted">
-                  Connecté le{" "}
+                  {t("Connecté le", "Connected on")}{" "}
                   {new Date(telegramConfig.connected_at).toLocaleDateString("fr-FR", {
                     day: "2-digit",
                     month: "long",
@@ -296,19 +298,19 @@ export default function TelegramConfigPage() {
               )}
             </>
           ) : (
-            <span className="text-muted">Non connecté</span>
+            <span className="text-muted">{t("Non connecté", "Not connected")}</span>
           )}
         </div>
       </div>
 
       {/* Comment faire */}
       <div className="card p-5">
-        <div className="section-label mb-3">Comment configurer votre bot Telegram</div>
+        <div className="section-label mb-3">{t("Comment configurer votre bot Telegram", "How to set up your Telegram bot")}</div>
         <ol className="space-y-2 text-sm text-ink">
           <li className="flex gap-2.5">
             <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-2xs font-bold text-white">1</span>
             <span>
-              Ouvrez Telegram et démarrez une conversation avec{" "}
+              {t("Ouvrez Telegram et démarrez une conversation avec", "Open Telegram and start a conversation with")}{" "}
               <a
                 href="https://t.me/BotFather"
                 target="_blank"
@@ -323,28 +325,35 @@ export default function TelegramConfigPage() {
           <li className="flex gap-2.5">
             <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-2xs font-bold text-white">2</span>
             <span>
-              Envoyez <code className="rounded bg-canvas px-1 py-0.5 font-mono text-xs">/newbot</code> et suivez les instructions pour nommer votre bot.
+              {t("Envoyez", "Send")}{" "}
+              <code className="rounded bg-canvas px-1 py-0.5 font-mono text-xs">/newbot</code>{" "}
+              {t("et suivez les instructions pour nommer votre bot.", "and follow the instructions to name your bot.")}
             </span>
           </li>
           <li className="flex gap-2.5">
             <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-2xs font-bold text-white">3</span>
             <span>
-              Copiez le <strong>token API</strong> fourni par @BotFather (format{" "}
+              {t("Copiez le", "Copy the")}{" "}
+              <strong>{t("token API", "API token")}</strong>{" "}
+              {t("fourni par @BotFather (format", "provided by @BotFather (format")}{" "}
               <code className="rounded bg-canvas px-1 py-0.5 font-mono text-xs">1234567890:ABCdef…</code>).
             </span>
           </li>
           <li className="flex gap-2.5">
             <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-2xs font-bold text-white">4</span>
             <span>
-              Collez le token ci-dessous, puis cliquez sur{" "}
-              <strong>Enregistrer</strong> puis <strong>Activer le webhook</strong>.
+              {t("Collez le token ci-dessous, puis cliquez sur", "Paste the token below, then click")}{" "}
+              <strong>{t("Enregistrer", "Save")}</strong>{" "}
+              {t("puis", "then")}{" "}
+              <strong>{t("Activer le webhook", "Activate webhook")}</strong>.
             </span>
           </li>
           <li className="flex gap-2.5">
             <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-2xs font-bold text-white">5</span>
             <span>
-              Utilisez <a href="https://t.me/userinfobot" target="_blank" rel="noopener noreferrer" className="font-medium text-primary underline underline-offset-2 hover:no-underline">@userinfobot</a>{" "}
-              pour connaître votre Chat ID et restreindre l'accès si souhaité.
+              {t("Utilisez", "Use")}{" "}
+              <a href="https://t.me/userinfobot" target="_blank" rel="noopener noreferrer" className="font-medium text-primary underline underline-offset-2 hover:no-underline">@userinfobot</a>{" "}
+              {t("pour connaître votre Chat ID et restreindre l'accès si souhaité.", "to find your Chat ID and restrict access if desired.")}
             </span>
           </li>
         </ol>
@@ -352,14 +361,14 @@ export default function TelegramConfigPage() {
 
       {/* Formulaire de configuration */}
       <div className="card p-5">
-        <div className="section-label mb-4">Configuration du bot</div>
+        <div className="section-label mb-4">{t("Configuration du bot", "Bot configuration")}</div>
         <div className="space-y-4">
           {/* Token */}
           <div>
             <label className="mb-1.5 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted">
-              Token du bot
+              {t("Token du bot", "Bot token")}
               <span className="rounded bg-warning-50 px-1.5 py-0.5 text-2xs font-semibold text-warning-700">
-                secret
+                {t("secret", "secret")}
               </span>
             </label>
             <input
@@ -367,7 +376,10 @@ export default function TelegramConfigPage() {
               className="input w-full"
               placeholder={
                 hasToken
-                  ? "••••••••••••••••••• (déjà enregistré — laissez vide pour conserver)"
+                  ? t(
+                      "••••••••••••••••••• (déjà enregistré — laissez vide pour conserver)",
+                      "••••••••••••••••••• (already saved — leave blank to keep)"
+                    )
                   : "1234567890:ABCdef..."
               }
               value={botToken}
@@ -375,15 +387,18 @@ export default function TelegramConfigPage() {
               autoComplete="off"
             />
             <p className="mt-1 text-xs text-muted">
-              Obtenu via @BotFather. Une fois enregistré, il n'est plus affiché en clair.
+              {t(
+                "Obtenu via @BotFather. Une fois enregistré, il n'est plus affiché en clair.",
+                "Obtained via @BotFather. Once saved, it is no longer displayed in plain text."
+              )}
             </p>
           </div>
 
           {/* Chat IDs autorisés */}
           <div>
             <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-muted">
-              Chat IDs autorisés{" "}
-              <span className="font-normal normal-case text-muted/70">(optionnel)</span>
+              {t("Chat IDs autorisés", "Allowed Chat IDs")}{" "}
+              <span className="font-normal normal-case text-muted/70">({t("optionnel", "optional")})</span>
             </label>
             <input
               type="text"
@@ -393,8 +408,13 @@ export default function TelegramConfigPage() {
               onChange={(e) => setAllowedChatIds(e.target.value)}
             />
             <p className="mt-1 text-xs text-muted">
-              IDs numériques séparés par des virgules. Laissez vide pour autoriser tout le monde.
-              Utilisez <a href="https://t.me/userinfobot" target="_blank" rel="noopener noreferrer" className="underline hover:no-underline">@userinfobot</a> pour trouver votre ID.
+              {t(
+                "IDs numériques séparés par des virgules. Laissez vide pour autoriser tout le monde.",
+                "Numeric IDs separated by commas. Leave blank to allow everyone."
+              )}{" "}
+              {t("Utilisez", "Use")}{" "}
+              <a href="https://t.me/userinfobot" target="_blank" rel="noopener noreferrer" className="underline hover:no-underline">@userinfobot</a>{" "}
+              {t("pour trouver votre ID.", "to find your ID.")}
             </p>
           </div>
 
@@ -404,24 +424,26 @@ export default function TelegramConfigPage() {
             onClick={handleSave}
             disabled={saving}
           >
-            {saving ? "Enregistrement…" : "Enregistrer"}
+            {saving ? t("Enregistrement…", "Saving…") : t("Enregistrer", "Save")}
           </button>
         </div>
       </div>
 
       {/* Activation du webhook */}
       <div className="card p-5">
-        <div className="section-label mb-4">Webhook</div>
+        <div className="section-label mb-4">{t("Webhook", "Webhook")}</div>
         <p className="mb-4 text-sm text-muted">
-          L'activation enregistre l'URL de webhook auprès de Telegram et met le bot en ligne.
-          Un token secret est généré automatiquement pour sécuriser les échanges.
+          {t(
+            "L'activation enregistre l'URL de webhook auprès de Telegram et met le bot en ligne. Un token secret est généré automatiquement pour sécuriser les échanges.",
+            "Activation registers the webhook URL with Telegram and brings the bot online. A secret token is automatically generated to secure exchanges."
+          )}
         </p>
 
         {isConnected ? (
           <div className="space-y-3">
             {telegramConfig?.config.webhook_url && (
               <div className="rounded-lg border border-hair bg-canvas px-3 py-2.5">
-                <div className="text-xs text-muted">URL du webhook</div>
+                <div className="text-xs text-muted">{t("URL du webhook", "Webhook URL")}</div>
                 <div className="mt-0.5 break-all font-mono text-xs text-ink">
                   {telegramConfig.config.webhook_url}
                 </div>
@@ -432,16 +454,16 @@ export default function TelegramConfigPage() {
                 className="btn-primary"
                 onClick={handleActivate}
                 disabled={activating || !hasToken}
-                title="Re-enregistrer le webhook (utile après un changement d'URL)"
+                title={t("Re-enregistrer le webhook (utile après un changement d'URL)", "Re-register the webhook (useful after a URL change)")}
               >
-                {activating ? "Re-activation…" : "Re-activer"}
+                {activating ? t("Re-activation…", "Re-activating…") : t("Re-activer", "Re-activate")}
               </button>
               <button
                 className="btn-secondary"
                 onClick={handleDeactivate}
                 disabled={deactivating}
               >
-                {deactivating ? "Désactivation…" : "Désactiver"}
+                {deactivating ? t("Désactivation…", "Deactivating…") : t("Désactiver", "Deactivate")}
               </button>
             </div>
           </div>
@@ -450,15 +472,15 @@ export default function TelegramConfigPage() {
             className="btn-primary"
             onClick={handleActivate}
             disabled={activating || !hasToken}
-            title={!hasToken ? "Enregistrez d'abord un token bot" : undefined}
+            title={!hasToken ? t("Enregistrez d'abord un token bot", "Save a bot token first") : undefined}
           >
-            {activating ? "Activation en cours…" : "Activer le webhook"}
+            {activating ? t("Activation en cours…", "Activating…") : t("Activer le webhook", "Activate webhook")}
           </button>
         )}
 
         {!hasToken && (
           <p className="mt-2 text-xs text-danger">
-            Enregistrez d'abord un token bot avant d'activer.
+            {t("Enregistrez d'abord un token bot avant d'activer.", "Save a bot token first before activating.")}
           </p>
         )}
       </div>
@@ -466,15 +488,18 @@ export default function TelegramConfigPage() {
       {/* Message test */}
       {isConnected && (
         <div className="card p-5">
-          <div className="section-label mb-4">Message de test</div>
+          <div className="section-label mb-4">{t("Message de test", "Test message")}</div>
           <p className="mb-3 text-sm text-muted">
-            Envoyez un message test pour vérifier que le bot répond correctement.
+            {t(
+              "Envoyez un message test pour vérifier que le bot répond correctement.",
+              "Send a test message to verify that the bot responds correctly."
+            )}
           </p>
           <div className="flex gap-2">
             <input
               type="text"
               className="input flex-1"
-              placeholder="Votre Chat ID (ex : 123456789)"
+              placeholder={t("Votre Chat ID (ex : 123456789)", "Your Chat ID (e.g. 123456789)")}
               value={testChatId}
               onChange={(e) => setTestChatId(e.target.value)}
             />
@@ -483,27 +508,29 @@ export default function TelegramConfigPage() {
               onClick={handleTest}
               disabled={testing || !testChatId.trim()}
             >
-              {testing ? "Envoi…" : "Envoyer"}
+              {testing ? t("Envoi…", "Sending…") : t("Envoyer", "Send")}
             </button>
           </div>
           <p className="mt-1.5 text-xs text-muted">
-            Utilisez <a href="https://t.me/userinfobot" target="_blank" rel="noopener noreferrer" className="underline hover:no-underline">@userinfobot</a> pour connaître votre Chat ID.
+            {t("Utilisez", "Use")}{" "}
+            <a href="https://t.me/userinfobot" target="_blank" rel="noopener noreferrer" className="underline hover:no-underline">@userinfobot</a>{" "}
+            {t("pour connaître votre Chat ID.", "to find your Chat ID.")}
           </p>
         </div>
       )}
 
       {/* Commandes disponibles */}
       <div className="card p-5">
-        <div className="section-label mb-4">Commandes Telegram disponibles</div>
+        <div className="section-label mb-4">{t("Commandes Telegram disponibles", "Available Telegram commands")}</div>
         <div className="space-y-2">
           {[
-            { cmd: "/start", desc: "Affiche le message d'aide" },
-            { cmd: "/aide", desc: "Affiche le message d'aide" },
-            { cmd: "/status", desc: "Résumé du compte et objectif en cours" },
-            { cmd: "/objectif <texte>", desc: "Enregistre un objectif par défaut" },
-            { cmd: "/lancer <texte>", desc: "Lance une orchestration multi-agent" },
-            { cmd: "/veille", desc: "Déclenche une analyse de veille concurrentielle" },
-            { cmd: "<texte libre>", desc: "Traité comme /lancer avec ce texte" },
+            { cmd: "/start", desc: t("Affiche le message d'aide", "Displays the help message") },
+            { cmd: "/aide", desc: t("Affiche le message d'aide", "Displays the help message") },
+            { cmd: "/status", desc: t("Résumé du compte et objectif en cours", "Account summary and current objective") },
+            { cmd: "/objectif <texte>", desc: t("Enregistre un objectif par défaut", "Saves a default objective") },
+            { cmd: "/lancer <texte>", desc: t("Lance une orchestration multi-agent", "Launches a multi-agent orchestration") },
+            { cmd: "/veille", desc: t("Déclenche une analyse de veille concurrentielle", "Triggers a competitive intelligence analysis") },
+            { cmd: "<texte libre>", desc: t("Traité comme /lancer avec ce texte", "Treated as /lancer with this text") },
           ].map(({ cmd, desc }) => (
             <div
               key={cmd}

@@ -3,20 +3,22 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Logo } from "@/components/brand/Logo";
-
-const NAV = [
-  { href: "/admin", label: "Vue d'ensemble", exact: true },
-  { href: "/admin/comptes", label: "Comptes & entités" },
-  { href: "/admin/comptes/nouveau", label: "Créer un compte" },
-  { href: "/admin/utilisateurs", label: "Utilisateurs" },
-];
+import { useT } from "@/lib/i18n";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const t = useT();
 
   // La page de login n'a pas le shell admin.
   if (pathname === "/admin/login") return <>{children}</>;
+
+  const NAV = [
+    { href: "/admin", label: t("Vue d'ensemble", "Overview"), exact: true },
+    { href: "/admin/comptes", label: t("Comptes & entités", "Accounts & entities") },
+    { href: "/admin/comptes/nouveau", label: t("Créer un compte", "Create account") },
+    { href: "/admin/utilisateurs", label: t("Utilisateurs", "Users") },
+  ];
 
   const isActive = (href: string, exact?: boolean) =>
     exact ? pathname === href : pathname.startsWith(href);
@@ -35,13 +37,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <span className="rounded-md bg-page/10 px-2 py-0.5 text-2xs font-semibold uppercase tracking-wide text-page">Admin</span>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={logout} className="btn-ghost text-sm">Se déconnecter</button>
+          <button onClick={logout} className="btn-ghost text-sm">{t("Se déconnecter", "Sign out")}</button>
         </div>
       </header>
 
       <div className="mx-auto flex max-w-[1200px]">
-        <nav aria-label="Navigation admin" className="w-[14rem] shrink-0 border-r border-hair py-5 pl-3 pr-2">
-          <div className="mb-1.5 px-3 section-label">Administration</div>
+        <nav aria-label={t("Navigation admin", "Admin navigation")} className="w-[14rem] shrink-0 border-r border-hair py-5 pl-3 pr-2">
+          <div className="mb-1.5 px-3 section-label">{t("Administration", "Administration")}</div>
           <ul className="space-y-px" role="list">
             {NAV.map((item) => {
               const active = isActive(item.href, item.exact);

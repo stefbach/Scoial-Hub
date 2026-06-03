@@ -7,6 +7,7 @@ import { CHANNELS } from "@/lib/channels";
 import { ChannelConnectionCard, type ConnectionRow } from "@/components/admin/ChannelConnectionCard";
 import { Toast } from "@/components/ui/Toast";
 import type { ConnectionStatus } from "@/lib/repositories/channel-connections";
+import { useT } from "@/lib/i18n";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -25,6 +26,7 @@ interface ToastState {
 
 export default function ConnexionsPage() {
   const params = useParams();
+  const t = useT();
   const id =
     typeof params.id === "string"
       ? params.id
@@ -42,12 +44,11 @@ export default function ConnexionsPage() {
     if (!id) return;
     try {
       const res = await fetch(`/api/channel-connections?companyId=${encodeURIComponent(id)}`);
-      if (!res.ok) throw new Error(`Erreur ${res.status}`);
+      if (!res.ok) throw new Error(`${t("Erreur", "Error")} ${res.status}`);
       const data: ApiRow[] = await res.json();
       setConnections(data);
     } catch (err) {
       console.error("[connexions] chargement:", err);
-      // On affiche quand même la page avec des cartes vides
       setConnections([]);
     } finally {
       setLoading(false);
@@ -75,7 +76,7 @@ export default function ConnexionsPage() {
 
         if (!res.ok) {
           const body = (await res.json().catch(() => ({}))) as { error?: string };
-          throw new Error(body.error ?? `Erreur ${res.status}`);
+          throw new Error(body.error ?? `${t("Erreur", "Error")} ${res.status}`);
         }
 
         const updated: ApiRow = await res.json();
@@ -88,13 +89,13 @@ export default function ConnexionsPage() {
         setToast({
           message:
             status === "connected"
-              ? `Canal ${channel} connecté avec succès.`
-              : `Connexion ${channel} enregistrée (en attente).`,
+              ? t(`Canal ${channel} connecté avec succès.`, `Channel ${channel} connected successfully.`)
+              : t(`Connexion ${channel} enregistrée (en attente).`, `${channel} connection saved (pending).`),
           key: Date.now(),
         });
       } catch (err) {
-        const msg = err instanceof Error ? err.message : "Erreur inconnue";
-        setToast({ message: `Erreur : ${msg}`, key: Date.now() });
+        const msg = err instanceof Error ? err.message : t("Erreur inconnue", "Unknown error");
+        setToast({ message: `${t("Erreur :", "Error:")} ${msg}`, key: Date.now() });
       }
     },
     [id]
@@ -113,8 +114,8 @@ export default function ConnexionsPage() {
   }
 
   const groups: Array<{ key: "social" | "measure"; label: string }> = [
-    { key: "social", label: "Réseaux sociaux" },
-    { key: "measure", label: "Mesure & tracking" },
+    { key: "social", label: t("Réseaux sociaux", "Social networks") },
+    { key: "measure", label: t("Mesure & tracking", "Measurement & tracking") },
   ];
 
   // ── Rendu ─────────────────────────────────────────────────────────────────────
@@ -142,7 +143,7 @@ export default function ConnexionsPage() {
             d="M4 12a8 8 0 018-8v8H4z"
           />
         </svg>
-        <span className="ml-3 text-sm text-muted">Chargement des connexions…</span>
+        <span className="ml-3 text-sm text-muted">{t("Chargement des connexions…", "Loading connections…")}</span>
       </div>
     );
   }
@@ -155,33 +156,38 @@ export default function ConnexionsPage() {
           href="/admin/comptes"
           className="hover:text-ink hover:underline underline-offset-2"
         >
-          Comptes & entités
+          {t("Comptes & entités", "Accounts & entities")}
         </Link>
         <span aria-hidden="true">/</span>
         <Link
           href={`/admin/comptes/${id}`}
           className="hover:text-ink hover:underline underline-offset-2"
         >
-          Fiche entité
+          {t("Fiche entité", "Entity details")}
         </Link>
         <span aria-hidden="true">/</span>
-        <span className="text-ink font-medium">Connexions canaux</span>
+        <span className="text-ink font-medium">{t("Connexions canaux", "Channel connections")}</span>
       </div>
 
       {/* En-tête */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-ink">Réceptacles de connexion</h1>
+          <h1 className="text-xl font-bold text-ink">{t("Réceptacles de connexion", "Connection receptacles")}</h1>
           <p className="mt-1 text-sm text-muted">
-            Renseignez les tokens et identifiants de chaque canal pour cet espace de travail.
-            Les champs marqués <span className="rounded bg-warning-50 px-1 py-0.5 text-2xs font-semibold text-warning-700">secret</span> ne sont jamais affichés en clair après enregistrement.
+            {t(
+              "Renseignez les tokens et identifiants de chaque canal pour cet espace de travail.",
+              "Enter the tokens and identifiers for each channel in this workspace."
+            )}{" "}
+            {t("Les champs marqués", "Fields marked")}{" "}
+            <span className="rounded bg-warning-50 px-1 py-0.5 text-2xs font-semibold text-warning-700">{t("secret", "secret")}</span>{" "}
+            {t("ne sont jamais affichés en clair après enregistrement.", "are never displayed in plain text after saving.")}
           </p>
         </div>
         <Link
           href={`/admin/comptes/${id}`}
           className="btn-secondary shrink-0 text-xs"
         >
-          ← Fiche entité
+          ← {t("Fiche entité", "Entity details")}
         </Link>
       </div>
 

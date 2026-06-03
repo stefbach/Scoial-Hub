@@ -5,9 +5,11 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/env";
+import { useT } from "@/lib/i18n";
 
 export default function SignupPage() {
   const router = useRouter();
+  const t = useT();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -25,7 +27,7 @@ export default function SignupPage() {
     try {
       const supabase = createClient();
       if (!supabase) {
-        setError("Supabase n'est pas configuré.");
+        setError(t("Supabase n'est pas configuré.", "Supabase is not configured."));
         return;
       }
 
@@ -38,14 +40,14 @@ export default function SignupPage() {
       if (signUpError) {
         setError(
           signUpError.message.includes("already registered")
-            ? "Un compte existe déjà avec cet e-mail. Connectez-vous."
+            ? t("Un compte existe déjà avec cet e-mail. Connectez-vous.", "An account already exists with this email. Please sign in.")
             : signUpError.message
         );
         return;
       }
 
       if (!data.user) {
-        setError("La création du compte a échoué. Réessayez.");
+        setError(t("La création du compte a échoué. Réessayez.", "Account creation failed. Please try again."));
         return;
       }
 
@@ -64,7 +66,7 @@ export default function SignupPage() {
       router.push("/dashboard");
       router.refresh();
     } catch {
-      setError("Une erreur inattendue s'est produite.");
+      setError(t("Une erreur inattendue s'est produite.", "An unexpected error occurred."));
     } finally {
       setLoading(false);
     }
@@ -85,19 +87,19 @@ export default function SignupPage() {
             </svg>
           </div>
           <h1 className="text-2xl font-bold text-ink tracking-tight">AXON-AI</h1>
-          <p className="text-sm text-muted mt-1">Créez votre espace de travail</p>
+          <p className="text-sm text-muted mt-1">{t("Créez votre espace de travail", "Create your workspace")}</p>
         </div>
 
         {/* Bandeau mode démo */}
         {isDemo && (
           <div className="mb-6 rounded-xl border border-hair bg-card p-4 text-sm text-muted">
-            <p className="font-semibold text-ink mb-1">Mode démo — authentification désactivée</p>
-            <p className="mb-3">Supabase n&apos;est pas configuré. L&apos;application fonctionne avec des données de démonstration.</p>
+            <p className="font-semibold text-ink mb-1">{t("Mode démo — authentification désactivée", "Demo mode — authentication disabled")}</p>
+            <p className="mb-3">{t("Supabase n'est pas configuré. L'application fonctionne avec des données de démonstration.", "Supabase is not configured. The application runs with demo data.")}</p>
             <Link
               href="/dashboard"
               className="btn-primary inline-flex items-center gap-2 px-4 py-2 text-sm rounded-lg"
             >
-              Entrer dans la démo
+              {t("Entrer dans la démo", "Enter demo")}
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
                 <path d="M5 3l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
@@ -107,7 +109,7 @@ export default function SignupPage() {
 
         {/* Formulaire d'inscription */}
         <div className="card p-8">
-          <h2 className="text-lg font-semibold text-ink mb-6">Créer un compte</h2>
+          <h2 className="text-lg font-semibold text-ink mb-6">{t("Créer un compte", "Create an account")}</h2>
 
           {error && (
             <div className="mb-4 rounded-lg border border-danger-200 bg-danger-50 px-4 py-3 text-sm text-danger-700">
@@ -118,7 +120,7 @@ export default function SignupPage() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label htmlFor="orgName" className="block text-sm font-medium text-ink mb-1.5">
-                Nom de l&apos;organisation
+                {t("Nom de l'organisation", "Organisation name")}
               </label>
               <input
                 id="orgName"
@@ -127,15 +129,15 @@ export default function SignupPage() {
                 disabled={isDemo || loading}
                 value={orgName}
                 onChange={(e) => setOrgName(e.target.value)}
-                placeholder="Mon Agence"
+                placeholder={t("Mon Agence", "My Agency")}
                 className="input disabled:opacity-50 disabled:cursor-not-allowed"
               />
-              <p className="mt-1 text-xs text-muted">Optionnel — vous pourrez le modifier plus tard.</p>
+              <p className="mt-1 text-xs text-muted">{t("Optionnel — vous pourrez le modifier plus tard.", "Optional — you can change it later.")}</p>
             </div>
 
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-ink mb-1.5">
-                Adresse e-mail
+                {t("Adresse e-mail", "Email address")}
               </label>
               <input
                 id="email"
@@ -145,14 +147,14 @@ export default function SignupPage() {
                 disabled={isDemo || loading}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="vous@exemple.com"
+                placeholder={t("vous@exemple.com", "you@example.com")}
                 className="input disabled:opacity-50 disabled:cursor-not-allowed"
               />
             </div>
 
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-ink mb-1.5">
-                Mot de passe
+                {t("Mot de passe", "Password")}
               </label>
               <input
                 id="password"
@@ -163,7 +165,7 @@ export default function SignupPage() {
                 disabled={isDemo || loading}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="8 caractères minimum"
+                placeholder={t("8 caractères minimum", "8 characters minimum")}
                 className="input disabled:opacity-50 disabled:cursor-not-allowed"
               />
             </div>
@@ -173,21 +175,21 @@ export default function SignupPage() {
               disabled={isDemo || loading}
               className="btn-primary w-full py-2.5 text-sm font-medium rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? "Création en cours…" : "Créer mon compte"}
+              {loading ? t("Création en cours…", "Creating account…") : t("Créer mon compte", "Create my account")}
             </button>
           </form>
 
           <p className="mt-6 text-center text-sm text-muted">
-            Déjà inscrit ?{" "}
+            {t("Déjà inscrit ?", "Already have an account?")}{" "}
             <Link href="/login" className="font-medium text-ink underline-offset-2 hover:underline">
-              Se connecter
+              {t("Se connecter", "Sign in")}
             </Link>
           </p>
         </div>
 
         <p className="text-center text-xs text-muted mt-6">
           <Link href="/" className="hover:text-ink transition-colors">
-            Retour à l&apos;accueil
+            {t("Retour à l'accueil", "Back to home")}
           </Link>
         </p>
       </div>

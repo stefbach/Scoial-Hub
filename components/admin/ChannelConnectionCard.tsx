@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { ChannelDef } from "@/lib/channels";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import type { ConnectionStatus } from "@/lib/repositories/channel-connections";
+import { useT } from "@/lib/i18n";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -26,17 +27,19 @@ interface Props {
 
 // ── Helpers badge ─────────────────────────────────────────────────────────────
 
-function statusBadge(status: ConnectionStatus) {
+function StatusBadgeLocal({ status, t }: { status: ConnectionStatus; t: (fr: string, en: string) => string }) {
   if (status === "connected")
-    return <StatusBadge tone="green" dot>Connecté</StatusBadge>;
+    return <StatusBadge tone="green" dot>{t("Connecté", "Connected")}</StatusBadge>;
   if (status === "pending")
-    return <StatusBadge tone="amber" dot>En attente</StatusBadge>;
-  return <StatusBadge tone="gray" dot>Déconnecté</StatusBadge>;
+    return <StatusBadge tone="amber" dot>{t("En attente", "Pending")}</StatusBadge>;
+  return <StatusBadge tone="gray" dot>{t("Déconnecté", "Disconnected")}</StatusBadge>;
 }
 
 // ── Composant ─────────────────────────────────────────────────────────────────
 
 export function ChannelConnectionCard({ channelDef, connection, onSave }: Props) {
+  const t = useT();
+
   // Initialise les valeurs des champs :
   // - secret déjà rempli → chaîne vide (l'UI affiche placeholder •••)
   // - non secret → valeur existante ou vide
@@ -99,7 +102,7 @@ export function ChannelConnectionCard({ channelDef, connection, onSave }: Props)
             <p className="text-xs text-muted mt-0.5">{channelDef.description}</p>
           </div>
         </div>
-        <div className="shrink-0">{statusBadge(currentStatus)}</div>
+        <div className="shrink-0"><StatusBadgeLocal status={currentStatus} t={t} /></div>
       </div>
 
       {/* Bandeau « où trouver » */}
@@ -121,7 +124,7 @@ export function ChannelConnectionCard({ channelDef, connection, onSave }: Props)
               clipRule="evenodd"
             />
           </svg>
-          {showWhere ? "Masquer" : "Où trouver ces informations ?"}
+          {showWhere ? t("Masquer", "Hide") : t("Où trouver ces informations ?", "Where to find this information?")}
         </button>
         {showWhere && (
           <p className="mt-2 rounded-lg border border-hair bg-canvas px-3 py-2.5 text-xs text-muted leading-relaxed">
@@ -142,7 +145,7 @@ export function ChannelConnectionCard({ channelDef, connection, onSave }: Props)
                 {field.label}
                 {isSecret && (
                   <span className="ml-1.5 rounded bg-warning-50 px-1 py-0.5 text-2xs font-semibold text-warning-700">
-                    secret
+                    {t("secret", "secret")}
                   </span>
                 )}
               </label>
@@ -153,7 +156,10 @@ export function ChannelConnectionCard({ channelDef, connection, onSave }: Props)
                 value={values[field.key]}
                 placeholder={
                   hadValue
-                    ? "••••••••  (valeur déjà enregistrée — laisser vide pour conserver)"
+                    ? t(
+                        "••••••••  (valeur déjà enregistrée — laisser vide pour conserver)",
+                        "••••••••  (value already saved — leave blank to keep)"
+                      )
                     : (field.placeholder ?? "")
                 }
                 autoComplete={isSecret ? "new-password" : "off"}
@@ -174,7 +180,7 @@ export function ChannelConnectionCard({ channelDef, connection, onSave }: Props)
             disabled={saving}
             className="btn-primary disabled:opacity-60"
           >
-            {saving ? "Enregistrement…" : "Enregistrer"}
+            {saving ? t("Enregistrement…", "Saving…") : t("Enregistrer", "Save")}
           </button>
         </div>
       </form>

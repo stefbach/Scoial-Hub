@@ -136,6 +136,7 @@ export async function submitRender(
         method: "POST",
         headers: { "Content-Type": "application/json", "x-api-key": shotstack.apiKey },
         body,
+        cache: "no-store",
       });
       const data = (await res.json().catch(() => ({}))) as {
         success?: boolean;
@@ -180,6 +181,7 @@ export async function getRenderStatus(idWithEnv: string): Promise<RenderStatus> 
     try {
       const res = await fetch(`${endpoint(env)}/render/${encodeURIComponent(bareId)}`, {
         headers: { "x-api-key": shotstack.apiKey },
+        cache: "no-store",
       });
       if (!res.ok) continue;
       const data = (await res.json().catch(() => ({}))) as {

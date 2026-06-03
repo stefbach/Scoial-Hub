@@ -234,6 +234,129 @@ class YouTubeCollector implements Collector {
 
   async collect(query: ScrapeQuery): Promise<CompetitorContent[]> {
     const limit = Math.min(query.limit ?? 20, 50);
+    const ytComps = query.competitors.filter((c) => c.network === "youtube");
+
+    // 1) Chaînes concurrentes fournies → vraie analyse PAR chaîne.
+    if (ytComps.length > 0) {
+      const perChannel = Math.max(3, Math.ceil(limit / Math.min(ytComps.length, 5)));
+      const batches = await Promise.all(
+        ytComps.slice(0, 5).map((c) => this.collectChannelVideos(c.handle, c.name, perChannel))
+      );
+      const channelContents = batches.flat();
+      if (channelContents.length > 0) return channelContents.slice(0, limit);
+      // sinon → repli sur la recherche par mots-clés
+    }
+
+    // 2) Sinon → recherche par mots-clés.
+    return this.collectByKeywords(query, limit);
+  }
+
+  /** Statistiques + snippet d'une liste d'IDs vidéo (1 appel). */
+  private async fetchVideos(
+    videoIds: string[]
+  ): Promise<Map<string, { stats: YtVideoStats["statistics"]; snippet: YtSearchItem["snippet"] }>> {
+    const map = new Map<string, { stats: YtVideoStats["statistics"]; snippet: YtSearchItem["snippet"] }>();
+    if (videoIds.length === 0) return map;
+    const url = new URL("https://www.googleapis.com/youtube/v3/videos");
+    url.searchParams.set("part", "statistics,snippet");
+    url.searchParams.set("id", videoIds.join(","));
+    url.searchParams.set("key", this.apiKey);
+    const res = await fetch(url.toString(), { next: { revalidate: 0 } });
+    if (!res.ok) return map;
+    const data = (await res.json()) as { items?: Array<YtVideoStats & { snippet: YtSearchItem["snippet"] }> };
+    for (const it of data.items ?? []) map.set(it.id, { stats: it.statistics, snippet: it.snippet });
+    return map;
+  }
+
+  /** Résout l'ID de chaîne depuis un @handle ou un nom. */
+  private async resolveChannelId(handle: string): Promise<string | null> {
+    const h = handle.replace(/^@/, "").trim();
+    if (!h) return null;
+    try {
+      const u = new URL("https://www.googleapis.com/youtube/v3/channels");
+      u.searchParams.set("part", "id");
+      u.searchParams.set("forHandle", "@" + h);
+      u.searchParams.set("key", this.apiKey);
+      const r = await fetch(u.toString(), { next: { revalidate: 3600 } });
+      if (r.ok) {
+        const d = (await r.json()) as { items?: Array<{ id: string }> };
+        if (d.items && d.items[0]?.id) return d.items[0].id;
+      }
+    } catch { /* continue */ }
+    try {
+      const u = new URL("https://www.googleapis.com/youtube/v3/search");
+      u.searchParams.set("part", "snippet");
+      u.searchParams.set("q", h);
+      u.searchParams.set("type", "channel");
+      u.searchParams.set("maxResults", "1");
+      u.searchParams.set("key", this.apiKey);
+      const r = await fetch(u.toString(), { next: { revalidate: 3600 } });
+      if (r.ok) {
+        const d = (await r.json()) as { items?: Array<{ id: { channelId?: string } }> };
+        if (d.items && d.items[0]?.id?.channelId) return d.items[0].id.channelId;
+      }
+    } catch { /* continue */ }
+    return null;
+  }
+
+  /** Vraies vidéos récentes d'une chaîne concurrente, avec stats. */
+  private async collectChannelVideos(
+    handle: string,
+    name: string | undefined,
+    max: number
+  ): Promise<CompetitorContent[]> {
+    try {
+      const channelId = await this.resolveChannelId(handle);
+      if (!channelId) return [];
+      const searchUrl = new URL("https://www.googleapis.com/youtube/v3/search");
+      searchUrl.searchParams.set("part", "snippet");
+      searchUrl.searchParams.set("channelId", channelId);
+      searchUrl.searchParams.set("type", "video");
+      searchUrl.searchParams.set("order", "date");
+      searchUrl.searchParams.set("maxResults", String(Math.min(max, 25)));
+      searchUrl.searchParams.set("key", this.apiKey);
+      const sr = await fetch(searchUrl.toString(), { next: { revalidate: 0 } });
+      if (!sr.ok) return [];
+      const sd = (await sr.json()) as { items?: YtSearchItem[] };
+      const items = sd.items ?? [];
+      const ids = items.map((i) => i.id.videoId).filter((x): x is string => Boolean(x));
+      const vids = await this.fetchVideos(ids);
+      const out: CompetitorContent[] = [];
+      for (const item of items) {
+        const id = item.id.videoId;
+        if (!id) continue;
+        const v = vids.get(id);
+        const snip = v?.snippet ?? item.snippet;
+        const stats = v?.stats ?? {};
+        const views = parseInt(stats.viewCount ?? "0", 10);
+        const likes = parseInt(stats.likeCount ?? "0", 10);
+        const comments = parseInt(stats.commentCount ?? "0", 10);
+        const er = views > 0 ? parseFloat(((likes + comments) / views).toFixed(4)) : 0;
+        out.push({
+          network: "youtube",
+          handle,
+          accountName: name ?? snip.channelTitle,
+          type: "video",
+          url: `https://www.youtube.com/watch?v=${id}`,
+          caption: snip.title,
+          likes,
+          comments,
+          views,
+          shares: 0,
+          engagementRate: er,
+          postedAt: snip.publishedAt,
+          thumbnailUrl: snip.thumbnails?.medium?.url,
+          simulated: false,
+        });
+      }
+      return out;
+    } catch (err) {
+      console.warn("[YouTube] chaîne échouée:", handle, err);
+      return [];
+    }
+  }
+
+  private async collectByKeywords(query: ScrapeQuery, limit: number): Promise<CompetitorContent[]> {
     const contents: CompetitorContent[] = [];
 
     try {
@@ -294,7 +417,6 @@ class YouTubeCollector implements Collector {
         const comments = parseInt(stats.commentCount ?? "0", 10);
         const er = views > 0 ? parseFloat(((likes + comments) / views).toFixed(4)) : 0;
 
-        // Détermine si ce compte fait partie des compétiteurs ciblés
         const matchedCompetitor = query.competitors.find(
           (c) => c.network === "youtube" && (
             c.handle.includes(item.snippet.channelId) ||

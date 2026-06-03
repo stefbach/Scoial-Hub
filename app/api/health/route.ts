@@ -15,6 +15,7 @@ export async function GET() {
       SUPABASE_SERVICE_ROLE_KEY: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
       ANTHROPIC_API_KEY: Boolean(process.env.ANTHROPIC_API_KEY),
       REPLICATE_API_TOKEN: Boolean(process.env.REPLICATE_API_TOKEN),
+      YOUTUBE_API_KEY: Boolean(process.env.YOUTUBE_API_KEY),
       META_APP_ID: Boolean(process.env.META_APP_ID),
       LINKEDIN_CLIENT_ID: Boolean(process.env.LINKEDIN_CLIENT_ID),
       SHOTSTACK_API_KEY: Boolean(process.env.SHOTSTACK_API_KEY),

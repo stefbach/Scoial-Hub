@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Logo } from "@/components/brand/Logo";
 import { BrainCanvas } from "@/components/landing/BrainCanvas";
 import { Reveal } from "@/components/landing/Reveal";
 import { CountUp } from "@/components/landing/CountUp";
@@ -6,7 +7,7 @@ import { RotatingWord } from "@/components/landing/RotatingWord";
 import { AgentTicker } from "@/components/landing/AgentTicker";
 
 export const metadata = {
-  title: "Social Hub — Le cerveau qui pilote vos campagnes",
+  title: "AXON-AI · Social Media — Le cerveau qui pilote vos campagnes",
   description:
     "Plateforme de pilotage de campagnes social media propulsée par un dispositif multi-agent IA : intelligence, marketing, vidéo, connectivité, puissance.",
 };
@@ -59,10 +60,7 @@ export default function LandingPage() {
       {/* ── Nav ───────────────────────────────────────────────── */}
       <header className="sticky top-0 z-30 border-b border-white/10 bg-[#0a1626]/80 backdrop-blur-md">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-3.5">
-          <div className="flex items-center gap-2.5">
-            <BrandMark />
-            <span className="text-base font-bold tracking-tight">Social Hub</span>
-          </div>
+          <Logo size={30} onDark />
           <nav className="hidden items-center gap-7 text-sm text-white/70 md:flex">
             <a href="#fonctionnement" className="hover:text-white">Fonctionnement</a>
             <a href="#piliers" className="hover:text-white">Fonctionnalités</a>
@@ -275,7 +273,7 @@ export default function LandingPage() {
 
       <footer className="border-t border-white/10">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-5 py-7 text-xs text-white/40 sm:flex-row">
-          <div className="flex items-center gap-2"><BrandMark small /><span>Social Hub · DDS Group</span></div>
+          <div className="flex items-center gap-2"><Logo size={20} onDark showWordmark={false} /><span>AXON-AI · Social Media</span></div>
           <span>Intelligence · Marketing · Vidéo · Connectivité · Puissance</span>
         </div>
       </footer>
@@ -307,13 +305,3 @@ function FloatChip({ className, color, label, sub, delay = "0s" }: { className?:
   );
 }
 
-function BrandMark({ small }: { small?: boolean }) {
-  const s = small ? "h-5 w-5" : "h-7 w-7";
-  return (
-    <span className={`relative flex ${s} items-center justify-center rounded-lg bg-gradient-to-br from-primary-400 to-[#7c3aed]`}>
-      <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5">
-        <path d="M12 3a4 4 0 0 0-4 4 4 4 0 0 0-2 7.5A3.5 3.5 0 0 0 9 21a3 3 0 0 0 3-1 3 3 0 0 0 3 1 3.5 3.5 0 0 0 3-6.5A4 4 0 0 0 16 7a4 4 0 0 0-4-4Z" />
-      </svg>
-    </span>
-  );
-}

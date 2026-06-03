@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { Logo } from "@/components/brand/Logo";
 
 const NAV = [
   { href: "/admin", label: "Vue d'ensemble", exact: true },
@@ -30,12 +31,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     <div className="min-h-screen bg-canvas">
       <header className="sticky top-0 z-30 flex items-center justify-between border-b border-hair bg-card/90 px-5 py-2.5 backdrop-blur-md">
         <div className="flex items-center gap-2.5">
-          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-page text-white shadow-md">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-              <path d="M7 1.5l5 2.5v3c0 3-2.2 4.8-5 5.5C4.2 11.8 2 10 2 7V4L7 1.5Z" stroke="currentColor" strokeWidth="1.1" fill="none" />
-            </svg>
-          </span>
-          <span className="text-[0.9375rem] font-bold tracking-tight text-ink">Social Hub</span>
+          <Logo size={26} />
           <span className="rounded-md bg-page/10 px-2 py-0.5 text-2xs font-semibold uppercase tracking-wide text-page">Admin</span>
         </div>
         <div className="flex items-center gap-2">

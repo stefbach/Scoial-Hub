@@ -7,6 +7,7 @@ import { CompanySwitcher } from "./CompanySwitcher";
 import { Sidebar } from "./Sidebar";
 import { ScopeBar } from "./ScopeBar";
 import { HelpButton } from "@/components/help/HelpButton";
+import { Logo } from "@/components/brand/Logo";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/env";
 
@@ -120,8 +121,15 @@ function UserMenu() {
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
-  // Landing (/) et console admin (/admin/*) : rendus sans le shell applicatif.
-  if (pathname === "/" || pathname.startsWith("/admin")) return <>{children}</>;
+  // Pages SANS le shell applicatif : landing, auth, hub de comptes, console admin.
+  const bare =
+    pathname === "/" ||
+    pathname === "/comptes" ||
+    pathname.startsWith("/login") ||
+    pathname.startsWith("/signup") ||
+    pathname.startsWith("/auth") ||
+    pathname.startsWith("/admin");
+  if (bare) return <>{children}</>;
 
   return (
     <div className="min-h-screen bg-canvas">
@@ -129,20 +137,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <header className="app-header sticky top-0 z-30 flex items-center justify-between border-b border-hair bg-card/90 px-5 py-2.5 backdrop-blur-md">
         <div className="flex items-center gap-3">
           {/* Logo / wordmark */}
-          <Link href="/" className="flex items-center gap-2.5" aria-label="Accueil Social Hub">
-            {/* Icône Social Hub */}
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-page text-white shadow-md">
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-                <circle cx="7" cy="3.8" r="2" fill="currentColor" opacity="0.95"/>
-                <circle cx="2.8" cy="10.2" r="1.65" fill="currentColor" opacity="0.75"/>
-                <circle cx="11.2" cy="10.2" r="1.65" fill="currentColor" opacity="0.75"/>
-                <line x1="7" y1="5.7" x2="3.3" y2="8.7" stroke="currentColor" strokeWidth="0.85" opacity="0.45"/>
-                <line x1="7" y1="5.7" x2="10.7" y2="8.7" stroke="currentColor" strokeWidth="0.85" opacity="0.45"/>
-              </svg>
-            </span>
-            <span className="text-[0.9375rem] font-bold tracking-tight text-ink">
-              Social Hub
-            </span>
+          <Link href="/" aria-label="Accueil AXON-AI Social Media">
+            <Logo size={28} />
           </Link>
 
           {/* Séparateur vertical */}

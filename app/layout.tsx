@@ -26,8 +26,8 @@ const manrope = Manrope({
 });
 
 export const metadata: Metadata = {
-  title: "Social Hub",
-  description: "Social media management platform",
+  title: "AXON-AI · Social Media",
+  description: "Pilotage intelligent des campagnes social media par agents IA — suite AXON-AI",
 };
 
 export default function RootLayout({

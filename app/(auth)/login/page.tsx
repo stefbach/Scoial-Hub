@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/env";
+import { Logo } from "@/components/brand/Logo";
 
 export default function LoginPage() {
   return (
@@ -17,7 +18,7 @@ export default function LoginPage() {
 function LoginPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirect = searchParams.get("redirect") ?? "/dashboard";
+  const redirect = searchParams.get("redirect") ?? "/comptes";
   const urlError = searchParams.get("error");
 
   const [email, setEmail] = useState("");
@@ -69,18 +70,9 @@ function LoginPageInner() {
     <div className="min-h-screen bg-canvas flex items-center justify-center px-4 py-12">
       <div className="w-full max-w-md animate-fade-in">
         {/* Logo */}
-        <div className="flex flex-col items-center mb-8">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-page text-white shadow-md mb-4">
-            <svg width="22" height="22" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-              <circle cx="7" cy="3.8" r="2" fill="currentColor" opacity="0.95" />
-              <circle cx="2.8" cy="10.2" r="1.65" fill="currentColor" opacity="0.75" />
-              <circle cx="11.2" cy="10.2" r="1.65" fill="currentColor" opacity="0.75" />
-              <line x1="7" y1="5.7" x2="3.3" y2="8.7" stroke="currentColor" strokeWidth="0.85" opacity="0.45" />
-              <line x1="7" y1="5.7" x2="10.7" y2="8.7" stroke="currentColor" strokeWidth="0.85" opacity="0.45" />
-            </svg>
-          </div>
-          <h1 className="text-2xl font-bold text-ink tracking-tight">Social Hub</h1>
-          <p className="text-sm text-muted mt-1">Connectez-vous à votre espace</p>
+        <div className="mb-8 flex flex-col items-center gap-3">
+          <Logo size={44} />
+          <p className="text-sm text-muted">Connectez-vous à votre espace</p>
         </div>
 
         {/* Bandeau mode démo */}
@@ -154,11 +146,8 @@ function LoginPageInner() {
             </button>
           </form>
 
-          <p className="mt-6 text-center text-sm text-muted">
-            Pas encore de compte ?{" "}
-            <Link href="/signup" className="font-medium text-ink underline-offset-2 hover:underline">
-              Créer un compte
-            </Link>
+          <p className="mt-6 text-center text-2xs text-muted">
+            Accès réservé. Les comptes sont créés par votre administrateur.
           </p>
         </div>
 

@@ -173,7 +173,7 @@ Réponds en français. Sois précis, concret et actionnable.`;
 
   const message = await client.messages.create({
     model: env.anthropicModel,
-    max_tokens: 1600,
+    max_tokens: 4000,
     messages: [{ role: "user", content: prompt }],
   });
 

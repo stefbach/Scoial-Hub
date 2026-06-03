@@ -160,22 +160,42 @@ export async function submitRender(
 
 export async function getRenderStatus(idWithEnv: string): Promise<RenderStatus> {
   if (!isShotstackConfigured) return { status: "failed", error: "Non configuré." };
-  // id encodé "env:id" — par défaut, env configuré pour compat ascendante.
-  const sep = idWithEnv.indexOf(":");
-  const env = sep > 0 ? idWithEnv.slice(0, sep) : shotstack.env;
-  const id = sep > 0 ? idWithEnv.slice(sep + 1) : idWithEnv;
+
+  // L'id peut arriver encodé ("v1%3A<uuid>") ou préfixé ("v1:<uuid>"). On décode,
+  // on retire le préfixe d'environnement, et on interroge les DEUX environnements
+  // (un render n'existe que dans l'un d'eux) pour être robuste.
+  let decoded = idWithEnv;
   try {
-    const res = await fetch(`${endpoint(env)}/render/${encodeURIComponent(id)}`, {
-      headers: { "x-api-key": shotstack.apiKey },
-    });
-    const data = (await res.json().catch(() => ({}))) as {
-      response?: { status?: string; url?: string; error?: string };
-    };
-    const raw = data.response?.status ?? "";
-    const status: RenderState =
-      raw === "done" ? "done" : raw === "failed" ? "failed" : raw === "queued" || raw === "fetching" ? "queued" : "rendering";
-    return { status, url: data.response?.url, error: data.response?.error };
-  } catch (err) {
-    return { status: "failed", error: err instanceof Error ? err.message : "Erreur réseau" };
+    decoded = decodeURIComponent(idWithEnv);
+  } catch {
+    /* garde tel quel */
   }
+  const sep = decoded.indexOf(":");
+  const bareId = sep > 0 ? decoded.slice(sep + 1) : decoded;
+  const preferred = sep > 0 ? decoded.slice(0, sep) : shotstack.env;
+  const order = preferred === "v1" ? ["v1", "stage"] : ["stage", "v1"];
+
+  let pending: RenderStatus = { status: "queued" };
+  for (const env of order) {
+    try {
+      const res = await fetch(`${endpoint(env)}/render/${encodeURIComponent(bareId)}`, {
+        headers: { "x-api-key": shotstack.apiKey },
+      });
+      if (!res.ok) continue;
+      const data = (await res.json().catch(() => ({}))) as {
+        response?: { status?: string; url?: string; error?: string };
+      };
+      const raw = data.response?.status ?? "";
+      if (!raw) continue;
+      const status: RenderState =
+        raw === "done" ? "done" : raw === "failed" ? "failed" : raw === "queued" || raw === "fetching" ? "queued" : "rendering";
+      const out = { status, url: data.response?.url, error: data.response?.error };
+      // done/rendering/failed = état définitif pour cet env → on renvoie.
+      if (status !== "queued") return out;
+      pending = out; // on garde "queued" mais on tente l'autre env au cas où.
+    } catch {
+      /* tente l'autre env */
+    }
+  }
+  return pending;
 }

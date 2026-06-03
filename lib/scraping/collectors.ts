@@ -572,10 +572,15 @@ class InstagramBusinessCollector implements Collector {
 interface XpozNamespace {
   getPostsByUser(
     identifier: string,
-    options?: { limit?: number; startDate?: string }
+    options?: { limit?: number; startDate?: string; fields?: string[] }
   ): Promise<{ data?: Array<Record<string, unknown>> }>;
   getUser(identifier: string): Promise<Record<string, unknown>>;
 }
+
+const XPOZ_FIELDS: Record<"instagram" | "tiktok", string[]> = {
+  instagram: ["caption", "likeCount", "commentCount", "videoPlayCount", "reshareCount", "mediaType", "codeUrl", "imageUrl", "videoUrl", "timestamp", "createdAtDate", "username", "fullName"],
+  tiktok: ["description", "likeCount", "commentCount", "playCount", "forwardCount", "videoUrl", "videoThumbnail", "createdAtDate", "username", "nickname"],
+};
 interface XpozClientLike {
   connect(): Promise<void>;
   close(): Promise<void>;
@@ -645,7 +650,10 @@ class XpozCollector implements Collector {
     if (!username) return [];
     try {
       // Un seul appel MCP par compte (pas de getUser) pour rester rapide.
-      const postsRes = await ns.getPostsByUser(username, { limit: per });
+      // On demande explicitement les champs de métriques, sinon xpoz renvoie
+      // des posts sans likes/commentaires (→ engagement 0).
+      const fields = XPOZ_FIELDS[this.network === "tiktok" ? "tiktok" : "instagram"];
+      const postsRes = await ns.getPostsByUser(username, { limit: per, fields });
       const posts = postsRes?.data ?? [];
       const out: CompetitorContent[] = [];
 

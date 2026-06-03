@@ -214,7 +214,7 @@ Règles : une entrée "cuts" par réseau, au bon format d'aspect. Pour carousel/
 
   const message = await client.messages.create({
     model: env.anthropicModel,
-    max_tokens: 3500,
+    max_tokens: 8000,
     messages: [{ role: "user", content: prompt }],
   });
 

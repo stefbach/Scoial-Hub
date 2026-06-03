@@ -277,7 +277,7 @@ export default function StudioPage() {
                 <p className="mt-0.5 text-sm text-muted">{pkg.summary}</p>
               </div>
               <span className={`shrink-0 rounded-full px-2 py-0.5 text-2xs font-semibold ${pkg.aiGenerated ? "bg-success-100 text-success-700" : "bg-warning-50 text-warning-700"}`}>
-                {pkg.aiGenerated ? t("Généré par l'IA", "AI-generated") : t("Modèle (clé IA absente)", "Template (no AI key)")}
+                {pkg.aiGenerated ? t("Généré par l'IA", "AI-generated") : t("Modèle de secours", "Fallback template")}
               </span>
             </div>
             <div className="mt-3 flex flex-wrap gap-2">

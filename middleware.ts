@@ -20,6 +20,16 @@ function isPublicPath(pathname: string): boolean {
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // ── Console ADMIN : protection par cookie admin ───────────────
+  if (pathname.startsWith("/admin")) {
+    if (pathname === "/admin/login") return NextResponse.next();
+    const isAdmin = request.cookies.get("sh_admin")?.value === (process.env.ADMIN_TOKEN ?? "sh-admin-session-v1");
+    if (!isAdmin) {
+      return NextResponse.redirect(new URL("/admin/login", request.url));
+    }
+    return NextResponse.next();
+  }
+
   // Mode démo : Supabase non configuré → aucune protection
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;

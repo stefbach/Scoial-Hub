@@ -120,8 +120,8 @@ function UserMenu() {
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
-  // La landing page (/) est plein écran, sans le shell applicatif.
-  if (pathname === "/") return <>{children}</>;
+  // Landing (/) et console admin (/admin/*) : rendus sans le shell applicatif.
+  if (pathname === "/" || pathname.startsWith("/admin")) return <>{children}</>;
 
   return (
     <div className="min-h-screen bg-canvas">

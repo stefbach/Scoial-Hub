@@ -102,13 +102,13 @@ export async function POST(req: NextRequest) {
       keywords,
       theme,
       competitors: queryCompetitors,
-      limit: 30,
+      limit: 18,
       igAuth,
     });
 
     // 4. Analyser via Claude
     const analysis = await analyzeCompetition(
-      { geo, keywords, theme, competitors: queryCompetitors, limit: 30 },
+      { geo, keywords, theme, competitors: queryCompetitors, limit: 18 },
       scrapeResult.contents
     );
 

@@ -128,7 +128,7 @@ async function analyzeWithClaude(
   const client = new Anthropic({ apiKey: env.anthropicKey });
 
   // Résumé compact des contenus pour limiter les tokens
-  const contentsResume = contents.slice(0, 40).map((c) => ({
+  const contentsResume = contents.slice(0, 24).map((c) => ({
     network: c.network,
     type: c.type,
     caption: c.caption.slice(0, 120),
@@ -173,7 +173,7 @@ Réponds en français. Sois précis, concret et actionnable.`;
 
   const message = await client.messages.create({
     model: env.anthropicModel,
-    max_tokens: 2000,
+    max_tokens: 1600,
     messages: [{ role: "user", content: prompt }],
   });
 

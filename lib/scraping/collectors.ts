@@ -616,11 +616,14 @@ class XpozCollector implements Collector {
 
     const ns = this.network === "tiktok" ? client.tiktok : client.instagram;
     const limit = query.limit ?? 20;
-    const per = Math.max(3, Math.ceil(limit / Math.min(targets.length, 5)));
+    // Budget temps serré (≤60s) : on plafonne comptes et posts pour laisser
+    // le temps à l'analyse Claude de tourner ensuite.
+    const accounts = targets.slice(0, 4);
+    const per = Math.min(6, Math.max(4, Math.ceil(limit / Math.max(accounts.length, 1))));
 
     try {
       const batches = await Promise.all(
-        targets.slice(0, 5).map((c) => this.fetchAccount(ns, c.handle, c.name, per))
+        accounts.map((c) => this.fetchAccount(ns, c.handle, c.name, per))
       );
       return batches.flat().slice(0, limit);
     } finally {
@@ -641,11 +644,8 @@ class XpozCollector implements Collector {
     const username = handle.replace(/^@/, "").trim();
     if (!username) return [];
     try {
-      const [postsRes, user] = await Promise.all([
-        ns.getPostsByUser(username, { limit: per }),
-        ns.getUser(username).catch(() => null),
-      ]);
-      const followers = user ? xnum(user.followerCount) : 0;
+      // Un seul appel MCP par compte (pas de getUser) pour rester rapide.
+      const postsRes = await ns.getPostsByUser(username, { limit: per });
       const posts = postsRes?.data ?? [];
       const out: CompetitorContent[] = [];
 
@@ -674,8 +674,7 @@ class XpozCollector implements Collector {
           type = xstr(p.videoUrl) || xstr(p.mediaType).toLowerCase().includes("video") ? "reel" : "post";
         }
 
-        const denom = views > 0 ? views : followers;
-        const er = denom > 0 ? parseFloat(((likes + comments) / denom).toFixed(4)) : 0;
+        const er = views > 0 ? parseFloat(((likes + comments) / views).toFixed(4)) : 0;
 
         out.push({
           network: this.network,

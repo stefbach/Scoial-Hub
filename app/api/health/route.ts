@@ -17,6 +17,7 @@ export async function GET() {
       REPLICATE_API_TOKEN: Boolean(process.env.REPLICATE_API_TOKEN),
       YOUTUBE_API_KEY: Boolean(process.env.YOUTUBE_API_KEY),
       XPOZ_API_KEY: Boolean(process.env.XPOZ_API_KEY),
+      CLOUDINARY: Boolean(process.env.CLOUDINARY_CLOUD_NAME || process.env.CLOUDINARY_URL),
       META_APP_ID: Boolean(process.env.META_APP_ID),
       LINKEDIN_CLIENT_ID: Boolean(process.env.LINKEDIN_CLIENT_ID),
       SHOTSTACK_API_KEY: Boolean(process.env.SHOTSTACK_API_KEY),

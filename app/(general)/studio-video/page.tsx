@@ -338,6 +338,38 @@ function CutCard({
   const [caps, setCaps] = useState<CaptionSegment[]>(captions);
   const [musicId, setMusicId] = useState("none");
   const [customMusic, setCustomMusic] = useState("");
+  const [slides, setSlides] = useState(cut.slides);
+
+  // Génération d'images (Cloudinary) pour les formats statiques.
+  const [imgState, setImgState] = useState<"idle" | "loading" | "done" | "failed">("idle");
+  const [images, setImages] = useState<string[]>([]);
+  const [imgErr, setImgErr] = useState<string | null>(null);
+  function setSlideText(i: number, text: string) {
+    setSlides((prev) => prev.map((s, j) => (j === i ? { ...s, onImageText: text } : s)));
+  }
+  async function generateImages() {
+    setImgErr(null);
+    setImgState("loading");
+    try {
+      const editedCut = { ...cut, hook, slides };
+      const res = await fetch("/api/video/image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cut: editedCut, assets }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.images) {
+        setImgState("failed");
+        setImgErr(data.error ?? `Erreur ${res.status}`);
+        return;
+      }
+      setImages(data.images as string[]);
+      setImgState("done");
+    } catch {
+      setImgState("failed");
+      setImgErr("Erreur réseau");
+    }
+  }
 
   function resolveMusic(): string {
     if (customMusic.trim()) return customMusic.trim();
@@ -425,16 +457,16 @@ function CutCard({
         )}
       </Field>
 
-      {cut.slides.length > 0 && (
-        <Field label={t("Slides", "Slides")}>
-          <ol className="space-y-1 text-xs text-ink">
-            {cut.slides.map((s) => (
-              <li key={s.index} className="flex gap-2">
-                <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded bg-primary/10 text-2xs font-bold text-primary">{s.index}</span>
-                <span><span className="font-medium">{s.onImageText}</span> <span className="text-muted">— {s.note}</span></span>
-              </li>
+      {slides.length > 0 && (
+        <Field label={t("Slides — texte modifiable", "Slides — editable text")}>
+          <div className="space-y-1.5">
+            {slides.map((s, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-primary/10 text-2xs font-bold text-primary">{s.index}</span>
+                <input className="input flex-1 text-xs" value={s.onImageText} onChange={(e) => setSlideText(i, e.target.value)} placeholder={s.note} />
+              </div>
             ))}
-          </ol>
+          </div>
         </Field>
       )}
 
@@ -537,6 +569,45 @@ function CutCard({
             <div className="text-2xs text-danger">
               {rErr ?? t("Échec du rendu.", "Render failed.")}
               <button className="ml-2 underline" onClick={startRender}>{t("Réessayer", "Retry")}</button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Génération d'images finales (formats statiques) */}
+      {!renderable && (
+        <div className="mt-3 border-t border-hair pt-3">
+          {imgState === "idle" && (
+            <button className="btn-primary w-full justify-center text-2xs" onClick={generateImages}>
+              🖼️ {t("Générer les visuels", "Generate the visuals")}
+            </button>
+          )}
+          {imgState === "loading" && (
+            <div className="flex items-center gap-2 text-2xs text-muted">
+              <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-primary" />
+              {t("Génération des visuels…", "Generating visuals…")}
+            </div>
+          )}
+          {imgState === "done" && images.length > 0 && (
+            <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {images.map((u, i) => (
+                  <a key={i} href={u} target="_blank" rel="noopener noreferrer" download className="group relative block overflow-hidden rounded-lg border border-hair">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={u} alt={`visuel ${i + 1}`} className="h-32 w-full object-cover" />
+                    <span className="absolute bottom-1 right-1 rounded bg-ink/70 px-1.5 py-0.5 text-2xs text-white opacity-0 transition-opacity group-hover:opacity-100">⬇</span>
+                  </a>
+                ))}
+              </div>
+              <button className="btn-secondary w-full justify-center text-2xs" onClick={generateImages}>
+                ↻ {t("Régénérer avec mes textes", "Re-generate with my texts")}
+              </button>
+            </div>
+          )}
+          {imgState === "failed" && (
+            <div className="text-2xs text-danger">
+              {imgErr ?? t("Échec.", "Failed.")}
+              <button className="ml-2 underline" onClick={generateImages}>{t("Réessayer", "Retry")}</button>
             </div>
           )}
         </div>

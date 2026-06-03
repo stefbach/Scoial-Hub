@@ -14,6 +14,30 @@ import {
   type Network,
 } from "@/lib/pilotage";
 
+/* ── Types veille (miroir du endpoint GET /api/veille/latest) ─────────── */
+interface VeilleInsight {
+  id: string;
+  type: "format" | "angle" | "benchmark";
+  label: string;
+  detail: string;
+  reseau?: string;
+}
+interface VeilleReco {
+  id: string;
+  priorite: "haute" | "moyenne" | "basse";
+  titre: string;
+  detail: string;
+  action: string;
+}
+interface VeilleData {
+  runId: string | null;
+  finishedAt: string;
+  simulated: boolean;
+  resume: string;
+  insights: VeilleInsight[];
+  recommandations: VeilleReco[];
+}
+
 const NET_LABEL: Record<Network, { label: string; color: string }> = {
   facebook: { label: "Facebook", color: "#1877F2" },
   instagram: { label: "Instagram", color: "#E1306C" },
@@ -61,6 +85,43 @@ export default function PilotagePage() {
 
   const [decisions, setDecisions] = useState<Decision[]>([]);
   useEffect(() => { setDecisions(generateDecisions(company.id, market)); }, [company.id, market]);
+
+  /* ── Insights de veille ────────────────────────────────────────────── */
+  const [veille, setVeille] = useState<VeilleData | null>(null);
+  const [veilleLoading, setVeilleLoading] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    setVeilleLoading(true);
+    fetch(`/api/veille/latest?companyId=${encodeURIComponent(company.id)}`)
+      .then((r) => r.json())
+      .then((data: VeilleData) => {
+        if (!alive) return;
+        setVeille(data);
+        // Injecter les recommandations veille dans la file de décisions
+        const recoDecisions: Decision[] = (data.recommandations ?? []).map(
+          (r): Decision => ({
+            id: `veille-${r.id}`,
+            agent: "analyst",
+            title: r.titre,
+            rationale: `${r.detail}${r.action ? " — Action : " + r.action : ""}`,
+            impact: `Priorité veille : ${r.priorite}`,
+            status: "pending",
+          })
+        );
+        if (recoDecisions.length > 0) {
+          setDecisions((ds) => {
+            // Éviter les doublons si l'effet se rejoue
+            const existingIds = new Set(ds.map((d) => d.id));
+            const toAdd = recoDecisions.filter((d) => !existingIds.has(d.id));
+            return toAdd.length > 0 ? [...toAdd, ...ds] : ds;
+          });
+        }
+      })
+      .catch((err) => console.warn("[Pilotage] Veille fetch error:", err))
+      .finally(() => { if (alive) setVeilleLoading(false); });
+    return () => { alive = false; };
+  }, [company.id]);
 
   const setStatus = (id: string, status: Decision["status"]) =>
     setDecisions((ds) => ds.map((d) => (d.id === id ? { ...d, status } : d)));
@@ -159,6 +220,61 @@ export default function PilotagePage() {
           <Kpi label="Vues" value={fmt(agg.views)} />
           <Kpi label="Portée" value={fmt(agg.reach)} />
         </div>
+      </section>
+
+      {/* ── Insights de veille ─────────────────────────────────────────── */}
+      <section>
+        <div className="section-label mb-2.5 flex items-center gap-2">
+          Insights de veille concurrentielle
+          {veilleLoading && <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-page/50" />}
+          {veille && (
+            <span className="chip">
+              {veille.simulated ? "simulé" : `run ${new Date(veille.finishedAt).toLocaleDateString("fr-FR")}`}
+            </span>
+          )}
+        </div>
+
+        {!veille && !veilleLoading && (
+          <div className="card p-4 text-sm text-muted">Aucune donnée de veille disponible.</div>
+        )}
+
+        {veille && (
+          <div className="space-y-3">
+            {/* Résumé exécutif */}
+            <div className="card border-l-[3px] border-l-page/40 bg-page/5 p-4">
+              <p className="text-sm text-ink">{veille.resume}</p>
+            </div>
+
+            {/* Insights concurrents (2-3 cartes) */}
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {veille.insights.map((insight) => (
+                <div key={insight.id} className="card p-3.5">
+                  <div className="mb-1 flex items-center gap-2">
+                    <span className="rounded-md bg-canvas px-1.5 py-0.5 text-2xs font-semibold uppercase text-muted ring-1 ring-hair">
+                      {insight.type === "format" ? "Format" : insight.type === "angle" ? "Angle" : "Benchmark"}
+                    </span>
+                    {insight.reseau && (
+                      <span
+                        className="text-2xs font-medium"
+                        style={{
+                          color:
+                            insight.reseau === "instagram" ? "#E1306C"
+                            : insight.reseau === "linkedin" ? "#0A66C2"
+                            : insight.reseau === "facebook" ? "#1877F2"
+                            : undefined,
+                        }}
+                      >
+                        {insight.reseau}
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-sm font-semibold text-ink">{insight.label}</div>
+                  <p className="mt-1 text-2xs text-muted">{insight.detail}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </section>
 
       <div className="grid gap-6 lg:grid-cols-3">

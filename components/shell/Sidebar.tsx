@@ -150,6 +150,7 @@ const GROUPS: { label?: string; items: { href: string; label: string }[] }[] = [
     label: "General",
     items: [
       { href: "/analytics", label: "Analytics" },
+      { href: "/parametres-connecteurs", label: "Connecteurs (accès)" },
       { href: "/accounts",  label: "Accounts" },
       { href: "/settings",  label: "Settings" },
     ],

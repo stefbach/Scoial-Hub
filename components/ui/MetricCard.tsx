@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+/* MetricCard — palette Prune-Améthyste synchronisée avec tailwind.config.ts */
 export function MetricCard({
   label,
   value,
@@ -55,7 +56,7 @@ export function MetricCard({
     </>
   );
 
-  // Styles de base selon l'état
+  /* Styles de base — hover améthyste au lieu du gris chaud précédent */
   const base = [
     "block rounded-xl px-4 py-3 transition-all duration-[150ms]",
     alert
@@ -65,8 +66,9 @@ export function MetricCard({
       : "border border-hair bg-canvas shadow-xs",
   ].join(" ");
 
+  /* Hover avec bordure améthyste légère #bb9fff */
   const interactive =
-    "cursor-pointer hover:shadow-sm hover:border-[#cac4b9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/30";
+    "cursor-pointer hover:shadow-sm hover:border-[#bb9fff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/30";
 
   if (href) {
     return (

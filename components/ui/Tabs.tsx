@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+/* Tabs & Pills — palette Prune-Améthyste synchronisée */
 export function Tabs({
   tabs,
   className = "",
@@ -33,6 +34,7 @@ export function Tabs({
               className={[
                 "relative -mb-px px-3 pb-2.5 pt-1 text-sm font-medium",
                 "transition-colors duration-[120ms]",
+                // Anneau focus améthyste
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/40 focus-visible:ring-offset-1 rounded-t",
                 isActive
                   ? "text-ink"
@@ -40,7 +42,7 @@ export function Tabs({
               ].join(" ")}
             >
               {t.label}
-              {/* Indicateur actif — barre en bas */}
+              {/* Indicateur actif — barre prune-violet en bas */}
               {isActive && (
                 <span
                   aria-hidden="true"
@@ -77,13 +79,15 @@ export function Pills({
 }) {
   const [active, setActive] = useState(defaultId ?? options[0]?.id);
 
+  /* Actif default → fond améthyste doux (primary) au lieu de ai-textbg */
   const activeCls =
     tone === "ai"
       ? "bg-ai-visual text-white shadow-xs"
-      : "bg-ai-textbg text-ai-text ring-1 ring-ai-text/20";
+      : "bg-primary-100 text-primary-700 ring-1 ring-primary-400/30";
 
+  /* Inactif → bordure lavande, hover améthyste légère */
   const inactiveCls =
-    "border border-hair bg-card text-ink hover:bg-canvas hover:border-[#cac4b9]";
+    "border border-hair bg-card text-ink hover:bg-canvas hover:border-[#bb9fff]";
 
   return (
     <div className="flex flex-wrap gap-1.5" role="group">

@@ -9,22 +9,27 @@ export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from "next/server";
 import { generateVideo } from "@/lib/ai/replicate";
+import { resolveVideoAspect } from "@/lib/social-formats";
 
 interface RequestBody {
   prompt?: string;
+  /** Réseau cible (réceptacle) : tiktok/instagram → 9:16, facebook/linkedin → 16:9. */
+  platform?: string;
   /** Durée souhaitée en secondes (5 ou 6). */
   seconds?: number;
-  /** Ratio d'aspect : "9:16" (Reels, défaut), "16:9", "1:1". */
+  /** Ratio d'aspect explicite — prioritaire sur platform. */
   aspect?: string;
 }
 
 export async function POST(req: NextRequest) {
   try {
     const body: RequestBody = await req.json().catch(() => ({}));
-    const { prompt = "", seconds, aspect } = body;
+    const { prompt = "", platform, seconds, aspect } = body;
 
-    const result = await generateVideo({ prompt, seconds, aspect });
-    return NextResponse.json(result);
+    const resolvedAspect = aspect ?? resolveVideoAspect(platform);
+
+    const result = await generateVideo({ prompt, seconds, aspect: resolvedAspect });
+    return NextResponse.json({ ...result, aspect: resolvedAspect, platform: platform ?? null });
   } catch (err) {
     console.error("[api/ai/generate-video] Erreur :", err);
     return NextResponse.json(

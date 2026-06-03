@@ -7,6 +7,7 @@ const NAV = [
   { href: "/admin", label: "Vue d'ensemble", exact: true },
   { href: "/admin/comptes", label: "Comptes & entités" },
   { href: "/admin/comptes/nouveau", label: "Créer un compte" },
+  { href: "/admin/utilisateurs", label: "Utilisateurs" },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

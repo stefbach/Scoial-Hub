@@ -1,5 +1,7 @@
-/* ── Google Fonts — Inter ──────────────────────────────────────────── */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+/* ── Polices chargées via next/font/google dans app/layout.tsx ─────── */
+/* Fraunces (--font-display) : serif optique variable, éditorial haut de gamme  */
+/* Manrope  (--font-sans)    : humaniste sans-serif, confort de lecture optimal  */
+/* Les variables CSS sont injectées par Next.js automatiquement sur <html>.      */
 
 @tailwind base;
 @tailwind components;
@@ -9,15 +11,20 @@
 :root {
   color-scheme: light;
 
-  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  /* Paire typographique premium :
+     – Titres  : Fraunces — serif optique variable, éditorial chic, signature visuelle forte
+     – Corps   : Manrope  — humaniste sans-serif moderne, confort de lecture optimal */
+  --font-sans:    'Manrope', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-display: 'Fraunces', ui-serif, Georgia, serif;
 
-  /* Couleurs (synchronisées avec tokens Tailwind) */
-  --color-page:    #1e3a5f;
-  --color-canvas:  #f7f3ec;
-  --color-card:    #fffdfa;
-  --color-ink:     #2a2521;
-  --color-muted:   #8c8377;
-  --color-hair:    #eae3d8;
+  /* Couleurs (synchronisées avec tokens Tailwind) ─ palette Prune-Améthyste */
+  /* Accent : prune-violet profond, unique et mémorable, idéal SaaS marketing premium */
+  --color-page:    #5b2d8e;   /* prune-violet profond — accent principal              */
+  --color-canvas:  #f6f4f9;   /* lavande très claire — fond général raffiné           */
+  --color-card:    #ffffff;   /* blanc pur — surfaces élevées                        */
+  --color-ink:     #1c1625;   /* quasi-noir violet-chaud — lisibilité absolue         */
+  --color-muted:   #7a6f8a;   /* violet-gris doux — textes secondaires               */
+  --color-hair:    #e8e4f0;   /* bordure lavande discrète et élégante                */
 
   /* Transitions globales cohérentes */
   --transition-fast: 120ms cubic-bezier(0.4, 0, 0.2, 1);
@@ -47,9 +54,27 @@
     line-height: 1.6;
   }
 
-  /* Focus visible accessible — anneau cohérent */
+  /* Typographie d'affichage — Fraunces sur tous les titres h1–h3
+     Police optique variable : look éditorial, chic et distinctif, loin du générique */
+  h1, h2, h3 {
+    font-family: var(--font-display);
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+    font-weight: 600;
+    font-variation-settings: "opsz" 72; /* taille optique grande = plus affiné */
+  }
+
+  /* h4–h6 restent en Manrope, plus serrés */
+  h4, h5, h6 {
+    font-family: var(--font-sans);
+    line-height: 1.25;
+    letter-spacing: -0.015em;
+    font-weight: 600;
+  }
+
+  /* Focus visible accessible — anneau cohérent avec accent prune-violet */
   *:focus-visible {
-    outline: 2px solid #3b71f3;
+    outline: 2px solid #7c3aed;
     outline-offset: 2px;
     border-radius: 6px;
   }
@@ -71,13 +96,7 @@
     text-decoration: none;
   }
 
-  /* Headings plus serrés */
-  h1, h2, h3, h4, h5, h6 {
-    line-height: 1.25;
-    letter-spacing: -0.01em;
-  }
-
-  /* Scrollbar discrète */
+  /* Scrollbar discrète — tons lavande accordés à la nouvelle palette */
   ::-webkit-scrollbar {
     width: 5px;
     height: 5px;
@@ -86,27 +105,28 @@
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background: #d1cbbe;
+    background: #cfc9e0;
     border-radius: 99px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: #b5ae9f;
+    background: #a89ec0;
   }
 
-  /* Sélection de texte */
+  /* Sélection de texte — teinte prune douce */
   ::selection {
-    background: rgb(59 113 243 / 0.15);
-    color: #1a2332;
+    background: rgb(124 58 237 / 0.15);
+    color: #1c1625;
   }
 }
 
 /* ── Components ────────────────────────────────────────────────────── */
 @layer components {
 
-  /* ── Card — surface principale avec ombre douce ────────────────── */
-  /* Cartes : légère profondeur (haut de gamme), bordure chaude */
+  /* ── Card — surface principale avec ombre premium ──────────────── */
+  /* Ombre à teinte prune subtile, deux couches, bordure lavande fine */
   .card {
-    @apply rounded-xl border border-hair bg-card shadow-xs;
+    @apply rounded-xl border border-hair bg-card;
+    box-shadow: 0 1px 3px 0 rgb(91 45 142 / 0.07), 0 1px 2px -1px rgb(91 45 142 / 0.04);
     transition: box-shadow var(--transition-base), border-color var(--transition-base);
   }
   /* Hover uniquement pour les cards cliquables */
@@ -114,19 +134,20 @@
     @apply cursor-pointer;
   }
   .card:where([href], [role="button"], button):hover {
-    @apply shadow-md;
-    border-color: #d9cfbf;
+    box-shadow: 0 4px 14px 0 rgb(91 45 142 / 0.12), 0 2px 4px -1px rgb(91 45 142 / 0.06);
+    border-color: #d8c8ff; /* teinte améthyste claire au hover */
   }
 
-  /* ── Panel — surface secondaire (beige) ───────────────────────── */
+  /* ── Panel — surface secondaire (lavande claire) ──────────────── */
   .panel {
     @apply rounded-xl border border-hair bg-canvas shadow-xs;
   }
 
   /* ── Section label — libellé de groupe ───────────────────────── */
+  /* Police Manrope, espacement large, couleur muted — signature premium */
   .section-label {
     @apply text-2xs font-semibold uppercase text-muted;
-    letter-spacing: 0.09em;
+    letter-spacing: 0.1em;
   }
 
   /* ── Metric strip ─────────────────────────────────────────────── */
@@ -136,48 +157,59 @@
 
   /* ── Btn — base commune ───────────────────────────────────────── */
   .btn {
-    @apply inline-flex items-center justify-center gap-1.5 rounded-lg px-3.5 py-[0.4rem] text-sm font-medium
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg px-3.5 py-[0.4rem] text-sm font-semibold
            select-none
            transition-all duration-[120ms]
            focus-visible:outline-none focus-visible:ring-2
            focus-visible:ring-primary-500 focus-visible:ring-offset-1
            disabled:pointer-events-none disabled:opacity-50;
   }
-  .btn-primary {
-    @apply btn bg-page text-white shadow-sm;
-  }
-  .btn-primary:hover  { background-color: #1e3e65; }
-  .btn-primary:active { transform: scale(0.975); }
 
-  .btn-secondary {
-    @apply btn border border-hair bg-card text-ink shadow-xs;
+  /* Primary — prune profond, fond riche, hover légèrement plus clair */
+  .btn-primary {
+    @apply btn bg-page text-white;
+    box-shadow: 0 1px 2px 0 rgb(91 45 142 / 0.35), inset 0 1px 0 rgb(255 255 255 / 0.10);
   }
-  .btn-secondary:hover  { @apply bg-canvas shadow-sm; border-color: #cac4b9; }
+  .btn-primary:hover  { background-color: #6d28d9; }
+  .btn-primary:active { transform: scale(0.975); box-shadow: none; }
+
+  /* Secondary — blanc card + bordure lavande, hover fond canvas */
+  .btn-secondary {
+    @apply btn border border-hair bg-card text-ink;
+    box-shadow: 0 1px 2px 0 rgb(91 45 142 / 0.05);
+  }
+  .btn-secondary:hover  { @apply bg-canvas shadow-xs; border-color: #bb9fff; }
   .btn-secondary:active { transform: scale(0.975); }
 
+  /* Ghost — sans fond, hover fond lavande */
   .btn-ghost {
     @apply btn text-ink;
   }
   .btn-ghost:hover  { @apply bg-canvas; }
   .btn-ghost:active { transform: scale(0.975); }
 
+  /* Danger — rouge contenu */
   .btn-danger {
     @apply btn border border-danger-200 bg-card text-danger-700 shadow-xs;
   }
   .btn-danger:hover  { @apply bg-danger-50 border-danger-300; }
   .btn-danger:active { transform: scale(0.975); }
 
-  /* ── Input modernisé ──────────────────────────────────────────── */
+  /* ── Input premium ────────────────────────────────────────────── */
+  /* Fond blanc, bordure lavande fine, focus avec anneau améthyste doux */
   .input {
-    @apply w-full rounded-lg border border-hair bg-card px-3 py-2 text-sm text-ink shadow-inner-sm
+    @apply w-full rounded-lg border border-hair bg-card px-3 py-2 text-sm text-ink
            placeholder:text-muted/50
            transition-all duration-[120ms];
+    box-shadow: inset 0 1px 2px 0 rgb(91 45 142 / 0.04);
   }
   .input:focus {
-    @apply border-primary-400 outline-none ring-2 ring-primary-500/20;
+    @apply border-primary-400 outline-none;
+    box-shadow: inset 0 1px 2px 0 rgb(91 45 142 / 0.04), 0 0 0 3px rgb(124 58 237 / 0.18);
   }
 
   /* ── Chip / tag ───────────────────────────────────────────────── */
+  /* Fond lavande, bordure discrète, hover légèrement améthyste */
   .chip {
     @apply inline-flex items-center gap-1 rounded-full border border-hair bg-canvas px-2.5 py-0.5
            text-2xs font-medium text-ink;
@@ -185,7 +217,7 @@
   }
   .chip:hover {
     @apply bg-white;
-    border-color: #cac4b9;
+    border-color: #bb9fff;
   }
 
   /* ── Divider ──────────────────────────────────────────────────── */

@@ -10,18 +10,19 @@ const config: Config = {
     extend: {
       colors: {
         // ── Core tokens (noms inchangés) ──────────────────────────────
-        page:   "#1e3a5f",   // bleu nuit profond — accent professionnel chaleureux
-        canvas: "#f7f3ec",   // ivoire chaud — fond général haut de gamme
-        card:   "#fffdfa",   // blanc très légèrement chaud
-        ink:    "#2a2521",   // brun-noir chaud, lisible et chaleureux
-        muted:  "#8c8377",   // taupe doux — textes secondaires
-        hair:   "#eae3d8",   // bordure chaude discrète
+        // Nouvelle palette : Prune-Améthyste — accent unique, fort, mémorable
+        page:   "#5b2d8e",   // prune-violet profond — accent principal premium
+        canvas: "#f6f4f9",   // lavande très claire — fond général raffiné
+        card:   "#ffffff",   // blanc pur — surfaces élevées
+        ink:    "#1c1625",   // quasi-noir violet-chaud — lisibilité absolue
+        muted:  "#7a6f8a",   // violet-gris doux — textes secondaires
+        hair:   "#e8e4f0",   // bordure lavande discrète et élégante
         // ── AI tokens (noms inchangés) ────────────────────────────────
         ai: {
-          text:     "#2563eb",
-          textbg:   "#eef3ff",
-          visual:   "#7c3aed",
-          visualbg: "#f0ecfd",
+          text:     "#7c3aed",   // violet vif — IA distinguée
+          textbg:   "#f3eeff",   // fond violet très clair
+          visual:   "#9333ea",   // violet riche pour visuels IA
+          visualbg: "#faf0ff",   // fond violet ultra-clair
         },
         // ── Platform tokens (noms inchangés) ─────────────────────────
         platform: {
@@ -29,18 +30,18 @@ const config: Config = {
           instagram: "#e1306c",
           linkedin:  "#0a66c2",
         },
-        // ── Palette primaire avec nuances ────────────────────────────
+        // ── Palette primaire — accord avec le prune-améthyste ────────
         primary: {
-          50:  "#eff4ff",
-          100: "#dce8fe",
-          200: "#bbd3fd",
-          300: "#8eb5fb",
-          400: "#5990f7",
-          500: "#3b71f3",
-          600: "#2352e8",
-          700: "#1a3dd6",
-          800: "#1c33ad",
-          900: "#1a3558",
+          50:  "#f5f0ff",
+          100: "#ece3ff",
+          200: "#d8c8ff",
+          300: "#bb9fff",
+          400: "#9b6eff",
+          500: "#7c3aed",
+          600: "#6d28d9",
+          700: "#5b21b6",
+          800: "#4c1d95",
+          900: "#3b0764",
         },
         // ── Sémantiques ───────────────────────────────────────────────
         success: {
@@ -67,7 +68,7 @@ const config: Config = {
         },
       },
       borderColor: {
-        DEFAULT: "#ececee",
+        DEFAULT: "#e8e4f0",
       },
       fontSize: {
         "2xs": ["0.6875rem", { lineHeight: "1rem" }],
@@ -84,17 +85,17 @@ const config: Config = {
         "3xl": "2rem",
       },
       boxShadow: {
-        // Ombres douces et modernes
-        xs:         "0 1px 2px 0 rgb(0 0 0 / 0.04)",
-        sm:         "0 1px 3px 0 rgb(0 0 0 / 0.07), 0 1px 2px -1px rgb(0 0 0 / 0.04)",
-        md:         "0 4px 6px -1px rgb(0 0 0 / 0.07), 0 2px 4px -2px rgb(0 0 0 / 0.04)",
-        lg:         "0 10px 15px -3px rgb(0 0 0 / 0.08), 0 4px 6px -4px rgb(0 0 0 / 0.04)",
-        xl:         "0 20px 25px -5px rgb(0 0 0 / 0.09), 0 8px 10px -6px rgb(0 0 0 / 0.04)",
-        "2xl":      "0 25px 50px -12px rgb(0 0 0 / 0.18)",
+        // Ombres douces avec teinte prune pour plus de profondeur
+        xs:         "0 1px 2px 0 rgb(91 45 142 / 0.05)",
+        sm:         "0 1px 3px 0 rgb(91 45 142 / 0.08), 0 1px 2px -1px rgb(91 45 142 / 0.04)",
+        md:         "0 4px 6px -1px rgb(91 45 142 / 0.08), 0 2px 4px -2px rgb(91 45 142 / 0.05)",
+        lg:         "0 10px 15px -3px rgb(91 45 142 / 0.10), 0 4px 6px -4px rgb(91 45 142 / 0.05)",
+        xl:         "0 20px 25px -5px rgb(91 45 142 / 0.12), 0 8px 10px -6px rgb(91 45 142 / 0.05)",
+        "2xl":      "0 25px 50px -12px rgb(91 45 142 / 0.22)",
         // Ombre inset subtile (champs, cards enfoncées)
-        "inner-sm": "inset 0 1px 2px 0 rgb(0 0 0 / 0.05)",
-        // Ombre d'accent bleue pour focus/hover
-        "primary":  "0 0 0 3px rgb(59 113 243 / 0.15)",
+        "inner-sm": "inset 0 1px 2px 0 rgb(91 45 142 / 0.05)",
+        // Ombre d'accent prune pour focus/hover
+        "primary":  "0 0 0 3px rgb(124 58 237 / 0.18)",
       },
       transitionDuration: {
         fast: "120ms",

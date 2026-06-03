@@ -1766,43 +1766,36 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
       en: "Pilot your agents and campaigns from Telegram, day and night.",
     },
     whatFor: {
-      fr: "Chaque compte dispose de son propre bot Telegram dédié. Une fois configuré, ce bot devient un agent à part entière qui dialogue avec les autres : vous lui écrivez (ou lui parlez) en langage naturel pour lancer une orchestration, demander une veille concurrentielle, fixer un objectif ou consulter vos KPIs — où que vous soyez. La page vous guide en 5 étapes : créer le bot via @BotFather, copier son token, l'enregistrer ici, activer le webhook, puis tester.",
-      en: "Each account has its own dedicated Telegram bot. Once configured, this bot becomes a full agent that talks to the others: you write (or speak) to it in natural language to launch an orchestration, request a competitive watch, set an objective or check your KPIs — wherever you are. The page guides you in 5 steps: create the bot via @BotFather, copy its token, save it here, activate the webhook, then test.",
+      fr: "La connexion Telegram est quasi automatique : AXON-AI utilise UN bot central partagé par tous les comptes, vous n'avez aucun bot à créer. Vous cliquez sur « Ouvrir le bot & connecter », vous pressez Démarrer dans Telegram, et ce compte est relié grâce à un code de jumelage unique. Le bot devient alors un agent à part entière qui dialogue avec les autres : écrivez-lui en langage naturel pour lancer une campagne, demander une veille, fixer un objectif ou consulter l'état du compte — où que vous soyez, jour et nuit.",
+      en: "Telegram connection is near-automatic: AXON-AI uses ONE central bot shared by all accounts, so you have no bot to create. You click “Open the bot & connect”, press Start in Telegram, and this account is linked via a unique pairing code. The bot then becomes a full agent that talks to the others: write to it in natural language to launch a campaign, request a market watch, set an objective or check account status — wherever you are, day and night.",
     },
     actions: [
       {
-        label: { fr: "Créer le bot via @BotFather", en: "Create the bot via @BotFather" },
+        label: { fr: "Se connecter en 1 clic", en: "Connect in 1 click" },
         detail: {
-          fr: "Dans Telegram, ouvrez @BotFather, envoyez /newbot, nommez votre bot et copiez le token API au format 1234567890:ABCdef… que BotFather vous renvoie.",
-          en: "In Telegram, open @BotFather, send /newbot, name your bot and copy the API token in the form 1234567890:ABCdef… that BotFather returns.",
+          fr: "Cliquez sur « Ouvrir le bot & connecter » : Telegram s'ouvre sur le bot AXON-AI. Pressez Démarrer / Start et le compte est relié automatiquement. La page se met à jour toute seule dès que c'est fait.",
+          en: "Click “Open the bot & connect”: Telegram opens on the AXON-AI bot. Press Start and the account is linked automatically. The page updates itself as soon as it is done.",
         },
       },
       {
-        label: { fr: "Enregistrer le token", en: "Save the token" },
+        label: { fr: "Connexion manuelle par code", en: "Manual connection by code" },
         detail: {
-          fr: "Collez le token dans le champ « Token du bot » puis cliquez sur Enregistrer. Le token est stocké comme secret : il n'est plus jamais affiché en clair ensuite.",
-          en: "Paste the token into the 'Bot token' field then click Save. The token is stored as a secret: it is never shown in clear text again.",
+          fr: "Vous pouvez aussi chercher le bot dans Telegram et lui envoyer « /start <CODE> » avec le code affiché sur la page. Le résultat est identique.",
+          en: "You can also search the bot in Telegram and send it “/start <CODE>” using the code shown on the page. The result is identical.",
         },
       },
       {
-        label: { fr: "Activer le webhook", en: "Activate the webhook" },
+        label: { fr: "Piloter par message", en: "Pilot by message" },
         detail: {
-          fr: "Cliquez sur « Activer le webhook » : AXON-AI enregistre l'URL auprès de Telegram et met le bot en ligne. Un secret de sécurité est généré automatiquement.",
-          en: "Click 'Activate webhook': AXON-AI registers the URL with Telegram and brings the bot online. A security secret is generated automatically.",
+          fr: "Une fois relié, utilisez /lancer, /veille, /objectif, /status, /aide — ou écrivez simplement votre demande en langage naturel.",
+          en: "Once linked, use /lancer, /veille, /objectif, /status, /aide — or just write your request in natural language.",
         },
       },
       {
-        label: { fr: "Restreindre l'accès (optionnel)", en: "Restrict access (optional)" },
+        label: { fr: "(Admin) Activer le bot central", en: "(Admin) Activate the central bot" },
         detail: {
-          fr: "Renseignez des Chat IDs autorisés (séparés par des virgules) pour limiter qui peut piloter le bot. Trouvez votre ID via @userinfobot. Laissez vide pour autoriser tout le monde.",
-          en: "Enter allowed Chat IDs (comma-separated) to limit who can pilot the bot. Find your ID via @userinfobot. Leave empty to allow everyone.",
-        },
-      },
-      {
-        label: { fr: "Tester le bot", en: "Test the bot" },
-        detail: {
-          fr: "Entrez votre Chat ID et cliquez sur Envoyer pour recevoir un message test et confirmer que le bot répond correctement.",
-          en: "Enter your Chat ID and click Send to receive a test message and confirm the bot responds correctly.",
+          fr: "Si la connexion n'est pas encore disponible, l'administrateur doit ajouter TELEGRAM_BOT_TOKEN et TELEGRAM_BOT_USERNAME dans Vercel, redéployer, puis appeler une fois /api/telegram/bot/setup.",
+          en: "If connection is not available yet, the administrator must add TELEGRAM_BOT_TOKEN and TELEGRAM_BOT_USERNAME in Vercel, redeploy, then call /api/telegram/bot/setup once.",
         },
       },
     ],
@@ -1847,36 +1840,36 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
       en: "Pilot AXON-AI straight from Claude Desktop, in natural language.",
     },
     whatFor: {
-      fr: "Le Model Context Protocol (MCP) est un standard ouvert qui permet à un assistant IA comme Claude d'utiliser des outils externes. Le serveur MCP d'AXON-AI expose vos comptes, agents et campagnes : depuis Claude Desktop, vous demandez « lance une campagne pour la rentrée » et Claude exécute réellement l'action dans votre espace. Cette page vous guide en 4 étapes (installer Claude Desktop + Node.js, compiler le serveur, coller la configuration, redémarrer) et fournit le bloc de configuration prêt à copier, déjà pré-rempli avec l'URL de votre espace.",
-      en: "The Model Context Protocol (MCP) is an open standard that lets an AI assistant like Claude use external tools. The AXON-AI MCP server exposes your accounts, agents and campaigns: from Claude Desktop, you ask 'launch a back-to-school campaign' and Claude actually performs the action in your workspace. This page guides you in 4 steps (install Claude Desktop + Node.js, build the server, paste the configuration, restart) and provides the ready-to-copy configuration block, already pre-filled with your workspace URL.",
+      fr: "Le Model Context Protocol (MCP) permet à Claude d'utiliser des outils externes. Le connecteur AXON-AI expose vos comptes, agents et campagnes à Claude Desktop : vous demandez « lance une campagne pour la rentrée » et Claude exécute réellement l'action. L'installation est volontairement simple : 1) générez une clé API personnelle (liée à ce compte, révocable, stockée hachée) ; 2) lancez UNE commande dans le Terminal (Mac/Linux) ou PowerShell (Windows) — le script télécharge le serveur, installe le SDK et configure Claude Desktop tout seul ; 3) relancez Claude et testez. Aucune édition manuelle de fichier.",
+      en: "The Model Context Protocol (MCP) lets Claude use external tools. The AXON-AI connector exposes your accounts, agents and campaigns to Claude Desktop: you ask “launch a back-to-school campaign” and Claude actually performs the action. Setup is deliberately simple: 1) generate a personal API key (bound to this account, revocable, stored hashed); 2) run ONE command in Terminal (Mac/Linux) or PowerShell (Windows) — the script downloads the server, installs the SDK and configures Claude Desktop on its own; 3) relaunch Claude and test. No manual file editing.",
     },
     actions: [
       {
-        label: { fr: "Installer les prérequis", en: "Install prerequisites" },
+        label: { fr: "Générer une clé API personnelle", en: "Generate a personal API key" },
         detail: {
-          fr: "Installez Claude Desktop et Node.js 18+ sur votre ordinateur. Les liens de téléchargement sont fournis dans l'étape 1 de la page.",
-          en: "Install Claude Desktop and Node.js 18+ on your computer. Download links are provided in step 1 of the page.",
+          fr: "À l'étape 1, donnez un nom à votre clé et cliquez sur Créer. La clé en clair s'affiche UNE seule fois — copiez-la immédiatement. Elle est stockée hachée : personne ne peut la relire, et vous pouvez la révoquer à tout moment.",
+          en: "In step 1, name your key and click Create. The plain key is shown ONCE — copy it immediately. It is stored hashed: nobody can read it back, and you can revoke it anytime.",
         },
       },
       {
-        label: { fr: "Compiler le serveur MCP", en: "Build the MCP server" },
+        label: { fr: "Lancer la commande d'installation", en: "Run the install command" },
         detail: {
-          fr: "Dans le dossier mcp/ du projet, exécutez npm install && npm run build. Le binaire est généré dans mcp/dist/index.js.",
-          en: "In the project's mcp/ folder, run npm install && npm run build. The binary is generated in mcp/dist/index.js.",
+          fr: "Copiez la commande de votre système (macOS/Linux : curl … | bash ; Windows : iwr … | iex) et collez-la dans le terminal. Le script vous demandera l'URL et la clé que vous venez de générer.",
+          en: "Copy the command for your system (macOS/Linux: curl … | bash ; Windows: iwr … | iex) and paste it into the terminal. The script will ask for the URL and the key you just generated.",
         },
       },
       {
-        label: { fr: "Coller la configuration", en: "Paste the configuration" },
+        label: { fr: "Relancer et tester", en: "Relaunch and test" },
         detail: {
-          fr: "Copiez le bloc fourni (bouton Copier) dans le fichier de configuration de Claude Desktop, sous la clé mcpServers. Remplacez le chemin par l'emplacement réel du dossier sur votre machine.",
-          en: "Copy the provided block (Copy button) into the Claude Desktop configuration file, under the mcpServers key. Replace the path with the real folder location on your machine.",
+          fr: "Quittez complètement Claude Desktop puis relancez-le. Dans une nouvelle conversation, demandez « Liste mes comptes AXON-AI » : Claude répond via le connecteur.",
+          en: "Quit Claude Desktop completely then relaunch it. In a new conversation, ask “List my AXON-AI accounts”: Claude answers through the connector.",
         },
       },
       {
-        label: { fr: "Redémarrer Claude Desktop", en: "Restart Claude Desktop" },
+        label: { fr: "Révoquer une clé", en: "Revoke a key" },
         detail: {
-          fr: "Après le redémarrage, le serveur « axon-ai » apparaît dans la liste des outils de Claude, prêt à piloter votre espace.",
-          en: "After restart, the 'axon-ai' server appears in Claude's tools list, ready to pilot your workspace.",
+          fr: "Dans la liste des clés actives, cliquez sur l'icône corbeille pour révoquer immédiatement une clé compromise ou inutilisée. Le connecteur cesse aussitôt de fonctionner avec cette clé.",
+          en: "In the active keys list, click the trash icon to immediately revoke a compromised or unused key. The connector stops working with that key at once.",
         },
       },
     ],

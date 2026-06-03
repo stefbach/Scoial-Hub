@@ -1,409 +1,171 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useCompany } from "@/lib/company-context";
 import { useT } from "@/lib/i18n";
 import { Toast } from "@/components/ui/Toast";
 
-// ── Types ─────────────────────────────────────────────────────────────────────
+// ── Telegram — connexion par code (quasi automatique) + guidage ─────────────────
 
-interface TelegramConfig {
-  status: "connected" | "pending" | "disconnected";
-  config: {
-    bot_token?: string; // "__secret__" si défini
-    allowed_chat_ids?: string;
-    webhook_url?: string;
-  };
-  connected_at: string | null;
+interface Pairing {
+  botUsername: string;
+  code: string;
+  deepLink: string;
+  linked: boolean;
+  status: "connected" | "pending";
+  isBotConfigured: boolean;
 }
-
-interface BotInfo {
-  username: string;
-  firstName: string;
-  botId: number;
-  webhookUrl: string;
-}
-
-interface ToastState {
-  message: string;
-  key: number;
-}
-
-// ── Page Telegram côté client ───────────────────────────────────────────────────
-// Chaque compte/entité dispose de son propre bot Telegram. Le client configure
-// ici son bot pour piloter ses agents et campagnes à la voix, jour et nuit.
 
 export default function ClientTelegramPage() {
   const { company } = useCompany();
-  const id = company.id;
   const t = useT();
+  const companyId = company.id;
 
-  const [telegramConfig, setTelegramConfig] = useState<TelegramConfig | null>(null);
+  const [pairing, setPairing] = useState<Pairing | null>(null);
   const [loading, setLoading] = useState(true);
+  const [toast, setToast] = useState<{ message: string; key: number } | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const [botToken, setBotToken] = useState("");
-  const [allowedChatIds, setAllowedChatIds] = useState("");
-  const [testChatId, setTestChatId] = useState("");
-
-  const [botInfo, setBotInfo] = useState<BotInfo | null>(null);
-
-  const [saving, setSaving] = useState(false);
-  const [activating, setActivating] = useState(false);
-  const [deactivating, setDeactivating] = useState(false);
-  const [testing, setTesting] = useState(false);
-
-  const [toast, setToast] = useState<ToastState | null>(null);
-  const showToast = useCallback((message: string) => {
-    setToast({ message, key: Date.now() });
-  }, []);
-
-  // ── Chargement ─────────────────────────────────────────────────────────────
-  const loadConfig = useCallback(async () => {
-    if (!id) return;
+  const load = useCallback(async () => {
     try {
-      const res = await fetch(`/api/telegram/config?companyId=${encodeURIComponent(id)}`);
-      if (!res.ok) throw new Error(`Erreur ${res.status}`);
-      const data: TelegramConfig = await res.json();
-      setTelegramConfig(data);
-      setAllowedChatIds(data.config.allowed_chat_ids ?? "");
+      const res = await fetch(`/api/telegram/pairing?companyId=${encodeURIComponent(companyId)}`);
+      if (res.ok) setPairing(await res.json());
     } catch {
-      setTelegramConfig({ status: "disconnected", config: {}, connected_at: null });
+      /* ignore */
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [companyId]);
 
   useEffect(() => {
     setLoading(true);
-    loadConfig();
-  }, [loadConfig]);
+    load();
+  }, [load]);
 
-  // ── Actions ────────────────────────────────────────────────────────────────
-  const handleSave = async () => {
-    if (!id) return;
-    setSaving(true);
-    try {
-      const res = await fetch("/api/telegram/config", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          companyId: id,
-          bot_token: botToken || undefined,
-          allowed_chat_ids: allowedChatIds,
-        }),
-      });
-      const data: TelegramConfig & { error?: string } = await res.json();
-      if (!res.ok) {
-        showToast(t(`Erreur : ${data.error ?? res.status}`, `Error: ${data.error ?? res.status}`));
-        return;
-      }
-      setTelegramConfig(data);
-      setBotToken("");
-      showToast(t("Configuration enregistrée.", "Configuration saved."));
-    } catch (err) {
-      showToast(t(`Erreur : ${err instanceof Error ? err.message : "inconnue"}`, `Error: ${err instanceof Error ? err.message : "unknown"}`));
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleActivate = async () => {
-    if (!id) return;
-    setActivating(true);
-    try {
-      const res = await fetch("/api/telegram/activate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyId: id }),
-      });
-      const data: BotInfo & { error?: string } = await res.json();
-      if (!res.ok) {
-        showToast(t(`Erreur : ${data.error ?? res.status}`, `Error: ${data.error ?? res.status}`));
-        return;
-      }
-      setBotInfo(data);
-      await loadConfig();
-      showToast(t(`Bot @${data.username} activé !`, `Bot @${data.username} activated!`));
-    } catch (err) {
-      showToast(t(`Erreur : ${err instanceof Error ? err.message : "inconnue"}`, `Error: ${err instanceof Error ? err.message : "unknown"}`));
-    } finally {
-      setActivating(false);
-    }
-  };
-
-  const handleDeactivate = async () => {
-    if (!id) return;
-    setDeactivating(true);
-    try {
-      const res = await fetch("/api/telegram/activate", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyId: id }),
-      });
-      const data: { error?: string } = await res.json();
-      if (!res.ok) {
-        showToast(t(`Erreur : ${data.error ?? res.status}`, `Error: ${data.error ?? res.status}`));
-        return;
-      }
-      setBotInfo(null);
-      await loadConfig();
-      showToast(t("Bot désactivé.", "Bot deactivated."));
-    } catch (err) {
-      showToast(t(`Erreur : ${err instanceof Error ? err.message : "inconnue"}`, `Error: ${err instanceof Error ? err.message : "unknown"}`));
-    } finally {
-      setDeactivating(false);
-    }
-  };
-
-  const handleTest = async () => {
-    if (!id || !testChatId.trim()) {
-      showToast(t("Entrez un Chat ID pour le test.", "Enter a Chat ID to test."));
+  // Sondage tant que non relié : détecte le moment où le client clique Start.
+  useEffect(() => {
+    if (!pairing || pairing.linked) {
+      if (pollRef.current) clearInterval(pollRef.current);
       return;
     }
-    setTesting(true);
-    try {
-      const res = await fetch("/api/telegram/test", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyId: id, chatId: testChatId.trim() }),
-      });
-      const data: { ok?: boolean; error?: string } = await res.json();
-      if (!res.ok || !data.ok) {
-        showToast(t(`Erreur : ${data.error ?? res.status}`, `Error: ${data.error ?? res.status}`));
-        return;
-      }
-      showToast(t("Message test envoyé !", "Test message sent!"));
-    } catch (err) {
-      showToast(t(`Erreur : ${err instanceof Error ? err.message : "inconnue"}`, `Error: ${err instanceof Error ? err.message : "unknown"}`));
-    } finally {
-      setTesting(false);
-    }
-  };
+    pollRef.current = setInterval(load, 4000);
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, [pairing, load]);
 
-  const isConnected = telegramConfig?.status === "connected";
-  const hasToken = !!telegramConfig?.config.bot_token;
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-24">
-        <svg className="h-5 w-5 animate-spin text-muted" viewBox="0 0 24 24" fill="none" aria-hidden>
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-        </svg>
-        <span className="ml-3 text-sm text-muted">{t("Chargement…", "Loading…")}</span>
-      </div>
-    );
+  function notify(msg: string) {
+    setToast({ message: msg, key: Date.now() });
   }
 
+  const linked = pairing?.linked ?? false;
+
   return (
-    <div className="animate-fade-in space-y-6">
+    <div className="animate-fade-in space-y-5">
       {/* En-tête */}
       <div className="flex items-start gap-3">
-        <span
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl"
-          style={{ backgroundColor: "#229ED9" }}
-          aria-hidden
-        >
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl" style={{ backgroundColor: "#229ED9" }} aria-hidden>
           <svg viewBox="0 0 24 24" fill="white" width="22" height="22">
             <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.96 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z" />
           </svg>
         </span>
         <div>
-          <h1 className="text-xl font-bold tracking-tight text-ink">
-            {t("Chatbot Telegram", "Telegram Chatbot")}
-          </h1>
+          <h1 className="text-xl font-bold tracking-tight text-ink">{t("Piloter par Telegram", "Pilot via Telegram")}</h1>
           <p className="mt-0.5 text-sm text-muted">
             {t(
-              `Pilotez tous les agents et campagnes de « ${company.name} » directement depuis Telegram, à la voix ou au texte, jour et nuit.`,
-              `Pilot all agents and campaigns for “${company.name}” straight from Telegram, by voice or text, day and night.`
+              `Reliez « ${company.name} » à Telegram en un clic, puis pilotez vos agents et campagnes par message — jour et nuit.`,
+              `Link “${company.name}” to Telegram in one click, then pilot your agents and campaigns by message — day and night.`
             )}
           </p>
         </div>
       </div>
 
-      {/* Statut */}
-      <div
-        className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${
-          isConnected ? "border-success-200 bg-success-50" : "border-hair bg-canvas"
-        }`}
-      >
-        <span
-          className={`h-2.5 w-2.5 shrink-0 rounded-full ${isConnected ? "bg-success-500" : "bg-muted/40"}`}
-          aria-hidden
-        />
-        <div className="text-sm">
-          {isConnected ? (
+      {loading ? (
+        <div className="card flex items-center justify-center p-10">
+          <span className="text-sm text-muted">{t("Chargement…", "Loading…")}</span>
+        </div>
+      ) : linked ? (
+        /* ── Connecté ─────────────────────────────────────────────── */
+        <div className="card flex items-center gap-3 border-success-200 bg-success-50 p-5">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-success-500 text-white">
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M4 9.5l3 3 7-7.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          </span>
+          <div>
+            <div className="font-semibold text-success-700">{t("Telegram connecté !", "Telegram connected!")}</div>
+            <div className="text-sm text-success-600">{t("Votre copilote AXON-AI répond dans Telegram. Essayez « /aide ».", "Your AXON-AI copilot is live in Telegram. Try “/aide”.")}</div>
+          </div>
+        </div>
+      ) : (
+        /* ── Connexion par code ───────────────────────────────────── */
+        <div className="card p-5">
+          <div className="section-label mb-3">{t("Connexion en 1 clic", "1-click connection")}</div>
+
+          {pairing?.isBotConfigured && pairing.deepLink ? (
             <>
-              <span className="font-semibold text-success-700">{t("Bot connecté", "Bot connected")}</span>
-              {(botInfo?.username) && <span className="ml-2 text-success-600">@{botInfo.username}</span>}
-              {telegramConfig?.connected_at && (
-                <div className="mt-0.5 text-xs text-muted">
-                  {t("Connecté le ", "Connected on ")}
-                  {new Date(telegramConfig.connected_at).toLocaleDateString(t("fr-FR", "en-US"), {
-                    day: "2-digit", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit",
-                  })}
-                </div>
-              )}
+              <p className="mb-3 text-sm leading-relaxed text-muted">
+                {t(
+                  "Cliquez sur le bouton ci-dessous : Telegram s'ouvre sur le bot AXON-AI. Pressez « Démarrer / Start » et ce compte est relié automatiquement. Aucune installation, aucun bot à créer.",
+                  "Click the button below: Telegram opens on the AXON-AI bot. Press “Start” and this account is linked automatically. No install, no bot to create."
+                )}
+              </p>
+              <a href={pairing.deepLink} target="_blank" rel="noopener noreferrer" className="btn-primary inline-flex items-center gap-2">
+                <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.96 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48z" /></svg>
+                {t("Ouvrir le bot & connecter", "Open the bot & connect")}
+              </a>
+              <p className="mt-3 text-xs text-muted">
+                {t("Ou, dans Telegram, cherchez ", "Or, in Telegram, search for ")}
+                <code className="rounded bg-canvas px-1 py-0.5 font-mono">@{pairing.botUsername}</code>
+                {t(" et envoyez ", " and send ")}
+                <code className="rounded bg-canvas px-1 py-0.5 font-mono">/start {pairing.code}</code>.
+              </p>
+              <div className="mt-3 flex items-center gap-2 text-xs text-muted">
+                <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-primary" />
+                {t("En attente de votre connexion… cette page se met à jour automatiquement.", "Waiting for your connection… this page updates automatically.")}
+              </div>
             </>
           ) : (
-            <span className="text-muted">{t("Non connecté — suivez les 5 étapes ci-dessous.", "Not connected — follow the 5 steps below.")}</span>
+            /* Bot central non configuré → message d'accompagnement (admin) */
+            <div className="rounded-lg border border-warning-200 bg-warning-50 p-4">
+              <p className="text-sm font-semibold text-warning-800">{t("Le bot AXON-AI doit d'abord être activé", "The AXON-AI bot must be activated first")}</p>
+              <p className="mt-1.5 text-sm leading-relaxed text-warning-700">
+                {t(
+                  "La connexion par code utilise un bot Telegram central, partagé par tous les comptes. L'administrateur doit le configurer une seule fois dans Vercel :",
+                  "Code pairing uses a central Telegram bot, shared by all accounts. The administrator must configure it once in Vercel:"
+                )}
+              </p>
+              <ol className="mt-2 space-y-1 text-xs text-warning-800">
+                <li>1. {t("Créer un bot via ", "Create a bot via ")}<a href="https://t.me/BotFather" target="_blank" rel="noopener noreferrer" className="underline">@BotFather</a> ({t("commande ", "command ")}<code className="font-mono">/newbot</code>).</li>
+                <li>2. {t("Dans Vercel → Settings → Environment Variables, ajouter ", "In Vercel → Settings → Environment Variables, add ")}<code className="font-mono">TELEGRAM_BOT_TOKEN</code> {t("et ", "and ")}<code className="font-mono">TELEGRAM_BOT_USERNAME</code>.</li>
+                <li>3. {t("Redéployer, puis appeler une fois ", "Redeploy, then call once ")}<code className="font-mono">/api/telegram/bot/setup</code> {t("pour enregistrer le webhook.", "to register the webhook.")}</li>
+              </ol>
+              <p className="mt-2 text-xs text-warning-700">
+                {t("Votre code de connexion est déjà prêt : ", "Your pairing code is already ready: ")}
+                <code className="rounded bg-card px-1.5 py-0.5 font-mono font-semibold">{pairing?.code}</code>
+              </p>
+            </div>
           )}
-        </div>
-      </div>
-
-      {/* Comment faire */}
-      <div className="card p-5">
-        <div className="section-label mb-3">{t("Configurer votre bot en 5 étapes", "Set up your bot in 5 steps")}</div>
-        <ol className="space-y-2.5 text-sm text-ink">
-          <li className="flex gap-2.5">
-            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-2xs font-bold text-white">1</span>
-            <span>
-              {t("Ouvrez Telegram et démarrez une conversation avec ", "Open Telegram and start a chat with ")}
-              <a href="https://t.me/BotFather" target="_blank" rel="noopener noreferrer" className="font-medium text-primary underline underline-offset-2 hover:no-underline">@BotFather</a>.
-            </span>
-          </li>
-          <li className="flex gap-2.5">
-            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-2xs font-bold text-white">2</span>
-            <span>
-              {t("Envoyez ", "Send ")}<code className="rounded bg-canvas px-1 py-0.5 font-mono text-xs">/newbot</code>
-              {t(" puis suivez les instructions pour nommer votre bot.", " then follow the instructions to name your bot.")}
-            </span>
-          </li>
-          <li className="flex gap-2.5">
-            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-2xs font-bold text-white">3</span>
-            <span>
-              {t("Copiez le ", "Copy the ")}<strong>{t("token API", "API token")}</strong>
-              {t(" fourni (format ", " provided (format ")}<code className="rounded bg-canvas px-1 py-0.5 font-mono text-xs">1234567890:ABCdef…</code>).
-            </span>
-          </li>
-          <li className="flex gap-2.5">
-            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-2xs font-bold text-white">4</span>
-            <span>
-              {t("Collez le token ci-dessous, cliquez sur ", "Paste the token below, click ")}
-              <strong>{t("Enregistrer", "Save")}</strong>{t(" puis ", " then ")}<strong>{t("Activer le webhook", "Activate webhook")}</strong>.
-            </span>
-          </li>
-          <li className="flex gap-2.5">
-            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-2xs font-bold text-white">5</span>
-            <span>
-              {t("Récupérez votre Chat ID via ", "Get your Chat ID via ")}
-              <a href="https://t.me/userinfobot" target="_blank" rel="noopener noreferrer" className="font-medium text-primary underline underline-offset-2 hover:no-underline">@userinfobot</a>
-              {t(" et envoyez un message test.", " and send a test message.")}
-            </span>
-          </li>
-        </ol>
-      </div>
-
-      {/* Configuration */}
-      <div className="card p-5">
-        <div className="section-label mb-4">{t("Configuration du bot", "Bot configuration")}</div>
-        <div className="space-y-4">
-          <div>
-            <label className="mb-1.5 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted">
-              {t("Token du bot", "Bot token")}
-              <span className="rounded bg-warning-50 px-1.5 py-0.5 text-2xs font-semibold text-warning-700">{t("secret", "secret")}</span>
-            </label>
-            <input
-              type="password"
-              className="input w-full"
-              placeholder={hasToken
-                ? t("••••••••• (déjà enregistré — laissez vide pour conserver)", "••••••••• (already saved — leave empty to keep)")
-                : "1234567890:ABCdef..."}
-              value={botToken}
-              onChange={(e) => setBotToken(e.target.value)}
-              autoComplete="off"
-            />
-            <p className="mt-1 text-xs text-muted">
-              {t("Obtenu via @BotFather. Une fois enregistré, il n'est plus affiché en clair.", "Obtained via @BotFather. Once saved, it is never shown in clear text again.")}
-            </p>
-          </div>
-
-          <div>
-            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-muted">
-              {t("Chat IDs autorisés", "Allowed Chat IDs")}{" "}
-              <span className="font-normal normal-case text-muted/70">({t("optionnel", "optional")})</span>
-            </label>
-            <input
-              type="text"
-              className="input w-full"
-              placeholder="123456789, -987654321"
-              value={allowedChatIds}
-              onChange={(e) => setAllowedChatIds(e.target.value)}
-            />
-            <p className="mt-1 text-xs text-muted">
-              {t("IDs numériques séparés par des virgules. Vide = tout le monde autorisé.", "Numeric IDs separated by commas. Empty = everyone allowed.")}
-            </p>
-          </div>
-
-          <button className="btn-primary" onClick={handleSave} disabled={saving}>
-            {saving ? t("Enregistrement…", "Saving…") : t("Enregistrer", "Save")}
-          </button>
-        </div>
-      </div>
-
-      {/* Webhook */}
-      <div className="card p-5">
-        <div className="section-label mb-4">{t("Mise en ligne (webhook)", "Go live (webhook)")}</div>
-        <p className="mb-4 text-sm text-muted">
-          {t(
-            "L'activation enregistre le webhook auprès de Telegram et met votre bot en ligne. Un secret est généré automatiquement pour sécuriser les échanges.",
-            "Activation registers the webhook with Telegram and brings your bot online. A secret is generated automatically to secure exchanges."
-          )}
-        </p>
-        {isConnected ? (
-          <div className="flex gap-2">
-            <button className="btn-primary" onClick={handleActivate} disabled={activating || !hasToken}>
-              {activating ? t("Ré-activation…", "Re-activating…") : t("Ré-activer", "Re-activate")}
-            </button>
-            <button className="btn-secondary" onClick={handleDeactivate} disabled={deactivating}>
-              {deactivating ? t("Désactivation…", "Deactivating…") : t("Désactiver", "Deactivate")}
-            </button>
-          </div>
-        ) : (
-          <button className="btn-primary" onClick={handleActivate} disabled={activating || !hasToken}
-            title={!hasToken ? t("Enregistrez d'abord un token", "Save a token first") : undefined}>
-            {activating ? t("Activation…", "Activating…") : t("Activer le webhook", "Activate webhook")}
-          </button>
-        )}
-        {!hasToken && (
-          <p className="mt-2 text-xs text-danger">{t("Enregistrez d'abord un token bot avant d'activer.", "Save a bot token before activating.")}</p>
-        )}
-      </div>
-
-      {/* Message test */}
-      {isConnected && (
-        <div className="card p-5">
-          <div className="section-label mb-4">{t("Message de test", "Test message")}</div>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              className="input flex-1"
-              placeholder={t("Votre Chat ID (ex : 123456789)", "Your Chat ID (e.g. 123456789)")}
-              value={testChatId}
-              onChange={(e) => setTestChatId(e.target.value)}
-            />
-            <button className="btn-primary shrink-0" onClick={handleTest} disabled={testing || !testChatId.trim()}>
-              {testing ? t("Envoi…", "Sending…") : t("Envoyer", "Send")}
-            </button>
-          </div>
         </div>
       )}
 
-      {/* Commandes */}
+      {/* ── Que pouvez-vous piloter ? ──────────────────────────────── */}
       <div className="card p-5">
-        <div className="section-label mb-4">{t("Commandes disponibles", "Available commands")}</div>
-        <div className="space-y-2">
-          {[
-            { cmd: "/start", fr: "Affiche le message d'aide", en: "Show the help message" },
-            { cmd: "/status", fr: "Résumé du compte et objectif en cours", en: "Account summary and current objective" },
-            { cmd: "/objectif <texte>", fr: "Enregistre un objectif par défaut", en: "Set a default objective" },
-            { cmd: "/lancer <texte>", fr: "Lance une orchestration multi-agent", en: "Launch a multi-agent orchestration" },
-            { cmd: "/veille", fr: "Déclenche une analyse de veille concurrentielle", en: "Trigger a competitive market-watch analysis" },
-            { cmd: "<texte libre>", fr: "Traité comme /lancer avec ce texte", en: "Treated as /lancer with that text" },
-          ].map(({ cmd, fr, en }) => (
-            <div key={cmd} className="flex items-start gap-3 rounded-lg border border-hair bg-canvas px-3 py-2.5">
-              <code className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 font-mono text-xs font-semibold text-primary">{cmd}</code>
-              <span className="text-sm text-ink">{t(fr, en)}</span>
+        <div className="section-label mb-1">{t("Que pilotez-vous depuis Telegram ?", "What do you pilot from Telegram?")}</div>
+        <p className="mb-4 text-sm text-muted">
+          {t(
+            "Le bot est un agent à part entière qui dialogue avec toute votre équipe d'agents IA. Écrivez en langage naturel ou utilisez une commande :",
+            "The bot is a full agent that talks to your whole AI agent team. Write in natural language or use a command:"
+          )}
+        </p>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {USE_CASES.map((u) => (
+            <div key={u.cmd} className="rounded-lg border border-hair bg-canvas p-3">
+              <div className="mb-1 flex items-center gap-2">
+                <span aria-hidden className="text-base">{u.icon}</span>
+                <code className="rounded bg-primary/10 px-1.5 py-0.5 font-mono text-2xs font-semibold text-primary">{u.cmd}</code>
+              </div>
+              <p className="text-sm font-medium text-ink">{t(u.titleFr, u.titleEn)}</p>
+              <p className="mt-0.5 text-xs leading-relaxed text-muted">{t(u.descFr, u.descEn)}</p>
+              <p className="mt-1.5 text-2xs italic text-muted/80">{t(u.exFr, u.exEn)}</p>
             </div>
           ))}
         </div>
@@ -413,3 +175,55 @@ export default function ClientTelegramPage() {
     </div>
   );
 }
+
+// ── Cas d'usage Telegram ────────────────────────────────────────────────────────
+
+const USE_CASES: {
+  cmd: string; icon: string;
+  titleFr: string; titleEn: string;
+  descFr: string; descEn: string;
+  exFr: string; exEn: string;
+}[] = [
+  {
+    cmd: "/lancer", icon: "🚀",
+    titleFr: "Lancer une campagne", titleEn: "Launch a campaign",
+    descFr: "Déclenche toute l'équipe d'agents (stratégie, contenus, plan média) sur l'objectif que vous donnez.",
+    descEn: "Triggers the whole agent team (strategy, content, media plan) on the objective you give.",
+    exFr: "Ex : /lancer Promo de rentrée sur Instagram et LinkedIn", exEn: "E.g. /lancer Back-to-school promo on Instagram and LinkedIn",
+  },
+  {
+    cmd: "/veille", icon: "📡",
+    titleFr: "Analyser les concurrents", titleEn: "Analyse competitors",
+    descFr: "Lance une veille concurrentielle et vous renvoie les formats et angles gagnants du marché.",
+    descEn: "Runs a competitive watch and returns the winning formats and angles in your market.",
+    exFr: "Ex : /veille", exEn: "E.g. /veille",
+  },
+  {
+    cmd: "/objectif", icon: "🎯",
+    titleFr: "Fixer un objectif", titleEn: "Set an objective",
+    descFr: "Enregistre l'objectif par défaut du compte, réutilisé par les prochains lancements.",
+    descEn: "Saves the account's default objective, reused by upcoming launches.",
+    exFr: "Ex : /objectif +20% d'abonnés ce trimestre", exEn: "E.g. /objectif +20% followers this quarter",
+  },
+  {
+    cmd: "/status", icon: "📊",
+    titleFr: "Voir l'état du compte", titleEn: "Check account status",
+    descFr: "Affiche un résumé : connexion, objectif en cours et dernières actions des agents.",
+    descEn: "Shows a summary: connection, current objective and the agents' latest actions.",
+    exFr: "Ex : /status", exEn: "E.g. /status",
+  },
+  {
+    cmd: "texte libre", icon: "💬",
+    titleFr: "Écrire naturellement", titleEn: "Write naturally",
+    descFr: "Pas besoin de commande : décrivez ce que vous voulez, c'est traité comme un lancement.",
+    descEn: "No command needed: describe what you want, it's handled as a launch.",
+    exFr: "Ex : Prépare 3 posts sur notre nouveau service", exEn: "E.g. Prepare 3 posts about our new service",
+  },
+  {
+    cmd: "/aide", icon: "❓",
+    titleFr: "Obtenir de l'aide", titleEn: "Get help",
+    descFr: "Affiche toutes les commandes disponibles et des exemples concrets.",
+    descEn: "Shows all available commands and concrete examples.",
+    exFr: "Ex : /aide", exEn: "E.g. /aide",
+  },
+];

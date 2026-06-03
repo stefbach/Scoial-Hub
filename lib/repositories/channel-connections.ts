@@ -76,6 +76,29 @@ export async function listConnections(companyId: string): Promise<ChannelConnect
 // ── getConnection ─────────────────────────────────────────────────────────────
 
 /**
+ * Retourne toutes les connexions d'un canal donné, tous comptes confondus.
+ * Utilisé par le bot Telegram central pour router un message (code de jumelage
+ * ou chat déjà relié) vers la bonne entité. Ne throw jamais.
+ */
+export async function listByChannel(channel: string): Promise<ChannelConnection[]> {
+  if (!isSupabaseConfigured) {
+    return MOCK_STORE.filter((r) => r.channel === channel);
+  }
+  try {
+    const supabase = createClient();
+    if (!supabase) return MOCK_STORE.filter((r) => r.channel === channel);
+    const { data, error } = await supabase
+      .from("sh_channel_connections")
+      .select("*")
+      .eq("channel", channel);
+    if (error || !data) return [];
+    return data as ChannelConnection[];
+  } catch {
+    return [];
+  }
+}
+
+/**
  * Retourne la connexion d'un canal pour une entité, ou null.
  * Ne throw jamais.
  */

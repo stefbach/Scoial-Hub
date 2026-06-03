@@ -1,29 +1,51 @@
 /**
  * POST /api/video/marketize
- * Body : { sourceUrl, objective?, platforms[], brandVoice?, lang?, durationHintSec?, companyId? }
- * Retourne un paquet marketing professionnel multi-réseaux pour une vidéo brute.
+ * Body : {
+ *   assets?: [{ url, kind: "image"|"video", name? }],
+ *   sourceUrl?: string,            // hérité : équivaut à un asset vidéo unique
+ *   assembly?: AssemblyMode,
+ *   objective?, platforms[], brandVoice?, lang?, durationHintSec?, companyId?
+ * }
+ * Retourne un paquet marketing professionnel multi-réseaux (images ET vidéos).
  */
 
 export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from "next/server";
 import { marketizeVideo } from "@/lib/video/marketer";
-import type { MarketizeInput, VideoPlatform } from "@/lib/video/types";
+import type { AssemblyMode, MediaAsset, VideoPlatform } from "@/lib/video/types";
 
 export async function POST(req: NextRequest) {
   try {
-    const body = (await req.json()) as Partial<MarketizeInput> & { companyId?: string };
+    const body = (await req.json()) as {
+      assets?: MediaAsset[];
+      sourceUrl?: string;
+      assembly?: AssemblyMode;
+      objective?: string;
+      platforms?: VideoPlatform[];
+      brandVoice?: string;
+      lang?: string;
+      durationHintSec?: number;
+      companyId?: string;
+    };
 
-    if (!body.sourceUrl || !body.sourceUrl.trim()) {
-      return NextResponse.json({ error: "sourceUrl requis (URL de la vidéo)." }, { status: 400 });
+    // Normalise les médias : assets[] prioritaires, sinon sourceUrl (vidéo).
+    let assets: MediaAsset[] = Array.isArray(body.assets) ? body.assets.filter((a) => a?.url) : [];
+    if (assets.length === 0 && body.sourceUrl?.trim()) {
+      assets = [{ url: body.sourceUrl.trim(), kind: "video" }];
     }
+    if (assets.length === 0) {
+      return NextResponse.json({ error: "Au moins un média (image ou vidéo) est requis." }, { status: 400 });
+    }
+
     const platforms = (body.platforms ?? []) as VideoPlatform[];
     if (platforms.length === 0) {
       return NextResponse.json({ error: "Au moins un réseau cible requis." }, { status: 400 });
     }
 
     const pkg = await marketizeVideo({
-      sourceUrl: body.sourceUrl.trim(),
+      assets,
+      assembly: (body.assembly ?? "auto") as AssemblyMode,
       objective: body.objective ?? "",
       platforms,
       brandVoice: body.brandVoice ?? "professionnel, dynamique",

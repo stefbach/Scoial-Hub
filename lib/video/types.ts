@@ -1,4 +1,4 @@
-// Types du Studio Vidéo — retraitement & marketing automatique d'une vidéo brute.
+// Types du Studio Créatif — assemblage & marketing automatique d'images ET vidéos.
 
 export type VideoPlatform =
   | "tiktok"
@@ -22,6 +22,36 @@ export const VIDEO_PLATFORMS: PlatformMeta[] = [
   { id: "linkedin", label: "LinkedIn", aspect: "16:9", maxSeconds: 120 },
 ];
 
+// ── Médias source ─────────────────────────────────────────────────────────────
+
+export type MediaKind = "image" | "video";
+
+export interface MediaAsset {
+  url: string;
+  kind: MediaKind;
+  name?: string;
+}
+
+/** Mode d'assemblage demandé pour produire le livrable. */
+export type AssemblyMode =
+  | "auto" // l'IA choisit le meilleur format
+  | "carousel" // post multi-images (slides)
+  | "slideshow" // diaporama animé (images → vidéo)
+  | "collage" // visuel unique composé de plusieurs images
+  | "single" // un seul visuel mis en marque
+  | "video" // ré-édition d'une vidéo
+  | "video_montage"; // montage de plusieurs clips
+
+export const ASSEMBLY_MODES: { id: AssemblyMode; labelFr: string; labelEn: string; descFr: string; descEn: string }[] = [
+  { id: "auto", labelFr: "Automatique", labelEn: "Automatic", descFr: "L'IA choisit le meilleur format selon vos médias.", descEn: "AI picks the best format for your media." },
+  { id: "carousel", labelFr: "Carrousel", labelEn: "Carousel", descFr: "Post multi-images avec texte par slide.", descEn: "Multi-image post with per-slide text." },
+  { id: "slideshow", labelFr: "Diaporama vidéo", labelEn: "Slideshow video", descFr: "Vos photos animées en vidéo rythmée.", descEn: "Your photos animated into a paced video." },
+  { id: "collage", labelFr: "Collage", labelEn: "Collage", descFr: "Plusieurs images en un seul visuel.", descEn: "Several images into one visual." },
+  { id: "single", labelFr: "Visuel unique", labelEn: "Single visual", descFr: "Une image mise en marque (titre, logo).", descEn: "One branded image (headline, logo)." },
+  { id: "video", labelFr: "Vidéo (ré-édition)", labelEn: "Video (re-edit)", descFr: "Retraite une vidéo existante.", descEn: "Reprocess an existing video." },
+  { id: "video_montage", labelFr: "Montage vidéo", labelEn: "Video montage", descFr: "Assemble plusieurs clips en un montage.", descEn: "Assemble several clips into one montage." },
+];
+
 /** Sous-titre incrusté (burned-in caption). */
 export interface CaptionSegment {
   start: number; // secondes
@@ -36,14 +66,26 @@ export interface TextOverlay {
   style: "hook" | "lower_third" | "cta";
 }
 
-/** Déclinaison professionnelle d'une vidéo pour un réseau précis. */
+/** Une slide (carrousel / diaporama / collage). */
+export interface Slide {
+  index: number;
+  onImageText: string; // texte incrusté sur l'image
+  note: string; // rôle / ce qu'il faut montrer
+}
+
+/** Déclinaison professionnelle d'un livrable pour un réseau précis. */
 export interface PlatformCut {
   platform: VideoPlatform;
   label: string;
   aspect: string;
+  /** Type de livrable réellement produit pour ce réseau. */
+  assemblyType: AssemblyMode;
+  /** Durée cible (vidéo/diaporama). 0 pour les formats statiques. */
   targetDurationSec: number;
   hook: string;
   hookVariants: string[];
+  /** Slides pour carrousel / diaporama / collage. */
+  slides: Slide[];
   overlays: TextOverlay[];
   musicMood: string;
   pacing: string;
@@ -55,9 +97,10 @@ export interface PlatformCut {
   renderStatus: "ready" | "queued" | "simulated";
 }
 
-/** Paquet marketing complet produit à partir d'une vidéo brute. */
+/** Paquet marketing complet produit à partir des médias bruts. */
 export interface VideoMarketingPackage {
-  sourceUrl: string;
+  assets: MediaAsset[];
+  assembly: AssemblyMode;
   title: string;
   summary: string;
   transcriptSummary: string;
@@ -70,7 +113,8 @@ export interface VideoMarketingPackage {
 }
 
 export interface MarketizeInput {
-  sourceUrl: string;
+  assets: MediaAsset[];
+  assembly: AssemblyMode;
   objective: string;
   platforms: VideoPlatform[];
   brandVoice: string;

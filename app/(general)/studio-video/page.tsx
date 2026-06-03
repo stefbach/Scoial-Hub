@@ -5,18 +5,37 @@ import { useCompany } from "@/lib/company-context";
 import { useT, useLang } from "@/lib/i18n";
 import { createClient } from "@/lib/supabase/client";
 import { Toast } from "@/components/ui/Toast";
-import { VIDEO_PLATFORMS, type VideoMarketingPackage, type VideoPlatform, type PlatformCut } from "@/lib/video/types";
+import {
+  VIDEO_PLATFORMS,
+  ASSEMBLY_MODES,
+  type AssemblyMode,
+  type MediaAsset,
+  type MediaKind,
+  type VideoMarketingPackage,
+  type VideoPlatform,
+  type PlatformCut,
+} from "@/lib/video/types";
 import { captionsToSrt } from "@/lib/video/srt";
 
-// ── Studio Vidéo : déposez une vidéo brute → déclinaisons marketing pro ──────────
+// ── Studio Créatif : images + vidéos → assemblage & marketing pro ────────────────
 
-export default function StudioVideoPage() {
+function kindFromFile(file: File): MediaKind {
+  return file.type.startsWith("video") ? "video" : "image";
+}
+function kindFromUrl(url: string): MediaKind {
+  return /\.(mp4|mov|webm|m4v|avi|mkv)(\?|$)/i.test(url) ? "video" : "image";
+}
+
+export default function StudioPage() {
   const { company } = useCompany();
   const t = useT();
   const { lang } = useLang();
 
-  const [sourceUrl, setSourceUrl] = useState("");
+  const [assets, setAssets] = useState<MediaAsset[]>([]);
+  const [urlInput, setUrlInput] = useState("");
+  const [urlKind, setUrlKind] = useState<MediaKind>("image");
   const [objective, setObjective] = useState("");
+  const [assembly, setAssembly] = useState<AssemblyMode>("auto");
   const [platforms, setPlatforms] = useState<VideoPlatform[]>(["tiktok", "instagram_reels", "linkedin"]);
   const [uploading, setUploading] = useState(false);
   const [working, setWorking] = useState(false);
@@ -29,27 +48,37 @@ export default function StudioVideoPage() {
   function togglePlatform(p: VideoPlatform) {
     setPlatforms((prev) => (prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p]));
   }
+  function removeAsset(url: string) {
+    setAssets((prev) => prev.filter((a) => a.url !== url));
+  }
+  function addUrl() {
+    const u = urlInput.trim();
+    if (!u) return;
+    setAssets((prev) => [...prev, { url: u, kind: urlKind, name: u.split("/").pop() }]);
+    setUrlInput("");
+  }
 
-  // ── Upload de fichier vers Supabase Storage (sinon : coller une URL) ──────────
-  const onFile = useCallback(
-    async (file: File) => {
+  const onFiles = useCallback(
+    async (files: FileList) => {
       const supabase = createClient();
       if (!supabase) {
-        notify(t("Stockage indisponible — collez plutôt l'URL de la vidéo.", "Storage unavailable — paste the video URL instead."));
+        notify(t("Stockage indisponible — ajoutez plutôt des URLs.", "Storage unavailable — add URLs instead."));
         return;
       }
       setUploading(true);
       try {
-        const path = `${company.id}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.\-_]/g, "_")}`;
-        const { error } = await supabase.storage.from("sh-videos").upload(path, file, {
-          cacheControl: "3600",
-          upsert: false,
-          contentType: file.type || "video/mp4",
-        });
-        if (error) throw error;
-        const { data } = supabase.storage.from("sh-videos").getPublicUrl(path);
-        setSourceUrl(data.publicUrl);
-        notify(t("Vidéo importée.", "Video uploaded."));
+        for (const file of Array.from(files)) {
+          const path = `${company.id}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.\-_]/g, "_")}`;
+          const { error } = await supabase.storage.from("sh-videos").upload(path, file, {
+            cacheControl: "3600",
+            upsert: false,
+            contentType: file.type || undefined,
+          });
+          if (error) throw error;
+          const { data } = supabase.storage.from("sh-videos").getPublicUrl(path);
+          setAssets((prev) => [...prev, { url: data.publicUrl, kind: kindFromFile(file), name: file.name }]);
+        }
+        notify(t("Médias importés.", "Media uploaded."));
       } catch (e) {
         notify(t(`Échec de l'import : ${e instanceof Error ? e.message : "erreur"}`, `Upload failed: ${e instanceof Error ? e.message : "error"}`));
       } finally {
@@ -60,8 +89,8 @@ export default function StudioVideoPage() {
   );
 
   async function marketize() {
-    if (!sourceUrl.trim()) {
-      notify(t("Importez une vidéo ou collez son URL.", "Upload a video or paste its URL."));
+    if (assets.length === 0) {
+      notify(t("Ajoutez au moins une image ou vidéo.", "Add at least one image or video."));
       return;
     }
     if (platforms.length === 0) {
@@ -74,14 +103,7 @@ export default function StudioVideoPage() {
       const res = await fetch("/api/video/marketize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sourceUrl: sourceUrl.trim(),
-          objective,
-          platforms,
-          brandVoice: company.brandVoice,
-          lang,
-          companyId: company.id,
-        }),
+        body: JSON.stringify({ assets, assembly, objective, platforms, brandVoice: company.brandVoice, lang, companyId: company.id }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -97,7 +119,7 @@ export default function StudioVideoPage() {
   }
 
   function downloadSrt() {
-    if (!pkg) return;
+    if (!pkg || pkg.captions.length === 0) return;
     const blob = new Blob([captionsToSrt(pkg.captions)], { type: "text/plain;charset=utf-8" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
@@ -105,7 +127,6 @@ export default function StudioVideoPage() {
     a.click();
     URL.revokeObjectURL(a.href);
   }
-
   function copy(text: string, label: string) {
     navigator.clipboard?.writeText(text).then(
       () => notify(t(`${label} copié.`, `${label} copied.`)),
@@ -114,84 +135,126 @@ export default function StudioVideoPage() {
   }
 
   const platformChips = useMemo(() => VIDEO_PLATFORMS, []);
+  const imageCount = assets.filter((a) => a.kind === "image").length;
+  const videoCount = assets.filter((a) => a.kind === "video").length;
 
   return (
     <div className="animate-fade-in space-y-5">
       {/* En-tête */}
       <div className="flex items-start gap-3 rounded-2xl border border-primary-200 bg-gradient-to-br from-primary-50 to-card px-5 py-4">
         <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-white shadow-sm" style={{ background: "linear-gradient(135deg,#5b2d8e,#7c3aed)" }} aria-hidden>
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h9A1.5 1.5 0 0 1 16 5.5v13A1.5 1.5 0 0 1 14.5 20h-9A1.5 1.5 0 0 1 4 18.5v-13Z" stroke="white" strokeWidth="1.6"/><path d="m16 10 4-2.5v9L16 14" stroke="white" strokeWidth="1.6" strokeLinejoin="round"/></svg>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="8" height="8" rx="1.5" stroke="white" strokeWidth="1.6"/><rect x="13" y="3" width="8" height="8" rx="1.5" stroke="white" strokeWidth="1.6"/><path d="M3 16.5A1.5 1.5 0 0 1 4.5 15h6A1.5 1.5 0 0 1 12 16.5v3A1.5 1.5 0 0 1 10.5 21h-6A1.5 1.5 0 0 1 3 19.5v-3Z" stroke="white" strokeWidth="1.6"/><path d="m15 18 6-3v6l-6-3Z" fill="white"/></svg>
         </span>
         <div>
-          <h1 className="text-xl font-bold tracking-tight text-ink">{t("Studio Vidéo", "Video Studio")}</h1>
+          <h1 className="text-xl font-bold tracking-tight text-ink">{t("Studio Créatif", "Creative Studio")}</h1>
           <p className="mt-0.5 text-sm text-primary-700">
             {t(
-              "Déposez une vidéo simple — on la retraite et on la markète automatiquement, réseau par réseau, comme un vrai studio.",
-              "Drop in a simple video — we reprocess and market it automatically, network by network, like a real studio."
+              "Importez des photos et/ou vidéos — on les assemble et on les markète automatiquement, réseau par réseau.",
+              "Upload photos and/or videos — we assemble and market them automatically, network by network."
             )}
           </p>
         </div>
       </div>
 
-      {/* Étape 1 : source */}
+      {/* Étape 1 : médias */}
       <section className="card p-5">
-        <div className="section-label mb-3">{t("1 · Votre vidéo brute", "1 · Your raw video")}</div>
+        <div className="section-label mb-3">{t("1 · Vos médias (photos & vidéos)", "1 · Your media (photos & videos)")}</div>
 
         <div
-          className="flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-hair bg-canvas px-4 py-8 text-center transition-colors hover:border-primary-300"
+          className="flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-hair bg-canvas px-4 py-7 text-center transition-colors hover:border-primary-300"
           onDragOver={(e) => e.preventDefault()}
           onDrop={(e) => {
             e.preventDefault();
-            const f = e.dataTransfer.files?.[0];
-            if (f) onFile(f);
+            if (e.dataTransfer.files?.length) onFiles(e.dataTransfer.files);
           }}
         >
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" className="text-muted"><path d="M12 16V4m0 0L7 9m5-5 5 5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/><path d="M4 16v2.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V16" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/></svg>
-          <p className="text-sm text-ink">
-            {uploading ? t("Import en cours…", "Uploading…") : t("Glissez-déposez votre vidéo ici", "Drag & drop your video here")}
-          </p>
-          <button className="btn-secondary text-xs" onClick={() => fileRef.current?.click()} disabled={uploading}>
-            {t("Choisir un fichier", "Choose a file")}
-          </button>
-          <input
-            ref={fileRef}
-            type="file"
-            accept="video/*"
-            className="hidden"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) onFile(f);
-            }}
-          />
-          <p className="text-2xs text-muted">{t("MP4, MOV, WebM — jusqu'à 500 Mo", "MP4, MOV, WebM — up to 500 MB")}</p>
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" className="text-muted"><path d="M12 16V4m0 0L7 9m5-5 5 5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/><path d="M4 16v2.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V16" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/></svg>
+          <p className="text-sm text-ink">{uploading ? t("Import en cours…", "Uploading…") : t("Glissez-déposez vos photos et vidéos", "Drag & drop your photos and videos")}</p>
+          <button className="btn-secondary text-xs" onClick={() => fileRef.current?.click()} disabled={uploading}>{t("Choisir des fichiers", "Choose files")}</button>
+          <input ref={fileRef} type="file" accept="image/*,video/*" multiple className="hidden" onChange={(e) => e.target.files && onFiles(e.target.files)} />
+          <p className="text-2xs text-muted">{t("JPG, PNG, MP4, MOV… plusieurs fichiers acceptés", "JPG, PNG, MP4, MOV… multiple files accepted")}</p>
         </div>
 
-        <div className="mt-3">
-          <label className="mb-1 block text-2xs font-semibold uppercase tracking-wide text-muted">{t("…ou collez une URL de vidéo", "…or paste a video URL")}</label>
-          <input className="input w-full" placeholder="https://…/ma-video.mp4" value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} />
+        {/* Ajouter par URL */}
+        <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+          <select className="input sm:w-32" value={urlKind} onChange={(e) => setUrlKind(e.target.value as MediaKind)}>
+            <option value="image">{t("Image", "Image")}</option>
+            <option value="video">{t("Vidéo", "Video")}</option>
+          </select>
+          <input
+            className="input flex-1"
+            placeholder={t("…ou collez une URL puis Ajouter", "…or paste a URL then Add")}
+            value={urlInput}
+            onChange={(e) => { setUrlInput(e.target.value); setUrlKind(kindFromUrl(e.target.value)); }}
+            onKeyDown={(e) => e.key === "Enter" && addUrl()}
+          />
+          <button className="btn-secondary shrink-0 text-xs" onClick={addUrl}>{t("Ajouter", "Add")}</button>
+        </div>
+
+        {/* Liste des médias */}
+        {assets.length > 0 && (
+          <div className="mt-3">
+            <div className="mb-2 text-2xs text-muted">{imageCount} {t("image(s)", "image(s)")} · {videoCount} {t("vidéo(s)", "video(s)")}</div>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+              {assets.map((a) => (
+                <div key={a.url} className="group relative overflow-hidden rounded-lg border border-hair bg-canvas">
+                  {a.kind === "image" ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={a.url} alt={a.name ?? ""} className="h-24 w-full object-cover" />
+                  ) : (
+                    <video src={a.url} className="h-24 w-full object-cover" muted />
+                  )}
+                  <span className="absolute left-1 top-1 rounded bg-ink/70 px-1.5 py-0.5 text-2xs font-semibold text-white">
+                    {a.kind === "image" ? "IMG" : "VID"}
+                  </span>
+                  <button
+                    onClick={() => removeAsset(a.url)}
+                    className="absolute right-1 top-1 rounded-full bg-ink/70 p-1 text-white opacity-0 transition-opacity group-hover:opacity-100"
+                    aria-label={t("Retirer", "Remove")}
+                  >
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </section>
+
+      {/* Étape 2 : assemblage */}
+      <section className="card p-5">
+        <div className="section-label mb-3">{t("2 · Que veut-on en faire ?", "2 · What do we make?")}</div>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+          {ASSEMBLY_MODES.map((mode) => {
+            const on = assembly === mode.id;
+            return (
+              <button
+                key={mode.id}
+                onClick={() => setAssembly(mode.id)}
+                className={`rounded-lg border px-3 py-2 text-left transition-colors ${on ? "border-primary-300 bg-primary-50" : "border-hair bg-canvas hover:border-primary-200"}`}
+              >
+                <div className={`text-sm font-semibold ${on ? "text-primary-700" : "text-ink"}`}>{on ? "✓ " : ""}{t(mode.labelFr, mode.labelEn)}</div>
+                <div className="mt-0.5 text-2xs leading-snug text-muted">{t(mode.descFr, mode.descEn)}</div>
+              </button>
+            );
+          })}
         </div>
       </section>
 
-      {/* Étape 2 : brief */}
+      {/* Étape 3 : objectif & réseaux */}
       <section className="card p-5">
-        <div className="section-label mb-3">{t("2 · Objectif & réseaux", "2 · Objective & networks")}</div>
-        <label className="mb-1 block text-2xs font-semibold uppercase tracking-wide text-muted">{t("Objectif marketing", "Marketing objective")}</label>
+        <div className="section-label mb-3">{t("3 · Objectif & réseaux", "3 · Objective & networks")}</div>
         <input
           className="input mb-4 w-full"
-          placeholder={t("Ex : générer des leads pour notre nouveau service", "E.g. generate leads for our new service")}
+          placeholder={t("Objectif marketing (ex : générer des leads)", "Marketing objective (e.g. generate leads)")}
           value={objective}
           onChange={(e) => setObjective(e.target.value)}
         />
-        <label className="mb-2 block text-2xs font-semibold uppercase tracking-wide text-muted">{t("Réseaux cibles", "Target networks")}</label>
         <div className="flex flex-wrap gap-2">
           {platformChips.map((p) => {
             const on = platforms.includes(p.id);
             return (
-              <button
-                key={p.id}
-                onClick={() => togglePlatform(p.id)}
-                className={`chip transition-colors ${on ? "border-primary-300 bg-primary-50 text-primary-700" : ""}`}
-              >
+              <button key={p.id} onClick={() => togglePlatform(p.id)} className={`chip transition-colors ${on ? "border-primary-300 bg-primary-50 text-primary-700" : ""}`}>
                 {on ? "✓ " : ""}{p.label} · {p.aspect}
               </button>
             );
@@ -199,9 +262,8 @@ export default function StudioVideoPage() {
         </div>
       </section>
 
-      {/* Action */}
       <button className="btn-primary w-full justify-center py-3 text-sm" onClick={marketize} disabled={working || uploading}>
-        {working ? t("Le studio travaille…", "The studio is working…") : t("✨ Marketer automatiquement", "✨ Auto-market this video")}
+        {working ? t("Le studio travaille…", "The studio is working…") : t("✨ Assembler & marketer", "✨ Assemble & market")}
       </button>
 
       {/* Résultat */}
@@ -218,18 +280,14 @@ export default function StudioVideoPage() {
               </span>
             </div>
             <div className="mt-3 flex flex-wrap gap-2">
-              <button className="btn-secondary text-xs" onClick={downloadSrt}>{t("⬇ Sous-titres .srt", "⬇ Subtitles .srt")}</button>
+              {pkg.captions.length > 0 && <button className="btn-secondary text-xs" onClick={downloadSrt}>{t("⬇ Sous-titres .srt", "⬇ Subtitles .srt")}</button>}
               <span className="chip">{pkg.cuts.length} {t("déclinaisons", "cuts")}</span>
-              {!pkg.renderConfigured && (
-                <span className="chip border-warning-200 bg-warning-50 text-warning-700">{t("Rendu : simulé", "Render: simulated")}</span>
-              )}
+              {!pkg.renderConfigured && <span className="chip border-warning-200 bg-warning-50 text-warning-700">{t("Rendu : simulé", "Render: simulated")}</span>}
             </div>
           </div>
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            {pkg.cuts.map((c) => (
-              <CutCard key={c.platform} cut={c} onCopy={copy} t={t} />
-            ))}
+            {pkg.cuts.map((c) => <CutCard key={c.platform} cut={c} onCopy={copy} t={t} />)}
           </div>
         </section>
       )}
@@ -241,75 +299,81 @@ export default function StudioVideoPage() {
 
 // ── Carte par réseau ────────────────────────────────────────────────────────────
 
-function CutCard({
-  cut,
-  onCopy,
-  t,
-}: {
-  cut: PlatformCut;
-  onCopy: (text: string, label: string) => void;
-  t: (fr: string, en: string) => string;
-}) {
+const ASSEMBLY_BADGE: Record<AssemblyMode, [string, string]> = {
+  auto: ["Auto", "Auto"],
+  carousel: ["Carrousel", "Carousel"],
+  slideshow: ["Diaporama", "Slideshow"],
+  collage: ["Collage", "Collage"],
+  single: ["Visuel", "Visual"],
+  video: ["Vidéo", "Video"],
+  video_montage: ["Montage", "Montage"],
+};
+
+function CutCard({ cut, onCopy, t }: { cut: PlatformCut; onCopy: (text: string, label: string) => void; t: (fr: string, en: string) => string }) {
+  const isStatic = cut.targetDurationSec === 0;
+  const badge = ASSEMBLY_BADGE[cut.assemblyType] ?? ["", ""];
   return (
     <div className="card p-4">
       <div className="mb-2 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="font-semibold text-ink">{cut.label}</span>
           <span className="chip">{cut.aspect}</span>
-          <span className="text-2xs text-muted">~{cut.targetDurationSec}s</span>
+          <span className="chip border-primary-200 bg-primary-50 text-primary-700">{t(badge[0], badge[1])}</span>
+          {!isStatic && <span className="text-2xs text-muted">~{cut.targetDurationSec}s</span>}
         </div>
         <span className={`rounded-full px-2 py-0.5 text-2xs font-semibold ${cut.renderStatus === "queued" ? "bg-primary-50 text-primary-700" : "bg-canvas text-muted ring-1 ring-hair"}`}>
           {cut.renderStatus === "queued" ? t("Rendu en file", "Render queued") : t("Rendu simulé", "Render simulated")}
         </span>
       </div>
 
-      {/* Hook */}
-      <Field label={t("Accroche (0-3 s)", "Hook (0-3s)")}>
-        <p className="text-sm font-medium text-ink">{cut.hook}</p>
-        {cut.hookVariants.length > 0 && (
-          <ul className="mt-1 space-y-0.5 text-2xs text-muted">
-            {cut.hookVariants.map((h, i) => <li key={i}>• {h}</li>)}
-          </ul>
-        )}
-      </Field>
+      {cut.hook && (
+        <Field label={t("Accroche", "Hook")}>
+          <p className="text-sm font-medium text-ink">{cut.hook}</p>
+          {cut.hookVariants.length > 0 && <ul className="mt-1 space-y-0.5 text-2xs text-muted">{cut.hookVariants.map((h, i) => <li key={i}>• {h}</li>)}</ul>}
+        </Field>
+      )}
 
-      {/* Montage */}
-      <Field label={t("Montage & rythme", "Editing & pacing")}>
-        <p className="text-xs text-muted">🎵 {cut.musicMood}</p>
-        <p className="text-xs text-muted">🎬 {cut.pacing}</p>
-        <ul className="mt-1 space-y-0.5 text-xs text-ink">
-          {cut.editNotes.map((n, i) => <li key={i} className="flex gap-1.5"><span className="text-primary">›</span>{n}</li>)}
-        </ul>
-      </Field>
+      {cut.slides.length > 0 && (
+        <Field label={t("Slides", "Slides")}>
+          <ol className="space-y-1 text-xs text-ink">
+            {cut.slides.map((s) => (
+              <li key={s.index} className="flex gap-2">
+                <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded bg-primary/10 text-2xs font-bold text-primary">{s.index}</span>
+                <span><span className="font-medium">{s.onImageText}</span> <span className="text-muted">— {s.note}</span></span>
+              </li>
+            ))}
+          </ol>
+        </Field>
+      )}
 
-      {/* Overlays */}
+      {(cut.musicMood || cut.pacing || cut.editNotes.length > 0) && (
+        <Field label={t("Assemblage & montage", "Assembly & editing")}>
+          {cut.musicMood && <p className="text-xs text-muted">🎵 {cut.musicMood}</p>}
+          {cut.pacing && <p className="text-xs text-muted">🎬 {cut.pacing}</p>}
+          {cut.editNotes.length > 0 && (
+            <ul className="mt-1 space-y-0.5 text-xs text-ink">{cut.editNotes.map((n, i) => <li key={i} className="flex gap-1.5"><span className="text-primary">›</span>{n}</li>)}</ul>
+          )}
+        </Field>
+      )}
+
       {cut.overlays.length > 0 && (
         <Field label={t("Textes à l'écran", "On-screen text")}>
           <ul className="space-y-0.5 text-xs text-muted">
-            {cut.overlays.map((o, i) => (
-              <li key={i}><span className="font-mono text-2xs text-primary">{o.atSecond}s</span> · {o.text} <span className="text-2xs italic">({o.style})</span></li>
-            ))}
+            {cut.overlays.map((o, i) => <li key={i}><span className="font-mono text-2xs text-primary">{o.atSecond}s</span> · {o.text} <span className="text-2xs italic">({o.style})</span></li>)}
           </ul>
         </Field>
       )}
 
-      {/* Copy */}
       <Field label={t("Texte du post", "Post caption")}>
         <p className="whitespace-pre-wrap text-sm text-ink">{cut.caption}</p>
-        <p className="mt-1 text-xs text-primary-600">{cut.hashtags.join(" ")}</p>
-        <p className="mt-1 text-xs text-muted">📣 {cut.cta}</p>
+        {cut.hashtags.length > 0 && <p className="mt-1 text-xs text-primary-600">{cut.hashtags.join(" ")}</p>}
+        {cut.cta && <p className="mt-1 text-xs text-muted">📣 {cut.cta}</p>}
       </Field>
 
       <div className="mt-3 flex flex-wrap gap-2 border-t border-hair pt-3">
-        <button className="btn-secondary text-2xs" onClick={() => onCopy(`${cut.caption}\n\n${cut.hashtags.join(" ")}`, t("Légende", "Caption"))}>
-          {t("Copier la légende", "Copy caption")}
-        </button>
-        <button className="btn-secondary text-2xs" onClick={() => onCopy(cut.hashtags.join(" "), t("Hashtags", "Hashtags"))}>
-          {t("Copier hashtags", "Copy hashtags")}
-        </button>
-        <button className="btn-secondary text-2xs" onClick={() => onCopy(cut.thumbnailText, t("Vignette", "Thumbnail"))}>
-          {t("Texte vignette", "Thumbnail text")}
-        </button>
+        <button className="btn-secondary text-2xs" onClick={() => onCopy(`${cut.caption}\n\n${cut.hashtags.join(" ")}`, t("Légende", "Caption"))}>{t("Copier la légende", "Copy caption")}</button>
+        {cut.hashtags.length > 0 && <button className="btn-secondary text-2xs" onClick={() => onCopy(cut.hashtags.join(" "), t("Hashtags", "Hashtags"))}>{t("Copier hashtags", "Copy hashtags")}</button>}
+        {cut.thumbnailText && <button className="btn-secondary text-2xs" onClick={() => onCopy(cut.thumbnailText, t("Vignette", "Thumbnail"))}>{t("Texte vignette", "Thumbnail text")}</button>}
       </div>
     </div>
   );

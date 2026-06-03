@@ -15,7 +15,7 @@ const NAV_TR: Record<string, [string, string]> = {
   "Connecteurs": ["Connecteurs", "Connectors"],
   "Organic": ["Organique", "Organic"],
   "Compose": ["Composer", "Compose"],
-  "Video Studio": ["Studio Vidéo", "Video Studio"],
+  "Video Studio": ["Studio Créatif", "Creative Studio"],
   "Scheduled": ["Programmés", "Scheduled"],
   "Library": ["Bibliothèque", "Library"],
   "Automations": ["Automatisations", "Automations"],

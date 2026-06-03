@@ -1908,28 +1908,35 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
 
   // ── /studio-video ───────────────────────────────────────────────────────────
   "/studio-video": {
-    title: { fr: "Studio Vidéo", en: "Video Studio" },
+    title: { fr: "Studio Créatif", en: "Creative Studio" },
     tagline: {
-      fr: "Transformez une vidéo simple en déclinaisons marketing professionnelles.",
-      en: "Turn a simple video into professional marketing cuts.",
+      fr: "Assemblez photos et vidéos en déclinaisons marketing professionnelles.",
+      en: "Assemble photos and videos into professional marketing cuts.",
     },
     whatFor: {
-      fr: "Le Studio Vidéo retraite et markète automatiquement une vidéo brute. Vous importez votre vidéo (ou collez son URL), indiquez votre objectif et les réseaux visés, puis l'IA produit un dispositif professionnel complet pour chaque réseau : recadrage au bon format (9:16, 1:1, 16:9), accroche des 3 premières secondes (+ variantes), sous-titres incrustés, textes à l'écran, ambiance musicale et rythme de montage, instructions de coupe, légende prête à publier, hashtags, CTA et texte de vignette.",
-      en: "The Video Studio automatically reprocesses and markets a raw video. You upload your video (or paste its URL), set your objective and target networks, then the AI produces a complete professional kit for each network: reframing to the right format (9:16, 1:1, 16:9), a 3-second hook (+ variants), burned-in subtitles, on-screen text, music mood and editing pace, cut instructions, a publish-ready caption, hashtags, CTA and thumbnail text.",
+      fr: "Le Studio Créatif assemble et markète automatiquement vos médias bruts — photos ET vidéos. Vous importez plusieurs fichiers (ou collez des URLs), choisissez ce que vous voulez en faire (carrousel, diaporama vidéo, collage, visuel unique, ré-édition ou montage vidéo, ou « Automatique »), puis l'IA produit un dispositif professionnel par réseau : assemblage au bon format (9:16, 1:1, 16:9), slides avec texte incrusté, accroche, sous-titres, textes à l'écran, ambiance musicale et rythme, instructions d'assemblage, légende prête à publier, hashtags, CTA et texte de couverture.",
+      en: "The Creative Studio automatically assembles and markets your raw media — photos AND videos. You upload several files (or paste URLs), choose what to make (carousel, slideshow video, collage, single visual, video re-edit or montage, or “Automatic”), then the AI produces a professional kit per network: assembly in the right format (9:16, 1:1, 16:9), slides with burned-in text, hook, subtitles, on-screen text, music mood and pace, assembly instructions, a publish-ready caption, hashtags, CTA and cover text.",
     },
     actions: [
       {
-        label: { fr: "Importer la vidéo", en: "Upload the video" },
+        label: { fr: "Importer photos & vidéos", en: "Upload photos & videos" },
         detail: {
-          fr: "Glissez-déposez votre fichier (MP4, MOV, WebM) ou collez l'URL d'une vidéo en ligne. Le fichier est stocké de façon sécurisée pour le traitement.",
-          en: "Drag and drop your file (MP4, MOV, WebM) or paste the URL of a video already online. The file is stored securely for processing.",
+          fr: "Glissez-déposez plusieurs fichiers (JPG, PNG, MP4, MOV…) ou ajoutez des URLs. Mélangez images et vidéos : le studio s'adapte.",
+          en: "Drag and drop several files (JPG, PNG, MP4, MOV…) or add URLs. Mix images and videos: the studio adapts.",
+        },
+      },
+      {
+        label: { fr: "Choisir l'assemblage", en: "Choose the assembly" },
+        detail: {
+          fr: "Carrousel, diaporama vidéo, collage, visuel unique, vidéo ou montage — ou « Automatique » pour laisser l'IA choisir le meilleur format par réseau (ex. : carrousel sur LinkedIn, diaporama sur TikTok).",
+          en: "Carousel, slideshow video, collage, single visual, video or montage — or “Automatic” to let the AI pick the best format per network (e.g. carousel on LinkedIn, slideshow on TikTok).",
         },
       },
       {
         label: { fr: "Définir objectif & réseaux", en: "Set objective & networks" },
         detail: {
-          fr: "Décrivez l'objectif et cochez les réseaux : TikTok, Instagram Reels, YouTube Shorts, Facebook, LinkedIn. Chaque réseau reçoit un montage au bon format.",
-          en: "Describe the objective and tick the networks: TikTok, Instagram Reels, YouTube Shorts, Facebook, LinkedIn. Each network gets a correctly-formatted cut.",
+          fr: "Décrivez l'objectif et cochez les réseaux : TikTok, Instagram Reels, YouTube Shorts, Facebook, LinkedIn. Chaque réseau reçoit sa déclinaison au bon format.",
+          en: "Describe the objective and tick the networks: TikTok, Instagram Reels, YouTube Shorts, Facebook, LinkedIn. Each network gets its own correctly-formatted cut.",
         },
       },
       {

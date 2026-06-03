@@ -564,6 +564,133 @@ class InstagramBusinessCollector implements Collector {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
+   Collecteur xpoz.ai (données RÉELLES Instagram & TikTok)
+   SDK @xpoz/xpoz — auth par XPOZ_API_KEY. Récupère les vraies publications
+   d'un compte concurrent (likes, commentaires, vues, date) par username.
+───────────────────────────────────────────────────────────────────────────── */
+
+interface XpozNamespace {
+  getPostsByUser(
+    identifier: string,
+    options?: { limit?: number; startDate?: string }
+  ): Promise<{ data?: Array<Record<string, unknown>> }>;
+  getUser(identifier: string): Promise<Record<string, unknown>>;
+}
+interface XpozClientLike {
+  instagram: XpozNamespace;
+  tiktok: XpozNamespace;
+}
+interface XpozModule {
+  XpozClient: new (opts: { apiKey: string }) => XpozClientLike;
+}
+
+function xnum(v: unknown): number {
+  return typeof v === "number" ? v : typeof v === "string" ? parseInt(v, 10) || 0 : 0;
+}
+function xstr(v: unknown): string {
+  return typeof v === "string" ? v : "";
+}
+
+class XpozCollector implements Collector {
+  isReal = true;
+  constructor(public network: ScrapeNetwork) {}
+
+  async collect(query: ScrapeQuery): Promise<CompetitorContent[]> {
+    const apiKey = process.env.XPOZ_API_KEY;
+    if (!apiKey) return [];
+    const targets = query.competitors.filter((c) => c.network === this.network);
+    if (targets.length === 0) return [];
+
+    let client: XpozClientLike;
+    try {
+      const mod = (await import("@xpoz/xpoz")) as unknown as XpozModule;
+      client = new mod.XpozClient({ apiKey });
+    } catch (err) {
+      console.warn("[xpoz] init échec:", err);
+      return [];
+    }
+
+    const ns = this.network === "tiktok" ? client.tiktok : client.instagram;
+    const limit = query.limit ?? 20;
+    const per = Math.max(3, Math.ceil(limit / Math.min(targets.length, 5)));
+
+    const batches = await Promise.all(
+      targets.slice(0, 5).map((c) => this.fetchAccount(ns, c.handle, c.name, per))
+    );
+    return batches.flat().slice(0, limit);
+  }
+
+  private async fetchAccount(
+    ns: XpozNamespace,
+    handle: string,
+    name: string | undefined,
+    per: number
+  ): Promise<CompetitorContent[]> {
+    const username = handle.replace(/^@/, "").trim();
+    if (!username) return [];
+    try {
+      const [postsRes, user] = await Promise.all([
+        ns.getPostsByUser(username, { limit: per }),
+        ns.getUser(username).catch(() => null),
+      ]);
+      const followers = user ? xnum(user.followerCount) : 0;
+      const posts = postsRes?.data ?? [];
+      const out: CompetitorContent[] = [];
+
+      for (const p of posts) {
+        const likes = xnum(p.likeCount);
+        const comments = xnum(p.commentCount);
+        let views = 0;
+        let url = "";
+        let caption = "";
+        let thumb: string | undefined;
+        let type: CompetitorContent["type"] = "post";
+
+        if (this.network === "tiktok") {
+          views = xnum(p.playCount);
+          const vu = p.videoUrl;
+          url = Array.isArray(vu) ? xstr(vu[0]) : xstr(vu);
+          if (!url) url = `https://www.tiktok.com/@${username}`;
+          caption = xstr(p.description);
+          thumb = xstr(p.videoThumbnail) || undefined;
+          type = "video";
+        } else {
+          views = xnum(p.videoPlayCount);
+          url = xstr(p.codeUrl) || `https://instagram.com/${username}`;
+          caption = xstr(p.caption);
+          thumb = xstr(p.imageUrl) || undefined;
+          type = xstr(p.videoUrl) || xstr(p.mediaType).toLowerCase().includes("video") ? "reel" : "post";
+        }
+
+        const denom = views > 0 ? views : followers;
+        const er = denom > 0 ? parseFloat(((likes + comments) / denom).toFixed(4)) : 0;
+
+        out.push({
+          network: this.network,
+          handle: `@${username}`,
+          accountName: name ?? xstr(p.nickname) ?? xstr(p.fullName) ?? username,
+          type,
+          url,
+          caption,
+          likes,
+          comments,
+          views,
+          shares: xnum(p.forwardCount) || xnum(p.reshareCount),
+          engagementRate: er,
+          postedAt: xstr(p.createdAtDate) || xstr(p.createdAt) || new Date().toISOString(),
+          thumbnailUrl: thumb,
+          simulated: false,
+        });
+      }
+      return out;
+    } catch (err) {
+      console.warn("[xpoz] fetch échec:", username, err);
+      return [];
+    }
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
    Factory : retourne le meilleur collecteur disponible pour chaque réseau
 ───────────────────────────────────────────────────────────────────────────── */
 
@@ -572,8 +699,16 @@ function getCollector(network: ScrapeNetwork, query: ScrapeQuery): Collector {
     const ytKey = process.env.YOUTUBE_API_KEY;
     if (ytKey) return new YouTubeCollector(ytKey);
   }
-  if (network === "instagram" && query.igAuth?.businessId && query.igAuth?.token) {
-    return new InstagramBusinessCollector(query.igAuth.businessId, query.igAuth.token);
+  if (network === "instagram") {
+    // Priorité : API officielle Meta (Business Discovery) si compte connecté…
+    if (query.igAuth?.businessId && query.igAuth?.token) {
+      return new InstagramBusinessCollector(query.igAuth.businessId, query.igAuth.token);
+    }
+    // …sinon xpoz.ai si configuré.
+    if (process.env.XPOZ_API_KEY) return new XpozCollector("instagram");
+  }
+  if ((network === "tiktok" || network === "twitter") && process.env.XPOZ_API_KEY) {
+    return new XpozCollector(network);
   }
   // Autres réseaux (et réseaux sans clé/connexion) : simulateur déterministe
   return new SimulatedCollector(network);

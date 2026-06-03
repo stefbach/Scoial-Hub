@@ -2,6 +2,31 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useT } from "@/lib/i18n";
+
+// Traductions des libellés de navigation (FR par défaut → EN).
+const NAV_TR: Record<string, [string, string]> = {
+  "Dashboard": ["Tableau de bord", "Dashboard"],
+  "Pilotage IA": ["Pilotage IA", "AI Piloting"],
+  "Centre de pilotage": ["Centre de pilotage", "Command Center"],
+  "Agents": ["Agents", "Agents"],
+  "Veille & Marché": ["Veille & Marché", "Market Watch"],
+  "Connecteurs": ["Connecteurs", "Connectors"],
+  "Organic": ["Organique", "Organic"],
+  "Compose": ["Composer", "Compose"],
+  "Scheduled": ["Programmés", "Scheduled"],
+  "Library": ["Bibliothèque", "Library"],
+  "Automations": ["Automatisations", "Automations"],
+  "History": ["Historique", "History"],
+  "Paid Ads": ["Publicité", "Paid Ads"],
+  "Campaigns": ["Campagnes", "Campaigns"],
+  "Audiences": ["Audiences", "Audiences"],
+  "Ad Performance": ["Performance Ads", "Ad Performance"],
+  "General": ["Général", "General"],
+  "Analytics": ["Analytics", "Analytics"],
+  "Accounts": ["Comptes sociaux", "Accounts"],
+  "Settings": ["Paramètres", "Settings"],
+};
 
 /* ── Icônes SVG inline ─────────────────────────────────────────────── */
 const ICONS: Record<string, React.ReactNode> = {
@@ -164,6 +189,8 @@ const GROUPS: { label?: string; items: { href: string; label: string }[] }[] = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const t = useT();
+  const tr = (s: string) => { const e = NAV_TR[s]; return e ? t(e[0], e[1]) : s; };
 
   const isActive = (href: string) => pathname.startsWith(href);
 
@@ -176,7 +203,7 @@ export function Sidebar() {
         <div key={i} className={i > 0 ? "mt-5" : ""}>
           {group.label && (
             <div className="mb-1.5 px-3 section-label">
-              {group.label}
+              {tr(group.label)}
             </div>
           )}
           <ul className="space-y-px" role="list">
@@ -218,7 +245,7 @@ export function Sidebar() {
 
                     {/* Label */}
                     <span className={active ? "font-semibold" : "font-medium"}>
-                      {item.label}
+                      {tr(item.label)}
                     </span>
                   </Link>
                 </li>

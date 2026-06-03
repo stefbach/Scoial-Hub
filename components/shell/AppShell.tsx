@@ -7,6 +7,7 @@ import { CompanySwitcher } from "./CompanySwitcher";
 import { Sidebar } from "./Sidebar";
 import { ScopeBar } from "./ScopeBar";
 import { HelpButton } from "@/components/help/HelpButton";
+import { LanguageSwitcher } from "@/lib/i18n";
 import { Logo } from "@/components/brand/Logo";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/env";
@@ -147,8 +148,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <CompanySwitcher />
         </div>
 
-        {/* Zone droite : aide + avatar */}
+        {/* Zone droite : langue + aide + avatar */}
         <div className="flex items-center gap-2">
+          <LanguageSwitcher />
           <HelpButton />
           <UserMenu />
         </div>

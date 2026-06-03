@@ -3,6 +3,7 @@ import { Fraunces, Manrope } from "next/font/google";
 import "./globals.css";
 import { CompanyProvider } from "@/lib/company-context";
 import { ScopeProvider } from "@/lib/scope";
+import { LangProvider } from "@/lib/i18n";
 import { AppShell } from "@/components/shell/AppShell";
 
 /* ── Typographie premium ─────────────────────────────────────────────
@@ -38,11 +39,13 @@ export default function RootLayout({
   return (
     <html lang="fr" className={`${fraunces.variable} ${manrope.variable}`}>
       <body>
-        <CompanyProvider>
-          <ScopeProvider>
-            <AppShell>{children}</AppShell>
-          </ScopeProvider>
-        </CompanyProvider>
+        <LangProvider>
+          <CompanyProvider>
+            <ScopeProvider>
+              <AppShell>{children}</AppShell>
+            </ScopeProvider>
+          </CompanyProvider>
+        </LangProvider>
       </body>
     </html>
   );

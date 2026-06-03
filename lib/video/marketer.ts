@@ -2,7 +2,8 @@
 // Produit un paquet professionnel multi-réseaux (assemblage, hooks, slides,
 // sous-titres, overlays, montage, copy, hashtags, CTA, specs) à partir des médias.
 //
-// Avec ANTHROPIC_API_KEY → généré par Claude (directeur artistique).
+// Avec ANTHROPIC_API_KEY → généré par Claude (directeur artistique), UN appel
+// par réseau EN PARALLÈLE (réponses courtes & rapides, jamais de timeout/troncature).
 // Sinon → paquet déterministe de haute qualité (dégradation gracieuse).
 
 import { env, isAiConfigured, isVideoRenderConfigured } from "@/lib/env";
@@ -40,9 +41,7 @@ function inferAssembly(assets: MediaAsset[], requested: AssemblyMode): AssemblyM
 
 /** Choisit le livrable réellement adapté au réseau. */
 function assemblyForPlatform(base: AssemblyMode, p: VideoPlatform): AssemblyMode {
-  // Un carrousel n'existe pas en TikTok/Reels/Shorts → diaporama vidéo.
   if (base === "carousel" && SHORT_VIDEO.includes(p)) return "slideshow";
-  // Un collage statique sur réseaux vidéo courts → diaporama.
   if (base === "collage" && SHORT_VIDEO.includes(p)) return "slideshow";
   return base;
 }
@@ -150,71 +149,54 @@ function buildMock(input: MarketizeInput): VideoMarketingPackage {
   };
 }
 
-// ── Génération via Claude ────────────────────────────────────────────────────────
+// ── Génération via Claude (UN appel par réseau, en parallèle) ─────────────────────
 
-async function buildWithClaude(input: MarketizeInput): Promise<VideoMarketingPackage> {
-  const Anthropic = (await import("@anthropic-ai/sdk")).default;
-  const client = new Anthropic({ apiKey: env.anthropicKey });
-
-  const base = inferAssembly(input.assets, input.assembly);
-  const assetList = input.assets
-    .map((a, i) => `  ${i + 1}. [${a.kind}] ${a.name ?? a.url}`)
-    .join("\n");
-  const platformSpec = input.platforms
-    .map((p) => {
-      const m = metaFor(p);
-      return `- ${m.id} (${m.label}) — format ${m.aspect}, max ${m.maxSeconds}s`;
-    })
-    .join("\n");
-
-  const prompt = `Tu es directeur artistique & social media manager senior. À partir des MÉDIAS BRUTS fournis (photos et/ou vidéos), tu conçois un dispositif de marketing automatique professionnel : tu ASSEMBLES et déclines le contenu réseau par réseau.
-
-Médias fournis (${input.assets.length}) :
-${assetList || "  (aucun détail — déduis du contexte)"}
-
-Mode d'assemblage demandé : ${input.assembly} (base déduite : ${base})
-Objectif marketing : ${input.objective || "non précisé"}
-Ton de marque : ${input.brandVoice || "professionnel, dynamique"}
-Langue des textes : ${input.lang === "fr" ? "français" : "anglais"}
-
-Réseaux cibles :
-${platformSpec}
-
-Pour CHAQUE réseau, choisis le livrable le plus adapté (assemblyType) :
-"carousel" (post multi-images), "slideshow" (photos animées en vidéo), "collage" (un visuel composé), "single" (un visuel unique), "video" (ré-édition d'une vidéo), "video_montage" (montage de clips).
-Rappel : TikTok/Reels/Shorts ne supportent pas le carrousel → préfère "slideshow".
-
-Produis UNIQUEMENT un JSON strict (aucun texte avant/après) :
-{
-  "title": "titre court du projet",
-  "summary": "1-2 phrases : ce que l'on assemble et l'angle marketing",
-  "transcriptSummary": "résumé du propos (vidéo) ou description (images)",
-  "captions": [ { "start": number_sec, "end": number_sec, "text": "sous-titre incrusté" } ],
-  "cuts": [
-    {
-      "platform": "tiktok|instagram_reels|youtube_shorts|facebook|linkedin",
-      "assemblyType": "carousel|slideshow|collage|single|video|video_montage",
-      "targetDurationSec": number (0 si format statique),
-      "hook": "accroche forte",
-      "hookVariants": ["3 variantes"],
-      "slides": [ { "index": number, "onImageText": "texte incrusté sur l'image", "note": "ce qu'il faut montrer" } ],
-      "overlays": [ { "atSecond": number, "text": "texte écran", "style": "hook|lower_third|cta" } ],
-      "musicMood": "ambiance (vide si statique)",
-      "pacing": "rythme (vide si statique)",
-      "editNotes": ["instructions de montage/assemblage concrètes"],
-      "caption": "texte du post",
-      "hashtags": ["#..."],
-      "cta": "appel à l'action",
-      "thumbnailText": "texte de couverture en MAJUSCULES"
-    }
-  ]
+interface CutResult {
+  cut: PlatformCut;
+  title?: string;
+  summary?: string;
+  transcript?: string;
+  captions?: CaptionSegment[];
 }
 
-Règles : une entrée "cuts" par réseau, au bon format d'aspect. Pour carousel/slideshow/collage, remplis "slides". Pour vidéo, remplis overlays/musicMood/pacing. Sois concret, vendeur et actionnable.`;
+async function buildOneCut(
+  input: MarketizeInput,
+  base: AssemblyMode,
+  platform: VideoPlatform
+): Promise<CutResult | null> {
+  const Anthropic = (await import("@anthropic-ai/sdk")).default;
+  const client = new Anthropic({ apiKey: env.anthropicKey });
+  const m = metaFor(platform);
+  const images = input.assets.filter((a) => a.kind === "image").length;
+  const videos = input.assets.filter((a) => a.kind === "video").length;
+
+  const prompt = `Tu es directeur artistique & social media manager senior. À partir de MÉDIAS BRUTS (photos/vidéos), tu conçois UNE déclinaison marketing pro pour LE réseau ${m.label} (${m.id}), format ${m.aspect}, durée max ${m.maxSeconds}s.
+
+Médias : ${input.assets.length} (${images} image(s), ${videos} vidéo(s)). Assemblage de base déduit : ${base}.
+Objectif : ${input.objective || "non précisé"}. Ton de marque : ${input.brandVoice || "professionnel, dynamique"}. Langue des textes : ${input.lang === "fr" ? "français" : "anglais"}.
+
+Choisis "assemblyType" adapté à CE réseau : carousel | slideshow | collage | single | video | video_montage. Rappel : TikTok/Reels/Shorts ne supportent pas le carrousel → "slideshow".
+
+Réponds UNIQUEMENT en JSON strict, COMPACT (aucun texte autour) :
+{
+ "projectTitle":"titre court du projet",
+ "projectSummary":"1 phrase : angle marketing",
+ "transcriptSummary":"résumé/description bref",
+ "captions":[{"start":0,"end":3,"text":"sous-titre court"}],
+ "cut":{
+  "assemblyType":"...","targetDurationSec":0,
+  "hook":"accroche forte","hookVariants":["variante 1","variante 2"],
+  "slides":[{"index":1,"onImageText":"texte sur l'image","note":"quoi montrer"}],
+  "overlays":[{"atSecond":0,"text":"texte écran","style":"hook"}],
+  "musicMood":"","pacing":"","editNotes":["note 1","note 2","note 3"],
+  "caption":"texte du post","hashtags":["#a","#b"],"cta":"appel à l'action","thumbnailText":"TEXTE MAJUSCULES"
+ }
+}
+Limites STRICTES : slides ≤ 5, hookVariants ≤ 2, editNotes ≤ 4, captions ≤ 5, hashtags ≤ 6. Si format statique → targetDurationSec=0 et overlays/musicMood/pacing vides. Sois concret et vendeur.`;
 
   const message = await client.messages.create({
     model: env.anthropicModel,
-    max_tokens: 8000,
+    max_tokens: 1600,
     messages: [{ role: "user", content: prompt }],
   });
 
@@ -222,49 +204,77 @@ Règles : une entrée "cuts" par réseau, au bon format d'aspect. Pour carousel/
     .filter((b) => b.type === "text")
     .map((b) => (b as { type: "text"; text: string }).text)
     .join("");
-
   const jsonMatch = raw.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) throw new Error("Claude n'a pas retourné de JSON valide");
-  const parsed = JSON.parse(jsonMatch[0]) as {
-    title: string;
-    summary: string;
-    transcriptSummary: string;
-    captions: CaptionSegment[];
-    cuts: Array<Partial<PlatformCut> & { platform: string; assemblyType?: AssemblyMode }>;
+  if (!jsonMatch) return null;
+
+  let parsed: {
+    projectTitle?: string;
+    projectSummary?: string;
+    transcriptSummary?: string;
+    captions?: CaptionSegment[];
+    cut?: Partial<PlatformCut> & { assemblyType?: AssemblyMode };
+  };
+  try {
+    parsed = JSON.parse(jsonMatch[0]);
+  } catch {
+    return null;
+  }
+
+  const c = parsed.cut ?? {};
+  const cut: PlatformCut = {
+    platform,
+    label: m.label,
+    aspect: m.aspect,
+    assemblyType: (c.assemblyType ?? base) as AssemblyMode,
+    targetDurationSec: c.targetDurationSec ?? 0,
+    hook: c.hook ?? "",
+    hookVariants: c.hookVariants ?? [],
+    slides: c.slides ?? [],
+    overlays: c.overlays ?? [],
+    musicMood: c.musicMood ?? "",
+    pacing: c.pacing ?? "",
+    editNotes: c.editNotes ?? [],
+    caption: c.caption ?? "",
+    hashtags: c.hashtags ?? [],
+    cta: c.cta ?? "",
+    thumbnailText: c.thumbnailText ?? "",
+    renderStatus: renderStatus(),
   };
 
-  const cuts: PlatformCut[] = parsed.cuts.map((c) => {
-    const m = metaFor(c.platform as VideoPlatform);
-    return {
-      platform: c.platform as VideoPlatform,
-      label: m.label,
-      aspect: m.aspect,
-      assemblyType: (c.assemblyType ?? base) as AssemblyMode,
-      targetDurationSec: c.targetDurationSec ?? 0,
-      hook: c.hook ?? "",
-      hookVariants: c.hookVariants ?? [],
-      slides: c.slides ?? [],
-      overlays: c.overlays ?? [],
-      musicMood: c.musicMood ?? "",
-      pacing: c.pacing ?? "",
-      editNotes: c.editNotes ?? [],
-      caption: c.caption ?? "",
-      hashtags: c.hashtags ?? [],
-      cta: c.cta ?? "",
-      thumbnailText: c.thumbnailText ?? "",
-      renderStatus: renderStatus(),
-    };
-  });
+  return {
+    cut,
+    title: parsed.projectTitle,
+    summary: parsed.projectSummary,
+    transcript: parsed.transcriptSummary,
+    captions: parsed.captions,
+  };
+}
+
+async function buildWithClaude(input: MarketizeInput): Promise<VideoMarketingPackage> {
+  const base = inferAssembly(input.assets, input.assembly);
+
+  // Un appel par réseau, en parallèle. Un échec isolé n'annule pas les autres.
+  const results = await Promise.all(
+    input.platforms.map((p) => buildOneCut(input, base, p).catch(() => null))
+  );
+  const ok = results.filter((r): r is CutResult => r !== null);
+  if (ok.length === 0) throw new Error("Aucune déclinaison générée par Claude");
+
+  const fr = input.lang === "fr";
+  const meta = ok[0];
+  const captions = ok.find((r) => r.captions && r.captions.length > 0)?.captions ?? [];
 
   return {
     assets: input.assets,
     assembly: base,
-    title: parsed.title,
-    summary: parsed.summary,
-    transcriptSummary: parsed.transcriptSummary,
+    title: meta.title ?? (fr ? "Création marketée automatiquement" : "Auto-marketed creative"),
+    summary:
+      meta.summary ??
+      (fr ? "Médias assemblés en déclinaisons prêtes à publier, optimisées par réseau." : "Media assembled into publish-ready, network-optimised cuts."),
+    transcriptSummary: meta.transcript ?? "",
     brandSafe: true,
-    captions: parsed.captions ?? [],
-    cuts,
+    captions,
+    cuts: ok.map((r) => r.cut),
     aiGenerated: true,
     renderConfigured: isVideoRenderConfigured,
     createdAt: new Date().toISOString(),

@@ -106,6 +106,14 @@ const ICONS: Record<string, React.ReactNode> = {
             stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
     </svg>
   ),
+  "/veille": (
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+      <rect x="1.5" y="9" width="2.5" height="4.5" rx="0.5" fill="currentColor" opacity="0.45"/>
+      <rect x="5.5" y="6" width="2.5" height="7.5" rx="0.5" fill="currentColor" opacity="0.7"/>
+      <rect x="9.5" y="2.5" width="2.5" height="11" rx="0.5" fill="currentColor"/>
+      <path d="M1.5 7 5 4.5 8 6.5 13 2" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round" fill="none" opacity="0.5"/>
+    </svg>
+  ),
 };
 
 /* ── Groupes de navigation ─────────────────────────────────────────── */
@@ -114,8 +122,9 @@ const GROUPS: { label?: string; items: { href: string; label: string }[] }[] = [
   {
     label: "Pilotage IA",
     items: [
-      { href: "/pilotage", label: "Centre de pilotage" },
-      { href: "/agents", label: "Agents" },
+      { href: "/pilotage",    label: "Centre de pilotage" },
+      { href: "/agents",      label: "Agents" },
+      { href: "/veille",      label: "Veille & Marché" },
       { href: "/connecteurs", label: "Connecteurs" },
     ],
   },

@@ -40,7 +40,7 @@ export const AGENTS: AgentDef[] = [
     accentColor: "text-ai-visual",
     accentBg: "bg-ai-visualbg border-violet-200",
     defaultAutonomy: 1,
-    requiredConnectors: ["DALL·E / Midjourney API", "Vidéo IA (Runway / Sora)"],
+    requiredConnectors: ["Replicate · Flux 1.1 Pro (images)", "Replicate · MiniMax Video-01 (vidéo)"],
   },
   {
     id: "media_buyer",

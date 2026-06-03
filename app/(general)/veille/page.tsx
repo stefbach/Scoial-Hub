@@ -132,6 +132,7 @@ export default function VeillePage() {
   // Run
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<RunResult | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
   const [runError, setRunError] = useState<string | null>(null);
 
   // Onglets résultats
@@ -257,11 +258,35 @@ export default function VeillePage() {
         }),
       });
       const data = await res.json() as RunResult & { error?: string };
-      if (data.error && !data.analysis) {
+      if (data.error && (!data.scrape || data.scrape.contents.length === 0)) {
         setRunError(data.error);
-      } else {
-        setResult(data);
-        setActiveTab("analyse");
+        return;
+      }
+      // Étape 1 : afficher tout de suite les contenus collectés.
+      setResult(data);
+      setActiveTab("analyse");
+
+      // Étape 2 : analyse IA (Claude) séparée → ne dépasse jamais 60 s.
+      setAnalyzing(true);
+      try {
+        const ares = await fetch("/api/veille/analyze", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: data.scrape?.contents ?? [],
+            geo,
+            keywords,
+            theme,
+          }),
+        });
+        if (ares.ok) {
+          const adata = await ares.json() as { analysis: RunResult["analysis"] };
+          setResult((prev) => (prev ? { ...prev, analysis: adata.analysis } : prev));
+        }
+      } catch (e) {
+        console.warn("[veille analyze]", e);
+      } finally {
+        setAnalyzing(false);
       }
     } catch (err) {
       setRunError(t("Impossible de lancer l'analyse. Vérifiez votre connexion.", "Unable to start analysis. Check your connection."));
@@ -571,6 +596,11 @@ export default function VeillePage() {
                   <div>
                     {result.analysis ? (
                       <AnalysisPanel analysis={result.analysis} />
+                    ) : analyzing ? (
+                      <div className="card flex items-center justify-center gap-3 p-8">
+                        <Spinner />
+                        <p className="text-sm text-muted">{t("Analyse IA en cours…", "AI analysis in progress…")}</p>
+                      </div>
                     ) : (
                       <div className="card p-8 text-center">
                         <p className="text-sm text-muted">{t("Analyse IA non disponible pour cette exécution.", "AI analysis not available for this run.")}</p>

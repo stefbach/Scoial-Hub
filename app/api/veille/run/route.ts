@@ -14,7 +14,6 @@ export const maxDuration = 60;
 
 import { NextRequest, NextResponse } from "next/server";
 import { collectAll } from "@/lib/scraping/collectors";
-import { analyzeCompetition } from "@/lib/scraping/analyze";
 import { listCompetitors } from "@/lib/repositories/competitors";
 import { getConnection } from "@/lib/repositories/channel-connections";
 import { createAdminClient } from "@/lib/supabase/server";
@@ -106,13 +105,8 @@ export async function POST(req: NextRequest) {
       igAuth,
     });
 
-    // 4. Analyser via Claude
-    const analysis = await analyzeCompetition(
-      { geo, keywords, theme, competitors: queryCompetitors, limit: 18 },
-      scrapeResult.contents
-    );
-
-    // 5. Construire le résultat final
+    // 4. L'analyse IA (Claude) est faite séparément via /api/veille/analyze
+    //    pour que ni la collecte ni l'analyse ne dépassent 60 s.
     const result = {
       scrape: {
         contents: scrapeResult.contents,
@@ -121,7 +115,7 @@ export async function POST(req: NextRequest) {
         durationMs: scrapeResult.durationMs,
         collectedAt: scrapeResult.collectedAt,
       },
-      analysis,
+      analysis: null as null,
     };
 
     // 6. Mettre à jour le run en Supabase (best-effort)

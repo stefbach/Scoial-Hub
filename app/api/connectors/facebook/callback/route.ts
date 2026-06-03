@@ -15,6 +15,7 @@ export const runtime = "nodejs";
 
 import { type NextRequest, NextResponse } from "next/server";
 import { getConnector } from "@/lib/connectors/index";
+import { parseState } from "@/lib/connectors/oauth-state";
 
 /** URL de redirection après succès ou échec. */
 const REDIRECT_BASE =
@@ -73,15 +74,24 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       console.warn("[Facebook callback] Impossible d'enregistrer le compte :", dbErr);
     }
 
-    // Redirection vers /accounts avec confirmation.
-    const params = new URLSearchParams({
-      connected: "true",
-      platform: "facebook",
-      account: tokenSet.accountName ?? "Facebook",
-    });
-    if (tokenSet.raw?.simulated) params.set("simulated", "true");
+    // Marque le connecteur du compte comme connecté (pour la page Connecteurs).
+    const { companyId, ret } = parseState(request.nextUrl.searchParams.get("state"));
+    if (companyId) {
+      try {
+        const { upsertConnection } = await import("@/lib/repositories/channel-connections");
+        const { resolveCompanyUuid } = await import("@/lib/repositories/resolve-company");
+        await upsertConnection(
+          await resolveCompanyUuid(companyId),
+          "facebook",
+          { page_access_token: tokenSet.accessToken, page_id: tokenSet.externalId ?? "", account_name: tokenSet.accountName ?? "Facebook", connected_via: "oauth" },
+          "connected"
+        );
+      } catch (e) {
+        console.warn("[Facebook callback] channel_connection:", e);
+      }
+    }
 
-    return NextResponse.redirect(`${REDIRECT_BASE}/accounts?${params.toString()}`);
+    return NextResponse.redirect(`${REDIRECT_BASE}${ret}?connected=facebook`);
   } catch (err) {
     console.error("[Facebook callback] Erreur lors de l'échange du code :", err);
     return NextResponse.redirect(

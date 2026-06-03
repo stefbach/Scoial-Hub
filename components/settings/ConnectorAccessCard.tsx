@@ -41,6 +41,8 @@ export interface ConnectorAccessCardProps {
   envHint?: string;
   /** Tag shown instead of status when connector is "coming soon" */
   comingSoon?: boolean;
+  /** URL OAuth pour une connexion automatique en 1 clic (Facebook/Instagram/LinkedIn). */
+  oauthUrl?: string;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -125,6 +127,7 @@ export function ConnectorAccessCard({
   onSave,
   envHint,
   comingSoon,
+  oauthUrl,
 }: ConnectorAccessCardProps) {
   const t = useT();
   const [open, setOpen] = useState(false);
@@ -219,19 +222,26 @@ export function ConnectorAccessCard({
           )}
         </div>
 
-        {/* Bouton Configurer */}
-        {!comingSoon && (fields.length > 0 || envHint) && (
-          <button
-            type="button"
-            onClick={() => {
-              setOpen((v) => !v);
-              setFeedback(null);
-            }}
-            className="btn-secondary shrink-0 text-xs"
-          >
-            {open ? t("Fermer", "Close") : t("Configurer", "Configure")}
-          </button>
-        )}
+        {/* Boutons : Connexion automatique (OAuth) + Configurer */}
+        <div className="flex shrink-0 flex-col gap-1.5">
+          {!comingSoon && oauthUrl && (
+            <a href={oauthUrl} className="btn-primary whitespace-nowrap text-xs">
+              ⚡ {t("Connexion auto", "Auto connect")}
+            </a>
+          )}
+          {!comingSoon && (fields.length > 0 || envHint) && (
+            <button
+              type="button"
+              onClick={() => {
+                setOpen((v) => !v);
+                setFeedback(null);
+              }}
+              className="btn-secondary text-xs"
+            >
+              {open ? t("Fermer", "Close") : oauthUrl ? t("Manuel", "Manual") : t("Configurer", "Configure")}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* ── Panneau de configuration (dépliable) ─────────────────────── */}

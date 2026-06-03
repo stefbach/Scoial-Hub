@@ -496,6 +496,9 @@ export default function ParametresConnecteursPage() {
                   envHint: meta.envHint,
                   comingSoon: meta.comingSoon,
                   onSave: CHANNEL_IDS.has(meta.id) ? handleSave : undefined,
+                  oauthUrl: ["facebook", "instagram", "linkedin"].includes(meta.id)
+                    ? `/api/connectors/${meta.id}/auth?companyId=${encodeURIComponent(companyId)}&return=${encodeURIComponent("/parametres-connecteurs")}`
+                    : undefined,
                 };
 
                 return (

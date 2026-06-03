@@ -1,33 +1,31 @@
 /**
- * app/api/connectors/instagram/auth/route.ts
- *
- * GET /api/connectors/instagram/auth
- *
- * Redirige l'utilisateur vers la page d'autorisation OAuth de Facebook
- * (Instagram Business utilise le même flow OAuth que Facebook).
- *
- * En mode simulé (META_APP_ID absent), redirige vers /accounts?simulated=true.
+ * GET /api/connectors/instagram/auth?companyId=…&return=…
+ * Connexion automatique (OAuth) Instagram (via Meta).
  */
 
 export const runtime = "nodejs";
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getConnector } from "@/lib/connectors/index";
-import crypto from "crypto";
+import { isMetaConfigured } from "@/lib/connectors/meta";
+import { upsertConnection } from "@/lib/repositories/channel-connections";
+import { buildState } from "@/lib/connectors/oauth-state";
+import { resolveCompanyUuid } from "@/lib/repositories/resolve-company";
+import { env } from "@/lib/env";
 
-export async function GET(): Promise<NextResponse> {
+export async function GET(req: NextRequest): Promise<NextResponse> {
+  const companyId = req.nextUrl.searchParams.get("companyId") ?? "";
+  const ret = req.nextUrl.searchParams.get("return") ?? "/parametres-connecteurs";
   try {
-    const state = crypto.randomBytes(16).toString("hex");
-
-    const connector = getConnector("instagram");
-    const authUrl = connector.getAuthUrl(state);
-
-    return NextResponse.redirect(authUrl);
+    if (!isMetaConfigured) {
+      if (companyId) {
+        await upsertConnection(await resolveCompanyUuid(companyId), "instagram", { connected_via: "oauth_demo", account_name: "Instagram (démo)" }, "connected");
+      }
+      return NextResponse.redirect(`${env.appUrl}${ret}?connected=instagram&simulated=1`);
+    }
+    return NextResponse.redirect(getConnector("instagram").getAuthUrl(buildState(companyId, ret)));
   } catch (err) {
-    console.error("[GET /api/connectors/instagram/auth] Erreur :", err);
-    return NextResponse.json(
-      { error: "Impossible de construire l'URL d'autorisation Instagram." },
-      { status: 500 }
-    );
+    console.error("[instagram/auth]", err);
+    return NextResponse.redirect(`${env.appUrl}${ret}?error=oauth_init&platform=instagram`);
   }
 }

@@ -1,35 +1,32 @@
 /**
- * app/api/connectors/facebook/auth/route.ts
- *
- * GET /api/connectors/facebook/auth
- *
- * Redirige l'utilisateur vers la page d'autorisation OAuth de Facebook.
- * Un paramètre `state` aléatoire (CSRF) est généré côté serveur.
- *
- * En mode simulé (META_APP_ID absent), redirige vers /accounts?simulated=true.
+ * GET /api/connectors/facebook/auth?companyId=…&return=…
+ * Connexion automatique (OAuth) Facebook. En mode démo (META_APP_ID absent),
+ * marque directement le connecteur comme connecté et revient à la page.
  */
 
 export const runtime = "nodejs";
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getConnector } from "@/lib/connectors/index";
-import crypto from "crypto";
+import { isMetaConfigured } from "@/lib/connectors/meta";
+import { upsertConnection } from "@/lib/repositories/channel-connections";
+import { buildState } from "@/lib/connectors/oauth-state";
+import { resolveCompanyUuid } from "@/lib/repositories/resolve-company";
+import { env } from "@/lib/env";
 
-export async function GET(): Promise<NextResponse> {
+export async function GET(req: NextRequest): Promise<NextResponse> {
+  const companyId = req.nextUrl.searchParams.get("companyId") ?? "";
+  const ret = req.nextUrl.searchParams.get("return") ?? "/parametres-connecteurs";
   try {
-    // Génère un state CSRF aléatoire (hex 16 octets).
-    const state = crypto.randomBytes(16).toString("hex");
-
-    const connector = getConnector("facebook");
-    const authUrl = connector.getAuthUrl(state);
-
-    // Redirection 302 vers Facebook OAuth (ou vers /accounts en mode simulé).
-    return NextResponse.redirect(authUrl);
+    if (!isMetaConfigured) {
+      if (companyId) {
+        await upsertConnection(await resolveCompanyUuid(companyId), "facebook", { connected_via: "oauth_demo", account_name: "Facebook (démo)" }, "connected");
+      }
+      return NextResponse.redirect(`${env.appUrl}${ret}?connected=facebook&simulated=1`);
+    }
+    return NextResponse.redirect(getConnector("facebook").getAuthUrl(buildState(companyId, ret)));
   } catch (err) {
-    console.error("[GET /api/connectors/facebook/auth] Erreur :", err);
-    return NextResponse.json(
-      { error: "Impossible de construire l'URL d'autorisation Facebook." },
-      { status: 500 }
-    );
+    console.error("[facebook/auth]", err);
+    return NextResponse.redirect(`${env.appUrl}${ret}?error=oauth_init&platform=facebook`);
   }
 }

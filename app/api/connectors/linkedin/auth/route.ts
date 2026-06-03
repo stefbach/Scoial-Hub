@@ -1,33 +1,31 @@
 /**
- * app/api/connectors/linkedin/auth/route.ts
- *
- * GET /api/connectors/linkedin/auth
- *
- * Redirige l'utilisateur vers la page d'autorisation OAuth de LinkedIn.
- * Un paramètre `state` aléatoire (CSRF) est généré côté serveur.
- *
- * En mode simulé (LINKEDIN_CLIENT_ID absent), redirige vers /accounts?simulated=true.
+ * GET /api/connectors/linkedin/auth?companyId=…&return=…
+ * Connexion automatique (OAuth) LinkedIn.
  */
 
 export const runtime = "nodejs";
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getConnector } from "@/lib/connectors/index";
-import crypto from "crypto";
+import { isLinkedInConfigured } from "@/lib/connectors/linkedin";
+import { upsertConnection } from "@/lib/repositories/channel-connections";
+import { buildState } from "@/lib/connectors/oauth-state";
+import { resolveCompanyUuid } from "@/lib/repositories/resolve-company";
+import { env } from "@/lib/env";
 
-export async function GET(): Promise<NextResponse> {
+export async function GET(req: NextRequest): Promise<NextResponse> {
+  const companyId = req.nextUrl.searchParams.get("companyId") ?? "";
+  const ret = req.nextUrl.searchParams.get("return") ?? "/parametres-connecteurs";
   try {
-    const state = crypto.randomBytes(16).toString("hex");
-
-    const connector = getConnector("linkedin");
-    const authUrl = connector.getAuthUrl(state);
-
-    return NextResponse.redirect(authUrl);
+    if (!isLinkedInConfigured) {
+      if (companyId) {
+        await upsertConnection(await resolveCompanyUuid(companyId), "linkedin", { connected_via: "oauth_demo", account_name: "LinkedIn (démo)" }, "connected");
+      }
+      return NextResponse.redirect(`${env.appUrl}${ret}?connected=linkedin&simulated=1`);
+    }
+    return NextResponse.redirect(getConnector("linkedin").getAuthUrl(buildState(companyId, ret)));
   } catch (err) {
-    console.error("[GET /api/connectors/linkedin/auth] Erreur :", err);
-    return NextResponse.json(
-      { error: "Impossible de construire l'URL d'autorisation LinkedIn." },
-      { status: 500 }
-    );
+    console.error("[linkedin/auth]", err);
+    return NextResponse.redirect(`${env.appUrl}${ret}?error=oauth_init&platform=linkedin`);
   }
 }

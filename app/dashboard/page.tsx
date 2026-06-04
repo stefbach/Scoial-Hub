@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { PlatformTag } from "@/components/ui/PlatformTag";
 import { eur } from "@/lib/format";
 import { useT } from "@/lib/i18n";
+import { OnboardingCockpit } from "@/components/onboarding/OnboardingCockpit";
 
 export default function DashboardPage() {
   const { company, data } = useCompany();
@@ -17,6 +18,9 @@ export default function DashboardPage() {
 
   return (
     <div className="animate-fade-in space-y-6">
+      {/* Cockpit Démarrage — invite au parcours guidé tant qu'il n'est pas terminé */}
+      <OnboardingCockpit />
+
       {/* Page header */}
       <div className="flex items-start justify-between gap-4">
         <div>

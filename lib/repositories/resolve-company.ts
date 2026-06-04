@@ -12,10 +12,20 @@ export function isUuid(v: string): boolean {
   return UUID_RE.test(v);
 }
 
+// Mapping des id de démo (mock-data) vers le CODE réel en base.
+// Indispensable car l'id mock ne correspond pas toujours au code
+// (ex. "tibok" → "TI", "cvmi" → "CV" ; "occ" → "OCC" par coïncidence).
+const DEMO_ID_TO_CODE: Record<string, string> = {
+  occ: "OCC",
+  tibok: "TI",
+  cvmi: "CV",
+};
+
 /**
  * Retourne un UUID de société exploitable.
  * - si `idOrCode` est déjà un UUID → tel quel
- * - sinon, recherche sh_companies par code (insensible à la casse)
+ * - sinon, recherche sh_companies par code (insensible à la casse),
+ *   en passant d'abord par l'alias de démo si applicable
  * - sinon, renvoie la valeur d'origine (dégradation gracieuse)
  */
 export async function resolveCompanyUuid(idOrCode: string): Promise<string> {
@@ -26,11 +36,14 @@ export async function resolveCompanyUuid(idOrCode: string): Promise<string> {
   const supabase = createAdminClient();
   if (!supabase) return idOrCode;
 
+  // Traduit un id de démo en code réel si besoin.
+  const code = DEMO_ID_TO_CODE[idOrCode.toLowerCase()] ?? idOrCode;
+
   try {
     const { data } = await supabase
       .from("sh_companies")
       .select("id")
-      .ilike("code", idOrCode)
+      .ilike("code", code)
       .limit(1)
       .maybeSingle();
     return data?.id ? String(data.id) : idOrCode;

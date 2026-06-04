@@ -18,6 +18,7 @@ import {
   type CaptionSegment,
 } from "@/lib/video/types";
 import { captionsToSrt } from "@/lib/video/srt";
+import PromptStudio from "@/components/studio/PromptStudio";
 
 // ── Studio Créatif : images + vidéos → assemblage & marketing pro ────────────────
 
@@ -157,6 +158,9 @@ export default function StudioPage() {
           </p>
         </div>
       </div>
+
+      {/* Génération par prompt (IA) — image ou vidéo, tous formats publiables */}
+      <PromptStudio onGenerated={(a) => setAssets((prev) => [...prev, a])} />
 
       {/* Étape 1 : médias */}
       <section className="card p-5">

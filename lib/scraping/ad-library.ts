@@ -63,12 +63,14 @@ export interface FetchAdsInput {
   searchPageIds?: string[];
   adType?: "POLITICAL_AND_ISSUE_ADS" | "ALL";
   limit?: number;
+  /** Token explicite (token utilisateur d'une société connectée) — prioritaire. */
+  token?: string;
 }
 
 export async function fetchAds(
   input: FetchAdsInput
 ): Promise<{ ads: AdEntry[]; error?: string }> {
-  const token = adLibraryToken();
+  const token = input.token || adLibraryToken();
   if (!token) return { ads: [], error: "Token Ad Library absent (META_AD_LIBRARY_TOKEN)." };
 
   const url = new URL(GRAPH);

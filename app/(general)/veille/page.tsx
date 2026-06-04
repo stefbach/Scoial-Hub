@@ -157,6 +157,28 @@ export default function VeillePage() {
 
   useEffect(() => { void loadCompetitors(); }, [loadCompetitors]);
 
+  // Pré-remplit thématique + mots-clés depuis le profil de marque (onboarding)
+  // pour que la page soit immédiatement utilisable (bouton actif).
+  useEffect(() => {
+    let alive = true;
+    fetch(`/api/onboarding/state?companyId=${encodeURIComponent(company.id)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!alive || !d?.profile) return;
+        const p = d.profile as { keywords?: string[]; themes?: string[] };
+        if (Array.isArray(p.keywords) && p.keywords.length) {
+          setKeywords((prev) => (prev.length ? prev : p.keywords!.slice(0, 6)));
+        }
+        if (Array.isArray(p.themes) && p.themes[0]) {
+          setTheme((prev) => prev || p.themes![0]);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [company.id]);
+
   /* ── Ajout d'un compétiteur ── */
   async function handleAddCompetitor() {
     if (!addHandle.trim()) return;

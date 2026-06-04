@@ -54,7 +54,7 @@ export default function PublicitesPage() {
       const res = await fetch("/api/veille/ads", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ country: country.trim().toUpperCase(), searchTerms: terms.trim(), adType, limit: 40 }),
+        body: JSON.stringify({ country: country.trim().toUpperCase(), searchTerms: terms.trim(), adType, limit: 40, companyId: company.id }),
       });
       const data = await res.json();
       if (data.error) setErr(data.error);

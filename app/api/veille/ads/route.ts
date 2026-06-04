@@ -9,27 +9,42 @@ export const maxDuration = 30;
 
 import { NextRequest, NextResponse } from "next/server";
 import { fetchAds, isAdLibraryConfigured } from "@/lib/scraping/ad-library";
+import { getMetaContext } from "@/lib/connectors/meta-pages";
 
 export async function POST(req: NextRequest) {
   try {
-    if (!isAdLibraryConfigured()) {
-      return NextResponse.json(
-        {
-          ads: [],
-          error:
-            "Connecteur non configuré. Ajoutez META_AD_LIBRARY_TOKEN (token UTILISATEUR « EAA… », identité vérifiée) dans Vercel.",
-        },
-        { status: 200 }
-      );
-    }
     const body = (await req.json().catch(() => ({}))) as {
       country?: string;
       searchTerms?: string;
       searchPageIds?: string[];
       adType?: "POLITICAL_AND_ISSUE_ADS" | "ALL";
       limit?: number;
+      companyId?: string;
     };
-    const result = await fetchAds(body);
+
+    // On utilise en priorité le token utilisateur Meta de la société connectée
+    // (le token d'env est souvent expiré). Repli sur META_AD_LIBRARY_TOKEN.
+    let token: string | undefined;
+    if (body.companyId) {
+      try {
+        token = (await getMetaContext(body.companyId)).userToken;
+      } catch {
+        /* ignore */
+      }
+    }
+
+    if (!token && !isAdLibraryConfigured()) {
+      return NextResponse.json(
+        {
+          ads: [],
+          error:
+            "Connectez Meta (Facebook) pour la société, ou ajoutez META_AD_LIBRARY_TOKEN dans Vercel, pour interroger la bibliothèque publicitaire.",
+        },
+        { status: 200 }
+      );
+    }
+
+    const result = await fetchAds({ ...body, token });
     return NextResponse.json(result);
   } catch (err) {
     console.error("[POST /api/veille/ads]", err);

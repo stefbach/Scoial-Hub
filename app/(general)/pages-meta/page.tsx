@@ -38,6 +38,16 @@ interface Insights {
   facebookPosts: Post[];
   instagramPosts: Post[];
 }
+interface Analysis {
+  synthese: string;
+  pointsForts: string[];
+  aAmeliorer: string[];
+  formatsGagnants: string[];
+  cadenceRecommandee: string;
+  ideesContenu: { titre: string; angle: string }[];
+  actions: { priorite: "haute" | "moyenne" | "basse"; action: string }[];
+  aiGenerated: boolean;
+}
 
 const nf = (n: number) => n.toLocaleString("fr-FR");
 
@@ -50,6 +60,8 @@ export default function PagesMetaPage() {
   const [insights, setInsights] = useState<Insights | null>(null);
   const [loading, setLoading] = useState(true);
   const [switching, setSwitching] = useState<string | null>(null);
+  const [analysis, setAnalysis] = useState<Analysis | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -68,6 +80,7 @@ export default function PagesMetaPage() {
 
   async function selectPage(pageId: string) {
     setSwitching(pageId);
+    setAnalysis(null);
     try {
       await fetch("/api/meta/pages", {
         method: "POST",
@@ -77,6 +90,23 @@ export default function PagesMetaPage() {
       await load();
     } finally {
       setSwitching(null);
+    }
+  }
+
+  async function runAnalyze() {
+    setAnalyzing(true);
+    try {
+      const res = await fetch("/api/meta/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyId }),
+      });
+      const data = await res.json();
+      if (data?.analysis) setAnalysis(data.analysis as Analysis);
+    } catch {
+      /* silencieux */
+    } finally {
+      setAnalyzing(false);
     }
   }
 
@@ -141,6 +171,42 @@ export default function PagesMetaPage() {
                 />
               )}
             </div>
+          )}
+
+          {/* ── Analyse IA pour optimiser la suite ── */}
+          {insights?.connected && (insights.facebook || insights.instagram) && (
+            <section className="space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <div className="section-label text-ai-text">{t("Optimisation IA", "AI optimization")}</div>
+                  <p className="mt-0.5 text-xs text-muted">
+                    {t(
+                      "L'IA analyse vos contenus et leur engagement pour recommander la suite.",
+                      "The AI analyses your content and its engagement to recommend what's next."
+                    )}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={runAnalyze}
+                  disabled={analyzing}
+                  className="btn-primary inline-flex items-center gap-2 disabled:opacity-50"
+                >
+                  {analyzing ? (
+                    <>
+                      <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                      {t("Analyse en cours…", "Analyzing…")}
+                    </>
+                  ) : (
+                    <>
+                      <SparkIcon />
+                      {analysis ? t("Ré-analyser", "Re-analyze") : t("Analyser cette Page avec l'IA", "Analyze this Page with AI")}
+                    </>
+                  )}
+                </button>
+              </div>
+              {analysis && <AnalysisReport a={analysis} t={t} />}
+            </section>
           )}
 
           {/* ── Sélecteur de Page ── */}
@@ -238,6 +304,122 @@ function StatCard({
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+function SparkIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="currentColor" aria-hidden="true">
+      <path d="M7.5 1 8.5 5.5 13 6.5 8.5 7.5 7.5 12 6.5 7.5 2 6.5 6.5 5.5Z" />
+    </svg>
+  );
+}
+
+function AnalysisReport({ a, t }: { a: Analysis; t: (fr: string, en: string) => string }) {
+  const prioColor: Record<string, string> = {
+    haute: "bg-danger-50 text-danger-700 ring-danger-200",
+    moyenne: "bg-warning-50 text-warning-700 ring-warning-200",
+    basse: "bg-canvas text-muted ring-hair",
+  };
+  return (
+    <div className="space-y-4 animate-fade-in">
+      {/* Synthèse */}
+      <div className="card border-l-4 border-ai-text p-5">
+        <div className="flex items-center gap-2">
+          <span className="section-label text-ai-text">{t("Synthèse", "Summary")}</span>
+          {a.aiGenerated ? (
+            <span className="rounded-full bg-ai-textbg px-2 py-0.5 text-2xs font-semibold text-ai-text">IA</span>
+          ) : (
+            <span className="rounded-full border border-hair bg-canvas px-2 py-0.5 text-2xs font-medium text-muted">{t("estimation", "estimate")}</span>
+          )}
+        </div>
+        <p className="mt-2 text-sm leading-relaxed text-ink">{a.synthese}</p>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        {a.pointsForts.length > 0 && (
+          <ListCard title={t("Points forts", "Strengths")} items={a.pointsForts} tone="success" />
+        )}
+        {a.aAmeliorer.length > 0 && (
+          <ListCard title={t("À améliorer", "To improve")} items={a.aAmeliorer} tone="warning" />
+        )}
+      </div>
+
+      {/* Formats + cadence */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        {a.formatsGagnants.length > 0 && (
+          <div className="card p-5">
+            <div className="section-label">{t("Formats gagnants", "Winning formats")}</div>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {a.formatsGagnants.map((f) => (
+                <span key={f} className="rounded-full border border-primary-200 bg-primary-50 px-3 py-1 text-xs font-medium text-primary-700">{f}</span>
+              ))}
+            </div>
+          </div>
+        )}
+        {a.cadenceRecommandee && (
+          <div className="card p-5">
+            <div className="section-label">{t("Cadence recommandée", "Recommended cadence")}</div>
+            <p className="mt-2 text-sm text-ink">{a.cadenceRecommandee}</p>
+          </div>
+        )}
+      </div>
+
+      {/* Idées de contenu */}
+      {a.ideesContenu.length > 0 && (
+        <div className="card p-5">
+          <div className="section-label">{t("Idées de contenu", "Content ideas")}</div>
+          <ul className="mt-3 space-y-2.5">
+            {a.ideesContenu.map((idea, i) => (
+              <li key={i} className="flex gap-3">
+                <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary-100 text-2xs font-bold text-primary-700">{i + 1}</span>
+                <div>
+                  <p className="text-sm font-semibold text-ink">{idea.titre}</p>
+                  <p className="text-xs text-muted">{idea.angle}</p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Actions */}
+      {a.actions.length > 0 && (
+        <div className="card p-5">
+          <div className="section-label">{t("Prochaines actions", "Next actions")}</div>
+          <ul className="mt-3 space-y-2">
+            {a.actions.map((act, i) => (
+              <li key={i} className="flex items-center gap-3">
+                <span className={`shrink-0 rounded-full px-2 py-0.5 text-2xs font-semibold uppercase ring-1 ${prioColor[act.priorite] ?? prioColor.basse}`}>
+                  {act.priorite}
+                </span>
+                <span className="text-sm text-ink">{act.action}</span>
+              </li>
+            ))}
+          </ul>
+          <Link href="/demarrage?new=1" className="btn-primary mt-4 inline-flex text-sm">
+            {t("Lancer une campagne basée sur ces recommandations", "Launch a campaign based on these recommendations")}
+          </Link>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ListCard({ title, items, tone }: { title: string; items: string[]; tone: "success" | "warning" }) {
+  const dot = tone === "success" ? "bg-success-500" : "bg-warning-500";
+  return (
+    <div className="card p-5">
+      <div className="section-label">{title}</div>
+      <ul className="mt-2 space-y-2">
+        {items.map((it, i) => (
+          <li key={i} className="flex items-start gap-2.5">
+            <span className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${dot}`} />
+            <span className="text-sm text-ink">{it}</span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

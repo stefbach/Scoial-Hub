@@ -78,6 +78,7 @@ export interface MetaPost {
   createdAt?: string;
   likes?: number;
   comments?: number;
+  shares?: number;
 }
 
 export interface MetaInsights {
@@ -117,15 +118,23 @@ export async function fetchMetaInsights(ctx: MetaContext): Promise<MetaInsights>
         picture: pic?.data?.url,
       };
     }
-    const posts = await gget(`${ctx.pageId}/posts?fields=message,created_time,permalink_url,full_picture&limit=8`, token);
+    const posts = await gget(`${ctx.pageId}/posts?fields=message,created_time,permalink_url,full_picture,shares,reactions.summary(total_count),comments.summary(total_count)&limit=12`, token);
     const arrP = (posts?.data as Array<Record<string, unknown>>) ?? [];
-    out.facebookPosts = arrP.map((m) => ({
-      id: String(m.id ?? ""),
-      message: String(m.message ?? ""),
-      url: m.permalink_url ? String(m.permalink_url) : undefined,
-      image: m.full_picture ? String(m.full_picture) : undefined,
-      createdAt: m.created_time ? String(m.created_time) : undefined,
-    }));
+    out.facebookPosts = arrP.map((m) => {
+      const reactions = m.reactions as { summary?: { total_count?: number } } | undefined;
+      const comments = m.comments as { summary?: { total_count?: number } } | undefined;
+      const shares = m.shares as { count?: number } | undefined;
+      return {
+        id: String(m.id ?? ""),
+        message: String(m.message ?? ""),
+        url: m.permalink_url ? String(m.permalink_url) : undefined,
+        image: m.full_picture ? String(m.full_picture) : undefined,
+        createdAt: m.created_time ? String(m.created_time) : undefined,
+        likes: reactions?.summary?.total_count,
+        comments: comments?.summary?.total_count,
+        shares: shares?.count,
+      };
+    });
   }
 
   if (ctx.igId) {
@@ -139,7 +148,7 @@ export async function fetchMetaInsights(ctx: MetaContext): Promise<MetaInsights>
         picture: ig.profile_picture_url ? String(ig.profile_picture_url) : undefined,
       };
     }
-    const media = await gget(`${ctx.igId}/media?fields=caption,media_url,permalink,timestamp,like_count,comments_count&limit=8`, token);
+    const media = await gget(`${ctx.igId}/media?fields=caption,media_type,media_url,permalink,timestamp,like_count,comments_count&limit=12`, token);
     const arrM = (media?.data as Array<Record<string, unknown>>) ?? [];
     out.instagramPosts = arrM.map((m) => ({
       id: String(m.id ?? ""),

@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/env";
+import { resolveCompanyUuid } from "@/lib/repositories/resolve-company";
 import { COMPANY_DATA } from "@/lib/mock-data";
 import type { ScheduledPost, Platform, PostSource } from "@/lib/types";
 import type { DbScheduledPost } from "@/lib/supabase/db-types";
@@ -64,7 +65,7 @@ export async function listScheduledPosts(
   const { data, error } = await supabase
     .from("sh_scheduled_posts")
     .select("*")
-    .eq("company_id", companyId)
+    .eq("company_id", await resolveCompanyUuid(companyId))
     .order("date", { ascending: true });
 
   if (error || !data) {
@@ -138,7 +139,7 @@ export async function createScheduledPost(
     return post;
   }
 
-  const row = scheduledPostToRow(companyId, input);
+  const row = scheduledPostToRow(await resolveCompanyUuid(companyId), input);
   const { data, error } = await supabase
     .from("sh_scheduled_posts")
     .insert(row)

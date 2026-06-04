@@ -104,12 +104,12 @@ function AccountsPageInner() {
   const [connectorLoading, setConnectorLoading] = useState(true);
   const [connectorError, setConnectorError] = useState(false);
 
-  // Fetch connector status on mount
+  // Fetch connector status on mount (statut RÉEL par société)
   useEffect(() => {
     let cancelled = false;
     setConnectorLoading(true);
     setConnectorError(false);
-    fetch("/api/connectors")
+    fetch(`/api/connectors?companyId=${encodeURIComponent(company.id)}`)
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json() as Promise<ConnectorStatus[]>;
@@ -129,7 +129,7 @@ function AccountsPageInner() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [company.id]);
 
   // Handle return from OAuth callback (query params)
   useEffect(() => {
@@ -148,7 +148,7 @@ function AccountsPageInner() {
       const name = account ? ` : ${account}` : "";
       setToast(`${label} ${t("connecté", "connected")}${name}.`);
       // Refresh connector status after successful connection
-      fetch("/api/connectors")
+      fetch(`/api/connectors?companyId=${encodeURIComponent(company.id)}`)
         .then((r) => r.json() as Promise<ConnectorStatus[]>)
         .then(setConnectorStatuses)
         .catch(() => undefined);
@@ -277,7 +277,7 @@ function AccountsPageInner() {
                 view={view}
                 companyId={company.id}
                 onConnected={() => {
-                  fetch("/api/connectors")
+                  fetch(`/api/connectors?companyId=${encodeURIComponent(company.id)}`)
                     .then((r) => r.json() as Promise<ConnectorStatus[]>)
                     .then(setConnectorStatuses)
                     .catch(() => undefined);

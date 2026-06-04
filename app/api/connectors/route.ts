@@ -1,29 +1,52 @@
 /**
  * app/api/connectors/route.ts
  *
- * GET /api/connectors
+ * GET /api/connectors?companyId=…
  *
- * Retourne le statut de configuration et de connexion pour chaque plateforme
- * sociale (Facebook, Instagram, LinkedIn).
- *
- * Réponse JSON : ConnectorStatus[]
- * {
- *   platform: "facebook" | "instagram" | "linkedin",
- *   configured: boolean,       // variables d'env présentes ?
- *   connectedAccounts: number, // comptes actifs dans social_accounts
- *   accounts: [{ id, accountName, externalId?, status }]
- * }
- *
- * Fonctionne sans aucune clé (retourne configured: false pour chaque plateforme).
+ * Avec `companyId` : statut RÉEL par plateforme, dérivé de
+ * sh_channel_connections (la source de vérité des connexions). Sans
+ * `companyId` : statut global basé sur l'env (rétro-compatible).
  */
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { listConnectorStatus } from "@/lib/connectors/index";
+import { listConnections } from "@/lib/repositories/channel-connections";
+import { resolveCompanyUuid } from "@/lib/repositories/resolve-company";
+import type { ConnectorStatus } from "@/lib/connectors/types";
+import type { Platform } from "@/lib/types";
 
-export async function GET(): Promise<NextResponse> {
+export async function GET(req: NextRequest): Promise<NextResponse> {
   try {
+    const companyId = req.nextUrl.searchParams.get("companyId");
+
+    if (companyId) {
+      const rows = await listConnections(await resolveCompanyUuid(companyId));
+      const byChannel = new Map(rows.map((r) => [r.channel, r]));
+      const platforms: Platform[] = ["facebook", "instagram", "linkedin"];
+      const statuses: ConnectorStatus[] = platforms.map((p) => {
+        const r = byChannel.get(p);
+        const connected = r?.status === "connected";
+        return {
+          platform: p,
+          configured: true,
+          connectedAccounts: connected ? 1 : 0,
+          accounts: connected
+            ? [
+                {
+                  id: r!.id,
+                  accountName: r!.config?.account_name || p,
+                  status: "active" as const,
+                },
+              ]
+            : [],
+        };
+      });
+      return NextResponse.json(statuses);
+    }
+
     const statuses = await listConnectorStatus();
     return NextResponse.json(statuses);
   } catch (err) {

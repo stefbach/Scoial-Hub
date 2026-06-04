@@ -174,7 +174,7 @@ export async function getCompanyData(companyId: string): Promise<CompanyData> {
   try {
     const uuid = await resolveCompanyUuid(companyId);
 
-    const [campaignsR, scheduledR, historyR, automationsR, audiencesR, accountsR, templatesR] =
+    const [campaignsR, scheduledR, historyR, automationsR, audiencesR, accountsR, templatesR, connectionsR] =
       await Promise.all([
         supabase.from("sh_campaigns").select("*").eq("company_id", uuid).order("created_at", { ascending: false }),
         supabase.from("sh_scheduled_posts").select("*").eq("company_id", uuid).order("date", { ascending: true }),
@@ -183,6 +183,7 @@ export async function getCompanyData(companyId: string): Promise<CompanyData> {
         supabase.from("sh_audiences").select("*").eq("company_id", uuid),
         supabase.from("sh_social_accounts").select("id,platform,account_name,status").eq("company_id", uuid),
         supabase.from("sh_templates").select("*").eq("company_id", uuid),
+        supabase.from("sh_channel_connections").select("channel,status,config,connected_at").eq("company_id", uuid),
       ]);
 
     const campaigns = arr<Row>(campaignsR.data).map(mapCampaign);
@@ -190,8 +191,26 @@ export async function getCompanyData(companyId: string): Promise<CompanyData> {
     const history = arr<Row>(historyR.data).map(mapHistory);
     const automations = arr<Row>(automationsR.data).map(mapAutomation);
     const audiences = arr<Row>(audiencesR.data).map(mapAudience);
-    const accounts = arr<Row>(accountsR.data).map(mapAccount);
     const templates = arr<Row>(templatesR.data).map(mapTemplate);
+
+    // Connexions réelles (source de vérité) → comptes, Meta, LinkedIn.
+    const connections = arr<Row>(connectionsR.data);
+    const connByChannel = new Map(connections.map((c) => [s(c.channel), c]));
+    const isConnected = (ch: string) => connByChannel.get(ch)?.status === "connected";
+
+    // Comptes affichés : dérivés des connexions actives (sinon sh_social_accounts).
+    const connAccounts: SocialAccount[] = connections
+      .filter((c) => s(c.status) === "connected" && ["facebook", "instagram", "linkedin", "tiktok"].includes(s(c.channel)))
+      .map((c) => {
+        const cfg = (c.config as Record<string, unknown>) ?? {};
+        return {
+          id: `${s(c.channel)}-conn`,
+          platform: plat(c.channel),
+          accountName: s(cfg.account_name) || s(c.channel),
+          status: "active" as const,
+        };
+      });
+    const accounts = connAccounts.length > 0 ? connAccounts : arr<Row>(accountsR.data).map(mapAccount);
 
     // ── Agrégats dashboard ──────────────────────────────────────────────
     const now = Date.now();
@@ -206,6 +225,21 @@ export async function getCompanyData(companyId: string): Promise<CompanyData> {
     const spendMtd = campaigns.reduce((acc, c) => acc + c.spend, 0);
 
     data.accounts = accounts;
+
+    // Statut Meta (Facebook/Instagram) + LinkedIn pour la page Comptes.
+    const metaConnected = isConnected("facebook") || isConnected("instagram");
+    const metaConnAt =
+      s(connByChannel.get("facebook")?.connected_at) ||
+      s(connByChannel.get("instagram")?.connected_at) ||
+      "";
+    data.meta = {
+      connected: metaConnected,
+      readOnly: false,
+      keepReadOnlyAfterSafety: false,
+      ...(metaConnAt ? { connectedAt: metaConnAt.slice(0, 10) } : {}),
+    };
+    data.linkedin = { connected: isConnected("linkedin") };
+
     data.scheduled = scheduled;
     data.history = history;
     data.automations = {

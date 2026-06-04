@@ -8,18 +8,10 @@
 // • Erreur de fetch      → fallback héro "Démarrer maintenant" (jamais vide).
 // • Chargement           → squelette slim, non bloquant.
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useCompany } from "@/lib/company-context";
 import { useT } from "@/lib/i18n";
-import type { OnboardingState } from "@/lib/onboarding/types";
-
-// ── Types locaux ────────────────────────────────────────────────────────────
-
-interface OnboardingApiResponse {
-  state: OnboardingState;
-  profile: { analyzedAt: string | null } | null;
-}
+import { useOnboardingStatus, type OnboardingStatus } from "@/components/onboarding/useOnboardingStatus";
 
 // Nombre total d'étapes — synchronisé avec TOTAL_STEPS dans lib/onboarding/types.ts
 const TOTAL_STEPS = 6;
@@ -288,45 +280,13 @@ function HeroBanner({ companyName, step }: HeroBannerProps) {
 
 // ── Composant principal exporté ─────────────────────────────────────────────
 
-export function OnboardingCockpit() {
+export function OnboardingCockpit({ status }: { status?: OnboardingStatus }) {
   const { company } = useCompany();
-  const companyId = company.id;
   const companyName = company.name;
 
-  // États locaux du fetch
-  const [loading, setLoading] = useState(true);
-  const [completed, setCompleted] = useState(false);
-  const [step, setStep] = useState(1);
-
-  useEffect(() => {
-    let alive = true;
-
-    // Fetch de l'état d'onboarding pour la société courante
-    fetch(`/api/onboarding/state?companyId=${encodeURIComponent(companyId)}`)
-      .then((res) => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.json() as Promise<OnboardingApiResponse>;
-      })
-      .then((data) => {
-        if (!alive) return;
-        setCompleted(data.state?.completed ?? false);
-        setStep(data.state?.step ?? 1);
-      })
-      .catch(() => {
-        // Dégradation gracieuse : on affiche le héro "démarrer"
-        if (alive) {
-          setCompleted(false);
-          setStep(1);
-        }
-      })
-      .finally(() => {
-        if (alive) setLoading(false);
-      });
-
-    return () => {
-      alive = false;
-    };
-  }, [companyId]);
+  // Statut partagé (le tableau de bord peut le fournir pour éviter un 2e fetch).
+  const fallback = useOnboardingStatus();
+  const { loading, completed, step } = status ?? fallback;
 
   // Pendant le chargement : squelette slim, non bloquant
   if (loading) {

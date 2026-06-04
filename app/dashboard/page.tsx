@@ -9,6 +9,7 @@ import { PlatformTag } from "@/components/ui/PlatformTag";
 import { eur } from "@/lib/format";
 import { useT } from "@/lib/i18n";
 import { OnboardingCockpit } from "@/components/onboarding/OnboardingCockpit";
+import { useOnboardingStatus } from "@/components/onboarding/useOnboardingStatus";
 
 export default function DashboardPage() {
   const { company, data } = useCompany();
@@ -16,10 +17,38 @@ export default function DashboardPage() {
   const t = useT();
   const d = data.dashboard;
 
+  // Le tableau de bord ne s'affiche qu'une fois le démarrage assisté terminé.
+  // Tant que le setup n'est pas fait, on ne montre QUE le démarrage guidé
+  // (pas de widgets vides qui « mélangent » l'écran).
+  const onboarding = useOnboardingStatus();
+
+  if (onboarding.loading) {
+    return (
+      <div className="animate-fade-in">
+        <div className="h-44 animate-pulse rounded-2xl bg-primary-100" aria-hidden="true" />
+      </div>
+    );
+  }
+
+  if (!onboarding.completed) {
+    return (
+      <div className="animate-fade-in space-y-5">
+        {/* Démarrage guidé seul — on fait d'abord tout le setup */}
+        <OnboardingCockpit status={onboarding} />
+        <p className="px-1 text-center text-sm text-muted">
+          {t(
+            "Votre tableau de bord s'activera dès que votre première campagne sera lancée.",
+            "Your dashboard will activate as soon as your first campaign is launched."
+          )}
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="animate-fade-in space-y-6">
-      {/* Cockpit Démarrage — invite au parcours guidé tant qu'il n'est pas terminé */}
-      <OnboardingCockpit />
+      {/* Dispositif actif — bandeau compact + relancer une campagne */}
+      <OnboardingCockpit status={onboarding} />
 
       {/* Page header */}
       <div className="flex items-start justify-between gap-4">

@@ -79,7 +79,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         const name = await getCompanyName(uuid);
         const pages = await fetchMetaPages(tokenSet.accessToken);
         const page = pickPageForCompany(pages, name);
-        if (page) await storeMetaConnections(companyId, page);
+        if (page) await storeMetaConnections(companyId, page, tokenSet.accessToken);
       } catch (e) {
         console.warn("[Instagram callback] channel_connection:", e);
       }

@@ -9,6 +9,7 @@ const NAV_TR: Record<string, [string, string]> = {
   "Dashboard": ["Tableau de bord", "Dashboard"],
   "Get started": ["Démarrage assisté", "Assisted onboarding"],
   "Modules": ["Modules", "Modules"],
+  "Mes Pages": ["Mes Pages & données", "My Pages & data"],
   "Pilotage IA": ["Veille & Stratégie", "Watch & Strategy"],
   "Centre de pilotage": ["Centre de pilotage", "Command Center"],
   "Agents": ["Agents", "Agents"],
@@ -144,6 +145,13 @@ const ICONS: Record<string, React.ReactNode> = {
             stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
     </svg>
   ),
+  "/pages-meta": (
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+      <rect x="2" y="2.5" width="11" height="10" rx="2" stroke="currentColor" strokeWidth="1.2" fill="none"/>
+      <circle cx="5.5" cy="6" r="1.3" stroke="currentColor" strokeWidth="1.1" fill="none"/>
+      <path d="M2.5 11l3-2.5 2 1.5 2.5-2 2.5 2" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+    </svg>
+  ),
   "/veille": (
     <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
       <rect x="1.5" y="9" width="2.5" height="4.5" rx="0.5" fill="currentColor" opacity="0.45"/>
@@ -208,6 +216,7 @@ const GROUPS: { label?: string; items: NavItem[] }[] = [
   {
     label: "Pilotage IA",
     items: [
+      { href: "/pages-meta",  label: "Mes Pages" },
       { href: "/agents",      label: "Agents" },
       { href: "/veille",      label: "Veille & Marché" },
       { href: "/publicites",  label: "Competitor Ads" },

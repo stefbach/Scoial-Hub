@@ -12,13 +12,15 @@ export interface MetaPage {
   accessToken: string;      // token de PAGE (publication)
   igId?: string;            // Instagram Business Account lié
   igUsername?: string;
+  picture?: string;
+  fanCount?: number;
 }
 
 /** Liste les Pages gérées par l'utilisateur (avec token de page + IG lié). */
 export async function fetchMetaPages(userToken: string): Promise<MetaPage[]> {
   const url =
     `https://graph.facebook.com/${V}/me/accounts` +
-    `?fields=id,name,access_token,instagram_business_account{id,username}` +
+    `?fields=id,name,access_token,fan_count,picture{url},instagram_business_account{id,username}` +
     `&limit=100&access_token=${encodeURIComponent(userToken)}`;
   try {
     const res = await fetch(url, { cache: "no-store" });
@@ -26,17 +28,131 @@ export async function fetchMetaPages(userToken: string): Promise<MetaPage[]> {
     if (!Array.isArray(json.data)) return [];
     return json.data.map((p) => {
       const ig = p.instagram_business_account as { id?: string; username?: string } | undefined;
+      const pic = p.picture as { data?: { url?: string } } | undefined;
       return {
         id: String(p.id ?? ""),
         name: String(p.name ?? ""),
         accessToken: String(p.access_token ?? ""),
         igId: ig?.id ? String(ig.id) : undefined,
         igUsername: ig?.username ? String(ig.username) : undefined,
+        picture: pic?.data?.url ? String(pic.data.url) : undefined,
+        fanCount: typeof p.fan_count === "number" ? p.fan_count : undefined,
       };
     });
   } catch {
     return [];
   }
+}
+
+// ── Contexte Meta stocké pour une société ────────────────────────────────────
+
+export interface MetaContext {
+  userToken?: string;
+  pageToken?: string;
+  pageId?: string;
+  igId?: string;
+}
+
+/** Lit les tokens/ids Meta enregistrés pour une société. */
+export async function getMetaContext(companyId: string): Promise<MetaContext> {
+  const { listConnections } = await import("@/lib/repositories/channel-connections");
+  const { resolveCompanyUuid } = await import("@/lib/repositories/resolve-company");
+  const rows = await listConnections(await resolveCompanyUuid(companyId));
+  const fb = rows.find((r) => r.channel === "facebook")?.config ?? {};
+  const ig = rows.find((r) => r.channel === "instagram")?.config ?? {};
+  return {
+    userToken: fb.user_access_token || undefined,
+    pageToken: fb.page_access_token || undefined,
+    pageId: fb.page_id || undefined,
+    igId: ig.ig_business_account_id || undefined,
+  };
+}
+
+// ── Insights / données réelles d'une Page + compte Instagram ─────────────────
+
+export interface MetaPost {
+  id: string;
+  message: string;
+  url?: string;
+  image?: string;
+  createdAt?: string;
+  likes?: number;
+  comments?: number;
+}
+
+export interface MetaInsights {
+  facebook?: { id: string; name: string; fanCount: number; followers: number; picture?: string };
+  instagram?: { id: string; username: string; followers: number; mediaCount: number; picture?: string };
+  facebookPosts: MetaPost[];
+  instagramPosts: MetaPost[];
+}
+
+async function gget(path: string, token: string): Promise<Record<string, unknown> | null> {
+  try {
+    const sep = path.includes("?") ? "&" : "?";
+    const res = await fetch(`https://graph.facebook.com/${V}/${path}${sep}access_token=${encodeURIComponent(token)}`, { cache: "no-store" });
+    const j = (await res.json()) as Record<string, unknown>;
+    if (j && (j as { error?: unknown }).error) return null;
+    return j;
+  } catch {
+    return null;
+  }
+}
+
+/** Récupère les vraies stats + posts récents de la Page FB et du compte IG. */
+export async function fetchMetaInsights(ctx: MetaContext): Promise<MetaInsights> {
+  const out: MetaInsights = { facebookPosts: [], instagramPosts: [] };
+  const token = ctx.pageToken;
+  if (!token) return out;
+
+  if (ctx.pageId) {
+    const p = await gget(`${ctx.pageId}?fields=id,name,fan_count,followers_count,picture{url}`, token);
+    if (p) {
+      const pic = p.picture as { data?: { url?: string } } | undefined;
+      out.facebook = {
+        id: String(p.id ?? ctx.pageId),
+        name: String(p.name ?? ""),
+        fanCount: Number(p.fan_count ?? 0),
+        followers: Number(p.followers_count ?? p.fan_count ?? 0),
+        picture: pic?.data?.url,
+      };
+    }
+    const posts = await gget(`${ctx.pageId}/posts?fields=message,created_time,permalink_url,full_picture&limit=8`, token);
+    const arrP = (posts?.data as Array<Record<string, unknown>>) ?? [];
+    out.facebookPosts = arrP.map((m) => ({
+      id: String(m.id ?? ""),
+      message: String(m.message ?? ""),
+      url: m.permalink_url ? String(m.permalink_url) : undefined,
+      image: m.full_picture ? String(m.full_picture) : undefined,
+      createdAt: m.created_time ? String(m.created_time) : undefined,
+    }));
+  }
+
+  if (ctx.igId) {
+    const ig = await gget(`${ctx.igId}?fields=username,followers_count,media_count,profile_picture_url`, token);
+    if (ig) {
+      out.instagram = {
+        id: ctx.igId,
+        username: String(ig.username ?? ""),
+        followers: Number(ig.followers_count ?? 0),
+        mediaCount: Number(ig.media_count ?? 0),
+        picture: ig.profile_picture_url ? String(ig.profile_picture_url) : undefined,
+      };
+    }
+    const media = await gget(`${ctx.igId}/media?fields=caption,media_url,permalink,timestamp,like_count,comments_count&limit=8`, token);
+    const arrM = (media?.data as Array<Record<string, unknown>>) ?? [];
+    out.instagramPosts = arrM.map((m) => ({
+      id: String(m.id ?? ""),
+      message: String(m.caption ?? ""),
+      url: m.permalink ? String(m.permalink) : undefined,
+      image: m.media_url ? String(m.media_url) : undefined,
+      createdAt: m.timestamp ? String(m.timestamp) : undefined,
+      likes: typeof m.like_count === "number" ? m.like_count : undefined,
+      comments: typeof m.comments_count === "number" ? m.comments_count : undefined,
+    }));
+  }
+
+  return out;
 }
 
 /** Choisit la Page la plus proche du nom de la société (exact → inclus → 1ère). */
@@ -79,7 +195,8 @@ export async function getCompanyName(companyUuid: string): Promise<string> {
  */
 export async function storeMetaConnections(
   companyId: string,
-  page: MetaPage
+  page: MetaPage,
+  userToken?: string
 ): Promise<void> {
   const { upsertConnection } = await import("@/lib/repositories/channel-connections");
   const { resolveCompanyUuid } = await import("@/lib/repositories/resolve-company");
@@ -87,7 +204,8 @@ export async function storeMetaConnections(
 
   const pagesMeta = JSON.stringify({ id: page.id, name: page.name });
 
-  // Facebook : id de Page + token de Page
+  // Facebook : id de Page + token de Page (+ token UTILISATEUR pour lister
+  // toutes les Pages plus tard via le sélecteur).
   await upsertConnection(
     uuid,
     "facebook",
@@ -97,6 +215,7 @@ export async function storeMetaConnections(
       account_name: page.name,
       connected_via: "oauth",
       selected_page: pagesMeta,
+      ...(userToken ? { user_access_token: userToken } : {}),
     },
     "connected"
   );

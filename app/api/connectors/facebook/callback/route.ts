@@ -91,7 +91,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         const page = pickPageForCompany(pages, name);
 
         if (page) {
-          await storeMetaConnections(companyId, page);
+          await storeMetaConnections(companyId, page, tokenSet.accessToken);
         } else {
           const { upsertConnection } = await import("@/lib/repositories/channel-connections");
           await upsertConnection(

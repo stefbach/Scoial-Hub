@@ -4,6 +4,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getOnboardingState, saveOnboardingState, getBrandProfile } from "@/lib/repositories/onboarding";
 
+// Route dynamique (utilise les query params / la session) — pas de pré-rendu statique.
+export const dynamic = "force-dynamic";
+
 // GET /api/onboarding/state?companyId=…
 // Retourne l'état courant et le profil de marque (peut être null).
 export async function GET(req: NextRequest) {

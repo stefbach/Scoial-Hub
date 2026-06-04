@@ -543,7 +543,7 @@ function RecapSection() {
 
 export default function Step6Diffusion() {
   const t = useT();
-  const { state, profile, companyId, companyName, complete } = useOnboardingCtx();
+  const { state, profile, companyId, companyName, complete, startNewCampaign } = useOnboardingCtx();
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError]           = useState<string | null>(null);
@@ -616,8 +616,8 @@ export default function Step6Diffusion() {
               </h2>
               <p className="mt-2 max-w-md text-sm leading-relaxed text-muted">
                 {t(
-                  "Les agents IA pilotent désormais vos campagnes sociales en continu. Vous pouvez suivre les performances en temps réel depuis le tableau de bord.",
-                  "AI agents are now running your social campaigns continuously. You can track performance in real time from your dashboard."
+                  "Les agents IA pilotent cette campagne en continu. Vous pouvez en lancer d'autres à tout moment — votre identité de marque est déjà enregistrée.",
+                  "AI agents are now running this campaign continuously. You can launch more at any time — your brand identity is already saved."
                 )}
               </p>
             </div>
@@ -658,9 +658,17 @@ export default function Step6Diffusion() {
                 <RocketIcon />
                 {t("Voir le pilotage", "View control center")}
               </Link>
+              <button
+                type="button"
+                onClick={() => { setSuccess(false); startNewCampaign(); }}
+                className="btn-secondary inline-flex items-center gap-2"
+              >
+                <PlusIcon />
+                {t("Créer une autre campagne", "Create another campaign")}
+              </button>
               <Link
                 href="/dashboard"
-                className="btn-secondary inline-flex items-center gap-2"
+                className="btn-ghost inline-flex items-center gap-2 text-muted"
               >
                 <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4" aria-hidden="true">
                   <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" />

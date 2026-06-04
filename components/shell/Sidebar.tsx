@@ -7,8 +7,9 @@ import { useT } from "@/lib/i18n";
 // Traductions des libellés de navigation (FR par défaut → EN).
 const NAV_TR: Record<string, [string, string]> = {
   "Dashboard": ["Tableau de bord", "Dashboard"],
-  "Get started": ["Démarrage guidé", "Get started"],
-  "Pilotage IA": ["Pilotage IA", "AI Piloting"],
+  "Get started": ["Démarrage assisté", "Assisted onboarding"],
+  "Modules": ["Modules", "Modules"],
+  "Pilotage IA": ["Veille & Stratégie", "Watch & Strategy"],
   "Centre de pilotage": ["Centre de pilotage", "Command Center"],
   "Agents": ["Agents", "Agents"],
   "Veille & Marché": ["Veille & Marché", "Market Watch"],
@@ -190,18 +191,23 @@ const ICONS: Record<string, React.ReactNode> = {
   ),
 };
 
-/* ── Groupes de navigation ─────────────────────────────────────────── */
-const GROUPS: { label?: string; items: { href: string; label: string }[] }[] = [
-  {
-    items: [
-      { href: "/dashboard",  label: "Dashboard" },
-      { href: "/demarrage",  label: "Get started" },
-    ],
-  },
+type NavItem = { href: string; label: string };
+
+/* ── Colonne vertébrale ────────────────────────────────────────────────
+   La porte d'entrée du produit : on démarre par le parcours assisté, on
+   pilote depuis le tableau de bord et le centre de pilotage. Le reste
+   (ci-dessous) ce sont des « Modules » où l'on plonge pour approfondir. */
+const SPINE: NavItem[] = [
+  { href: "/demarrage", label: "Get started" },
+  { href: "/dashboard", label: "Dashboard" },
+  { href: "/pilotage",  label: "Centre de pilotage" },
+];
+
+/* ── Modules (secondaires) ─────────────────────────────────────────── */
+const GROUPS: { label?: string; items: NavItem[] }[] = [
   {
     label: "Pilotage IA",
     items: [
-      { href: "/pilotage",    label: "Centre de pilotage" },
       { href: "/agents",      label: "Agents" },
       { href: "/veille",      label: "Veille & Marché" },
       { href: "/publicites",  label: "Competitor Ads" },
@@ -251,63 +257,71 @@ export function Sidebar() {
 
   const isActive = (href: string) => pathname.startsWith(href);
 
+  // Rendu d'un lien de navigation. `entry` met en avant la porte d'entrée
+  // (Démarrage) avec une teinte d'accent permanente.
+  const renderItem = (item: NavItem, opts?: { entry?: boolean }) => {
+    const active = isActive(item.href);
+    const icon = ICONS[item.href];
+    const entry = opts?.entry;
+    return (
+      <li key={item.href}>
+        <Link
+          href={item.href}
+          aria-current={active ? "page" : undefined}
+          className={[
+            "group relative flex items-center gap-2.5 rounded-lg px-3 py-[0.4rem] text-sm",
+            "transition-all duration-[120ms]",
+            active
+              ? "bg-[#efe7d9] text-ink font-semibold"
+              : entry
+              ? "bg-primary-50 text-primary-700 font-semibold hover:bg-primary-100"
+              : "text-muted hover:bg-[#f1eadd] hover:text-ink",
+          ].join(" ")}
+        >
+          {active && (
+            <span
+              aria-hidden="true"
+              className="absolute inset-y-2 left-0 w-[2px] rounded-full bg-page"
+            />
+          )}
+          <span
+            className={[
+              "shrink-0 transition-opacity duration-[120ms]",
+              active || entry ? "opacity-100" : "opacity-45 group-hover:opacity-65",
+            ].join(" ")}
+          >
+            {icon}
+          </span>
+          <span className={active || entry ? "font-semibold" : "font-medium"}>
+            {tr(item.label)}
+          </span>
+        </Link>
+      </li>
+    );
+  };
+
   return (
     <nav
       aria-label="Navigation principale"
       className="w-[13.5rem] shrink-0 border-r border-hair py-5 pl-3 pr-2"
     >
+      {/* Colonne vertébrale : la porte d'entrée du produit */}
+      <ul className="space-y-px" role="list">
+        {SPINE.map((item) => renderItem(item, { entry: item.href === "/demarrage" }))}
+      </ul>
+
+      {/* Séparateur + en-tête « Modules » */}
+      <div className="mt-5 border-t border-hair pt-4">
+        <div className="mb-1.5 px-3 section-label">{tr("Modules")}</div>
+      </div>
+
       {GROUPS.map((group, i) => (
         <div key={i} className={i > 0 ? "mt-5" : ""}>
           {group.label && (
-            <div className="mb-1.5 px-3 section-label">
-              {tr(group.label)}
-            </div>
+            <div className="mb-1.5 px-3 section-label">{tr(group.label)}</div>
           )}
           <ul className="space-y-px" role="list">
-            {group.items.map((item) => {
-              const active = isActive(item.href);
-              const icon   = ICONS[item.href];
-              return (
-                <li key={item.href}>
-                  <Link
-                    href={item.href}
-                    aria-current={active ? "page" : undefined}
-                    className={[
-                      "group relative flex items-center gap-2.5 rounded-lg px-3 py-[0.4rem] text-sm",
-                      "transition-all duration-[120ms]",
-                      active
-                        ? "bg-[#efe7d9] text-ink font-semibold"
-                        : "text-muted hover:bg-[#f1eadd] hover:text-ink",
-                    ].join(" ")}
-                  >
-                    {/* Barre latérale active */}
-                    {active && (
-                      <span
-                        aria-hidden="true"
-                        className="absolute inset-y-2 left-0 w-[2px] rounded-full bg-page"
-                      />
-                    )}
-
-                    {/* Icône */}
-                    <span
-                      className={[
-                        "shrink-0 transition-opacity duration-[120ms]",
-                        active
-                          ? "opacity-100"
-                          : "opacity-45 group-hover:opacity-65",
-                      ].join(" ")}
-                    >
-                      {icon}
-                    </span>
-
-                    {/* Label */}
-                    <span className={active ? "font-semibold" : "font-medium"}>
-                      {tr(item.label)}
-                    </span>
-                  </Link>
-                </li>
-              );
-            })}
+            {group.items.map((item) => renderItem(item))}
           </ul>
         </div>
       ))}

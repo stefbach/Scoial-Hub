@@ -133,13 +133,19 @@ function PilotageActiveStrip({ companyName }: { companyName: string }) {
       </div>
 
       {/* Actions */}
-      <div className="flex shrink-0 items-center gap-2 pl-11 sm:pl-0">
+      <div className="flex shrink-0 flex-wrap items-center gap-2 pl-11 sm:pl-0">
         <Link
-          href="/pilotage"
+          href="/demarrage?new=1"
           className="btn-primary text-sm"
         >
-          {t("Voir le pilotage", "Open piloting")}
+          {t("Nouvelle campagne", "New campaign")}
           <IconArrowRight className="ml-1 h-3.5 w-3.5" />
+        </Link>
+        <Link
+          href="/pilotage"
+          className="btn-secondary text-sm"
+        >
+          {t("Voir le pilotage", "Open piloting")}
         </Link>
         <Link
           href="/demarrage"

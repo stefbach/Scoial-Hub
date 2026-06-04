@@ -49,8 +49,14 @@ export interface OnboardingCtx {
   back: () => void;
   /** Saute l'étape courante (parcours guidé mais non bloquant). */
   skip: () => void;
-  /** Marque le parcours terminé et persiste. */
+  /** Marque la campagne courante activée et persiste (n'empêche pas d'en relancer une). */
   complete: () => Promise<void>;
+  /**
+   * Démarre une NOUVELLE campagne : l'identité de marque (étape 1) est conservée,
+   * on repart à l'étape 2 avec des choix de campagne vierges. Permet de lancer
+   * plusieurs campagnes à des moments différents.
+   */
+  startNewCampaign: () => void;
   totalSteps: number;
 }
 
@@ -194,6 +200,37 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
     patchState({ completed: true, step: TOTAL_STEPS });
   }, [patchState]);
 
+  const startNewCampaign = useCallback(() => {
+    // On garde l'identité (profil) + les réseaux/zone comme valeurs de départ ;
+    // on remet à zéro les choix propres à une campagne et on repart à l'étape 2.
+    patchState({
+      step: 2,
+      objectives: [],
+      campaignCount: 1,
+      creativeMode: null,
+      campaignType: null,
+      schedule: {},
+      completed: false,
+    });
+    if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [patchState]);
+
+  // Entrée « nouvelle campagne » via ?new=1 (depuis le cockpit du dashboard) :
+  // une fois l'état chargé et l'identité connue, on relance un parcours vierge.
+  const handledNewParam = useRef(false);
+  useEffect(() => {
+    if (loading || handledNewParam.current) return;
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("new") === "1") {
+      handledNewParam.current = true;
+      if (profile.analyzedAt) startNewCampaign();
+      params.delete("new");
+      const qs = params.toString();
+      window.history.replaceState(null, "", window.location.pathname + (qs ? `?${qs}` : ""));
+    }
+  }, [loading, profile.analyzedAt, startNewCampaign]);
+
   const value: OnboardingCtx = {
     companyId,
     companyName,
@@ -211,6 +248,7 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
     back,
     skip,
     complete,
+    startNewCampaign,
     totalSteps: TOTAL_STEPS,
   };
 

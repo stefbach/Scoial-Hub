@@ -53,7 +53,7 @@ function Shell() {
         <div className="flex items-center justify-between gap-3">
           <p className="section-label text-primary-500">{t("Démarrage assisté", "Assisted onboarding")}</p>
           <span className="text-2xs font-medium text-muted">
-            {saving ? t("Enregistrement…", "Saving…") : state.completed ? t("Parcours terminé ✓", "Onboarding complete ✓") : t("Sauvegarde auto", "Auto-saved")}
+            {saving ? t("Enregistrement…", "Saving…") : state.completed ? t("Dispositif actif ✓", "Setup active ✓") : t("Sauvegarde auto", "Auto-saved")}
           </span>
         </div>
         <h1 className="text-2xl font-bold tracking-tight text-ink">{t(meta.title.fr, meta.title.en)}</h1>

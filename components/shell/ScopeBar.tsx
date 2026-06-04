@@ -15,7 +15,7 @@ export function ScopeBar() {
 
   return (
     <div className="sticky top-[3.25rem] z-20 border-b border-hair bg-canvas/85 backdrop-blur-md">
-      <div className="mx-auto flex max-w-[1200px] flex-wrap items-center gap-3 px-7 py-2.5">
+      <div className="flex w-full flex-wrap items-center gap-3 px-7 py-2.5">
         <span className="section-label text-muted">{t("Contexte", "Context")}</span>
         <CountryPicker currentId={country.id} flag={country.flag} label={country.label} onSelect={setCountryId} />
         <DateRangePicker range={range} onChange={setRange} />

@@ -159,8 +159,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {/* Barre de contexte : zone géographique + période (filtres globaux) */}
       <ScopeBar />
 
-      {/* Corps : sidebar + contenu */}
-      <div className="mx-auto flex max-w-[1200px]">
+      {/* Corps : sidebar + contenu — pleine largeur (sidebar collée à gauche,
+          contenu jusqu'au bord droit) */}
+      <div className="flex">
         <Sidebar />
         <main className="min-w-0 flex-1 px-7 py-6">
           {children}

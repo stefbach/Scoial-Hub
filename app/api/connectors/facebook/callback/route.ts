@@ -74,18 +74,33 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       console.warn("[Facebook callback] Impossible d'enregistrer le compte :", dbErr);
     }
 
-    // Marque le connecteur du compte comme connecté (pour la page Connecteurs).
+    // Marque le connecteur comme connecté (pour la page Connecteurs).
+    // IMPORTANT : le token OAuth est un token UTILISATEUR. On liste les Pages,
+    // on choisit celle qui correspond à la société, et on enregistre l'ID + le
+    // token de PAGE (et le compte Instagram lié) — sinon la publication échoue.
     const { companyId, ret } = parseState(request.nextUrl.searchParams.get("state"));
     if (companyId) {
       try {
-        const { upsertConnection } = await import("@/lib/repositories/channel-connections");
         const { resolveCompanyUuid } = await import("@/lib/repositories/resolve-company");
-        await upsertConnection(
-          await resolveCompanyUuid(companyId),
-          "facebook",
-          { page_access_token: tokenSet.accessToken, page_id: tokenSet.externalId ?? "", account_name: tokenSet.accountName ?? "Facebook", connected_via: "oauth" },
-          "connected"
-        );
+        const { fetchMetaPages, pickPageForCompany, getCompanyName, storeMetaConnections } =
+          await import("@/lib/connectors/meta-pages");
+
+        const uuid = await resolveCompanyUuid(companyId);
+        const name = await getCompanyName(uuid);
+        const pages = await fetchMetaPages(tokenSet.accessToken);
+        const page = pickPageForCompany(pages, name);
+
+        if (page) {
+          await storeMetaConnections(companyId, page);
+        } else {
+          const { upsertConnection } = await import("@/lib/repositories/channel-connections");
+          await upsertConnection(
+            uuid,
+            "facebook",
+            { page_access_token: tokenSet.accessToken, account_name: tokenSet.accountName ?? "Facebook", connected_via: "oauth", no_page: "1" },
+            "pending"
+          );
+        }
       } catch (e) {
         console.warn("[Facebook callback] channel_connection:", e);
       }

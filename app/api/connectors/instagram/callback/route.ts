@@ -12,6 +12,7 @@ export const runtime = "nodejs";
 
 import { type NextRequest, NextResponse } from "next/server";
 import { getConnector } from "@/lib/connectors/index";
+import { parseState } from "@/lib/connectors/oauth-state";
 
 const REDIRECT_BASE =
   process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
@@ -66,14 +67,26 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       console.warn("[Instagram callback] Impossible d'enregistrer le compte :", dbErr);
     }
 
-    const params = new URLSearchParams({
-      connected: "true",
-      platform: "instagram",
-      account: tokenSet.accountName ?? "Instagram",
-    });
-    if (tokenSet.raw?.simulated) params.set("simulated", "true");
+    // Sélectionne la Page (et son compte IG Business) et enregistre les
+    // connexions Facebook + Instagram avec les bons identifiants/token de Page.
+    const { companyId, ret } = parseState(request.nextUrl.searchParams.get("state"));
+    if (companyId) {
+      try {
+        const { resolveCompanyUuid } = await import("@/lib/repositories/resolve-company");
+        const { fetchMetaPages, pickPageForCompany, getCompanyName, storeMetaConnections } =
+          await import("@/lib/connectors/meta-pages");
+        const uuid = await resolveCompanyUuid(companyId);
+        const name = await getCompanyName(uuid);
+        const pages = await fetchMetaPages(tokenSet.accessToken);
+        const page = pickPageForCompany(pages, name);
+        if (page) await storeMetaConnections(companyId, page);
+      } catch (e) {
+        console.warn("[Instagram callback] channel_connection:", e);
+      }
+    }
 
-    return NextResponse.redirect(`${REDIRECT_BASE}/accounts?${params.toString()}`);
+    const dest = ret || "/accounts";
+    return NextResponse.redirect(`${REDIRECT_BASE}${dest}?connected=instagram`);
   } catch (err) {
     console.error("[Instagram callback] Erreur lors de l'échange du code :", err);
     return NextResponse.redirect(

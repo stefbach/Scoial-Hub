@@ -119,7 +119,8 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
     return {
       companies,
       company,
-      data: COMPANY_DATA[company.id],
+      // Démarrage propre : aucune donnée fictive (tableaux vides, compteurs à 0).
+      data: makeEmptyCompanyData(),
       setCompanyId,
       addCompany,
       updateCompany,

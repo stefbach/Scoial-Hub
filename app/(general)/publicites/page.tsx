@@ -1,8 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useT } from "@/lib/i18n";
 import { Toast } from "@/components/ui/Toast";
+import { useCompany } from "@/lib/company-context";
+import { StrategyPanel } from "@/components/strategy/StrategyPanel";
 
 interface AdEntry {
   id: string;
@@ -31,6 +34,7 @@ interface AdStrategyAnalysis {
 
 export default function PublicitesPage() {
   const t = useT();
+  const { company } = useCompany();
   const [country, setCountry] = useState("MU");
   const [terms, setTerms] = useState("");
   const [adType, setAdType] = useState<"POLITICAL_AND_ISSUE_ADS" | "ALL">("POLITICAL_AND_ISSUE_ADS");
@@ -70,11 +74,22 @@ export default function PublicitesPage() {
       const res = await fetch("/api/veille/ads-analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ads, country: country.trim().toUpperCase(), terms: terms.trim() }),
+        body: JSON.stringify({ ads, country: country.trim().toUpperCase(), terms: terms.trim(), companyId: company.id }),
       });
       const data = await res.json();
-      if (data.analysis) setAnalysis(data.analysis as AdStrategyAnalysis);
-      else setToast({ message: t("Analyse indisponible.", "Analysis unavailable."), key: Date.now() });
+      if (data.analysis) {
+        setAnalysis(data.analysis as AdStrategyAnalysis);
+        // L'analyse est désormais stockée en mémoire stratégique : on régénère
+        // le brief IA en tâche de fond (fire-and-forget).
+        fetch("/api/memory/synthesize", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ companyId: company.id }),
+        }).catch(() => {});
+        setToast({ message: t("Stratégie analysée et ajoutée à la mémoire.", "Strategy analyzed and added to memory."), key: Date.now() });
+      } else {
+        setToast({ message: t("Analyse indisponible.", "Analysis unavailable."), key: Date.now() });
+      }
     } catch {
       setToast({ message: t("Erreur réseau.", "Network error."), key: Date.now() });
     } finally {
@@ -87,13 +102,20 @@ export default function PublicitesPage() {
     return `${a.impressionsLow.toLocaleString()}–${a.impressionsHigh.toLocaleString()}`;
   }
 
+  const flowSteps = [
+    t("Chercher des pubs concurrentes", "Find competitor ads"),
+    t("Analyser la stratégie (IA)", "Analyze the strategy (AI)"),
+    t("Enrichir la mémoire & le brief", "Enrich memory & brief"),
+    t("Lancer une campagne", "Launch a campaign"),
+  ];
+
   return (
     <div className="animate-fade-in space-y-5">
-      <div className="flex items-start gap-3">
+      <div className="flex flex-wrap items-start gap-3">
         <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-white" style={{ background: "#1877F2" }} aria-hidden>
           <svg width="22" height="22" viewBox="0 0 24 24" fill="white"><path d="M22 12a10 10 0 1 0-11.6 9.9v-7H7.9V12h2.5V9.8c0-2.5 1.5-3.9 3.8-3.9 1.1 0 2.2.2 2.2.2v2.5h-1.2c-1.2 0-1.6.8-1.6 1.5V12h2.7l-.4 2.9h-2.3v7A10 10 0 0 0 22 12z" /></svg>
         </span>
-        <div>
+        <div className="min-w-0 flex-1">
           <h1 className="text-xl font-bold tracking-tight text-ink">{t("Publicités concurrentes (Meta Ad Library)", "Competitor ads (Meta Ad Library)")}</h1>
           <p className="mt-0.5 text-sm text-muted">
             {t(
@@ -104,7 +126,28 @@ export default function PublicitesPage() {
         </div>
       </div>
 
+      {/* Fil conducteur : de la recherche de pubs à la campagne */}
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-2xs text-muted">
+        {flowSteps.map((step, i) => (
+          <span key={i} className="flex min-w-0 items-center gap-2">
+            <span className="flex items-center gap-1.5 rounded-full border border-hair bg-canvas px-2.5 py-1 font-medium text-ink">
+              <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-primary-100 text-[10px] font-bold text-primary-700">{i + 1}</span>
+              {step}
+            </span>
+            {i < flowSteps.length - 1 && (
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" className="shrink-0 text-muted" aria-hidden><path d="M9 6l6 6-6 6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+            )}
+          </span>
+        ))}
+      </div>
+
+      {/* Mémoire stratégique & brief IA — alimente directement les campagnes */}
+      <StrategyPanel companyId={company.id} />
+
       <section className="card p-5">
+        <div className="mb-3 flex items-center gap-2">
+          <span className="section-label text-primary-600">{t("1 · Chercher des publicités", "1 · Find ads")}</span>
+        </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
           <div>
             <label className="mb-1 block text-2xs font-semibold uppercase tracking-wide text-muted">{t("Pays (code ISO)", "Country (ISO code)")}</label>
@@ -134,16 +177,52 @@ export default function PublicitesPage() {
       </section>
 
       {err && (
-        <div className="rounded-xl border border-warning-200 bg-warning-50 px-4 py-3 text-sm text-warning-800">{err}</div>
+        <div className="rounded-xl border border-warning-200 bg-warning-50 px-4 py-3 text-sm text-warning-700">
+          <p className="font-semibold">{err}</p>
+          <Link href="/parametres-connecteurs" className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-warning-700 hover:underline">
+            {t("Configurer le connecteur Meta", "Configure the Meta connector")}
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden><path d="M9 6l6 6-6 6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          </Link>
+        </div>
+      )}
+
+      {/* État vide : la recherche n'a rien renvoyé (souvent faute de token Meta) */}
+      {!loading && !err && ads.length === 0 && (
+        <section className="card flex flex-col items-center gap-3 p-8 text-center">
+          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-canvas text-muted" aria-hidden>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="2" /><path d="M21 21l-4.3-4.3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
+          </span>
+          <div className="max-w-md space-y-1.5">
+            <p className="text-sm font-semibold text-ink">{t("Aucune publicité à afficher pour l'instant", "No ads to show yet")}</p>
+            <p className="text-sm text-muted">
+              {t(
+                "Lancez une recherche ci-dessus. Si rien ne s'affiche, la Meta Ad Library renvoie souvent une liste vide sans jeton d'accès configuré.",
+                "Run a search above. If nothing appears, the Meta Ad Library often returns an empty list when no access token is configured."
+              )}
+            </p>
+          </div>
+          <Link href="/parametres-connecteurs" className="btn-secondary text-xs">
+            {t("Configurer le connecteur Meta", "Configure the Meta connector")}
+          </Link>
+        </section>
       )}
 
       {/* Analyse IA de la stratégie publicitaire */}
       {ads.length > 0 && (
         <section className="space-y-3">
           {!analysis && (
-            <button className="btn-primary" onClick={analyze} disabled={analyzing}>
-              {analyzing ? t("Analyse de la stratégie…", "Analyzing strategy…") : t("✨ Analyser la stratégie publicitaire (IA)", "✨ Analyze ad strategy (AI)")}
-            </button>
+            <div className="card space-y-3 p-5">
+              <span className="section-label text-ai-text">{t("2 · Analyser la stratégie", "2 · Analyze the strategy")}</span>
+              <p className="text-sm text-muted">
+                {t(
+                  "L'IA dégage les angles, offres et CTA des publicités ci-dessous. Analyser ces pubs enrichit la mémoire stratégique réutilisée par vos campagnes.",
+                  "The AI extracts angles, offers and CTAs from the ads below. Analyzing these ads enriches the strategic memory reused by your campaigns."
+                )}
+              </p>
+              <button className="btn-primary" onClick={analyze} disabled={analyzing}>
+                {analyzing ? t("Analyse de la stratégie…", "Analyzing strategy…") : t("✨ Analyser la stratégie publicitaire (IA)", "✨ Analyze ad strategy (AI)")}
+              </button>
+            </div>
           )}
           {analysis && (
             <div className="card space-y-4 p-5">
@@ -205,7 +284,15 @@ export default function PublicitesPage() {
                 </div>
               )}
 
-              <button className="btn-secondary text-xs" onClick={analyze} disabled={analyzing}>{t("↻ Relancer l'analyse", "↻ Re-run analysis")}</button>
+              <div className="flex flex-wrap items-center gap-3 border-t border-hair pt-3">
+                <button className="btn-secondary text-xs" onClick={analyze} disabled={analyzing}>{t("↻ Relancer l'analyse", "↻ Re-run analysis")}</button>
+                <p className="min-w-0 flex-1 text-2xs text-ai-text">
+                  {t(
+                    "Ces enseignements sont enregistrés dans la mémoire stratégique et le brief IA, réutilisés pour vos campagnes.",
+                    "These insights are saved to the strategic memory and AI brief, reused for your campaigns."
+                  )}
+                </p>
+              </div>
             </div>
           )}
 
@@ -214,11 +301,11 @@ export default function PublicitesPage() {
             {ads.map((a) => (
               <div key={a.id} className="card p-4">
                 <div className="mb-1.5 flex items-center justify-between gap-2">
-                  <span className="font-semibold text-ink">{a.pageName || "—"}</span>
-                  <span className="chip border-primary-200 bg-primary-50 text-primary-700">👁 {fmtImp(a)}</span>
+                  <span className="min-w-0 truncate font-semibold text-ink">{a.pageName || "—"}</span>
+                  <span className="chip shrink-0 border-primary-200 bg-primary-50 text-primary-700">👁 {fmtImp(a)}</span>
                 </div>
-                {a.linkTitle && <p className="text-sm font-medium text-ink">{a.linkTitle}</p>}
-                {a.body && <p className="mt-1 line-clamp-4 text-sm text-muted">{a.body}</p>}
+                {a.linkTitle && <p className="break-words text-sm font-medium text-ink">{a.linkTitle}</p>}
+                {a.body && <p className="mt-1 line-clamp-4 break-words text-sm text-muted">{a.body}</p>}
                 <div className="mt-2 flex flex-wrap items-center gap-2 text-2xs text-muted">
                   {(a.spendHigh > 0 || a.spendLow > 0) && (
                     <span className="chip">{t("Dépense", "Spend")}: {a.spendLow.toLocaleString()}–{a.spendHigh.toLocaleString()} {a.currency}</span>

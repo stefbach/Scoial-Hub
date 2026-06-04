@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useT } from "@/lib/i18n";
 import { useCompany } from "@/lib/company-context";
 import { SOCIAL_FORMATS, type SocialPlatform } from "@/lib/social-formats";
@@ -92,6 +92,33 @@ export default function PromptStudio({
   const [generating, setGenerating] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [result, setResult] = useState<ResultState | null>(null);
+  const [savedLib, setSavedLib] = useState<"idle" | "saving" | "done">("idle");
+
+  useEffect(() => {
+    setSavedLib("idle");
+  }, [result?.url]);
+
+  async function saveToLibrary() {
+    if (!result) return;
+    setSavedLib("saving");
+    try {
+      await fetch("/api/templates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          companyId: company.id,
+          platform: "instagram",
+          body: prompt.slice(0, 200),
+          mediaUrl: result.url,
+          mediaKind: result.kind,
+          tags: ["studio", result.kind],
+        }),
+      });
+      setSavedLib("done");
+    } catch {
+      setSavedLib("idle");
+    }
+  }
 
   // Options recalculées quand le type change.
   const options = useMemo(() => buildFormatOptions(kind, t), [kind, t]);
@@ -378,7 +405,7 @@ export default function PromptStudio({
           ) : (
             <video src={result.url} controls className="max-h-72 w-auto rounded-lg border border-hair" />
           )}
-          <div className="mt-2">
+          <div className="mt-2 flex flex-wrap gap-2">
             <a
               href={result.url}
               target="_blank"
@@ -388,6 +415,18 @@ export default function PromptStudio({
             >
               ⬇ {t("Télécharger", "Download")}
             </a>
+            <button
+              type="button"
+              onClick={saveToLibrary}
+              disabled={savedLib !== "idle"}
+              className="btn-primary text-2xs disabled:opacity-60"
+            >
+              {savedLib === "saving"
+                ? t("Ajout…", "Adding…")
+                : savedLib === "done"
+                ? t("✓ Dans la bibliothèque", "✓ In library")
+                : t("＋ Ajouter à la bibliothèque", "＋ Add to library")}
+            </button>
           </div>
         </div>
       )}

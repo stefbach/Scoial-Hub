@@ -17,6 +17,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { ContentCard } from "@/components/veille/ContentCard";
 import { AnalysisPanel } from "@/components/veille/AnalysisPanel";
 import { CompetitorItem } from "@/components/veille/CompetitorItem";
+import { StrategyPanel } from "@/components/strategy/StrategyPanel";
 import type { Competitor } from "@/lib/repositories/competitors";
 import type { CompetitorContent } from "@/lib/scraping/types";
 import type { AnalysisResult } from "@/lib/scraping/analyze";
@@ -273,6 +274,7 @@ export default function VeillePage() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
+            companyId: company.id,
             contents: data.scrape?.contents ?? [],
             geo,
             keywords,
@@ -282,6 +284,13 @@ export default function VeillePage() {
         if (ares.ok) {
           const adata = await ares.json() as { analysis: RunResult["analysis"] };
           setResult((prev) => (prev ? { ...prev, analysis: adata.analysis } : prev));
+          // L'analyse vient d'être persistée en mémoire stratégique → on
+          // régénère le brief IA en tâche de fond (fire-and-forget).
+          void fetch("/api/memory/synthesize", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ companyId: company.id }),
+          }).catch((e) => console.warn("[veille synthesize]", e));
         }
       } catch (e) {
         console.warn("[veille analyze]", e);
@@ -300,7 +309,7 @@ export default function VeillePage() {
 
   return (
     <div className="min-h-full bg-canvas">
-      <div className="mx-auto max-w-6xl px-6 py-8 space-y-8">
+      <div className="mx-auto max-w-6xl px-4 sm:px-6 py-6 sm:py-8 space-y-6">
         <PageHeader
           title={t("Veille & Marché", "Market Intelligence")}
           actions={
@@ -324,9 +333,20 @@ export default function VeillePage() {
           }
         />
 
-        <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-6 items-start">
+        {/* ── Fil conducteur : collecter → analyser → mémoire → campagne ── */}
+        <FlowBanner t={t} />
+
+        {/* ── Mémoire stratégique & brief IA (composant partagé) ── */}
+        <StrategyPanel companyId={company.id} />
+
+        <div className="grid grid-cols-1 lg:grid-cols-[380px_minmax(0,1fr)] gap-6 items-start">
           {/* ── Panneau de paramétrage ── */}
-          <aside className="space-y-4">
+          <aside className="space-y-4 min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="section-label">{t("1 · Collecter", "1 · Collect")}</span>
+              <span className="h-px flex-1 bg-hair" />
+            </div>
+
             {/* Zone géographique */}
             <div className="card p-4 space-y-3">
               <p className="section-label">{t("Zone géographique", "Geographic area")}</p>
@@ -423,6 +443,17 @@ export default function VeillePage() {
                   : <><SparkleIcon /> {t("Identifier des concurrents", "Identify competitors")}</>}
               </button>
 
+              {/* Note : plus de concurrents = mémoire plus riche */}
+              <div className="flex items-start gap-1.5 rounded-lg bg-ai-textbg px-2.5 py-2">
+                <SparkleIcon />
+                <p className="text-2xs leading-snug text-ai-text">
+                  {t(
+                    "Chaque concurrent suivi et chaque analyse enrichissent la mémoire stratégique utilisée par vos campagnes.",
+                    "Every competitor you track and every analysis enriches the strategic memory used by your campaigns."
+                  )}
+                </p>
+              </div>
+
               {/* Compétiteurs identifiés */}
               {identified.length > 0 && (
                 <div className="space-y-2 pt-1">
@@ -475,22 +506,38 @@ export default function VeillePage() {
           </aside>
 
           {/* ── Zone de résultats ── */}
-          <main className="space-y-4">
+          <main className="space-y-4 min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="section-label">{t("2 · Analyser", "2 · Analyze")}</span>
+              <span className="h-px flex-1 bg-hair" />
+            </div>
+
             {/* État vide */}
             {!running && !result && !runError && (
-              <div className="card p-12 flex flex-col items-center justify-center gap-4 text-center">
+              <div className="card p-8 sm:p-12 flex flex-col items-center justify-center gap-4 text-center">
                 <div className="h-14 w-14 rounded-2xl bg-primary-50 border border-primary-100 flex items-center justify-center">
                   <BarIcon size={24} className="text-primary-500" />
                 </div>
-                <div>
+                <div className="max-w-sm">
                   <h3 className="text-base font-semibold text-ink">{t("Prêt pour la veille", "Ready for monitoring")}</h3>
-                  <p className="mt-1 text-sm text-muted max-w-xs">
+                  <p className="mt-1 text-sm text-muted">
                     {t(
-                      "Configurez vos paramètres, ajoutez des compétiteurs et lancez l'analyse pour obtenir des insights concurrentiels.",
-                      "Configure your settings, add competitors and run the analysis to get competitive insights."
+                      "Renseignez une thématique ou des mots-clés, suivez quelques concurrents, puis lancez l'analyse.",
+                      "Enter a theme or keywords, track a few competitors, then run the analysis."
+                    )}
+                  </p>
+                  <p className="mt-2 text-2xs text-muted">
+                    {t(
+                      "Les insights alimentent automatiquement le brief stratégique ci-dessus, qui sert ensuite à créer vos campagnes.",
+                      "Insights automatically feed the strategic brief above, which then powers your campaigns."
                     )}
                   </p>
                 </div>
+                {!hasEnough && (
+                  <p className="text-2xs text-warning-700 bg-warning-50 border border-warning-200 rounded-full px-2.5 py-1">
+                    {t("Ajoutez d'abord une thématique ou un mot-clé.", "Add a theme or a keyword first.")}
+                  </p>
+                )}
                 <button
                   onClick={handleRun}
                   disabled={!hasEnough}
@@ -554,7 +601,7 @@ export default function VeillePage() {
                 </div>
 
                 {/* Onglets */}
-                <div className="flex gap-1 border-b border-hair">
+                <div className="flex gap-1 border-b border-hair overflow-x-auto">
                   {[
                     { key: "analyse" as const, labelFr: "Analyse IA", labelEn: "AI Analysis" },
                     { key: "contenus" as const, labelFr: `Contenus (${result.scrape.contents.length})`, labelEn: `Content (${result.scrape.contents.length})` },
@@ -612,6 +659,43 @@ export default function VeillePage() {
             )}
           </main>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Bandeau « fil conducteur » : collecter → analyser → mémoire → campagne
+───────────────────────────────────────────────────────────────────────────── */
+
+function FlowBanner({ t }: { t: (fr: string, en: string) => string }) {
+  const steps = [
+    { fr: "Collecter", en: "Collect", descFr: "concurrents & contenus", descEn: "competitors & content" },
+    { fr: "Analyser", en: "Analyze", descFr: "benchmark IA", descEn: "AI benchmark" },
+    { fr: "Mémoire & brief", en: "Memory & brief", descFr: "insights persistés", descEn: "persisted insights" },
+    { fr: "Campagne", en: "Campaign", descFr: "actions concrètes", descEn: "concrete actions" },
+  ];
+  return (
+    <div className="card p-3 sm:p-4">
+      <div className="flex flex-wrap items-stretch gap-2">
+        {steps.map((s, i) => (
+          <div key={s.en} className="flex items-center gap-2 min-w-0">
+            <div className="flex items-center gap-2 rounded-lg border border-hair bg-card px-3 py-1.5 min-w-0">
+              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary-100 text-2xs font-bold text-primary-700">
+                {i + 1}
+              </span>
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-ink truncate">{t(s.fr, s.en)}</p>
+                <p className="text-2xs text-muted truncate">{t(s.descFr, s.descEn)}</p>
+              </div>
+            </div>
+            {i < steps.length - 1 && (
+              <svg className="shrink-0 text-muted/50" width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                <path d="M5 3l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+              </svg>
+            )}
+          </div>
+        ))}
       </div>
     </div>
   );

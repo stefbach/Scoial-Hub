@@ -26,7 +26,7 @@ function metaFor(p: VideoPlatform) {
 const renderStatus = (): PlatformCut["renderStatus"] =>
   isVideoRenderConfigured ? "queued" : "simulated";
 
-const SHORT_VIDEO: VideoPlatform[] = ["tiktok", "instagram_reels", "youtube_shorts"];
+const SHORT_VIDEO: VideoPlatform[] = ["tiktok", "instagram_reels", "instagram_story", "youtube_shorts", "facebook_story"];
 
 /** Déduit le mode d'assemblage de base à partir des médias. */
 function inferAssembly(assets: MediaAsset[], requested: AssemblyMode): AssemblyMode {

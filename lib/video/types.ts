@@ -3,23 +3,44 @@
 export type VideoPlatform =
   | "tiktok"
   | "instagram_reels"
+  | "instagram_story"
+  | "instagram_feed"
+  | "instagram_portrait"
   | "youtube_shorts"
+  | "youtube"
   | "facebook"
-  | "linkedin";
+  | "facebook_portrait"
+  | "facebook_story"
+  | "facebook_landscape"
+  | "linkedin"
+  | "linkedin_square"
+  | "twitter"
+  | "pinterest";
 
 export interface PlatformMeta {
   id: VideoPlatform;
   label: string;
-  aspect: string; // "9:16" | "1:1" | "16:9"
+  aspect: string; // "9:16" | "1:1" | "16:9" | "4:5" | "2:3"
   maxSeconds: number;
 }
 
+// Tous les formats publiables (couvre tous les ratios + réseaux).
 export const VIDEO_PLATFORMS: PlatformMeta[] = [
-  { id: "tiktok", label: "TikTok", aspect: "9:16", maxSeconds: 60 },
-  { id: "instagram_reels", label: "Instagram Reels", aspect: "9:16", maxSeconds: 90 },
-  { id: "youtube_shorts", label: "YouTube Shorts", aspect: "9:16", maxSeconds: 60 },
-  { id: "facebook", label: "Facebook", aspect: "1:1", maxSeconds: 90 },
-  { id: "linkedin", label: "LinkedIn", aspect: "16:9", maxSeconds: 120 },
+  { id: "tiktok", label: "TikTok · 9:16", aspect: "9:16", maxSeconds: 60 },
+  { id: "instagram_reels", label: "Instagram Reels · 9:16", aspect: "9:16", maxSeconds: 90 },
+  { id: "instagram_story", label: "Instagram Story · 9:16", aspect: "9:16", maxSeconds: 60 },
+  { id: "instagram_feed", label: "Instagram Feed · 1:1", aspect: "1:1", maxSeconds: 60 },
+  { id: "instagram_portrait", label: "Instagram Portrait · 4:5", aspect: "4:5", maxSeconds: 60 },
+  { id: "facebook", label: "Facebook · 1:1", aspect: "1:1", maxSeconds: 90 },
+  { id: "facebook_portrait", label: "Facebook Portrait · 4:5", aspect: "4:5", maxSeconds: 90 },
+  { id: "facebook_story", label: "Facebook Story · 9:16", aspect: "9:16", maxSeconds: 60 },
+  { id: "facebook_landscape", label: "Facebook Paysage · 16:9", aspect: "16:9", maxSeconds: 120 },
+  { id: "youtube_shorts", label: "YouTube Shorts · 9:16", aspect: "9:16", maxSeconds: 60 },
+  { id: "youtube", label: "YouTube · 16:9", aspect: "16:9", maxSeconds: 600 },
+  { id: "linkedin", label: "LinkedIn · 16:9", aspect: "16:9", maxSeconds: 120 },
+  { id: "linkedin_square", label: "LinkedIn · 1:1", aspect: "1:1", maxSeconds: 120 },
+  { id: "twitter", label: "X / Twitter · 16:9", aspect: "16:9", maxSeconds: 140 },
+  { id: "pinterest", label: "Pinterest · 2:3", aspect: "2:3", maxSeconds: 60 },
 ];
 
 // ── Médias source ─────────────────────────────────────────────────────────────

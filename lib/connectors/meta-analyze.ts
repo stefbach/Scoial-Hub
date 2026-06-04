@@ -167,9 +167,6 @@ Règles : max 4 pointsForts, 4 aAmeliorer, 4 formatsGagnants, 5 ideesContenu, 5 
     };
   } catch (err) {
     console.warn("[analyzeMetaContent] fallback:", err);
-    const fb = buildFallback(ins, stats);
-    (fb as MetaContentAnalysis & { debugError?: string }).debugError =
-      err instanceof Error ? `${err.name}: ${err.message}` : String(err);
-    return fb;
+    return buildFallback(ins, stats);
   }
 }

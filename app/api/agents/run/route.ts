@@ -72,8 +72,21 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Mémoire stratégique persistante : on injecte l'historique d'analyses
+    // (veille, pubs, Page) pour que la campagne soit fondée dessus.
+    let enrichedObjective = objective.trim();
+    try {
+      const { getMemoryContext } = await import("@/lib/memory");
+      const mem = await getMemoryContext(companyId, 25);
+      if (mem) {
+        enrichedObjective += `\n\n[Mémoire stratégique — insights accumulés à exploiter]\n${mem}`;
+      }
+    } catch {
+      /* non bloquant */
+    }
+
     const result = await runOrchestration({
-      objective: objective.trim(),
+      objective: enrichedObjective,
       companyId,
       brandVoice: typeof brandVoice === "string" ? brandVoice : undefined,
       autonomy: autonomyLevel as AutonomyLevel,

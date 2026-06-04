@@ -25,6 +25,18 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const insights = await fetchMetaInsights(ctx);
     const analysis = await analyzeMetaContent(insights, name || "la marque");
 
+    // Mémoire stratégique : conclusions de l'analyse de Page.
+    try {
+      const { appendMemory } = await import("@/lib/memory");
+      const e: import("@/lib/memory").MemoryEntry[] = [];
+      if (analysis.synthese) e.push({ source: "page", kind: "insight", title: "Analyse de ma Page", content: analysis.synthese, score: 3 });
+      for (const f of analysis.formatsGagnants ?? []) e.push({ source: "page", kind: "format", title: `Format gagnant: ${f}`, content: f, score: 3 });
+      for (const a of analysis.actions ?? []) e.push({ source: "page", kind: "recommendation", title: a.action.slice(0, 60), content: a.action, score: a.priorite === "haute" ? 4 : 2 });
+      await appendMemory(companyId, e);
+    } catch (memErr) {
+      console.warn("[meta/analyze] memory:", memErr);
+    }
+
     return NextResponse.json({ analysis });
   } catch (err) {
     console.error("[POST /api/meta/analyze]", err);

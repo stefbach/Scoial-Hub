@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/env";
+import { resolveCompanyUuid } from "@/lib/repositories/resolve-company";
 import { COMPANY_DATA } from "@/lib/mock-data";
 import type { Campaign } from "@/lib/types";
 import type { DbCampaign } from "@/lib/supabase/db-types";
@@ -42,8 +43,9 @@ function campaignToRow(
     budget: input.budget ?? 0,
     daily_budget: input.dailyBudget ?? null,
     lifetime_budget: input.lifetimeBudget ?? null,
-    start_date: input.startDate ?? null,
-    end_date: input.endDate ?? null,
+    // Une chaîne vide n'est pas une date valide → null
+    start_date: input.startDate || null,
+    end_date: input.endDate || null,
     metrics: {},
     meta_campaign_id: null,
   };
@@ -66,7 +68,7 @@ export async function listCampaigns(companyId: string): Promise<Campaign[]> {
   const { data, error } = await supabase
     .from("sh_campaigns")
     .select("*")
-    .eq("company_id", companyId)
+    .eq("company_id", await resolveCompanyUuid(companyId))
     .order("created_at", { ascending: false });
 
   if (error || !data) {
@@ -156,7 +158,7 @@ export async function createCampaign(
     return campaign;
   }
 
-  const row = campaignToRow(companyId, input);
+  const row = campaignToRow(await resolveCompanyUuid(companyId), input);
   const { data, error } = await supabase
     .from("sh_campaigns")
     .insert(row)

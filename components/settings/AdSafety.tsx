@@ -78,9 +78,9 @@ export function AdSafety({ onNavigate }: { onNavigate: (section: string, params?
       </div>
 
       <SectionLabel>{t("Mode de connexion", "Connection mode")}</SectionLabel>
-      <div className="rounded-md border-hair border-hair p-3">
-        <div className="flex items-center justify-between">
-          <div>
+      <div className="rounded-md border border-hair p-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0 flex-1">
             <div className="text-sm font-medium text-ink">{t("Mode lecture seule", "Read-only mode")}</div>
             <div className="text-2xs text-muted">
               {t(
@@ -94,18 +94,20 @@ export function AdSafety({ onNavigate }: { onNavigate: (section: string, params?
               .
             </div>
           </div>
-          <Toggle
-            key={String(readOnlyMode)}
-            defaultOn={readOnlyMode}
-            onChange={(on) => { setReadOnlyMode(on); mark(); }}
-          />
+          <div className="shrink-0">
+            <Toggle
+              key={String(readOnlyMode)}
+              defaultOn={readOnlyMode}
+              onChange={(on) => { setReadOnlyMode(on); mark(); }}
+            />
+          </div>
         </div>
       </div>
 
       <SectionLabel>{t("Plafonds de dépenses", "Spend caps")}</SectionLabel>
-      <div className="mb-3 rounded-md border-hair border-hair p-3">
-        <div className="flex items-center justify-between">
-          <div>
+      <div className="mb-3 rounded-md border border-hair p-3">
+        <div className="flex flex-wrap items-start gap-3">
+          <div className="min-w-0 flex-1">
             <div className="text-sm font-medium text-ink">{t("Plafond mensuel de dépenses", "Monthly spend cap")}</div>
             <div className="text-2xs text-muted">
               {t(
@@ -114,13 +116,13 @@ export function AdSafety({ onNavigate }: { onNavigate: (section: string, params?
               )}
             </div>
           </div>
-          <div className="flex items-center gap-2 text-sm">
+          <div className="flex shrink-0 items-center gap-2 text-sm">
             <span className="text-muted">EUR</span>
             <input
               type="number"
               value={monthlyCap}
               onChange={(e) => attemptSetCap(Number(e.target.value))}
-              className="w-24 rounded-md border-hair border-hair bg-card px-2 py-1 text-right text-ink focus:outline-none"
+              className="w-24 rounded-md border border-hair bg-card px-2 py-1 text-right text-ink focus:outline-none"
             />
           </div>
         </div>
@@ -154,7 +156,7 @@ export function AdSafety({ onNavigate }: { onNavigate: (section: string, params?
               type="number"
               value={doubleConfirm}
               onChange={(e) => { setDoubleConfirm(Number(e.target.value)); mark(); }}
-              className="w-20 rounded-md border-hair border-hair bg-card px-2 py-1 text-right text-ink focus:outline-none"
+              className="w-20 rounded-md border border-hair bg-card px-2 py-1 text-right text-ink focus:outline-none"
             />
             <span className="text-2xs text-muted">/ {t("jour", "day")}</span>
           </div>
@@ -167,13 +169,13 @@ export function AdSafety({ onNavigate }: { onNavigate: (section: string, params?
         desc={t("Email matinal des dépenses de la veille. Pause automatique si une campagne dépasse de 50 % sa moyenne sur 7 jours.", "Morning email of yesterday's spend. Auto-pause if a campaign exceeds its 7-day average by 50%.")}
         control={<Toggle key={String(dailyDigest)} defaultOn={dailyDigest} onChange={(v) => { setDailyDigest(v); mark(); }} />}
       />
-      <div className="rounded-md border-hair border-hair p-3">
-        <div className="flex items-center justify-between">
-          <div>
+      <div className="rounded-md border border-hair p-3">
+        <div className="flex flex-wrap items-start gap-3">
+          <div className="min-w-0 flex-1">
             <div className="text-sm font-medium text-ink">{t("Journal d'audit (toujours actif)", "Audit log (always on)")}</div>
             <div className="text-2xs text-muted">{t("Chaque modification publicitaire est journalisée avec qui/quand/quoi. Ne peut pas être désactivé.", "Every ad change logged with who/when/what. Cannot be disabled.")}</div>
           </div>
-          <Button variant="secondary" className="py-1 text-2xs" onClick={() => onNavigate("audit", { filter: "ad_safety" })}>
+          <Button variant="secondary" className="shrink-0 py-1 text-2xs" onClick={() => onNavigate("audit", { filter: "ad_safety" })}>
             {t("Voir le journal d'audit", "View audit log")}
           </Button>
         </div>
@@ -183,7 +185,7 @@ export function AdSafety({ onNavigate }: { onNavigate: (section: string, params?
       </div>
 
       {dirty && (
-        <div className="sticky bottom-0 mt-4 flex items-center justify-end gap-3 border-t-hair border-hair bg-card py-3">
+        <div className="sticky bottom-0 mt-4 flex flex-wrap items-center justify-end gap-3 border-t border-hair bg-card py-3">
           <span className="text-2xs text-amber-700">● {t("Modifications non enregistrées", "Unsaved changes")}</span>
           <Button variant="primary" onClick={save}>{t("Enregistrer", "Save changes")}</Button>
         </div>
@@ -191,14 +193,14 @@ export function AdSafety({ onNavigate }: { onNavigate: (section: string, params?
 
       {warnLowerCap && (
         <Modal open onClose={() => setWarnLowerCap(false)} width="max-w-sm">
-          <div className="border-b-hair border-hair px-4 py-3 text-sm font-semibold text-ink">{t("Abaisser le plafond mensuel ?", "Lower monthly cap?")}</div>
+          <div className="border-b border-hair px-4 py-3 text-sm font-semibold text-ink">{t("Abaisser le plafond mensuel ?", "Lower monthly cap?")}</div>
           <div className="p-4 text-sm text-ink">
             {t(
               `Les dépenses du mois en cours (${eur(s.usedThisMonth)}) dépassent ce plafond. Le définir maintenant bloquera les nouvelles campagnes et mettra en pause les actives. Continuer ?`,
               `Current month's spend (${eur(s.usedThisMonth)}) exceeds this cap. Setting it now will block new campaigns and pause active ones. Continue?`
             )}
           </div>
-          <div className="flex justify-end gap-2 border-t-hair border-hair px-4 py-3">
+          <div className="flex justify-end gap-2 border-t border-hair px-4 py-3">
             <Button variant="secondary" onClick={() => setWarnLowerCap(false)}>{t("Annuler", "Cancel")}</Button>
             <Button
               variant="danger"
@@ -216,14 +218,14 @@ export function AdSafety({ onNavigate }: { onNavigate: (section: string, params?
 
       {warnConfirmOff && (
         <Modal open onClose={() => setWarnConfirmOff(false)} width="max-w-sm">
-          <div className="border-b-hair border-hair px-4 py-3 text-sm font-semibold text-ink">{t("Désactiver la confirmation de dépense IA ?", "Disable AI spend confirmation?")}</div>
+          <div className="border-b border-hair px-4 py-3 text-sm font-semibold text-ink">{t("Désactiver la confirmation de dépense IA ?", "Disable AI spend confirmation?")}</div>
           <div className="p-4 text-sm text-ink">
             {t(
               "Désactiver cette option permet aux actions IA de dépenser de l'argent sans confirmation explicite. Nous recommandons vivement de la maintenir activée. Continuer ?",
               "Turning this off allows AI actions to spend money without explicit confirmation. We strongly recommend keeping it on. Continue?"
             )}
           </div>
-          <div className="flex justify-end gap-2 border-t-hair border-hair px-4 py-3">
+          <div className="flex justify-end gap-2 border-t border-hair px-4 py-3">
             <Button variant="secondary" onClick={() => setWarnConfirmOff(false)}>{t("Annuler", "Cancel")}</Button>
             <Button
               variant="danger"

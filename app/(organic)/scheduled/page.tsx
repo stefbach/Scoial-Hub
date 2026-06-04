@@ -279,33 +279,105 @@ function PostRow({ post: p, onOpen }: { post: ScheduledPost; onOpen: () => void 
   );
 }
 
-function CalendarView({ posts, onOpen }: { posts: ScheduledPost[]; onOpen: (post: ScheduledPost) => void }) {
+function CalendarView({
+  posts,
+  onOpen,
+}: {
+  posts: ScheduledPost[];
+  onOpen: (post: ScheduledPost) => void;
+}) {
   const t = useT();
-  const byDate = new Map<number, ScheduledPost[]>();
-  for (const p of posts) {
-    const day = Number(p.date.slice(-2));
-    byDate.set(day, [...(byDate.get(day) ?? []), p]);
-  }
-  // May 2026 starts on a Friday; render a simple month grid.
-  const firstDow = 5;
-  const cells = Array.from({ length: 35 }, (_, i) => i - firstDow + 1);
 
-  const DAY_LABELS = [
-    t("Dim", "Sun"), t("Lun", "Mon"), t("Mar", "Tue"),
-    t("Mer", "Wed"), t("Jeu", "Thu"), t("Ven", "Fri"), t("Sam", "Sat"),
+  // Derive the displayed month from the earliest post date, or fall back to today.
+  const today = new Date();
+  const earliest = posts
+    .map((p) => new Date(p.date + "T00:00:00"))
+    .sort((a, b) => a.getTime() - b.getTime())[0];
+  const seed = earliest ?? today;
+
+  const [viewYear, setViewYear] = useState(seed.getFullYear());
+  const [viewMonth, setViewMonth] = useState(seed.getMonth()); // 0-based
+
+  // Group posts by "YYYY-MM-DD" key so multi-month data is unambiguous.
+  const byIsoDate = new Map<string, ScheduledPost[]>();
+  for (const p of posts) {
+    byIsoDate.set(p.date, [...(byIsoDate.get(p.date) ?? []), p]);
+  }
+
+  // Number of days in the displayed month.
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+  // 0=Sun … 6=Sat → we want Mon=0 … Sun=6 grid.
+  const rawFirstDow = new Date(viewYear, viewMonth, 1).getDay(); // 0=Sun
+  const firstDow = (rawFirstDow + 6) % 7; // convert: Mon=0 … Sun=6
+  const totalCells = Math.ceil((daysInMonth + firstDow) / 7) * 7;
+  const cells = Array.from({ length: totalCells }, (_, i) => i - firstDow + 1);
+
+  const monthPad = (n: number) => String(n).padStart(2, "0");
+  const monthPrefix = `${viewYear}-${monthPad(viewMonth + 1)}-`;
+
+  const MONTH_NAMES = [
+    t("Janvier", "January"), t("Février", "February"), t("Mars", "March"),
+    t("Avril", "April"), t("Mai", "May"), t("Juin", "June"),
+    t("Juillet", "July"), t("Août", "August"), t("Septembre", "September"),
+    t("Octobre", "October"), t("Novembre", "November"), t("Décembre", "December"),
   ];
+
+  // Mon-first day headers
+  const DAY_LABELS = [
+    t("Lun", "Mon"), t("Mar", "Tue"), t("Mer", "Wed"), t("Jeu", "Thu"),
+    t("Ven", "Fri"), t("Sam", "Sat"), t("Dim", "Sun"),
+  ];
+
+  const prevMonth = () => {
+    if (viewMonth === 0) { setViewYear((y) => y - 1); setViewMonth(11); }
+    else setViewMonth((m) => m - 1);
+  };
+  const nextMonth = () => {
+    if (viewMonth === 11) { setViewYear((y) => y + 1); setViewMonth(0); }
+    else setViewMonth((m) => m + 1);
+  };
 
   return (
     <div className="card overflow-hidden p-4">
-      <div className="mb-3 grid grid-cols-7 gap-1 text-center text-2xs font-semibold uppercase tracking-wide text-muted">
+      {/* Month navigation */}
+      <div className="mb-3 flex items-center justify-between">
+        <button
+          type="button"
+          onClick={prevMonth}
+          aria-label={t("Mois précédent", "Previous month")}
+          className="flex h-7 w-7 items-center justify-center rounded-lg text-muted transition-colors hover:bg-canvas hover:text-ink"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+            <path d="M15 18l-6-6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+        <span className="text-sm font-semibold text-ink">
+          {MONTH_NAMES[viewMonth]} {viewYear}
+        </span>
+        <button
+          type="button"
+          onClick={nextMonth}
+          aria-label={t("Mois suivant", "Next month")}
+          className="flex h-7 w-7 items-center justify-center rounded-lg text-muted transition-colors hover:bg-canvas hover:text-ink"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+            <path d="M9 18l6-6-6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+      </div>
+
+      {/* Day-of-week headers (Mon-first) */}
+      <div className="mb-1 grid grid-cols-7 gap-1 text-center text-2xs font-semibold uppercase tracking-wide text-muted">
         {DAY_LABELS.map((d) => (
           <div key={d} className="py-1">{d}</div>
         ))}
       </div>
+
       <div className="grid grid-cols-7 gap-1">
         {cells.map((day, i) => {
-          const valid = day >= 1 && day <= 31;
-          const items = valid ? byDate.get(day) ?? [] : [];
+          const valid = day >= 1 && day <= daysInMonth;
+          const isoKey = valid ? `${monthPrefix}${monthPad(day)}` : "";
+          const items = valid ? byIsoDate.get(isoKey) ?? [] : [];
           const hasItems = items.length > 0;
           return (
             <div

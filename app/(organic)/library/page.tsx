@@ -387,15 +387,17 @@ function TemplateCard({
         )}
       </div>
       <div className="p-3">
-        <div className="mb-2 flex flex-wrap items-center gap-1.5">
+        <div className="mb-2 flex flex-wrap items-start gap-1.5">
           <PlatformTag platform={tpl.platform} />
-          {tpl.tags.map((tag) => (
-            <span key={tag} className="chip">
-              {tag}
-            </span>
-          ))}
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
+            {tpl.tags.map((tag) => (
+              <span key={tag} className="chip">
+                {tag}
+              </span>
+            ))}
+          </div>
           {tpl.status !== "unused" && (
-            <span className="ml-auto rounded-full bg-canvas px-2 py-0.5 text-2xs font-medium capitalize text-muted">
+            <span className="shrink-0 rounded-full bg-canvas px-2 py-0.5 text-2xs font-medium capitalize text-muted">
               {tpl.status}
             </span>
           )}

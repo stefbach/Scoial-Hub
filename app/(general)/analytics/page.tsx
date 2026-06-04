@@ -170,6 +170,15 @@ function AnalyticsContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scope, days]);
 
+  // Whether ANY data exists at all (used to display the empty state).
+  const hasData = useMemo(() => {
+    for (const c of inScope) {
+      const s = ANALYTICS_SERIES[c.id];
+      if (s.engagement.some((v) => v > 0)) return true;
+    }
+    return false;
+  }, [inScope]);
+
   // Overview totals + trend (vs previous equivalent window).
   const totals = useMemo(() => {
     const acc: Record<MetricId, number> = {
@@ -305,7 +314,7 @@ function AnalyticsContent() {
   return (
     <div className="animate-fade-in">
       {/* Header */}
-      <div className="mb-6 flex items-center justify-between gap-4">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <h1 className="text-lg font-bold tracking-tight text-ink">{t("Analytiques", "Analytics")}</h1>
           <span aria-hidden="true" className="h-4 w-px shrink-0 rounded-full bg-hair" />
@@ -350,15 +359,18 @@ function AnalyticsContent() {
             )}
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
           <Dropdown
             align="right"
             trigger={(open, toggle) => (
               <button
                 onClick={toggle}
-                className="rounded-lg border border-hair bg-card px-3 py-1.5 text-sm font-medium text-ink shadow-xs hover:bg-canvas transition-colors"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-hair bg-card px-3 py-1.5 text-sm font-medium text-ink shadow-xs hover:bg-canvas transition-colors"
               >
                 {RANGE_LABEL[range]}
+                <svg width="10" height="10" viewBox="0 0 10 10" className="text-muted">
+                  <path d="M1 3l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.2" />
+                </svg>
               </button>
             )}
           >
@@ -379,9 +391,12 @@ function AnalyticsContent() {
             trigger={(open, toggle) => (
               <button
                 onClick={toggle}
-                className="rounded-lg border border-hair bg-card px-3 py-1.5 text-sm font-medium text-ink shadow-xs hover:bg-canvas transition-colors"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-hair bg-card px-3 py-1.5 text-sm font-medium text-ink shadow-xs hover:bg-canvas transition-colors"
               >
                 {t("Exporter", "Export")}
+                <svg width="10" height="10" viewBox="0 0 10 10" className="text-muted">
+                  <path d="M1 3l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.2" />
+                </svg>
               </button>
             )}
           >
@@ -417,77 +432,99 @@ function AnalyticsContent() {
         <MetricCard label={t("Conversions", "Conversions")} value={totals.conversions} trend={trend(totals.conversions, prevTotals.conversions)} />
       </div>
 
-      {/* Trend chart */}
-      <div className="card mb-6 p-4">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-          <div className="text-sm font-semibold text-ink">
-            {t(METRICS[trendMetric].labelFr, METRICS[trendMetric].labelEn)} {t("dans le temps", "over time")}
+      {/* Empty state — shown when no analytics data exists yet */}
+      {!hasData && (
+        <div className="mb-6 flex flex-col items-center justify-center rounded-xl border border-hair bg-card px-6 py-14 text-center">
+          <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-canvas">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" className="text-muted">
+              <path d="M3 20h18M3 14l5-5 4 4 5-7 4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
           </div>
-          <div className="flex flex-wrap gap-1.5">
-            {(Object.keys(METRICS) as MetricId[]).map((m) => {
-              const on = trendMetric === m;
-              return (
-                <button
-                  key={m}
-                  onClick={() => setTrendMetric(m)}
-                  className={`rounded-lg px-2.5 py-1 text-2xs font-medium transition-all ${
-                    on
-                      ? "bg-ai-textbg text-ai-text ring-1 ring-ai-text/30 shadow-xs"
-                      : "border border-hair bg-card text-muted hover:bg-canvas hover:text-ink"
-                  }`}
-                >
-                  {t(METRICS[m].labelFr, METRICS[m].labelEn)}
-                </button>
-              );
-            })}
-          </div>
+          <h3 className="mb-1 text-sm font-semibold text-ink">{t("Pas encore de données analytiques", "No analytics data yet")}</h3>
+          <p className="max-w-sm text-xs text-muted">
+            {t(
+              "Les graphiques et indicateurs apparaîtront dès que vos premières publications ou campagnes génèrent de l'activité.",
+              "Charts and metrics will appear once your first posts or campaigns generate activity."
+            )}
+          </p>
         </div>
-        <MultiLineChart series={trendSeries} />
-      </div>
+      )}
 
-      {/* Bar charts */}
-      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div className="card p-4">
-          <div className="mb-4 text-sm font-semibold text-ink">{t("Engagement par entreprise", "Engagement by company")}</div>
-          {byCompany.map((c) => (
-            <BarRow
-              key={c.id}
-              label={c.name}
-              value={c.visible ? c.value : 0}
-              max={c.max}
-              color={COMPANY_COLOR[c.id]}
-              caption={
-                c.visible
-                  ? `${c.value.toLocaleString()} · ${c.pct}%`
-                  : t("Masqué par la portée", "Hidden by scope")
-              }
-              muted={!c.visible}
-              onClick={c.visible ? () => setScope(c.id) : undefined}
-              title={c.visible ? `${t("Filtrer sur", "Scope to")} ${c.name}` : undefined}
-            />
-          ))}
+      {/* Trend chart — only when data exists */}
+      {hasData && (
+        <div className="card mb-6 p-4">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+            <div className="text-sm font-semibold text-ink">
+              {t(METRICS[trendMetric].labelFr, METRICS[trendMetric].labelEn)} {t("dans le temps", "over time")}
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {(Object.keys(METRICS) as MetricId[]).map((m) => {
+                const on = trendMetric === m;
+                return (
+                  <button
+                    key={m}
+                    onClick={() => setTrendMetric(m)}
+                    className={`rounded-lg px-2.5 py-1 text-2xs font-medium transition-all ${
+                      on
+                        ? "bg-ai-textbg text-ai-text ring-1 ring-ai-text/30 shadow-xs"
+                        : "border border-hair bg-card text-muted hover:bg-canvas hover:text-ink"
+                    }`}
+                  >
+                    {t(METRICS[m].labelFr, METRICS[m].labelEn)}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <MultiLineChart series={trendSeries} />
         </div>
-        <div className="card p-4">
-          <div className="mb-4 text-sm font-semibold text-ink">{t("Performance par plateforme", "Performance by platform")}</div>
-          {byPlatform.map((p) => (
-            <BarRow
-              key={p.name}
-              label={p.name}
-              value={p.value}
-              max={p.max}
-              color={p.color}
-              caption={p.connected ? p.value.toLocaleString() : t("Non connecté", "Not connected")}
-              muted={!p.connected}
-              onClick={() => goToPlatform(p.target)}
-              title={
-                p.connected
-                  ? `${t("Voir les performances", "View performance")} ${p.name}`
-                  : t("Connectez LinkedIn pour voir les performances", "Connect LinkedIn to see performance")
-              }
-            />
-          ))}
+      )}
+
+      {/* Bar charts — only when data exists */}
+      {hasData && (
+        <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="card p-4">
+            <div className="mb-4 text-sm font-semibold text-ink">{t("Engagement par entreprise", "Engagement by company")}</div>
+            {byCompany.map((c) => (
+              <BarRow
+                key={c.id}
+                label={c.name}
+                value={c.visible ? c.value : 0}
+                max={c.max}
+                color={COMPANY_COLOR[c.id]}
+                caption={
+                  c.visible
+                    ? `${c.value.toLocaleString()} · ${c.pct}%`
+                    : t("Masqué par la portée", "Hidden by scope")
+                }
+                muted={!c.visible}
+                onClick={c.visible ? () => setScope(c.id) : undefined}
+                title={c.visible ? `${t("Filtrer sur", "Scope to")} ${c.name}` : undefined}
+              />
+            ))}
+          </div>
+          <div className="card p-4">
+            <div className="mb-4 text-sm font-semibold text-ink">{t("Performance par plateforme", "Performance by platform")}</div>
+            {byPlatform.map((p) => (
+              <BarRow
+                key={p.name}
+                label={p.name}
+                value={p.value}
+                max={p.max}
+                color={p.color}
+                caption={p.connected ? p.value.toLocaleString() : t("Non connecté", "Not connected")}
+                muted={!p.connected}
+                onClick={() => goToPlatform(p.target)}
+                title={
+                  p.connected
+                    ? `${t("Voir les performances", "View performance")} ${p.name}`
+                    : t("Connectez LinkedIn pour voir les performances", "Connect LinkedIn to see performance")
+                }
+              />
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* AI summary */}
       <div className="rounded-xl border border-ai-text/20 bg-ai-textbg px-4 py-3.5 text-xs text-ai-text shadow-xs">

@@ -9,6 +9,7 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Dropdown, DropdownItem } from "@/components/ui/Dropdown";
 import { AudienceDetailModal } from "@/components/paid/AudienceDetailModal";
 import { NewAudienceModal } from "@/components/paid/NewAudienceModal";
+import { NewCampaignModal } from "@/components/paid/NewCampaignModal";
 import { useT } from "@/lib/i18n";
 import type { Audience, AudienceType } from "@/lib/types";
 
@@ -50,6 +51,8 @@ function AudiencesContent() {
 
   const [openAudience, setOpenAudience] = useState<Audience | null>(null);
   const [newModalOpen, setNewModalOpen] = useState(false);
+  // Bug #25 — état de la modale "Nouvelle campagne" depuis Audiences
+  const [newCampaignOpen, setNewCampaignOpen] = useState(false);
   const [, setTick] = useState(0);
   const refresh = () => setTick((t) => t + 1);
 
@@ -99,12 +102,34 @@ function AudiencesContent() {
         title={t("Audiences", "Audiences")}
         actions={
           <>
-            <Button
-              variant="secondary"
-              disabled
-              title={t("La synchronisation sera disponible une fois Meta connecté.", "Audience sync will be enabled when Meta is connected.")}
-            >
-              {t("Sync depuis Meta", "Sync from Meta")}
+            {/* Bug #21 — bouton désactivé explicite avec lien vers les connecteurs */}
+            <div className="group relative">
+              <Button
+                variant="secondary"
+                disabled
+                aria-disabled="true"
+              >
+                <span className="flex items-center gap-1.5">
+                  <MetaIcon />
+                  {t("Synchroniser depuis Meta", "Sync from Meta")}
+                </span>
+              </Button>
+              {/* Infobulle accessible au survol même sur un bouton désactivé */}
+              <div className="pointer-events-none absolute right-0 top-full z-20 mt-1.5 hidden w-56 rounded-lg border border-hair bg-card px-3 py-2 shadow-lg group-hover:block">
+                <p className="text-2xs text-ink">
+                  {t("Connectez Meta pour synchroniser vos audiences.", "Connect Meta to sync your audiences.")}
+                </p>
+                <a
+                  href="/parametres-connecteurs"
+                  className="pointer-events-auto mt-1 block text-2xs font-medium text-primary-600 hover:underline"
+                >
+                  {t("Connecter Meta →", "Connect Meta →")}
+                </a>
+              </div>
+            </div>
+            {/* Bug #25 — bouton Créer une nouvelle campagne câblé sur POST /api/campaigns */}
+            <Button variant="secondary" onClick={() => setNewCampaignOpen(true)}>
+              {t("Créer une nouvelle campagne", "Create new campaign")}
             </Button>
             <Button variant="primary" onClick={() => setNewModalOpen(true)}>
               {t("Nouvelle audience", "New audience")}
@@ -239,9 +264,19 @@ function AudiencesContent() {
         <NewAudienceModal
           companyId={company.id}
           onClose={() => setNewModalOpen(false)}
-          onCreated={refresh}
+          onCreated={() => refresh()}
         />
       )}
+
+      {/* Bug #25 — modale de création de campagne depuis Audiences */}
+      <NewCampaignModal
+        open={newCampaignOpen}
+        onClose={() => setNewCampaignOpen(false)}
+        onSaved={() => {
+          setNewCampaignOpen(false);
+          router.push("/campaigns");
+        }}
+      />
     </div>
   );
 }
@@ -285,20 +320,22 @@ function AudienceCard({ aud, onClick }: { aud: Audience; onClick: () => void }) 
   const typeStyle = TYPE[aud.type];
   const typeLabel = tFn(typeStyle.labelFr, typeStyle.labelEn);
   return (
+    // Bug #24 — w-full + min-w-0 pour éviter le débordement en split view
     <div
       onClick={onClick}
-      className={`card cursor-pointer border-l-[3px] p-4 transition-all hover:shadow-md ${typeStyle.ring}`}
+      className={`card w-full min-w-0 cursor-pointer border-l-[3px] p-4 transition-all hover:shadow-md ${typeStyle.ring}`}
     >
-      <div className="mb-2 flex items-center gap-2">
+      <div className="mb-2 flex flex-wrap items-center gap-2">
         <span className={`rounded-md px-2 py-0.5 text-2xs font-semibold ${typeStyle.bg}`}>{typeLabel}</span>
         {aud.inUse > 0 && (
           <StatusBadge tone="green" dot>{tFn("En cours d'utilisation", "In use")} ({aud.inUse})</StatusBadge>
         )}
       </div>
-      <div className="text-sm font-semibold text-ink">{aud.name}</div>
-      <div className="mt-0.5 text-2xs text-muted">{aud.description}</div>
-      {aud.detail && <div className="mt-0.5 text-2xs text-muted">{aud.detail}</div>}
-      <div className="mt-3 flex items-center justify-between border-t border-hair pt-2.5 text-2xs text-muted">
+      {/* Bug #24 — break-words pour les noms longs */}
+      <div className="w-full break-words text-sm font-semibold text-ink">{aud.name}</div>
+      <div className="mt-0.5 w-full break-words text-2xs text-muted">{aud.description}</div>
+      {aud.detail && <div className="mt-0.5 w-full break-words text-2xs text-muted">{aud.detail}</div>}
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-1 border-t border-hair pt-2.5 text-2xs text-muted">
         <span className="font-medium text-ink">{aud.reach}</span>
         <span>{aud.created}</span>
       </div>
@@ -307,6 +344,14 @@ function AudienceCard({ aud, onClick }: { aud: Audience; onClick: () => void }) 
 }
 
 /* ── Icons ──────────────────────────────────────────────────────────── */
+// Bug #21 — icône Meta inline SVG (logo simplifié)
+function MetaIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 40 40" fill="none" aria-hidden="true">
+      <path d="M4 26c0 3.3 2.6 5.5 6 5.5 1.7 0 3.2-.6 4.4-1.8l5.6-5.6 5.6 5.6c1.2 1.2 2.7 1.8 4.4 1.8 3.4 0 6-2.2 6-5.5 0-1.5-.5-2.8-1.5-3.8L26 14c-1.2-1.2-2.7-1.8-4.4-1.8s-3.2.6-4.4 1.8l-1.7 1.7-1.7-1.7C12.7 12.8 11.2 12.2 9.5 12.2c-.6 0-1.2.1-1.8.3C5.4 13.2 4 15.3 4 17.7V26z" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
 function SearchIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none">

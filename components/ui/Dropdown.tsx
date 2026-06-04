@@ -27,8 +27,12 @@ export function Dropdown({
     <div className="relative" ref={ref}>
       {trigger(open, () => setOpen((o) => !o))}
       {open && (
+        /* z-[9999] pour éviter tout débordement de stacking context.
+           max-w-xs + w-max pour contraindre la largeur et éviter que le texte
+           déborde hors de l'écran. break-words appliqué sur les enfants via
+           le conteneur. right-0/left-0 assure l'ancrage côté écran correct. */
         <div
-          className={`absolute z-30 mt-1 min-w-[160px] overflow-hidden rounded-md border-hair border-hair bg-card py-1 shadow-lg ${
+          className={`absolute z-[9999] mt-1 w-max min-w-[160px] max-w-xs overflow-hidden rounded-md border border-hair bg-card py-1 shadow-xl ${
             align === "right" ? "right-0" : "left-0"
           }`}
         >
@@ -52,7 +56,7 @@ export function DropdownItem({
     <button
       type="button"
       onClick={onClick}
-      className={`block w-full px-3 py-1.5 text-left text-sm hover:bg-canvas ${
+      className={`block w-full truncate px-3 py-1.5 text-left text-sm hover:bg-canvas ${
         active ? "font-medium text-ink" : "text-ink/80"
       }`}
     >

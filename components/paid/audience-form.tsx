@@ -86,7 +86,8 @@ export function SavedFields({
 
       <div>
         <div className="text-2xs font-medium text-muted">{t("Genre", "Gender")}</div>
-        <div className="mt-1 flex gap-2">
+        {/* Bug #23 — flex-wrap pour éviter la disparition de "Hommes" en split view */}
+        <div className="mt-1 flex flex-wrap gap-2">
           {(["All", "Women", "Men"] as const).map((g) => {
             const on = config.gender === g;
             return (
@@ -94,10 +95,10 @@ export function SavedFields({
                 key={g}
                 type="button"
                 onClick={() => set("gender", g)}
-                className={`rounded-md px-3 py-1.5 text-xs font-medium ${
+                className={`min-w-0 shrink-0 rounded-md px-3 py-1.5 text-xs font-medium ${
                   on
                     ? "bg-ai-textbg text-ai-text ring-1 ring-ai-text/30"
-                    : "border-hair border-hair bg-card text-muted"
+                    : "border border-hair bg-card text-muted"
                 }`}
               >
                 {GENDER_LABELS[g]}

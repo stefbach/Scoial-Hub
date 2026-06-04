@@ -211,18 +211,22 @@ export function RunPanel({ loading, onRun }: RunPanelProps) {
           </div>
           {/* Détail du profil sélectionné */}
           <div className="mt-2 rounded-lg border border-hair bg-canvas px-3 py-2">
-            <div className="flex flex-wrap gap-1.5">
-              <span className="section-label">{t("Plateformes :", "Platforms:")}</span>
-              {selectedProfile.priorityPlatforms.slice(0, 3).map((p) => (
-                <span key={p} className="chip text-2xs">{p}</span>
-              ))}
-              <span className="section-label ml-2">{t("KPI cible :", "Target KPI:")}</span>
-              <span className="chip text-2xs">
-                CTR {selectedProfile.sectorKPIs.ctr.min}–{selectedProfile.sectorKPIs.ctr.max}%
-              </span>
-              <span className="chip text-2xs">
-                CPA {selectedProfile.sectorKPIs.cpa.min}–{selectedProfile.sectorKPIs.cpa.max}€
-              </span>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+              <span className="section-label shrink-0">{t("Plateformes :", "Platforms:")}</span>
+              <div className="flex flex-wrap gap-1 min-w-0">
+                {selectedProfile.priorityPlatforms.slice(0, 3).map((p) => (
+                  <span key={p} className="chip text-2xs truncate max-w-[120px]">{p}</span>
+                ))}
+              </div>
+              <span className="section-label shrink-0">{t("KPI cible :", "Target KPI:")}</span>
+              <div className="flex flex-wrap gap-1 min-w-0">
+                <span className="chip text-2xs whitespace-nowrap">
+                  CTR {selectedProfile.sectorKPIs.ctr.min}–{selectedProfile.sectorKPIs.ctr.max}%
+                </span>
+                <span className="chip text-2xs whitespace-nowrap">
+                  CPA {selectedProfile.sectorKPIs.cpa.min}–{selectedProfile.sectorKPIs.cpa.max}€
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -247,10 +251,10 @@ export function RunPanel({ loading, onRun }: RunPanelProps) {
 
           {showAdvanced && (
             <div className="border-t border-hair px-4 py-3 space-y-4">
-              {/* Publications par jour */}
-              <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-                <div>
-                  <label className="section-label mb-1 block">{t("Publications/jour", "Posts/day")}</label>
+              {/* Publications par jour + reporting + heures */}
+              <div className="grid grid-cols-2 gap-3 min-[420px]:grid-cols-2 sm:grid-cols-4">
+                <div className="min-w-0">
+                  <label className="section-label mb-1 block truncate">{t("Publications/jour", "Posts/day")}</label>
                   <input
                     type="number"
                     min={1}
@@ -263,8 +267,8 @@ export function RunPanel({ loading, onRun }: RunPanelProps) {
                 </div>
 
                 {/* Période de reporting */}
-                <div className="sm:col-span-1">
-                  <label className="section-label mb-1 block">{t("Période de reporting", "Reporting period")}</label>
+                <div className="min-w-0">
+                  <label className="section-label mb-1 block truncate">{t("Reporting", "Reporting")}</label>
                   <select
                     value={reportingPeriod}
                     onChange={(e) => setReportingPeriod(e.target.value as Cadence["reportingPeriod"])}
@@ -280,8 +284,8 @@ export function RunPanel({ loading, onRun }: RunPanelProps) {
                 </div>
 
                 {/* Heure 1 */}
-                <div>
-                  <label className="section-label mb-1 block">{t("Heure 1", "Time slot 1")}</label>
+                <div className="min-w-0">
+                  <label className="section-label mb-1 block truncate">{t("Heure 1", "Time slot 1")}</label>
                   <input
                     type="time"
                     value={postingHour1}
@@ -292,8 +296,8 @@ export function RunPanel({ loading, onRun }: RunPanelProps) {
                 </div>
 
                 {/* Heure 2 */}
-                <div>
-                  <label className="section-label mb-1 block">{t("Heure 2 (optionnel)", "Time slot 2 (optional)")}</label>
+                <div className="min-w-0">
+                  <label className="section-label mb-1 block truncate">{t("Heure 2", "Time slot 2")}</label>
                   <input
                     type="time"
                     value={postingHour2}
@@ -334,7 +338,7 @@ export function RunPanel({ loading, onRun }: RunPanelProps) {
                 <label className="section-label mb-1.5 block">{t("Cible de benchmark", "Benchmark target")}</label>
                 <input
                   type="text"
-                  className="input w-full"
+                  className="input w-full min-w-0"
                   placeholder={t(
                     "Ex : concurrents téléconsultation France, Doctolib, Qare…",
                     "E.g.: telemedicine competitors France, Doctolib, Qare…"
@@ -346,8 +350,8 @@ export function RunPanel({ loading, onRun }: RunPanelProps) {
                 />
                 <p className="mt-1 text-2xs text-muted">
                   {t(
-                    "Décrivez les concurrents ou références sectorielles à utiliser pour le benchmark. Laissez vide pour utiliser les benchmarks sectoriels du profil.",
-                    "Describe the competitors or sector references to use for benchmarking. Leave blank to use the profile's sector benchmarks."
+                    "Concurrents ou références sectorielles pour le benchmark. Laissez vide pour les benchmarks du profil.",
+                    "Competitors or sector references for benchmarking. Leave blank to use profile benchmarks."
                   )}
                 </p>
               </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
@@ -25,6 +25,8 @@ function LoginPageInner() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  // Ref guard: prevents double-submit before React re-renders disable the button.
+  const submittingRef = useRef(false);
   const [error, setError] = useState<string | null>(
     urlError === "auth_callback_failed" ? "Échec de la connexion. Veuillez réessayer." : null
   );
@@ -34,6 +36,9 @@ function LoginPageInner() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    // Synchronous guard: reject any submit that arrives before the previous one finishes.
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setError(null);
     setLoading(true);
 
@@ -41,6 +46,8 @@ function LoginPageInner() {
       const supabase = createClient();
       if (!supabase) {
         setError("Supabase n'est pas configuré.");
+        setLoading(false);
+        submittingRef.current = false;
         return;
       }
 
@@ -56,17 +63,19 @@ function LoginPageInner() {
             : signInError.message
         );
         setLoading(false);
+        submittingRef.current = false;
         return;
       }
 
       // Navigation « dure » : garantit que les cookies de session fraîchement
       // écrits par Supabase sont envoyés au middleware dès la première requête.
       // Évite la course cookie / soft-navigation qui imposait un 2e clic.
-      // On ne remet pas `loading` à false : la page va être remplacée.
+      // On ne remet pas `loading` à false ni submittingRef : la page est remplacée.
       window.location.assign(redirect);
     } catch {
       setError("Une erreur inattendue s'est produite.");
       setLoading(false);
+      submittingRef.current = false;
     }
   }
 

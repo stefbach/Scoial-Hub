@@ -130,22 +130,22 @@ function ComposeContent() {
   return (
     <div className="animate-fade-in">
       {/* Page header */}
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-4">
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2.5">
-            <h1 className="min-w-0 break-words text-lg font-bold tracking-tight text-ink">{modeLabel}</h1>
+          <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1">
+            <h1 className="min-w-0 max-w-full break-words text-lg font-bold tracking-tight text-ink">{modeLabel}</h1>
             <span
               aria-hidden="true"
-              className="h-4 w-px shrink-0 rounded-full bg-hair"
+              className="hidden h-4 w-px shrink-0 rounded-full bg-hair sm:block"
             />
             <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-hair bg-canvas px-2.5 py-0.5 text-2xs text-muted shadow-xs">
               <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-primary-400" />
               <span className="font-semibold text-ink">{company.code}</span>
             </span>
           </div>
-          <p className="mt-0.5 text-2xs text-muted">{modeSub}</p>
+          <p className="mt-0.5 w-full text-2xs text-muted">{modeSub}</p>
         </div>
-        <div className="flex shrink-0 flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button variant="secondary" onClick={handleSaveDraft}>
             {t("Enregistrer comme brouillon", "Save as draft")}
           </Button>

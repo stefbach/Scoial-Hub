@@ -311,8 +311,14 @@ function Step2({
 
   return (
     <>
-      <div className="grid max-h-[70vh] grid-cols-[1fr_280px] overflow-hidden">
-        <div className="overflow-y-auto p-4">
+      {/*
+        Bug #22 — pas de hauteur fixe imposée ici : le Modal gère déjà
+        max-h-[90vh] + overflow-y-auto sur le panel.
+        On passe à un layout flex colonne sur mobile, grille 2 colonnes
+        sur écrans ≥ lg pour éviter que le contenu soit tronqué.
+      */}
+      <div className="flex flex-col lg:grid lg:grid-cols-[1fr_280px]">
+        <div className="p-4">
           {type === "saved" && (
             <SavedFields config={savedConfig} onChange={setSavedConfig} />
           )}
@@ -329,7 +335,7 @@ function Step2({
         </div>
 
         {/* Right column — info / estimator */}
-        <div className="overflow-y-auto border-l-hair border-hair bg-canvas/40 p-4">
+        <div className="border-t border-hair p-4 lg:border-l lg:border-t-0 bg-canvas/40">
           {type === "saved" && (
             <ReachEstimator
               reach={estimateSavedReach(savedConfig)}
@@ -360,7 +366,7 @@ function Step2({
         </div>
       </div>
 
-      <div className="flex items-center justify-between gap-2 border-t-hair border-hair px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-hair px-4 py-3">
         <Button variant="secondary" onClick={onBack}>← {t("Retour", "Back")}</Button>
         <div className="flex items-center gap-2">
           <Button variant="secondary" onClick={onCancel}>{t("Annuler", "Cancel")}</Button>

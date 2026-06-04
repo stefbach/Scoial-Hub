@@ -275,6 +275,7 @@ function AccountsPageInner() {
                 key={platform}
                 platform={platform}
                 view={view}
+                companyId={company.id}
                 onConnected={() => {
                   fetch("/api/connectors")
                     .then((r) => r.json() as Promise<ConnectorStatus[]>)
@@ -346,10 +347,12 @@ function AccountsPageInner() {
 function NativeConnectorCard({
   platform,
   view,
+  companyId,
   onConnected,
 }: {
   platform: "facebook" | "instagram" | "linkedin";
   view: PlatformView | undefined;
+  companyId: string;
   onConnected: () => void;
 }) {
   const t = useT();
@@ -357,6 +360,10 @@ function NativeConnectorCard({
   const configured = view?.configured ?? false;
   const hasActive = view?.hasActiveAccount ?? false;
   const accounts = view?.accounts ?? [];
+
+  // Build the auth URL with companyId and return path so the OAuth callback
+  // redirects back to this page and registers the connection correctly.
+  const authUrl = `/api/connectors/${platform}/auth?companyId=${encodeURIComponent(companyId)}&return=/accounts`;
 
   return (
     <div className="card p-4">
@@ -437,15 +444,14 @@ function NativeConnectorCard({
         <div className="shrink-0">
           {configured ? (
             <a
-              href={`/api/connectors/${platform}/auth`}
+              href={authUrl}
               className="btn-primary inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold"
-              onClick={onConnected}
             >
               {hasActive ? t("Reconnecter", "Reconnect") : t("Connecter", "Connect")}
             </a>
           ) : (
             <a
-              href={`/api/connectors/${platform}/auth`}
+              href={authUrl}
               className="btn-secondary inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold"
               title={t("En mode simulé — aucune vraie connexion ne sera effectuée", "Simulated mode — no real connection will be made")}
             >
@@ -545,13 +551,12 @@ function DisconnectedMetaCard({ companyCode, companyName }: { companyCode: strin
             {companyCode} {t("n'a pas encore de connexion Meta.", "has no Meta connection yet.")}
           </p>
         </div>
-        <Button
-          variant="primary"
-          disabled
-          title={t("La connexion Meta sera disponible dans la prochaine phase.", "Meta connection will be wired in the next phase.")}
+        <a
+          href="/parametres-connecteurs"
+          className="btn-primary inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold"
         >
           {t("Connecter", "Connect")}
-        </Button>
+        </a>
       </div>
     </div>
   );

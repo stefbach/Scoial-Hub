@@ -46,13 +46,15 @@ export function Team() {
 
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between">
-        <SubHeader title={t("Équipe & rôles", "Team & roles")} scope="org" scopeLabel={ORG_NAME} />
-        <Button variant="primary" onClick={() => setInviteOpen(true)}>{t("+ Inviter un membre", "+ Invite team member")}</Button>
+      <div className="mb-4 flex flex-wrap items-start gap-3">
+        <div className="min-w-0 flex-1">
+          <SubHeader title={t("Équipe & rôles", "Team & roles")} scope="org" scopeLabel={ORG_NAME} />
+        </div>
+        <Button variant="primary" className="shrink-0" onClick={() => setInviteOpen(true)}>{t("+ Inviter un membre", "+ Invite team member")}</Button>
       </div>
 
       <div className="card overflow-hidden">
-        <table className="w-full text-sm">
+        <table className="w-full min-w-0 text-sm">
           <tbody className="divide-y divide-hair">
             {team.map((m) => (
               <tr
@@ -62,15 +64,17 @@ export function Team() {
               >
                 <td className="px-3 py-2.5">
                   <div className="flex items-center gap-2">
-                    <span className="flex h-7 w-7 items-center justify-center rounded-full bg-page text-2xs font-semibold text-white">
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-page text-2xs font-semibold text-white">
                       {m.name.split(" ").map((p) => p[0]).slice(0, 2).join("")}
                     </span>
                     <span className="font-medium text-ink">{m.name}</span>
                   </div>
                 </td>
-                <td className="px-3 py-2.5 text-muted">{m.email}</td>
+                <td className="hidden px-3 py-2.5 text-muted sm:table-cell">
+                  <span className="block max-w-[12rem] truncate">{m.email}</span>
+                </td>
                 <td className="px-3 py-2.5 text-right">
-                  <div className="flex justify-end gap-2">
+                  <div className="flex flex-wrap justify-end gap-1.5">
                     {m.status === "pending" && <StatusBadge tone="amber">{t("En attente", "Pending")}</StatusBadge>}
                     <StatusBadge tone={m.role === "admin" ? "blue" : "gray"}>{ROLE_LABEL[m.role as Role] ?? m.role}</StatusBadge>
                   </div>
@@ -164,7 +168,7 @@ function TeamMemberModal({
 
   return (
     <Modal open onClose={onClose} width="max-w-lg">
-      <div className="border-b-hair border-hair px-4 py-3 text-sm font-semibold text-ink">
+      <div className="border-b border-hair px-4 py-3 text-sm font-semibold text-ink">
         {editing ? `${t("Modifier", "Edit")} ${member?.name}` : t("Inviter un membre de l'équipe", "Invite team member")}
       </div>
 
@@ -175,7 +179,7 @@ function TeamMemberModal({
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             disabled={editing}
-            className={`mt-1 w-full rounded-md border-hair border-hair bg-card px-3 py-2 text-sm text-ink focus:outline-none ${
+            className={`mt-1 w-full rounded-md border border-hair bg-card px-3 py-2 text-sm text-ink focus:outline-none ${
               editing ? "cursor-not-allowed opacity-70" : ""
             }`}
           />
@@ -186,7 +190,7 @@ function TeamMemberModal({
           <select
             value={role}
             onChange={(e) => setRole(e.target.value as Role)}
-            className="mt-1 block w-full rounded-md border-hair border-hair bg-card px-3 py-2 text-sm text-ink focus:outline-none"
+            className="mt-1 block w-full rounded-md border border-hair bg-card px-3 py-2 text-sm text-ink focus:outline-none"
           >
             <option value="admin">{t("Admin", "Admin")}</option>
             <option value="editor">{t("Éditeur", "Editor")}</option>
@@ -197,7 +201,7 @@ function TeamMemberModal({
 
         <div>
           <label className="text-2xs font-medium text-muted">{t("Accès aux entreprises", "Company access")}</label>
-          <div className="mt-1 flex flex-wrap gap-3 rounded-md border-hair border-hair bg-canvas/40 p-3">
+          <div className="mt-1 flex flex-wrap gap-3 rounded-md border border-hair bg-canvas/40 p-3">
             {COMPANIES.map((c) => (
               <label key={c.id} className="flex items-center gap-1.5 text-sm text-ink">
                 <input
@@ -224,7 +228,7 @@ function TeamMemberModal({
         )}
       </div>
 
-      <div className="flex justify-end gap-2 border-t-hair border-hair px-4 py-3">
+      <div className="flex justify-end gap-2 border-t border-hair px-4 py-3">
         <Button variant="secondary" onClick={onClose}>{t("Annuler", "Cancel")}</Button>
         <Button
           variant="primary"
@@ -237,7 +241,7 @@ function TeamMemberModal({
 
       {confirmRemove && member && onRemove && (
         <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-black/20 p-6">
-          <div className="w-full max-w-xs rounded-lg border-hair border-hair bg-card p-4 shadow-xl">
+          <div className="w-full max-w-xs rounded-lg border border-hair bg-card p-4 shadow-xl">
             <p className="text-sm text-ink">{t(`Retirer ${member.name} de l'équipe ?`, `Remove ${member.name} from the team?`)}</p>
             <div className="mt-3 flex justify-end gap-2">
               <Button variant="secondary" onClick={() => setConfirmRemove(false)}>{t("Annuler", "Cancel")}</Button>

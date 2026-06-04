@@ -13,9 +13,17 @@ export function Modal({
 }) {
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-ink/40 p-6 backdrop-blur-sm">
-      <div className="absolute inset-0" onClick={onClose} />
-      <div className={`relative z-50 my-4 w-full ${width} rounded-lg border-hair bg-card shadow-xl`}>
+    /* Scrim: full-screen translucent overlay with blur — never an opaque grey box.
+       Clicking the scrim (but not the panel) closes the modal. */
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/50 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      {/* Panel: stops click propagation so clicking inside never closes the modal */}
+      <div
+        className={`relative w-full ${width} max-h-[90vh] overflow-y-auto rounded-2xl bg-card shadow-xl`}
+        onClick={(e) => e.stopPropagation()}
+      >
         {children}
       </div>
     </div>

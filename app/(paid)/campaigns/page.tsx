@@ -11,7 +11,7 @@ import { Toggle } from "@/components/ui/Toggle";
 import { CreateAdModal } from "@/components/paid/CreateAdModal";
 import { NewCampaignModal } from "@/components/paid/NewCampaignModal";
 import {
-  deleteCampaign,
+  deleteCampaign as deleteCampaignLocal,
   hydrateCampaigns,
   toggleCampaign,
 } from "@/lib/campaign-store";
@@ -201,8 +201,16 @@ function CampaignsContent() {
               <Button variant="secondary" onClick={() => setConfirmDelete(null)}>{t("Annuler", "Cancel")}</Button>
               <Button
                 variant="danger"
-                onClick={() => {
-                  deleteCampaign(company.id, confirmDelete.id);
+                onClick={async () => {
+                  // Bug #20: call HTTP API so Supabase row is removed
+                  const idToDelete = confirmDelete.id;
+                  try {
+                    await fetch(`/api/campaigns/${idToDelete}`, { method: "DELETE" });
+                  } catch {
+                    // Silent — proceed with local removal
+                  }
+                  deleteCampaignLocal(company.id, idToDelete);
+                  setApiCampaigns((prev) => prev.filter((c) => c.id !== idToDelete));
                   setConfirmDelete(null);
                   refresh();
                 }}

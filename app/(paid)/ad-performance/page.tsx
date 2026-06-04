@@ -397,6 +397,9 @@ function AdPerformanceContent() {
     }
   };
 
+  // True when no campaign data exists at all (zero-data state).
+  const hasNoData = data.campaigns.list.length === 0;
+
   return (
     <div className="animate-fade-in">
       <PageHeader
@@ -408,9 +411,12 @@ function AdPerformanceContent() {
               trigger={(open, toggle) => (
                 <button
                   onClick={toggle}
-                  className="rounded-md border border-hair bg-card px-3 py-1.5 text-sm text-ink hover:bg-canvas"
+                  className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm text-ink transition-colors hover:bg-canvas ${range !== "30d" ? "border-primary-400 bg-primary-50 font-medium text-primary-700" : "border-hair bg-card"}`}
                 >
                   {RANGE_LABEL[range]}
+                  <svg width="10" height="10" viewBox="0 0 10 10" className="shrink-0 text-muted">
+                    <path d="M1 3l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.2" />
+                  </svg>
                 </button>
               )}
             >
@@ -434,9 +440,13 @@ function AdPerformanceContent() {
               trigger={(open, toggle) => (
                 <button
                   onClick={toggle}
-                  className="rounded-md border border-hair bg-card px-3 py-1.5 text-sm text-ink hover:bg-canvas"
+                  disabled={hasNoData}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-hair bg-card px-3 py-1.5 text-sm text-ink hover:bg-canvas disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   {t("Exporter", "Export")}
+                  <svg width="10" height="10" viewBox="0 0 10 10" className="shrink-0 text-muted">
+                    <path d="M1 3l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.2" />
+                  </svg>
                 </button>
               )}
             >
@@ -464,8 +474,41 @@ function AdPerformanceContent() {
         </div>
       )}
 
+      {/* Empty state — no campaigns / no ad data yet */}
+      {hasNoData && (
+        <div className="mb-6 flex flex-col items-center justify-center rounded-xl border border-hair bg-card px-6 py-16 text-center">
+          <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-canvas">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" className="text-muted">
+              <rect x="3" y="3" width="7" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.5"/>
+              <rect x="14" y="3" width="7" height="5" rx="1.5" stroke="currentColor" strokeWidth="1.5"/>
+              <rect x="14" y="12" width="7" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.5"/>
+              <rect x="3" y="16" width="7" height="5" rx="1.5" stroke="currentColor" strokeWidth="1.5"/>
+            </svg>
+          </div>
+          <h3 className="mb-1 text-sm font-semibold text-ink">
+            {t("Pas encore de données publicitaires", "No ad data yet")}
+          </h3>
+          <p className="max-w-sm text-xs text-muted">
+            {t(
+              "Les statistiques apparaîtront dès vos premières campagnes. Créez une campagne pour commencer.",
+              "Stats will appear once your first campaigns run. Create a campaign to get started."
+            )}
+          </p>
+          <a
+            href="/campaigns"
+            className="mt-5 inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-4 py-2 text-xs font-semibold text-white shadow-xs hover:bg-primary-700 transition-colors"
+          >
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path d="M6 1v10M1 6h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+            </svg>
+            {t("Créer une campagne", "Create a campaign")}
+          </a>
+        </div>
+      )}
+
       {/* Metric cards — clickable focus */}
-      <div className="mb-5 grid grid-cols-5 gap-3">
+      {!hasNoData && (
+      <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <MetricCard
           label={t("Dépenses", "Spend")}
           value={eur(totalSpend)}
@@ -502,225 +545,234 @@ function AdPerformanceContent() {
           onClick={() => handleFocus("cpc")}
         />
       </div>
+      )}
 
-      {/* Chart */}
-      <div className="card mb-5 overflow-hidden">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-hair bg-canvas/50 px-5 py-3.5">
-          <div className="text-sm font-semibold text-ink">{t("Dépenses & conversions dans le temps", "Spend & conversions over time")}</div>
-          <div className="flex flex-wrap gap-1.5">
-            {(Object.keys(METRICS) as MetricId[]).map((id) => {
-              const on = activeChips.includes(id);
-              return (
-                <button
-                  key={id}
-                  onClick={() => toggleChip(id)}
-                  className={`rounded-md px-2.5 py-1 text-2xs font-medium transition-colors ${
-                    on
-                      ? "bg-ai-textbg text-ai-text ring-1 ring-ai-text/30"
-                      : "border border-hair bg-card text-muted hover:bg-canvas"
-                  }`}
-                >
-                  {METRICS[id].label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-        <div className="p-5">
-          <MultiLineChart series={chartSeries} />
-        </div>
-      </div>
-
-      {/* Top performing ads — filter bar + table */}
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-ink">{t("Meilleures publicités", "Top performing ads")}</h2>
-        <span className="text-2xs text-muted">{sortedRows.length} {t("pubs", "ads")}</span>
-      </div>
-
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        <div className="relative flex-1 min-w-[160px]">
-          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted">
-            <SearchIcon />
-          </span>
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={t("Rechercher des publicités…", "Search ads…")}
-            className="input pl-9"
-          />
-        </div>
-        <Dropdown
-          align="right"
-          trigger={(open, toggle) => (
-            <button
-              onClick={toggle}
-              className="rounded-md border border-hair bg-card px-3 py-2 text-xs text-ink hover:bg-canvas"
-            >
-              {t("Campagne", "Campaign")}:{" "}
-              {campaignFilter === "all"
-                ? t("Toutes", "All")
-                : data.campaigns.list.find((c) => c.id === campaignFilter)?.name ?? t("Toutes", "All")}
-            </button>
-          )}
-        >
-          {(close) => (
-            <>
-              <DropdownItem
-                active={campaignFilter === "all"}
-                onClick={() => { setCampaignFilter("all"); close(); }}
-              >
-                {t("Toutes", "All")}
-              </DropdownItem>
-              {data.campaigns.list.map((c) => (
-                <DropdownItem
-                  key={c.id}
-                  active={campaignFilter === c.id}
-                  onClick={() => { setCampaignFilter(c.id); close(); }}
-                >
-                  {c.name}
-                </DropdownItem>
-              ))}
-            </>
-          )}
-        </Dropdown>
-        <Dropdown
-          align="right"
-          trigger={(open, toggle) => (
-            <button
-              onClick={toggle}
-              className="rounded-md border border-hair bg-card px-3 py-2 text-xs text-ink hover:bg-canvas"
-            >
-              {t("Plateforme", "Platform")}: {PLATFORM_LABEL[platformFilter]}
-            </button>
-          )}
-        >
-          {(close) =>
-            (["all", "facebook", "instagram"] as PlatformFilter[]).map((p) => (
-              <DropdownItem
-                key={p}
-                active={p === platformFilter}
-                onClick={() => { setPlatformFilter(p); close(); }}
-              >
-                {PLATFORM_LABEL[p]}
-              </DropdownItem>
-            ))
-          }
-        </Dropdown>
-        <Dropdown
-          align="right"
-          trigger={(open, toggle) => (
-            <button
-              onClick={toggle}
-              className="rounded-md border border-hair bg-card px-3 py-2 text-xs text-ink hover:bg-canvas"
-            >
-              {t("Statut", "Status")}: {STATUS_LABEL[statusFilter]}
-            </button>
-          )}
-        >
-          {(close) =>
-            (["all", "active", "paused"] as StatusFilter[]).map((s) => (
-              <DropdownItem
-                key={s}
-                active={s === statusFilter}
-                onClick={() => { setStatusFilter(s); close(); }}
-              >
-                {STATUS_LABEL[s]}
-              </DropdownItem>
-            ))
-          }
-        </Dropdown>
-      </div>
-
-      <div className="card mb-5 overflow-hidden">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-hair bg-canvas/50 text-left">
-              <th className="px-5 py-3 text-2xs font-semibold uppercase tracking-wide text-muted">{t("Publicité", "Ad")}</th>
-              <SortHeader label={t("Dépenses", "Spend")} col="spend" tableSortKey={tableSortKey} tableSortDir={tableSortDir} onSort={onSort} />
-              <SortHeader label="CTR" col="ctr" tableSortKey={tableSortKey} tableSortDir={tableSortDir} onSort={onSort} />
-              <SortHeader label="CPC" col="cpc" tableSortKey={tableSortKey} tableSortDir={tableSortDir} onSort={onSort} />
-              <SortHeader label={t("Conv.", "Conv.")} col="conversions" tableSortKey={tableSortKey} tableSortDir={tableSortDir} onSort={onSort} />
-              <th className="px-5 py-3 text-2xs font-semibold uppercase tracking-wide text-muted">{t("Statut", "Status")}</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-hair">
-            {sortedRows.length === 0 ? (
-              <tr>
-                <td colSpan={6} className="px-5 py-10 text-center text-sm text-muted">
-                  {t("Aucune publicité ne correspond à ces filtres.", "No ads match these filters.")}
-                </td>
-              </tr>
-            ) : (
-              sortedRows.map((r) => (
-                <tr
-                  key={r.ad.id}
-                  onClick={() => setOpenAd(r)}
-                  className="cursor-pointer transition-colors hover:bg-canvas/70"
-                >
-                  <td className="px-5 py-3.5">
-                    <div className="font-medium text-ink">{r.ad.name}</div>
-                    <div className="mt-0.5 text-2xs text-muted">
-                      {r.campaign.name} · {r.adSet?.name ?? r.ad.adSetName}
-                    </div>
-                  </td>
-                  <td className="px-5 py-3.5 tabular-nums text-ink">{eur(r.spend)}</td>
-                  <td className="px-5 py-3.5 tabular-nums font-medium text-success-600">{r.ctr.toFixed(2)}%</td>
-                  <td className="px-5 py-3.5 tabular-nums text-ink">{eur(r.cpc, { decimals: true })}</td>
-                  <td className="px-5 py-3.5 tabular-nums text-ink">{r.conversions}</td>
-                  <td className="px-5 py-3.5">
-                    <span
-                      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-2xs font-medium ${
-                        r.ad.status === "active"
-                          ? "bg-success-50 text-success-700"
-                          : "bg-canvas text-muted"
-                      }`}
-                    >
-                      <span className={`inline-block h-1.5 w-1.5 rounded-full ${
-                        r.ad.status === "active" ? "bg-success-500" : "bg-muted/40"
-                      }`} />
-                      {r.ad.status === "active" ? t("Actif", "Active") : t("En pause", "Paused")}
-                    </span>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {/* AI insight + actions */}
-      {topPerformer && (
-        <div className="rounded-xl border border-ai-text/20 bg-ai-textbg px-5 py-4 text-xs text-ai-text">
-          <div className="flex items-start gap-2">
-            <span className="mt-0.5 text-ai-visual">
-              <SparkleIcon />
-            </span>
-            <div className="flex-1">
-              <span className="font-semibold">{t("Insight IA :", "AI insight:")}</span>{" "}
-              &ldquo;{topPerformer.ad.name}&rdquo; {t("est votre meilleure publicité à", "is your best performer at")}{" "}
-              {eur(topPerformer.conversions > 0 ? Number((topPerformer.spend / topPerformer.conversions).toFixed(2)) : 0, { decimals: true })}{" "}
-              {t("par conversion. Envisagez d'augmenter son budget de 30 %, ou testez des messages similaires dans d'autres campagnes.", "per conversion. Consider increasing its budget by 30%, or testing similar messaging in other campaigns.")}
-              <div className="mt-2.5 flex gap-2">
-                <button
-                  onClick={() =>
-                    topPerformer.adSet &&
-                    setEditAdSet({ adSet: topPerformer.adSet, campaignId: topPerformer.campaign.id })
-                  }
-                  disabled={!topPerformer.adSet}
-                  className="rounded-md bg-page px-3 py-1.5 text-2xs font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {t("Augmenter le budget", "Increase budget")}
-                </button>
-                <button
-                  onClick={() => setOpenAd(topPerformer)}
-                  className="rounded-md border border-ai-text/30 bg-card px-3 py-1.5 text-2xs font-medium text-ai-text hover:bg-white"
-                >
-                  {t("Générer des publicités similaires", "Generate similar ads")}
-                </button>
-              </div>
+      {/* Chart — only when data exists */}
+      {!hasNoData && (
+        <div className="card mb-5 overflow-hidden">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-hair bg-canvas/50 px-5 py-3.5">
+            <div className="text-sm font-semibold text-ink">{t("Dépenses & conversions dans le temps", "Spend & conversions over time")}</div>
+            <div className="flex flex-wrap gap-1.5">
+              {(Object.keys(METRICS) as MetricId[]).map((id) => {
+                const on = activeChips.includes(id);
+                return (
+                  <button
+                    key={id}
+                    onClick={() => toggleChip(id)}
+                    className={`rounded-md px-2.5 py-1 text-2xs font-medium transition-colors ${
+                      on
+                        ? "bg-ai-textbg text-ai-text ring-1 ring-ai-text/30"
+                        : "border border-hair bg-card text-muted hover:bg-canvas"
+                    }`}
+                  >
+                    {METRICS[id].label}
+                  </button>
+                );
+              })}
             </div>
           </div>
+          <div className="p-5">
+            <MultiLineChart series={chartSeries} />
+          </div>
         </div>
+      )}
+
+      {/* Top performing ads — filter bar + table — only when data exists */}
+      {!hasNoData && (
+        <>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-ink">{t("Meilleures publicités", "Top performing ads")}</h2>
+            <span className="text-2xs text-muted">{sortedRows.length} {t("pubs", "ads")}</span>
+          </div>
+
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <div className="relative flex-1 min-w-[160px]">
+              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted">
+                <SearchIcon />
+              </span>
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder={t("Rechercher des publicités…", "Search ads…")}
+                className="input pl-9"
+              />
+            </div>
+            <Dropdown
+              align="right"
+              trigger={(open, toggle) => (
+                <button
+                  onClick={toggle}
+                  className={`inline-flex items-center gap-1 rounded-md border px-3 py-2 text-xs text-ink transition-colors hover:bg-canvas ${campaignFilter !== "all" ? "border-primary-400 bg-primary-50 font-medium text-primary-700" : "border-hair bg-card"}`}
+                >
+                  {t("Campagne", "Campaign")}:{" "}
+                  <span className="font-semibold">
+                    {campaignFilter === "all"
+                      ? t("Toutes", "All")
+                      : data.campaigns.list.find((c) => c.id === campaignFilter)?.name ?? t("Toutes", "All")}
+                  </span>
+                </button>
+              )}
+            >
+              {(close) => (
+                <>
+                  <DropdownItem
+                    active={campaignFilter === "all"}
+                    onClick={() => { setCampaignFilter("all"); close(); }}
+                  >
+                    {t("Toutes", "All")}
+                  </DropdownItem>
+                  {data.campaigns.list.map((c) => (
+                    <DropdownItem
+                      key={c.id}
+                      active={campaignFilter === c.id}
+                      onClick={() => { setCampaignFilter(c.id); close(); }}
+                    >
+                      {c.name}
+                    </DropdownItem>
+                  ))}
+                </>
+              )}
+            </Dropdown>
+            <Dropdown
+              align="right"
+              trigger={(open, toggle) => (
+                <button
+                  onClick={toggle}
+                  className={`inline-flex items-center gap-1 rounded-md border px-3 py-2 text-xs text-ink transition-colors hover:bg-canvas ${platformFilter !== "all" ? "border-primary-400 bg-primary-50 font-medium text-primary-700" : "border-hair bg-card"}`}
+                >
+                  {t("Plateforme", "Platform")}: <span className="font-semibold">{PLATFORM_LABEL[platformFilter]}</span>
+                </button>
+              )}
+            >
+              {(close) =>
+                (["all", "facebook", "instagram"] as PlatformFilter[]).map((p) => (
+                  <DropdownItem
+                    key={p}
+                    active={p === platformFilter}
+                    onClick={() => { setPlatformFilter(p); close(); }}
+                  >
+                    {PLATFORM_LABEL[p]}
+                  </DropdownItem>
+                ))
+              }
+            </Dropdown>
+            <Dropdown
+              align="right"
+              trigger={(open, toggle) => (
+                <button
+                  onClick={toggle}
+                  className={`inline-flex items-center gap-1 rounded-md border px-3 py-2 text-xs text-ink transition-colors hover:bg-canvas ${statusFilter !== "all" ? "border-primary-400 bg-primary-50 font-medium text-primary-700" : "border-hair bg-card"}`}
+                >
+                  {t("Statut", "Status")}: <span className="font-semibold">{STATUS_LABEL[statusFilter]}</span>
+                </button>
+              )}
+            >
+              {(close) =>
+                (["all", "active", "paused"] as StatusFilter[]).map((s) => (
+                  <DropdownItem
+                    key={s}
+                    active={s === statusFilter}
+                    onClick={() => { setStatusFilter(s); close(); }}
+                  >
+                    {STATUS_LABEL[s]}
+                  </DropdownItem>
+                ))
+              }
+            </Dropdown>
+          </div>
+
+          <div className="card mb-5 overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-hair bg-canvas/50 text-left">
+                  <th className="px-5 py-3 text-2xs font-semibold uppercase tracking-wide text-muted">{t("Publicité", "Ad")}</th>
+                  <SortHeader label={t("Dépenses", "Spend")} col="spend" tableSortKey={tableSortKey} tableSortDir={tableSortDir} onSort={onSort} />
+                  <SortHeader label="CTR" col="ctr" tableSortKey={tableSortKey} tableSortDir={tableSortDir} onSort={onSort} />
+                  <SortHeader label="CPC" col="cpc" tableSortKey={tableSortKey} tableSortDir={tableSortDir} onSort={onSort} />
+                  <SortHeader label={t("Conv.", "Conv.")} col="conversions" tableSortKey={tableSortKey} tableSortDir={tableSortDir} onSort={onSort} />
+                  <th className="px-5 py-3 text-2xs font-semibold uppercase tracking-wide text-muted">{t("Statut", "Status")}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-hair">
+                {sortedRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-5 py-10 text-center text-sm text-muted">
+                      {t("Aucune publicité ne correspond à ces filtres.", "No ads match these filters.")}
+                    </td>
+                  </tr>
+                ) : (
+                  sortedRows.map((r) => (
+                    <tr
+                      key={r.ad.id}
+                      onClick={() => setOpenAd(r)}
+                      className="cursor-pointer transition-colors hover:bg-canvas/70"
+                    >
+                      <td className="px-5 py-3.5">
+                        <div className="font-medium text-ink">{r.ad.name}</div>
+                        <div className="mt-0.5 text-2xs text-muted">
+                          {r.campaign.name} · {r.adSet?.name ?? r.ad.adSetName}
+                        </div>
+                      </td>
+                      <td className="px-5 py-3.5 tabular-nums text-ink">{eur(r.spend)}</td>
+                      <td className="px-5 py-3.5 tabular-nums font-medium text-success-600">{r.ctr.toFixed(2)}%</td>
+                      <td className="px-5 py-3.5 tabular-nums text-ink">{eur(r.cpc, { decimals: true })}</td>
+                      <td className="px-5 py-3.5 tabular-nums text-ink">{r.conversions}</td>
+                      <td className="px-5 py-3.5">
+                        <span
+                          className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-2xs font-medium ${
+                            r.ad.status === "active"
+                              ? "bg-success-50 text-success-700"
+                              : "bg-canvas text-muted"
+                          }`}
+                        >
+                          <span className={`inline-block h-1.5 w-1.5 rounded-full ${
+                            r.ad.status === "active" ? "bg-success-500" : "bg-muted/40"
+                          }`} />
+                          {r.ad.status === "active" ? t("Actif", "Active") : t("En pause", "Paused")}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* AI insight + actions */}
+          {topPerformer && (
+            <div className="rounded-xl border border-ai-text/20 bg-ai-textbg px-5 py-4 text-xs text-ai-text">
+              <div className="flex items-start gap-2">
+                <span className="mt-0.5 text-ai-visual">
+                  <SparkleIcon />
+                </span>
+                <div className="flex-1">
+                  <span className="font-semibold">{t("Insight IA :", "AI insight:")}</span>{" "}
+                  &ldquo;{topPerformer.ad.name}&rdquo; {t("est votre meilleure publicité à", "is your best performer at")}{" "}
+                  {eur(topPerformer.conversions > 0 ? Number((topPerformer.spend / topPerformer.conversions).toFixed(2)) : 0, { decimals: true })}{" "}
+                  {t("par conversion. Envisagez d'augmenter son budget de 30 %, ou testez des messages similaires dans d'autres campagnes.", "per conversion. Consider increasing its budget by 30%, or testing similar messaging in other campaigns.")}
+                  <div className="mt-2.5 flex gap-2">
+                    <button
+                      onClick={() =>
+                        topPerformer.adSet &&
+                        setEditAdSet({ adSet: topPerformer.adSet, campaignId: topPerformer.campaign.id })
+                      }
+                      disabled={!topPerformer.adSet}
+                      className="rounded-md bg-page px-3 py-1.5 text-2xs font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {t("Augmenter le budget", "Increase budget")}
+                    </button>
+                    <button
+                      onClick={() => setOpenAd(topPerformer)}
+                      className="rounded-md border border-ai-text/30 bg-card px-3 py-1.5 text-2xs font-medium text-ai-text hover:bg-white"
+                    >
+                      {t("Générer des publicités similaires", "Generate similar ads")}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       <AdDetailModal

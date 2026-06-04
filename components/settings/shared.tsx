@@ -38,12 +38,12 @@ export function RowCard({
   control: React.ReactNode;
 }) {
   return (
-    <div className="mb-3 flex items-center justify-between rounded-md border-hair border-hair p-3">
-      <div className="pr-4">
+    <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-md border border-hair p-3">
+      <div className="min-w-0 flex-1 pr-2">
         <div className="text-sm font-medium text-ink">{title}</div>
         <div className="text-2xs text-muted">{desc}</div>
       </div>
-      {control}
+      <div className="shrink-0">{control}</div>
     </div>
   );
 }

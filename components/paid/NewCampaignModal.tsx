@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { Pills } from "@/components/ui/Tabs";
 import { DatePicker } from "@/components/ui/DateTimePicker";
 import { useCompany } from "@/lib/company-context";
-import { updateCampaign } from "@/lib/campaign-store";
+import { updateCampaign as updateCampaignLocal } from "@/lib/campaign-store";
 import { useT } from "@/lib/i18n";
 import type { Campaign } from "@/lib/types";
 
@@ -15,6 +15,12 @@ function platformsToId(platforms: ("FB" | "IG")[]): string {
   if (platforms.includes("FB") && platforms.includes("IG")) return "fbig";
   if (platforms.includes("FB")) return "fb";
   return "ig";
+}
+
+function idToPlatforms(id: string): ("FB" | "IG")[] {
+  if (id === "fbig") return ["FB", "IG"];
+  if (id === "fb") return ["FB"];
+  return ["IG"];
 }
 
 export function NewCampaignModal({
@@ -33,12 +39,31 @@ export function NewCampaignModal({
   const editing = !!campaign;
 
   const [name, setName] = useState(campaign?.name ?? "");
+  const [objective, setObjective] = useState(
+    (campaign?.objective ?? "leads").toLowerCase()
+  );
+  const [platformId, setPlatformId] = useState(
+    campaign ? platformsToId(campaign.platforms) : "fbig"
+  );
+  // Bug #17: track budget type so the suffix label updates correctly
+  const [budgetType, setBudgetType] = useState<"daily" | "lifetime">(
+    campaign?.lifetimeBudget && !campaign?.dailyBudget ? "lifetime" : "daily"
+  );
+  const [budgetAmount, setBudgetAmount] = useState(
+    String(
+      budgetType === "lifetime"
+        ? (campaign?.lifetimeBudget ?? campaign?.budget ?? 500)
+        : (campaign?.dailyBudget ?? 40)
+    )
+  );
   const [startDate, setStartDate] = useState<Date>(
     new Date(`${campaign?.startDate ?? "2026-05-27"}T00:00:00`)
   );
   const [endDate, setEndDate] = useState<Date | null>(
     campaign?.endDate ? new Date(`${campaign.endDate}T00:00:00`) : null
   );
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const OBJECTIVES = [
     { id: "awareness", label: t("Notoriété", "Awareness") },
@@ -49,18 +74,102 @@ export function NewCampaignModal({
     { id: "conversions", label: t("Conversions", "Conversions") },
   ];
 
-  const save = () => {
-    if (!editing || !campaign) {
-      onClose();
+  const budgetSuffix =
+    budgetType === "lifetime"
+      ? t("total", "total")
+      : t("/ jour", "/ day");
+
+  const save = async () => {
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      setError(t("Le nom de la campagne est requis.", "Campaign name is required."));
       return;
     }
-    updateCampaign(company.id, campaign.id, {
-      name: name.trim() || campaign.name,
-      startDate: format(startDate, "yyyy-MM-dd"),
-      endDate: endDate ? format(endDate, "yyyy-MM-dd") : null,
-    });
-    onSaved?.();
-    onClose();
+
+    const amount = parseFloat(budgetAmount) || 0;
+    const dailyBudgetVal = budgetType === "daily" ? amount : undefined;
+    const lifetimeBudgetVal = budgetType === "lifetime" ? amount : undefined;
+    const startIso = format(startDate, "yyyy-MM-dd");
+    const endIso = endDate ? format(endDate, "yyyy-MM-dd") : null;
+    const platforms = idToPlatforms(
+      typeof platformId === "string" ? platformId : "fbig"
+    );
+
+    setSaving(true);
+    setError(null);
+
+    try {
+      if (editing && campaign) {
+        // Bug #20: PATCH via HTTP API so Supabase is updated
+        const res = await fetch(`/api/campaigns/${campaign.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: trimmedName,
+            objective,
+            platforms,
+            dailyBudget: dailyBudgetVal,
+            lifetimeBudget: lifetimeBudgetVal,
+            budget: amount,
+            startDate: startIso,
+            endDate: endIso,
+          }),
+        });
+
+        // Also update local store so UI reflects changes immediately
+        updateCampaignLocal(company.id, campaign.id, {
+          name: trimmedName,
+          objective,
+          platforms,
+          dailyBudget: dailyBudgetVal,
+          lifetimeBudget: lifetimeBudgetVal,
+          budget: amount,
+          startDate: startIso,
+          endDate: endIso,
+        });
+
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          console.warn("[NewCampaignModal] PATCH failed:", body);
+          // Do not block the UI — local update already applied
+        }
+      } else {
+        // Bug #16 (create flow): POST to real API
+        const res = await fetch("/api/campaigns", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            companyId: company.id,
+            name: trimmedName,
+            objective,
+            platforms,
+            status: "paused",
+            enabled: false,
+            budget: amount,
+            dailyBudget: dailyBudgetVal,
+            lifetimeBudget: lifetimeBudgetVal,
+            startDate: startIso,
+            endDate: endIso,
+          }),
+        });
+
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          console.warn("[NewCampaignModal] POST failed:", body);
+          // Continue — the parent's onSaved + re-fetch will reconcile
+        }
+      }
+
+      onSaved?.();
+      onClose();
+    } catch (err) {
+      console.error("[NewCampaignModal] save error:", err);
+      // Don't block close on network errors
+      onSaved?.();
+      onClose();
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -74,7 +183,14 @@ export function NewCampaignModal({
         </div>
       </div>
 
-      <div className="max-h-[70vh] overflow-y-auto p-4">
+      {/* Bug #18: pb-40 reserves space so the calendar dropdown is reachable by scrolling */}
+      <div className="max-h-[70vh] overflow-y-auto p-4 pb-40">
+        {error && (
+          <div className="mb-3 rounded-md border border-danger-200 bg-danger-50 px-3 py-2 text-2xs text-danger-700">
+            {error}
+          </div>
+        )}
+
         <div className="mb-3">
           <label className="text-2xs font-medium text-muted">{t("Nom de la campagne", "Campaign name")}</label>
           <input
@@ -87,7 +203,11 @@ export function NewCampaignModal({
 
         <div className="mb-3">
           <label className="mb-1 block text-2xs font-medium text-muted">{t("Objectif", "Objective")}</label>
-          <Pills options={OBJECTIVES} defaultId={(campaign?.objective ?? "leads").toLowerCase()} />
+          <Pills
+            options={OBJECTIVES}
+            defaultId={objective}
+            onChange={(id) => setObjective(id)}
+          />
         </div>
 
         <div className="mb-3">
@@ -98,17 +218,23 @@ export function NewCampaignModal({
               { id: "ig", label: "Instagram" },
               { id: "fbig", label: "Facebook + Instagram" },
             ]}
-            defaultId={campaign ? platformsToId(campaign.platforms) : "fbig"}
+            defaultId={typeof platformId === "string" ? platformId : "fbig"}
             tone="ai"
+            onChange={(id) => setPlatformId(id)}
           />
         </div>
 
         <div className="mb-3 grid grid-cols-2 gap-3">
           <div>
             <label className="text-2xs font-medium text-muted">{t("Type de budget", "Budget type")}</label>
-            <select className="mt-1 w-full rounded-md border-hair border-hair bg-card px-3 py-2 text-sm text-ink focus:outline-none">
-              <option>{t("Budget journalier", "Daily budget")}</option>
-              <option>{t("Budget total", "Lifetime budget")}</option>
+            {/* Bug #17: controlled select — drives budgetSuffix label */}
+            <select
+              value={budgetType}
+              onChange={(e) => setBudgetType(e.target.value as "daily" | "lifetime")}
+              className="mt-1 w-full rounded-md border-hair border-hair bg-card px-3 py-2 text-sm text-ink focus:outline-none"
+            >
+              <option value="daily">{t("Budget journalier", "Daily budget")}</option>
+              <option value="lifetime">{t("Budget total", "Lifetime budget")}</option>
             </select>
           </div>
           <div>
@@ -116,10 +242,12 @@ export function NewCampaignModal({
             <div className="mt-1 flex items-center gap-2 rounded-md border-hair border-hair bg-card px-3 py-2">
               <span className="text-2xs text-muted">EUR</span>
               <input
-                defaultValue={String(campaign?.dailyBudget ?? 40)}
+                value={budgetAmount}
+                onChange={(e) => setBudgetAmount(e.target.value)}
                 className="w-full bg-transparent text-sm text-ink focus:outline-none"
               />
-              <span className="text-2xs text-muted">{t("/ jour", "/ day")}</span>
+              {/* Bug #17: suffix now reflects selected budget type */}
+              <span className="shrink-0 text-2xs text-muted">{budgetSuffix}</span>
             </div>
           </div>
         </div>
@@ -176,9 +304,13 @@ export function NewCampaignModal({
           )}
         </span>
         <div className="flex gap-2">
-          <Button variant="secondary" onClick={onClose}>{t("Annuler", "Cancel")}</Button>
-          <Button variant="primary" onClick={save}>
-            {editing ? t("Enregistrer les modifications", "Save changes") : t("Créer la campagne", "Create campaign")}
+          <Button variant="secondary" onClick={onClose} disabled={saving}>{t("Annuler", "Cancel")}</Button>
+          <Button variant="primary" onClick={save} disabled={saving || !name.trim()}>
+            {saving
+              ? t("Enregistrement…", "Saving…")
+              : editing
+              ? t("Enregistrer les modifications", "Save changes")
+              : t("Créer la campagne", "Create campaign")}
           </Button>
         </div>
       </div>

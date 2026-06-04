@@ -37,17 +37,18 @@ export function Organization({ onNavigate }: { onNavigate: (section: string) => 
         <ImageUpload value={logo} onChange={setLogo} variant="logo" fallback={orgInitials} />
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="min-w-0">
           <label className="text-2xs font-medium text-muted">{t("Nom de l'organisation", "Organization name")}</label>
-          <div className="mt-1 flex items-center gap-2">
+          <div className="mt-1 flex min-w-0 items-center gap-2">
             <input
               defaultValue={name}
               onChange={(e) => setPendingName(e.target.value)}
-              className="block w-full rounded-md border-hair border-hair bg-card px-3 py-2 text-sm text-ink focus:outline-none"
+              className="block min-w-0 flex-1 rounded-md border border-hair bg-card px-3 py-2 text-sm text-ink focus:outline-none"
             />
             <Button
               variant="secondary"
+              className="shrink-0"
               disabled={!pendingName || pendingName === name}
               onClick={() => {
                 if (!pendingName) return;
@@ -62,12 +63,12 @@ export function Organization({ onNavigate }: { onNavigate: (section: string) => 
             </Button>
           </div>
         </div>
-        <div>
+        <div className="min-w-0">
           <label className="text-2xs font-medium text-muted">{t("Secteur d'activité", "Industry")}</label>
           <select
             value={industry}
             onChange={(e) => setIndustry(e.target.value)}
-            className="mt-1 block w-full rounded-md border-hair border-hair bg-card px-3 py-2 text-sm text-ink focus:outline-none"
+            className="mt-1 block w-full rounded-md border border-hair bg-card px-3 py-2 text-sm text-ink focus:outline-none"
           >
             {INDUSTRIES.map((i) => <option key={i}>{i}</option>)}
           </select>
@@ -75,17 +76,17 @@ export function Organization({ onNavigate }: { onNavigate: (section: string) => 
       </div>
 
       <SectionLabel>{t("Composition", "Composition")}</SectionLabel>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <button
           onClick={() => onNavigate("companies")}
-          className="cursor-pointer rounded-md border-hair border-hair bg-canvas p-3 text-left hover:bg-canvas/60"
+          className="cursor-pointer rounded-md border border-hair bg-canvas p-3 text-left hover:bg-canvas/60"
         >
           <div className="text-sm font-medium text-ink">{t("Entreprises", "Companies")} ({COMPANIES.length})</div>
           <div className="text-2xs text-muted">{COMPANIES.map((c) => c.code).join(", ")}</div>
         </button>
         <button
           onClick={() => onNavigate("team")}
-          className="cursor-pointer rounded-md border-hair border-hair bg-canvas p-3 text-left hover:bg-canvas/60"
+          className="cursor-pointer rounded-md border border-hair bg-canvas p-3 text-left hover:bg-canvas/60"
         >
           <div className="text-sm font-medium text-ink">{t("Membres de l'équipe", "Team members")} ({TEAM.length})</div>
           <div className="text-2xs text-muted">{TEAM.map((t) => t.name.split(" ")[0]).join(", ")}</div>
@@ -93,7 +94,7 @@ export function Organization({ onNavigate }: { onNavigate: (section: string) => 
       </div>
 
       <SectionLabel>{t("Abonnement & facturation", "Subscription & billing")}</SectionLabel>
-      <div className="rounded-md border-hair border-hair p-3">
+      <div className="rounded-md border border-hair p-3">
         <div className="flex items-center justify-between">
           <div>
             <div className="text-sm font-medium text-ink">{t("Offre actuelle : Essai gratuit", "Current plan: Free trial")}</div>
@@ -108,13 +109,13 @@ export function Organization({ onNavigate }: { onNavigate: (section: string) => 
       </div>
 
       <SectionLabel>{t("Zone de danger", "Danger zone")}</SectionLabel>
-      <div className="rounded-md border-hair border-red-200 bg-red-50/40 p-3">
-        <div className="flex items-center justify-between">
-          <div>
+      <div className="rounded-md border border-red-200 bg-red-50/40 p-3">
+        <div className="flex flex-wrap items-start gap-3">
+          <div className="min-w-0 flex-1">
             <div className="text-sm font-medium text-red-700">{t("Supprimer l'organisation", "Delete organization")}</div>
-            <div className="text-2xs text-muted">{t("Supprime l'organisation et chaque entreprise, publication, audience et membre d'équipe.", "Removes the organization and every company, post, audience, and team member.")}</div>
+            <div className="mt-0.5 text-2xs text-muted">{t("Supprime l'organisation et chaque entreprise, publication, audience et membre d'équipe.", "Removes the organization and every company, post, audience, and team member.")}</div>
           </div>
-          <Button variant="danger" onClick={() => setDeleteOpen(true)}>{t("Supprimer l'organisation", "Delete organization")}</Button>
+          <Button variant="danger" className="shrink-0" onClick={() => setDeleteOpen(true)}>{t("Supprimer l'organisation", "Delete organization")}</Button>
         </div>
       </div>
 
@@ -132,7 +133,7 @@ export function Organization({ onNavigate }: { onNavigate: (section: string) => 
               value={deleteText}
               onChange={(e) => setDeleteText(e.target.value)}
               placeholder={name}
-              className="w-full rounded-md border-hair border-hair bg-card px-3 py-2 text-sm text-ink focus:outline-none"
+              className="w-full rounded-md border border-hair bg-card px-3 py-2 text-sm text-ink focus:outline-none"
             />
           </div>
           <div className="flex justify-end gap-2 border-t-hair border-hair px-4 py-3">

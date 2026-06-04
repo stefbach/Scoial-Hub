@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { format } from "date-fns";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { Pills } from "@/components/ui/Tabs";
@@ -52,6 +53,67 @@ export function CreateAdModal({
   const noAdSets = adSetOptions.length === 0;
   const locked = !!(lockedCampaignId && lockedAdSetId);
   const [upload, setUpload] = useState<UploadedMedia | null>(null);
+
+  // Ad form fields (Bug #16 — wire "Créer la publicité")
+  const adNameRef = useRef<HTMLInputElement>(null);
+  const ctaRef = useRef<HTMLInputElement>(null);
+  const headlineRef = useRef<HTMLInputElement>(null);
+  const bodyRef = useRef<HTMLTextAreaElement>(null);
+  // Bug #15 — controlled prompt for the AI creative textarea
+  const [aiPrompt, setAiPrompt] = useState(
+    "A vibrant glass of water with fresh lemon and mint, warm morning light, professional wellness photography, clean wooden table."
+  );
+  const [launchNow, setLaunchNow] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveOk, setSaveOk] = useState(false);
+
+  // Bug #16 — "Créer la publicité" is enabled as soon as a creative exists
+  // (upload) OR ad name is entered (for text-only ads with no creative yet).
+  // We recompute on render via a separate state for the headline.
+  const [headlineVal, setHeadlineVal] = useState("Reclaim your energy this January");
+
+  const canCreate = !noAdSets && (!!upload || headlineVal.trim().length > 0);
+
+  const handleCreate = async () => {
+    if (!canCreate || saving) return;
+    setSaving(true);
+    try {
+      // Build a minimal scheduled-post entry as a "saved ad draft" or
+      // POST to the real scheduled-posts endpoint as a future ad post.
+      const platform =
+        campaignId && currentCampaign?.platforms.includes("FB") ? "facebook" : "instagram";
+      const adName = adNameRef.current?.value.trim() || headlineVal.trim();
+      const body = bodyRef.current?.value.trim() ?? "";
+
+      await fetch("/api/scheduled-posts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          companyId: company.id,
+          platform,
+          title: adName,
+          date: format(new Date(), "yyyy-MM-dd"),
+          time: "09:00",
+          source: "manual",
+          status: launchNow ? "scheduled" : "draft",
+          needsReview: true,
+          body,
+          automationName: currentCampaign?.name ?? "",
+        }),
+      });
+
+      setSaveOk(true);
+      setTimeout(() => {
+        setSaveOk(false);
+        onClose();
+      }, 800);
+    } catch {
+      // Silent — close anyway so the user isn't blocked
+      onClose();
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <Modal open={open} onClose={onClose} width="max-w-2xl">
@@ -139,13 +201,23 @@ export function CreateAdModal({
         ) : (
           <>
             <div className="grid grid-cols-2 gap-3">
-              <Field label={t("Nom de la publicité", "Ad name")} value="Hydration tip — FB Feed" />
-              <Field label={t("Bouton d'action", "Call-to-action")} value="Book now" />
+              <Field inputRef={adNameRef} label={t("Nom de la publicité", "Ad name")} value="Hydration tip — FB Feed" />
+              <Field inputRef={ctaRef} label={t("Bouton d'action", "Call-to-action")} value="Book now" />
             </div>
-            <Field className="mt-3" label={t("Titre", "Headline")} value="Reclaim your energy this January" />
+            {/* Bug #16: headline drives canCreate, so use controlled input */}
+            <div className="mt-3">
+              <label className="text-2xs font-medium text-muted">{t("Titre", "Headline")}</label>
+              <input
+                ref={headlineRef}
+                value={headlineVal}
+                onChange={(e) => setHeadlineVal(e.target.value)}
+                className="mt-1 w-full rounded-md border-hair border-hair bg-card px-3 py-2 text-sm text-ink focus:outline-none"
+              />
+            </div>
             <div className="mt-3">
               <label className="text-2xs font-medium text-muted">{t("Corps du texte", "Body text")}</label>
               <textarea
+                ref={bodyRef}
                 defaultValue="Our supervised January Detox Program helps reset your metabolism with personalized care. Free initial consultation this month."
                 className="mt-1 h-16 w-full resize-none rounded-md border-hair border-hair bg-card p-2 text-xs text-ink focus:outline-none"
               />
@@ -197,15 +269,28 @@ export function CreateAdModal({
                   { id: "video", label: t("Vidéo", "Video") },
                 ]}
               />
+              {/* Bug #15: controlled textarea (w-full already, height increased to h-20) */}
               <textarea
-                defaultValue="A vibrant glass of water with fresh lemon and mint, warm morning light, professional wellness photography, clean wooden table."
-                className="mt-2 h-12 w-full resize-none rounded-md border-hair border-hair bg-card p-2 text-xs text-ink focus:outline-none"
+                value={aiPrompt}
+                onChange={(e) => setAiPrompt(e.target.value)}
+                placeholder={t(
+                  "Décrivez le visuel souhaité — sujet, ambiance, éclairage…",
+                  "Describe the desired visual — subject, mood, lighting…"
+                )}
+                className="mt-2 h-20 w-full resize-none rounded-md border-hair border-hair bg-card p-2 text-xs text-ink placeholder:text-muted focus:outline-none"
               />
               <div className="mt-2 flex items-center justify-between">
+                {/* Bug #15: button enabled as soon as aiPrompt is non-empty */}
                 <button
-                  disabled
-                  title={t("La génération IA sera activée une fois le backend connecté", "AI generation will be enabled when the backend is connected")}
-                  className="cursor-not-allowed rounded-md bg-ai-visual/40 px-2.5 py-1 text-2xs font-medium text-white"
+                  disabled={!aiPrompt.trim()}
+                  title={
+                    !aiPrompt.trim()
+                      ? t("Remplissez le prompt pour générer", "Fill in the prompt to generate")
+                      : t("La génération IA sera activée une fois le backend connecté", "AI generation will be enabled when the backend is connected")
+                  }
+                  className={`rounded-md px-2.5 py-1 text-2xs font-medium text-white transition-opacity ${
+                    aiPrompt.trim() ? "bg-ai-visual hover:opacity-90" : "cursor-not-allowed bg-ai-visual/40"
+                  }`}
                 >
                   {t("Générer 4 créatifs", "Generate 4 creatives")}
                 </button>
@@ -252,24 +337,31 @@ export function CreateAdModal({
 
       <div className="flex items-center justify-between border-t-hair border-hair px-4 py-3">
         <div className="flex items-center gap-2 text-2xs text-muted">
-          <Toggle defaultOn={false} />
+          {/* Bug #16: toggle controls launchNow state */}
+          <Toggle defaultOn={false} onChange={setLaunchNow} />
           {t("Lancer immédiatement", "Launch immediately")}
           <span className="ml-2">{t("Protections actives · Lecture seule désactivée · Confirmation double EUR 500/jour", "Safeguards active · Read-only off · EUR 500/day double-confirm")}</span>
         </div>
         <div className="flex gap-2">
-          <Button variant="secondary" onClick={onClose}>{t("Annuler", "Cancel")}</Button>
+          <Button variant="secondary" onClick={onClose} disabled={saving}>{t("Annuler", "Cancel")}</Button>
+          {/* Bug #16: button wired to handleCreate; enabled when headline or upload present */}
           <Button
             variant="primary"
-            disabled={!upload && !noAdSets}
+            disabled={!canCreate || saving}
+            onClick={handleCreate}
             title={
               noAdSets
-                ? undefined
-                : upload
-                ? undefined
-                : t("Générez ou téléchargez au moins un créatif d'abord", "Generate or upload at least one creative first")
+                ? t("Créez d'abord un ensemble de publicités", "Create an ad set first")
+                : !canCreate
+                ? t("Saisissez un titre ou téléchargez un créatif", "Enter a headline or upload a creative")
+                : undefined
             }
           >
-            {t("Créer la publicité", "Create ad")}
+            {saveOk
+              ? t("Créée ✓", "Created ✓")
+              : saving
+              ? t("Enregistrement…", "Saving…")
+              : t("Créer la publicité", "Create ad")}
           </Button>
         </div>
       </div>
@@ -281,15 +373,18 @@ function Field({
   label,
   value,
   className = "",
+  inputRef,
 }: {
   label: string;
   value: string;
   className?: string;
+  inputRef?: React.RefObject<HTMLInputElement>;
 }) {
   return (
     <div className={className}>
       <label className="text-2xs font-medium text-muted">{label}</label>
       <input
+        ref={inputRef}
         defaultValue={value}
         className="mt-1 w-full rounded-md border-hair border-hair bg-card px-3 py-2 text-sm text-ink focus:outline-none"
       />

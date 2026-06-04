@@ -34,7 +34,9 @@ export function DatePicker({
         {format(value, "EEE, d MMM yyyy")}
       </button>
       {open && (
-        <div className="absolute z-30 mt-1 rounded-md border-hair border-hair bg-card p-2 shadow-lg">
+        /* z-[9999] pour sortir de tout stacking context parent (modales, etc.)
+           overflow-y-auto + max-h pour rester entièrement visible dans le viewport */
+        <div className="absolute z-[9999] mt-1 max-h-[min(360px,80vh)] overflow-y-auto rounded-md border border-hair bg-card p-2 shadow-xl">
           <DayPicker
             mode="single"
             selected={value}
@@ -87,7 +89,7 @@ export function TimePicker({
         {value}
       </button>
       {open && (
-        <div className="absolute z-30 mt-1 flex gap-1 rounded-md border-hair border-hair bg-card p-2 shadow-lg">
+        <div className="absolute z-[9999] mt-1 flex gap-1 rounded-md border border-hair bg-card p-2 shadow-xl">
           <div className="h-40 w-14 overflow-y-auto">
             {hours.map((hr) => (
               <button

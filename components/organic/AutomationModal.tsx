@@ -211,7 +211,11 @@ export function AutomationModal({
                   key={d}
                   type="button"
                   onClick={() =>
-                    setDays((s) => (s.includes(d) ? s.filter((x) => x !== d) : [...s, d]))
+                    setDays((s) => {
+                      const next = s.includes(d) ? s.filter((x) => x !== d) : [...s, d];
+                      // Always keep days in Mon → Sun order.
+                      return DAY_ORDER.filter((x) => next.includes(x));
+                    })
                   }
                   className={`rounded-md px-2.5 py-1 text-2xs font-medium ${
                     on

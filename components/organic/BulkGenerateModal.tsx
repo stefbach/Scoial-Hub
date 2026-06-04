@@ -27,7 +27,11 @@ export function BulkGenerateModal({
   const togglePlatform = (p: string) =>
     setPlatforms((s) => (s.includes(p) ? s.filter((x) => x !== p) : [...s, p]));
 
-  const canGenerate = topic.trim().length > 0 && platforms.length > 0 && quantity >= 1;
+  const canGenerate =
+    topic.trim().length > 0 &&
+    platforms.length > 0 &&
+    Number.isFinite(quantity) &&
+    quantity >= 1;
 
   return (
     <Modal open onClose={onClose} width="max-w-lg">
@@ -55,7 +59,10 @@ export function BulkGenerateModal({
           type="number"
           min={1}
           value={quantity}
-          onChange={(e) => setQuantity(Number(e.target.value))}
+          onChange={(e) => {
+            const v = parseInt(e.target.value, 10);
+            setQuantity(Number.isFinite(v) ? Math.max(1, v) : 1);
+          }}
           className="mb-3 mt-1 block w-28 rounded-md border-hair border-hair bg-card px-3 py-2 text-sm text-ink focus:outline-none"
         />
 
@@ -97,9 +104,9 @@ export function BulkGenerateModal({
           disabled={!canGenerate}
           onClick={onClose}
           title={
-            canGenerate
-              ? t("Générer", "Generate")
-              : t("Renseignez un sujet et au moins une plateforme", "Enter a topic and at least one platform")
+            !canGenerate
+              ? t("Renseignez un sujet et au moins une plateforme", "Enter a topic and at least one platform")
+              : undefined
           }
         >
           {t("Générer", "Generate")}

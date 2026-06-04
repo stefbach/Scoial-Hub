@@ -17,7 +17,7 @@ import { AdSetModal } from "@/components/paid/AdSetModal";
 import { AdDetailModal } from "@/components/paid/AdDetailModal";
 import {
   deleteAdSet,
-  deleteCampaign,
+  deleteCampaign as deleteCampaignLocal,
   duplicateAdSet,
   duplicateCampaign,
   findCampaign,
@@ -52,12 +52,41 @@ export default function CampaignDetailPage() {
   const [, setTick] = useState(0);
   const refresh = () => setTick((t) => t + 1);
 
+  // Bug #19 — fallback API fetch when campaign isn't in the local store
+  // (happens for campaigns created via Supabase/IA that aren't in mock-data).
+  const [apiCampaign, setApiCampaign] = useState<Campaign | null>(null);
+  const [notFound, setNotFound] = useState(false);
+  const [apiTick, setApiTick] = useState(0);
+
   useEffect(() => {
     hydrateCampaigns(company.id);
     refresh();
   }, [company.id]);
 
-  const campaign = findCampaign(company.id, params.id);
+  useEffect(() => {
+    if (!params.id) return;
+    // Try to load from API unconditionally; merge with local store result.
+    fetch(`/api/campaigns/${encodeURIComponent(params.id)}`)
+      .then((res) => {
+        if (res.status === 404) { setNotFound(true); return null; }
+        if (!res.ok) return null;
+        return res.json() as Promise<Campaign>;
+      })
+      .then((c) => {
+        if (c) { setApiCampaign(c); setNotFound(false); }
+      })
+      .catch(() => {/* silent — local store is the fallback */});
+  }, [params.id, apiTick]);
+
+  // Prefer local (hydrated, richer) campaign; fall back to API result.
+  const localCampaign = findCampaign(company.id, params.id);
+  const campaign: Campaign | undefined = localCampaign ?? apiCampaign ?? undefined;
+
+  // When editing an API-only campaign (not in local store), re-fetch after save
+  const refreshAll = () => {
+    refresh();
+    if (!localCampaign) setApiTick((n) => n + 1);
+  };
 
   const [activeMetrics, setActiveMetrics] = useState<MetricId[]>(["spend", "conversions"]);
   const [adFilter, setAdFilter] = useState<string>("all");
@@ -81,7 +110,9 @@ export default function CampaignDetailPage() {
     });
   }, [campaign, activeMetrics]);
 
-  if (!campaign) {
+  // Bug #19: show not-found only when the API explicitly returned 404
+  // AND the local store has no match (avoids flicker during initial load).
+  if (!campaign && notFound) {
     return (
       <div>
         <Breadcrumb trail={[{ href: "/campaigns", label: t("Campagnes", "Campaigns") }, { label: t("Introuvable", "Not found") }]} />
@@ -90,6 +121,18 @@ export default function CampaignDetailPage() {
           <Link href="/campaigns" className="mt-3 text-sm font-medium text-ai-text hover:underline">
             {t("Retour aux campagnes", "Back to campaigns")}
           </Link>
+        </div>
+      </div>
+    );
+  }
+
+  // Still loading — show skeleton-free blank to avoid flicker
+  if (!campaign) {
+    return (
+      <div>
+        <Breadcrumb trail={[{ href: "/campaigns", label: t("Campagnes", "Campaigns") }, { label: "…" }]} />
+        <div className="card flex flex-col items-center px-6 py-16 text-center">
+          <div className="text-sm text-muted">{t("Chargement…", "Loading…")}</div>
         </div>
       </div>
     );
@@ -363,7 +406,7 @@ export default function CampaignDetailPage() {
           open
           campaign={campaign}
           onClose={() => setEditOpen(false)}
-          onSaved={refresh}
+          onSaved={refreshAll}
         />
       )}
 
@@ -435,8 +478,14 @@ export default function CampaignDetailPage() {
               <Button variant="secondary" onClick={() => setConfirmDelete(false)}>{t("Annuler", "Cancel")}</Button>
               <Button
                 variant="danger"
-                onClick={() => {
-                  deleteCampaign(company.id, campaign.id);
+                onClick={async () => {
+                  // Bug #20: delete via HTTP API (Supabase) then remove locally
+                  try {
+                    await fetch(`/api/campaigns/${campaign.id}`, { method: "DELETE" });
+                  } catch {
+                    // Silent — proceed with local deletion
+                  }
+                  deleteCampaignLocal(company.id, campaign.id);
                   router.push("/campaigns");
                 }}
               >

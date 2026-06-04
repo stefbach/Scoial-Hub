@@ -29,6 +29,10 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
   // Snapshot of the shared COMPANIES list; bumping this triggers re-renders
   // for the switcher and any consumer when companies are added/edited.
   const [companies, setCompanies] = useState<Company[]>([...COMPANIES]);
+  // Données de la société courante, hydratées depuis la base réelle (sh_*).
+  // Démarrage propre : vide tant que le fetch n'a pas répondu (et si absence
+  // de données réelles, reste vide — aucune donnée fictive).
+  const [companyData, setCompanyData] = useState<CompanyData>(() => makeEmptyCompanyData());
 
   // Attempt to hydrate companies from the REST API on mount.
   // Quand Supabase est configuré et un user connecté existe, on passe son
@@ -103,6 +107,26 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  // Hydrate les données de la société courante depuis les tables réelles sh_*.
+  // Se relance à chaque changement de société. Dégradation gracieuse : en cas
+  // d'échec, on garde les données vides (aucune donnée fictive).
+  useEffect(() => {
+    let cancelled = false;
+    setCompanyData(makeEmptyCompanyData());
+    fetch(`/api/company-data?companyId=${encodeURIComponent(companyId)}`)
+      .then((res) => (res.ok ? (res.json() as Promise<CompanyData>) : null))
+      .then((fetched) => {
+        if (cancelled || !fetched) return;
+        setCompanyData(fetched);
+      })
+      .catch((err) => {
+        console.warn("[CompanyProvider] company-data hydration failed:", err);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [companyId]);
+
   const addCompany = useCallback((company: Company) => {
     registerCompany(company);
     setCompanies([...COMPANIES]);
@@ -119,13 +143,13 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
     return {
       companies,
       company,
-      // Démarrage propre : aucune donnée fictive (tableaux vides, compteurs à 0).
-      data: makeEmptyCompanyData(),
+      // Données réelles hydratées depuis la base (sh_*) ; vides au démarrage.
+      data: companyData,
       setCompanyId,
       addCompany,
       updateCompany,
     };
-  }, [companyId, companies, addCompany, updateCompany]);
+  }, [companyId, companies, companyData, addCompany, updateCompany]);
 
   return (
     <CompanyContext.Provider value={value}>{children}</CompanyContext.Provider>

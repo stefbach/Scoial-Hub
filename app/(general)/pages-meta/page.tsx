@@ -8,6 +8,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useCompany } from "@/lib/company-context";
 import { useT } from "@/lib/i18n";
+import MetaAdsPublisher from "@/components/ads/MetaAdsPublisher";
 
 interface PageItem {
   id: string;
@@ -262,6 +263,9 @@ export default function PagesMetaPage() {
           <PostsSection title={t("Publications Instagram récentes", "Recent Instagram posts")} posts={insights?.instagramPosts ?? []} t={t} />
         </>
       )}
+
+      {/* ── Publicité Meta (réel) : gestion directe des publicités ── */}
+      <MetaAdsPublisher />
     </div>
   );
 }

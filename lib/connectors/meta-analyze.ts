@@ -144,7 +144,7 @@ Règles : max 4 pointsForts, 4 aAmeliorer, 4 formatsGagnants, 5 ideesContenu, 5 
 
     const message = await client.messages.create({
       model: env.anthropicModel,
-      max_tokens: 1800,
+      max_tokens: 3000,
       messages: [{ role: "user", content: prompt }],
     });
 

@@ -140,6 +140,8 @@ export async function storeMetaAds(companyId: string, account: AdAccount, userTo
 
 export interface AdCampaignRow {
   name: string;
+  status: string;
+  objective: string;
   spend: number;
   impressions: number;
   clicks: number;
@@ -150,28 +152,44 @@ export interface AdAccountData {
   campaigns: AdCampaignRow[];
 }
 
-/** Lecture réelle : compte + campagnes (dépense 30 j) via Marketing API. */
+/** Lecture réelle : compte + campagnes (liste + dépense 90 j) via Marketing API. */
 export async function fetchAdAccountData(userToken: string, adAccountId: string): Promise<AdAccountData> {
   const out: AdAccountData = { campaigns: [] };
   const act = adAccountId.startsWith("act_") ? adAccountId : `act_${adAccountId}`;
-  const acc = await gget(`${act}?fields=name,currency,amount_spent`, userToken);
-  if (acc) {
-    out.account = {
-      id: act,
-      name: String(acc.name ?? ""),
-      currency: String(acc.currency ?? "EUR"),
-      amountSpent: Number(acc.amount_spent ?? 0),
-    };
+  const currency = await (async () => {
+    const acc = await gget(`${act}?fields=name,currency,amount_spent`, userToken);
+    if (acc) {
+      out.account = { id: act, name: String(acc.name ?? ""), currency: String(acc.currency ?? "EUR"), amountSpent: Number(acc.amount_spent ?? 0) };
+      return String(acc.currency ?? "EUR");
+    }
+    return "EUR";
+  })();
+
+  // Liste des campagnes (même sans dépense récente).
+  const list = await gget(`${act}/campaigns?fields=name,objective,effective_status&limit=40`, userToken);
+  const camps = (list?.data as Array<Record<string, unknown>>) ?? [];
+
+  // Dépense 90 j par campagne (fusionnée par nom).
+  const ins = await gget(`${act}/insights?level=campaign&fields=campaign_name,spend,impressions,clicks&date_preset=last_90d&limit=100`, userToken);
+  const spendByName = new Map<string, { spend: number; impressions: number; clicks: number }>();
+  for (const r of (ins?.data as Array<Record<string, unknown>>) ?? []) {
+    spendByName.set(String(r.campaign_name ?? ""), {
+      spend: Number(r.spend ?? 0), impressions: Number(r.impressions ?? 0), clicks: Number(r.clicks ?? 0),
+    });
   }
-  const ins = await gget(`${act}/insights?level=campaign&fields=campaign_name,spend,impressions,clicks&date_preset=last_30d&limit=25`, userToken);
-  const rows = (ins?.data as Array<Record<string, unknown>>) ?? [];
-  out.campaigns = rows.map((r) => ({
-    name: String(r.campaign_name ?? ""),
-    spend: Number(r.spend ?? 0),
-    impressions: Number(r.impressions ?? 0),
-    clicks: Number(r.clicks ?? 0),
-    currency: out.account?.currency ?? "EUR",
-  }));
+
+  out.campaigns = camps.map((c) => {
+    const name = String(c.name ?? "");
+    const m = spendByName.get(name) ?? { spend: 0, impressions: 0, clicks: 0 };
+    return {
+      name,
+      status: String(c.effective_status ?? ""),
+      objective: String(c.objective ?? ""),
+      spend: m.spend, impressions: m.impressions, clicks: m.clicks,
+      currency,
+    };
+  }).sort((a, b) => b.spend - a.spend).slice(0, 25);
+
   return out;
 }
 

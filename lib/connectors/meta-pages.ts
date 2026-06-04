@@ -51,6 +51,7 @@ export interface MetaContext {
   pageToken?: string;
   pageId?: string;
   igId?: string;
+  adAccountId?: string;
 }
 
 /** Lit les tokens/ids Meta enregistrés pour une société. */
@@ -60,12 +61,118 @@ export async function getMetaContext(companyId: string): Promise<MetaContext> {
   const rows = await listConnections(await resolveCompanyUuid(companyId));
   const fb = rows.find((r) => r.channel === "facebook")?.config ?? {};
   const ig = rows.find((r) => r.channel === "instagram")?.config ?? {};
+  const ads = rows.find((r) => r.channel === "meta_ads")?.config ?? {};
   return {
     userToken: fb.user_access_token || undefined,
     pageToken: fb.page_access_token || undefined,
     pageId: fb.page_id || undefined,
     igId: ig.ig_business_account_id || undefined,
+    adAccountId: ads.ad_account_id || undefined,
   };
+}
+
+// ── Comptes publicitaires (Meta Ads) ─────────────────────────────────────────
+
+export interface AdAccount {
+  id: string;          // sans préfixe act_
+  name: string;
+  currency: string;
+  status: number;      // 1 = actif
+  amountSpent: number; // unités mineures (centimes)
+}
+
+export async function fetchAdAccounts(userToken: string): Promise<AdAccount[]> {
+  const url =
+    `https://graph.facebook.com/${V}/me/adaccounts` +
+    `?fields=account_id,name,currency,account_status,amount_spent&limit=100&access_token=${encodeURIComponent(userToken)}`;
+  try {
+    const res = await fetch(url, { cache: "no-store" });
+    const json = (await res.json()) as { data?: Array<Record<string, unknown>> };
+    if (!Array.isArray(json.data)) return [];
+    return json.data.map((a) => ({
+      id: String(a.account_id ?? ""),
+      name: String(a.name ?? ""),
+      currency: String(a.currency ?? "EUR"),
+      status: Number(a.account_status ?? 0),
+      amountSpent: Number(a.amount_spent ?? 0),
+    }));
+  } catch {
+    return [];
+  }
+}
+
+export function pickAdAccountForCompany(accounts: AdAccount[], companyName: string): AdAccount | null {
+  if (accounts.length === 0) return null;
+  const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const cn = norm(companyName);
+  const active = accounts.filter((a) => a.status === 1);
+  const pool = active.length ? active : accounts;
+  if (cn) {
+    const exact = pool.find((a) => norm(a.name) === cn);
+    if (exact) return exact;
+    const partial = pool.find((a) => {
+      const an = norm(a.name);
+      return an && (an.includes(cn) || cn.includes(an));
+    });
+    if (partial) return partial;
+  }
+  // À défaut : le compte actif le plus utilisé.
+  return [...pool].sort((a, b) => b.amountSpent - a.amountSpent)[0];
+}
+
+/** Enregistre le connecteur Meta Ads (lecture) pour une société. */
+export async function storeMetaAds(companyId: string, account: AdAccount, userToken: string): Promise<void> {
+  const { upsertConnection } = await import("@/lib/repositories/channel-connections");
+  const { resolveCompanyUuid } = await import("@/lib/repositories/resolve-company");
+  await upsertConnection(
+    await resolveCompanyUuid(companyId),
+    "meta_ads",
+    {
+      ad_account_id: account.id,
+      access_token: userToken,
+      account_name: account.name,
+      currency: account.currency,
+      connected_via: "oauth",
+    },
+    "connected"
+  );
+}
+
+export interface AdCampaignRow {
+  name: string;
+  spend: number;
+  impressions: number;
+  clicks: number;
+  currency: string;
+}
+export interface AdAccountData {
+  account?: { id: string; name: string; currency: string; amountSpent: number };
+  campaigns: AdCampaignRow[];
+}
+
+/** Lecture réelle : compte + campagnes (dépense 30 j) via Marketing API. */
+export async function fetchAdAccountData(userToken: string, adAccountId: string): Promise<AdAccountData> {
+  const out: AdAccountData = { campaigns: [] };
+  const act = adAccountId.startsWith("act_") ? adAccountId : `act_${adAccountId}`;
+  const acc = await gget(`${act}?fields=name,currency,amount_spent`, userToken);
+  if (acc) {
+    out.account = {
+      id: act,
+      name: String(acc.name ?? ""),
+      currency: String(acc.currency ?? "EUR"),
+      amountSpent: Number(acc.amount_spent ?? 0),
+    };
+  }
+  const ins = await gget(`${act}/insights?level=campaign&fields=campaign_name,spend,impressions,clicks&date_preset=last_30d&limit=25`, userToken);
+  const rows = (ins?.data as Array<Record<string, unknown>>) ?? [];
+  out.campaigns = rows.map((r) => ({
+    name: String(r.campaign_name ?? ""),
+    spend: Number(r.spend ?? 0),
+    impressions: Number(r.impressions ?? 0),
+    clicks: Number(r.clicks ?? 0),
+    currency: out.account?.currency ?? "EUR",
+  }));
+  return out;
 }
 
 // ── Insights / données réelles d'une Page + compte Instagram ─────────────────
@@ -243,5 +350,18 @@ export async function storeMetaConnections(
       },
       "connected"
     );
+  }
+
+  // Meta Ads : auto-configuration (lecture) en sélectionnant le compte pub
+  // qui correspond le mieux à la société. Non bloquant.
+  if (userToken) {
+    try {
+      const accounts = await fetchAdAccounts(userToken);
+      // Le nom de société n'est pas dispo ici → on matche sur le nom de la Page.
+      const acct = pickAdAccountForCompany(accounts, page.name);
+      if (acct) await storeMetaAds(companyId, acct, userToken);
+    } catch {
+      /* non bloquant */
+    }
   }
 }

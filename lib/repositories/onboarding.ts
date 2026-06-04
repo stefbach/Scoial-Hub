@@ -68,6 +68,7 @@ export async function getBrandProfile(companyId: string): Promise<BrandProfile |
       companyId,
       website: row.website ?? "",
       handles: (row.handles as BrandProfile["handles"]) ?? {},
+      description: "",
       summary: row.summary ?? "",
       positioning: row.positioning ?? "",
       tone: row.tone ?? "",

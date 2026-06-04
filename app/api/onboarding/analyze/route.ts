@@ -14,7 +14,7 @@ export const maxDuration = 60;
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { companyId, website, handles, companyName } = body;
+    const { companyId, website, handles, companyName, description } = body;
 
     if (!companyId) {
       return NextResponse.json(
@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Appel à l'analyse IA (Claude) — peut prendre plusieurs secondes
-    const profile = await analyzeBrand({ companyId, website, handles, companyName });
+    const profile = await analyzeBrand({ companyId, website, handles, companyName, description });
 
     // Persistance du profil
     await saveBrandProfile(profile);

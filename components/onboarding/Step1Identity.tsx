@@ -6,6 +6,7 @@
 
 import { useState } from "react";
 import { useOnboardingCtx } from "@/components/onboarding/context";
+import { OnboardingConnectors } from "@/components/onboarding/OnboardingConnectors";
 import { useT } from "@/lib/i18n";
 import type { SocialNetwork } from "@/lib/onboarding/types";
 
@@ -196,6 +197,7 @@ export default function Step1Identity() {
 
   // État local du formulaire, initialisé depuis le profil existant
   const [website, setWebsite] = useState<string>(profile.website ?? "");
+  const [description, setDescription] = useState<string>(profile.description ?? "");
   const [handles, setHandles] = useState<Record<SocialNetwork, string>>({
     instagram: profile.handles.instagram ?? "",
     facebook: profile.handles.facebook ?? "",
@@ -216,7 +218,7 @@ export default function Step1Identity() {
       tiktok: handles.tiktok || undefined,
       linkedin: handles.linkedin || undefined,
     };
-    await ctx.analyzeIdentity(website, cleanHandles);
+    await ctx.analyzeIdentity(website, cleanHandles, description);
   }
 
   return (
@@ -272,6 +274,31 @@ export default function Step1Identity() {
           </div>
         </div>
 
+        {/* Descriptif de la société */}
+        <div className="space-y-1.5">
+          <label className="block text-xs font-semibold text-muted" htmlFor="step1-description">
+            {t("Descriptif de la société", "Company description")}
+          </label>
+          <textarea
+            id="step1-description"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={4}
+            placeholder={t(
+              "Décrivez votre société : activité, produits/services, clients, ce qui vous différencie…",
+              "Describe your company: business, products/services, customers, what sets you apart…"
+            )}
+            className="input min-h-[5.5rem] resize-y"
+            aria-label={t("Descriptif de votre société", "Your company description")}
+          />
+          <p className="text-2xs text-muted">
+            {t(
+              "Votre vision est prioritaire pour l'IA — plus c'est précis, plus l'analyse est juste.",
+              "Your own words take priority for the AI — the more precise, the sharper the analysis."
+            )}
+          </p>
+        </div>
+
         {/* Handles sociaux */}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {PLATFORM_CONFIGS.map((p) => (
@@ -306,7 +333,7 @@ export default function Step1Identity() {
         <button
           type="button"
           onClick={handleAnalyze}
-          disabled={analyzing || (!website && Object.values(handles).every((h) => !h))}
+          disabled={analyzing || (!website && !description.trim() && Object.values(handles).every((h) => !h))}
           className="btn-primary flex w-full items-center justify-center gap-2 sm:w-auto disabled:opacity-50"
           aria-busy={analyzing}
         >
@@ -348,6 +375,11 @@ export default function Step1Identity() {
             <p className="text-sm text-danger-700">{error}</p>
           </div>
         )}
+      </div>
+
+      {/* ── Connecteurs : relier tous les réseaux dès le départ ── */}
+      <div className="card p-4 sm:p-5">
+        <OnboardingConnectors />
       </div>
 
       {/* ── Résultat : profil de marque ── */}

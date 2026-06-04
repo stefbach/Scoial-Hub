@@ -42,7 +42,8 @@ export interface OnboardingCtx {
   /** Lance l'analyse IA de l'identité (étape 1). Retourne le profil ou null. */
   analyzeIdentity: (
     website: string,
-    handles: BrandHandles
+    handles: BrandHandles,
+    description?: string
   ) => Promise<BrandProfile | null>;
   goTo: (step: number) => void;
   next: () => void;
@@ -170,14 +171,14 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
   const skip = useCallback(() => goTo(state.step + 1), [goTo, state.step]);
 
   const analyzeIdentity = useCallback(
-    async (website: string, handles: BrandHandles): Promise<BrandProfile | null> => {
+    async (website: string, handles: BrandHandles, description?: string): Promise<BrandProfile | null> => {
       setAnalyzing(true);
       setError(null);
       try {
         const res = await fetch("/api/onboarding/analyze", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ companyId, website, handles, companyName }),
+          body: JSON.stringify({ companyId, website, handles, companyName, description }),
         });
         if (!res.ok) {
           const j = await res.json().catch(() => ({}));

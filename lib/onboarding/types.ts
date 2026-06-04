@@ -31,6 +31,8 @@ export interface BrandProfile {
   companyId: string;
   website: string;
   handles: BrandHandles;
+  /** Descriptif libre de la société saisi par le client (nourrit l'analyse IA). */
+  description: string;
   /** « Qui vous êtes » — synthèse en 2-3 phrases. */
   summary: string;
   positioning: string;
@@ -115,6 +117,7 @@ export function makeEmptyBrandProfile(companyId: string): BrandProfile {
     companyId,
     website: "",
     handles: {},
+    description: "",
     summary: "",
     positioning: "",
     tone: "",
@@ -139,6 +142,8 @@ export interface AnalyzeRequest {
   handles?: BrandHandles;
   /** nom de la marque (aide l'IA si le site est inaccessible). */
   companyName?: string;
+  /** descriptif libre de la société saisi par le client. */
+  description?: string;
 }
 export interface AnalyzeResponse {
   profile: BrandProfile;

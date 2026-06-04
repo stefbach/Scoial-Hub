@@ -171,7 +171,8 @@ function buildPrompt(
   companyName: string | undefined,
   website: string,
   handles: BrandHandles,
-  siteText: string
+  siteText: string,
+  description: string
 ): string {
   const handlesSection = [
     handles.instagram ? `- Instagram : @${handles.instagram}` : null,
@@ -188,6 +189,10 @@ function buildPrompt(
     ? `\n(Site ${website} inaccessible lors de l'analyse.)`
     : "\n(Aucun site web renseigné.)";
 
+  const descriptionSection = description
+    ? `\nDescriptif fourni par le client (PRIORITAIRE — c'est sa propre vision) :\n---\n${description}\n---`
+    : "";
+
   return `Tu es un expert en stratégie de marque et marketing digital.
 Analyse la marque ci-dessous et retourne UNIQUEMENT un objet JSON strict, sans aucun texte autour.
 
@@ -195,6 +200,7 @@ Marque : ${companyName || "Inconnue"}
 Site web : ${website || "Non renseigné"}
 Comptes sociaux :
 ${handlesSection}
+${descriptionSection}
 ${siteSection}
 
 Retourne STRICTEMENT ce JSON (aucun markdown, aucune explication) :
@@ -286,11 +292,13 @@ export async function analyzeBrand(input: {
   website?: string;
   handles?: BrandHandles;
   companyName?: string;
+  description?: string;
 }): Promise<BrandProfile> {
   // 1. Construction du profil de base
   const profile = makeEmptyBrandProfile(input.companyId);
   profile.website = input.website ?? "";
   profile.handles = input.handles ?? {};
+  profile.description = input.description ?? "";
   profile.analyzedAt = new Date().toISOString();
 
   // 2. Récupération du texte du site web (si URL http(s) valide)
@@ -313,7 +321,8 @@ export async function analyzeBrand(input: {
       input.companyName,
       profile.website,
       profile.handles,
-      siteText
+      siteText,
+      profile.description
     );
 
     const message = await client.messages.create({

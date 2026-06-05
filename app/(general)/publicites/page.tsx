@@ -181,8 +181,8 @@ export default function PublicitesPage() {
         </button>
         <p className="mt-2 text-2xs text-muted">
           {t(
-            "Impressions & dépenses disponibles pour les pubs politiques/sociales. Nécessite META_AD_LIBRARY_TOKEN (token utilisateur, identité vérifiée).",
-            "Impressions & spend available for political/issue ads. Requires META_AD_LIBRARY_TOKEN (user token, verified identity)."
+            "Fonctionne avec SCRAPECREATORS_API_KEY (une seule clé, sans token Meta). Les impressions & dépenses ne sont disponibles que pour les pubs politiques/sociales (voie Meta avec token vérifié).",
+            "Works with SCRAPECREATORS_API_KEY (single key, no Meta token). Impressions & spend are only available for political/issue ads (Meta route with verified token)."
           )}
         </p>
       </section>

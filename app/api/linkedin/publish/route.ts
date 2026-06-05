@@ -21,7 +21,8 @@ export async function POST(req: NextRequest) {
     const uuid = await resolveCompanyUuid(companyId);
     const conn = await getConnection(uuid, "linkedin");
     const token = conn?.config?.access_token;
-    const urn = conn?.config?.external_id;
+    // Cible de publication : la Page/profil choisi (publish_as), sinon le profil.
+    const urn = conn?.config?.publish_as || conn?.config?.external_id;
     if (!conn || !token || !urn) {
       return NextResponse.json({ connected: false, error: "LinkedIn non connecté." });
     }

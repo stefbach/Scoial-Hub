@@ -63,7 +63,7 @@ const LI_OAUTH_BASE = "https://www.linkedin.com/oauth/v2";
 const LINKEDIN_SCOPES =
   process.env.LINKEDIN_SCOPES?.trim() ||
   (process.env.LINKEDIN_ORG_SCOPES === "true"
-    ? "openid profile email w_member_social r_organization_social rw_organization_admin"
+    ? "openid profile email w_member_social r_organization_social w_organization_social rw_organization_admin"
     : "openid profile email w_member_social");
 
 // ---------------------------------------------------------------------------

@@ -15,6 +15,13 @@ interface Account {
   picture?: string;
   isOrganization?: boolean;
 }
+interface Targets {
+  connected: boolean;
+  person?: { urn: string; name: string; picture?: string };
+  organizations?: { urn: string; name: string }[];
+  orgsAvailable?: boolean;
+  selected?: string;
+}
 interface Strategy {
   positioning: string;
   cadence: string;
@@ -32,6 +39,9 @@ export default function LinkedInPage() {
 
   const [account, setAccount] = useState<Account | null>(null);
   const [loading, setLoading] = useState(true);
+  const [targets, setTargets] = useState<Targets | null>(null);
+  const [selected, setSelected] = useState<string>("");
+  const [savingTarget, setSavingTarget] = useState(false);
 
   const [text, setText] = useState("");
   const [link, setLink] = useState("");
@@ -46,13 +56,33 @@ export default function LinkedInPage() {
     setLoading(true);
     try {
       const r = await fetch(`/api/linkedin/account?companyId=${encodeURIComponent(companyId)}`);
-      setAccount(r.ok ? await r.json() : { connected: false });
+      const acc = r.ok ? await r.json() : { connected: false };
+      setAccount(acc);
+      if (acc.connected) {
+        const tr = await fetch(`/api/linkedin/targets?companyId=${encodeURIComponent(companyId)}`);
+        if (tr.ok) {
+          const tg = (await tr.json()) as Targets;
+          setTargets(tg);
+          setSelected(tg.selected || tg.person?.urn || "");
+        }
+      }
     } catch {
       setAccount({ connected: false });
     } finally {
       setLoading(false);
     }
   }, [companyId]);
+
+  async function chooseTarget(urn: string, name: string) {
+    setSelected(urn);
+    setSavingTarget(true);
+    try {
+      await fetch("/api/linkedin/targets", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyId, urn, name }),
+      });
+    } finally { setSavingTarget(false); }
+  }
 
   useEffect(() => { load(); }, [load]);
 
@@ -147,6 +177,44 @@ export default function LinkedInPage() {
           <span className="section-label">{t("Publier sur LinkedIn", "Publish to LinkedIn")}</span>
           <Link href="/article-linkedin" className="text-xs text-primary-600 hover:underline">{t("Studio Article →", "Article Studio →")}</Link>
         </div>
+
+        {/* Cible : profil ou Page entreprise */}
+        {targets?.connected && (
+          <div>
+            <p className="section-label">{t("Publier en tant que", "Publish as")}</p>
+            <div className="mt-1.5 flex flex-wrap gap-2">
+              {targets.person && (
+                <button
+                  type="button"
+                  onClick={() => chooseTarget(targets.person!.urn, targets.person!.name)}
+                  className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs ${selected === targets.person.urn ? "border-primary-400 bg-primary-50 text-primary-700 font-semibold" : "border-hair text-muted hover:bg-canvas"}`}
+                >
+                  👤 {targets.person.name} <span className="text-2xs opacity-70">{t("(profil)", "(profile)")}</span>
+                </button>
+              )}
+              {(targets.organizations ?? []).map((o) => (
+                <button
+                  key={o.urn}
+                  type="button"
+                  onClick={() => chooseTarget(o.urn, o.name)}
+                  className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs ${selected === o.urn ? "border-primary-400 bg-primary-50 text-primary-700 font-semibold" : "border-hair text-muted hover:bg-canvas"}`}
+                >
+                  🏢 {o.name} <span className="text-2xs opacity-70">{t("(Page)", "(Page)")}</span>
+                </button>
+              ))}
+              {savingTarget && <span className="self-center text-2xs text-muted">{t("enregistrement…", "saving…")}</span>}
+            </div>
+            {targets.orgsAvailable === false && (
+              <p className="mt-1.5 text-2xs text-muted">
+                {t(
+                  "Vos Pages entreprise n'apparaissent pas ? Il faut l'accès « organisation » de LinkedIn (produit Community Management, soumis à validation). Sans cela, seule la publication sur votre profil est possible.",
+                  "Your company Pages don't show? You need LinkedIn's organization access (Community Management product, review required). Without it, only profile publishing is available."
+                )}
+              </p>
+            )}
+          </div>
+        )}
+
         <textarea value={text} onChange={(e) => setText(e.target.value)} rows={5} placeholder={t("Votre publication LinkedIn… (ou laissez l'IA écrire)", "Your LinkedIn post… (or let the AI write it)")} className={inputCls} />
         <input value={link} onChange={(e) => setLink(e.target.value)} placeholder={t("Lien à partager (optionnel)", "Link to share (optional)")} className={inputCls} />
         <div className="flex flex-wrap items-center gap-2">

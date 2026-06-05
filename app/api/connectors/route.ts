@@ -15,6 +15,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { listConnectorStatus } from "@/lib/connectors/index";
 import { listConnections } from "@/lib/repositories/channel-connections";
 import { resolveCompanyUuid } from "@/lib/repositories/resolve-company";
+import { requireCompanyAccess } from "@/lib/auth/guard";
 import type { ConnectorStatus } from "@/lib/connectors/types";
 import type { Platform } from "@/lib/types";
 
@@ -23,6 +24,9 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const companyId = req.nextUrl.searchParams.get("companyId");
 
     if (companyId) {
+      const guard = await requireCompanyAccess(companyId);
+      if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
+
       const rows = await listConnections(await resolveCompanyUuid(companyId));
       const byChannel = new Map(rows.map((r) => [r.channel, r]));
       const platforms: Platform[] = ["facebook", "instagram", "linkedin"];

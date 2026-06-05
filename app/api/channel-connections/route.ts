@@ -12,6 +12,7 @@ import { listConnections, upsertConnection } from "@/lib/repositories/channel-co
 import { resolveCompanyUuid } from "@/lib/repositories/resolve-company";
 import { channelById, CHANNELS } from "@/lib/channels";
 import type { ConnectionStatus } from "@/lib/repositories/channel-connections";
+import { requireCompanyAccess } from "@/lib/auth/guard";
 
 // ── Utilitaire masquage des secrets ───────────────────────────────────────────
 
@@ -52,6 +53,9 @@ export async function GET(req: NextRequest) {
     if (!companyId) {
       return NextResponse.json({ error: "companyId requis" }, { status: 400 });
     }
+
+    const guard = await requireCompanyAccess(companyId);
+    if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
 
     const rows = await listConnections(await resolveCompanyUuid(companyId));
 
@@ -106,6 +110,9 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+
+    const guard = await requireCompanyAccess(companyId);
+    if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
 
     if (!channelById(channel)) {
       return NextResponse.json(

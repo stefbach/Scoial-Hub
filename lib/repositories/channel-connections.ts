@@ -7,6 +7,46 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/env";
+import { encryptSecret, decryptSecret } from "@/lib/crypto";
+
+// Champs de config considérés comme sensibles : chiffrés au repos (à l'écriture)
+// et déchiffrés de façon transparente à la lecture (les appelants serveur
+// reçoivent donc le clair). La route HTTP masque déjà ces secrets (sanitizeConfig),
+// donc ils ne sont jamais renvoyés en clair au client.
+const SENSITIVE_KEYS = [
+  "page_access_token",
+  "access_token",
+  "user_access_token",
+  "capi_token",
+  "api_secret",
+  "bot_token",
+] as const;
+
+/** Chiffre les champs sensibles d'une config (idempotent). */
+function encryptConfig(config: Record<string, string>): Record<string, string> {
+  const out: Record<string, string> = { ...config };
+  for (const key of SENSITIVE_KEYS) {
+    const v = out[key];
+    if (typeof v === "string" && v !== "") out[key] = encryptSecret(v);
+  }
+  return out;
+}
+
+/** Déchiffre les champs sensibles d'une config (transparent pour les lecteurs). */
+function decryptConfig(config: Record<string, string>): Record<string, string> {
+  if (!config || typeof config !== "object") return config;
+  const out: Record<string, string> = { ...config };
+  for (const key of SENSITIVE_KEYS) {
+    const v = out[key];
+    if (typeof v === "string" && v !== "") out[key] = decryptSecret(v);
+  }
+  return out;
+}
+
+/** Déchiffre la config de chaque ligne (sûr si déjà en clair — no-op). */
+function decryptRow(row: ChannelConnection): ChannelConnection {
+  return { ...row, config: decryptConfig(row.config) };
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -48,12 +88,12 @@ function now(): string {
  */
 export async function listConnections(companyId: string): Promise<ChannelConnection[]> {
   if (!isSupabaseConfigured) {
-    return MOCK_STORE.filter((r) => r.company_id === companyId);
+    return MOCK_STORE.filter((r) => r.company_id === companyId).map(decryptRow);
   }
 
   try {
     const supabase = createClient();
-    if (!supabase) return MOCK_STORE.filter((r) => r.company_id === companyId);
+    if (!supabase) return MOCK_STORE.filter((r) => r.company_id === companyId).map(decryptRow);
 
     const { data, error } = await supabase
       .from("sh_channel_connections")
@@ -66,7 +106,7 @@ export async function listConnections(companyId: string): Promise<ChannelConnect
       return [];
     }
 
-    return data as ChannelConnection[];
+    return (data as ChannelConnection[]).map(decryptRow);
   } catch (err) {
     console.error("[channel-connections] listConnections exception:", err);
     return [];
@@ -82,17 +122,17 @@ export async function listConnections(companyId: string): Promise<ChannelConnect
  */
 export async function listByChannel(channel: string): Promise<ChannelConnection[]> {
   if (!isSupabaseConfigured) {
-    return MOCK_STORE.filter((r) => r.channel === channel);
+    return MOCK_STORE.filter((r) => r.channel === channel).map(decryptRow);
   }
   try {
     const supabase = createClient();
-    if (!supabase) return MOCK_STORE.filter((r) => r.channel === channel);
+    if (!supabase) return MOCK_STORE.filter((r) => r.channel === channel).map(decryptRow);
     const { data, error } = await supabase
       .from("sh_channel_connections")
       .select("*")
       .eq("channel", channel);
     if (error || !data) return [];
-    return data as ChannelConnection[];
+    return (data as ChannelConnection[]).map(decryptRow);
   } catch {
     return [];
   }
@@ -107,12 +147,16 @@ export async function getConnection(
   channel: string
 ): Promise<ChannelConnection | null> {
   if (!isSupabaseConfigured) {
-    return mockFind(companyId, channel) ?? null;
+    const m = mockFind(companyId, channel);
+    return m ? decryptRow(m) : null;
   }
 
   try {
     const supabase = createClient();
-    if (!supabase) return mockFind(companyId, channel) ?? null;
+    if (!supabase) {
+      const m = mockFind(companyId, channel);
+      return m ? decryptRow(m) : null;
+    }
 
     const { data, error } = await supabase
       .from("sh_channel_connections")
@@ -126,7 +170,7 @@ export async function getConnection(
       return null;
     }
 
-    return (data as ChannelConnection | null) ?? null;
+    return data ? decryptRow(data as ChannelConnection) : null;
   } catch (err) {
     console.error("[channel-connections] getConnection exception:", err);
     return null;
@@ -154,13 +198,15 @@ export async function upsertConnection(
   if (!isSupabaseConfigured) {
     const existing = mockFind(companyId, channel);
     if (existing) {
-      // Patch : on ne remplace un secret par une chaîne vide
-      const merged = mergeConfig(existing.config, config);
-      existing.config = merged;
+      // Patch : on ne remplace un secret par une chaîne vide.
+      // existing.config est chiffré au repos ; on le déchiffre pour fusionner avec
+      // l'entrée (en clair), puis on re-chiffre (encryptSecret est idempotent).
+      const merged = mergeConfig(decryptConfig(existing.config), config);
+      existing.config = encryptConfig(merged);
       existing.status = status;
       existing.updated_at = ts;
       if (status === "connected") existing.connected_at = ts;
-      return { ...existing };
+      return decryptRow({ ...existing });
     }
 
     const newRow: ChannelConnection = {
@@ -168,20 +214,22 @@ export async function upsertConnection(
       company_id: companyId,
       channel,
       status,
-      config,
+      // Chiffre les secrets au repos (transparent : décrypté à la lecture).
+      config: encryptConfig(config),
       connected_at: status === "connected" ? ts : null,
       updated_at: ts,
       created_at: ts,
     };
     MOCK_STORE.push(newRow);
-    return { ...newRow };
+    return decryptRow({ ...newRow });
   }
 
   try {
     const supabase = createClient();
     if (!supabase) return null;
 
-    // Charge la config existante pour le merge (protection des secrets)
+    // Charge la config existante pour le merge (protection des secrets).
+    // getConnection() déchiffre déjà → on fusionne en clair, puis on chiffre.
     const existing = await getConnection(companyId, channel);
     const mergedConfig = existing ? mergeConfig(existing.config, config) : config;
 
@@ -189,7 +237,8 @@ export async function upsertConnection(
       company_id: companyId,
       channel,
       status,
-      config: mergedConfig,
+      // Chiffrement des secrets au repos avant écriture en DB.
+      config: encryptConfig(mergedConfig),
       updated_at: ts,
       ...(status === "connected" ? { connected_at: ts } : {}),
     };
@@ -205,7 +254,8 @@ export async function upsertConnection(
       return null;
     }
 
-    return data as ChannelConnection;
+    // Déchiffre avant de renvoyer (transparent pour les appelants serveur).
+    return decryptRow(data as ChannelConnection);
   } catch (err) {
     console.error("[channel-connections] upsertConnection exception:", err);
     return null;

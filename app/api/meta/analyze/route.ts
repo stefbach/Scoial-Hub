@@ -9,11 +9,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { getMetaContext, fetchMetaInsights } from "@/lib/connectors/meta-pages";
 import { analyzeMetaContent } from "@/lib/connectors/meta-analyze";
 import { getCompanyName } from "@/lib/connectors/meta-pages";
+import { requireCompanyAccess } from "@/lib/auth/guard";
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
   try {
     const { companyId } = await req.json();
     if (!companyId) return NextResponse.json({ error: "companyId requis" }, { status: 400 });
+
+    const guard = await requireCompanyAccess(companyId);
+    if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
 
     const ctx = await getMetaContext(companyId);
     if (!ctx.pageToken) {

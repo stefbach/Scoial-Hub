@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { ADMIN_COOKIE, ADMIN_TOKEN } from "@/lib/admin";
+import { ADMIN_COOKIE, verifyAdminSession } from "@/lib/admin";
 import { createAdminClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
 function requireAdmin(): boolean {
-  return cookies().get(ADMIN_COOKIE)?.value === ADMIN_TOKEN;
+  return verifyAdminSession(cookies().get(ADMIN_COOKIE)?.value);
 }
 
 // GET /api/admin/users — liste les utilisateurs (admin uniquement)

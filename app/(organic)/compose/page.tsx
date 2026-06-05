@@ -10,13 +10,13 @@ import { Tabs } from "@/components/ui/Tabs";
 import { AiTextPanel, AiVisualsPanel } from "@/components/ui/AiPanel";
 import { MediaUpload, type UploadedMedia } from "@/components/ui/MediaUpload";
 import { DatePicker, TimePicker } from "@/components/ui/DateTimePicker";
-import { PlatformTag } from "@/components/ui/PlatformTag";
-import { saveDraft, findDraft, findPost } from "@/lib/draft-store";
+import { Toast } from "@/components/ui/Toast";
+import { findDraft, findPost } from "@/lib/draft-store";
 import { findTemplate } from "@/lib/template-store";
 import { findHistoryItem } from "@/lib/history-store";
 
-const SAMPLE =
-  "Staying hydrated isn't just about quenching thirst — it supports metabolism, focus, and recovery. Aim for 2L a day.";
+const PLACEHOLDER =
+  "Rédigez le contenu de votre publication ici…";
 
 const platformLabel = (p: string) =>
   p === "facebook" ? "Facebook" : p === "instagram" ? "Instagram" : "LinkedIn";
@@ -50,7 +50,7 @@ function ComposeContent() {
     : undefined;
   const source = draft ?? post ?? template ?? duplicateAsSource;
 
-  const [body, setBody] = useState(source?.body ?? SAMPLE);
+  const [body, setBody] = useState(source?.body ?? "");
   const [selected, setSelected] = useState<string[]>(() => {
     if (source) {
       const acc = data.accounts.find((a) => a.platform === source.platform);
@@ -66,6 +66,9 @@ function ComposeContent() {
   const [time, setTime] = useState(scheduleSource?.time ?? "09:00");
   const [upload, setUpload] = useState<UploadedMedia | null>(null);
   const [previewPlatform, setPreviewPlatform] = useState<"facebook" | "instagram">("facebook");
+  const [submitting, setSubmitting] = useState(false);
+  const [savingLibrary, setSavingLibrary] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
 
   const toggle = (id: string) =>
     setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
@@ -88,23 +91,106 @@ function ComposeContent() {
       ? previewPlatform
       : previewAccounts[0]?.platform ?? "facebook";
 
-  const handleSaveDraft = () => {
-    const platform = selectedPlatforms[0] ?? "facebook";
-    const id = draftId ?? `draft-${Date.now()}`;
-    saveDraft(company.id, {
-      id,
-      platform,
-      title: body.slice(0, 48) + (body.length > 48 ? "…" : ""),
-      date: format(date, "yyyy-MM-dd"),
-      time,
-      source: "manual",
-      status: "draft",
-      body,
-    });
-    router.push("/scheduled?tab=drafts");
+  const title = body.slice(0, 48) + (body.length > 48 ? "…" : "");
+
+  // Crée un post par plateforme sélectionnée via l'API.
+  // `now` planifie à l'instant courant (la publication réelle n'est pas branchée),
+  // `schedule` à la date/heure choisie, `draft` enregistre un brouillon.
+  const createPosts = async (mode: "now" | "schedule" | "draft"): Promise<boolean> => {
+    const status = mode === "draft" ? "draft" : "scheduled";
+    const now = new Date();
+    const postDate = mode === "now" ? format(now, "yyyy-MM-dd") : format(date, "yyyy-MM-dd");
+    const postTime = mode === "now" ? format(now, "HH:mm") : time;
+
+    const results = await Promise.all(
+      selectedPlatforms.map((platform) =>
+        fetch("/api/scheduled-posts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            companyId: company.id,
+            platform,
+            title: title || t("(Sans titre)", "(Untitled)"),
+            body,
+            date: postDate,
+            time: postTime,
+            status,
+            source: "manual",
+          }),
+        })
+      )
+    );
+    return results.every((res) => res.ok);
   };
 
-  const verb = when === "now" ? t("Publier", "Publish") : t("Planifier", "Schedule");
+  const handleSubmit = async () => {
+    if (noneSelected || submitting) return;
+    setSubmitting(true);
+    try {
+      const ok = await createPosts(when);
+      if (ok) {
+        router.push("/scheduled");
+      } else {
+        setToast(t("Échec de l'enregistrement. Réessayez.", "Save failed. Please retry."));
+      }
+    } catch {
+      setToast(t("Échec de l'enregistrement. Réessayez.", "Save failed. Please retry."));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleSaveDraft = async () => {
+    if (noneSelected || submitting) return;
+    setSubmitting(true);
+    try {
+      const ok = await createPosts("draft");
+      if (ok) {
+        router.push("/scheduled?tab=drafts");
+      } else {
+        setToast(t("Échec de l'enregistrement du brouillon.", "Failed to save draft."));
+      }
+    } catch {
+      setToast(t("Échec de l'enregistrement du brouillon.", "Failed to save draft."));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleSaveToLibrary = async () => {
+    if (savingLibrary) return;
+    if (!body.trim()) {
+      setToast(t("Ajoutez du contenu avant d'enregistrer.", "Add content before saving."));
+      return;
+    }
+    setSavingLibrary(true);
+    try {
+      const platform = selectedPlatforms[0] ?? "instagram";
+      const res = await fetch("/api/templates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          companyId: company.id,
+          platform,
+          body,
+          tags: ["studio"],
+        }),
+      });
+      setToast(
+        res.ok
+          ? t("Enregistré dans la bibliothèque.", "Saved to library.")
+          : t("Échec de l'enregistrement.", "Save failed.")
+      );
+    } catch {
+      setToast(t("Échec de l'enregistrement.", "Save failed."));
+    } finally {
+      setSavingLibrary(false);
+    }
+  };
+
+  // Libellé honnête : la publication réelle n'est pas branchée, donc « Maintenant »
+  // met en file plutôt que de prétendre publier immédiatement.
+  const verb = when === "now" ? t("Mettre en file", "Queue") : t("Planifier", "Schedule");
   const noun = count === 1 ? t("publication", "post") : t("publications", "posts");
 
   const modeLabel = draft
@@ -146,10 +232,14 @@ function ComposeContent() {
           <p className="mt-0.5 w-full text-2xs text-muted">{modeSub}</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="secondary" onClick={handleSaveDraft}>
+          <Button variant="secondary" onClick={handleSaveDraft} disabled={noneSelected || submitting}>
             {t("Enregistrer comme brouillon", "Save as draft")}
           </Button>
-          <Button variant="secondary">{t("Enregistrer dans la bibliothèque", "Save to library")}</Button>
+          <Button variant="secondary" onClick={handleSaveToLibrary} disabled={savingLibrary}>
+            {savingLibrary
+              ? t("Enregistrement…", "Saving…")
+              : t("Enregistrer dans la bibliothèque", "Save to library")}
+          </Button>
         </div>
       </div>
 
@@ -238,10 +328,19 @@ function ComposeContent() {
             </Button>
             <Button
               variant="primary"
-              disabled={noneSelected}
+              onClick={handleSubmit}
+              disabled={noneSelected || submitting}
               title={noneSelected ? t("Sélectionnez au moins une plateforme", "Select at least one platform") : undefined}
             >
-              {`${verb} ${count} ${noun}`}
+              {submitting && (
+                <span
+                  aria-hidden="true"
+                  className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white"
+                />
+              )}
+              {submitting
+                ? t("Enregistrement…", "Saving…")
+                : `${verb} ${count} ${noun}`}
             </Button>
           </div>
         </div>

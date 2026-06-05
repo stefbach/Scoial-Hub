@@ -6,11 +6,14 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { appendMemory, listMemory, getBrief, type MemoryEntry } from "@/lib/memory";
+import { requireCompanyAccess } from "@/lib/auth/guard";
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   try {
     const companyId = req.nextUrl.searchParams.get("companyId");
     if (!companyId) return NextResponse.json({ error: "companyId requis" }, { status: 400 });
+    const guard = await requireCompanyAccess(companyId);
+    if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
     const [brief, memory] = await Promise.all([getBrief(companyId), listMemory(companyId, { limit: 60 })]);
     return NextResponse.json({ brief, memory });
   } catch (err) {
@@ -25,6 +28,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     if (!companyId || !Array.isArray(entries)) {
       return NextResponse.json({ error: "companyId et entries[] requis" }, { status: 400 });
     }
+    const guard = await requireCompanyAccess(companyId);
+    if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
     const added = await appendMemory(companyId, entries);
     return NextResponse.json({ added });
   } catch (err) {

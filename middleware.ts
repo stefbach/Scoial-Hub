@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { ADMIN_COOKIE, verifyAdminSession } from "@/lib/admin";
 
 // Routes publiques : pas de redirection quelle que soit la config
 const PUBLIC_PATHS = ["/", "/login", "/signup", "/auth"];
@@ -24,7 +25,8 @@ export async function middleware(request: NextRequest) {
   // ── Console ADMIN : protection par cookie admin ───────────────
   if (pathname.startsWith("/admin")) {
     if (pathname === "/admin/login") return NextResponse.next();
-    const isAdmin = request.cookies.get("sh_admin")?.value === (process.env.ADMIN_TOKEN ?? "sh-admin-session-v1");
+    // Vérifie la signature + expiration du token de session (pas une constante).
+    const isAdmin = verifyAdminSession(request.cookies.get(ADMIN_COOKIE)?.value);
     if (!isAdmin) {
       return NextResponse.redirect(new URL("/admin/login", request.url));
     }

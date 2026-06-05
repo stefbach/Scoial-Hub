@@ -19,6 +19,7 @@ import { getConnection } from "@/lib/repositories/channel-connections";
 import { createAdminClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/env";
 import { resolveCompanyUuid } from "@/lib/repositories/resolve-company";
+import { requireCompanyAccess } from "@/lib/auth/guard";
 import type { ScrapeNetwork } from "@/lib/scraping/types";
 
 export async function POST(req: NextRequest) {
@@ -45,6 +46,9 @@ export async function POST(req: NextRequest) {
     if (!companyId) {
       return NextResponse.json({ error: "companyId requis" }, { status: 400 });
     }
+
+    const guard = await requireCompanyAccess(companyId);
+    if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
 
     // 0. Résout l'UUID réel (les sociétés démo ont un id non‑UUID type "occ").
     const cid = await resolveCompanyUuid(companyId);

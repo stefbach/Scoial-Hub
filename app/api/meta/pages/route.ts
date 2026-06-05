@@ -13,11 +13,15 @@ import {
   getMetaContext,
   storeMetaConnections,
 } from "@/lib/connectors/meta-pages";
+import { requireCompanyAccess } from "@/lib/auth/guard";
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   try {
     const companyId = req.nextUrl.searchParams.get("companyId");
     if (!companyId) return NextResponse.json({ error: "companyId requis" }, { status: 400 });
+
+    const guard = await requireCompanyAccess(companyId);
+    if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
 
     const ctx = await getMetaContext(companyId);
     if (!ctx.userToken) {
@@ -50,6 +54,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     if (!companyId || !pageId) {
       return NextResponse.json({ error: "companyId et pageId requis" }, { status: 400 });
     }
+
+    const guard = await requireCompanyAccess(companyId);
+    if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
 
     const ctx = await getMetaContext(companyId);
     if (!ctx.userToken) {

@@ -111,10 +111,24 @@ export function AudienceDetailModal({
     onClose();
   };
 
-  const handleDelete = () => {
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = async () => {
+    if (deleting) return;
+    setDeleting(true);
+    try {
+      // Persiste la suppression via l'API (Supabase) ; on retire aussi du
+      // store local pour rafraîchir immédiatement les vues encore en mock.
+      await fetch(`/api/audiences/${encodeURIComponent(audience.id)}`, {
+        method: "DELETE",
+      });
+    } catch {
+      // Silencieux — on enchaîne sur la suppression locale.
+    }
     deleteAudience(company.id, audience.id);
     onChanged();
     onClose();
+    setDeleting(false);
   };
 
   const canSave =
@@ -354,16 +368,16 @@ export function AudienceDetailModal({
                   )}
                 </p>
                 <div className="mt-4 flex justify-end gap-2">
-                  <Button variant="primary" onClick={() => setConfirmDelete(false)}>{t("Annuler", "Cancel")}</Button>
-                  <Button variant="danger" onClick={handleDelete}>{t("Supprimer quand même", "Delete anyway")}</Button>
+                  <Button variant="primary" onClick={() => setConfirmDelete(false)} disabled={deleting}>{t("Annuler", "Cancel")}</Button>
+                  <Button variant="danger" onClick={handleDelete} disabled={deleting}>{deleting ? t("Suppression…", "Deleting…") : t("Supprimer quand même", "Delete anyway")}</Button>
                 </div>
               </>
             ) : (
               <>
                 <p className="text-sm text-ink">{t("Supprimer cette audience ? Cette action est irréversible.", "Delete this audience? This cannot be undone.")}</p>
                 <div className="mt-4 flex justify-end gap-2">
-                  <Button variant="secondary" onClick={() => setConfirmDelete(false)}>{t("Annuler", "Cancel")}</Button>
-                  <Button variant="danger" onClick={handleDelete}>{t("Supprimer", "Delete")}</Button>
+                  <Button variant="secondary" onClick={() => setConfirmDelete(false)} disabled={deleting}>{t("Annuler", "Cancel")}</Button>
+                  <Button variant="danger" onClick={handleDelete} disabled={deleting}>{deleting ? t("Suppression…", "Deleting…") : t("Supprimer", "Delete")}</Button>
                 </div>
               </>
             )}

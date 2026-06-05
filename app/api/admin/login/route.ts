@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isValidAdmin, ADMIN_COOKIE, ADMIN_TOKEN } from "@/lib/admin";
+import { isValidAdmin, ADMIN_COOKIE, createAdminSession, ADMIN_SESSION_MAX_AGE } from "@/lib/admin";
 
 export const runtime = "nodejs";
 
@@ -10,12 +10,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Identifiants invalides" }, { status: 401 });
     }
     const res = NextResponse.json({ ok: true });
-    res.cookies.set(ADMIN_COOKIE, ADMIN_TOKEN, {
+    // Cookie = token signé (HMAC) horodaté, pas une constante devinable.
+    res.cookies.set(ADMIN_COOKIE, createAdminSession(), {
       httpOnly: true,
       sameSite: "lax",
       secure: true,
       path: "/",
-      maxAge: 60 * 60 * 12, // 12h
+      maxAge: ADMIN_SESSION_MAX_AGE, // 7 j
     });
     return res;
   } catch {

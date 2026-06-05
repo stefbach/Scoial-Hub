@@ -23,6 +23,7 @@ import {
   duplicateCampaign,
   findCampaign,
   hydrateCampaigns,
+  toggleAdSet,
   toggleCampaign,
 } from "@/lib/campaign-store";
 import { eur } from "@/lib/format";
@@ -53,7 +54,7 @@ export default function CampaignDetailPage() {
   const [, setTick] = useState(0);
   const refresh = () => setTick((t) => t + 1);
 
-  // Bug #19 — fallback API fetch when campaign isn't in the local store
+  // Fallback API fetch when campaign isn't in the local store
   // (happens for campaigns created via Supabase/IA that aren't in mock-data).
   const [apiCampaign, setApiCampaign] = useState<Campaign | null>(null);
   const [notFound, setNotFound] = useState(false);
@@ -111,7 +112,7 @@ export default function CampaignDetailPage() {
     });
   }, [campaign, activeMetrics]);
 
-  // Bug #19: show not-found only when the API explicitly returned 404
+  // Show not-found only when the API explicitly returned 404
   // AND the local store has no match (avoids flicker during initial load).
   if (!campaign && notFound) {
     return (
@@ -188,8 +189,19 @@ export default function CampaignDetailPage() {
             key={String(campaign.enabled)}
             defaultOn={campaign.enabled}
             onChange={() => {
+              // Optimiste en local, puis persistance via l'API (Supabase) pour
+              // éviter toute perte silencieuse au rechargement.
+              const nextEnabled = !campaign.enabled;
               toggleCampaign(company.id, campaign.id);
               refresh();
+              fetch(`/api/campaigns/${encodeURIComponent(campaign.id)}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  enabled: nextEnabled,
+                  status: nextEnabled ? "active" : "paused",
+                }),
+              }).catch(() => {/* silencieux — le store local reste la source UI */});
             }}
           />
           <Button variant="secondary" onClick={() => setEditOpen(true)}>{t("Modifier", "Edit")}</Button>
@@ -247,8 +259,16 @@ export default function CampaignDetailPage() {
       </div>
 
       {/* Ad sets */}
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-ink">{t("Ensembles de publicités", "Ad Sets")} ({campaign.adSets.length})</h2>
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <h2 className="text-sm font-semibold text-ink">{t("Ensembles de publicités", "Ad Sets")} ({campaign.adSets.length})</h2>
+          <p className="mt-0.5 text-2xs text-muted">
+            {t(
+              "La pause/reprise est enregistrée. Les métriques et le détail des ensembles restent une démo.",
+              "Pause/resume is saved. Ad-set metrics and details are still demo data."
+            )}
+          </p>
+        </div>
         <Button variant="primary" onClick={() => setAdSetModal({ open: true })}>
           + {t("Nouvel ensemble", "New ad set")}
         </Button>
@@ -276,7 +296,24 @@ export default function CampaignDetailPage() {
                   <span className="font-medium text-ink">{set.ads} {t("pubs", "ads")}</span> · {eur(set.dailyBudget)}/{t("jour", "day")}
                 </div>
                 <span onClick={(e) => e.stopPropagation()}>
-                  <Toggle defaultOn={set.enabled ?? true} />
+                  <Toggle
+                    key={String(set.enabled ?? true)}
+                    defaultOn={set.enabled ?? true}
+                    onChange={() => {
+                      const nextEnabled = !(set.enabled ?? true);
+                      toggleAdSet(company.id, set.id);
+                      refresh();
+                      // Persistance best-effort (sh_ad_sets) ; no-op si ad set mock.
+                      fetch(`/api/ad-sets/${encodeURIComponent(set.id)}`, {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          enabled: nextEnabled,
+                          status: nextEnabled ? "active" : "paused",
+                        }),
+                      }).catch(() => {/* silencieux */});
+                    }}
+                  />
                 </span>
                 <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
                   <IconButton
@@ -449,9 +486,16 @@ export default function CampaignDetailPage() {
             <Button variant="secondary" onClick={() => setConfirmAdSetDelete(null)}>{t("Annuler", "Cancel")}</Button>
             <Button
               variant="danger"
-              onClick={() => {
+              onClick={async () => {
                 if (!confirmAdSetDelete) return;
-                deleteAdSet(company.id, confirmAdSetDelete.id);
+                const id = confirmAdSetDelete.id;
+                // Persiste la suppression (sh_ad_sets) puis retire en local.
+                try {
+                  await fetch(`/api/ad-sets/${encodeURIComponent(id)}`, { method: "DELETE" });
+                } catch {
+                  // Silencieux — on enchaîne sur la suppression locale.
+                }
+                deleteAdSet(company.id, id);
                 setConfirmAdSetDelete(null);
                 refresh();
               }}
@@ -476,7 +520,7 @@ export default function CampaignDetailPage() {
             <Button
               variant="danger"
               onClick={async () => {
-                // Bug #20: delete via HTTP API (Supabase) then remove locally
+                // Delete via HTTP API (Supabase) then remove locally.
                 try {
                   await fetch(`/api/campaigns/${campaign.id}`, { method: "DELETE" });
                 } catch {

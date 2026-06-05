@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
-import { addAudience } from "@/lib/audience-store";
 import { useCompany } from "@/lib/company-context";
 import { useT } from "@/lib/i18n";
 import {
@@ -50,6 +49,8 @@ export function NewAudienceModal({
   const [savedConfig, setSavedConfig] = useState<SavedConfig>(makeSavedConfig());
   const [customConfig, setCustomConfig] = useState<CustomConfig>(makeCustomConfig());
   const [lookConfig, setLookConfig] = useState<LookalikeConfig>(makeLookalikeConfig());
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const TYPE_LABEL: Record<AudienceType, string> = {
     saved: t("Enregistrée", "Saved"),
@@ -82,18 +83,49 @@ export function NewAudienceModal({
       ? customValid(customConfig)
       : lookalikeValid(lookConfig);
 
-  const submit = () => {
+  const submit = async () => {
+    if (submitting) return;
+    setSubmitting(true);
+    setError(null);
+    // id provisoire — l'API renvoie l'identifiant persisté définitif.
+    const tmpId = `aud-${Date.now()}`;
     let audience: Audience;
-    const id = `aud-${Date.now()}`;
-    if (type === "saved") audience = savedToAudience(savedConfig, id);
-    else if (type === "custom") audience = customToAudience(customConfig, id);
+    if (type === "saved") audience = savedToAudience(savedConfig, tmpId);
+    else if (type === "custom") audience = customToAudience(customConfig, tmpId);
     else {
       const src = data.audiences.list.find((a) => a.id === lookConfig.sourceAudienceId);
-      audience = lookalikeToAudience(lookConfig, id, src?.name ?? "Source audience");
+      audience = lookalikeToAudience(lookConfig, tmpId, src?.name ?? "Source audience");
     }
-    addAudience(companyId, audience);
-    onCreated(audience);
-    onClose();
+    try {
+      const res = await fetch("/api/audiences", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          companyId,
+          type: audience.type,
+          name: audience.name,
+          description: audience.description,
+          detail: audience.detail,
+          reach: audience.reach,
+          inUse: audience.inUse,
+          config: audience.config,
+          metaAudienceId: audience.metaAudienceId,
+          createdBy: audience.createdBy,
+          lastSyncedAt: audience.lastSyncedAt,
+        }),
+      });
+      if (!res.ok) {
+        setError(t("Échec de la création de l'audience. Réessayez.", "Failed to create audience. Please retry."));
+        return;
+      }
+      const created = (await res.json()) as Audience;
+      onCreated(created);
+      onClose();
+    } catch {
+      setError(t("Échec de la création de l'audience. Réessayez.", "Failed to create audience. Please retry."));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const stepHeader =
@@ -211,6 +243,8 @@ export function NewAudienceModal({
           onCancel={onClose}
           onSubmit={submit}
           canSubmit={canSubmit}
+          submitting={submitting}
+          error={error}
         />
       )}
     </Modal>
@@ -287,6 +321,8 @@ function Step2({
   onCancel,
   onSubmit,
   canSubmit,
+  submitting,
+  error,
 }: {
   type: AudienceType;
   savedConfig: SavedConfig;
@@ -300,6 +336,8 @@ function Step2({
   onCancel: () => void;
   onSubmit: () => void;
   canSubmit: boolean;
+  submitting: boolean;
+  error: string | null;
 }) {
   const t = useT();
   const requiredHint =
@@ -312,10 +350,9 @@ function Step2({
   return (
     <>
       {/*
-        Bug #22 — pas de hauteur fixe imposée ici : le Modal gère déjà
+        Layout flex colonne sur mobile, grille 2 colonnes sur écrans ≥ lg
+        pour éviter que le contenu soit tronqué. Le Modal gère déjà
         max-h-[90vh] + overflow-y-auto sur le panel.
-        On passe à un layout flex colonne sur mobile, grille 2 colonnes
-        sur écrans ≥ lg pour éviter que le contenu soit tronqué.
       */}
       <div className="flex flex-col lg:grid lg:grid-cols-[1fr_280px]">
         <div className="p-4">
@@ -367,16 +404,23 @@ function Step2({
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-2 border-t border-hair px-4 py-3">
-        <Button variant="secondary" onClick={onBack}>← {t("Retour", "Back")}</Button>
+        <Button variant="secondary" onClick={onBack} disabled={submitting}>← {t("Retour", "Back")}</Button>
         <div className="flex items-center gap-2">
-          <Button variant="secondary" onClick={onCancel}>{t("Annuler", "Cancel")}</Button>
+          {error && <span className="text-2xs text-red-600">{error}</span>}
+          <Button variant="secondary" onClick={onCancel} disabled={submitting}>{t("Annuler", "Cancel")}</Button>
           <Button
             variant="primary"
-            disabled={!canSubmit}
+            disabled={!canSubmit || submitting}
             title={canSubmit ? undefined : requiredHint}
             onClick={onSubmit}
           >
-            {t("Créer l'audience", "Create audience")}
+            {submitting && (
+              <span
+                aria-hidden="true"
+                className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white"
+              />
+            )}
+            {submitting ? t("Création…", "Creating…") : t("Créer l'audience", "Create audience")}
           </Button>
         </div>
       </div>

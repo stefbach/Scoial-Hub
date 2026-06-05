@@ -152,8 +152,18 @@ export default function AdSetDetailPage() {
             key={String(enabled)}
             defaultOn={enabled}
             onChange={() => {
+              const nextEnabled = !enabled;
               toggleAdSet(company.id, adSet.id);
               refresh();
+              // Persistance best-effort (sh_ad_sets) ; no-op si ad set mock.
+              fetch(`/api/ad-sets/${encodeURIComponent(adSet.id)}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  enabled: nextEnabled,
+                  status: nextEnabled ? "active" : "paused",
+                }),
+              }).catch(() => {/* silencieux */});
             }}
           />
           <Button variant="secondary" onClick={() => setEditOpen(true)}>{t("Modifier", "Edit")}</Button>
@@ -280,7 +290,13 @@ export default function AdSetDetailPage() {
             <Button variant="secondary" onClick={() => setConfirmDelete(false)}>{t("Annuler", "Cancel")}</Button>
             <Button
               variant="danger"
-              onClick={() => {
+              onClick={async () => {
+                // Persiste la suppression (sh_ad_sets) puis retire en local.
+                try {
+                  await fetch(`/api/ad-sets/${encodeURIComponent(adSet.id)}`, { method: "DELETE" });
+                } catch {
+                  // Silencieux — on enchaîne sur la suppression locale.
+                }
                 deleteAdSet(company.id, adSet.id);
                 router.push(`/campaigns/${campaign.id}`);
               }}

@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { analyzeBrand } from "@/lib/onboarding/analyze";
 import { saveBrandProfile } from "@/lib/repositories/onboarding";
+import { requireCompanyAccess } from "@/lib/auth/guard";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -22,6 +23,9 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+
+    const guard = await requireCompanyAccess(companyId);
+    if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
 
     // Appel à l'analyse IA (Claude) — peut prendre plusieurs secondes
     const profile = await analyzeBrand({ companyId, website, handles, companyName, description });

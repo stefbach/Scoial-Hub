@@ -13,6 +13,17 @@ const MAX_DAILY_BUDGET_CENTS = Number(process.env.META_ADS_MAX_DAILY_CENTS ?? 50
 
 type Params = Record<string, unknown>;
 
+async function graphGet(path: string, fields: string, token: string): Promise<Record<string, unknown>> {
+  const sep = path.includes("?") ? "&" : "?";
+  const url = `${BASE}/${path}${sep}fields=${encodeURIComponent(fields)}&access_token=${encodeURIComponent(token)}`;
+  const res = await fetch(url, { cache: "no-store" });
+  const json = (await res.json()) as Record<string, unknown>;
+  if (json && (json as { error?: { message?: string } }).error) {
+    throw new Error((json as { error: { message?: string } }).error.message || "Erreur Marketing API");
+  }
+  return json;
+}
+
 async function graphPost(path: string, params: Params, token: string): Promise<Record<string, unknown>> {
   const form = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) {
@@ -147,6 +158,43 @@ export async function setAdLive(
   if (!ctx.userToken) throw new Error("Meta non connecté.");
   const token = ctx.userToken;
   const status = live ? "ACTIVE" : "PAUSED";
+
+  // ── Re-validation d'appartenance AVANT activation ───────────────────────────
+  // Sécurité : on ne fait confiance ni au client ni aux IDs fournis. Avant de
+  // passer une pub en diffusion (live=true), on vérifie côté serveur que l'ad set
+  // appartient bien au compte publicitaire de la société (account_id == ad_account_id
+  // du contexte). Sinon on refuse — empêche d'activer/payer sur un compte tiers.
+  // (La mise en PAUSE n'est jamais risquée → pas de blocage sur live=false.)
+  if (live) {
+    if (!ctx.adAccountId) {
+      throw new Error("Aucun compte publicitaire configuré (Meta Ads) : activation refusée.");
+    }
+    const expected = String(ctx.adAccountId).replace(/^act_/, "");
+    let adset: Record<string, unknown>;
+    try {
+      adset = await graphGet(ids.adSetId, "account_id,campaign_id", token);
+    } catch (err) {
+      throw new Error(
+        `Vérification d'appartenance de la pub impossible (ad set introuvable) : ${(err as Error).message}`
+      );
+    }
+    const adsetAccount = String(adset.account_id ?? "").replace(/^act_/, "");
+    if (!adsetAccount || adsetAccount !== expected) {
+      throw new Error(
+        "Activation refusée : cette publicité n'appartient pas au compte publicitaire de la société."
+      );
+    }
+    // Cohérence : l'ad set doit bien appartenir à la campagne fournie.
+    const adsetCampaign = String(adset.campaign_id ?? "");
+    if (ids.campaignId && adsetCampaign && adsetCampaign !== String(ids.campaignId)) {
+      throw new Error(
+        "Activation refusée : l'ad set ne correspond pas à la campagne indiquée."
+      );
+    }
+    // NB : le plafond de budget quotidien (MAX_DAILY_BUDGET_CENTS) est appliqué à
+    // la création (publishAd). L'ad set existant a donc déjà été plafonné.
+  }
+
   // Ordre : campagne → ad set → ad (tout doit être ACTIVE pour diffuser).
   await graphPost(ids.campaignId, { status }, token);
   await graphPost(ids.adSetId, { status }, token);

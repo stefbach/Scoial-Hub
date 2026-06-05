@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCampaign, updateCampaign, deleteCampaign } from "@/lib/repositories/campaigns";
+import { requireUser } from "@/lib/auth/guard";
 
 // GET /api/campaigns/[id]
 export async function GET(
@@ -7,6 +8,9 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
+    const guard = await requireUser();
+    if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
+
     const campaign = await getCampaign(params.id);
     if (!campaign) {
       return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
@@ -25,6 +29,9 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
+    const guard = await requireUser();
+    if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
+
     const body = await req.json();
     const campaign = await updateCampaign(params.id, body);
     return NextResponse.json(campaign);
@@ -42,6 +49,9 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
+    const guard = await requireUser();
+    if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
+
     await deleteCampaign(params.id);
     return new NextResponse(null, { status: 204 });
   } catch (err) {

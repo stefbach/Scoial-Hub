@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/env";
 import { resolveCompanyUuid } from "@/lib/repositories/resolve-company";
+import { requireCompanyAccess } from "@/lib/auth/guard";
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
   try {
@@ -22,7 +23,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     };
     if (!body.companyId) return NextResponse.json({ error: "companyId requis" }, { status: 400 });
 
-    const platform = ["facebook", "instagram", "linkedin", "tiktok"].includes(body.platform ?? "")
+    const guard = await requireCompanyAccess(body.companyId);
+    if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
+
+    const platform =["facebook", "instagram", "linkedin", "tiktok"].includes(body.platform ?? "")
       ? body.platform!
       : "instagram";
     const media = body.mediaUrl

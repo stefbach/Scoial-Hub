@@ -7,6 +7,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { setAdLive } from "@/lib/connectors/meta-ads";
+import { requireCompanyAccess } from "@/lib/auth/guard";
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
   try {
@@ -20,6 +21,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     if (!companyId || !campaignId || !adSetId || !adId) {
       return NextResponse.json({ error: "companyId, campaignId, adSetId, adId requis" }, { status: 400 });
     }
+
+    const guard = await requireCompanyAccess(companyId);
+    if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
+
     await setAdLive(companyId, { campaignId, adSetId, adId }, Boolean(live));
     return NextResponse.json({ ok: true, live: Boolean(live) });
   } catch (err) {

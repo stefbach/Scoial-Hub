@@ -4,6 +4,7 @@ import {
   createScheduledPost,
 } from "@/lib/repositories/scheduled-posts";
 import type { Platform, PostSource } from "@/lib/types";
+import { requireCompanyAccess } from "@/lib/auth/guard";
 
 // GET /api/scheduled-posts?companyId=...
 export async function GET(req: NextRequest) {
@@ -15,6 +16,9 @@ export async function GET(req: NextRequest) {
         { status: 400 }
       );
     }
+
+    const guard = await requireCompanyAccess(companyId);
+    if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
 
     const posts = await listScheduledPosts(companyId);
     return NextResponse.json(posts);

@@ -51,10 +51,30 @@ function AudiencesContent() {
 
   const [openAudience, setOpenAudience] = useState<Audience | null>(null);
   const [newModalOpen, setNewModalOpen] = useState(false);
-  // Bug #25 — état de la modale "Nouvelle campagne" depuis Audiences
+  // État de la modale "Nouvelle campagne" depuis Audiences.
   const [newCampaignOpen, setNewCampaignOpen] = useState(false);
   const [, setTick] = useState(0);
   const refresh = () => setTick((t) => t + 1);
+
+  // Audiences persistées via l'API (Supabase). Tant que le fetch n'a pas
+  // abouti, on retombe sur les audiences du contexte (mock).
+  const [apiAudiences, setApiAudiences] = useState<Audience[] | null>(null);
+  const [reloadTick, setReloadTick] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/audiences?companyId=${encodeURIComponent(company.id)}`)
+      .then((res) => (res.ok ? (res.json() as Promise<Audience[]>) : null))
+      .then((list) => {
+        if (!cancelled && Array.isArray(list)) setApiAudiences(list);
+      })
+      .catch(() => {/* silencieux — le contexte sert de repli */});
+    return () => {
+      cancelled = true;
+    };
+  }, [company.id, reloadTick]);
+
+  const reloadAudiences = () => setReloadTick((n) => n + 1);
 
   // Sync URL with active filters.
   useEffect(() => {
@@ -68,9 +88,10 @@ function AudiencesContent() {
   }, [typeFilter, statusFilter, search]);
 
   const a = data.audiences;
+  const audienceList = apiAudiences ?? a.list;
 
   const visible = useMemo(() => {
-    return a.list.filter((aud) => {
+    return audienceList.filter((aud) => {
       if (typeFilter !== "all" && aud.type !== typeFilter) return false;
       if (statusFilter === "in_use" && aud.inUse === 0) return false;
       if (statusFilter === "not_in_use" && aud.inUse > 0) return false;
@@ -78,11 +99,11 @@ function AudiencesContent() {
       return true;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [a.list, typeFilter, statusFilter, search, openAudience]);
+  }, [audienceList, typeFilter, statusFilter, search, openAudience]);
 
   // Derived metrics from current state.
-  const total = a.list.length;
-  const inUseCount = a.list.filter((aud) => aud.inUse > 0).length;
+  const total = audienceList.length;
+  const inUseCount = audienceList.filter((aud) => aud.inUse > 0).length;
 
   const TYPE_LABEL_MAP: Record<TypeFilter, string> = {
     all: t("Tous", "All"),
@@ -102,7 +123,7 @@ function AudiencesContent() {
         title={t("Audiences", "Audiences")}
         actions={
           <>
-            {/* Bug #21 — bouton désactivé explicite avec lien vers les connecteurs */}
+            {/* Bouton désactivé explicite avec lien vers les connecteurs. */}
             <div className="group relative">
               <Button
                 variant="secondary"
@@ -127,7 +148,7 @@ function AudiencesContent() {
                 </a>
               </div>
             </div>
-            {/* Bug #25 — bouton Créer une nouvelle campagne câblé sur POST /api/campaigns */}
+            {/* Créer une nouvelle campagne (POST /api/campaigns). */}
             <Button variant="secondary" onClick={() => setNewCampaignOpen(true)}>
               {t("Créer une nouvelle campagne", "Create new campaign")}
             </Button>
@@ -257,18 +278,24 @@ function AudiencesContent() {
       <AudienceDetailModal
         audience={openAudience}
         onClose={() => setOpenAudience(null)}
-        onChanged={refresh}
+        onChanged={() => {
+          refresh();
+          reloadAudiences();
+        }}
       />
 
       {newModalOpen && (
         <NewAudienceModal
           companyId={company.id}
           onClose={() => setNewModalOpen(false)}
-          onCreated={() => refresh()}
+          onCreated={() => {
+            refresh();
+            reloadAudiences();
+          }}
         />
       )}
 
-      {/* Bug #25 — modale de création de campagne depuis Audiences */}
+      {/* Modale de création de campagne depuis Audiences. */}
       <NewCampaignModal
         open={newCampaignOpen}
         onClose={() => setNewCampaignOpen(false)}
@@ -320,7 +347,7 @@ function AudienceCard({ aud, onClick }: { aud: Audience; onClick: () => void }) 
   const typeStyle = TYPE[aud.type];
   const typeLabel = tFn(typeStyle.labelFr, typeStyle.labelEn);
   return (
-    // Bug #24 — w-full + min-w-0 pour éviter le débordement en split view
+    // w-full + min-w-0 pour éviter le débordement en split view.
     <div
       onClick={onClick}
       className={`card w-full min-w-0 cursor-pointer border-l-[3px] p-4 transition-all hover:shadow-md ${typeStyle.ring}`}
@@ -331,7 +358,7 @@ function AudienceCard({ aud, onClick }: { aud: Audience; onClick: () => void }) 
           <StatusBadge tone="green" dot>{tFn("En cours d'utilisation", "In use")} ({aud.inUse})</StatusBadge>
         )}
       </div>
-      {/* Bug #24 — break-words pour les noms longs */}
+      {/* break-words pour les noms longs */}
       <div className="w-full break-words text-sm font-semibold text-ink">{aud.name}</div>
       <div className="mt-0.5 w-full break-words text-2xs text-muted">{aud.description}</div>
       {aud.detail && <div className="mt-0.5 w-full break-words text-2xs text-muted">{aud.detail}</div>}
@@ -344,7 +371,7 @@ function AudienceCard({ aud, onClick }: { aud: Audience; onClick: () => void }) 
 }
 
 /* ── Icons ──────────────────────────────────────────────────────────── */
-// Bug #21 — icône Meta inline SVG (logo simplifié)
+// Icône Meta inline SVG (logo simplifié).
 function MetaIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 40 40" fill="none" aria-hidden="true">

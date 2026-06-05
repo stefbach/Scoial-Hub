@@ -3,6 +3,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getOnboardingState, saveOnboardingState, getBrandProfile } from "@/lib/repositories/onboarding";
+import { requireCompanyAccess } from "@/lib/auth/guard";
 
 // Route dynamique (utilise les query params / la session) — pas de pré-rendu statique.
 export const dynamic = "force-dynamic";
@@ -19,6 +20,9 @@ export async function GET(req: NextRequest) {
         { status: 400 }
       );
     }
+
+    const guard = await requireCompanyAccess(companyId);
+    if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
 
     // Chargement en parallèle pour minimiser la latence
     const [state, profile] = await Promise.all([
@@ -47,6 +51,9 @@ export async function PUT(req: NextRequest) {
         { status: 400 }
       );
     }
+
+    const guard = await requireCompanyAccess(companyId);
+    if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
 
     const state = await saveOnboardingState(companyId, patch);
 

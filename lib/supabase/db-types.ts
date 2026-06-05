@@ -58,3 +58,39 @@ export interface DbCampaign {
   meta_campaign_id: string | null;
   created_at: string;
 }
+
+export interface DbAudience {
+  id: string;
+  company_id: string;
+  type: string;
+  name: string;
+  description: string | null;
+  detail: string | null;
+  reach: string | null;
+  in_use: number | null;
+  config: Record<string, unknown> | null;
+  meta_audience_id: string | null;
+  created_by: string | null;
+  last_synced_at: string | null;
+  created_at: string;
+}
+
+export interface DbAdSet {
+  id: string;
+  campaign_id: string;
+  name: string;
+  placement: string | null;
+  targeting: string | null;
+  audience_id: string | null;
+  daily_budget: number | null;
+  lifetime_budget: number | null;
+  budget_type: string | null;
+  optimization_goal: string | null;
+  status: string | null;
+  enabled: boolean | null;
+  start_date: string | null;
+  end_date: string | null;
+  metrics: Record<string, unknown> | null;
+  meta_ad_set_id: string | null;
+  created_at: string;
+}

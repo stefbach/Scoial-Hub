@@ -8,6 +8,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { publishAd, type PublishAdInput } from "@/lib/connectors/meta-ads";
+import { requireCompanyAccess } from "@/lib/auth/guard";
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
   try {
@@ -18,6 +19,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         { status: 400 }
       );
     }
+
+    const guard = await requireCompanyAccess(body.companyId);
+    if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
+
     const result = await publishAd({
       companyId: body.companyId,
       name: body.name,

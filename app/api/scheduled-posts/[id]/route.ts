@@ -4,6 +4,7 @@ import {
   deleteScheduledPost,
 } from "@/lib/repositories/scheduled-posts";
 import type { Platform, PostSource } from "@/lib/types";
+import { requireUser } from "@/lib/auth/guard";
 
 // PATCH /api/scheduled-posts/[id]
 // Body: partial ScheduledPost fields to update
@@ -12,6 +13,9 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
+    const guard = await requireUser();
+    if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
+
     const { id } = params;
     const body = await req.json();
 
@@ -44,6 +48,9 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
+    const guard = await requireUser();
+    if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
+
     await deleteScheduledPost(params.id);
     return new NextResponse(null, { status: 204 });
   } catch (err) {

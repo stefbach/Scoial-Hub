@@ -52,14 +52,19 @@ const LI_OAUTH_BASE = "https://www.linkedin.com/oauth/v2";
  * Note : `rw_organization_admin` et `r_organization_social` nécessitent
  * une app review LinkedIn (programme Marketing Developer Platform).
  */
-const LINKEDIN_SCOPES = [
-  "openid",
-  "profile",
-  "email",
-  "w_member_social",
-  "r_organization_social",
-  "rw_organization_admin",
-].join(" ");
+// Scopes par défaut = ceux qui fonctionnent SANS revue LinkedIn (produits
+// « Sign In with LinkedIn using OpenID Connect » + « Share on LinkedIn ») :
+//   openid, profile, email, w_member_social (publier au nom du membre).
+// Les scopes « organisation » (r_organization_social, rw_organization_admin)
+// exigent l'approbation Community Management / Marketing Developer Platform —
+// sinon LinkedIn renvoie `unauthorized_scope_error` et la connexion ÉCHOUE.
+// On ne les demande donc QUE si LINKEDIN_ORG_SCOPES=true (app approuvée).
+// Override total possible via LINKEDIN_SCOPES (liste séparée par des espaces).
+const LINKEDIN_SCOPES =
+  process.env.LINKEDIN_SCOPES?.trim() ||
+  (process.env.LINKEDIN_ORG_SCOPES === "true"
+    ? "openid profile email w_member_social r_organization_social w_organization_social rw_organization_admin"
+    : "openid profile email w_member_social");
 
 // ---------------------------------------------------------------------------
 // Helpers réseau

@@ -71,7 +71,29 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
     // `parseState` valide le format du state (anti-CSRF) et garantit que `ret`
     // est un chemin interne sûr (anti open-redirect → fallback interne sinon).
-    const { ret } = parseState(request.nextUrl.searchParams.get("state"));
+    const { companyId, ret } = parseState(request.nextUrl.searchParams.get("state"));
+
+    // Enregistrement PAR SOCIÉTÉ dans channel_connections (même logique que Meta)
+    // pour que le statut « connecté » et le hub LinkedIn soient par société.
+    if (companyId && tokenSet.externalId && !tokenSet.raw?.simulated) {
+      try {
+        const { upsertConnection } = await import("@/lib/repositories/channel-connections");
+        const { resolveCompanyUuid } = await import("@/lib/repositories/resolve-company");
+        await upsertConnection(
+          await resolveCompanyUuid(companyId),
+          "linkedin",
+          {
+            access_token: tokenSet.accessToken,
+            external_id: tokenSet.externalId,
+            account_name: tokenSet.accountName ?? "LinkedIn",
+            connected_via: "oauth",
+          },
+          "connected"
+        );
+      } catch (e) {
+        console.warn("[LinkedIn callback] upsert channel_connections:", e);
+      }
+    }
 
     const params = new URLSearchParams({
       connected: "true",

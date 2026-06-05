@@ -9,6 +9,7 @@ import Link from "next/link";
 import { useCompany } from "@/lib/company-context";
 import { useT } from "@/lib/i18n";
 import MetaAdsPublisher from "@/components/ads/MetaAdsPublisher";
+import { OrganicPublisher } from "@/components/meta/OrganicPublisher";
 
 interface PageItem {
   id: string;
@@ -64,6 +65,7 @@ export default function PagesMetaPage() {
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [pageError, setPageError] = useState<string | null>(null);
+  const [pubTab, setPubTab] = useState<"organic" | "ads">("organic");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -326,8 +328,41 @@ export default function PagesMetaPage() {
         </>
       )}
 
-      {/* ── Publicité Meta (réel) : gestion directe des publicités ── */}
-      <MetaAdsPublisher />
+      {/* ── Publier : publication normale (organique) OU via Ads ── */}
+      <section className="space-y-3">
+        <div>
+          <div className="section-label text-primary-500">{t("Publier", "Publish")}</div>
+          <p className="mt-0.5 text-xs text-muted">
+            {t(
+              "Deux façons de publier sur cette Page : une publication normale (gratuite, à vos abonnés) ou une publicité (payante, ciblée).",
+              "Two ways to publish on this Page: a normal post (free, to your followers) or an ad (paid, targeted)."
+            )}
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-1.5">
+          {([
+            { id: "organic", fr: "Publication normale", en: "Normal post" },
+            { id: "ads", fr: "Publication via Ads", en: "Publish via Ads" },
+          ] as const).map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setPubTab(tab.id)}
+              className={`rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors ${pubTab === tab.id ? "bg-ink text-white" : "bg-canvas text-muted hover:text-ink"}`}
+            >
+              {t(tab.fr, tab.en)}
+            </button>
+          ))}
+        </div>
+
+        {pubTab === "organic" ? (
+          <div className="card p-5">
+            <OrganicPublisher />
+          </div>
+        ) : (
+          <MetaAdsPublisher />
+        )}
+      </section>
     </div>
   );
 }

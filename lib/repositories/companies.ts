@@ -1,8 +1,15 @@
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/env";
 import { COMPANIES, COMPANY_DATA, registerCompany, makeEmptyCompanyData } from "@/lib/mock-data";
 import type { Company } from "@/lib/types";
 import type { DbCompany } from "@/lib/supabase/db-types";
+
+// NOTE sécurité : ce repository accède à sh_companies / sh_organizations via le
+// client ADMIN (service_role). L'autorisation multi-tenant est imposée EN AMONT
+// par les routes (app/api/companies : un client ne voit/crée que dans SA propre
+// org ; l'admin via cookie). Cela permet d'appliquer une RLS stricte par org sur
+// ces tables (la clé anon publique ne peut plus les énumérer) sans casser les
+// chemins serveur (console admin, création) qui n'ont pas de session Supabase.
 
 // ── Mapper DB → type métier ──────────────────────────────────
 
@@ -48,7 +55,7 @@ export async function listCompanies(orgId?: string): Promise<Company[]> {
     return [...COMPANIES];
   }
 
-  const supabase = createClient();
+  const supabase = createAdminClient();
   if (!supabase) return [...COMPANIES];
 
   const query = supabase.from("sh_companies").select("*").order("created_at");
@@ -73,7 +80,7 @@ export async function getCompany(id: string): Promise<Company | null> {
     return COMPANIES.find((c) => c.id === id) ?? null;
   }
 
-  const supabase = createClient();
+  const supabase = createAdminClient();
   if (!supabase) return COMPANIES.find((c) => c.id === id) ?? null;
 
   const { data, error } = await supabase
@@ -106,7 +113,7 @@ export async function createCompany(
     return company;
   }
 
-  const supabase = createClient();
+  const supabase = createAdminClient();
   if (!supabase) {
     const id = `company-${Date.now()}`;
     const company: Company = { id, ...input };
@@ -151,7 +158,7 @@ export async function updateCompany(
     return COMPANIES[idx];
   }
 
-  const supabase = createClient();
+  const supabase = createAdminClient();
   if (!supabase) {
     const idx = COMPANIES.findIndex((c) => c.id === id);
     if (idx < 0) throw new Error(`Company ${id} not found`);

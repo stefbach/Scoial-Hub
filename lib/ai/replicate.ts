@@ -159,6 +159,10 @@ export interface GenerateImageResult {
 /**
  * Génère une ou plusieurs images via Replicate (Flux 1.1 Pro).
  * Retourne `{ images: [], simulated: true }` si le token est absent.
+ *
+ * Note : flux-1.1-pro produit UNE image par prédiction et n'accepte PAS de
+ * paramètre `num_outputs` (l'envoyer provoque une erreur 422). Pour obtenir
+ * plusieurs images, on lance donc plusieurs prédictions en parallèle.
  */
 export async function generateImage(
   opts: GenerateImageOptions
@@ -168,7 +172,7 @@ export async function generateImage(
   }
 
   const { prompt, format = "square", n = 1 } = opts;
-  const numOutputs = Math.min(Math.max(1, n), 4);
+  const count = Math.min(Math.max(1, n), 4);
 
   // Mappage du format vers le ratio Replicate
   const aspectRatioMap: Record<string, string> = {
@@ -185,27 +189,38 @@ export async function generateImage(
   };
   const aspectRatio = aspectRatioMap[format] ?? "1:1";
 
-  // Flux 1.1 Pro génère UNE image par prédiction (pas de `num_outputs` dans son
-  // schéma — l'envoyer provoque une erreur de validation 422). Pour plusieurs
-  // images, on lance plusieurs prédictions en parallèle.
-  const runOne = async (): Promise<string[]> => {
-    const prediction = await runPrediction(DEFAULT_IMAGE_MODEL, {
-      prompt,
-      aspect_ratio: aspectRatio,
-      output_format: "webp",
-      output_quality: 80,
-      safety_tolerance: 2,
-    });
-    const rawOutput = prediction.output;
-    return Array.isArray(rawOutput)
-      ? (rawOutput as string[])
-      : typeof rawOutput === "string"
-      ? [rawOutput]
-      : [];
+  const input = {
+    prompt,
+    aspect_ratio: aspectRatio,
+    output_format: "webp",
+    output_quality: 80,
+    safety_tolerance: 2,
   };
 
-  const batches = await Promise.all(Array.from({ length: numOutputs }, runOne));
-  const urls = batches.flat();
+  // N prédictions en parallèle (flux-1.1-pro = 1 image/prédiction).
+  const settled = await Promise.allSettled(
+    Array.from({ length: count }, () => runPrediction(DEFAULT_IMAGE_MODEL, input))
+  );
+
+  const urls: string[] = [];
+  let lastError: unknown;
+  for (const s of settled) {
+    if (s.status === "fulfilled") {
+      const out = s.value.output;
+      if (Array.isArray(out)) urls.push(...(out as string[]));
+      else if (typeof out === "string") urls.push(out);
+    } else {
+      lastError = s.reason;
+    }
+  }
+
+  // Aucune image : on remonte la vraie erreur Replicate (token invalide,
+  // crédits épuisés, modèle indisponible…) plutôt qu'un échec silencieux.
+  if (urls.length === 0) {
+    throw lastError instanceof Error
+      ? lastError
+      : new Error("Replicate — aucune image générée.");
+  }
 
   return {
     images: urls.map((url) => ({ url })),

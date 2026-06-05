@@ -259,7 +259,7 @@ const GROUPS: { label?: string; items: NavItem[] }[] = [
   },
 ];
 
-export function Sidebar() {
+export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
   const pathname = usePathname();
   const t = useT();
   const tr = (s: string) => { const e = NAV_TR[s]; return e ? t(e[0], e[1]) : s; };
@@ -276,6 +276,7 @@ export function Sidebar() {
       <li key={item.href}>
         <Link
           href={item.href}
+          onClick={onNavigate}
           aria-current={active ? "page" : undefined}
           className={[
             "group relative flex items-center gap-2.5 rounded-lg px-3 py-[0.4rem] text-sm",

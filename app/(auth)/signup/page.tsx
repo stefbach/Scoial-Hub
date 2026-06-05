@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/env";
+import { SocialAuthButtons } from "@/components/auth/SocialAuthButtons";
 import { useT } from "@/lib/i18n";
 
 export default function SignupPage() {
@@ -114,6 +115,12 @@ export default function SignupPage() {
           {error && (
             <div className="mb-4 rounded-lg border border-danger-200 bg-danger-50 px-4 py-3 text-sm text-danger-700">
               {error}
+            </div>
+          )}
+
+          {!isDemo && (
+            <div className="mb-5">
+              <SocialAuthButtons next="/demarrage" />
             </div>
           )}
 

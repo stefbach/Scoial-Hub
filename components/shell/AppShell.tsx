@@ -121,6 +121,12 @@ function UserMenu() {
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const [navOpen, setNavOpen] = useState(false);
+
+  // Ferme le tiroir mobile à chaque changement de page.
+  useEffect(() => {
+    setNavOpen(false);
+  }, [pathname]);
 
   // Pages SANS le shell applicatif : landing, auth, hub de comptes, console admin.
   const bare =
@@ -136,21 +142,33 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-canvas">
       {/* Header sticky — blur + ombre au scroll via CSS */}
-      <header className="app-header sticky top-0 z-30 flex items-center justify-between border-b border-hair bg-card/90 px-5 py-2.5 backdrop-blur-md">
-        <div className="flex items-center gap-3">
+      <header className="app-header sticky top-0 z-30 flex items-center justify-between border-b border-hair bg-card/90 px-3 py-2.5 backdrop-blur-md sm:px-5">
+        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+          {/* Hamburger (mobile only) */}
+          <button
+            type="button"
+            onClick={() => setNavOpen(true)}
+            aria-label="Ouvrir le menu"
+            className="-ml-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-ink hover:bg-canvas lg:hidden"
+          >
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+              <path d="M3 5.5h14M3 10h14M3 14.5h14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+            </svg>
+          </button>
+
           {/* Logo / wordmark */}
-          <Link href="/" aria-label="Accueil AXON-AI Social Media">
+          <Link href="/" aria-label="Accueil AXON-AI Social Media" className="shrink-0">
             <Logo size={28} />
           </Link>
 
           {/* Séparateur vertical */}
-          <span className="h-4 w-px bg-hair" aria-hidden="true" />
+          <span className="hidden h-4 w-px bg-hair sm:block" aria-hidden="true" />
 
           <CompanySwitcher />
         </div>
 
         {/* Zone droite : langue + avatar (l'aide est un bouton flottant) */}
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           <LanguageSwitcher />
           <UserMenu />
         </div>
@@ -159,11 +177,24 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {/* Barre de contexte : zone géographique + période (filtres globaux) */}
       <ScopeBar />
 
-      {/* Corps : sidebar + contenu — pleine largeur (sidebar collée à gauche,
-          contenu jusqu'au bord droit) */}
+      {/* Corps : sidebar + contenu */}
       <div className="flex">
-        <Sidebar />
-        <main className="min-w-0 flex-1 px-7 py-6">
+        {/* Sidebar fixe sur desktop */}
+        <div className="hidden lg:block">
+          <Sidebar />
+        </div>
+
+        {/* Tiroir mobile (overlay) */}
+        {navOpen && (
+          <div className="fixed inset-0 z-40 lg:hidden" role="dialog" aria-modal="true">
+            <div className="absolute inset-0 bg-ink/40 backdrop-blur-sm" onClick={() => setNavOpen(false)} />
+            <div className="absolute left-0 top-0 h-full w-[15rem] overflow-y-auto bg-card shadow-xl animate-slide-up">
+              <Sidebar onNavigate={() => setNavOpen(false)} />
+            </div>
+          </div>
+        )}
+
+        <main className="min-w-0 flex-1 px-4 py-5 sm:px-6 sm:py-6 lg:px-7">
           {children}
         </main>
       </div>

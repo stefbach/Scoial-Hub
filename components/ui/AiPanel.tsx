@@ -5,6 +5,7 @@ import { Pills } from "./Tabs";
 import { Toggle } from "./Toggle";
 import { useT } from "@/lib/i18n";
 import { useCompany } from "@/lib/company-context";
+import { generateVideoPolling } from "@/lib/ai/generate-video-client";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -44,10 +45,13 @@ function Spinner() {
 export function AiTextPanel({
   brandVoiceLabel,
   platform = "facebook",
+  language,
 }: {
   brandVoiceLabel: string;
   /** Réseau cible : respecte le réseau choisi au lieu de forcer Facebook. */
   platform?: Platform;
+  /** Langue de diffusion dans laquelle l'IA doit rédiger (ex : "Français"). */
+  language?: string;
 }) {
   const t = useT();
   const { company } = useCompany();
@@ -82,6 +86,7 @@ export function AiTextPanel({
           brandVoice: useBrandVoice ? brandVoiceLabel : "neutral, professional",
           action,
           companyId: company?.id,
+          language,
         }),
       });
       if (!res.ok) {
@@ -223,11 +228,17 @@ export function AiVisualsPanel({
   used,
   cap,
   platform = "facebook",
+  imageModel,
+  videoModel,
 }: {
   used: number;
   cap: number;
   /** Réseau cible : détermine le ratio image envoyé au générateur. */
   platform?: Platform;
+  /** Modèle de génération d'image (catalogue Replicate). */
+  imageModel?: string;
+  /** Modèle de génération vidéo (catalogue Replicate). */
+  videoModel?: string;
 }) {
   const t = useT();
   const [mode, setMode] = useState<"image" | "video">("image");
@@ -247,6 +258,23 @@ export function AiVisualsPanel({
     setMockMessage(null);
     setResults([]);
     try {
+      if (isVideo) {
+        // Génération vidéo asynchrone (Veo 3 / Kling / Seedance… selon le modèle).
+        const r = await generateVideoPolling({ prompt: text, platform, model: videoModel, seconds: 10 });
+        if (r.simulated || !r.url) {
+          setMockMessage(
+            r.error === "timeout"
+              ? t("La vidéo prend trop de temps. Réessayez.", "Video is taking too long. Try again.")
+              : t(
+                  "Démo — génération vidéo non configurée (REPLICATE_API_TOKEN).",
+                  "Demo — video generation not configured (REPLICATE_API_TOKEN)."
+                )
+          );
+          return;
+        }
+        setResults([r.url]);
+        return;
+      }
       const res = await fetch("/api/ai/generate-image", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -257,6 +285,7 @@ export function AiVisualsPanel({
           platform,
           style,
           n: 4,
+          model: imageModel,
         }),
       });
       if (!res.ok) {
@@ -378,8 +407,16 @@ export function AiVisualsPanel({
         <p className="mt-2 rounded-md bg-red-50 px-2 py-1 text-2xs text-red-600">{error}</p>
       )}
 
-      {/* Image grid : résultats générés OU placeholders */}
+      {/* Résultats générés OU placeholders */}
       {results.length > 0 ? (
+        isVideo ? (
+          <div className="mt-2">
+            <video src={results[0]} controls className="w-full rounded-md border-hair border-ai-visual/40" />
+            <a href={results[0]} download className="mt-1 inline-block text-2xs text-ai-visual hover:underline">
+              ⬇ {t("Télécharger la vidéo", "Download video")}
+            </a>
+          </div>
+        ) : (
         <div className="mt-2 grid grid-cols-4 gap-2">
           {results.map((url, i) => (
             <a
@@ -388,9 +425,7 @@ export function AiVisualsPanel({
               target="_blank"
               rel="noopener noreferrer"
               download
-              className={`group relative block overflow-hidden rounded-md border-hair border-ai-visual/40 ${
-                isVideo ? "aspect-video" : "aspect-square"
-              }`}
+              className="group relative block overflow-hidden rounded-md border-hair border-ai-visual/40 aspect-square"
               title={t("Ouvrir / télécharger", "Open / download")}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -405,6 +440,7 @@ export function AiVisualsPanel({
             </a>
           ))}
         </div>
+        )
       ) : (
         <div className="mt-2 grid grid-cols-4 gap-2">
           {[0, 1, 2, 3].map((i) => (

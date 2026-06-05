@@ -17,8 +17,11 @@ const REPLICATE_API_BASE = "https://api.replicate.com/v1";
 /** Modèle image par défaut : Flux 1.1 Pro (qualité photoréaliste). */
 const DEFAULT_IMAGE_MODEL = "black-forest-labs/flux-1.1-pro";
 
-/** Modèle vidéo par défaut : MiniMax Video-01 (disponible via Replicate). */
-const DEFAULT_VIDEO_MODEL = "minimax/video-01";
+/**
+ * Modèle vidéo par défaut : Google Veo 3 (qualité max, son natif, clips ~8 s).
+ * Pour des durées plus longues, on enchaîne plusieurs clips (storyboard) côté client.
+ */
+const DEFAULT_VIDEO_MODEL = "google/veo-3";
 
 /** Timeout global pour le polling d'une prédiction (ms). */
 const PREDICTION_TIMEOUT_MS = 120_000; // 2 minutes
@@ -225,6 +228,32 @@ export async function generateImage(
   };
 }
 
+/**
+ * Génère des images avec un modèle Replicate arbitraire (catalogue) et un input
+ * déjà construit pour son schéma. Parallélise si plusieurs images sont demandées.
+ */
+export async function generateImageModel(
+  modelId: string,
+  input: Record<string, unknown>,
+  n = 1
+): Promise<GenerateImageResult> {
+  if (!isReplicateConfigured) {
+    return { images: [], simulated: true, model: "simulated" };
+  }
+  const numOutputs = Math.min(Math.max(1, n), 4);
+  const runOne = async (): Promise<string[]> => {
+    const prediction = await runPrediction(modelId, input);
+    const raw = prediction.output;
+    return Array.isArray(raw)
+      ? (raw as string[]).map(String)
+      : typeof raw === "string"
+      ? [raw]
+      : [];
+  };
+  const batches = await Promise.all(Array.from({ length: numOutputs }, runOne));
+  return { images: batches.flat().map((url) => ({ url })), model: modelId };
+}
+
 // --------------- API publique — Vidéos ---------------
 
 export interface GenerateVideoOptions {
@@ -256,15 +285,10 @@ export async function generateVideo(
     return { simulated: true, model: "simulated" };
   }
 
-  const { prompt, seconds = 5, aspect = "9:16" } = opts;
+  const { prompt } = opts;
 
-  // MiniMax Video-01 accepte prompt_optimizer et duration (en secondes)
-  const prediction = await runPrediction(DEFAULT_VIDEO_MODEL, {
-    prompt,
-    prompt_optimizer: true,
-    // Le modèle supporte 6 s ; on clamp pour rester dans les limites
-    duration: Math.min(Math.max(seconds, 5), 6),
-  });
+  // Veo 3 n'accepte qu'un `prompt`.
+  const prediction = await runPrediction(DEFAULT_VIDEO_MODEL, { prompt });
 
   // L'output est une URL string ou un tableau dont on prend le premier élément
   const rawOutput = prediction.output;
@@ -284,4 +308,77 @@ export async function generateVideo(
     video: { url: videoUrl },
     model: DEFAULT_VIDEO_MODEL,
   };
+}
+
+// --------------- API publique — Vidéos (asynchrone) ---------------
+//
+// MiniMax Video-01 met souvent 2 à 5 min : on ne bloque pas une fonction
+// serverless aussi longtemps. On lance la prédiction (sans Prefer: wait) et on
+// interroge son statut séparément ; le polling est fait côté client.
+
+export interface VideoPredictionStatus {
+  id?: string;
+  status: "starting" | "processing" | "succeeded" | "failed" | "canceled" | "simulated";
+  video?: { url: string };
+  error?: string;
+  simulated?: boolean;
+}
+
+function mapVideoPrediction(p: ReplicatePrediction): VideoPredictionStatus {
+  const raw = p.output;
+  let videoUrl: string | undefined;
+  if (typeof raw === "string") videoUrl = raw;
+  else if (Array.isArray(raw) && raw.length > 0) videoUrl = String(raw[0]);
+  return {
+    id: p.id,
+    status: p.status,
+    video: videoUrl ? { url: videoUrl } : undefined,
+    error: p.error,
+  };
+}
+
+/**
+ * Démarre une génération vidéo et retourne immédiatement l'id de prédiction.
+ * `modelId` + `input` permettent de cibler n'importe quel modèle du catalogue ;
+ * par défaut on utilise Veo 3 avec un input minimal.
+ */
+export async function startVideoPrediction(
+  opts: GenerateVideoOptions,
+  modelId: string = DEFAULT_VIDEO_MODEL,
+  input?: Record<string, unknown>
+): Promise<VideoPredictionStatus> {
+  if (!isReplicateConfigured) return { status: "simulated", simulated: true };
+
+  const [owner, name] = modelId.split("/");
+  const res = await fetch(
+    `${REPLICATE_API_BASE}/models/${owner}/${name}/predictions`,
+    {
+      method: "POST",
+      // Pas de Prefer: wait — on veut un retour immédiat avec l'id.
+      headers: {
+        Authorization: `Bearer ${process.env.REPLICATE_API_TOKEN ?? ""}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ input: input ?? { prompt: opts.prompt } }),
+    }
+  );
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText);
+    throw new Error(`Replicate — création de prédiction échouée (${res.status}) : ${text}`);
+  }
+  return mapVideoPrediction((await res.json()) as ReplicatePrediction);
+}
+
+/** Interroge une fois le statut d'une prédiction vidéo. */
+export async function getVideoPrediction(id: string): Promise<VideoPredictionStatus> {
+  if (!isReplicateConfigured) return { status: "simulated", simulated: true };
+
+  const res = await fetch(`${REPLICATE_API_BASE}/predictions/${id}`, {
+    headers: { Authorization: `Bearer ${process.env.REPLICATE_API_TOKEN ?? ""}` },
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText);
+    throw new Error(`Replicate — statut échoué (${res.status}) : ${text}`);
+  }
+  return mapVideoPrediction((await res.json()) as ReplicatePrediction);
 }

@@ -31,6 +31,8 @@ export function DemoBanner() {
         if (cancelled || !h?.present) return;
         const p = h.present;
         const m: string[] = [];
+        // Clé CLIENT (inlinée au build) : si absente, l'app tourne en données démo.
+        if (!process.env.NEXT_PUBLIC_SUPABASE_URL) m.push(t("base de données (Supabase)", "database (Supabase)"));
         if (!p.ANTHROPIC_API_KEY) m.push(t("IA texte", "text AI"));
         if (!p.REPLICATE_API_TOKEN) m.push(t("génération d'images", "image generation"));
         if (!p.META_APP_ID) m.push("Meta");

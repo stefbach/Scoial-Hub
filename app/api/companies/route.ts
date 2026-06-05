@@ -8,12 +8,31 @@ import { ADMIN_COOKIE, verifyAdminSession } from "@/lib/admin";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// GET /api/companies[?orgId=...]
+// GET /api/companies
+// Sécurité multi-tenant : la liste est déterminée par la SESSION serveur, jamais
+// par un paramètre client.
+//  - Admin (cookie)   : peut filtrer par ?orgId=, sinon voit tout (console admin).
+//  - Client connecté  : UNIQUEMENT les sociétés de SA propre organisation.
+//  - Non authentifié  : 401 (aucune donnée).
+//  - Mode démo (no DB): données mock.
 export async function GET(req: NextRequest) {
   try {
-    const orgId = req.nextUrl.searchParams.get("orgId") ?? undefined;
-    const companies = await listCompanies(orgId);
-    return NextResponse.json(companies);
+    if (!isSupabaseConfigured) {
+      return NextResponse.json(await listCompanies());
+    }
+
+    const isAdmin = verifyAdminSession(req.cookies.get(ADMIN_COOKIE)?.value);
+    if (isAdmin) {
+      const orgId = req.nextUrl.searchParams.get("orgId") ?? undefined;
+      return NextResponse.json(await listCompanies(orgId));
+    }
+
+    // Client : on impose l'organisation issue de la session (param ignoré).
+    const user = await getSessionUser();
+    if (!user) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+    const orgId = await getMyOrgId();
+    if (!orgId) return NextResponse.json([]); // pas d'org → aucune société
+    return NextResponse.json(await listCompanies(orgId));
   } catch (err) {
     console.error("[GET /api/companies]", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

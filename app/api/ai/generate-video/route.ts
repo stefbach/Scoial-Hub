@@ -6,7 +6,9 @@
 // ============================================================
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+// MiniMax Video-01 peut dépasser 60 s ; on laisse jusqu'à 300 s (plafonné
+// automatiquement selon le plan Vercel).
+export const maxDuration = 300;
 
 import { NextRequest, NextResponse } from "next/server";
 import { generateVideo } from "@/lib/ai/replicate";

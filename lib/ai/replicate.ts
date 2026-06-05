@@ -182,22 +182,27 @@ export async function generateImage(
   };
   const aspectRatio = aspectRatioMap[format] ?? "1:1";
 
-  const prediction = await runPrediction(DEFAULT_IMAGE_MODEL, {
-    prompt,
-    aspect_ratio: aspectRatio,
-    num_outputs: numOutputs,
-    output_format: "webp",
-    output_quality: 80,
-    safety_tolerance: 2,
-  });
+  // Flux 1.1 Pro génère UNE image par prédiction (pas de `num_outputs` dans son
+  // schéma — l'envoyer provoque une erreur de validation 422). Pour plusieurs
+  // images, on lance plusieurs prédictions en parallèle.
+  const runOne = async (): Promise<string[]> => {
+    const prediction = await runPrediction(DEFAULT_IMAGE_MODEL, {
+      prompt,
+      aspect_ratio: aspectRatio,
+      output_format: "webp",
+      output_quality: 80,
+      safety_tolerance: 2,
+    });
+    const rawOutput = prediction.output;
+    return Array.isArray(rawOutput)
+      ? (rawOutput as string[])
+      : typeof rawOutput === "string"
+      ? [rawOutput]
+      : [];
+  };
 
-  // L'output de Flux est un tableau d'URLs (strings)
-  const rawOutput = prediction.output;
-  const urls: string[] = Array.isArray(rawOutput)
-    ? (rawOutput as string[])
-    : typeof rawOutput === "string"
-    ? [rawOutput]
-    : [];
+  const batches = await Promise.all(Array.from({ length: numOutputs }, runOne));
+  const urls = batches.flat();
 
   return {
     images: urls.map((url) => ({ url })),
@@ -236,14 +241,14 @@ export async function generateVideo(
     return { simulated: true, model: "simulated" };
   }
 
-  const { prompt, seconds = 5, aspect = "9:16" } = opts;
+  const { prompt } = opts;
 
-  // MiniMax Video-01 accepte prompt_optimizer et duration (en secondes)
+  // MiniMax Video-01 n'accepte que `prompt` (+ `prompt_optimizer` et une image
+  // de première frame optionnelle). Sa durée est FIXE (~6 s) : envoyer un champ
+  // `duration` provoque une erreur de validation 422 → on ne le transmet pas.
   const prediction = await runPrediction(DEFAULT_VIDEO_MODEL, {
     prompt,
     prompt_optimizer: true,
-    // Le modèle supporte 6 s ; on clamp pour rester dans les limites
-    duration: Math.min(Math.max(seconds, 5), 6),
   });
 
   // L'output est une URL string ou un tableau dont on prend le premier élément

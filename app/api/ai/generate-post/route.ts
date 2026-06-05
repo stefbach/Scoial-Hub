@@ -14,6 +14,8 @@ interface RequestBody {
   action: Action;
   /** Optional campaign/post objective, e.g. "engagement", "awareness", "conversions". */
   objective?: string;
+  /** Société courante — permet d'injecter la mémoire stratégique (RAG). */
+  companyId?: string;
 }
 
 // Platform-specific constraints
@@ -77,7 +79,7 @@ Return ONLY the post text — no commentary, no "Here is your post:", no quotes 
 export async function POST(req: NextRequest) {
   try {
     const body: RequestBody = await req.json();
-    const { prompt, platform, brandVoice, action, objective } = body;
+    const { prompt, platform, brandVoice, action, objective, companyId } = body;
 
     if (!prompt || !platform || !action) {
       return NextResponse.json(
@@ -96,7 +98,22 @@ export async function POST(req: NextRequest) {
 
     const client = new Anthropic({ apiKey: env.anthropicKey });
 
-    const userMessage = `${ACTION_INSTRUCTIONS[action]}\n\nUser input: ${prompt}`;
+    // RAG : injecte la mémoire stratégique (veille, pubs, Page) pour fonder le
+    // contenu sur les insights accumulés. Pertinent surtout pour generate/rewrite ;
+    // inutile (et bruyant) pour shorten/hashtags. Non bloquant.
+    let memoryContext = "";
+    if (companyId && (action === "generate" || action === "rewrite")) {
+      try {
+        const { getMemoryContext } = await import("@/lib/memory");
+        memoryContext = await getMemoryContext(companyId, 20);
+      } catch {
+        /* non bloquant */
+      }
+    }
+
+    const userMessage = memoryContext
+      ? `${ACTION_INSTRUCTIONS[action]}\n\n[Mémoire stratégique — insights de veille/pubs/Page à exploiter]\n${memoryContext}\n\nUser input: ${prompt}`
+      : `${ACTION_INSTRUCTIONS[action]}\n\nUser input: ${prompt}`;
 
     const response = await client.messages.create({
       model: env.anthropicModel,

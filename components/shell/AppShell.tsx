@@ -189,6 +189,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     pathname.startsWith("/admin");
   if (bare) return <>{children}</>;
 
+  // La barre CONTEXTE (pays + période) ne sert que sur les pages d'ANALYSE :
+  // ailleurs (onboarding, réglages, composition, inbox…) elle n'a aucun effet
+  // et prête à confusion. On l'affiche donc uniquement sur une liste blanche.
+  const SCOPE_ROUTES = [
+    "/veille",
+    "/publicites",
+    "/analytics",
+    "/pilotage",
+    "/ad-performance",
+    "/dashboard",
+    "/pages-meta",
+  ];
+  const showScope = SCOPE_ROUTES.some(
+    (r) => pathname === r || pathname.startsWith(r + "/")
+  );
+
   return (
     <div className="min-h-screen bg-canvas">
       {/* Header sticky — blur + ombre au scroll via CSS */}
@@ -224,8 +240,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </header>
 
-      {/* Barre de contexte : zone géographique + période (filtres globaux) */}
-      <ScopeBar />
+      {/* Barre de contexte : pays + période — uniquement sur les pages d'analyse */}
+      {showScope && <ScopeBar />}
 
       {/* Corps : sidebar + contenu */}
       <div className="flex">

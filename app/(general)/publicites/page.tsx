@@ -6,6 +6,7 @@ import { useT } from "@/lib/i18n";
 import { Toast } from "@/components/ui/Toast";
 import { useCompany } from "@/lib/company-context";
 import { StrategyPanel } from "@/components/strategy/StrategyPanel";
+import { CountryCombobox } from "@/components/ui/CountryCombobox";
 
 interface AdEntry {
   id: string;
@@ -35,7 +36,7 @@ interface AdStrategyAnalysis {
 export default function PublicitesPage() {
   const t = useT();
   const { company } = useCompany();
-  const [country, setCountry] = useState("MU");
+  const [country, setCountry] = useState("mu");
   const [terms, setTerms] = useState("");
   const [adType, setAdType] = useState<"POLITICAL_AND_ISSUE_ADS" | "ALL">("POLITICAL_AND_ISSUE_ADS");
   const [loading, setLoading] = useState(false);
@@ -161,8 +162,8 @@ export default function PublicitesPage() {
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
           <div>
-            <label className="mb-1 block text-2xs font-semibold uppercase tracking-wide text-muted">{t("Pays (code ISO)", "Country (ISO code)")}</label>
-            <input className="input w-full" value={country} onChange={(e) => setCountry(e.target.value)} placeholder="MU" />
+            <label className="mb-1 block text-2xs font-semibold uppercase tracking-wide text-muted">{t("Pays", "Country")}</label>
+            <CountryCombobox value={country} onChange={setCountry} placeholder={t("Tapez un pays…", "Type a country…")} />
           </div>
           <div className="sm:col-span-2">
             <label className="mb-1 block text-2xs font-semibold uppercase tracking-wide text-muted">{t("Mot-clé / marque", "Keyword / brand")}</label>

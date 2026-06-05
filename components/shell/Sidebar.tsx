@@ -19,6 +19,7 @@ const NAV_TR: Record<string, [string, string]> = {
   "Connecteurs": ["Connecteurs", "Connectors"],
   "Organic": ["Organique", "Organic"],
   "Compose": ["Composer", "Compose"],
+  "Article LinkedIn": ["Article LinkedIn", "LinkedIn Article"],
   "Video Studio": ["Studio Créatif", "Creative Studio"],
   "Scheduled": ["Programmés", "Scheduled"],
   "Library": ["Bibliothèque", "Library"],
@@ -70,6 +71,12 @@ const ICONS: Record<string, React.ReactNode> = {
     <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
       <rect x="2" y="2" width="8" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.2" fill="none"/>
       <path d="M10.5 4.5l2 2-3.5 3.5H7V8.5l3.5-4Z" fill="currentColor" opacity="0.9"/>
+    </svg>
+  ),
+  "/article-linkedin": (
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+      <rect x="2" y="2.5" width="11" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.2" fill="none"/>
+      <path d="M4.5 5.5h6M4.5 7.5h6M4.5 9.5h3.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round"/>
     </svg>
   ),
   "/scheduled": (
@@ -236,6 +243,7 @@ const GROUPS: { label?: string; items: NavItem[] }[] = [
     label: "Organic",
     items: [
       { href: "/compose",      label: "Compose" },
+      { href: "/article-linkedin", label: "Article LinkedIn" },
       { href: "/studio-video", label: "Video Studio" },
       { href: "/scheduled",   label: "Scheduled" },
       { href: "/library",     label: "Library" },

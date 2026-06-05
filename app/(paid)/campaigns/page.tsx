@@ -10,6 +10,7 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Toggle } from "@/components/ui/Toggle";
 import { CreateAdModal } from "@/components/paid/CreateAdModal";
 import { NewCampaignModal } from "@/components/paid/NewCampaignModal";
+import { MetaAdAccountsPanel } from "@/components/ads/MetaAdAccountsPanel";
 import { Modal } from "@/components/ui/Modal";
 import {
   deleteCampaign as deleteCampaignLocal,
@@ -110,6 +111,11 @@ function CampaignsContent() {
           </>
         }
       />
+
+      {/* Comptes publicitaires Meta présents (données réelles) */}
+      <div className="mb-6">
+        <MetaAdAccountsPanel />
+      </div>
 
       {/* KPI strip */}
       <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">

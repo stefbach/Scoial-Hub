@@ -12,6 +12,8 @@ import { MultiLineChart, type ChartSeries } from "@/components/charts/MultiLineC
 import { AdDetailModal } from "@/components/paid/AdDetailModal";
 import { AdSetModal } from "@/components/paid/AdSetModal";
 import { hydrateCampaigns } from "@/lib/campaign-store";
+import { MetaAdAccountsPanel } from "@/components/ads/MetaAdAccountsPanel";
+import { AdStrategyBrain } from "@/components/ads/AdStrategyBrain";
 import { downloadFile } from "@/lib/history-store";
 import { eur } from "@/lib/format";
 import { useT } from "@/lib/i18n";
@@ -462,6 +464,12 @@ function AdPerformanceContent() {
           </>
         }
       />
+
+      {/* Accès aux comptes publicitaires Meta présents + cerveau IA */}
+      <div className="mb-6 space-y-4">
+        <MetaAdAccountsPanel />
+        <AdStrategyBrain />
+      </div>
 
       {range === "custom" && (
         <div className="mb-4 flex items-center gap-2.5 rounded-lg border border-hair bg-card px-4 py-2.5">

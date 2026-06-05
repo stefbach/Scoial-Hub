@@ -8,7 +8,12 @@ export const runtime = "nodejs";
 export const maxDuration = 30;
 
 import { NextRequest, NextResponse } from "next/server";
-import { fetchAds, isAdLibraryConfigured } from "@/lib/scraping/ad-library";
+import {
+  fetchAds,
+  fetchAdsScrapeCreators,
+  isAdLibraryConfigured,
+  isScrapeCreatorsConfigured,
+} from "@/lib/scraping/ad-library";
 import { getMetaContext } from "@/lib/connectors/meta-pages";
 
 export async function POST(req: NextRequest) {
@@ -33,19 +38,33 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    if (!token && !isAdLibraryConfigured()) {
-      return NextResponse.json(
-        {
-          ads: [],
-          error:
-            "Connectez Meta (Facebook) pour la société, ou ajoutez META_AD_LIBRARY_TOKEN dans Vercel, pour interroger la bibliothèque publicitaire.",
-        },
-        { status: 200 }
-      );
+    // Priorité 1 : voie Meta officielle si un token est disponible (donne les
+    // impressions pour les pubs politiques/sociales).
+    if (token || isAdLibraryConfigured()) {
+      const result = await fetchAds({ ...body, token });
+      // Si Meta échoue/retourne vide mais que ScrapeCreators est configuré, on
+      // bascule dessus plutôt que de laisser une page vide.
+      if (result.ads.length === 0 && isScrapeCreatorsConfigured()) {
+        const sc = await fetchAdsScrapeCreators(body);
+        if (sc.ads.length > 0) return NextResponse.json(sc);
+      }
+      return NextResponse.json(result);
     }
 
-    const result = await fetchAds({ ...body, token });
-    return NextResponse.json(result);
+    // Priorité 2 : ScrapeCreators — fonctionne avec la seule clé, sans token Meta.
+    if (isScrapeCreatorsConfigured()) {
+      const sc = await fetchAdsScrapeCreators(body);
+      return NextResponse.json(sc);
+    }
+
+    return NextResponse.json(
+      {
+        ads: [],
+        error:
+          "Ajoutez SCRAPECREATORS_API_KEY (recommandé, une seule clé) ou connectez Meta / ajoutez META_AD_LIBRARY_TOKEN dans Vercel, pour interroger la bibliothèque publicitaire.",
+      },
+      { status: 200 }
+    );
   } catch (err) {
     console.error("[POST /api/veille/ads]", err);
     return NextResponse.json({ ads: [], error: "Erreur serveur." }, { status: 200 });

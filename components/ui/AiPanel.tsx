@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Pills } from "./Tabs";
 import { Toggle } from "./Toggle";
 import { useT } from "@/lib/i18n";
+import { useCompany } from "@/lib/company-context";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -49,6 +50,7 @@ export function AiTextPanel({
   platform?: Platform;
 }) {
   const t = useT();
+  const { company } = useCompany();
   const [useBrandVoice, setUseBrandVoice] = useState(true);
   const [prompt, setPrompt] = useState("");
   const [result, setResult] = useState("");
@@ -79,6 +81,7 @@ export function AiTextPanel({
           platform,
           brandVoice: useBrandVoice ? brandVoiceLabel : "neutral, professional",
           action,
+          companyId: company?.id,
         }),
       });
       if (!res.ok) {

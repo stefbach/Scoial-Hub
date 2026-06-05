@@ -378,9 +378,9 @@ function AnalysisReport({ a, t }: { a: Analysis; t: (fr: string, en: string) => 
             {a.ideesContenu.map((idea, i) => (
               <li key={i} className="flex gap-3">
                 <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary-100 text-2xs font-bold text-primary-700">{i + 1}</span>
-                <div>
-                  <p className="text-sm font-semibold text-ink">{idea.titre}</p>
-                  <p className="text-xs text-muted">{idea.angle}</p>
+                <div className="min-w-0">
+                  <p className="break-words text-sm font-semibold text-ink">{idea.titre}</p>
+                  <p className="break-words text-xs text-muted">{idea.angle}</p>
                 </div>
               </li>
             ))}
@@ -394,11 +394,11 @@ function AnalysisReport({ a, t }: { a: Analysis; t: (fr: string, en: string) => 
           <div className="section-label">{t("Prochaines actions", "Next actions")}</div>
           <ul className="mt-3 space-y-2">
             {a.actions.map((act, i) => (
-              <li key={i} className="flex items-center gap-3">
-                <span className={`shrink-0 rounded-full px-2 py-0.5 text-2xs font-semibold uppercase ring-1 ${prioColor[act.priorite] ?? prioColor.basse}`}>
+              <li key={i} className="flex items-start gap-3">
+                <span className={`mt-0.5 shrink-0 rounded-full px-2 py-0.5 text-2xs font-semibold uppercase ring-1 ${prioColor[act.priorite] ?? prioColor.basse}`}>
                   {act.priorite}
                 </span>
-                <span className="text-sm text-ink">{act.action}</span>
+                <span className="min-w-0 break-words text-sm text-ink">{act.action}</span>
               </li>
             ))}
           </ul>
@@ -420,7 +420,7 @@ function ListCard({ title, items, tone }: { title: string; items: string[]; tone
         {items.map((it, i) => (
           <li key={i} className="flex items-start gap-2.5">
             <span className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${dot}`} />
-            <span className="text-sm text-ink">{it}</span>
+            <span className="min-w-0 break-words text-sm text-ink">{it}</span>
           </li>
         ))}
       </ul>

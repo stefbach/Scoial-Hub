@@ -123,7 +123,7 @@ export function Notifications() {
           <Toggle key={String(quietHours)} defaultOn={quietHours} onChange={(v) => { setQuietHours(v); setDirty(true); }} />
         </div>
         {quietHours && (
-          <div className="mt-2 flex items-center gap-2 text-sm">
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
             <span className="text-2xs text-muted">{t("De", "From")}</span>
             <input
               type="time"

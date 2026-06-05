@@ -95,12 +95,12 @@ export function Organization({ onNavigate }: { onNavigate: (section: string) => 
 
       <SectionLabel>{t("Abonnement & facturation", "Subscription & billing")}</SectionLabel>
       <div className="rounded-md border border-hair p-3">
-        <div className="flex items-center justify-between">
-          <div>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0 flex-1">
             <div className="text-sm font-medium text-ink">{t("Offre actuelle : Essai gratuit", "Current plan: Free trial")}</div>
             <div className="text-2xs text-muted">{t("30 jours restants", "30 days remaining")}</div>
           </div>
-          <Button variant="primary" disabled title={t("La facturation sera activée dans la prochaine phase.", "Billing will be enabled in the next phase.")}>{t("Changer d'offre", "Upgrade plan")}</Button>
+          <Button variant="primary" className="shrink-0" disabled title={t("La facturation sera activée dans la prochaine phase.", "Billing will be enabled in the next phase.")}>{t("Changer d'offre", "Upgrade plan")}</Button>
         </div>
         <div className="mt-2 grid grid-cols-2 gap-3 text-2xs text-muted">
           <div>{t("Prochaine date de facturation :", "Next billing date:")} —</div>

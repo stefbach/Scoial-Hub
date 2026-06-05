@@ -8,6 +8,7 @@ import { useT } from "@/lib/i18n";
 import { Button } from "@/components/ui/Button";
 import { Tabs } from "@/components/ui/Tabs";
 import { AiTextPanel, AiVisualsPanel } from "@/components/ui/AiPanel";
+import { CreativeInspiration } from "@/components/compose/CreativeInspiration";
 import { MediaUpload, type UploadedMedia } from "@/components/ui/MediaUpload";
 import { DatePicker, TimePicker } from "@/components/ui/DateTimePicker";
 import { Toast } from "@/components/ui/Toast";
@@ -288,6 +289,15 @@ function ComposeContent() {
               ]}
             />
           </div>
+
+          {/* Inspiration depuis une créa existante (vos pubs / concurrents / veille) */}
+          <CreativeInspiration
+            companyId={company.id}
+            brandVoice={company.code}
+            platform={activePlatform}
+            onApplyText={setBody}
+            onApplyMedia={setUpload}
+          />
 
           {/* AI panels — réseau dérivé du 1er compte sélectionné (respecte le réseau). */}
           <AiTextPanel brandVoiceLabel={company.code} platform={activePlatform} />

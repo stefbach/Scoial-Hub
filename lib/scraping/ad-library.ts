@@ -21,6 +21,10 @@ export interface AdEntry {
   startTime: string;
   platforms: string[];
   snapshotUrl: string;
+  /** Type de média de la créa (pour la réutilisation en inspiration). */
+  mediaType?: "image" | "video";
+  /** URL d'aperçu de la créa (image ou miniature vidéo), si disponible. */
+  thumbnailUrl?: string;
 }
 
 interface RawAd {
@@ -170,6 +174,7 @@ function mapScAd(a: ScAd): AdEntry {
     snap.images?.[0]?.original_image_url ??
     snap.videos?.[0]?.video_preview_image_url ??
     "";
+  const hasVideo = (snap.videos?.length ?? 0) > 0;
   return {
     id: String(a.ad_archive_id ?? ""),
     pageName: a.page_name ?? snap.page_name ?? "",
@@ -188,6 +193,8 @@ function mapScAd(a: ScAd): AdEntry {
     snapshotUrl: a.ad_archive_id
       ? `https://www.facebook.com/ads/library/?id=${a.ad_archive_id}`
       : "",
+    mediaType: hasVideo ? "video" : "image",
+    thumbnailUrl: thumb || undefined,
   };
 }
 

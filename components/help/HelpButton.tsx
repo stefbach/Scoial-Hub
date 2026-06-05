@@ -10,6 +10,9 @@ import { useT } from "@/lib/i18n";
  */
 export function HelpButton() {
   const [open, setOpen] = useState(false);
+  // Masque le bouton flottant quand une fenêtre modale / un tiroir est ouvert,
+  // sinon il chevauche les actions de la modale (ex. le bouton « Continuer »).
+  const [overlayOpen, setOverlayOpen] = useState(false);
   const t = useT();
 
   useEffect(() => {
@@ -25,8 +28,19 @@ export function HelpButton() {
     return () => document.removeEventListener("keydown", onKey);
   }, []);
 
+  // Observe le DOM : présence d'un dialog/modale ouvert → on cache le bouton.
+  useEffect(() => {
+    const check = () =>
+      setOverlayOpen(Boolean(document.querySelector('[role="dialog"][aria-modal="true"]')));
+    check();
+    const obs = new MutationObserver(check);
+    obs.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["role", "aria-modal"] });
+    return () => obs.disconnect();
+  }, []);
+
   return (
     <>
+      {!overlayOpen && (
       <button
         type="button"
         onClick={() => setOpen(true)}
@@ -34,7 +48,7 @@ export function HelpButton() {
         aria-expanded={open}
         title={t("Aide / Tutoriel de la page (?)", "Page help / tutorial (?)")}
         className="
-          fixed bottom-5 right-5 z-40
+          fixed bottom-5 right-5 z-30
           inline-flex items-center gap-2 rounded-full
           bg-page px-4 py-3 text-sm font-semibold text-white
           shadow-lg ring-1 ring-black/5
@@ -58,6 +72,7 @@ export function HelpButton() {
         </svg>
         <span>{t("Aide", "Help")}</span>
       </button>
+      )}
 
       <HelpDrawer open={open} onClose={() => setOpen(false)} />
     </>

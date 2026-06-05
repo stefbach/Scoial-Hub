@@ -147,8 +147,9 @@ lib/
 | `REPLICATE_API_TOKEN` | génération image/vidéo (Studio) | Studio gen |
 | `SHOTSTACK_API_KEY` (`SHOTSTACK_ENV=v1`) | rendu vidéo | Studio vidéo |
 | `CLOUDINARY_CLOUD_NAME` | transformations image | Studio image |
-| `YOUTUBE_API_KEY` | veille YouTube | veille |
-| `XPOZ_API_KEY` | veille Instagram/TikTok | veille |
+| `SCRAPECREATORS_API_KEY` | **veille TOUS réseaux avec une seule clé** (IG, TikTok, YouTube, LinkedIn, Facebook, X) | veille |
+| `YOUTUBE_API_KEY` | veille YouTube (API Google gratuite, prioritaire sur ScrapeCreators pour économiser des crédits) | veille |
+| `XPOZ_API_KEY` | veille Instagram/TikTok (alternative à ScrapeCreators) | veille |
 | `TELEGRAM_BOT_TOKEN` / `TELEGRAM_BOT_USERNAME` | bot Telegram central | Telegram |
 | `ADMIN_TOKEN` | accès console `/admin` | admin |
 | `AUTH_DISABLED=true` | échappatoire : rouvre l'accès sans login | dépannage |
@@ -189,7 +190,7 @@ on sélectionne la **Page** (`pickPageForCompany`), le **compte Instagram** lié
 ## 9. Limites connues / pistes
 - Publication organique multi-réseaux : Meta câblé ; LinkedIn/TikTok à finaliser (OAuth/clés).
 - Génération vidéo Replicate peut dépasser 60 s → prévoir un mode asynchrone (submit + poll).
-- Veille « réelle » dépend des clés (xpoz/YouTube) et des connecteurs ; sinon simulée.
+- Veille « réelle » dépend des clés (ScrapeCreators tous réseaux, ou YouTube/xpoz) et des connecteurs ; sinon simulée.
 - Providers OAuth Google/Facebook : à activer dans **Supabase → Authentication → Providers**
   (Google = créer un client OAuth Google Cloud ; Facebook = app Meta validée). Le code
   (boutons + `/auth/callback` + provisioning) est déjà prêt.

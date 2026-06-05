@@ -10,6 +10,7 @@ const NAV_TR: Record<string, [string, string]> = {
   "Get started": ["Démarrage assisté", "Assisted onboarding"],
   "Modules": ["Modules", "Modules"],
   "Mes Pages": ["Mes Pages & données", "My Pages & data"],
+  "Mon LinkedIn": ["Espace LinkedIn", "LinkedIn space"],
   "Pilotage IA": ["Veille & Stratégie", "Watch & Strategy"],
   "Centre de pilotage": ["Centre de pilotage", "Command Center"],
   "Agents": ["Agents", "Agents"],
@@ -167,6 +168,13 @@ const ICONS: Record<string, React.ReactNode> = {
       <path d="M2.5 11l3-2.5 2 1.5 2.5-2 2.5 2" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
     </svg>
   ),
+  "/linkedin": (
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+      <rect x="2" y="2" width="11" height="11" rx="2" stroke="currentColor" strokeWidth="1.2" fill="none"/>
+      <circle cx="4.7" cy="4.7" r="0.9" fill="currentColor"/>
+      <path d="M4.7 6.8v4M7 6.8v4M7 8.6c0-1 .8-1.8 1.8-1.8s1.8.8 1.8 1.8v2.2" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" fill="none"/>
+    </svg>
+  ),
   "/veille": (
     <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
       <rect x="1.5" y="9" width="2.5" height="4.5" rx="0.5" fill="currentColor" opacity="0.45"/>
@@ -232,6 +240,7 @@ const GROUPS: { label?: string; items: NavItem[] }[] = [
     label: "Pilotage IA",
     items: [
       { href: "/pages-meta",  label: "Mes Pages" },
+      { href: "/linkedin",    label: "Mon LinkedIn" },
       { href: "/agents",      label: "Agents" },
       { href: "/inbox",       label: "Inbox" },
       { href: "/veille",      label: "Veille & Marché" },

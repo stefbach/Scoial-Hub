@@ -1,0 +1,240 @@
+"use client";
+
+// Espace dédié LinkedIn (même logique que le hub Meta) : accéder au compte
+// LinkedIn connecté de la société → publier → analyser la stratégie.
+
+import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import { useCompany } from "@/lib/company-context";
+import { useT } from "@/lib/i18n";
+
+interface Account {
+  connected: boolean;
+  accountName?: string;
+  urn?: string;
+  picture?: string;
+  isOrganization?: boolean;
+}
+interface Strategy {
+  positioning: string;
+  cadence: string;
+  angles: string[];
+  postIdeas: { title: string; hook: string }[];
+  dos: string[];
+  donts: string[];
+  aiGenerated: boolean;
+}
+
+export default function LinkedInPage() {
+  const t = useT();
+  const { company } = useCompany();
+  const companyId = company.id;
+
+  const [account, setAccount] = useState<Account | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const [text, setText] = useState("");
+  const [link, setLink] = useState("");
+  const [writing, setWriting] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const [pubMsg, setPubMsg] = useState<string | null>(null);
+
+  const [strategy, setStrategy] = useState<Strategy | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const r = await fetch(`/api/linkedin/account?companyId=${encodeURIComponent(companyId)}`);
+      setAccount(r.ok ? await r.json() : { connected: false });
+    } catch {
+      setAccount({ connected: false });
+    } finally {
+      setLoading(false);
+    }
+  }, [companyId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function writeWithAI() {
+    setWriting(true); setPubMsg(null);
+    try {
+      const r = await fetch("/api/ai/generate-post", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: text || t("Rédige un post LinkedIn professionnel et engageant.", "Write a professional, engaging LinkedIn post."), platform: "linkedin", brandVoice: company.brandVoice ?? "", action: text ? "rewrite" : "generate", companyId }),
+      });
+      const d = await r.json();
+      if (d.text) setText(d.text);
+      if (d.mock) setPubMsg(t("Démo — IA texte non configurée.", "Demo — text AI not configured."));
+    } finally { setWriting(false); }
+  }
+
+  async function publish() {
+    if (!text.trim()) { setPubMsg(t("Écrivez un texte.", "Write some text.")); return; }
+    setPublishing(true); setPubMsg(null);
+    try {
+      const r = await fetch("/api/linkedin/publish", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyId, text, link: link || undefined }),
+      });
+      const d = await r.json();
+      if (d.connected === false) { setPubMsg(t("LinkedIn non connecté — connectez-le d'abord.", "LinkedIn not connected — connect it first.")); return; }
+      if (!r.ok) { setPubMsg(d.error ?? t("Échec.", "Failed.")); return; }
+      if (d.simulated) setPubMsg(t("Publié en simulation (LinkedIn non configuré).", "Simulated (LinkedIn not configured)."));
+      else { setPubMsg(t(`Publié sur LinkedIn ✓`, `Published on LinkedIn ✓`)); setText(""); setLink(""); }
+    } catch (e) {
+      setPubMsg(e instanceof Error ? e.message : t("Échec de la publication.", "Publish failed."));
+    } finally { setPublishing(false); }
+  }
+
+  async function analyze() {
+    setAnalyzing(true);
+    try {
+      const r = await fetch("/api/linkedin/strategy", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyId }),
+      });
+      const d = await r.json();
+      if (d.strategy) setStrategy(d.strategy);
+    } finally { setAnalyzing(false); }
+  }
+
+  const inputCls = "w-full rounded-lg border border-hair bg-canvas px-3 py-2 text-sm text-ink outline-none focus:border-primary-400";
+  const connectUrl = `/api/connectors/linkedin/auth?companyId=${encodeURIComponent(companyId)}&return=/linkedin`;
+
+  return (
+    <div className="mx-auto max-w-4xl space-y-6">
+      <header>
+        <p className="section-label text-primary-500">LinkedIn</p>
+        <h1 className="mt-1 text-2xl font-bold tracking-tight text-ink">{t("Votre espace LinkedIn", "Your LinkedIn space")}</h1>
+        <p className="mt-1 max-w-2xl text-sm text-muted">
+          {t("Compte connecté, publication, et stratégie de contenu LinkedIn.", "Connected account, publishing, and LinkedIn content strategy.")}
+        </p>
+      </header>
+
+      {/* Connexion */}
+      {loading ? (
+        <div className="card p-6 text-sm text-muted">{t("Chargement…", "Loading…")}</div>
+      ) : account?.connected ? (
+        <div className="card flex items-center gap-3 p-5">
+          {account.picture ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={account.picture} alt="" className="h-12 w-12 rounded-full object-cover" />
+          ) : (
+            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-[#0A66C2] text-lg font-bold text-white">in</span>
+          )}
+          <div className="min-w-0">
+            <p className="truncate font-semibold text-ink">{account.accountName}</p>
+            <p className="text-2xs text-muted">
+              {account.isOrganization ? t("Page entreprise", "Company page") : t("Profil membre", "Member profile")} · {t("connecté", "connected")} ✓
+            </p>
+          </div>
+          <a href={connectUrl} className="btn-secondary ml-auto text-xs">{t("Reconnecter", "Reconnect")}</a>
+        </div>
+      ) : (
+        <div className="card p-6 text-center">
+          <p className="text-sm font-semibold text-ink">{t("LinkedIn non connecté", "LinkedIn not connected")}</p>
+          <p className="mx-auto mt-1 max-w-md text-sm text-muted">
+            {t("Connectez LinkedIn pour publier et analyser votre stratégie.", "Connect LinkedIn to publish and analyze your strategy.")}
+          </p>
+          <a href={connectUrl} className="btn-primary mt-4 inline-flex">{t("Connecter LinkedIn", "Connect LinkedIn")}</a>
+        </div>
+      )}
+
+      {/* Publication */}
+      <section className="card p-5 space-y-3">
+        <div className="flex items-center justify-between">
+          <span className="section-label">{t("Publier sur LinkedIn", "Publish to LinkedIn")}</span>
+          <Link href="/article-linkedin" className="text-xs text-primary-600 hover:underline">{t("Studio Article →", "Article Studio →")}</Link>
+        </div>
+        <textarea value={text} onChange={(e) => setText(e.target.value)} rows={5} placeholder={t("Votre publication LinkedIn… (ou laissez l'IA écrire)", "Your LinkedIn post… (or let the AI write it)")} className={inputCls} />
+        <input value={link} onChange={(e) => setLink(e.target.value)} placeholder={t("Lien à partager (optionnel)", "Link to share (optional)")} className={inputCls} />
+        <div className="flex flex-wrap items-center gap-2">
+          <button onClick={writeWithAI} disabled={writing} className="btn-secondary text-xs disabled:opacity-50">
+            {writing ? t("Rédaction…", "Writing…") : t("✨ Rédiger avec l'IA", "✨ Write with AI")}
+          </button>
+          <button onClick={publish} disabled={publishing} className="btn-primary ml-auto text-sm disabled:opacity-50">
+            {publishing ? t("Publication…", "Publishing…") : t("Publier maintenant", "Publish now")}
+          </button>
+        </div>
+        {pubMsg && <p className="rounded-lg bg-canvas px-3 py-2 text-xs text-ink">{pubMsg}</p>}
+      </section>
+
+      {/* Stratégie */}
+      <section className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <div className="section-label text-ai-text">{t("Stratégie LinkedIn", "LinkedIn strategy")}</div>
+            <p className="mt-0.5 text-xs text-muted">{t("L'IA bâtit une stratégie de contenu à partir de votre profil de marque.", "The AI builds a content strategy from your brand profile.")}</p>
+          </div>
+          <button onClick={analyze} disabled={analyzing} className="btn-primary text-sm disabled:opacity-50">
+            {analyzing ? t("Analyse…", "Analyzing…") : strategy ? t("Ré-analyser", "Re-analyze") : t("Analyser ma stratégie", "Analyze my strategy")}
+          </button>
+        </div>
+
+        {strategy && (
+          <div className="space-y-4">
+            <div className="card border-l-4 border-ai-text p-5">
+              <div className="flex items-center gap-2">
+                <span className="section-label text-ai-text">{t("Positionnement", "Positioning")}</span>
+                {strategy.aiGenerated && <span className="rounded-full bg-ai-textbg px-2 py-0.5 text-2xs font-semibold text-ai-text">IA</span>}
+              </div>
+              <p className="mt-2 text-sm text-ink">{strategy.positioning}</p>
+              <p className="mt-2 text-xs text-muted"><strong>{t("Cadence", "Cadence")} :</strong> {strategy.cadence}</p>
+            </div>
+
+            {strategy.angles.length > 0 && (
+              <div className="card p-5">
+                <div className="section-label">{t("Piliers éditoriaux", "Content pillars")}</div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {strategy.angles.map((a) => (
+                    <span key={a} className="rounded-full border border-primary-200 bg-primary-50 px-3 py-1 text-xs font-medium text-primary-700">{a}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {strategy.postIdeas.length > 0 && (
+              <div className="card p-5">
+                <div className="section-label">{t("Idées de posts", "Post ideas")}</div>
+                <ul className="mt-3 space-y-2.5">
+                  {strategy.postIdeas.map((idea, i) => (
+                    <li key={i} className="flex gap-3">
+                      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary-100 text-2xs font-bold text-primary-700">{i + 1}</span>
+                      <div className="min-w-0 flex-1">
+                        <p className="break-words text-sm font-semibold text-ink">{idea.title}</p>
+                        <p className="break-words text-xs text-muted">{idea.hook}</p>
+                      </div>
+                      <button onClick={() => { setText(`${idea.hook}\n\n`); window.scrollTo({ top: 0, behavior: "smooth" }); }} className="btn-secondary shrink-0 self-start text-2xs">
+                        {t("Utiliser", "Use")}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              {strategy.dos.length > 0 && (
+                <div className="card p-5">
+                  <div className="section-label text-success-700">{t("À faire", "Do")}</div>
+                  <ul className="mt-2 space-y-1.5">
+                    {strategy.dos.map((d, i) => <li key={i} className="flex gap-2 text-sm text-ink"><span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-success-500" />{d}</li>)}
+                  </ul>
+                </div>
+              )}
+              {strategy.donts.length > 0 && (
+                <div className="card p-5">
+                  <div className="section-label text-danger-700">{t("À éviter", "Avoid")}</div>
+                  <ul className="mt-2 space-y-1.5">
+                    {strategy.donts.map((d, i) => <li key={i} className="flex gap-2 text-sm text-ink"><span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-danger-500" />{d}</li>)}
+                  </ul>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { HelpDrawer } from "./HelpDrawer";
 import { useT } from "@/lib/i18n";
 
@@ -14,6 +15,10 @@ export function HelpButton() {
   // sinon il chevauche les actions de la modale (ex. le bouton « Continuer »).
   const [overlayOpen, setOverlayOpen] = useState(false);
   const t = useT();
+  const pathname = usePathname();
+  // Pages avec une barre d'action FIXE en bas (Retour / Continuer…) : le bouton
+  // flottant chevaucherait le « Continuer ». On le masque sur ces parcours.
+  const hasOwnBottomBar = pathname?.startsWith("/demarrage") ?? false;
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -40,7 +45,7 @@ export function HelpButton() {
 
   return (
     <>
-      {!overlayOpen && (
+      {!overlayOpen && !hasOwnBottomBar && (
       <button
         type="button"
         onClick={() => setOpen(true)}

@@ -11,10 +11,78 @@ import { useT } from "@/lib/i18n";
 import { LanguageSwitcher } from "@/lib/i18n";
 
 const STATS = [
-  { to: 7, suffix: "", labelFr: "agents IA spécialisés", labelEn: "specialized AI agents" },
+  { to: 8, suffix: "", labelFr: "agents IA spécialisés", labelEn: "specialized AI agents" },
   { to: 5, suffix: "", labelFr: "forces réunies", labelEn: "forces combined" },
   { to: 8, suffix: "+", labelFr: "connecteurs", labelEn: "connectors" },
   { to: 100, suffix: "%", labelFr: "conformité contrôlée", labelEn: "controlled compliance" },
+];
+
+// Ce que l'utilisateur peut FAIRE concrètement (chaque carte = une vraie page).
+const CAPABILITIES = [
+  {
+    a: "59,113,243",
+    titleFr: "Démarrage assisté", titleEn: "Guided onboarding",
+    descFr: "Profil de marque en 6 étapes (site web + Meta/LinkedIn/TikTok + descriptif), analysé par l'IA.",
+    descEn: "Brand profile in 6 steps (website + Meta/LinkedIn/TikTok + description), analysed by AI.",
+    href: "/demarrage",
+    icon: "M12 3l1.9 4 4.4.6-3.2 3 .8 4.4L12 13l-3.9 2 .8-4.4-3.2-3 4.4-.6L12 3Z",
+  },
+  {
+    a: "37,99,235",
+    titleFr: "Publier partout", titleEn: "Publish everywhere",
+    descFr: "Posts organiques sur Facebook, Instagram et LinkedIn — texte rédigé par l'IA + visuels.",
+    descEn: "Organic posts on Facebook, Instagram and LinkedIn — AI-written copy + visuals.",
+    href: "/pages-meta",
+    icon: "M4 4h16v12H7l-3 3V4Zm4 5h8M8 12h5",
+  },
+  {
+    a: "10,102,194",
+    titleFr: "Studio Article LinkedIn", titleEn: "LinkedIn Article Studio",
+    descFr: "Articles professionnels à partir de mots-clés, avec prompt personnalisé et visuels HD.",
+    descEn: "Professional articles from keywords, with a custom prompt and HD visuals.",
+    href: "/article-linkedin",
+    icon: "M5 3h14v18l-7-3-7 3V3Zm3 5h8M8 11h8M8 14h5",
+  },
+  {
+    a: "124,58,237",
+    titleFr: "Studio Créatif", titleEn: "Creative Studio",
+    descFr: "Visuels et vidéos générés par IA, aux bons formats (Feed, Stories, Reels).",
+    descEn: "AI-generated visuals and videos in the right formats (Feed, Stories, Reels).",
+    href: "/studio-video",
+    icon: "m15 10 5-3v10l-5-3v3a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v2Z",
+  },
+  {
+    a: "245,158,11",
+    titleFr: "Publicité Meta + Cerveau Pub", titleEn: "Meta Ads + Ad Brain",
+    descFr: "Comptes publicitaires réels, performance, et stratégie d'optimisation pilotée par l'IA.",
+    descEn: "Real ad accounts, performance, and AI-driven optimisation strategy.",
+    href: "/ad-performance",
+    icon: "M4 19V5m5 14V9m5 10v-6m5 6V7",
+  },
+  {
+    a: "16,185,129",
+    titleFr: "Messagerie & agents", titleEn: "Inbox & agents",
+    descFr: "Des agents répondent aux commentaires et messages dans votre voix — et passent la main à un humain si besoin.",
+    descEn: "Agents reply to comments and messages in your voice — and hand off to a human when needed.",
+    href: "/inbox",
+    icon: "M4 5h16v10H8l-4 4V5Z",
+  },
+  {
+    a: "59,113,243",
+    titleFr: "Veille concurrents", titleEn: "Competitor watch",
+    descFr: "Pubs et contenus concurrents analysés en continu, alimentant la stratégie (mémoire RAG).",
+    descEn: "Competitor ads and content analysed continuously, feeding strategy (RAG memory).",
+    href: "/veille",
+    icon: "M11 4a7 7 0 1 0 4.9 12l4.1 4.1M11 4a7 7 0 0 1 7 7",
+  },
+  {
+    a: "244,63,94",
+    titleFr: "Plusieurs marques", titleEn: "Multiple brands",
+    descFr: "Gérez plusieurs sociétés, chacune avec son profil, ses connexions et ses campagnes.",
+    descEn: "Manage several companies, each with its own profile, connections and campaigns.",
+    href: "/comptes",
+    icon: "M3 21V8l9-5 9 5v13M9 21v-6h6v6",
+  },
 ];
 
 const LOOP = [
@@ -31,8 +99,8 @@ const PILLARS = [
     labelFr: "Intelligence", labelEn: "Intelligence",
     accent: "59,113,243",
     titleFr: "Un cerveau multi-agent", titleEn: "A multi-agent brain",
-    descFr: "7 agents spécialisés — stratège, copywriter, créatif, media buyer, analyste, conformité — orchestrés pour décider à chaque niveau.",
-    descEn: "7 specialized agents — strategist, copywriter, creative, media buyer, analyst, compliance — orchestrated to decide at every level.",
+    descFr: "8 agents spécialisés — stratège, copywriter, créatif, media buyer, analyste, conformité, publisher — orchestrés pour décider à chaque niveau.",
+    descEn: "8 specialized agents — strategist, copywriter, creative, media buyer, analyst, compliance, publisher — orchestrated to decide at every level.",
     icon: "M12 3a4 4 0 0 0-4 4 4 4 0 0 0-2 7.5A3.5 3.5 0 0 0 9 21a3 3 0 0 0 3-1 3 3 0 0 0 3 1 3.5 3.5 0 0 0 3-6.5A4 4 0 0 0 16 7a4 4 0 0 0-4-4Zm0 0v18",
   },
   {
@@ -101,6 +169,7 @@ const AGENTS = [
   { name: "Media Buyer", roleFr: "Budgets, enchères, scaling", roleEn: "Budgets, bids, scaling", a: "245,158,11" },
   { name: "Analyste", roleFr: "KPIs, benchmark, audience captée", roleEn: "KPIs, benchmark, captured audience", a: "16,185,129" },
   { name: "Conformité", roleFr: "Veto santé bloquant", roleEn: "Blocking health veto", a: "244,63,94" },
+  { name: "Publisher", roleFr: "Programme & publie le contenu validé", roleEn: "Schedules & publishes approved content", a: "99,102,241" },
 ];
 
 const CONNECTORS = ["Meta", "Instagram", "LinkedIn", "Claude", "Replicate", "Supabase", "Apollo", "Canva", "GA4"];
@@ -115,6 +184,9 @@ export default function LandingPage() {
         <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-3.5">
           <Logo size={30} onDark={false} />
           <nav className="hidden items-center gap-7 text-sm text-muted md:flex">
+            <a href="#pratique" className="hover:text-ink transition-colors">
+              {t("Cas d'usage", "Use cases")}
+            </a>
             <a href="#fonctionnement" className="hover:text-ink transition-colors">
               {t("Fonctionnement", "How it works")}
             </a>
@@ -203,6 +275,36 @@ export default function LandingPage() {
               </div>
               <div className="mt-1 text-xs text-muted">{t(s.labelFr, s.labelEn)}</div>
             </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── Concrètement, vous pouvez… (présentation pratique) ── */}
+      <section id="pratique" className="mx-auto max-w-6xl px-5 py-20">
+        <Reveal>
+          <SectionHeading
+            eyebrow={t("Concrètement", "In practice")}
+            title={t("Tout ce que vous pouvez faire, en un endroit", "Everything you can do, in one place")}
+          />
+        </Reveal>
+        <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {CAPABILITIES.map((c, i) => (
+            <Reveal key={c.titleFr} delay={i * 60}>
+              <Link
+                href={c.href}
+                className="card group relative flex h-full flex-col overflow-hidden p-5 transition hover:-translate-y-0.5 hover:shadow-md"
+              >
+                <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full blur-2xl transition group-hover:scale-150" style={{ background: `rgba(${c.a},0.12)` }} />
+                <div className="relative mb-3 flex h-10 w-10 items-center justify-center rounded-xl" style={{ background: `rgba(${c.a},0.10)`, border: `1px solid rgba(${c.a},0.22)` }}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke={`rgb(${c.a})`} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5"><path d={c.icon} /></svg>
+                </div>
+                <h3 className="relative text-base font-semibold text-ink">{t(c.titleFr, c.titleEn)}</h3>
+                <p className="relative mt-1.5 flex-1 text-sm leading-relaxed text-muted">{t(c.descFr, c.descEn)}</p>
+                <span className="relative mt-3 inline-flex items-center gap-1 text-xs font-semibold" style={{ color: `rgb(${c.a})` }}>
+                  {t("Ouvrir", "Open")} →
+                </span>
+              </Link>
+            </Reveal>
           ))}
         </div>
       </section>
@@ -307,7 +409,7 @@ export default function LandingPage() {
         <Reveal>
           <SectionHeading
             eyebrow={t("Un cerveau à tous les niveaux", "A brain at every level")}
-            title={t("7 agents IA spécialisés, orchestrés", "7 specialized AI agents, orchestrated")}
+            title={t("8 agents IA spécialisés, orchestrés", "8 specialized AI agents, orchestrated")}
           />
         </Reveal>
         <div className="mt-12 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

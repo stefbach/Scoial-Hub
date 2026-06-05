@@ -21,7 +21,13 @@ export async function GET() {
       CLOUDINARY: Boolean(process.env.CLOUDINARY_CLOUD_NAME || process.env.CLOUDINARY_URL),
       META_AD_LIBRARY_TOKEN: Boolean(process.env.META_AD_LIBRARY_TOKEN),
       META_APP_ID: Boolean(process.env.META_APP_ID),
+      META_APP_SECRET: Boolean(process.env.META_APP_SECRET),
       LINKEDIN_CLIENT_ID: Boolean(process.env.LINKEDIN_CLIENT_ID),
+      LINKEDIN_CLIENT_SECRET: Boolean(process.env.LINKEDIN_CLIENT_SECRET),
+      TOKEN_ENCRYPTION_KEY: Boolean(process.env.TOKEN_ENCRYPTION_KEY),
+      ADMIN_PASSWORD: Boolean(process.env.ADMIN_PASSWORD),
+      ADMIN_SECRET: Boolean(process.env.ADMIN_SECRET),
+      META_WEBHOOK_VERIFY_TOKEN: Boolean(process.env.META_WEBHOOK_VERIFY_TOKEN),
       SHOTSTACK_API_KEY: Boolean(process.env.SHOTSTACK_API_KEY),
       TELEGRAM_BOT_TOKEN: Boolean(process.env.TELEGRAM_BOT_TOKEN),
       TELEGRAM_BOT_USERNAME: Boolean(process.env.TELEGRAM_BOT_USERNAME),
@@ -29,6 +35,8 @@ export async function GET() {
     config: {
       // Valeur non secrète — utile pour diagnostiquer le rendu Shotstack.
       SHOTSTACK_ENV: process.env.SHOTSTACK_ENV === "v1" ? "v1" : "stage",
+      // Valeur non secrète — base de l'URL de redirection OAuth (LinkedIn/Meta).
+      NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL ?? null,
     },
   });
 }

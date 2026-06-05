@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Fraunces, Manrope } from "next/font/google";
 import "./globals.css";
 import { CompanyProvider } from "@/lib/company-context";
@@ -25,6 +25,15 @@ const manrope = Manrope({
   variable: "--font-sans",
   display: "swap",
 });
+
+// Viewport explicite : rendu mobile correct (width=device-width) + zoom autorisé
+// (a11y) jusqu'à 5x. `viewportFit: cover` gère les encoches (safe-area iOS).
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
+  viewportFit: "cover",
+};
 
 export const metadata: Metadata = {
   title: "AXON-AI · Social Media",

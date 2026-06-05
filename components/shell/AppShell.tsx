@@ -7,6 +7,7 @@ import { CompanySwitcher } from "./CompanySwitcher";
 import { Sidebar } from "./Sidebar";
 import { ScopeBar } from "./ScopeBar";
 import { HelpButton } from "@/components/help/HelpButton";
+import { DemoBanner } from "@/components/ui/DemoBanner";
 import { LanguageSwitcher } from "@/lib/i18n";
 import { Logo } from "@/components/brand/Logo";
 import { createClient } from "@/lib/supabase/client";
@@ -265,6 +266,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         )}
 
         <main className="min-w-0 flex-1 px-4 py-5 sm:px-6 sm:py-6 lg:px-7">
+          <DemoBanner />
           {children}
         </main>
       </div>

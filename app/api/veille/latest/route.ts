@@ -25,6 +25,7 @@ export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/env";
+import { resolveCompanyUuid } from "@/lib/repositories/resolve-company";
 
 /* ── Types exportés pour le composant Pilotage ─────────────────────────── */
 
@@ -256,10 +257,14 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     try {
       const supabase = createAdminClient();
       if (supabase) {
+        // Les sociétés de démo ont un id non-UUID (ex. "occ"). On résout
+        // l'UUID réel, sinon `.eq("company_id", …)` ne matche jamais la ligne
+        // et le dernier run n'est pas retrouvé (→ on retombe toujours sur le simulé).
+        const companyUuid = await resolveCompanyUuid(companyId);
         const { data, error } = await supabase
           .from("sh_benchmark_runs")
           .select("id, company_id, status, results, finished_at, created_at")
-          .eq("company_id", companyId)
+          .eq("company_id", companyUuid)
           .eq("status", "done")
           .order("finished_at", { ascending: false })
           .limit(1)

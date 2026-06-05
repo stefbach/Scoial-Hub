@@ -392,6 +392,10 @@ function CutCard({
   const [rErr, setRErr] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Garde-fou anti-polling infini : intervalle 4s × 45 ≈ 3 min max.
+  const POLL_INTERVAL_MS = 4000;
+  const MAX_POLLS = 45;
+
   useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
 
   async function startRender() {
@@ -413,7 +417,16 @@ function CutCard({
       }
       const id = data.id as string;
       setRState("rendering");
+      let polls = 0;
       pollRef.current = setInterval(async () => {
+        polls += 1;
+        // Garde-fou : au-delà du plafond, on arrête et on invite à réessayer.
+        if (polls > MAX_POLLS) {
+          if (pollRef.current) clearInterval(pollRef.current);
+          setRErr(t("Rendu trop long, réessayez.", "Render took too long, please retry."));
+          setRState("failed");
+          return;
+        }
         try {
           const s = await fetch(`/api/video/render/${encodeURIComponent(id)}`).then((r) => r.json());
           if (s.status === "done") {
@@ -422,11 +435,11 @@ function CutCard({
             setRState("done");
           } else if (s.status === "failed") {
             if (pollRef.current) clearInterval(pollRef.current);
-            setRErr(s.error ?? "Échec du rendu");
+            setRErr(s.error ?? t("Échec du rendu", "Render failed"));
             setRState("failed");
           }
         } catch { /* retry next tick */ }
-      }, 4000);
+      }, POLL_INTERVAL_MS);
     } catch {
       setRState("failed");
       setRErr("Erreur réseau");

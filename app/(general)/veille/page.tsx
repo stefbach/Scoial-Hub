@@ -135,6 +135,8 @@ export default function VeillePage() {
   const [result, setResult] = useState<RunResult | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [runError, setRunError] = useState<string | null>(null);
+  // Incrémenté après une analyse → force le StrategyPanel à recharger le brief.
+  const [memoryRefresh, setMemoryRefresh] = useState(0);
 
   // Onglets résultats
   const [activeTab, setActiveTab] = useState<"contenus" | "analyse">("analyse");
@@ -208,6 +210,9 @@ export default function VeillePage() {
 
   /* ── Ajout d'un compétiteur identifié ── */
   async function handleAddIdentified(c: IdentifiedCompetitor) {
+    // Suggestion à vérifier : sans handle confirmé, on n'ajoute rien (l'IA ne
+    // garantit pas l'existence du compte). L'utilisateur doit le saisir à la main.
+    if (!c.handle) return;
     setAdding(true);
     try {
       const res = await fetch("/api/veille/competitors", {
@@ -224,7 +229,7 @@ export default function VeillePage() {
       if (res.ok) {
         const data = await res.json() as { competitor: Competitor };
         setCompetitors((prev) => [data.competitor, ...prev]);
-        setIdentified((prev) => prev.filter((x) => x.handle !== c.handle));
+        setIdentified((prev) => prev.filter((x) => !(x.handle === c.handle && x.name === c.name)));
       }
     } finally {
       setAdding(false);
@@ -254,9 +259,11 @@ export default function VeillePage() {
       });
       if (res.ok) {
         const data = await res.json() as { competitors: IdentifiedCompetitor[] };
-        // Exclure ceux déjà dans la liste
+        // Exclure ceux déjà dans la liste (handle peut être null → on garde alors).
         const existingHandles = new Set(competitors.map((c) => c.handle.toLowerCase()));
-        setIdentified(data.competitors.filter((c) => !existingHandles.has(c.handle.toLowerCase())));
+        setIdentified(
+          data.competitors.filter((c) => !c.handle || !existingHandles.has(c.handle.toLowerCase()))
+        );
       }
     } finally {
       setIdentifying(false);
@@ -307,12 +314,17 @@ export default function VeillePage() {
           const adata = await ares.json() as { analysis: RunResult["analysis"] };
           setResult((prev) => (prev ? { ...prev, analysis: adata.analysis } : prev));
           // L'analyse vient d'être persistée en mémoire stratégique → on
-          // régénère le brief IA en tâche de fond (fire-and-forget).
+          // régénère le brief IA en tâche de fond (fire-and-forget). À l'issue de
+          // la synthèse, on signale au StrategyPanel de se rafraîchir (sans clic).
           void fetch("/api/memory/synthesize", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ companyId: company.id }),
-          }).catch((e) => console.warn("[veille synthesize]", e));
+          })
+            .catch((e) => console.warn("[veille synthesize]", e))
+            .finally(() => setMemoryRefresh((n) => n + 1));
+          // Rafraîchit immédiatement (la mémoire est déjà alimentée).
+          setMemoryRefresh((n) => n + 1);
         }
       } catch (e) {
         console.warn("[veille analyze]", e);
@@ -359,7 +371,7 @@ export default function VeillePage() {
         <FlowBanner t={t} />
 
         {/* ── Mémoire stratégique & brief IA (composant partagé) ── */}
-        <StrategyPanel companyId={company.id} />
+        <StrategyPanel companyId={company.id} refreshSignal={memoryRefresh} />
 
         <div className="grid grid-cols-1 lg:grid-cols-[380px_minmax(0,1fr)] gap-6 items-start">
           {/* ── Panneau de paramétrage ── */}
@@ -476,20 +488,34 @@ export default function VeillePage() {
                 </p>
               </div>
 
-              {/* Compétiteurs identifiés */}
+              {/* Compétiteurs identifiés — SUGGESTIONS IA, non confirmées : à vérifier */}
               {identified.length > 0 && (
                 <div className="space-y-2 pt-1">
-                  <p className="text-2xs font-semibold text-muted uppercase tracking-widest">{t("Suggérés", "Suggested")}</p>
-                  {identified.map((c) => (
-                    <div key={c.handle} className="rounded-lg border border-dashed border-primary-200 bg-primary-50/40 p-2.5 space-y-1">
+                  <p className="text-2xs font-semibold text-muted uppercase tracking-widest">{t("Suggestions à vérifier", "Suggestions to verify")}</p>
+                  <p className="text-2xs leading-snug text-muted">
+                    {t(
+                      "Pistes proposées par l'IA — vérifiez que chaque compte existe réellement avant de l'ajouter.",
+                      "Leads proposed by the AI — check that each account actually exists before adding it.",
+                    )}
+                  </p>
+                  {identified.map((c, i) => (
+                    <div key={`${c.handle ?? c.name}-${i}`} className="rounded-lg border border-dashed border-primary-200 bg-primary-50/40 p-2.5 space-y-1">
                       <div className="flex items-center justify-between gap-2">
                         <div className="min-w-0">
-                          <p className="text-xs font-semibold text-ink truncate">{c.name} <span className="text-muted font-normal">{c.handle}</span></p>
-                          <p className="text-2xs text-muted capitalize">{c.network}</p>
+                          <p className="text-xs font-semibold text-ink truncate">
+                            {c.name}{" "}
+                            {c.handle ? (
+                              <span className="text-muted font-normal">{c.handle}</span>
+                            ) : (
+                              <span className="text-muted font-normal italic">{t("(handle à confirmer)", "(handle to confirm)")}</span>
+                            )}
+                          </p>
+                          <p className="text-2xs text-muted capitalize">{c.network} · {t("à vérifier", "unverified")}</p>
                         </div>
                         <button
                           onClick={() => handleAddIdentified(c)}
-                          disabled={adding}
+                          disabled={adding || !c.handle}
+                          title={!c.handle ? t("Handle à confirmer avant d'ajouter", "Confirm the handle before adding") : undefined}
                           className="shrink-0 btn-primary text-2xs px-2 py-1 disabled:opacity-50"
                         >
                           {t("+ Ajouter", "+ Add")}

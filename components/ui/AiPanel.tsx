@@ -42,8 +42,11 @@ function Spinner() {
 
 export function AiTextPanel({
   brandVoiceLabel,
+  platform = "facebook",
 }: {
   brandVoiceLabel: string;
+  /** Réseau cible : respecte le réseau choisi au lieu de forcer Facebook. */
+  platform?: Platform;
 }) {
   const t = useT();
   const [useBrandVoice, setUseBrandVoice] = useState(true);
@@ -52,8 +55,7 @@ export function AiTextPanel({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  // Platform defaults to facebook; can be enhanced by receiving it as a prop later.
-  const platform: Platform = "facebook";
+  const [isMock, setIsMock] = useState(false);
 
   const ACTION_LABEL: Record<Action, string> = {
     generate: t("Generate", "Generate"),
@@ -67,6 +69,7 @@ export function AiTextPanel({
     if (!text) return;
     setLoading(true);
     setError(null);
+    setIsMock(false);
     try {
       const res = await fetch("/api/ai/generate-post", {
         method: "POST",
@@ -84,6 +87,7 @@ export function AiTextPanel({
       }
       const data = await res.json() as { text: string; mock?: boolean };
       setResult(data.text);
+      setIsMock(Boolean(data.mock));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unexpected error");
     } finally {
@@ -147,6 +151,14 @@ export function AiTextPanel({
       {/* Result area */}
       {result && (
         <div className="mt-3">
+          {isMock && (
+            <p className="mb-1.5 rounded-md bg-warning-50 px-2 py-1 text-2xs text-warning-700 ring-1 ring-warning-200">
+              {t(
+                "Démo — IA texte non configurée (ANTHROPIC_API_KEY). Texte d'exemple.",
+                "Demo — text AI not configured (ANTHROPIC_API_KEY). Sample text."
+              )}
+            </p>
+          )}
           <div className="mb-1 flex items-center justify-between">
             <span className="text-2xs font-medium text-ai-text">{t("Texte généré", "Generated text")}</span>
             <div className="flex gap-1.5">
@@ -190,12 +202,29 @@ export function AiTextPanel({
 // ─── AiVisualsPanel ─────────────────────────────────────────────────────────
 // Purple = AI visuals
 
+/** Extrait les URLs d'images, en gérant string[] ET {url}[]. */
+function extractImageUrls(images: unknown): string[] {
+  if (!Array.isArray(images)) return [];
+  return images
+    .map((it) => {
+      if (typeof it === "string") return it;
+      if (it && typeof it === "object" && typeof (it as { url?: unknown }).url === "string") {
+        return (it as { url: string }).url;
+      }
+      return null;
+    })
+    .filter((u): u is string => Boolean(u));
+}
+
 export function AiVisualsPanel({
   used,
   cap,
+  platform = "facebook",
 }: {
   used: number;
   cap: number;
+  /** Réseau cible : détermine le ratio image envoyé au générateur. */
+  platform?: Platform;
 }) {
   const t = useT();
   const [mode, setMode] = useState<"image" | "video">("image");
@@ -204,6 +233,7 @@ export function AiVisualsPanel({
   const [loading, setLoading] = useState(false);
   const [mockMessage, setMockMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [results, setResults] = useState<string[]>([]);
   const isVideo = mode === "video";
 
   const handleGenerate = async () => {
@@ -212,20 +242,38 @@ export function AiVisualsPanel({
     setLoading(true);
     setError(null);
     setMockMessage(null);
+    setResults([]);
     try {
       const res = await fetch("/api/ai/generate-image", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: text, format: mode, style }),
+        body: JSON.stringify({
+          prompt: text,
+          // Envoie le réseau cible : la route en déduit un vrai ratio
+          // (resolveImageAspect) au lieu d'un "format" invalide ("image").
+          platform,
+          style,
+          n: 4,
+        }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error((data as { error?: string }).error ?? `HTTP ${res.status}`);
       }
-      const data = await res.json() as { images?: unknown[]; mock?: boolean; message?: string };
-      if (data.mock) {
-        setMockMessage(data.message ?? t("Génération d'image non configurée.", "Image generation not configured."));
+      // La route renvoie { images: {url}[] | string[], simulated?, format, platform }.
+      const data = await res.json() as { images?: unknown; simulated?: boolean; message?: string };
+      const urls = extractImageUrls(data.images);
+      if (data.simulated || urls.length === 0) {
+        setMockMessage(
+          data.message ??
+            t(
+              "Démo — génération d'image non configurée (REPLICATE_API_TOKEN).",
+              "Demo — image generation not configured (REPLICATE_API_TOKEN)."
+            )
+        );
+        return;
       }
+      setResults(urls);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unexpected error");
     } finally {
@@ -327,17 +375,45 @@ export function AiVisualsPanel({
         <p className="mt-2 rounded-md bg-red-50 px-2 py-1 text-2xs text-red-600">{error}</p>
       )}
 
-      {/* Placeholder image grid */}
-      <div className="mt-2 grid grid-cols-4 gap-2">
-        {[0, 1, 2, 3].map((i) => (
-          <div
-            key={i}
-            className={`rounded-md border-hair ${isVideo ? "aspect-video" : "aspect-square"} ${
-              i === 0 ? "border-ai-visual bg-ai-visualbg" : "border-hair bg-card"
-            }`}
-          />
-        ))}
-      </div>
+      {/* Image grid : résultats générés OU placeholders */}
+      {results.length > 0 ? (
+        <div className="mt-2 grid grid-cols-4 gap-2">
+          {results.map((url, i) => (
+            <a
+              key={i}
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              download
+              className={`group relative block overflow-hidden rounded-md border-hair border-ai-visual/40 ${
+                isVideo ? "aspect-video" : "aspect-square"
+              }`}
+              title={t("Ouvrir / télécharger", "Open / download")}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={url}
+                alt={t(`Visuel généré ${i + 1}`, `Generated visual ${i + 1}`)}
+                className="h-full w-full object-cover"
+              />
+              <span className="absolute bottom-1 right-1 rounded bg-ink/70 px-1.5 py-0.5 text-2xs text-white opacity-0 transition-opacity group-hover:opacity-100">
+                ⬇
+              </span>
+            </a>
+          ))}
+        </div>
+      ) : (
+        <div className="mt-2 grid grid-cols-4 gap-2">
+          {[0, 1, 2, 3].map((i) => (
+            <div
+              key={i}
+              className={`rounded-md border-hair ${isVideo ? "aspect-video" : "aspect-square"} ${
+                i === 0 ? "border-ai-visual bg-ai-visualbg" : "border-hair bg-card"
+              }`}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

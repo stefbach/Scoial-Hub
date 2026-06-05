@@ -63,6 +63,7 @@ export default function PagesMetaPage() {
   const [switching, setSwitching] = useState<string | null>(null);
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
+  const [pageError, setPageError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -82,13 +83,31 @@ export default function PagesMetaPage() {
   async function selectPage(pageId: string) {
     setSwitching(pageId);
     setAnalysis(null);
+    setPageError(null);
     try {
-      await fetch("/api/meta/pages", {
+      const res = await fetch("/api/meta/pages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ companyId, pageId }),
       });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        setPageError(
+          data?.error ||
+            t(
+              `Impossible de sélectionner cette Page (erreur ${res.status}).`,
+              `Could not select this Page (error ${res.status}).`
+            )
+        );
+        return;
+      }
       await load();
+    } catch (e) {
+      setPageError(
+        e instanceof Error
+          ? e.message
+          : t("Impossible de sélectionner cette Page.", "Could not select this Page.")
+      );
     } finally {
       setSwitching(null);
     }
@@ -96,16 +115,40 @@ export default function PagesMetaPage() {
 
   async function runAnalyze() {
     setAnalyzing(true);
+    setPageError(null);
     try {
       const res = await fetch("/api/meta/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ companyId }),
       });
-      const data = await res.json();
-      if (data?.analysis) setAnalysis(data.analysis as Analysis);
-    } catch {
-      /* silencieux */
+      const data = await res.json().catch(() => null);
+      if (!res.ok || data?.error) {
+        setPageError(
+          data?.error ||
+            t(
+              `L'analyse IA a échoué (erreur ${res.status}). Réessayez.`,
+              `The AI analysis failed (error ${res.status}). Please try again.`
+            )
+        );
+        return;
+      }
+      if (data?.analysis) {
+        setAnalysis(data.analysis as Analysis);
+      } else {
+        setPageError(
+          t(
+            "L'analyse n'a renvoyé aucun résultat. Réessayez.",
+            "The analysis returned no result. Please try again."
+          )
+        );
+      }
+    } catch (e) {
+      setPageError(
+        e instanceof Error
+          ? e.message
+          : t("L'analyse IA a échoué. Réessayez.", "The AI analysis failed. Please try again.")
+      );
     } finally {
       setAnalyzing(false);
     }
@@ -125,6 +168,25 @@ export default function PagesMetaPage() {
           )}
         </p>
       </header>
+
+      {pageError && (
+        <div
+          role="alert"
+          className="flex items-start justify-between gap-3 rounded-xl border border-danger-500/30 bg-danger-50 px-4 py-3 text-sm text-danger-700"
+        >
+          <span className="min-w-0 break-words">{pageError}</span>
+          <button
+            type="button"
+            onClick={() => setPageError(null)}
+            aria-label={t("Fermer", "Dismiss")}
+            className="shrink-0 text-danger-500 hover:text-danger-700"
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+              <path d="M1 1l12 12M13 1L1 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+          </button>
+        </div>
+      )}
 
       {loading ? (
         <div className="card flex items-center justify-center p-12 text-sm text-muted">

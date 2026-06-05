@@ -71,10 +71,26 @@ export async function appendMemory(companyId: string, entries: MemoryEntry[]): P
     if (!supabase) return 0;
     const uuid = await resolveCompanyUuid(companyId);
 
-    // Anti-doublon léger : on retire les entrées de même source+title avant réinsertion.
-    const titles = clean.map((e) => e.title).filter(Boolean) as string[];
-    if (titles.length > 0) {
-      await supabase.from("sh_strategy_memory").delete().eq("company_id", uuid).in("title", titles);
+    // Anti-doublon léger et NON destructeur : on déduplique par couple
+    // (source + title), pas par titre seul. Un même titre issu de sources
+    // différentes (ex. "Format gagnant" venant de la veille ET de l'analyse de
+    // Page) est ainsi conservé, ce qui préserve un historique inter-sources.
+    const bySource = new Map<MemorySource, string[]>();
+    for (const e of clean) {
+      if (!e.title) continue;
+      const list = bySource.get(e.source) ?? [];
+      list.push(e.title);
+      bySource.set(e.source, list);
+    }
+    for (const [source, titles] of bySource) {
+      if (titles.length > 0) {
+        await supabase
+          .from("sh_strategy_memory")
+          .delete()
+          .eq("company_id", uuid)
+          .eq("source", source)
+          .in("title", titles);
+      }
     }
 
     const rows = clean.map((e) => ({

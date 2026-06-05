@@ -86,7 +86,7 @@ export function SavedFields({
 
       <div>
         <div className="text-2xs font-medium text-muted">{t("Genre", "Gender")}</div>
-        {/* Bug #23 — flex-wrap pour éviter la disparition de "Hommes" en split view */}
+        {/* flex-wrap pour éviter la disparition de "Hommes" en split view */}
         <div className="mt-1 flex flex-wrap gap-2">
           {(["All", "Women", "Men"] as const).map((g) => {
             const on = config.gender === g;

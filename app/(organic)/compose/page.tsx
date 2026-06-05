@@ -91,6 +91,14 @@ function ComposeContent() {
       ? previewPlatform
       : previewAccounts[0]?.platform ?? "facebook";
 
+  // Réseau actif transmis aux panneaux IA (texte ton + ratio image).
+  const activePlatform: "facebook" | "instagram" | "linkedin" =
+    selectedPlatforms.includes("instagram")
+      ? "instagram"
+      : selectedPlatforms.includes("linkedin")
+      ? "linkedin"
+      : "facebook";
+
   const title = body.slice(0, 48) + (body.length > 48 ? "…" : "");
 
   // Crée un post par plateforme sélectionnée via l'API.
@@ -281,9 +289,9 @@ function ComposeContent() {
             />
           </div>
 
-          {/* AI panels */}
-          <AiTextPanel brandVoiceLabel={company.code} />
-          <AiVisualsPanel used={data.library.aiBudgetUsed} cap={data.library.aiBudgetCap} />
+          {/* AI panels — réseau dérivé du 1er compte sélectionné (respecte le réseau). */}
+          <AiTextPanel brandVoiceLabel={company.code} platform={activePlatform} />
+          <AiVisualsPanel used={data.library.aiBudgetUsed} cap={data.library.aiBudgetCap} platform={activePlatform} />
 
           {/* Media upload */}
           <MediaUpload media={upload} onChange={setUpload} />

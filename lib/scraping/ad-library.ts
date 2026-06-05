@@ -69,7 +69,7 @@ export interface FetchAdsInput {
 
 export async function fetchAds(
   input: FetchAdsInput
-): Promise<{ ads: AdEntry[]; error?: string }> {
+): Promise<{ ads: AdEntry[]; error?: string; metricsAvailable?: boolean }> {
   const token = input.token || adLibraryToken();
   if (!token) return { ads: [], error: "Token Ad Library absent (META_AD_LIBRARY_TOKEN)." };
 
@@ -100,11 +100,19 @@ export async function fetchAds(
     if (data.error) {
       return { ads: [], error: data.error.error_user_msg || data.error.message || "Erreur Ad Library" };
     }
-    const ads = (data.data ?? [])
-      .map(mapAd)
-      // Tri par impressions décroissantes (dispo pour les pubs politiques/sociales).
-      .sort((a, b) => b.impressionsHigh - a.impressionsHigh);
-    return { ads };
+    // LIMITATION Meta Ad Library : les champs `impressions` et `spend` ne sont
+    // renvoyés QUE pour ad_type=POLITICAL_AND_ISSUE_ADS (pubs politiques/sociales,
+    // identité vérifiée). En mode "ALL", ces champs reviennent vides (0) — il ne
+    // faut donc NI les afficher comme une donnée fiable NI trier dessus.
+    const adTypeUsed = input.adType ?? "POLITICAL_AND_ISSUE_ADS";
+    const metricsAvailable = adTypeUsed === "POLITICAL_AND_ISSUE_ADS";
+
+    const mapped = (data.data ?? []).map(mapAd);
+    // Tri par impressions décroissantes uniquement quand la métrique existe.
+    const ads = metricsAvailable
+      ? mapped.sort((a, b) => b.impressionsHigh - a.impressionsHigh)
+      : mapped;
+    return { ads, metricsAvailable };
   } catch (err) {
     return { ads: [], error: err instanceof Error ? err.message : "Erreur réseau" };
   }

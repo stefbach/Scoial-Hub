@@ -91,6 +91,22 @@ function simulatedId(prefix: string): string {
   return `${prefix}_simulated_${Date.now()}`;
 }
 
+/**
+ * Métriques vides (toutes à zéro). Utilisé quand aucun page token n'est
+ * disponible : on évite un appel Graph API voué à l'échec et on renvoie un
+ * objet neutre que l'appelant peut afficher sans erreur.
+ */
+function emptyMetrics(): PostMetrics {
+  return {
+    reactions: 0,
+    comments: 0,
+    shares: 0,
+    linkClicks: 0,
+    reach: 0,
+    impressions: 0,
+  };
+}
+
 /** Retourne des métriques simulées cohérentes. */
 function simulatedMetrics(): PostMetrics {
   return {
@@ -214,21 +230,24 @@ class FacebookConnector implements SocialConnector {
     };
   }
 
-  async getMetrics(externalId: string): Promise<PostMetrics> {
+  async getMetrics(externalId: string, accessToken?: string): Promise<PostMetrics> {
     if (!isMetaConfigured || externalId.includes("simulated")) {
       return simulatedMetrics();
     }
 
-    // Récupère les insights via la Graph API.
-    // Note : access_token doit être passé via le header ou le store appelant.
-    // Ici on utilise l'app token (public) limité — en production, utiliser le
-    // page token stocké dans social_accounts.
-    const appToken = `${META_APP_ID}|${META_APP_SECRET}`;
+    // Les insights d'une publication exigent le PAGE token (stocké dans
+    // social_accounts), pas l'app token : un appel app-token est voué à
+    // l'échec (#403). En l'absence de page token, on retourne proprement des
+    // métriques vides plutôt que de faire un appel destiné à échouer.
+    const pageToken = accessToken?.trim();
+    if (!pageToken || pageToken.startsWith("simulated_")) {
+      return emptyMetrics();
+    }
 
     const data = await graphFetch<{
       data: { name: string; values: { value: number }[] }[];
     }>(
-      `/${externalId}/insights?metric=post_reactions_by_type_total,post_comments,post_shares,post_clicks&access_token=${appToken}`
+      `/${externalId}/insights?metric=post_reactions_by_type_total,post_comments,post_shares,post_clicks&access_token=${encodeURIComponent(pageToken)}`
     );
 
     const get = (name: string): number => {
@@ -388,10 +407,12 @@ class InstagramConnector implements SocialConnector {
         containerParams.image_url = input.media.url;
       }
     } else {
-      // Post texte seul → pas de média → on passe par un "caption only"
-      // (nécessite une image ; Instagram n'autorise pas le texte pur).
-      // On simule une image placeholder pour éviter l'erreur API.
-      containerParams.image_url = "https://via.placeholder.com/1080x1080.jpg";
+      // Instagram n'autorise pas la publication de texte seul : un média
+      // (image ou vidéo) est obligatoire. On renvoie une erreur claire plutôt
+      // que de publier une image placeholder factice à la place de l'utilisateur.
+      throw new Error(
+        "Instagram exige un média (image ou vidéo). Ajoutez un visuel à votre publication."
+      );
     }
 
     const container = await graphFetch<{ id: string }>(
@@ -420,17 +441,23 @@ class InstagramConnector implements SocialConnector {
     };
   }
 
-  async getMetrics(externalId: string): Promise<PostMetrics> {
+  async getMetrics(externalId: string, accessToken?: string): Promise<PostMetrics> {
     if (!isMetaConfigured || externalId.includes("simulated")) {
       return simulatedMetrics();
     }
 
-    const appToken = `${META_APP_ID}|${META_APP_SECRET}`;
+    // Les insights Instagram exigent le PAGE token lié au compte IG Business
+    // (pas l'app token). Sans token valide, on renvoie des métriques vides
+    // proprement au lieu d'un appel voué à l'échec.
+    const pageToken = accessToken?.trim();
+    if (!pageToken || pageToken.startsWith("simulated_")) {
+      return emptyMetrics();
+    }
 
     const data = await graphFetch<{
       data: { name: string; value: number }[];
     }>(
-      `/${externalId}/insights?metric=likes,comments,shares,saved,reach,impressions&access_token=${appToken}`
+      `/${externalId}/insights?metric=likes,comments,shares,saved,reach,impressions&access_token=${encodeURIComponent(pageToken)}`
     );
 
     const get = (name: string): number => {

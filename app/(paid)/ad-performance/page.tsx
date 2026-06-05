@@ -38,14 +38,16 @@ type StatusFilter = "all" | "active" | "paused";
 type SortDir = "desc" | "asc" | "off";
 type SortKey = "spend" | "ctr" | "cpc" | "conversions";
 
-// Anchor "now" to a fixed point matching the seed dates.
-const NOW = new Date("2026-05-30T00:00:00");
+// "Now" is dynamic so date-range filters stay correct over time.
+function nowDate(): Date {
+  return new Date();
+}
 
 function rangeWindow(range: RangeId, customFrom: Date | null, customTo: Date | null) {
   if (range === "all") return { days: 365, start: null as Date | null, end: null as Date | null };
   if (range === "custom") {
     if (!customFrom) return { days: 30, start: null, end: null };
-    const end = customTo ?? NOW;
+    const end = customTo ?? nowDate();
     const days = Math.max(1, Math.round((end.getTime() - customFrom.getTime()) / 86400000));
     return { days, start: customFrom, end };
   }
@@ -360,8 +362,8 @@ function AdPerformanceContent() {
   };
 
   const exportRows = (kind: "csv" | "json") => {
-    const periodStart = format(NOW, "yyyy-MM-dd");
-    const periodEnd = format(NOW, "yyyy-MM-dd");
+    const periodStart = format(nowDate(), "yyyy-MM-dd");
+    const periodEnd = format(nowDate(), "yyyy-MM-dd");
     const rows = sortedRows.map((r) => ({
       ad_name: r.ad.name,
       ad_set_name: r.adSet?.name ?? r.ad.adSetName,
@@ -465,11 +467,11 @@ function AdPerformanceContent() {
         <div className="mb-4 flex items-center gap-2.5 rounded-lg border border-hair bg-card px-4 py-2.5">
           <span className="text-2xs font-medium text-muted">{t("Du", "From")}</span>
           <div className="w-40">
-            <DatePicker value={customFrom ?? NOW} onChange={setCustomFrom} />
+            <DatePicker value={customFrom ?? nowDate()} onChange={setCustomFrom} />
           </div>
           <span className="text-2xs font-medium text-muted">{t("au", "to")}</span>
           <div className="w-40">
-            <DatePicker value={customTo ?? NOW} onChange={setCustomTo} />
+            <DatePicker value={customTo ?? nowDate()} onChange={setCustomTo} />
           </div>
         </div>
       )}
@@ -503,6 +505,22 @@ function AdPerformanceContent() {
             </svg>
             {t("Créer une campagne", "Create a campaign")}
           </a>
+        </div>
+      )}
+
+      {/* Estimation/demo banner — these figures are modelled from budget, not
+          pulled live from the ad platform. Be honest about it. */}
+      {!hasNoData && (
+        <div className="mb-4 flex items-start gap-2.5 rounded-lg border border-warning-100 bg-warning-50 px-4 py-2.5">
+          <span className="mt-0.5 shrink-0 rounded-full bg-warning-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-warning-700">
+            {t("Estimation · démo", "Estimate · demo")}
+          </span>
+          <p className="text-2xs leading-relaxed text-warning-700">
+            {t(
+              "Impressions, clics, CTR, CPC et tendances sont estimés à partir du budget — ce ne sont pas encore des chiffres réels de la régie publicitaire. Connectez votre compte Meta Ads pour des données réelles.",
+              "Impressions, clicks, CTR, CPC and trends are estimated from budget — these are not yet real figures from the ad platform. Connect your Meta Ads account for real data."
+            )}
+          </p>
         </div>
       )}
 
@@ -747,6 +765,9 @@ function AdPerformanceContent() {
                 </span>
                 <div className="flex-1">
                   <span className="font-semibold">{t("Insight IA :", "AI insight:")}</span>{" "}
+                  <span className="mr-1 rounded bg-warning-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-warning-700">
+                    {t("estimation", "estimate")}
+                  </span>{" "}
                   &ldquo;{topPerformer.ad.name}&rdquo; {t("est votre meilleure publicité à", "is your best performer at")}{" "}
                   {eur(topPerformer.conversions > 0 ? Number((topPerformer.spend / topPerformer.conversions).toFixed(2)) : 0, { decimals: true })}{" "}
                   {t("par conversion. Envisagez d'augmenter son budget de 30 %, ou testez des messages similaires dans d'autres campagnes.", "per conversion. Consider increasing its budget by 30%, or testing similar messaging in other campaigns.")}

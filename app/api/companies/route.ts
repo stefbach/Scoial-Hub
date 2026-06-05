@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { listCompanies, createCompany } from "@/lib/repositories/companies";
+import { isSupabaseConfigured } from "@/lib/env";
 
 // GET /api/companies[?orgId=...]
 export async function GET(req: NextRequest) {
@@ -18,7 +19,9 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { orgId = "mock-org", ...input } = body;
+    const { orgId: rawOrgId, ...input } = body;
+    const orgId: string | undefined =
+      typeof rawOrgId === "string" && rawOrgId.trim() ? rawOrgId.trim() : undefined;
 
     if (!input.name || !input.code) {
       return NextResponse.json(
@@ -27,7 +30,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const company = await createCompany(orgId, {
+    // En mode Supabase, l'orgId doit être fourni explicitement : on ne crée
+    // jamais d'organisation "mock-org" en dur côté prod. En mode mock, l'orgId
+    // est ignoré par le repository — un placeholder local suffit.
+    if (isSupabaseConfigured && !orgId) {
+      return NextResponse.json(
+        { error: "orgId is required" },
+        { status: 400 }
+      );
+    }
+
+    const company = await createCompany(orgId ?? "local-dev", {
       name: input.name,
       code: input.code,
       brandVoice: input.brandVoice ?? "",

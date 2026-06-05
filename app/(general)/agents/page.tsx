@@ -5,7 +5,7 @@
  *
  * Affiche :
  *  - En-tête avec sélecteur de marque
- *  - Grille des 7 agents (statut temps réel)
+ *  - Grille des 8 agents (statut temps réel)
  *  - Panneau de lancement (objectif + autonomie)
  *  - Timeline d'exécution (résultat du run)
  */

@@ -78,6 +78,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     // IMPORTANT : le token OAuth est un token UTILISATEUR. On liste les Pages,
     // on choisit celle qui correspond à la société, et on enregistre l'ID + le
     // token de PAGE (et le compte Instagram lié) — sinon la publication échoue.
+    // `parseState` valide le format du state (anti-CSRF) et garantit que `ret`
+    // est un chemin interne sûr (anti open-redirect → fallback interne sinon).
     const { companyId, ret } = parseState(request.nextUrl.searchParams.get("state"));
     if (companyId) {
       try {

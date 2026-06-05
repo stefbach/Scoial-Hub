@@ -120,14 +120,26 @@ export interface PlatformCut {
   renderStatus: "ready" | "queued" | "simulated";
 }
 
-/** Pistes musicales libres de droits (publiques, exploitables par le rendu). */
-export const MUSIC_TRACKS: { id: string; labelFr: string; labelEn: string; url: string }[] = [
+// ⚠️ AVERTISSEMENT LICENCE — Les pistes SoundHelix ci-dessous sont des exemples
+// de DÉMONSTRATION uniquement. Elles ne sont PAS libres de droits pour un usage
+// commercial. À NE PAS utiliser sur des publications/publicités réelles tant
+// qu'elles ne sont pas remplacées par une banque musicale licenciée
+// (ex. Epidemic Sound, Artlist, Uppbeat, ou des pistes CC-BY/CC0 vérifiées).
+// TODO(licence) : remplacer `url` par des pistes d'une banque licenciée et
+// retirer le suffixe « démo » des libellés une fois les droits sécurisés.
+
+/**
+ * Pistes musicales de DÉMONSTRATION (non libres de droits commercialement).
+ * Les libellés signalent explicitement le statut « démo » pour ne pas induire
+ * l'utilisateur en erreur sur les droits d'exploitation.
+ */
+export const MUSIC_TRACKS: { id: string; labelFr: string; labelEn: string; url: string; demo?: boolean }[] = [
   { id: "none", labelFr: "Aucune", labelEn: "None", url: "" },
-  { id: "energetic", labelFr: "Énergique", labelEn: "Energetic", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3" },
-  { id: "inspiring", labelFr: "Inspirant", labelEn: "Inspiring", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" },
-  { id: "chill", labelFr: "Chill / posé", labelEn: "Chill", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3" },
-  { id: "corporate", labelFr: "Corporate", labelEn: "Corporate", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-9.mp3" },
-  { id: "punchy", labelFr: "Punchy / urbain", labelEn: "Punchy", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-6.mp3" },
+  { id: "energetic", labelFr: "Énergique (démo, non libre de droits)", labelEn: "Energetic (demo, not royalty-free)", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3", demo: true },
+  { id: "inspiring", labelFr: "Inspirant (démo, non libre de droits)", labelEn: "Inspiring (demo, not royalty-free)", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3", demo: true },
+  { id: "chill", labelFr: "Chill / posé (démo, non libre de droits)", labelEn: "Chill (demo, not royalty-free)", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3", demo: true },
+  { id: "corporate", labelFr: "Corporate (démo, non libre de droits)", labelEn: "Corporate (demo, not royalty-free)", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-9.mp3", demo: true },
+  { id: "punchy", labelFr: "Punchy / urbain (démo, non libre de droits)", labelEn: "Punchy (demo, not royalty-free)", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-6.mp3", demo: true },
 ];
 
 /** Paquet marketing complet produit à partir des médias bruts. */

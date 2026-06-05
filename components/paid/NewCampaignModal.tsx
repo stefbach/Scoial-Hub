@@ -45,7 +45,6 @@ export function NewCampaignModal({
   const [platformId, setPlatformId] = useState(
     campaign ? platformsToId(campaign.platforms) : "fbig"
   );
-  // Bug #17: track budget type so the suffix label updates correctly
   const [budgetType, setBudgetType] = useState<"daily" | "lifetime">(
     campaign?.lifetimeBudget && !campaign?.dailyBudget ? "lifetime" : "daily"
   );
@@ -100,7 +99,6 @@ export function NewCampaignModal({
 
     try {
       if (editing && campaign) {
-        // Bug #20: PATCH via HTTP API so Supabase is updated
         const res = await fetch(`/api/campaigns/${campaign.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -134,7 +132,6 @@ export function NewCampaignModal({
           // Do not block the UI — local update already applied
         }
       } else {
-        // Bug #16 (create flow): POST to real API
         const res = await fetch("/api/campaigns", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -183,7 +180,6 @@ export function NewCampaignModal({
         </div>
       </div>
 
-      {/* Bug #18: pb-40 reserves space so the calendar dropdown is reachable by scrolling */}
       <div className="max-h-[70vh] overflow-y-auto p-4 pb-40">
         {error && (
           <div className="mb-3 rounded-md border border-danger-200 bg-danger-50 px-3 py-2 text-2xs text-danger-700">
@@ -227,7 +223,6 @@ export function NewCampaignModal({
         <div className="mb-3 grid grid-cols-2 gap-3">
           <div>
             <label className="text-2xs font-medium text-muted">{t("Type de budget", "Budget type")}</label>
-            {/* Bug #17: controlled select — drives budgetSuffix label */}
             <select
               value={budgetType}
               onChange={(e) => setBudgetType(e.target.value as "daily" | "lifetime")}
@@ -246,7 +241,6 @@ export function NewCampaignModal({
                 onChange={(e) => setBudgetAmount(e.target.value)}
                 className="w-full bg-transparent text-sm text-ink focus:outline-none"
               />
-              {/* Bug #17: suffix now reflects selected budget type */}
               <span className="shrink-0 text-2xs text-muted">{budgetSuffix}</span>
             </div>
           </div>

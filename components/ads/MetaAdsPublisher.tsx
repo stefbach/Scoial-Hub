@@ -86,6 +86,7 @@ export default function MetaAdsPublisher() {
   const [resp, setResp] = useState<AdAccountsResp | null>(null);
   const [loading, setLoading] = useState(true);
   const [switching, setSwitching] = useState(false);
+  const [accountError, setAccountError] = useState<string | null>(null);
 
   // ── Visuels (bibliothèque) ──────────────────────────────────────────────────
   const [visuals, setVisuals] = useState<LibTemplate[]>([]);
@@ -150,13 +151,31 @@ export default function MetaAdsPublisher() {
 
   async function selectAccount(adAccountId: string) {
     setSwitching(true);
+    setAccountError(null);
     try {
-      await fetch("/api/meta/adaccounts", {
+      const res = await fetch("/api/meta/adaccounts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ companyId, adAccountId }),
       });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        setAccountError(
+          data?.error ||
+            t(
+              `Impossible de changer de compte publicitaire (erreur ${res.status}).`,
+              `Could not switch ad account (error ${res.status}).`
+            )
+        );
+        return;
+      }
       await loadAccounts();
+    } catch (e) {
+      setAccountError(
+        e instanceof Error
+          ? e.message
+          : t("Impossible de changer de compte publicitaire.", "Could not switch ad account.")
+      );
     } finally {
       setSwitching(false);
     }
@@ -323,6 +342,15 @@ export default function MetaAdsPublisher() {
                 </label>
               )}
             </div>
+
+            {accountError && (
+              <div
+                role="alert"
+                className="mt-3 rounded-lg border border-danger-500/30 bg-danger-50 px-3 py-2.5 text-sm text-danger-700"
+              >
+                {accountError}
+              </div>
+            )}
 
             {/* Campagnes réelles */}
             <div className="mt-5">

@@ -166,6 +166,11 @@ export default function PilotagePage() {
 
   const pending = decisions.filter((d) => d.status === "pending").length;
 
+  // Données réelles non encore disponibles (lib/pilotage renvoie des 0/[]).
+  // On affiche des états vides explicites au lieu de cartes/KPIs à « 0 ».
+  const hasKpiData = agg.followers > 0 || agg.reach > 0 || agg.views > 0 || agg.engagementRate > 0;
+  const hasNetworkData = kpis.some((k) => k.followers > 0 || k.engagementRate > 0);
+
   return (
     <div className="animate-fade-in space-y-6">
       {/* ── Bandeau stratégie ──────────────────────────── */}
@@ -223,14 +228,24 @@ export default function PilotagePage() {
       {/* ── KPIs agrégés ───────────────────────────────── */}
       <section>
         <div className="section-label mb-2.5">{t("Indicateurs clés · tous réseaux", "Key metrics · all networks")}</div>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-          <Kpi label={t("Abonnés", "Followers")} value={fmt(agg.followers)} />
-          <Kpi label={t("Engagement", "Engagement")} value={`${agg.engagementRate}%`} accent />
-          <Kpi label={t("Likes", "Likes")} value={fmt(agg.likes)} />
-          <Kpi label={t("Commentaires", "Comments")} value={fmt(agg.comments)} />
-          <Kpi label={t("Vues", "Views")} value={fmt(agg.views)} />
-          <Kpi label={t("Portée", "Reach")} value={fmt(agg.reach)} />
-        </div>
+        {hasKpiData ? (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+            <Kpi label={t("Abonnés", "Followers")} value={fmt(agg.followers)} />
+            <Kpi label={t("Engagement", "Engagement")} value={`${agg.engagementRate}%`} accent />
+            <Kpi label={t("Likes", "Likes")} value={fmt(agg.likes)} />
+            <Kpi label={t("Commentaires", "Comments")} value={fmt(agg.comments)} />
+            <Kpi label={t("Vues", "Views")} value={fmt(agg.views)} />
+            <Kpi label={t("Portée", "Reach")} value={fmt(agg.reach)} />
+          </div>
+        ) : (
+          <EmptyState
+            title={t("Aucune statistique pour l'instant", "No statistics yet")}
+            detail={t(
+              "Vos indicateurs (abonnés, engagement, portée…) s'afficheront ici dès la connexion de vos comptes Meta / LinkedIn.",
+              "Your metrics (followers, engagement, reach…) will appear here once your Meta / LinkedIn accounts are connected."
+            )}
+          />
+        )}
       </section>
 
       {/* ── Insights de veille ─────────────────────────────────────────── */}
@@ -332,18 +347,28 @@ export default function PilotagePage() {
         <div className="space-y-6">
           <section>
             <div className="section-label mb-2.5">{t("Benchmark marché", "Market benchmark")} · {market}</div>
-            <div className="card divide-y divide-hair">
-              {bench.map((b) => (
-                <div key={b.label} className="flex items-center justify-between gap-2 px-4 py-2.5 text-sm">
-                  <span className="min-w-0 truncate text-muted">{b.label}</span>
-                  <span className="flex shrink-0 items-center gap-2">
-                    <span className="font-semibold text-ink">{b.you}{b.unit}</span>
-                    <span className="text-2xs text-muted">{t("vs", "vs")} {b.market}{b.unit}</span>
-                    <span className={b.better ? "text-success-600" : "text-danger-600"}>{b.better ? "▲" : "▼"}</span>
-                  </span>
-                </div>
-              ))}
-            </div>
+            {bench.length > 0 ? (
+              <div className="card divide-y divide-hair">
+                {bench.map((b) => (
+                  <div key={b.label} className="flex items-center justify-between gap-2 px-4 py-2.5 text-sm">
+                    <span className="min-w-0 truncate text-muted">{b.label}</span>
+                    <span className="flex shrink-0 items-center gap-2">
+                      <span className="font-semibold text-ink">{b.you}{b.unit}</span>
+                      <span className="text-2xs text-muted">{t("vs", "vs")} {b.market}{b.unit}</span>
+                      <span className={b.better ? "text-success-600" : "text-danger-600"}>{b.better ? "▲" : "▼"}</span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <EmptyState
+                title={t("Pas encore de benchmark", "No benchmark yet")}
+                detail={t(
+                  "Données disponibles dès vos premières campagnes / connexion. Nous comparerons alors vos performances au marché de votre zone.",
+                  "Data available from your first campaigns / connection. We'll then compare your performance against your market."
+                )}
+              />
+            )}
           </section>
 
           <section>
@@ -361,6 +386,15 @@ export default function PilotagePage() {
 
           <section>
             <div className="section-label mb-2.5">{t("Par réseau", "By network")}</div>
+            {!hasNetworkData ? (
+              <EmptyState
+                title={t("Aucun réseau connecté", "No network connected")}
+                detail={t(
+                  "Connectez Facebook, Instagram ou LinkedIn pour suivre vos performances réseau par réseau.",
+                  "Connect Facebook, Instagram or LinkedIn to track your performance network by network."
+                )}
+              />
+            ) : (
             <div className="space-y-2">
               {kpis.map((k: NetworkKpis) => (
                 <div key={k.network} className="card flex items-center justify-between gap-2 p-3">
@@ -378,6 +412,7 @@ export default function PilotagePage() {
                 </div>
               ))}
             </div>
+            )}
           </section>
         </div>
       </div>
@@ -388,6 +423,20 @@ export default function PilotagePage() {
           "Metrics and benchmark estimated from the target market and keywords — switch to live data once Meta / LinkedIn is connected."
         )}
       </p>
+    </div>
+  );
+}
+
+function EmptyState({ title, detail }: { title: string; detail: string }) {
+  return (
+    <div className="card flex flex-col items-center gap-1.5 p-5 text-center">
+      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-canvas text-muted ring-1 ring-hair">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <path d="M2 12.5 6 8l2.5 2.5L11 7l3 3.5M2 4h12" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </span>
+      <div className="text-sm font-semibold text-ink">{title}</div>
+      <p className="max-w-xs text-2xs text-muted">{detail}</p>
     </div>
   );
 }

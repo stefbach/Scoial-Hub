@@ -31,15 +31,20 @@ const SOURCE_LABEL: Record<string, string> = {
   veille: "Veille", ads: "Pubs", page: "Ma Page", agent: "Agents", manual: "Manuel",
 };
 
-export function StrategyPanel({ companyId }: { companyId: string }) {
+/**
+ * @param refreshSignal  Optionnel : change ce nombre (ex. après une analyse
+ *   veille/pubs déclenchée ailleurs) pour forcer un re-fetch du brief/mémoire.
+ */
+export function StrategyPanel({ companyId, refreshSignal }: { companyId: string; refreshSignal?: number }) {
   const t = useT();
   const [brief, setBrief] = useState<Brief | null>(null);
   const [memory, setMemory] = useState<MemEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [synth, setSynth] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  // `silent` : re-fetch en arrière-plan (focus/poll) sans flash de "Chargement…".
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const r = await fetch(`/api/memory?companyId=${encodeURIComponent(companyId)}`);
       const d = await r.json();
@@ -48,13 +53,44 @@ export function StrategyPanel({ companyId }: { companyId: string }) {
     } catch {
       /* ignore */
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [companyId]);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  // Le brief est régénéré en tâche de fond (fire-and-forget) par la Veille et les
+  // Pubs après une analyse. Le panneau doit donc se rafraîchir sans clic manuel :
+  // (1) quand on revient sur l'onglet/la page (focus + visibilité),
+  // (2) via un court polling après le montage, le temps que la synthèse aboutisse.
+  useEffect(() => {
+    const refresh = () => {
+      if (document.visibilityState === "visible") load(true);
+    };
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+
+    // Polling court (4 × 4 s) : capte une synthèse déclenchée juste avant/à l'arrivée.
+    let ticks = 0;
+    const id = setInterval(() => {
+      ticks += 1;
+      load(true);
+      if (ticks >= 4) clearInterval(id);
+    }, 4000);
+
+    return () => {
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+      clearInterval(id);
+    };
+  }, [load]);
+
+  // Re-fetch explicite quand le parent signale une nouvelle analyse.
+  useEffect(() => {
+    if (refreshSignal !== undefined) load(true);
+  }, [refreshSignal, load]);
 
   async function regenerate() {
     setSynth(true);

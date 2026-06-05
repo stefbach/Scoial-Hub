@@ -40,10 +40,13 @@ export default function PublicitesPage() {
   const [adType, setAdType] = useState<"POLITICAL_AND_ISSUE_ADS" | "ALL">("POLITICAL_AND_ISSUE_ADS");
   const [loading, setLoading] = useState(false);
   const [ads, setAds] = useState<AdEntry[]>([]);
+  const [metricsAvailable, setMetricsAvailable] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; key: number } | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState<AdStrategyAnalysis | null>(null);
+  // Incrémenté après une analyse → force le StrategyPanel à recharger le brief.
+  const [memoryRefresh, setMemoryRefresh] = useState(0);
 
   async function search() {
     setLoading(true);
@@ -59,6 +62,9 @@ export default function PublicitesPage() {
       const data = await res.json();
       if (data.error) setErr(data.error);
       setAds(data.ads ?? []);
+      // Impressions/dépenses uniquement disponibles pour les pubs politiques/sociales.
+      // En mode "ALL", l'API les renvoie vides : on le signale et on n'en déduit rien.
+      setMetricsAvailable(data.metricsAvailable !== false && adType === "POLITICAL_AND_ISSUE_ADS");
     } catch {
       setErr(t("Erreur réseau.", "Network error."));
     } finally {
@@ -80,12 +86,17 @@ export default function PublicitesPage() {
       if (data.analysis) {
         setAnalysis(data.analysis as AdStrategyAnalysis);
         // L'analyse est désormais stockée en mémoire stratégique : on régénère
-        // le brief IA en tâche de fond (fire-and-forget).
+        // le brief IA en tâche de fond (fire-and-forget). Quand la synthèse
+        // aboutit, on signale au StrategyPanel de recharger le brief (sans clic).
         fetch("/api/memory/synthesize", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ companyId: company.id }),
-        }).catch(() => {});
+        })
+          .catch(() => {})
+          .finally(() => setMemoryRefresh((n) => n + 1));
+        // Rafraîchit aussi immédiatement (la mémoire est déjà alimentée).
+        setMemoryRefresh((n) => n + 1);
         setToast({ message: t("Stratégie analysée et ajoutée à la mémoire.", "Strategy analyzed and added to memory."), key: Date.now() });
       } else {
         setToast({ message: t("Analyse indisponible.", "Analysis unavailable."), key: Date.now() });
@@ -142,7 +153,7 @@ export default function PublicitesPage() {
       </div>
 
       {/* Mémoire stratégique & brief IA — alimente directement les campagnes */}
-      <StrategyPanel companyId={company.id} />
+      <StrategyPanel companyId={company.id} refreshSignal={memoryRefresh} />
 
       <section className="card p-5">
         <div className="mb-3 flex items-center gap-2">
@@ -296,13 +307,33 @@ export default function PublicitesPage() {
             </div>
           )}
 
-          <div className="section-label">{ads.length} {t("publicités (triées par impressions)", "ads (sorted by impressions)")}</div>
+          {!metricsAvailable && (
+            <div className="rounded-xl border border-warning-200 bg-warning-50 px-4 py-3 text-sm text-warning-700">
+              <p className="font-semibold">
+                {t("Impressions & dépenses indisponibles hors pubs politiques", "Impressions & spend unavailable outside political/issue ads")}
+              </p>
+              <p className="mt-0.5 text-xs">
+                {t(
+                  "En mode « Toutes », la Meta Ad Library ne renvoie ni impressions ni dépenses. Ces publicités ne sont donc PAS triées par impressions. Sélectionnez « Politique & social » pour obtenir ces métriques.",
+                  "In « All » mode, the Meta Ad Library returns neither impressions nor spend. These ads are therefore NOT sorted by impressions. Select « Political & issue » to get these metrics."
+                )}
+              </p>
+            </div>
+          )}
+          <div className="section-label">
+            {ads.length}{" "}
+            {metricsAvailable
+              ? t("publicités (triées par impressions)", "ads (sorted by impressions)")
+              : t("publicités (impressions/dépenses indisponibles)", "ads (impressions/spend unavailable)")}
+          </div>
           <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
             {ads.map((a) => (
               <div key={a.id} className="card p-4">
                 <div className="mb-1.5 flex items-center justify-between gap-2">
                   <span className="min-w-0 truncate font-semibold text-ink">{a.pageName || "—"}</span>
-                  <span className="chip shrink-0 border-primary-200 bg-primary-50 text-primary-700">👁 {fmtImp(a)}</span>
+                  {metricsAvailable && (
+                    <span className="chip shrink-0 border-primary-200 bg-primary-50 text-primary-700">👁 {fmtImp(a)}</span>
+                  )}
                 </div>
                 {a.linkTitle && <p className="break-words text-sm font-medium text-ink">{a.linkTitle}</p>}
                 {a.body && <p className="mt-1 line-clamp-4 break-words text-sm text-muted">{a.body}</p>}

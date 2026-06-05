@@ -24,12 +24,13 @@ import type { HistoryItem } from "@/lib/types";
 
 type RangeId = "7d" | "30d" | "90d" | "1y" | "all" | "custom";
 
-// Anchor "now" to a fixed point matching the seed dates so filtering looks
-// natural even months after these mock items were authored.
-const NOW = new Date("2026-05-30T00:00:00");
+// "Now" is dynamic so the "last 7/30/90 days" filters stay correct over time.
+function nowDate(): Date {
+  return new Date();
+}
 
 function rangeStart(r: RangeId, customFrom?: Date | null): Date | null {
-  const d = new Date(NOW);
+  const d = nowDate();
   if (r === "7d") d.setDate(d.getDate() - 7);
   else if (r === "30d") d.setDate(d.getDate() - 30);
   else if (r === "90d") d.setDate(d.getDate() - 90);
@@ -158,11 +159,11 @@ function HistoryContent() {
         <div className="flex items-center gap-2">
           <span className="text-2xs text-muted">{t("Du", "From")}</span>
           <div className="w-40">
-            <DatePicker value={customFrom ?? NOW} onChange={setCustomFrom} />
+            <DatePicker value={customFrom ?? nowDate()} onChange={setCustomFrom} />
           </div>
           <span className="text-2xs text-muted">{t("au", "to")}</span>
           <div className="w-40">
-            <DatePicker value={customTo ?? NOW} onChange={setCustomTo} />
+            <DatePicker value={customTo ?? nowDate()} onChange={setCustomTo} />
           </div>
         </div>
       )}

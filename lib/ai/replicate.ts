@@ -209,7 +209,11 @@ export async function generateImage(
 
 export interface GenerateVideoOptions {
   prompt: string;
-  /** Durée souhaitée en secondes (5 ou 10). Défaut : 5. */
+  /**
+   * Durée souhaitée en secondes. MiniMax Video-01 produit des clips COURTS
+   * (~6s max) : la valeur est clampée à 5–6s. Ne pas promettre plus côté UI.
+   * Défaut : 5.
+   */
   seconds?: number;
   /** Ratio d'aspect : "16:9", "9:16", "1:1". Défaut : "9:16" (Reels). */
   aspect?: string;

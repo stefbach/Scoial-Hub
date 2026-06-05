@@ -1,5 +1,5 @@
 /**
- * Roster des 7 agents du système Social Hub.
+ * Roster des 8 agents du système Social Hub.
  * Chaque agent a un rôle précis dans la chaîne de valeur "campagne sociale médicale".
  */
 

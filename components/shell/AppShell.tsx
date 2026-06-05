@@ -119,14 +119,64 @@ function UserMenu() {
   );
 }
 
+// Sélecteur des éléments focusables (focus-trap du tiroir mobile).
+const DRAWER_FOCUSABLE =
+  'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [navOpen, setNavOpen] = useState(false);
+  const drawerRef = useRef<HTMLDivElement>(null);
 
   // Ferme le tiroir mobile à chaque changement de page.
   useEffect(() => {
     setNavOpen(false);
   }, [pathname]);
+
+  // Tiroir mobile : fermeture par Échap + piège à focus tant qu'il est ouvert.
+  useEffect(() => {
+    if (!navOpen) return;
+
+    const drawer = drawerRef.current;
+    // Focus initial dans le tiroir.
+    if (drawer) {
+      const first = drawer.querySelector<HTMLElement>(DRAWER_FOCUSABLE);
+      (first ?? drawer).focus();
+    }
+
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setNavOpen(false);
+        return;
+      }
+      if (e.key !== "Tab") return;
+
+      const el = drawerRef.current;
+      if (!el) return;
+      const focusables = Array.from(el.querySelectorAll<HTMLElement>(DRAWER_FOCUSABLE)).filter(
+        (n) => n.offsetParent !== null || n === document.activeElement
+      );
+      if (focusables.length === 0) {
+        e.preventDefault();
+        el.focus();
+        return;
+      }
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      const active = document.activeElement as HTMLElement | null;
+      if (e.shiftKey && (active === first || !el.contains(active))) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && (active === last || !el.contains(active))) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [navOpen]);
 
   // Pages SANS le shell applicatif : landing, auth, hub de comptes, console admin.
   const bare =
@@ -188,7 +238,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {navOpen && (
           <div className="fixed inset-0 z-40 lg:hidden" role="dialog" aria-modal="true">
             <div className="absolute inset-0 bg-ink/40 backdrop-blur-sm" onClick={() => setNavOpen(false)} />
-            <div className="absolute left-0 top-0 h-full w-[15rem] overflow-y-auto bg-card shadow-xl animate-slide-up">
+            <div
+              ref={drawerRef}
+              tabIndex={-1}
+              className="absolute left-0 top-0 h-full w-[15rem] overflow-y-auto bg-card shadow-xl outline-none animate-slide-up"
+            >
               <Sidebar onNavigate={() => setNavOpen(false)} />
             </div>
           </div>

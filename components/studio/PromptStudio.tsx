@@ -93,30 +93,53 @@ export default function PromptStudio({
   const [notice, setNotice] = useState<string | null>(null);
   const [result, setResult] = useState<ResultState | null>(null);
   const [savedLib, setSavedLib] = useState<"idle" | "saving" | "done">("idle");
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
     setSavedLib("idle");
+    setSaveError(null);
   }, [result?.url]);
 
   async function saveToLibrary() {
     if (!result) return;
     setSavedLib("saving");
+    setSaveError(null);
+    // Plateforme déduite du format choisi (au lieu d'être figée sur "instagram").
+    // Les ratios génériques retombent sur "instagram" comme défaut neutre.
+    const platform: SocialPlatform = selected?.platform ?? "instagram";
     try {
-      await fetch("/api/templates", {
+      const res = await fetch("/api/templates", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           companyId: company.id,
-          platform: "instagram",
+          platform,
           body: prompt.slice(0, 200),
           mediaUrl: result.url,
           mediaKind: result.kind,
           tags: ["studio", result.kind],
         }),
       });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setSavedLib("idle");
+        setSaveError(
+          t(
+            `Échec de l'ajout à la bibliothèque : ${data.error ?? res.status}`,
+            `Failed to add to library: ${data.error ?? res.status}`
+          )
+        );
+        return;
+      }
       setSavedLib("done");
     } catch {
       setSavedLib("idle");
+      setSaveError(
+        t(
+          "Erreur réseau lors de l'ajout à la bibliothèque.",
+          "Network error while adding to library."
+        )
+      );
     }
   }
 
@@ -236,8 +259,8 @@ export default function PromptStudio({
         if (!res.ok) {
           setNotice(
             t(
-              `Erreur (la vidéo peut dépasser 60s) : ${data.error ?? res.status}`,
-              `Error (video may exceed 60s): ${data.error ?? res.status}`
+              `Erreur (le clip vidéo IA dure ~6s) : ${data.error ?? res.status}`,
+              `Error (AI video clip is ~6s): ${data.error ?? res.status}`
             )
           );
           return;
@@ -372,8 +395,8 @@ export default function PromptStudio({
             <span className="flex items-center gap-1.5">
               <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-white" />
               {t(
-                "Génération… (image ~10s / vidéo jusqu'à 60s)",
-                "Generating… (image ~10s / video up to 60s)"
+                "Génération… (image ~10s / clip vidéo ~6s)",
+                "Generating… (image ~10s / video clip ~6s)"
               )}
             </span>
           ) : (
@@ -428,6 +451,11 @@ export default function PromptStudio({
                 : t("＋ Ajouter à la bibliothèque", "＋ Add to library")}
             </button>
           </div>
+          {saveError && (
+            <p className="mt-2 rounded-lg border border-danger/30 bg-danger/5 px-3 py-2 text-2xs text-danger">
+              {saveError}
+            </p>
+          )}
         </div>
       )}
     </section>

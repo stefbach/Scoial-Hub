@@ -17,6 +17,9 @@ export default function SignupPage() {
   const [orgName, setOrgName] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Affiché quand le compte est créé mais nécessite une confirmation e-mail
+  // (signUp renvoie un user SANS session) — on ne redirige PAS dans ce cas.
+  const [emailConfirm, setEmailConfirm] = useState(false);
 
   const isDemo = !isSupabaseConfigured;
 
@@ -52,7 +55,15 @@ export default function SignupPage() {
         return;
       }
 
-      // 2. Bootstrap : crée org + membership + companies démo
+      // Confirmation e-mail requise : user présent mais PAS de session.
+      // On NE redirige PAS vers /dashboard (il serait inaccessible) — on invite
+      // l'utilisateur à confirmer son adresse. Le bootstrap se fera après login.
+      if (!data.session) {
+        setEmailConfirm(true);
+        return;
+      }
+
+      // 2. Session active → bootstrap : crée org + membership + companies démo
       const bootstrapRes = await fetch("/api/auth/bootstrap", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -108,7 +119,40 @@ export default function SignupPage() {
           </div>
         )}
 
-        {/* Formulaire d'inscription */}
+        {/* Confirmation e-mail requise (user créé sans session) */}
+        {emailConfirm ? (
+          <div className="card p-8 text-center">
+            <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-success-50 text-success-600">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" strokeWidth="1.6" />
+                <path d="m4 7 8 6 8-6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </div>
+            <h2 className="text-lg font-semibold text-ink">
+              {t("Vérifiez votre e-mail", "Check your email")}
+            </h2>
+            <p className="mt-2 text-sm text-muted">
+              {t(
+                "Vérifiez votre e-mail pour confirmer votre compte. Un lien a été envoyé à",
+                "Check your email to confirm your account. A link was sent to"
+              )}{" "}
+              <span className="font-medium text-ink">{email}</span>.
+            </p>
+            <p className="mt-2 text-2xs text-muted">
+              {t(
+                "Une fois confirmé, connectez-vous pour finaliser la configuration de votre espace.",
+                "Once confirmed, sign in to finish setting up your workspace."
+              )}
+            </p>
+            <Link
+              href="/login"
+              className="btn-primary mt-6 inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg"
+            >
+              {t("Aller à la connexion", "Go to sign in")}
+            </Link>
+          </div>
+        ) : (
+        /* Formulaire d'inscription */
         <div className="card p-8">
           <h2 className="text-lg font-semibold text-ink mb-6">{t("Créer un compte", "Create an account")}</h2>
 
@@ -193,6 +237,7 @@ export default function SignupPage() {
             </Link>
           </p>
         </div>
+        )}
 
         <p className="text-center text-xs text-muted mt-6">
           <Link href="/" className="hover:text-ink transition-colors">

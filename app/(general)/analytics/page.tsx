@@ -57,14 +57,16 @@ const COMPANY_COLOR: Record<string, string> = {
   cvmi: "#166534",
 };
 
-// "Now" anchored to the same point as Ad Performance / History.
-const NOW = new Date("2026-05-30T00:00:00");
+// "Now" is dynamic so date-range filters stay correct over time.
+function nowDate(): Date {
+  return new Date();
+}
 
 function rangeDays(range: RangeId, customFrom: Date | null, customTo: Date | null) {
   if (range === "all") return 30;
   if (range === "custom") {
     if (!customFrom) return 30;
-    const end = customTo ?? NOW;
+    const end = customTo ?? nowDate();
     return Math.min(30, Math.max(1, Math.round((end.getTime() - customFrom.getTime()) / 86400000)));
   }
   if (range === "7d") return 7;
@@ -262,8 +264,9 @@ function AnalyticsContent() {
     const today = format(new Date(), "yyyy-MM-dd");
     const slug = scope === "all" ? "all-companies" : scope;
     const file = `social-hub-analytics-${slug}-${today}.${kind === "csv" ? "csv" : "json"}`;
-    const periodEnd = format(NOW, "yyyy-MM-dd");
-    const periodStart = format(new Date(NOW.getTime() - (days - 1) * 86400000), "yyyy-MM-dd");
+    const now = nowDate();
+    const periodEnd = format(now, "yyyy-MM-dd");
+    const periodStart = format(new Date(now.getTime() - (days - 1) * 86400000), "yyyy-MM-dd");
     const rows = inScope.map((c) => ({
       company: c.code,
       posts_published: sum(inWindow[c.id].postsPublished),
@@ -414,23 +417,27 @@ function AnalyticsContent() {
         <div className="mb-4 flex items-center gap-2">
           <span className="text-2xs text-muted">{t("Du", "From")}</span>
           <div className="w-40">
-            <DatePicker value={customFrom ?? NOW} onChange={setCustomFrom} />
+            <DatePicker value={customFrom ?? nowDate()} onChange={setCustomFrom} />
           </div>
           <span className="text-2xs text-muted">{t("au", "to")}</span>
           <div className="w-40">
-            <DatePicker value={customTo ?? NOW} onChange={setCustomTo} />
+            <DatePicker value={customTo ?? nowDate()} onChange={setCustomTo} />
           </div>
         </div>
       )}
 
-      {/* Overview metrics */}
-      <div className="section-label mb-3">{t("Vue d'ensemble", "Overview")}</div>
-      <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <MetricCard label={t("Publications", "Posts published")} value={totals.postsPublished} trend={trend(totals.postsPublished, prevTotals.postsPublished)} />
-        <MetricCard label={t("Engagement", "Engagement")} value={totals.engagement.toLocaleString()} trend={trend(totals.engagement, prevTotals.engagement)} />
-        <MetricCard label={t("Dépenses pub.", "Ad spend")} value={eur(totals.adSpend)} trend={trend(totals.adSpend, prevTotals.adSpend)} />
-        <MetricCard label={t("Conversions", "Conversions")} value={totals.conversions} trend={trend(totals.conversions, prevTotals.conversions)} />
-      </div>
+      {/* Overview metrics — only when real data exists (no invented numbers) */}
+      {hasData && (
+        <>
+          <div className="section-label mb-3">{t("Vue d'ensemble", "Overview")}</div>
+          <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <MetricCard label={t("Publications", "Posts published")} value={totals.postsPublished} trend={trend(totals.postsPublished, prevTotals.postsPublished)} />
+            <MetricCard label={t("Engagement", "Engagement")} value={totals.engagement.toLocaleString()} trend={trend(totals.engagement, prevTotals.engagement)} />
+            <MetricCard label={t("Dépenses pub.", "Ad spend")} value={eur(totals.adSpend)} trend={trend(totals.adSpend, prevTotals.adSpend)} />
+            <MetricCard label={t("Conversions", "Conversions")} value={totals.conversions} trend={trend(totals.conversions, prevTotals.conversions)} />
+          </div>
+        </>
+      )}
 
       {/* Empty state — shown when no analytics data exists yet */}
       {!hasData && (
@@ -440,13 +447,19 @@ function AnalyticsContent() {
               <path d="M3 20h18M3 14l5-5 4 4 5-7 4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           </div>
-          <h3 className="mb-1 text-sm font-semibold text-ink">{t("Pas encore de données analytiques", "No analytics data yet")}</h3>
+          <h3 className="mb-1 text-sm font-semibold text-ink">{t("Pas encore de données analytiques — connectez vos réseaux", "No analytics data yet — connect your networks")}</h3>
           <p className="max-w-sm text-xs text-muted">
             {t(
-              "Les graphiques et indicateurs apparaîtront dès que vos premières publications ou campagnes génèrent de l'activité.",
-              "Charts and metrics will appear once your first posts or campaigns generate activity."
+              "Les graphiques et indicateurs apparaîtront dès que vos réseaux seront connectés et que vos premières publications ou campagnes génèreront de l'activité.",
+              "Charts and metrics will appear once your networks are connected and your first posts or campaigns generate activity."
             )}
           </p>
+          <a
+            href="/accounts"
+            className="mt-5 inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-4 py-2 text-xs font-semibold text-white shadow-xs hover:bg-primary-700 transition-colors"
+          >
+            {t("Connecter mes réseaux", "Connect my networks")}
+          </a>
         </div>
       )}
 
@@ -526,10 +539,12 @@ function AnalyticsContent() {
         </div>
       )}
 
-      {/* AI summary */}
-      <div className="rounded-xl border border-ai-text/20 bg-ai-textbg px-4 py-3.5 text-xs text-ai-text shadow-xs">
-        <span className="font-semibold">{t("Synthèse IA :", "AI summary:")}</span> {ANALYTICS_SUMMARY}
-      </div>
+      {/* AI summary — only when real data exists */}
+      {hasData && (
+        <div className="rounded-xl border border-ai-text/20 bg-ai-textbg px-4 py-3.5 text-xs text-ai-text shadow-xs">
+          <span className="font-semibold">{t("Synthèse IA :", "AI summary:")}</span> {ANALYTICS_SUMMARY}
+        </div>
+      )}
     </div>
   );
 }

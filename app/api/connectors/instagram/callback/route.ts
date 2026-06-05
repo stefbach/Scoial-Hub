@@ -69,6 +69,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
     // Sélectionne la Page (et son compte IG Business) et enregistre les
     // connexions Facebook + Instagram avec les bons identifiants/token de Page.
+    // `parseState` valide le format du state (anti-CSRF) et garantit que `ret`
+    // est un chemin interne sûr (anti open-redirect → fallback interne sinon).
     const { companyId, ret } = parseState(request.nextUrl.searchParams.get("state"));
     if (companyId) {
       try {
@@ -85,8 +87,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       }
     }
 
-    const dest = ret || "/accounts";
-    return NextResponse.redirect(`${REDIRECT_BASE}${dest}?connected=instagram`);
+    // `ret` est déjà un chemin interne sûr garanti par parseState.
+    return NextResponse.redirect(`${REDIRECT_BASE}${ret}?connected=instagram`);
   } catch (err) {
     console.error("[Instagram callback] Erreur lors de l'échange du code :", err);
     return NextResponse.redirect(

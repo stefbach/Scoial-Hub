@@ -202,7 +202,6 @@ function CampaignsContent() {
               variant="danger"
               onClick={async () => {
                 if (!confirmDelete) return;
-                // Bug #20: call HTTP API so Supabase row is removed
                 const idToDelete = confirmDelete.id;
                 try {
                   await fetch(`/api/campaigns/${idToDelete}`, { method: "DELETE" });

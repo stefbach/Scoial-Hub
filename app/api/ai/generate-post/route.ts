@@ -12,6 +12,8 @@ interface RequestBody {
   platform: Platform;
   brandVoice: string;
   action: Action;
+  /** Optional campaign/post objective, e.g. "engagement", "awareness", "conversions". */
+  objective?: string;
 }
 
 // Platform-specific constraints
@@ -28,38 +30,45 @@ const ACTION_INSTRUCTIONS: Record<Action, string> = {
   hashtags: "Suggest 5–10 relevant hashtags for the provided text. Return ONLY the hashtags, one per line, starting with #. No other text.",
 };
 
-// Mock contextualised examples per action
-const MOCK_RESPONSES: Record<Action, string> = {
-  generate:
-    "Prendre soin de sa santé, c'est un geste quotidien. Nos équipes médicales sont là pour vous accompagner avec bienveillance et expertise — en consultation ou en téléconsultation. Prenez rendez-vous dès aujourd'hui. 🩺\n\n#SantéAccessible #Téléconsultation #MédecineGénérale",
-  rewrite:
-    "Votre santé mérite une attention professionnelle et bienveillante. Consultez nos spécialistes depuis chez vous ou en cabinet — facilement, rapidement, en toute confidentialité.",
-  shorten:
-    "Santé et bien-être à portée de clic. Consultez nos équipes médicales en téléconsultation dès maintenant.",
-  hashtags:
-    "#Santé\n#Téléconsultation\n#MédecineEnLigne\n#BienEtre\n#ConsultationMédicale\n#SantéNumérique\n#MedecinEnLigne",
-};
+// Neutral, brand-agnostic fallbacks used when no AI key is configured.
+// Built dynamically so the demo text reflects the caller's brand voice and
+// objective rather than any specific (hard-coded) brand or sector.
+function mockResponse(action: Action, brandVoice: string, objective?: string): string {
+  const voice = brandVoice?.trim() ? brandVoice.trim() : "professionnel et chaleureux";
+  const goal = objective?.trim() ? objective.trim() : "engagement";
+  switch (action) {
+    case "rewrite":
+      return `Version retravaillée pour coller à votre voix de marque (${voice}) : un message plus clair, plus direct et fidèle à votre ton, avec un appel à l'action adapté à l'objectif « ${goal} ».`;
+    case "shorten":
+      return `Message condensé, ton ${voice}, sans perdre l'essentiel — clair et percutant.`;
+    case "hashtags":
+      return "#Marque\n#Communauté\n#Nouveauté\n#ÀLaUne\n#EnSavoirPlus\n#Tendance\n#ResteConnecté";
+    case "generate":
+    default:
+      return `Voici une publication prête à l'emploi, dans un ton ${voice}, pensée pour l'objectif « ${goal} ». Adaptez le visuel et l'appel à l'action à votre marque, puis publiez. ✨\n\n#Marque #Communauté #ÀLaUne`;
+  }
+}
 
-const SYSTEM_PROMPT = (platform: Platform, brandVoice: string): string => `
-You are an expert social media copywriter for a medical and healthcare brand group (DDS Group), which operates three brands: Obesity Care Clinic, Tibok téléconsultation, and Cabo Verde Medical International.
+const SYSTEM_PROMPT = (platform: Platform, brandVoice: string, objective?: string): string => `
+You are an expert social media copywriter who adapts to any brand, sector, or campaign — never assume a specific industry, company, or product unless it is stated in the brand voice or the user's brief.
 
 ## Brand Voice
 Adapt your tone to match this brand voice description: "${brandVoice}".
-Always be warm, professional, and human. Never be sensationalist or alarmist.
+Be authentic, professional, and human. Never be sensationalist or alarmist.
+
+## Objective
+Optimise the copy for this campaign/post objective: "${objective ?? "engagement"}".
+${objective ? "Make sure the call-to-action and framing serve that objective." : "Default to driving engagement with a clear, inviting call-to-action."}
 
 ## Platform Constraints
 ${PLATFORM_RULES[platform]}
 
-## Healthcare Compliance — MANDATORY RULES (CRITICAL — never violate these)
-1. NO unsubstantiated medical claims: Do not assert that a product or service cures, treats, or prevents any disease unless backed by referenced clinical evidence.
-2. NO guaranteed results: Phrases like "you will lose X kg", "guaranteed results", "permanent cure" are strictly forbidden.
-3. NO before/after implications: Do not imply dramatic physical transformation as a guaranteed outcome.
-4. NO alarmist language: Avoid fear-mongering, urgency bait, or exploiting insecurities (e.g., "you are at risk", "don't wait until it's too late" as a scare tactic).
-5. NO targeting by health condition: Do not address content specifically to people "suffering from" a condition in a way that could be used for discriminatory ad targeting.
-6. NO misleading pricing or access claims: Do not imply services are free when they are not, or overstate coverage.
-7. USE measured, evidence-respecting language: Prefer "may help", "supports", "consult a healthcare professional", "evidence-based approach", "our team is here to support you".
-8. ALWAYS recommend consulting a healthcare professional for medical decisions.
-9. Regulatory alignment: Content must be compatible with French health advertising regulations (ANSM guidelines) and Meta health ad policies.
+## General Best Practices
+1. Stay strictly on-topic with the user's brief and the stated brand voice — do not invent products, services, or claims not provided.
+2. Make no unsubstantiated, guaranteed, or misleading claims about results, pricing, or outcomes.
+3. Avoid fear-mongering, urgency bait, or exploiting insecurities.
+4. If the brief touches a regulated sector (health, finance, legal, etc.), use measured, evidence-respecting language and avoid prohibited claims; recommend consulting a qualified professional where relevant.
+5. Write in the language of the user's brief (default to French if ambiguous).
 
 ## Output Format
 Return ONLY the post text — no commentary, no "Here is your post:", no quotes wrapping the result. Just the ready-to-use content.
@@ -68,7 +77,7 @@ Return ONLY the post text — no commentary, no "Here is your post:", no quotes 
 export async function POST(req: NextRequest) {
   try {
     const body: RequestBody = await req.json();
-    const { prompt, platform, brandVoice, action } = body;
+    const { prompt, platform, brandVoice, action, objective } = body;
 
     if (!prompt || !platform || !action) {
       return NextResponse.json(
@@ -80,7 +89,7 @@ export async function POST(req: NextRequest) {
     // Mock mode — no API key configured
     if (!isAiConfigured) {
       return NextResponse.json({
-        text: MOCK_RESPONSES[action] ?? MOCK_RESPONSES.generate,
+        text: mockResponse(action, brandVoice, objective),
         mock: true,
       });
     }
@@ -92,7 +101,7 @@ export async function POST(req: NextRequest) {
     const response = await client.messages.create({
       model: env.anthropicModel,
       max_tokens: 1024,
-      system: SYSTEM_PROMPT(platform, brandVoice),
+      system: SYSTEM_PROMPT(platform, brandVoice, objective),
       messages: [{ role: "user", content: userMessage }],
     });
 

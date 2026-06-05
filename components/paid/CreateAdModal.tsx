@@ -54,12 +54,12 @@ export function CreateAdModal({
   const locked = !!(lockedCampaignId && lockedAdSetId);
   const [upload, setUpload] = useState<UploadedMedia | null>(null);
 
-  // Ad form fields (Bug #16 — wire "Créer la publicité")
+  // Ad form fields
   const adNameRef = useRef<HTMLInputElement>(null);
   const ctaRef = useRef<HTMLInputElement>(null);
   const headlineRef = useRef<HTMLInputElement>(null);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
-  // Bug #15 — controlled prompt for the AI creative textarea
+  // Controlled prompt for the AI creative textarea
   const [aiPrompt, setAiPrompt] = useState(
     "A vibrant glass of water with fresh lemon and mint, warm morning light, professional wellness photography, clean wooden table."
   );
@@ -67,9 +67,8 @@ export function CreateAdModal({
   const [saving, setSaving] = useState(false);
   const [saveOk, setSaveOk] = useState(false);
 
-  // Bug #16 — "Créer la publicité" is enabled as soon as a creative exists
-  // (upload) OR ad name is entered (for text-only ads with no creative yet).
-  // We recompute on render via a separate state for the headline.
+  // "Créer la publicité" is enabled as soon as a creative exists (upload) OR a
+  // headline is entered (for text-only ads with no creative yet).
   const [headlineVal, setHeadlineVal] = useState("Reclaim your energy this January");
 
   const canCreate = !noAdSets && (!!upload || headlineVal.trim().length > 0);
@@ -204,7 +203,6 @@ export function CreateAdModal({
               <Field inputRef={adNameRef} label={t("Nom de la publicité", "Ad name")} value="Hydration tip — FB Feed" />
               <Field inputRef={ctaRef} label={t("Bouton d'action", "Call-to-action")} value="Book now" />
             </div>
-            {/* Bug #16: headline drives canCreate, so use controlled input */}
             <div className="mt-3">
               <label className="text-2xs font-medium text-muted">{t("Titre", "Headline")}</label>
               <input
@@ -269,7 +267,6 @@ export function CreateAdModal({
                   { id: "video", label: t("Vidéo", "Video") },
                 ]}
               />
-              {/* Bug #15: controlled textarea (w-full already, height increased to h-20) */}
               <textarea
                 value={aiPrompt}
                 onChange={(e) => setAiPrompt(e.target.value)}
@@ -280,7 +277,6 @@ export function CreateAdModal({
                 className="mt-2 h-20 w-full resize-none rounded-md border-hair border-hair bg-card p-2 text-xs text-ink placeholder:text-muted focus:outline-none"
               />
               <div className="mt-2 flex items-center justify-between">
-                {/* Bug #15: button enabled as soon as aiPrompt is non-empty */}
                 <button
                   disabled={!aiPrompt.trim()}
                   title={
@@ -337,14 +333,12 @@ export function CreateAdModal({
 
       <div className="flex items-center justify-between border-t-hair border-hair px-4 py-3">
         <div className="flex items-center gap-2 text-2xs text-muted">
-          {/* Bug #16: toggle controls launchNow state */}
           <Toggle defaultOn={false} onChange={setLaunchNow} />
           {t("Lancer immédiatement", "Launch immediately")}
           <span className="ml-2">{t("Protections actives · Lecture seule désactivée · Confirmation double EUR 500/jour", "Safeguards active · Read-only off · EUR 500/day double-confirm")}</span>
         </div>
         <div className="flex gap-2">
           <Button variant="secondary" onClick={onClose} disabled={saving}>{t("Annuler", "Cancel")}</Button>
-          {/* Bug #16: button wired to handleCreate; enabled when headline or upload present */}
           <Button
             variant="primary"
             disabled={!canCreate || saving}

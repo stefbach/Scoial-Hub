@@ -14,6 +14,7 @@ export const runtime = "nodejs";
 
 import { type NextRequest, NextResponse } from "next/server";
 import { getConnector } from "@/lib/connectors/index";
+import { parseState } from "@/lib/connectors/oauth-state";
 
 const REDIRECT_BASE =
   process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
@@ -68,6 +69,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       console.warn("[LinkedIn callback] Impossible d'enregistrer le compte :", dbErr);
     }
 
+    // `parseState` valide le format du state (anti-CSRF) et garantit que `ret`
+    // est un chemin interne sûr (anti open-redirect → fallback interne sinon).
+    const { ret } = parseState(request.nextUrl.searchParams.get("state"));
+
     const params = new URLSearchParams({
       connected: "true",
       platform: "linkedin",
@@ -75,7 +80,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     });
     if (tokenSet.raw?.simulated) params.set("simulated", "true");
 
-    return NextResponse.redirect(`${REDIRECT_BASE}/accounts?${params.toString()}`);
+    return NextResponse.redirect(`${REDIRECT_BASE}${ret}?${params.toString()}`);
   } catch (err) {
     console.error("[LinkedIn callback] Erreur lors de l'échange du code :", err);
     return NextResponse.redirect(

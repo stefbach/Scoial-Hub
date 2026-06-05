@@ -39,6 +39,7 @@ export function CreativeInspiration({
   const [inspiring, setInspiring] = useState(false);
   const [insp, setInsp] = useState<Inspiration | null>(null);
   const [genVisual, setGenVisual] = useState(false);
+  const [genUrl, setGenUrl] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -71,6 +72,8 @@ export function CreativeInspiration({
   async function inspire(c: CreativeItem) {
     setSelected(c);
     setInsp(null);
+    setGenUrl(null);
+    setNote(null);
     setInspiring(true);
     try {
       const res = await fetch("/api/ai/inspire-from-creative", {
@@ -98,20 +101,32 @@ export function CreativeInspiration({
   async function generateVisual() {
     if (!insp?.mediaPrompt) return;
     setGenVisual(true);
+    setGenUrl(null);
+    setNote(null);
     try {
       const res = await fetch("/api/ai/generate-image", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt: insp.mediaPrompt, platform }),
       });
-      const data = (await res.json()) as { images?: unknown };
+      const data = (await res.json()) as {
+        images?: Array<string | { url?: string }>;
+        simulated?: boolean;
+        error?: string;
+      };
       const first = Array.isArray(data.images) ? data.images[0] : undefined;
-      const imgUrl = typeof first === "string" ? first : (first as { url?: string })?.url;
+      const imgUrl = typeof first === "string" ? first : first?.url;
       if (imgUrl) {
+        setGenUrl(imgUrl);
         onApplyMedia({ url: imgUrl, name: "inspiration.png", size: 0, kind: "image" });
-        setNote(t("Visuel généré et appliqué à l'aperçu.", "Visual generated and applied to preview."));
+        setNote(t("Visuel généré et appliqué à l'aperçu du post.", "Visual generated and applied to the post preview."));
+      } else if (data.simulated) {
+        setNote(t(
+          "Mode démo : la génération d'image n'est pas activée (clé REPLICATE_API_TOKEN manquante). Le brief visuel ci-dessus est prêt à l'emploi.",
+          "Demo mode: image generation is off (missing REPLICATE_API_TOKEN). The visual brief above is ready to use.",
+        ));
       } else {
-        setNote(t("Génération d'image non configurée (démo).", "Image generation not configured (demo)."));
+        setNote(data.error || t("Aucune image renvoyée.", "No image returned."));
       }
     } catch {
       setNote(t("Échec de génération du visuel.", "Visual generation failed."));
@@ -208,8 +223,17 @@ export function CreativeInspiration({
                 <div className="border-t border-primary-200/60 pt-2">
                   <p className="text-2xs text-muted">{t("Brief visuel", "Visual brief")} : {insp.mediaPrompt}</p>
                   <button type="button" onClick={generateVisual} disabled={genVisual} className="btn-secondary mt-2 text-2xs px-2 py-1">
-                    {genVisual ? t("Génération…", "Generating…") : t("Générer le visuel", "Generate visual")}
+                    {genVisual ? t("Génération… (≈10–30 s)", "Generating… (≈10–30 s)") : t("Générer le visuel", "Generate visual")}
                   </button>
+                  {genVisual && (
+                    <div className="mt-2 flex aspect-square w-32 items-center justify-center rounded-lg border border-hair bg-canvas">
+                      <span className="h-5 w-5 animate-spin rounded-full border-2 border-primary-300 border-t-transparent" />
+                    </div>
+                  )}
+                  {genUrl && !genVisual && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={genUrl} alt="visuel généré" className="mt-2 w-32 rounded-lg border border-hair" />
+                  )}
                 </div>
               )}
             </div>

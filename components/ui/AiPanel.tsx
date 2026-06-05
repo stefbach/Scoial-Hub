@@ -44,10 +44,13 @@ function Spinner() {
 export function AiTextPanel({
   brandVoiceLabel,
   platform = "facebook",
+  language,
 }: {
   brandVoiceLabel: string;
   /** Réseau cible : respecte le réseau choisi au lieu de forcer Facebook. */
   platform?: Platform;
+  /** Langue de diffusion dans laquelle l'IA doit rédiger (ex : "Français"). */
+  language?: string;
 }) {
   const t = useT();
   const { company } = useCompany();
@@ -82,6 +85,7 @@ export function AiTextPanel({
           brandVoice: useBrandVoice ? brandVoiceLabel : "neutral, professional",
           action,
           companyId: company?.id,
+          language,
         }),
       });
       if (!res.ok) {

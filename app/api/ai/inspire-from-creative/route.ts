@@ -26,6 +26,7 @@ interface Body {
   origin?: string;
   source?: "ad" | "veille";
   brandVoice?: string;
+  language?: string;
   count?: number;
 }
 
@@ -63,6 +64,7 @@ export async function POST(req: NextRequest) {
       origin = "",
       source = "ad",
       brandVoice = "",
+      language = "",
       count = 3,
     } = body;
     const n = Math.max(1, Math.min(count, 4));
@@ -96,6 +98,7 @@ ${brandVoice ? `Voix de marque : "${brandVoice}".` : ""}
 ${memoryContext ? `\n[Mémoire stratégique de la marque — à exploiter]\n${memoryContext}\n` : ""}
 
 OBJECTIF : t'INSPIRER de ce qui marche (angle, structure, accroche) pour produire ${n} propositions ORIGINALES et DISTINCTES (angles différents) dans l'identité de la marque. N'imite ni ne copie le texte ni le visuel source ; ne reprends aucune marque/logo tiers.
+${language ? `\nIMPORTANT : rédige TOUT le champ "postText" (accroche, corps, appel à l'action, hashtags) intégralement en ${language}.` : ""}
 
 Réponds STRICTEMENT en JSON (français), un tableau de ${n} objets :
 {

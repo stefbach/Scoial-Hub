@@ -20,6 +20,19 @@ import { findHistoryItem } from "@/lib/history-store";
 const PLACEHOLDER =
   "Rédigez le contenu de votre publication ici…";
 
+/** Langues de diffusion proposées pour la rédaction du contenu par l'IA. */
+const DIFFUSION_LANGUAGES = [
+  "Français",
+  "English",
+  "Español",
+  "Deutsch",
+  "Italiano",
+  "Português",
+  "Nederlands",
+  "العربية",
+  "中文",
+] as const;
+
 const platformLabel = (p: string) =>
   p === "facebook" ? "Facebook" : p === "instagram" ? "Instagram" : "LinkedIn";
 
@@ -68,6 +81,7 @@ function ComposeContent() {
   const [time, setTime] = useState(scheduleSource?.time ?? "09:00");
   const [upload, setUpload] = useState<UploadedMedia | null>(null);
   const [editing, setEditing] = useState(false);
+  const [language, setLanguage] = useState("Français");
   const [previewPlatform, setPreviewPlatform] = useState<"facebook" | "instagram">("facebook");
   const [submitting, setSubmitting] = useState(false);
   const [savingLibrary, setSavingLibrary] = useState(false);
@@ -292,17 +306,35 @@ function ComposeContent() {
             />
           </div>
 
+          {/* Langue de diffusion — langue dans laquelle l'IA rédige le contenu */}
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-hair bg-canvas/60 px-3 py-2">
+            <label htmlFor="diffusion-lang" className="text-xs font-medium text-ink">
+              🌐 {t("Langue de diffusion", "Publishing language")}
+            </label>
+            <select
+              id="diffusion-lang"
+              value={language}
+              onChange={(e) => setLanguage(e.target.value)}
+              className="input text-sm"
+            >
+              {DIFFUSION_LANGUAGES.map((l) => (
+                <option key={l} value={l}>{l}</option>
+              ))}
+            </select>
+          </div>
+
           {/* Inspiration depuis une créa existante (vos pubs / concurrents / veille) */}
           <CreativeInspiration
             companyId={company.id}
             brandVoice={company.code}
             platform={activePlatform}
+            language={language}
             onApplyText={setBody}
             onApplyMedia={setUpload}
           />
 
           {/* AI panels — réseau dérivé du 1er compte sélectionné (respecte le réseau). */}
-          <AiTextPanel brandVoiceLabel={company.code} platform={activePlatform} />
+          <AiTextPanel brandVoiceLabel={company.code} platform={activePlatform} language={language} />
           <AiVisualsPanel used={data.library.aiBudgetUsed} cap={data.library.aiBudgetCap} platform={activePlatform} />
 
           {/* Media upload */}

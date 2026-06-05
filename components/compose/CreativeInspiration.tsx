@@ -30,12 +30,15 @@ export function CreativeInspiration({
   companyId,
   brandVoice,
   platform,
+  language,
   onApplyText,
   onApplyMedia,
 }: {
   companyId: string;
   brandVoice: string;
   platform: "facebook" | "instagram" | "linkedin";
+  /** Langue de diffusion imposée pour les propositions de texte. */
+  language?: string;
   onApplyText: (text: string) => void;
   onApplyMedia: (media: UploadedMedia) => void;
 }) {
@@ -95,6 +98,7 @@ export function CreativeInspiration({
           origin: c.origin,
           source: c.source,
           brandVoice,
+          language,
           count: 3,
         }),
       });

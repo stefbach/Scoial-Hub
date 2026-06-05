@@ -229,20 +229,20 @@ function AccountsPageInner() {
         <div className="section-label">LinkedIn</div>
       </div>
       <div className="card p-4">
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <span className="text-sm font-semibold text-ink">{t("Page Entreprise LinkedIn", "LinkedIn Company Page")}</span>
               <StatusBadge tone="gray">{t("Non connecté", "Not connected")}</StatusBadge>
             </div>
-            <p className="mt-1 text-2xs text-muted">
+            <p className="mt-1 break-words text-2xs text-muted">
               {t(
                 `Connectez la Page Entreprise LinkedIn de ${company.code} pour publier des posts organiques. Nécessite l'accès à la LinkedIn Marketing Developer Platform (approbation sous 5 à 10 jours ouvrés).`,
                 `Connect ${company.code}'s LinkedIn Company Page to publish organic posts. Requires LinkedIn Marketing Developer Platform access (approval takes 5–10 business days).`
               )}
             </p>
           </div>
-          <Button variant="primary" onClick={() => setLinkedinOpen(true)}>{t("Connecter", "Connect")}</Button>
+          <Button variant="primary" className="shrink-0" onClick={() => setLinkedinOpen(true)}>{t("Connecter", "Connect")}</Button>
         </div>
       </div>
 
@@ -367,10 +367,10 @@ function NativeConnectorCard({
 
   return (
     <div className="card p-4">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         {/* Left: logo + info */}
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {/* Platform colour dot */}
             <span
               className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full ring-1 ${meta.bg} ${meta.ring}`}
@@ -410,7 +410,7 @@ function NativeConnectorCard({
           {configured && accounts.length > 0 && (
             <ul className="mt-2 space-y-1">
               {accounts.map((acc) => (
-                <li key={acc.id} className="flex items-center gap-2 text-2xs text-muted">
+                <li key={acc.id} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-2xs text-muted">
                   <span
                     className={`h-1.5 w-1.5 shrink-0 rounded-full ${
                       acc.status === "active"
@@ -419,8 +419,8 @@ function NativeConnectorCard({
                     }`}
                     aria-hidden="true"
                   />
-                  <span className="font-medium text-ink">{acc.accountName}</span>
-                  {acc.externalId && <span className="opacity-60">· {acc.externalId}</span>}
+                  <span className="min-w-0 break-words font-medium text-ink">{acc.accountName}</span>
+                  {acc.externalId && <span className="min-w-0 break-all opacity-60">· {acc.externalId}</span>}
                   {acc.status !== "active" && (
                     <StatusBadge tone="amber">{acc.status}</StatusBadge>
                   )}
@@ -486,18 +486,18 @@ function ConnectedMetaCard({
   const t = useT();
   return (
     <div className="card mb-5 overflow-hidden p-4">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="text-sm font-semibold text-ink">Meta Business Manager</span>
             <StatusBadge tone="green">{t("Connecté", "Connected")}</StatusBadge>
           </div>
-          <div className="mt-1 space-y-0.5 text-2xs text-muted">
+          <div className="mt-1 space-y-0.5 break-words text-2xs text-muted">
             <div>{t("Connecté via Meta Official MCP ·", "Connected via Meta Official MCP ·")} {meta.connectedAt ? fmtDate(new Date(`${meta.connectedAt}T00:00:00`)) : "—"}</div>
             <div>Business Manager: {meta.businessManagerName ?? `${companyCode} Holdings`}</div>
           </div>
         </div>
-        <div className="flex shrink-0 gap-2">
+        <div className="flex shrink-0 flex-wrap gap-2">
           <Button variant="secondary" disabled title={onReconnectDisabledTooltip}>{t("Reconnecter", "Reconnect")}</Button>
           <Button variant="danger" onClick={onDisconnect}>{t("Déconnecter", "Disconnect")}</Button>
         </div>
@@ -505,15 +505,15 @@ function ConnectedMetaCard({
 
       <div className="mt-4 border-t border-hair pt-4">
         <div className="section-label mb-2.5">{t("Pages & comptes disponibles", "Pages & accounts available")}</div>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           <div className="rounded-lg border border-hair bg-canvas px-3 py-2.5">
-            <div className="text-xs font-semibold text-ink">
+            <div className="break-words text-xs font-semibold text-ink">
               {meta.facebookPageName ?? `${companyCode} Facebook Page`}
             </div>
             <div className="mt-0.5 text-2xs text-muted">{t("Organique + Publicités", "Organic + Ads")}</div>
           </div>
           <div className="rounded-lg border border-hair bg-canvas px-3 py-2.5">
-            <div className="text-xs font-semibold text-ink">
+            <div className="break-words text-xs font-semibold text-ink">
               {meta.instagramHandle ?? `@${companyCode.toLowerCase()}_mauritius`}
             </div>
             <div className="mt-0.5 text-2xs text-muted">{t("Business · Organique + Publicités", "Business · Organic + Ads")}</div>
@@ -522,9 +522,9 @@ function ConnectedMetaCard({
       </div>
 
       {notice && (
-        <div className="mt-4 flex items-center justify-between rounded-lg border border-warning-200 bg-warning-50 px-3 py-2.5">
-          <span className="text-2xs text-warning-700">{notice}</span>
-          <Button variant="secondary" className="py-1 text-2xs" onClick={onManage}>{t("Gérer", "Manage")}</Button>
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-warning-200 bg-warning-50 px-3 py-2.5">
+          <span className="min-w-0 break-words text-2xs text-warning-700">{notice}</span>
+          <Button variant="secondary" className="shrink-0 py-1 text-2xs" onClick={onManage}>{t("Gérer", "Manage")}</Button>
         </div>
       )}
     </div>
@@ -535,25 +535,25 @@ function DisconnectedMetaCard({ companyCode, companyName }: { companyCode: strin
   const t = useT();
   return (
     <div className="mb-5 rounded-xl border border-dashed border-hair bg-canvas/60 p-4">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="text-sm font-semibold text-ink">Meta Business Manager</span>
             <StatusBadge tone="gray">{t("Non connecté", "Not connected")}</StatusBadge>
           </div>
-          <p className="mt-1 text-2xs text-muted">
+          <p className="mt-1 break-words text-2xs text-muted">
             {t(
               `Connectez la Page Facebook et le compte Instagram de ${companyName} pour publier des posts organiques et diffuser des publicités.`,
               `Connect ${companyName}'s Facebook Page and Instagram account to publish organic posts and run ads.`
             )}
           </p>
-          <p className="mt-1 text-2xs text-muted">
+          <p className="mt-1 break-words text-2xs text-muted">
             {companyCode} {t("n'a pas encore de connexion Meta.", "has no Meta connection yet.")}
           </p>
         </div>
         <a
           href="/parametres-connecteurs"
-          className="btn-primary inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold"
+          className="btn-primary inline-flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold"
         >
           {t("Connecter", "Connect")}
         </a>
@@ -583,7 +583,7 @@ function DisconnectModal({
           `All scheduled posts and active campaigns for ${companyName} will stop. You can reconnect later but data Meta may have deleted in the meantime won't be recoverable.`
         )}
       </div>
-      <div className="flex items-center justify-between border-t border-hair px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-hair px-4 py-3">
         <Button variant="danger" onClick={onConfirm}>{t("Déconnecter quand même", "Disconnect anyway")}</Button>
         <Button variant="primary" onClick={onCancel}>{t("Annuler", "Cancel")}</Button>
       </div>
@@ -713,16 +713,16 @@ function LinkedInModal({
           {t(`Nous notifierons ${email} quand l'intégration sera disponible.`, `We'll notify ${email} when integration is ready.`)}
         </p>
       </div>
-      <div className="flex items-center justify-between gap-2 border-t border-hair px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-hair px-4 py-3">
         <a
           href="https://developer.linkedin.com/product-catalog/marketing"
           target="_blank"
           rel="noreferrer"
-          className="text-2xs text-ai-text underline hover:text-ai-text/80"
+          className="min-w-0 break-words text-2xs text-ai-text underline hover:text-ai-text/80"
         >
           {t("En savoir plus sur l'approbation de l'API LinkedIn", "Learn more about LinkedIn API approval")}
         </a>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           <button onClick={onClose} className="text-xs text-muted hover:text-ink">
             {t("Fermer", "Close")}
           </button>

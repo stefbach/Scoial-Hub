@@ -220,9 +220,9 @@ function TeamMemberModal({
 
         {editing && onRemove && (
           <div className="mt-2 rounded-md border-hair border-red-200 bg-red-50/40 p-3">
-            <div className="flex items-center justify-between">
-              <div className="text-2xs text-red-700">{t("Retirer cette personne de l'équipe.", "Remove this person from the team.")}</div>
-              <Button variant="danger" onClick={() => setConfirmRemove(true)}>{t("Retirer de l'équipe", "Remove from team")}</Button>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="min-w-0 flex-1 text-2xs text-red-700">{t("Retirer cette personne de l'équipe.", "Remove this person from the team.")}</div>
+              <Button variant="danger" className="shrink-0" onClick={() => setConfirmRemove(true)}>{t("Retirer de l'équipe", "Remove from team")}</Button>
             </div>
           </div>
         )}

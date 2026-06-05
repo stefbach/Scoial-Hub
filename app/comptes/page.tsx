@@ -36,15 +36,15 @@ export default function ComptesHubPage() {
 
   return (
     <div className="min-h-screen bg-canvas">
-      <header className="flex items-center justify-between border-b border-hair bg-card/90 px-6 py-3 backdrop-blur-md">
+      <header className="flex items-center justify-between gap-3 border-b border-hair bg-card/90 px-4 py-3 backdrop-blur-md sm:px-6">
         <Logo size={28} />
-        <div className="flex items-center gap-3">
-          {email && <span className="hidden text-sm text-muted sm:block">{email}</span>}
-          <button onClick={logout} className="btn-ghost text-sm">{t("Se déconnecter", "Sign out")}</button>
+        <div className="flex min-w-0 items-center gap-3">
+          {email && <span className="hidden min-w-0 truncate text-sm text-muted sm:block">{email}</span>}
+          <button onClick={logout} className="btn-ghost shrink-0 text-sm">{t("Se déconnecter", "Sign out")}</button>
         </div>
       </header>
 
-      <div className="mx-auto max-w-5xl px-6 py-12">
+      <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-12">
         <div className="mb-8">
           <h1 className="text-2xl font-bold tracking-tight text-ink">{t("Vos comptes", "Your accounts")}</h1>
           <p className="mt-1 text-sm text-muted">{t("Sélectionnez un compte pour accéder à son espace de pilotage.", "Select an account to access its management space.")}</p>

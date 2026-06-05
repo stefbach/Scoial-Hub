@@ -178,7 +178,7 @@ export default function PagesMetaPage() {
           {insights?.connected && (insights.facebook || insights.instagram) && (
             <section className="space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
+                <div className="min-w-0 flex-1">
                   <div className="section-label text-ai-text">{t("Optimisation IA", "AI optimization")}</div>
                   <p className="mt-0.5 text-xs text-muted">
                     {t(
@@ -191,7 +191,7 @@ export default function PagesMetaPage() {
                   type="button"
                   onClick={runAnalyze}
                   disabled={analyzing}
-                  className="btn-primary inline-flex items-center gap-2 disabled:opacity-50"
+                  className="btn-primary inline-flex w-full items-center justify-center gap-2 disabled:opacity-50 sm:w-auto"
                 >
                   {analyzing ? (
                     <>

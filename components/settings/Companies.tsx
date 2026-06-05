@@ -224,7 +224,7 @@ function CompanyModal({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
             <label className="text-2xs font-medium text-muted">{t("Heure de publication par défaut", "Default posting time")}</label>
             <input
@@ -246,14 +246,14 @@ function CompanyModal({
 
         {editing && (
           <div className="mt-2 rounded-md border-hair border-red-200 bg-red-50/40 p-3">
-            <div className="flex items-center justify-between">
-              <div>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
                 <div className="text-sm font-medium text-red-700">{t("Supprimer l'entreprise", "Delete company")}</div>
                 <div className="text-2xs text-muted">
                   {t(`Supprime ${company?.name} ainsi que ses publications, audiences et campagnes.`, `Removes ${company?.name} including its posts, audiences, and campaigns.`)}
                 </div>
               </div>
-              <Button variant="danger" onClick={() => setDeleteOpen(true)}>{t("Supprimer l'entreprise", "Delete company")}</Button>
+              <Button variant="danger" className="shrink-0" onClick={() => setDeleteOpen(true)}>{t("Supprimer l'entreprise", "Delete company")}</Button>
             </div>
           </div>
         )}

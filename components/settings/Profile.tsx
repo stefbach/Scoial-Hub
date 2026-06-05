@@ -64,7 +64,7 @@ export function Profile() {
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
           <label className="text-2xs font-medium text-muted">{t("Nom complet", "Full name")}</label>
           <input
@@ -113,8 +113,8 @@ export function Profile() {
       <Button variant="secondary" onClick={() => setPwOpen(true)}>{t("Changer le mot de passe", "Change password")}</Button>
 
       <SectionLabel>{t("Authentification à deux facteurs", "Two-factor authentication")}</SectionLabel>
-      <div className="flex items-center justify-between rounded-md border-hair border-hair p-3">
-        <div>
+      <div className="flex items-center justify-between gap-3 rounded-md border-hair border-hair p-3">
+        <div className="min-w-0 flex-1">
           <div className="text-sm font-medium text-ink">{t("Authentification à deux facteurs", "Two-factor authentication")}</div>
           <div className="text-2xs text-muted">{t("Ajoutez une deuxième étape à la connexion pour plus de sécurité.", "Add a second step at sign-in for extra security.")}</div>
         </div>

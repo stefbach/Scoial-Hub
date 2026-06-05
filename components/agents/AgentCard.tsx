@@ -130,19 +130,19 @@ export function AgentCard({ agent, stepStatus, active }: AgentCardProps) {
     >
       {/* En-tête agent */}
       <div className="flex items-start justify-between gap-2">
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 items-center gap-2">
           {/* Icône accentuée */}
           <div
             className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border ${accentBg} ${accentText}`}
           >
             {AGENT_ICON[agent.id]}
           </div>
-          <div>
-            <div className={`text-sm font-semibold ${accentText}`}>{agent.name}</div>
+          <div className="min-w-0">
+            <div className={`truncate text-sm font-semibold ${accentText}`}>{agent.name}</div>
             <div className="text-2xs text-muted">{t("Autonomie par défaut :", "Default autonomy:")} {AUTONOMY_LABEL[agent.defaultAutonomy]}</div>
           </div>
         </div>
-        <StatusChip status={status} />
+        <div className="shrink-0"><StatusChip status={status} /></div>
       </div>
 
       {/* Rôle */}

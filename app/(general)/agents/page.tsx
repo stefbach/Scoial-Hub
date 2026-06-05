@@ -27,18 +27,18 @@ function BrandSelector() {
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="relative">
+    <div className="relative min-w-0">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-2 rounded-lg border border-hair bg-card px-3 py-1.5 text-sm shadow-xs hover:bg-canvas"
+        className="flex w-full max-w-full items-center gap-2 rounded-lg border border-hair bg-card px-3 py-1.5 text-sm shadow-xs hover:bg-canvas"
       >
         {/* Pastille couleur de la marque */}
         <span
-          className="h-2.5 w-2.5 rounded-full"
+          className="h-2.5 w-2.5 shrink-0 rounded-full"
           style={{ background: company.accent }}
         />
-        <span className="font-medium text-ink">{company.name}</span>
-        <svg width="10" height="10" viewBox="0 0 10 10" className="text-muted">
+        <span className="min-w-0 truncate font-medium text-ink">{company.name}</span>
+        <svg width="10" height="10" viewBox="0 0 10 10" className="shrink-0 text-muted">
           <path d="M1 3l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.2" />
         </svg>
       </button>
@@ -46,7 +46,7 @@ function BrandSelector() {
       {open && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute left-0 z-20 mt-1 w-56 rounded-lg border border-hair bg-card shadow-lg overflow-hidden">
+          <div className="absolute right-0 z-20 mt-1 w-56 max-w-[calc(100vw-2rem)] rounded-lg border border-hair bg-card shadow-lg overflow-hidden">
             {companies.map((c) => (
               <button
                 key={c.id}
@@ -62,7 +62,7 @@ function BrandSelector() {
                   className="h-2.5 w-2.5 shrink-0 rounded-full"
                   style={{ background: c.accent }}
                 />
-                {c.name}
+                <span className="min-w-0 truncate">{c.name}</span>
                 {c.id === company.id && (
                   <svg viewBox="0 0 16 16" fill="currentColor" className="ml-auto h-3.5 w-3.5">
                     <path fillRule="evenodd" d="M13.78 4.22a.75.75 0 010 1.06l-7.25 7.25a.75.75 0 01-1.06 0L2.22 9.28a.75.75 0 011.06-1.06L6 10.94l6.72-6.72a.75.75 0 011.06 0z" />
@@ -145,7 +145,7 @@ export default function AgentsPage() {
     <div className="space-y-6">
       {/* ── En-tête ─────────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <h1 className="text-lg font-semibold text-ink">{t("Centre de pilotage IA", "AI Control Center")}</h1>
           <p className="text-xs text-muted">
             {t(
@@ -154,9 +154,11 @@ export default function AgentsPage() {
             )}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted">{t("Marque active :", "Active brand:")}</span>
-          <BrandSelector />
+        <div className="flex min-w-0 flex-1 items-center gap-2 sm:flex-initial">
+          <span className="shrink-0 text-xs text-muted">{t("Marque active :", "Active brand:")}</span>
+          <div className="min-w-0 flex-1 sm:w-56 sm:flex-initial">
+            <BrandSelector />
+          </div>
         </div>
       </div>
 

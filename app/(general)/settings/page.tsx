@@ -129,33 +129,53 @@ function SettingsContent() {
         <h1 className="text-lg font-bold tracking-tight text-ink">{t("Paramètres", "Settings")}</h1>
       </div>
 
-      <div className="card flex min-h-[480px] overflow-hidden">
-        {/* Sidebar nav */}
-        <nav className="w-52 shrink-0 border-r border-hair bg-canvas/40 p-3">
-          {NAV.map((g) => (
-            <div key={g.groupEn} className="mb-5">
-              <div className="section-label px-2 pb-1.5">{t(g.groupFr, g.groupEn)}</div>
-              <div className="space-y-0.5">
-                {g.items.map((it) => (
-                  <button
-                    key={it.id}
-                    onClick={() => navigate(it.id)}
-                    className={`block w-full rounded-lg px-2.5 py-1.5 text-left text-sm transition-colors ${
-                      section === it.id
-                        ? "bg-card font-semibold text-ink shadow-xs ring-1 ring-hair"
-                        : "text-muted hover:bg-card/60 hover:text-ink"
-                    }`}
-                  >
-                    {t(it.labelFr, it.labelEn)}
-                  </button>
-                ))}
+      <div className="card flex min-h-[480px] flex-col overflow-hidden lg:flex-row">
+        {/* Sidebar nav — desktop: vertical column; mobile: horizontal scroll bar */}
+        <nav className="shrink-0 border-b border-hair bg-canvas/40 p-3 lg:w-52 lg:border-b-0 lg:border-r">
+          {/* Mobile: single scrollable row of all sections */}
+          <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 lg:hidden">
+            {NAV.flatMap((g) => g.items).map((it) => (
+              <button
+                key={it.id}
+                onClick={() => navigate(it.id)}
+                className={`shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm transition-colors ${
+                  section === it.id
+                    ? "bg-card font-semibold text-ink shadow-xs ring-1 ring-hair"
+                    : "text-muted hover:bg-card/60 hover:text-ink"
+                }`}
+              >
+                {t(it.labelFr, it.labelEn)}
+              </button>
+            ))}
+          </div>
+
+          {/* Desktop: grouped vertical nav */}
+          <div className="hidden lg:block">
+            {NAV.map((g) => (
+              <div key={g.groupEn} className="mb-5">
+                <div className="section-label px-2 pb-1.5">{t(g.groupFr, g.groupEn)}</div>
+                <div className="space-y-0.5">
+                  {g.items.map((it) => (
+                    <button
+                      key={it.id}
+                      onClick={() => navigate(it.id)}
+                      className={`block w-full rounded-lg px-2.5 py-1.5 text-left text-sm transition-colors ${
+                        section === it.id
+                          ? "bg-card font-semibold text-ink shadow-xs ring-1 ring-hair"
+                          : "text-muted hover:bg-card/60 hover:text-ink"
+                      }`}
+                    >
+                      {t(it.labelFr, it.labelEn)}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </nav>
 
         {/* Content area */}
-        <div className="flex-1 overflow-auto p-5">
+        <div className="min-w-0 flex-1 overflow-auto p-4 sm:p-5">
           {section === "profile" && <Profile />}
           {section === "notifications" && <Notifications />}
           {section === "organization" && <Organization onNavigate={navigate} />}

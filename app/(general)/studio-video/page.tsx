@@ -148,7 +148,7 @@ export default function StudioPage() {
         <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-white shadow-sm" style={{ background: "linear-gradient(135deg,#5b2d8e,#7c3aed)" }} aria-hidden>
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="8" height="8" rx="1.5" stroke="white" strokeWidth="1.6"/><rect x="13" y="3" width="8" height="8" rx="1.5" stroke="white" strokeWidth="1.6"/><path d="M3 16.5A1.5 1.5 0 0 1 4.5 15h6A1.5 1.5 0 0 1 12 16.5v3A1.5 1.5 0 0 1 10.5 21h-6A1.5 1.5 0 0 1 3 19.5v-3Z" stroke="white" strokeWidth="1.6"/><path d="m15 18 6-3v6l-6-3Z" fill="white"/></svg>
         </span>
-        <div>
+        <div className="min-w-0">
           <h1 className="text-xl font-bold tracking-tight text-ink">{t("Studio Créatif", "Creative Studio")}</h1>
           <p className="mt-0.5 text-sm text-primary-700">
             {t(
@@ -276,10 +276,10 @@ export default function StudioPage() {
       {pkg && (
         <section className="space-y-4">
           <div className="card p-5">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <h2 className="text-base font-bold text-ink">{pkg.title}</h2>
-                <p className="mt-0.5 text-sm text-muted">{pkg.summary}</p>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <h2 className="text-base font-bold text-ink break-words">{pkg.title}</h2>
+                <p className="mt-0.5 text-sm text-muted break-words">{pkg.summary}</p>
               </div>
               <span className={`shrink-0 rounded-full px-2 py-0.5 text-2xs font-semibold ${pkg.aiGenerated ? "bg-success-100 text-success-700" : "bg-warning-50 text-warning-700"}`}>
                 {pkg.aiGenerated ? t("Généré par l'IA", "AI-generated") : t("Modèle de secours", "Fallback template")}
@@ -436,14 +436,14 @@ function CutCard({
   const renderable = RENDERABLE.has(cut.assemblyType);
   return (
     <div className="card p-4">
-      <div className="mb-2 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="font-semibold text-ink">{cut.label}</span>
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <span className="min-w-0 truncate font-semibold text-ink">{cut.label}</span>
           <span className="chip">{cut.aspect}</span>
           <span className="chip border-primary-200 bg-primary-50 text-primary-700">{t(badge[0], badge[1])}</span>
           {!isStatic && <span className="text-2xs text-muted">~{cut.targetDurationSec}s</span>}
         </div>
-        <span className={`rounded-full px-2 py-0.5 text-2xs font-semibold ${cut.renderStatus === "queued" ? "bg-primary-50 text-primary-700" : "bg-canvas text-muted ring-1 ring-hair"}`}>
+        <span className={`shrink-0 rounded-full px-2 py-0.5 text-2xs font-semibold ${cut.renderStatus === "queued" ? "bg-primary-50 text-primary-700" : "bg-canvas text-muted ring-1 ring-hair"}`}>
           {cut.renderStatus === "queued" ? t("Rendu en file", "Render queued") : t("Rendu simulé", "Render simulated")}
         </span>
       </div>

@@ -134,14 +134,14 @@ export function AuditLog({
 
   return (
     <div>
-      <div className="mb-3 flex items-center justify-between">
-        <SubHeader title={t("Journal d'audit", "Audit log")} scope="org" scopeLabel={ORG_NAME} />
+      <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0 flex-1"><SubHeader title={t("Journal d'audit", "Audit log")} scope="org" scopeLabel={ORG_NAME} /></div>
         <Dropdown
           align="right"
           trigger={(open, toggle) => (
             <button
               onClick={toggle}
-              className="rounded-md border-hair border-hair bg-card px-3 py-1.5 text-sm text-ink hover:bg-canvas"
+              className="shrink-0 rounded-md border-hair border-hair bg-card px-3 py-1.5 text-sm text-ink hover:bg-canvas"
             >
               {t("Exporter", "Export")}
             </button>
@@ -236,11 +236,11 @@ export function AuditLog({
       </div>
 
       {range === "custom" && (
-        <div className="mb-3 flex items-center gap-2">
+        <div className="mb-3 flex flex-wrap items-center gap-2">
           <span className="text-2xs text-muted">{t("Du", "From")}</span>
-          <div className="w-40"><DatePicker value={customFrom ?? NOW} onChange={setCustomFrom} /></div>
+          <div className="w-full min-w-0 sm:w-40"><DatePicker value={customFrom ?? NOW} onChange={setCustomFrom} /></div>
           <span className="text-2xs text-muted">{t("au", "to")}</span>
-          <div className="w-40"><DatePicker value={customTo ?? NOW} onChange={setCustomTo} /></div>
+          <div className="w-full min-w-0 sm:w-40"><DatePicker value={customTo ?? NOW} onChange={setCustomTo} /></div>
         </div>
       )}
 

@@ -51,8 +51,8 @@ export default function DashboardPage() {
       <OnboardingCockpit status={onboarding} />
 
       {/* Page header */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
           <h1 className="text-xl font-bold tracking-tight text-ink">
             {t("Tableau de bord", "Dashboard")}
           </h1>
@@ -61,7 +61,7 @@ export default function DashboardPage() {
             <span className="font-semibold text-ink">{company.name}</span>.
           </p>
         </div>
-        <div className="flex shrink-0 gap-2">
+        <div className="flex shrink-0 flex-wrap gap-2">
           <Button variant="secondary" onClick={() => router.push("/campaigns?new=true")}>
             {t("Nouvelle campagne", "New campaign")}
           </Button>
@@ -154,7 +154,7 @@ export default function DashboardPage() {
           >
             <div className="mb-4 flex items-center gap-2.5">
               <PlatformTag platform={d.topAd.platform} />
-              <span className="font-semibold text-ink">{d.topAd.name}</span>
+              <span className="min-w-0 flex-1 truncate font-semibold text-ink">{d.topAd.name}</span>
             </div>
             <div className="grid grid-cols-3 gap-3">
               <div className="rounded-xl bg-canvas px-3 py-3 shadow-xs">

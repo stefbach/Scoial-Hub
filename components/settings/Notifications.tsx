@@ -61,7 +61,8 @@ export function Notifications() {
 
       <SectionLabel>{t("Notifications email", "Email notifications")}</SectionLabel>
       <div className="card overflow-hidden">
-        <table className="w-full text-sm">
+        <div className="overflow-x-auto">
+        <table className="w-full min-w-[20rem] text-sm">
           <thead>
             <tr className="section-label border-b-hair border-hair text-left">
               <th className="px-3 py-2 font-semibold">{t("ÉVÉNEMENT", "EVENT")}</th>
@@ -87,6 +88,7 @@ export function Notifications() {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
 
       <SectionLabel>{t("Fréquence des notifications", "Notification frequency")}</SectionLabel>
@@ -113,8 +115,8 @@ export function Notifications() {
 
       <SectionLabel>{t("Heures silencieuses", "Quiet hours")}</SectionLabel>
       <div className="rounded-md border-hair border-hair p-3">
-        <div className="flex items-center justify-between">
-          <div>
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0 flex-1">
             <div className="text-sm font-medium text-ink">{t("Ne pas envoyer de notifications in-app pendant les heures silencieuses", "Don't send in-app notifications during quiet hours")}</div>
             <div className="text-2xs text-muted">{t("Utile si vous ne souhaitez pas être dérangé la nuit.", "Useful if you don't want late-night pings.")}</div>
           </div>

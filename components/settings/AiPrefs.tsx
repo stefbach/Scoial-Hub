@@ -61,12 +61,12 @@ export function AiPrefs() {
       <SectionLabel>{t("Modèles par défaut", "Default models")}</SectionLabel>
       <div className="space-y-2">
         <div className="rounded-md border-hair border-hair p-3 text-sm">
-          <div className="flex items-center justify-between">
-            <div>
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0 flex-1">
               <div className="font-medium text-ink">{t("Texte IA", "AI text")}</div>
               <div className="text-2xs text-muted">{t("Utilisé pour les légendes, copies publicitaires, reformulations", "Used for captions, ad copy, rewrites")}</div>
             </div>
-            <span className="text-ink">Anthropic Claude</span>
+            <span className="shrink-0 text-ink">Anthropic Claude</span>
           </div>
         </div>
         <ModelRow label={t("Images IA", "AI images")} options={IMAGE_MODELS} value={imageModel} onChange={setImageModel} />
@@ -77,7 +77,7 @@ export function AiPrefs() {
       </div>
 
       <SectionLabel>{t("Plafonds de dépenses mensuels", "Monthly spend caps")}</SectionLabel>
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <CapCard label={t("Texte", "Text")} used={textSpend} cap={textCap} onChange={(v) => saveCap("text", v)} />
         <CapCard label={t("Images", "Images")} used={imageSpend} cap={imageCap} onChange={(v) => saveCap("image", v)} />
         <CapCard label={t("Vidéo", "Video")} used={videoSpend} cap={videoCap} onChange={(v) => saveCap("video", v)} />
@@ -85,8 +85,8 @@ export function AiPrefs() {
       <div className="mt-1 text-2xs text-muted">{t("Les plafonds sont réinitialisés le 1er de chaque mois.", "Caps reset on the 1st of each month.")}</div>
 
       <SectionLabel>{t("Voix de marque par défaut", "Brand voice defaults")}</SectionLabel>
-      <div className="flex items-center justify-between rounded-md border-hair border-hair p-3">
-        <div>
+      <div className="flex items-center justify-between gap-3 rounded-md border-hair border-hair p-3">
+        <div className="min-w-0 flex-1">
           <div className="text-sm font-medium text-ink">{t("Utiliser la voix de marque par défaut", "Use brand voice by default")}</div>
           <div className="text-2xs text-muted">
             {t(`Quand activé, la génération de texte IA applique automatiquement la voix de marque de ${company.code}. Peut être remplacé par génération.`, `When ON, AI text generation automatically applies ${company.code}'s brand voice. Can be overridden per generation.`)}
@@ -106,14 +106,14 @@ export function AiPrefs() {
               onClick={() => setOpenLog(g)}
               className="flex w-full items-center justify-between px-3 py-2.5 text-left text-sm transition-colors hover:bg-canvas"
             >
-              <div className="flex items-center gap-3">
+              <div className="flex min-w-0 items-center gap-3">
                 <TypeBadge type={g.type} />
-                <div>
-                  <div className="text-ink">{g.description}</div>
+                <div className="min-w-0">
+                  <div className="truncate text-ink">{g.description}</div>
                   <div className="text-2xs text-muted">{format(new Date(g.createdAt), "d MMM HH:mm")} · {g.model}</div>
                 </div>
               </div>
-              <span className="text-2xs text-muted">{eur(g.costEur, { decimals: true })}</span>
+              <span className="shrink-0 text-2xs text-muted">{eur(g.costEur, { decimals: true })}</span>
             </button>
           ))
         )}
@@ -132,12 +132,12 @@ function ModelRow({
   label, options, value, onChange,
 }: { label: string; options: string[]; value: string; onChange: (v: string) => void }) {
   return (
-    <div className="flex items-center justify-between rounded-md border-hair border-hair p-3 text-sm">
-      <div className="font-medium text-ink">{label}</div>
+    <div className="flex items-center justify-between gap-3 rounded-md border-hair border-hair p-3 text-sm">
+      <div className="min-w-0 font-medium text-ink">{label}</div>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="rounded-md border-hair border-hair bg-card px-3 py-1.5 text-sm text-ink focus:outline-none"
+        className="min-w-0 shrink-0 rounded-md border-hair border-hair bg-card px-3 py-1.5 text-sm text-ink focus:outline-none"
       >
         {options.map((o) => <option key={o}>{o}</option>)}
       </select>

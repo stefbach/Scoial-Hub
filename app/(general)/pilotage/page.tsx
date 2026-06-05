@@ -170,16 +170,16 @@ export default function PilotagePage() {
     <div className="animate-fade-in space-y-6">
       {/* ── Bandeau stratégie ──────────────────────────── */}
       <div className="card overflow-hidden">
-        <div className="border-b border-hair bg-canvas/60 px-5 py-3">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <span className="flex h-2 w-2 animate-pulse rounded-full bg-success-500" />
-              <span className="section-label text-ink">{t("Centre de pilotage", "Steering center")} · {company.name}</span>
+        <div className="border-b border-hair bg-canvas/60 px-4 py-3 sm:px-5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="flex h-2 w-2 shrink-0 animate-pulse rounded-full bg-success-500" />
+              <span className="section-label truncate text-ink">{t("Centre de pilotage", "Steering center")} · {company.name}</span>
             </div>
-            <span className="chip">{country.flag} {market} · {days} {t("j", "d")}</span>
+            <span className="chip shrink-0">{country.flag} {market} · {days} {t("j", "d")}</span>
           </div>
         </div>
-        <div className="grid gap-4 p-5 md:grid-cols-[1fr_auto]">
+        <div className="grid gap-4 p-4 sm:p-5 md:grid-cols-[1fr_auto]">
           <div>
             <label className="section-label mb-1 block text-muted">{t("Objectif global", "Global objective")}</label>
             <textarea
@@ -211,7 +211,7 @@ export default function PilotagePage() {
             </div>
           </div>
           <div className="flex flex-col justify-end gap-2">
-            <button onClick={runCycle} disabled={running} className="btn-primary whitespace-nowrap">
+            <button onClick={runCycle} disabled={running} className="btn-primary w-full md:w-auto">
               {running ? t("Pilotage en cours…", "Running cycle…") : t("▶ Lancer un cycle de pilotage", "▶ Start a steering cycle")}
             </button>
             <span className="text-center text-2xs text-muted">{pending} {t("décision(s) à valider", "decision(s) to review")}</span>
@@ -297,7 +297,7 @@ export default function PilotagePage() {
               <div key={d.id} className={`card p-4 ${d.status !== "pending" ? "opacity-60" : ""}`}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="mb-1 flex items-center gap-2">
+                    <div className="mb-1 flex flex-wrap items-center gap-2">
                       <span className="rounded-md bg-page/10 px-1.5 py-0.5 text-2xs font-semibold text-page">
                         {AGENT_LABEL[d.agent] ?? d.agent}
                       </span>
@@ -308,9 +308,9 @@ export default function PilotagePage() {
                       )}
                       {d.channel === "sea" && <span className="text-2xs text-warning-600">SEA</span>}
                     </div>
-                    <div className="font-semibold text-ink">{d.title}</div>
-                    <p className="mt-1 text-sm text-muted">{d.rationale}</p>
-                    <p className="mt-1.5 text-2xs font-medium text-success-700">{t("Impact estimé", "Estimated impact")} : {d.impact}</p>
+                    <div className="break-words font-semibold text-ink">{d.title}</div>
+                    <p className="mt-1 break-words text-sm text-muted">{d.rationale}</p>
+                    <p className="mt-1.5 break-words text-2xs font-medium text-success-700">{t("Impact estimé", "Estimated impact")} : {d.impact}</p>
                   </div>
                   {d.status === "pending" ? (
                     <div className="flex shrink-0 flex-col gap-1.5">
@@ -334,9 +334,9 @@ export default function PilotagePage() {
             <div className="section-label mb-2.5">{t("Benchmark marché", "Market benchmark")} · {market}</div>
             <div className="card divide-y divide-hair">
               {bench.map((b) => (
-                <div key={b.label} className="flex items-center justify-between px-4 py-2.5 text-sm">
-                  <span className="text-muted">{b.label}</span>
-                  <span className="flex items-center gap-2">
+                <div key={b.label} className="flex items-center justify-between gap-2 px-4 py-2.5 text-sm">
+                  <span className="min-w-0 truncate text-muted">{b.label}</span>
+                  <span className="flex shrink-0 items-center gap-2">
                     <span className="font-semibold text-ink">{b.you}{b.unit}</span>
                     <span className="text-2xs text-muted">{t("vs", "vs")} {b.market}{b.unit}</span>
                     <span className={b.better ? "text-success-600" : "text-danger-600"}>{b.better ? "▲" : "▼"}</span>
@@ -363,12 +363,12 @@ export default function PilotagePage() {
             <div className="section-label mb-2.5">{t("Par réseau", "By network")}</div>
             <div className="space-y-2">
               {kpis.map((k: NetworkKpis) => (
-                <div key={k.network} className="card flex items-center justify-between p-3">
-                  <span className="flex items-center gap-2 text-sm font-medium text-ink">
-                    <span className="h-2.5 w-2.5 rounded-full" style={{ background: NET_LABEL[k.network].color }} />
-                    {NET_LABEL[k.network].label}
+                <div key={k.network} className="card flex items-center justify-between gap-2 p-3">
+                  <span className="flex min-w-0 items-center gap-2 text-sm font-medium text-ink">
+                    <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: NET_LABEL[k.network].color }} />
+                    <span className="truncate">{NET_LABEL[k.network].label}</span>
                   </span>
-                  <span className="flex items-center gap-3 text-2xs text-muted">
+                  <span className="flex shrink-0 items-center gap-2 text-2xs text-muted sm:gap-3">
                     <span>{fmt(k.followers)} {t("abo.", "subs.")}</span>
                     <span className="font-semibold text-ink">{k.engagementRate}%</span>
                     <span className={k.engagementTrend >= 0 ? "text-success-600" : "text-danger-600"}>

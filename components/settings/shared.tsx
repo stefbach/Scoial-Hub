@@ -13,10 +13,10 @@ export function SubHeader({
 }) {
   const t = useT();
   return (
-    <div className="mb-3 flex items-center gap-3">
+    <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1">
       <h2 className="text-base font-semibold text-ink">{title}</h2>
-      <span className="text-hair">|</span>
-      <span className="text-sm text-muted">
+      <span className="hidden text-hair sm:inline">|</span>
+      <span className="min-w-0 max-w-full truncate text-sm text-muted">
         {scope === "org" ? t("Organisation :", "Organization:") : t("Paramètres pour", "Settings for")}{" "}
         <span className="font-semibold text-ink">{scopeLabel}</span>
       </span>

@@ -52,6 +52,7 @@ export function CreativeInspiration({
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [gen, setGen] = useState<Record<number, GenState>>({});
   const [note, setNote] = useState<string | null>(null);
+  const [targetSec, setTargetSec] = useState(8); // 8 = 1 clip, 16 = 2, 24 = 3
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -123,19 +124,53 @@ export function CreativeInspiration({
       let simulated = false;
       let error: string | undefined;
       if (kind === "video") {
-        const r = await generateVideoPolling(
-          { prompt: p.mediaPrompt, platform },
-          {
-            onStatus: () =>
-              setGen((g) => ({
-                ...g,
-                [index]: { loading: true, url: null, kind, note: t("Rendu vidéo en cours… (jusqu'à quelques minutes)", "Rendering video… (up to a few minutes)") },
-              })),
-          },
-        );
-        url = r.url;
-        simulated = !!r.simulated;
-        error = r.error;
+        // Veo 3 ≈ 8 s/clip. Pour une durée plus longue, on génère un storyboard
+        // de plusieurs scènes cohérentes puis on les assemble (concat) côté navigateur.
+        const clips = Math.max(1, Math.round(targetSec / 8));
+        const setStep = (note: string) =>
+          setGen((g) => ({ ...g, [index]: { loading: true, url: null, kind, note } }));
+
+        let scenes: string[] = [p.mediaPrompt];
+        if (clips > 1) {
+          setStep(t("Découpage du storyboard…", "Building storyboard…"));
+          try {
+            const sres = await fetch("/api/ai/video-storyboard", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ brief: p.mediaPrompt, scenes: clips }),
+            });
+            const sdata = (await sres.json()) as { scenes?: string[] };
+            if (sdata.scenes?.length) scenes = sdata.scenes;
+          } catch {
+            /* fallback : on répète le brief */
+            scenes = Array.from({ length: clips }, () => p.mediaPrompt);
+          }
+        }
+
+        const urls: string[] = [];
+        for (let k = 0; k < scenes.length; k++) {
+          setStep(
+            t(
+              `Génération du clip ${k + 1}/${scenes.length}… (Veo 3, ~1-3 min)`,
+              `Generating clip ${k + 1}/${scenes.length}… (Veo 3, ~1-3 min)`,
+            ),
+          );
+          const r = await generateVideoPolling({ prompt: scenes[k], platform });
+          if (r.simulated) { simulated = true; break; }
+          if (!r.url) { error = r.error; break; }
+          urls.push(r.url);
+        }
+
+        if (!simulated && !error && urls.length === scenes.length) {
+          if (urls.length === 1) {
+            url = urls[0];
+          } else {
+            setStep(t("Assemblage des clips…", "Stitching clips…"));
+            const { concatVideos } = await import("@/lib/video/ffmpeg-client");
+            const blob = await concatVideos(urls);
+            url = URL.createObjectURL(blob);
+          }
+        }
       } else {
         const res = await fetch("/api/ai/generate-image", {
           method: "POST",
@@ -311,9 +346,26 @@ export function CreativeInspiration({
                             disabled={g?.loading}
                             className="btn-secondary text-2xs px-2 py-1"
                           >
-                            {g?.loading && g.kind === "video" ? t("Vidéo… (≈1 min)", "Video… (≈1 min)") : t("🎬 Générer vidéo", "🎬 Generate video")}
+                            {g?.loading && g.kind === "video" ? t("Vidéo…", "Video…") : t("🎬 Générer vidéo", "🎬 Generate video")}
                           </button>
+                          <select
+                            value={targetSec}
+                            onChange={(e) => setTargetSec(Number(e.target.value))}
+                            disabled={g?.loading}
+                            className="input text-2xs px-1 py-1"
+                            title={t("Durée de la vidéo", "Video duration")}
+                          >
+                            <option value={8}>~8 s (1 clip)</option>
+                            <option value={16}>~16 s (2 clips)</option>
+                            <option value={24}>~24 s (3 clips)</option>
+                          </select>
                         </div>
+                        <p className="mt-1 text-[10px] text-muted">
+                          {t(
+                            "Texte non inclus dans la vidéo : ajoutez-le net via « Éditer (texte / musique) ».",
+                            "Text isn't baked into the video: add it crisply via \"Edit (text / music)\".",
+                          )}
+                        </p>
                         {g?.loading && (
                           <div className="mt-2 flex aspect-square w-32 items-center justify-center rounded-lg border border-hair bg-canvas">
                             <span className="h-5 w-5 animate-spin rounded-full border-2 border-primary-300 border-t-transparent" />

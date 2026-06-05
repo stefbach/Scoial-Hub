@@ -17,8 +17,11 @@ const REPLICATE_API_BASE = "https://api.replicate.com/v1";
 /** Modèle image par défaut : Flux 1.1 Pro (qualité photoréaliste). */
 const DEFAULT_IMAGE_MODEL = "black-forest-labs/flux-1.1-pro";
 
-/** Modèle vidéo par défaut : MiniMax Video-01 (disponible via Replicate). */
-const DEFAULT_VIDEO_MODEL = "minimax/video-01";
+/**
+ * Modèle vidéo par défaut : Google Veo 3 (qualité max, son natif, clips ~8 s).
+ * Pour des durées plus longues, on enchaîne plusieurs clips (storyboard) côté client.
+ */
+const DEFAULT_VIDEO_MODEL = "google/veo-3";
 
 /** Timeout global pour le polling d'une prédiction (ms). */
 const PREDICTION_TIMEOUT_MS = 120_000; // 2 minutes
@@ -243,13 +246,8 @@ export async function generateVideo(
 
   const { prompt } = opts;
 
-  // MiniMax Video-01 n'accepte que `prompt` (+ `prompt_optimizer` et une image
-  // de première frame optionnelle). Sa durée est FIXE (~6 s) : envoyer un champ
-  // `duration` provoque une erreur de validation 422 → on ne le transmet pas.
-  const prediction = await runPrediction(DEFAULT_VIDEO_MODEL, {
-    prompt,
-    prompt_optimizer: true,
-  });
+  // Veo 3 n'accepte qu'un `prompt`.
+  const prediction = await runPrediction(DEFAULT_VIDEO_MODEL, { prompt });
 
   // L'output est une URL string ou un tableau dont on prend le premier élément
   const rawOutput = prediction.output;
@@ -314,7 +312,8 @@ export async function startVideoPrediction(
         Authorization: `Bearer ${process.env.REPLICATE_API_TOKEN ?? ""}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ input: { prompt: opts.prompt, prompt_optimizer: true } }),
+      // Veo 3 n'accepte qu'un `prompt` (pas de prompt_optimizer/duration).
+      body: JSON.stringify({ input: { prompt: opts.prompt } }),
     }
   );
   if (!res.ok) {

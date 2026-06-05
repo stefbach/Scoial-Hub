@@ -106,7 +106,7 @@ Réponds STRICTEMENT en JSON (français), un tableau de ${n} objets :
     {
       "angle": "l'angle marketing retenu (1 ligne)",
       "postText": "un texte de post prêt à publier, adapté au réseau ${platform}, avec accroche + corps + appel à l'action + hashtags pertinents",
-      "mediaPrompt": "un prompt détaillé pour générer un ${mediaType === "video" ? "script/visuel vidéo" : "visuel image"} ORIGINAL (sujet, composition, ambiance, couleurs de marque), sans copier la créa source ni inclure de marque tierce"
+      "mediaPrompt": "un prompt détaillé pour générer un ${mediaType === "video" ? "visuel vidéo (décris le plan, le mouvement de caméra, l'ambiance, la lumière) SANS aucun texte/sous-titre à l'écran — le texte sera ajouté ensuite via l'éditeur" : "visuel image"} ORIGINAL (sujet, composition, ambiance, couleurs de marque), sans copier la créa source ni inclure de marque tierce"
     }
   ]
 }`;

@@ -57,6 +57,16 @@ Colle la justification (en anglais, Meta l'exige) ci-dessous.
 > We display the Instagram account's real metrics (followers, media, engagement) and use them for
 > AI-driven content optimization recommendations.
 
+### `pages_manage_engagement`
+> Users reply to comments on their own Facebook Page from our shared inbox. AI drafts a reply in the
+> brand voice; the user reviews and sends it (or an autonomous agent sends it when confident), and
+> sensitive messages are escalated to a human. Required to post those replies on the connected Page.
+
+### `instagram_manage_comments`
+> Users read and reply to comments on their own Instagram Business account from our shared inbox,
+> with the same AI-draft + human-approval / escalation workflow as Facebook. Required to read the
+> comments and publish replies on the connected Instagram account.
+
 ### `ads_management`
 > Users create, read and manage advertising campaigns on their own Meta ad accounts from our app.
 > Campaigns are created PAUSED and only activated by an explicit user action, with budget caps.
@@ -96,7 +106,10 @@ Enregistre l'écran (1 prise, 2–4 min, son ou sous-titres en anglais) :
    *(pages_manage_posts, instagram_content_publish)*
 5. **Publicité** : dans **Mes Pages & données → Publicité Meta**, créer une publicité (EN PAUSE),
    montrer le compte publicitaire et les campagnes réelles. *(ads_management, business_management)*
-6. **Suppression des données** : montrer la déconnexion d'un réseau + la page
+6. **Messagerie (réponse aux commentaires)** : ouvrir **Messagerie**, cliquer « Synchroniser Meta »
+   pour importer les commentaires réels FB + IG, générer une réponse IA, l'éditer et l'**envoyer**
+   (montrer qu'elle apparaît sur la publication). *(pages_manage_engagement, instagram_manage_comments)*
+7. **Suppression des données** : montrer la déconnexion d'un réseau + la page
    `/legal/suppression-donnees`.
 
 > Astuce : commente chaque étape en disant la permission utilisée. Meta rejette si une permission

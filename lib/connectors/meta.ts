@@ -42,10 +42,12 @@ const GRAPH_BASE = `https://graph.facebook.com/${META_API_VERSION}`;
 const META_SCOPES = [
   "pages_manage_posts",
   "pages_read_engagement",
+  "pages_manage_engagement", // répondre aux commentaires/messages de la Page (messagerie)
   "pages_show_list",
   "instagram_basic",
   "instagram_content_publish",
   "instagram_manage_insights",
+  "instagram_manage_comments", // lire/répondre aux commentaires Instagram (messagerie)
   "ads_management",
   "business_management",
 ].join(",");

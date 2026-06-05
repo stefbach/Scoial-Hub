@@ -129,6 +129,8 @@ export default function VeillePage() {
   // Identification automatique
   const [identifying, setIdentifying] = useState(false);
   const [identified, setIdentified] = useState<IdentifiedCompetitor[]>([]);
+  // Handles saisis à la main pour les suggestions sans handle confirmé (clé = index).
+  const [editedHandles, setEditedHandles] = useState<Record<number, string>>({});
 
   // Run
   const [running, setRunning] = useState(false);
@@ -209,10 +211,11 @@ export default function VeillePage() {
   }
 
   /* ── Ajout d'un compétiteur identifié ── */
-  async function handleAddIdentified(c: IdentifiedCompetitor) {
-    // Suggestion à vérifier : sans handle confirmé, on n'ajoute rien (l'IA ne
-    // garantit pas l'existence du compte). L'utilisateur doit le saisir à la main.
-    if (!c.handle) return;
+  async function handleAddIdentified(c: IdentifiedCompetitor, index: number) {
+    // Handle = celui proposé par l'IA, ou celui saisi à la main si l'IA n'était
+    // pas sûre (suggestion « à confirmer »). Sans handle, on n'ajoute rien.
+    const handle = (c.handle ?? editedHandles[index] ?? "").trim();
+    if (!handle) return;
     setAdding(true);
     try {
       const res = await fetch("/api/veille/competitors", {
@@ -221,7 +224,7 @@ export default function VeillePage() {
         body: JSON.stringify({
           companyId: company.id,
           network: c.network,
-          handle: c.handle,
+          handle,
           name: c.name,
           source: "identifié",
         }),
@@ -229,7 +232,12 @@ export default function VeillePage() {
       if (res.ok) {
         const data = await res.json() as { competitor: Competitor };
         setCompetitors((prev) => [data.competitor, ...prev]);
-        setIdentified((prev) => prev.filter((x) => !(x.handle === c.handle && x.name === c.name)));
+        setIdentified((prev) => prev.filter((x) => !(x.name === c.name && x.network === c.network)));
+        setEditedHandles((prev) => {
+          const next = { ...prev };
+          delete next[index];
+          return next;
+        });
       }
     } finally {
       setAdding(false);
@@ -498,32 +506,46 @@ export default function VeillePage() {
                       "Leads proposed by the AI — check that each account actually exists before adding it.",
                     )}
                   </p>
-                  {identified.map((c, i) => (
-                    <div key={`${c.handle ?? c.name}-${i}`} className="rounded-lg border border-dashed border-primary-200 bg-primary-50/40 p-2.5 space-y-1">
+                  {identified.map((c, i) => {
+                    const typed = (editedHandles[i] ?? "").trim();
+                    const canAdd = Boolean(c.handle) || typed.length > 0;
+                    return (
+                    <div key={`${c.name}-${c.network}-${i}`} className="rounded-lg border border-dashed border-primary-200 bg-primary-50/40 p-2.5 space-y-1.5">
                       <div className="flex items-center justify-between gap-2">
                         <div className="min-w-0">
                           <p className="text-xs font-semibold text-ink truncate">
                             {c.name}{" "}
-                            {c.handle ? (
+                            {c.handle && (
                               <span className="text-muted font-normal">{c.handle}</span>
-                            ) : (
-                              <span className="text-muted font-normal italic">{t("(handle à confirmer)", "(handle to confirm)")}</span>
                             )}
                           </p>
                           <p className="text-2xs text-muted capitalize">{c.network} · {t("à vérifier", "unverified")}</p>
                         </div>
                         <button
-                          onClick={() => handleAddIdentified(c)}
-                          disabled={adding || !c.handle}
-                          title={!c.handle ? t("Handle à confirmer avant d'ajouter", "Confirm the handle before adding") : undefined}
+                          onClick={() => handleAddIdentified(c, i)}
+                          disabled={adding || !canAdd}
+                          title={!canAdd ? t("Saisissez le @handle réel pour activer l'ajout", "Enter the real @handle to enable adding") : undefined}
                           className="shrink-0 btn-primary text-2xs px-2 py-1 disabled:opacity-50"
                         >
                           {t("+ Ajouter", "+ Add")}
                         </button>
                       </div>
+                      {/* Si l'IA n'a pas confirmé de handle, l'utilisateur le saisit ici
+                          (indispensable : la collecte réelle a besoin du @handle exact). */}
+                      {!c.handle && (
+                        <input
+                          type="text"
+                          value={editedHandles[i] ?? ""}
+                          onChange={(e) => setEditedHandles((prev) => ({ ...prev, [i]: e.target.value }))}
+                          onKeyDown={(e) => { if (e.key === "Enter" && canAdd) handleAddIdentified(c, i); }}
+                          placeholder={t("Saisir le @handle réel (à vérifier)", "Enter the real @handle (to verify)")}
+                          className="w-full rounded-md border border-hair bg-card px-2 py-1 text-2xs text-ink placeholder:text-muted/60 outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-500/20"
+                        />
+                      )}
                       <p className="text-2xs text-muted leading-snug">{c.rationale}</p>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
 

@@ -13,6 +13,7 @@ import { PlatformTag } from "@/components/ui/PlatformTag";
 import { Dropdown, DropdownItem } from "@/components/ui/Dropdown";
 import { DatePicker } from "@/components/ui/DateTimePicker";
 import { HistoryDetailModal } from "@/components/organic/HistoryDetailModal";
+import { Modal } from "@/components/ui/Modal";
 import {
   deleteHistoryItem,
   downloadFile,
@@ -272,30 +273,32 @@ function HistoryContent() {
         }}
       />
 
-      {confirmDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-6 backdrop-blur-sm">
-          <div className="absolute inset-0" onClick={() => setConfirmDelete(null)} />
-          <div className="relative z-50 w-full max-w-sm animate-slide-up rounded-xl border border-hair bg-card p-5 shadow-xl">
-            <p className="text-sm leading-relaxed text-ink">
-              {t("Supprimer cette publication de l'historique ? Cette action est irréversible.", "Delete this post from history? This cannot be undone.")}
-            </p>
-            <div className="mt-5 flex justify-end gap-2">
-              <Button variant="secondary" onClick={() => setConfirmDelete(null)}>{t("Annuler", "Cancel")}</Button>
-              <Button
-                variant="danger"
-                onClick={() => {
-                  deleteHistoryItem(company.id, confirmDelete.id);
-                  setConfirmDelete(null);
-                  setOpenPost(null);
-                  refresh();
-                }}
-              >
-                {t("Supprimer", "Delete")}
-              </Button>
-            </div>
+      <Modal
+        open={confirmDelete !== null}
+        onClose={() => setConfirmDelete(null)}
+        width="max-w-sm"
+      >
+        <div className="p-5 sm:p-6">
+          <p className="text-sm leading-relaxed text-ink">
+            {t("Supprimer cette publication de l'historique ? Cette action est irréversible.", "Delete this post from history? This cannot be undone.")}
+          </p>
+          <div className="mt-5 flex flex-wrap justify-end gap-2">
+            <Button variant="secondary" onClick={() => setConfirmDelete(null)}>{t("Annuler", "Cancel")}</Button>
+            <Button
+              variant="danger"
+              onClick={() => {
+                if (!confirmDelete) return;
+                deleteHistoryItem(company.id, confirmDelete.id);
+                setConfirmDelete(null);
+                setOpenPost(null);
+                refresh();
+              }}
+            >
+              {t("Supprimer", "Delete")}
+            </Button>
           </div>
         </div>
-      )}
+      </Modal>
     </div>
   );
 }

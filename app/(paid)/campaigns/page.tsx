@@ -10,6 +10,7 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Toggle } from "@/components/ui/Toggle";
 import { CreateAdModal } from "@/components/paid/CreateAdModal";
 import { NewCampaignModal } from "@/components/paid/NewCampaignModal";
+import { Modal } from "@/components/ui/Modal";
 import {
   deleteCampaign as deleteCampaignLocal,
   hydrateCampaigns,
@@ -186,41 +187,39 @@ function CampaignsContent() {
         onSaved={refresh}
       />
 
-      {confirmDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-6 backdrop-blur-sm">
-          <div className="absolute inset-0" onClick={() => setConfirmDelete(null)} />
-          <div className="relative z-50 w-full max-w-sm animate-slide-up rounded-xl border border-hair bg-card p-6 shadow-xl">
-            <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-danger-50 text-danger-600">
-              <TrashIcon />
-            </div>
-            <h3 className="text-base font-semibold text-ink">{t("Supprimer la campagne", "Delete campaign")}</h3>
-            <p className="mt-1.5 text-sm text-muted">
-              {t("Supprimer", "Delete")} &ldquo;{confirmDelete.name}&rdquo;? {t("Cette action est irréversible.", "This action cannot be undone.")}
-            </p>
-            <div className="mt-5 flex justify-end gap-2">
-              <Button variant="secondary" onClick={() => setConfirmDelete(null)}>{t("Annuler", "Cancel")}</Button>
-              <Button
-                variant="danger"
-                onClick={async () => {
-                  // Bug #20: call HTTP API so Supabase row is removed
-                  const idToDelete = confirmDelete.id;
-                  try {
-                    await fetch(`/api/campaigns/${idToDelete}`, { method: "DELETE" });
-                  } catch {
-                    // Silent — proceed with local removal
-                  }
-                  deleteCampaignLocal(company.id, idToDelete);
-                  setApiCampaigns((prev) => prev.filter((c) => c.id !== idToDelete));
-                  setConfirmDelete(null);
-                  refresh();
-                }}
-              >
-                {t("Supprimer", "Delete")}
-              </Button>
-            </div>
+      <Modal open={!!confirmDelete} onClose={() => setConfirmDelete(null)} width="max-w-sm">
+        <div className="p-5 sm:p-6">
+          <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-danger-50 text-danger-600">
+            <TrashIcon />
+          </div>
+          <h3 className="text-base font-semibold text-ink">{t("Supprimer la campagne", "Delete campaign")}</h3>
+          <p className="mt-1.5 text-sm text-muted">
+            {t("Supprimer", "Delete")} &ldquo;{confirmDelete?.name}&rdquo;? {t("Cette action est irréversible.", "This action cannot be undone.")}
+          </p>
+          <div className="mt-5 flex flex-wrap justify-end gap-2">
+            <Button variant="secondary" onClick={() => setConfirmDelete(null)}>{t("Annuler", "Cancel")}</Button>
+            <Button
+              variant="danger"
+              onClick={async () => {
+                if (!confirmDelete) return;
+                // Bug #20: call HTTP API so Supabase row is removed
+                const idToDelete = confirmDelete.id;
+                try {
+                  await fetch(`/api/campaigns/${idToDelete}`, { method: "DELETE" });
+                } catch {
+                  // Silent — proceed with local removal
+                }
+                deleteCampaignLocal(company.id, idToDelete);
+                setApiCampaigns((prev) => prev.filter((c) => c.id !== idToDelete));
+                setConfirmDelete(null);
+                refresh();
+              }}
+            >
+              {t("Supprimer", "Delete")}
+            </Button>
           </div>
         </div>
-      )}
+      </Modal>
     </div>
   );
 }

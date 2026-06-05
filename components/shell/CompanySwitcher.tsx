@@ -70,18 +70,18 @@ export function CompanySwitcher() {
             role="listbox"
             aria-label={t("Sélectionner un espace de travail", "Select a workspace")}
             className="
-              absolute left-0 z-20 mt-2 min-w-[15rem] overflow-hidden
+              absolute left-0 z-20 mt-2 flex max-h-[70vh] min-w-[15rem] max-w-[min(20rem,calc(100vw-1.5rem))] flex-col overflow-hidden
               rounded-xl border border-hair bg-card shadow-lg
               animate-fade-in
             "
           >
             {/* En-tête */}
-            <div className="border-b border-hair px-3 py-2">
+            <div className="shrink-0 border-b border-hair px-3 py-2">
               <p className="section-label">{t("Espace de travail", "Workspace")}</p>
             </div>
 
             {/* Liste */}
-            <div className="p-1.5">
+            <div className="overflow-y-auto p-1.5">
               {companies.map((c) => {
                 const active = c.id === company.id;
                 return (

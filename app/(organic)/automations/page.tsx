@@ -10,6 +10,7 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Toggle } from "@/components/ui/Toggle";
 import { Toast } from "@/components/ui/Toast";
 import { AutomationModal } from "@/components/organic/AutomationModal";
+import { Modal } from "@/components/ui/Modal";
 import {
   deleteAutomation,
   runAutomationNow,
@@ -280,18 +281,17 @@ function ConfirmOverlay({
 }) {
   const t = useT();
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/30 p-6 backdrop-blur-sm">
-      <div className="absolute inset-0" onClick={onCancel} />
-      <div className="relative z-50 w-full max-w-sm animate-slide-up rounded-xl border border-hair bg-card p-5 shadow-xl">
+    <Modal open onClose={onCancel} width="max-w-sm">
+      <div className="p-5 sm:p-6">
         <p className="text-sm leading-relaxed text-ink">{message}</p>
-        <div className="mt-5 flex justify-end gap-2">
+        <div className="mt-5 flex flex-wrap justify-end gap-2">
           <Button variant="secondary" onClick={onCancel}>{t("Annuler", "Cancel")}</Button>
           <Button variant={danger ? "danger" : "primary"} onClick={onConfirm}>
             {confirmLabel}
           </Button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }
 

@@ -15,6 +15,7 @@ import { MultiLineChart, type ChartSeries } from "@/components/charts/MultiLineC
 import { NewCampaignModal } from "@/components/paid/NewCampaignModal";
 import { AdSetModal } from "@/components/paid/AdSetModal";
 import { AdDetailModal } from "@/components/paid/AdDetailModal";
+import { Modal } from "@/components/ui/Modal";
 import {
   deleteAdSet,
   deleteCampaign as deleteCampaignLocal,
@@ -435,66 +436,61 @@ export default function CampaignDetailPage() {
         onChanged={refresh}
       />
 
-      {confirmAdSetDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-6 backdrop-blur-sm">
-          <div className="absolute inset-0" onClick={() => setConfirmAdSetDelete(null)} />
-          <div className="relative z-50 w-full max-w-sm animate-slide-up rounded-xl border border-hair bg-card p-6 shadow-xl">
-            <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-danger-50 text-danger-600">
-              <TrashIcon />
-            </div>
-            <h3 className="text-base font-semibold text-ink">{t("Supprimer l'ensemble de publicités", "Delete ad set")}</h3>
-            <p className="mt-1.5 text-sm text-muted">
-              {t("Supprimer", "Delete")} &ldquo;{confirmAdSetDelete.name}&rdquo;? {t("Cette action est irréversible.", "This action cannot be undone.")}
-            </p>
-            <div className="mt-5 flex justify-end gap-2">
-              <Button variant="secondary" onClick={() => setConfirmAdSetDelete(null)}>{t("Annuler", "Cancel")}</Button>
-              <Button
-                variant="danger"
-                onClick={() => {
-                  deleteAdSet(company.id, confirmAdSetDelete.id);
-                  setConfirmAdSetDelete(null);
-                  refresh();
-                }}
-              >
-                {t("Supprimer", "Delete")}
-              </Button>
-            </div>
+      <Modal open={!!confirmAdSetDelete} onClose={() => setConfirmAdSetDelete(null)} width="max-w-sm">
+        <div className="p-5 sm:p-6">
+          <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-danger-50 text-danger-600">
+            <TrashIcon />
+          </div>
+          <h3 className="text-base font-semibold text-ink">{t("Supprimer l'ensemble de publicités", "Delete ad set")}</h3>
+          <p className="mt-1.5 text-sm text-muted">
+            {t("Supprimer", "Delete")} &ldquo;{confirmAdSetDelete?.name}&rdquo;? {t("Cette action est irréversible.", "This action cannot be undone.")}
+          </p>
+          <div className="mt-5 flex flex-wrap justify-end gap-2">
+            <Button variant="secondary" onClick={() => setConfirmAdSetDelete(null)}>{t("Annuler", "Cancel")}</Button>
+            <Button
+              variant="danger"
+              onClick={() => {
+                if (!confirmAdSetDelete) return;
+                deleteAdSet(company.id, confirmAdSetDelete.id);
+                setConfirmAdSetDelete(null);
+                refresh();
+              }}
+            >
+              {t("Supprimer", "Delete")}
+            </Button>
           </div>
         </div>
-      )}
+      </Modal>
 
-      {confirmDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-6 backdrop-blur-sm">
-          <div className="absolute inset-0" onClick={() => setConfirmDelete(false)} />
-          <div className="relative z-50 w-full max-w-sm animate-slide-up rounded-xl border border-hair bg-card p-6 shadow-xl">
-            <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-danger-50 text-danger-600">
-              <TrashIcon />
-            </div>
-            <h3 className="text-base font-semibold text-ink">{t("Supprimer la campagne", "Delete campaign")}</h3>
-            <p className="mt-1.5 text-sm text-muted">
-              {t("Supprimer", "Delete")} &ldquo;{campaign.name}&rdquo;? {t("Cette action est irréversible.", "This action cannot be undone.")}
-            </p>
-            <div className="mt-5 flex justify-end gap-2">
-              <Button variant="secondary" onClick={() => setConfirmDelete(false)}>{t("Annuler", "Cancel")}</Button>
-              <Button
-                variant="danger"
-                onClick={async () => {
-                  // Bug #20: delete via HTTP API (Supabase) then remove locally
-                  try {
-                    await fetch(`/api/campaigns/${campaign.id}`, { method: "DELETE" });
-                  } catch {
-                    // Silent — proceed with local deletion
-                  }
-                  deleteCampaignLocal(company.id, campaign.id);
-                  router.push("/campaigns");
-                }}
-              >
-                {t("Supprimer", "Delete")}
-              </Button>
-            </div>
+      <Modal open={confirmDelete} onClose={() => setConfirmDelete(false)} width="max-w-sm">
+        <div className="p-5 sm:p-6">
+          <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-danger-50 text-danger-600">
+            <TrashIcon />
+          </div>
+          <h3 className="text-base font-semibold text-ink">{t("Supprimer la campagne", "Delete campaign")}</h3>
+          <p className="mt-1.5 text-sm text-muted">
+            {t("Supprimer", "Delete")} &ldquo;{campaign.name}&rdquo;? {t("Cette action est irréversible.", "This action cannot be undone.")}
+          </p>
+          <div className="mt-5 flex flex-wrap justify-end gap-2">
+            <Button variant="secondary" onClick={() => setConfirmDelete(false)}>{t("Annuler", "Cancel")}</Button>
+            <Button
+              variant="danger"
+              onClick={async () => {
+                // Bug #20: delete via HTTP API (Supabase) then remove locally
+                try {
+                  await fetch(`/api/campaigns/${campaign.id}`, { method: "DELETE" });
+                } catch {
+                  // Silent — proceed with local deletion
+                }
+                deleteCampaignLocal(company.id, campaign.id);
+                router.push("/campaigns");
+              }}
+            >
+              {t("Supprimer", "Delete")}
+            </Button>
           </div>
         </div>
-      )}
+      </Modal>
     </div>
   );
 }

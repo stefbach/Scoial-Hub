@@ -2,8 +2,9 @@
 
 /**
  * Sélecteur de créas existantes (vos pubs / pubs concurrents / veille) utilisées
- * comme INSPIRATION : l'IA en tire un NOUVEAU texte + un visuel original dans
- * l'identité de la marque. On ne republie jamais l'asset source.
+ * comme INSPIRATION : l'IA en tire PLUSIEURS propositions originales (texte +
+ * brief visuel) dans l'identité de la marque, chacune déclinable en IMAGE ou
+ * VIDÉO. On ne republie jamais l'asset source.
  */
 
 import { useCallback, useEffect, useState } from "react";
@@ -11,10 +12,17 @@ import { useT } from "@/lib/i18n";
 import type { CreativeItem } from "@/app/api/creatives/route";
 import type { UploadedMedia } from "@/components/ui/MediaUpload";
 
-interface Inspiration {
+interface Proposal {
   angle: string;
   postText: string;
   mediaPrompt: string;
+}
+
+interface GenState {
+  loading: boolean;
+  url: string | null;
+  kind: "image" | "video";
+  note: string | null;
 }
 
 export function CreativeInspiration({
@@ -37,9 +45,8 @@ export function CreativeInspiration({
   const [creatives, setCreatives] = useState<CreativeItem[]>([]);
   const [selected, setSelected] = useState<CreativeItem | null>(null);
   const [inspiring, setInspiring] = useState(false);
-  const [insp, setInsp] = useState<Inspiration | null>(null);
-  const [genVisual, setGenVisual] = useState(false);
-  const [genUrl, setGenUrl] = useState<string | null>(null);
+  const [proposals, setProposals] = useState<Proposal[]>([]);
+  const [gen, setGen] = useState<Record<number, GenState>>({});
   const [note, setNote] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -71,8 +78,8 @@ export function CreativeInspiration({
 
   async function inspire(c: CreativeItem) {
     setSelected(c);
-    setInsp(null);
-    setGenUrl(null);
+    setProposals([]);
+    setGen({});
     setNote(null);
     setInspiring(true);
     try {
@@ -87,10 +94,14 @@ export function CreativeInspiration({
           origin: c.origin,
           source: c.source,
           brandVoice,
+          count: 3,
         }),
       });
-      const data = (await res.json()) as Inspiration;
-      setInsp(data);
+      const data = (await res.json()) as { proposals?: Proposal[] };
+      setProposals(data.proposals ?? []);
+      if ((data.proposals ?? []).length === 0) {
+        setNote(t("Aucune proposition générée.", "No proposal generated."));
+      }
     } catch {
       setNote(t("Échec de l'inspiration IA.", "AI inspiration failed."));
     } finally {
@@ -98,40 +109,62 @@ export function CreativeInspiration({
     }
   }
 
-  async function generateVisual() {
-    if (!insp?.mediaPrompt) return;
-    setGenVisual(true);
-    setGenUrl(null);
-    setNote(null);
+  async function generateMedia(index: number, kind: "image" | "video") {
+    const p = proposals[index];
+    if (!p?.mediaPrompt) return;
+    setGen((g) => ({ ...g, [index]: { loading: true, url: null, kind, note: null } }));
     try {
-      const res = await fetch("/api/ai/generate-image", {
+      const endpoint = kind === "video" ? "/api/ai/generate-video" : "/api/ai/generate-image";
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: insp.mediaPrompt, platform }),
+        body: JSON.stringify({ prompt: p.mediaPrompt, platform }),
       });
       const data = (await res.json()) as {
         images?: Array<string | { url?: string }>;
+        video?: { url?: string };
         simulated?: boolean;
         error?: string;
       };
-      const first = Array.isArray(data.images) ? data.images[0] : undefined;
-      const imgUrl = typeof first === "string" ? first : first?.url;
-      if (imgUrl) {
-        setGenUrl(imgUrl);
-        onApplyMedia({ url: imgUrl, name: "inspiration.png", size: 0, kind: "image" });
-        setNote(t("Visuel généré et appliqué à l'aperçu du post.", "Visual generated and applied to the post preview."));
-      } else if (data.simulated) {
-        setNote(t(
-          "Mode démo : la génération d'image n'est pas activée (clé REPLICATE_API_TOKEN manquante). Le brief visuel ci-dessus est prêt à l'emploi.",
-          "Demo mode: image generation is off (missing REPLICATE_API_TOKEN). The visual brief above is ready to use.",
-        ));
+      let url: string | undefined;
+      if (kind === "video") {
+        url = data.video?.url;
       } else {
-        setNote(data.error || t("Aucune image renvoyée.", "No image returned."));
+        const first = Array.isArray(data.images) ? data.images[0] : undefined;
+        url = typeof first === "string" ? first : first?.url;
+      }
+      if (url) {
+        onApplyMedia({
+          url,
+          name: kind === "video" ? "inspiration.mp4" : "inspiration.png",
+          size: 0,
+          kind,
+        });
+        setGen((g) => ({
+          ...g,
+          [index]: { loading: false, url: url!, kind, note: t("Appliqué à l'aperçu du post.", "Applied to the post preview.") },
+        }));
+      } else {
+        setGen((g) => ({
+          ...g,
+          [index]: {
+            loading: false,
+            url: null,
+            kind,
+            note: data.simulated
+              ? t(
+                  "Mode démo : génération non activée (clé REPLICATE_API_TOKEN manquante). Le brief est prêt à l'emploi.",
+                  "Demo mode: generation off (missing REPLICATE_API_TOKEN). The brief is ready to use.",
+                )
+              : data.error || t("Aucun média renvoyé.", "No media returned."),
+          },
+        }));
       }
     } catch {
-      setNote(t("Échec de génération du visuel.", "Visual generation failed."));
-    } finally {
-      setGenVisual(false);
+      setGen((g) => ({
+        ...g,
+        [index]: { loading: false, url: null, kind, note: t("Échec de génération.", "Generation failed.") },
+      }));
     }
   }
 
@@ -152,8 +185,8 @@ export function CreativeInspiration({
         <div className="mt-3 space-y-3">
           <p className="text-2xs leading-snug text-muted">
             {t(
-              "Vos pubs, celles des concurrents (Ad Library) ou les contenus de veille. L'IA en tire un nouveau post original — l'asset source n'est jamais republié.",
-              "Your ads, competitors' ads (Ad Library) or watch content. The AI produces a new original post — the source asset is never reposted.",
+              "Vos pubs, celles des concurrents (Ad Library) ou les contenus de veille. L'IA en tire plusieurs posts originaux — l'asset source n'est jamais republié.",
+              "Your ads, competitors' ads (Ad Library) or watch content. The AI produces several original posts — the source asset is never reposted.",
             )}
           </p>
 
@@ -206,36 +239,79 @@ export function CreativeInspiration({
             </div>
           )}
 
-          {/* Résultat de l'inspiration */}
-          {inspiring && <p className="text-2xs text-ai-text">{t("Analyse de la créa et génération…", "Analyzing creative and generating…")}</p>}
-          {insp && (
-            <div className="space-y-2 rounded-lg border border-primary-200 bg-primary-50/40 p-3">
-              {insp.angle && <p className="text-2xs font-semibold text-primary-700">{t("Angle", "Angle")} : {insp.angle}</p>}
-              {insp.postText && (
-                <div>
-                  <p className="whitespace-pre-wrap text-xs text-ink">{insp.postText}</p>
-                  <button type="button" onClick={() => onApplyText(insp.postText)} className="btn-primary mt-2 text-2xs px-2 py-1">
-                    {t("Utiliser ce texte", "Use this text")}
-                  </button>
-                </div>
-              )}
-              {insp.mediaPrompt && (
-                <div className="border-t border-primary-200/60 pt-2">
-                  <p className="text-2xs text-muted">{t("Brief visuel", "Visual brief")} : {insp.mediaPrompt}</p>
-                  <button type="button" onClick={generateVisual} disabled={genVisual} className="btn-secondary mt-2 text-2xs px-2 py-1">
-                    {genVisual ? t("Génération… (≈10–30 s)", "Generating… (≈10–30 s)") : t("Générer le visuel", "Generate visual")}
-                  </button>
-                  {genVisual && (
-                    <div className="mt-2 flex aspect-square w-32 items-center justify-center rounded-lg border border-hair bg-canvas">
-                      <span className="h-5 w-5 animate-spin rounded-full border-2 border-primary-300 border-t-transparent" />
-                    </div>
-                  )}
-                  {genUrl && !genVisual && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={genUrl} alt="visuel généré" className="mt-2 w-32 rounded-lg border border-hair" />
-                  )}
-                </div>
-              )}
+          {/* Propositions */}
+          {inspiring && (
+            <p className="text-2xs text-ai-text">
+              {t("Analyse de la créa et génération de plusieurs propositions…", "Analyzing creative and generating several proposals…")}
+            </p>
+          )}
+
+          {proposals.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-2xs font-semibold text-ink">
+                {t(`${proposals.length} propositions`, `${proposals.length} proposals`)}
+              </p>
+              {proposals.map((p, i) => {
+                const g = gen[i];
+                return (
+                  <div key={i} className="space-y-2 rounded-lg border border-primary-200 bg-primary-50/40 p-3">
+                    {p.angle && (
+                      <p className="text-2xs font-semibold text-primary-700">
+                        {t("Proposition", "Proposal")} {i + 1} · {p.angle}
+                      </p>
+                    )}
+                    {p.postText && (
+                      <div>
+                        <p className="whitespace-pre-wrap text-xs text-ink">{p.postText}</p>
+                        <button
+                          type="button"
+                          onClick={() => onApplyText(p.postText)}
+                          className="btn-primary mt-2 text-2xs px-2 py-1"
+                        >
+                          {t("Utiliser ce texte", "Use this text")}
+                        </button>
+                      </div>
+                    )}
+                    {p.mediaPrompt && (
+                      <div className="border-t border-primary-200/60 pt-2">
+                        <p className="text-2xs text-muted">{t("Brief visuel", "Visual brief")} : {p.mediaPrompt}</p>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => generateMedia(i, "image")}
+                            disabled={g?.loading}
+                            className="btn-secondary text-2xs px-2 py-1"
+                          >
+                            {g?.loading && g.kind === "image" ? t("Image…", "Image…") : t("🖼️ Générer image", "🖼️ Generate image")}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => generateMedia(i, "video")}
+                            disabled={g?.loading}
+                            className="btn-secondary text-2xs px-2 py-1"
+                          >
+                            {g?.loading && g.kind === "video" ? t("Vidéo… (≈1 min)", "Video… (≈1 min)") : t("🎬 Générer vidéo", "🎬 Generate video")}
+                          </button>
+                        </div>
+                        {g?.loading && (
+                          <div className="mt-2 flex aspect-square w-32 items-center justify-center rounded-lg border border-hair bg-canvas">
+                            <span className="h-5 w-5 animate-spin rounded-full border-2 border-primary-300 border-t-transparent" />
+                          </div>
+                        )}
+                        {g?.url && !g.loading && (
+                          g.kind === "video" ? (
+                            <video src={g.url} controls className="mt-2 w-32 rounded-lg border border-hair" />
+                          ) : (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={g.url} alt="visuel généré" className="mt-2 w-32 rounded-lg border border-hair" />
+                          )
+                        )}
+                        {g?.note && <p className="mt-1 text-2xs text-muted">{g.note}</p>}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

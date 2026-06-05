@@ -2,13 +2,14 @@
  * POST /api/ai/inspire-from-creative
  *
  * À partir d'une créa existante (pub ou contenu concurrent) qui performe,
- * génère une NOUVELLE proposition ORIGINALE dans l'identité de la marque :
+ * génère PLUSIEURS propositions ORIGINALES dans l'identité de la marque.
+ * Chaque proposition :
+ *  - angle      : l'angle marketing retenu
  *  - postText   : texte de post prêt à publier
  *  - mediaPrompt : prompt de génération d'un visuel/vidéo original (jamais une copie)
- *  - angle      : l'angle marketing retenu
  *
  * Inspiration only : on ne republie jamais l'asset source. Le RAG (mémoire
- * stratégique) est injecté pour ancrer la proposition dans la marque.
+ * stratégique) est injecté pour ancrer les propositions dans la marque.
  */
 
 export const runtime = "nodejs";
@@ -25,19 +26,30 @@ interface Body {
   origin?: string;
   source?: "ad" | "veille";
   brandVoice?: string;
+  count?: number;
 }
 
-function mockResult(brandVoice: string, mediaType: "image" | "video") {
+interface Proposal {
+  angle: string;
+  postText: string;
+  mediaPrompt: string;
+}
+
+function mockProposals(brandVoice: string, mediaType: "image" | "video", count: number): Proposal[] {
   const voice = brandVoice?.trim() || "professionnel et chaleureux";
-  return {
-    angle: "Preuve & bénéfice concret",
-    postText: `Voici une proposition de post inspirée d'une créa performante, réécrite dans votre ton (${voice}). Mettez en avant un bénéfice clair pour votre audience et terminez par un appel à l'action engageant. ✨\n\n#Marque #Communauté`,
+  const angles = [
+    { angle: "Preuve & bénéfice concret", hook: "Mettez en avant un résultat mesurable" },
+    { angle: "Émotion & storytelling", hook: "Racontez une histoire client authentique" },
+    { angle: "Coulisses & expertise", hook: "Montrez votre savoir-faire en coulisses" },
+  ];
+  return angles.slice(0, Math.max(1, Math.min(count, 3))).map((a, i) => ({
+    angle: a.angle,
+    postText: `Proposition ${i + 1} (ton ${voice}) — ${a.hook} pour votre audience, puis terminez par un appel à l'action engageant. ✨\n\n#Marque #Communauté`,
     mediaPrompt:
       mediaType === "video"
-        ? "Vidéo courte (9:16) : plan d'ouverture accrocheur, démonstration du bénéfice en 3 temps, incrustation de texte sobre, identité de marque cohérente."
-        : "Visuel carré épuré, sujet central mis en valeur, palette de marque, espace pour un titre court et lisible.",
-    aiGenerated: false,
-  };
+        ? `Vidéo courte (9:16), angle "${a.angle}" : ouverture accrocheuse, démonstration du bénéfice, incrustation de texte sobre, identité de marque cohérente.`
+        : `Visuel épuré, angle "${a.angle}" : sujet central mis en valeur, palette de marque, espace pour un titre court et lisible.`,
+  }));
 }
 
 export async function POST(req: NextRequest) {
@@ -51,13 +63,15 @@ export async function POST(req: NextRequest) {
       origin = "",
       source = "ad",
       brandVoice = "",
+      count = 3,
     } = body;
+    const n = Math.max(1, Math.min(count, 4));
 
     if (!isAiConfigured) {
-      return NextResponse.json(mockResult(brandVoice, mediaType));
+      return NextResponse.json({ proposals: mockProposals(brandVoice, mediaType, n), aiGenerated: false });
     }
 
-    // RAG : ancre la proposition dans la mémoire stratégique de la marque.
+    // RAG : ancre les propositions dans la mémoire stratégique de la marque.
     let memoryContext = "";
     if (companyId) {
       try {
@@ -81,18 +95,22 @@ ${caption.slice(0, 800)}
 ${brandVoice ? `Voix de marque : "${brandVoice}".` : ""}
 ${memoryContext ? `\n[Mémoire stratégique de la marque — à exploiter]\n${memoryContext}\n` : ""}
 
-OBJECTIF : t'INSPIRER de ce qui marche (angle, structure, accroche) pour produire une proposition ORIGINALE dans l'identité de la marque. N'imite ni ne copie le texte ni le visuel source ; ne reprends aucune marque/logo tiers.
+OBJECTIF : t'INSPIRER de ce qui marche (angle, structure, accroche) pour produire ${n} propositions ORIGINALES et DISTINCTES (angles différents) dans l'identité de la marque. N'imite ni ne copie le texte ni le visuel source ; ne reprends aucune marque/logo tiers.
 
-Réponds STRICTEMENT en JSON (français) :
+Réponds STRICTEMENT en JSON (français), un tableau de ${n} objets :
 {
-  "angle": "l'angle marketing retenu (1 ligne)",
-  "postText": "un texte de post prêt à publier, adapté au réseau ${platform}, avec accroche + corps + appel à l'action + hashtags pertinents",
-  "mediaPrompt": "un prompt détaillé pour générer un ${mediaType === "video" ? "script/visuel vidéo" : "visuel image"} ORIGINAL (sujet, composition, ambiance, couleurs de marque), sans copier la créa source ni inclure de marque tierce"
+  "proposals": [
+    {
+      "angle": "l'angle marketing retenu (1 ligne)",
+      "postText": "un texte de post prêt à publier, adapté au réseau ${platform}, avec accroche + corps + appel à l'action + hashtags pertinents",
+      "mediaPrompt": "un prompt détaillé pour générer un ${mediaType === "video" ? "script/visuel vidéo" : "visuel image"} ORIGINAL (sujet, composition, ambiance, couleurs de marque), sans copier la créa source ni inclure de marque tierce"
+    }
+  ]
 }`;
 
     const msg = await client.messages.create({
       model: env.anthropicModel,
-      max_tokens: 1200,
+      max_tokens: 2500,
       messages: [{ role: "user", content: prompt }],
     });
     const raw = msg.content
@@ -101,20 +119,20 @@ Réponds STRICTEMENT en JSON (français) :
       .join("");
     const match = raw.match(/\{[\s\S]*\}/);
     if (!match) throw new Error("no json");
-    const parsed = JSON.parse(match[0]) as {
-      angle?: string;
-      postText?: string;
-      mediaPrompt?: string;
-    };
+    const parsed = JSON.parse(match[0]) as { proposals?: Proposal[] };
+    const proposals = (parsed.proposals ?? [])
+      .filter((p) => p && (p.postText || p.mediaPrompt))
+      .map((p) => ({
+        angle: p.angle ?? "",
+        postText: p.postText ?? "",
+        mediaPrompt: p.mediaPrompt ?? "",
+      }));
 
-    return NextResponse.json({
-      angle: parsed.angle ?? "",
-      postText: parsed.postText ?? "",
-      mediaPrompt: parsed.mediaPrompt ?? "",
-      aiGenerated: true,
-    });
+    if (proposals.length === 0) throw new Error("empty proposals");
+
+    return NextResponse.json({ proposals, aiGenerated: true });
   } catch (err) {
     console.warn("[inspire-from-creative] fallback:", err);
-    return NextResponse.json(mockResult("", "image"));
+    return NextResponse.json({ proposals: mockProposals("", "image", 3), aiGenerated: false });
   }
 }

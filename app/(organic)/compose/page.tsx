@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { Tabs } from "@/components/ui/Tabs";
 import { AiTextPanel, AiVisualsPanel } from "@/components/ui/AiPanel";
 import { CreativeInspiration } from "@/components/compose/CreativeInspiration";
+import { MediaEditor } from "@/components/compose/MediaEditor";
 import { MediaUpload, type UploadedMedia } from "@/components/ui/MediaUpload";
 import { DatePicker, TimePicker } from "@/components/ui/DateTimePicker";
 import { Toast } from "@/components/ui/Toast";
@@ -66,6 +67,7 @@ function ComposeContent() {
   );
   const [time, setTime] = useState(scheduleSource?.time ?? "09:00");
   const [upload, setUpload] = useState<UploadedMedia | null>(null);
+  const [editing, setEditing] = useState(false);
   const [previewPlatform, setPreviewPlatform] = useState<"facebook" | "instagram">("facebook");
   const [submitting, setSubmitting] = useState(false);
   const [savingLibrary, setSavingLibrary] = useState(false);
@@ -305,6 +307,18 @@ function ComposeContent() {
 
           {/* Media upload */}
           <MediaUpload media={upload} onChange={setUpload} />
+          {upload && (
+            <button
+              type="button"
+              onClick={() => setEditing(true)}
+              className="btn-secondary -mt-1 text-xs"
+            >
+              🎬 {t("Éditer (texte / musique)", "Edit (text / music)")}
+            </button>
+          )}
+          {editing && upload && (
+            <MediaEditor media={upload} onExport={setUpload} onClose={() => setEditing(false)} />
+          )}
 
           {/* When to publish */}
           <div>

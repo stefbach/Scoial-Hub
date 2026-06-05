@@ -77,15 +77,17 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
 
         // ── Compte RÉEL (utilisateur connecté avec organisation) ──────────
         // On affiche EXACTEMENT ses sociétés (jamais les marques de démo).
+        // Espace vierge (aucune société) → liste VIDE — surtout PAS les marques
+        // de démonstration, sinon toute action par société (connecteurs, etc.)
+        // renverrait 403 sur une société qui ne lui appartient pas.
         if (isAuthed) {
-          if (fetched.length === 0) return; // espace vierge → on garde le placeholder
           for (const c of fetched) {
             if (!COMPANY_DATA[c.id]) COMPANY_DATA[c.id] = makeEmptyCompanyData();
           }
           COMPANIES.splice(0, COMPANIES.length, ...fetched);
           setCompanies([...COMPANIES]);
           setCompanyId((prev) =>
-            COMPANIES.some((c) => c.id === prev) ? prev : (COMPANIES[0]?.id ?? prev)
+            COMPANIES.some((c) => c.id === prev) ? prev : (COMPANIES[0]?.id ?? "")
           );
           return;
         }
@@ -157,7 +159,13 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const value = useMemo<CompanyContextValue>(() => {
-    const company = companies.find((c) => c.id === companyId) ?? companies[0];
+    // Sentinelle « aucune société » : évite tout crash quand un compte réel n'a
+    // pas encore créé de société (company.id = "" → les routes par-société
+    // renvoient 400/empty proprement, et l'UI invite à créer une société).
+    const company =
+      companies.find((c) => c.id === companyId) ??
+      companies[0] ??
+      ({ id: "", code: "—", name: "—", brandVoice: "", accent: "#9ca3af", defaultPlatforms: [] } as Company);
     return {
       companies,
       company,

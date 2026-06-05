@@ -18,6 +18,8 @@ export interface VideoGenBody {
   platform?: string;
   aspect?: string;
   seconds?: number;
+  /** Identifiant de modèle Replicate (catalogue). */
+  model?: string;
 }
 
 export async function generateVideoPolling(

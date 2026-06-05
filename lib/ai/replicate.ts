@@ -213,6 +213,32 @@ export async function generateImage(
   };
 }
 
+/**
+ * Génère des images avec un modèle Replicate arbitraire (catalogue) et un input
+ * déjà construit pour son schéma. Parallélise si plusieurs images sont demandées.
+ */
+export async function generateImageModel(
+  modelId: string,
+  input: Record<string, unknown>,
+  n = 1
+): Promise<GenerateImageResult> {
+  if (!isReplicateConfigured) {
+    return { images: [], simulated: true, model: "simulated" };
+  }
+  const numOutputs = Math.min(Math.max(1, n), 4);
+  const runOne = async (): Promise<string[]> => {
+    const prediction = await runPrediction(modelId, input);
+    const raw = prediction.output;
+    return Array.isArray(raw)
+      ? (raw as string[]).map(String)
+      : typeof raw === "string"
+      ? [raw]
+      : [];
+  };
+  const batches = await Promise.all(Array.from({ length: numOutputs }, runOne));
+  return { images: batches.flat().map((url) => ({ url })), model: modelId };
+}
+
 // --------------- API publique — Vidéos ---------------
 
 export interface GenerateVideoOptions {
@@ -296,13 +322,19 @@ function mapVideoPrediction(p: ReplicatePrediction): VideoPredictionStatus {
   };
 }
 
-/** Démarre une génération vidéo et retourne immédiatement l'id de prédiction. */
+/**
+ * Démarre une génération vidéo et retourne immédiatement l'id de prédiction.
+ * `modelId` + `input` permettent de cibler n'importe quel modèle du catalogue ;
+ * par défaut on utilise Veo 3 avec un input minimal.
+ */
 export async function startVideoPrediction(
-  opts: GenerateVideoOptions
+  opts: GenerateVideoOptions,
+  modelId: string = DEFAULT_VIDEO_MODEL,
+  input?: Record<string, unknown>
 ): Promise<VideoPredictionStatus> {
   if (!isReplicateConfigured) return { status: "simulated", simulated: true };
 
-  const [owner, name] = DEFAULT_VIDEO_MODEL.split("/");
+  const [owner, name] = modelId.split("/");
   const res = await fetch(
     `${REPLICATE_API_BASE}/models/${owner}/${name}/predictions`,
     {
@@ -312,8 +344,7 @@ export async function startVideoPrediction(
         Authorization: `Bearer ${process.env.REPLICATE_API_TOKEN ?? ""}`,
         "Content-Type": "application/json",
       },
-      // Veo 3 n'accepte qu'un `prompt` (pas de prompt_optimizer/duration).
-      body: JSON.stringify({ input: { prompt: opts.prompt } }),
+      body: JSON.stringify({ input: input ?? { prompt: opts.prompt } }),
     }
   );
   if (!res.ok) {

@@ -31,6 +31,8 @@ export function CreativeInspiration({
   brandVoice,
   platform,
   language,
+  imageModel,
+  videoModel,
   onApplyText,
   onApplyMedia,
 }: {
@@ -39,6 +41,10 @@ export function CreativeInspiration({
   platform: "facebook" | "instagram" | "linkedin";
   /** Langue de diffusion imposée pour les propositions de texte. */
   language?: string;
+  /** Modèle de génération d'image (catalogue Replicate). */
+  imageModel?: string;
+  /** Modèle de génération vidéo (catalogue Replicate). */
+  videoModel?: string;
   onApplyText: (text: string) => void;
   onApplyMedia: (media: UploadedMedia) => void;
 }) {
@@ -155,7 +161,7 @@ export function CreativeInspiration({
               `Generating clip ${k + 1}/${scenes.length}… (Veo 3, ~1-3 min)`,
             ),
           );
-          const r = await generateVideoPolling({ prompt: scenes[k], platform });
+          const r = await generateVideoPolling({ prompt: scenes[k], platform, model: videoModel, seconds: 10 });
           if (r.simulated) { simulated = true; break; }
           if (!r.url) { error = r.error; break; }
           urls.push(r.url);
@@ -175,7 +181,7 @@ export function CreativeInspiration({
         const res = await fetch("/api/ai/generate-image", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ prompt: p.mediaPrompt, platform }),
+          body: JSON.stringify({ prompt: p.mediaPrompt, platform, model: imageModel }),
         });
         const data = (await res.json()) as {
           images?: Array<string | { url?: string }>;

@@ -15,21 +15,26 @@ export const maxDuration = 60;
 import { NextRequest, NextResponse } from "next/server";
 import { startVideoPrediction, getVideoPrediction } from "@/lib/ai/replicate";
 import { resolveVideoAspect } from "@/lib/social-formats";
+import { getVideoModel } from "@/lib/ai/model-catalog";
 
 interface RequestBody {
   prompt?: string;
   platform?: string;
   seconds?: number;
   aspect?: string;
+  /** Identifiant de modèle Replicate (catalogue). Défaut : Veo 3. */
+  model?: string;
 }
 
 export async function POST(req: NextRequest) {
   try {
     const body: RequestBody = await req.json().catch(() => ({}));
-    const { prompt = "", platform, aspect } = body;
+    const { prompt = "", platform, aspect, seconds, model } = body;
     const resolvedAspect = aspect ?? resolveVideoAspect(platform);
 
-    const started = await startVideoPrediction({ prompt, aspect: resolvedAspect });
+    const gm = getVideoModel(model);
+    const input = gm.buildInput(prompt, { aspect: resolvedAspect, seconds });
+    const started = await startVideoPrediction({ prompt, aspect: resolvedAspect }, gm.id, input);
 
     if (started.simulated) {
       return NextResponse.json({ simulated: true, aspect: resolvedAspect, platform: platform ?? null });

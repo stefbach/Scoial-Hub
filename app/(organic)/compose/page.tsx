@@ -10,6 +10,7 @@ import { Tabs } from "@/components/ui/Tabs";
 import { AiTextPanel, AiVisualsPanel } from "@/components/ui/AiPanel";
 import { CreativeInspiration } from "@/components/compose/CreativeInspiration";
 import { MediaEditor } from "@/components/compose/MediaEditor";
+import { IMAGE_MODELS, VIDEO_MODELS, DEFAULT_IMAGE_MODEL_ID, DEFAULT_VIDEO_MODEL_ID } from "@/lib/ai/model-catalog";
 import { MediaUpload, type UploadedMedia } from "@/components/ui/MediaUpload";
 import { DatePicker, TimePicker } from "@/components/ui/DateTimePicker";
 import { Toast } from "@/components/ui/Toast";
@@ -82,6 +83,8 @@ function ComposeContent() {
   const [upload, setUpload] = useState<UploadedMedia | null>(null);
   const [editing, setEditing] = useState(false);
   const [language, setLanguage] = useState("Français");
+  const [imageModel, setImageModel] = useState(DEFAULT_IMAGE_MODEL_ID);
+  const [videoModel, setVideoModel] = useState(DEFAULT_VIDEO_MODEL_ID);
   const [previewPlatform, setPreviewPlatform] = useState<"facebook" | "instagram">("facebook");
   const [submitting, setSubmitting] = useState(false);
   const [savingLibrary, setSavingLibrary] = useState(false);
@@ -323,19 +326,41 @@ function ComposeContent() {
             </select>
           </div>
 
+          {/* Modèles de génération IA (collections Replicate) */}
+          <div className="grid grid-cols-1 gap-2 rounded-lg border border-hair bg-canvas/60 px-3 py-2 sm:grid-cols-2">
+            <label className="flex items-center justify-between gap-2 text-xs">
+              <span className="font-medium text-ink">🖼️ {t("Modèle image", "Image model")}</span>
+              <select value={imageModel} onChange={(e) => setImageModel(e.target.value)} className="input text-2xs" title={t("Modèle de génération d'image", "Image generation model")}>
+                {IMAGE_MODELS.map((m) => (
+                  <option key={m.id} value={m.id}>{m.label}{m.note ? ` — ${m.note}` : ""}</option>
+                ))}
+              </select>
+            </label>
+            <label className="flex items-center justify-between gap-2 text-xs">
+              <span className="font-medium text-ink">🎬 {t("Modèle vidéo", "Video model")}</span>
+              <select value={videoModel} onChange={(e) => setVideoModel(e.target.value)} className="input text-2xs" title={t("Modèle de génération vidéo", "Video generation model")}>
+                {VIDEO_MODELS.map((m) => (
+                  <option key={m.id} value={m.id}>{m.label}{m.note ? ` — ${m.note}` : ""}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+
           {/* Inspiration depuis une créa existante (vos pubs / concurrents / veille) */}
           <CreativeInspiration
             companyId={company.id}
             brandVoice={company.code}
             platform={activePlatform}
             language={language}
+            imageModel={imageModel}
+            videoModel={videoModel}
             onApplyText={setBody}
             onApplyMedia={setUpload}
           />
 
           {/* AI panels — réseau dérivé du 1er compte sélectionné (respecte le réseau). */}
           <AiTextPanel brandVoiceLabel={company.code} platform={activePlatform} language={language} />
-          <AiVisualsPanel used={data.library.aiBudgetUsed} cap={data.library.aiBudgetCap} platform={activePlatform} />
+          <AiVisualsPanel used={data.library.aiBudgetUsed} cap={data.library.aiBudgetCap} platform={activePlatform} imageModel={imageModel} videoModel={videoModel} />
 
           {/* Media upload */}
           <MediaUpload media={upload} onChange={setUpload} />

@@ -88,7 +88,7 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         tabIndex={-1}
-        className={`relative w-full ${width} max-h-[90vh] overflow-y-auto rounded-2xl bg-card shadow-xl outline-none`}
+        className={`relative mx-2 w-full ${width} max-h-[90vh] overflow-y-auto overflow-x-hidden rounded-2xl bg-card shadow-xl outline-none`}
         onClick={(e) => e.stopPropagation()}
       >
         {children}

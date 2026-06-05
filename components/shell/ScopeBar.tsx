@@ -15,7 +15,7 @@ export function ScopeBar() {
 
   return (
     <div className="sticky top-[3.25rem] z-20 border-b border-hair bg-canvas/85 backdrop-blur-md">
-      <div className="flex w-full flex-wrap items-center gap-3 px-7 py-2.5">
+      <div className="flex w-full flex-wrap items-center gap-1.5 px-3 py-2.5 sm:gap-3 sm:px-5 lg:px-7">
         <span className="section-label text-muted">{t("Contexte", "Context")}</span>
         <CountryPicker currentId={country.id} flag={country.flag} label={country.label} onSelect={setCountryId} />
         <DateRangePicker range={range} onChange={setRange} />
@@ -75,7 +75,7 @@ function CountryPicker({
         </svg>
       </button>
       {open && (
-        <div className="absolute left-0 top-11 z-40 w-64 rounded-xl border border-hair bg-card p-2 shadow-lg animate-fade-in">
+        <div className="absolute left-0 top-11 z-40 w-[min(16rem,calc(100vw-1rem))] max-w-[calc(100vw-1rem)] rounded-xl border border-hair bg-card p-2 shadow-lg animate-fade-in">
           <input
             autoFocus
             value={q}
@@ -169,7 +169,7 @@ function DateRangePicker({
         </svg>
       </button>
       {open && (
-        <div className="absolute left-0 top-11 z-40 rounded-xl border border-hair bg-card p-3 shadow-lg animate-fade-in">
+        <div className="absolute left-0 top-11 z-40 w-[min(16rem,calc(100vw-1rem))] max-w-[calc(100vw-1rem)] rounded-xl border border-hair bg-card p-3 shadow-lg animate-fade-in">
           <div className="mb-2 flex flex-wrap gap-1.5">
             {PRESETS.map((p) => (
               <button

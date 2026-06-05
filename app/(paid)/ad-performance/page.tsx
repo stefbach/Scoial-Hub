@@ -708,7 +708,8 @@ function AdPerformanceContent() {
           </div>
 
           <div className="card mb-5 overflow-hidden">
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto">
+            <table className="w-full min-w-[40rem] text-sm">
               <thead>
                 <tr className="border-b border-hair bg-canvas/50 text-left">
                   <th className="px-5 py-3 text-2xs font-semibold uppercase tracking-wide text-muted">{t("Publicité", "Ad")}</th>
@@ -762,6 +763,7 @@ function AdPerformanceContent() {
                 )}
               </tbody>
             </table>
+            </div>
           </div>
 
           {/* AI insight + actions */}

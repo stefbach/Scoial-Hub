@@ -72,7 +72,7 @@ export function CompanySwitcher() {
             role="listbox"
             aria-label={t("Sélectionner un espace de travail", "Select a workspace")}
             className="
-              absolute left-0 z-20 mt-2 flex max-h-[70vh] min-w-[15rem] max-w-[min(20rem,calc(100vw-1.5rem))] flex-col overflow-hidden
+              absolute left-0 z-20 mt-2 flex max-h-[70vh] min-w-[15rem] max-w-[min(18rem,calc(100vw-1rem))] flex-col overflow-hidden
               rounded-xl border border-hair bg-card shadow-lg
               animate-fade-in
             "

@@ -79,7 +79,10 @@ export async function middleware(request: NextRequest) {
   const authRequired = process.env.AUTH_DISABLED !== "true";
   if (authRequired && !user) {
     const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("redirect", pathname);
+    // Conserve le chemin ET les query params (ex. ?connected=facebook au retour
+    // d'un OAuth) pour ne pas perdre le résultat après une re-connexion — cas
+    // fréquent sur mobile si la session vacille pendant la redirection OAuth.
+    loginUrl.searchParams.set("redirect", request.nextUrl.pathname + request.nextUrl.search);
     return NextResponse.redirect(loginUrl);
   }
 

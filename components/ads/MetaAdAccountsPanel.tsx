@@ -133,7 +133,7 @@ export function MetaAdAccountsPanel({ showCampaigns = true }: { showCampaigns?: 
           </div>
           {data && data.campaigns.length > 0 ? (
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
+              <table className="w-full min-w-[34rem] text-left text-sm">
                 <thead>
                   <tr className="border-b border-hair text-2xs uppercase tracking-wide text-muted">
                     <th className="py-2 pr-3 font-semibold">{t("Campagne", "Campaign")}</th>

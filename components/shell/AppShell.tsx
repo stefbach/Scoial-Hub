@@ -55,7 +55,7 @@ function UserMenu() {
       <button
         aria-label="Profil utilisateur"
         className="
-          group relative flex h-8 w-8 items-center justify-center rounded-full
+          group relative flex h-9 w-9 items-center justify-center rounded-full
           bg-page text-2xs font-bold text-white
           shadow-sm ring-2 ring-transparent
           transition-all duration-[150ms]
@@ -82,7 +82,7 @@ function UserMenu() {
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
         className="
-          group relative flex h-8 w-8 items-center justify-center rounded-full
+          group relative flex h-9 w-9 items-center justify-center rounded-full
           bg-page text-2xs font-bold text-white
           shadow-sm ring-2 ring-transparent
           transition-all duration-[150ms]
@@ -216,7 +216,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             type="button"
             onClick={() => setNavOpen(true)}
             aria-label="Ouvrir le menu"
-            className="-ml-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-ink hover:bg-canvas lg:hidden"
+            className="-ml-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-ink hover:bg-canvas lg:hidden"
           >
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
               <path d="M3 5.5h14M3 10h14M3 14.5h14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
@@ -258,7 +258,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <div
               ref={drawerRef}
               tabIndex={-1}
-              className="absolute left-0 top-0 h-full w-[15rem] overflow-y-auto bg-card shadow-xl outline-none animate-slide-up"
+              className="absolute left-0 top-0 h-full w-[min(15rem,82vw)] overflow-y-auto bg-card shadow-xl outline-none animate-slide-up"
             >
               <Sidebar onNavigate={() => setNavOpen(false)} />
             </div>

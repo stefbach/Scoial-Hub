@@ -26,7 +26,7 @@ export function Button({
     <button
       className={[
         // Base commune
-        "inline-flex items-center justify-center gap-1.5 rounded-lg px-3.5 py-[0.4rem]",
+        "inline-flex items-center justify-center gap-1.5 rounded-lg px-3.5 py-2 sm:py-[0.4rem]",
         "text-sm font-medium select-none",
         "transition-all duration-[120ms] ease-[cubic-bezier(0.4,0,0.2,1)]",
         // Anneau focus-visible — accent améthyste, sans fond blanc parasite

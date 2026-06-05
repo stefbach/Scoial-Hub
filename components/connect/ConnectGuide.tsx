@@ -29,6 +29,10 @@ export function ConnectGuide({
 }) {
   const t = useT();
   const isMeta = platform === "meta";
+  // Garde-fou : ne JAMAIS lancer l'OAuth avec un companyId vide (race
+  // d'hydratation sur mobile) — sinon le callback ne peut pas rattacher la
+  // connexion à la société. Tant que la société n'est pas prête, on bloque.
+  const ready = Boolean(companyId && companyId.trim());
   const url = `${AUTH_PATH[platform]}?companyId=${encodeURIComponent(companyId)}&return=${encodeURIComponent(returnTo)}`;
 
   const steps = isMeta
@@ -72,7 +76,13 @@ export function ConnectGuide({
 
       <div className="flex justify-end gap-2 border-t border-hair px-5 py-3">
         <button onClick={onClose} className="btn-secondary text-sm">{t("Annuler", "Cancel")}</button>
-        <a href={url} className="btn-primary text-sm">{t("Continuer →", "Continue →")}</a>
+        {ready ? (
+          <a href={url} className="btn-primary text-sm">{t("Continuer →", "Continue →")}</a>
+        ) : (
+          <button type="button" disabled className="btn-primary text-sm opacity-50" aria-disabled="true">
+            {t("Chargement…", "Loading…")}
+          </button>
+        )}
       </div>
     </Modal>
   );

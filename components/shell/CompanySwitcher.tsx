@@ -2,12 +2,14 @@
 
 import { useState } from "react";
 import { useCompany } from "@/lib/company-context";
+import { NewCompanyModal } from "@/components/company/NewCompanyModal";
 import { useT } from "@/lib/i18n";
 
 export function CompanySwitcher() {
   const t = useT();
   const { companies, company, setCompanyId } = useCompany();
   const [open, setOpen] = useState(false);
+  const [newOpen, setNewOpen] = useState(false);
 
   return (
     <div className="relative">
@@ -142,9 +144,25 @@ export function CompanySwitcher() {
                 );
               })}
             </div>
+
+            {/* Ajouter une société (création côté client) */}
+            <div className="shrink-0 border-t border-hair p-1.5">
+              <button
+                onClick={() => {
+                  setOpen(false);
+                  setNewOpen(true);
+                }}
+                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm font-medium text-primary-700 hover:bg-primary-50"
+              >
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary-100 text-primary-700">+</span>
+                {t("Nouvelle société", "New company")}
+              </button>
+            </div>
           </div>
         </>
       )}
+
+      <NewCompanyModal open={newOpen} onClose={() => setNewOpen(false)} />
     </div>
   );
 }

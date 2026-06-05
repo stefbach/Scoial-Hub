@@ -16,8 +16,9 @@ export function HelpButton() {
   const [overlayOpen, setOverlayOpen] = useState(false);
   const t = useT();
   const pathname = usePathname();
-  // Pages avec une barre d'action FIXE en bas (Retour / Continuer…) : le bouton
-  // flottant chevaucherait le « Continuer ». On le masque sur ces parcours.
+  // Pages avec une barre d'action FIXE en bas (Retour / Continuer…) : on REMONTE
+  // le bouton au-dessus de cette barre pour qu'il ne chevauche pas « Continuer »
+  // (au lieu de le supprimer).
   const hasOwnBottomBar = pathname?.startsWith("/demarrage") ?? false;
 
   useEffect(() => {
@@ -45,15 +46,15 @@ export function HelpButton() {
 
   return (
     <>
-      {!overlayOpen && !hasOwnBottomBar && (
+      {!overlayOpen && (
       <button
         type="button"
         onClick={() => setOpen(true)}
         aria-label={t("Ouvrir l'aide de cette page", "Open help for this page")}
         aria-expanded={open}
         title={t("Aide / Tutoriel de la page (?)", "Page help / tutorial (?)")}
-        className="
-          fixed bottom-5 right-5 z-30
+        className={`
+          fixed ${hasOwnBottomBar ? "bottom-24" : "bottom-5"} right-5 z-30
           inline-flex items-center gap-2 rounded-full
           bg-page px-4 py-3 text-sm font-semibold text-white
           shadow-lg ring-1 ring-black/5
@@ -62,7 +63,7 @@ export function HelpButton() {
           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2
           active:scale-[0.97]
           select-none
-        "
+        `}
       >
         <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
           <circle cx="9" cy="9" r="7.5" stroke="currentColor" strokeWidth="1.4" />

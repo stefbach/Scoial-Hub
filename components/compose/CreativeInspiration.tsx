@@ -11,6 +11,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useT } from "@/lib/i18n";
 import type { CreativeItem } from "@/app/api/creatives/route";
 import type { UploadedMedia } from "@/components/ui/MediaUpload";
+import { generateVideoPolling } from "@/lib/ai/generate-video-client";
 
 interface Proposal {
   angle: string;
@@ -114,24 +115,38 @@ export function CreativeInspiration({
     if (!p?.mediaPrompt) return;
     setGen((g) => ({ ...g, [index]: { loading: true, url: null, kind, note: null } }));
     try {
-      const endpoint = kind === "video" ? "/api/ai/generate-video" : "/api/ai/generate-image";
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: p.mediaPrompt, platform }),
-      });
-      const data = (await res.json()) as {
-        images?: Array<string | { url?: string }>;
-        video?: { url?: string };
-        simulated?: boolean;
-        error?: string;
-      };
       let url: string | undefined;
+      let simulated = false;
+      let error: string | undefined;
       if (kind === "video") {
-        url = data.video?.url;
+        const r = await generateVideoPolling(
+          { prompt: p.mediaPrompt, platform },
+          {
+            onStatus: () =>
+              setGen((g) => ({
+                ...g,
+                [index]: { loading: true, url: null, kind, note: t("Rendu vidéo en cours… (jusqu'à quelques minutes)", "Rendering video… (up to a few minutes)") },
+              })),
+          },
+        );
+        url = r.url;
+        simulated = !!r.simulated;
+        error = r.error;
       } else {
+        const res = await fetch("/api/ai/generate-image", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt: p.mediaPrompt, platform }),
+        });
+        const data = (await res.json()) as {
+          images?: Array<string | { url?: string }>;
+          simulated?: boolean;
+          error?: string;
+        };
         const first = Array.isArray(data.images) ? data.images[0] : undefined;
         url = typeof first === "string" ? first : first?.url;
+        simulated = !!data.simulated;
+        error = data.error;
       }
       if (url) {
         onApplyMedia({
@@ -151,12 +166,14 @@ export function CreativeInspiration({
             loading: false,
             url: null,
             kind,
-            note: data.simulated
+            note: simulated
               ? t(
                   "Mode démo : génération non activée (clé REPLICATE_API_TOKEN manquante). Le brief est prêt à l'emploi.",
                   "Demo mode: generation off (missing REPLICATE_API_TOKEN). The brief is ready to use.",
                 )
-              : data.error || t("Aucun média renvoyé.", "No media returned."),
+              : error === "timeout"
+              ? t("La vidéo prend trop de temps. Réessayez dans un instant.", "Video is taking too long. Try again shortly.")
+              : error || t("Aucun média renvoyé.", "No media returned."),
           },
         }));
       }

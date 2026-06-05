@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useT } from "@/lib/i18n";
 import { useCompany } from "@/lib/company-context";
 import { SOCIAL_FORMATS, type SocialPlatform } from "@/lib/social-formats";
+import { generateVideoPolling } from "@/lib/ai/generate-video-client";
 import type { MediaAsset } from "@/lib/video/types";
 
 // ── Studio par prompt : génère une image OU une vidéo depuis un prompt IA ─────────
@@ -246,28 +247,13 @@ export default function PromptStudio({
           name: t("Image générée par IA", "AI-generated image"),
         });
       } else {
-        const res = await fetch("/api/ai/generate-video", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            prompt: idea,
-            aspect: selected.aspect,
-            platform: selected.platform,
-          }),
+        // Génération asynchrone avec polling (MiniMax peut prendre plusieurs min).
+        const r = await generateVideoPolling({
+          prompt: idea,
+          aspect: selected.aspect,
+          platform: selected.platform,
         });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          setNotice(
-            t(
-              `Erreur (le clip vidéo IA dure ~6s) : ${data.error ?? res.status}`,
-              `Error (AI video clip is ~6s): ${data.error ?? res.status}`
-            )
-          );
-          return;
-        }
-        // Shape: { video?: { url }, simulated?, ... }
-        const url: string | undefined = data?.video?.url;
-        if (data.simulated || !url) {
+        if (r.simulated) {
           setNotice(
             t(
               "Génération IA non configurée (REPLICATE_API_TOKEN).",
@@ -276,9 +262,23 @@ export default function PromptStudio({
           );
           return;
         }
-        setResult({ kind: "video", url });
+        if (!r.url) {
+          setNotice(
+            r.error === "timeout"
+              ? t(
+                  "La vidéo prend trop de temps. Réessayez dans un instant.",
+                  "Video is taking too long. Try again shortly."
+                )
+              : t(
+                  `Erreur lors de la génération vidéo : ${r.error ?? ""}`,
+                  `Video generation error: ${r.error ?? ""}`
+                )
+          );
+          return;
+        }
+        setResult({ kind: "video", url: r.url });
         onGenerated({
-          url,
+          url: r.url,
           kind: "video",
           name: t("Vidéo générée par IA", "AI-generated video"),
         });

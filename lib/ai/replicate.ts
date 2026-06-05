@@ -270,3 +270,70 @@ export async function generateVideo(
     model: DEFAULT_VIDEO_MODEL,
   };
 }
+
+// --------------- API publique — Vidéos (asynchrone) ---------------
+//
+// MiniMax Video-01 met souvent 2 à 5 min : on ne bloque pas une fonction
+// serverless aussi longtemps. On lance la prédiction (sans Prefer: wait) et on
+// interroge son statut séparément ; le polling est fait côté client.
+
+export interface VideoPredictionStatus {
+  id?: string;
+  status: "starting" | "processing" | "succeeded" | "failed" | "canceled" | "simulated";
+  video?: { url: string };
+  error?: string;
+  simulated?: boolean;
+}
+
+function mapVideoPrediction(p: ReplicatePrediction): VideoPredictionStatus {
+  const raw = p.output;
+  let videoUrl: string | undefined;
+  if (typeof raw === "string") videoUrl = raw;
+  else if (Array.isArray(raw) && raw.length > 0) videoUrl = String(raw[0]);
+  return {
+    id: p.id,
+    status: p.status,
+    video: videoUrl ? { url: videoUrl } : undefined,
+    error: p.error,
+  };
+}
+
+/** Démarre une génération vidéo et retourne immédiatement l'id de prédiction. */
+export async function startVideoPrediction(
+  opts: GenerateVideoOptions
+): Promise<VideoPredictionStatus> {
+  if (!isReplicateConfigured) return { status: "simulated", simulated: true };
+
+  const [owner, name] = DEFAULT_VIDEO_MODEL.split("/");
+  const res = await fetch(
+    `${REPLICATE_API_BASE}/models/${owner}/${name}/predictions`,
+    {
+      method: "POST",
+      // Pas de Prefer: wait — on veut un retour immédiat avec l'id.
+      headers: {
+        Authorization: `Bearer ${process.env.REPLICATE_API_TOKEN ?? ""}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ input: { prompt: opts.prompt, prompt_optimizer: true } }),
+    }
+  );
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText);
+    throw new Error(`Replicate — création de prédiction échouée (${res.status}) : ${text}`);
+  }
+  return mapVideoPrediction((await res.json()) as ReplicatePrediction);
+}
+
+/** Interroge une fois le statut d'une prédiction vidéo. */
+export async function getVideoPrediction(id: string): Promise<VideoPredictionStatus> {
+  if (!isReplicateConfigured) return { status: "simulated", simulated: true };
+
+  const res = await fetch(`${REPLICATE_API_BASE}/predictions/${id}`, {
+    headers: { Authorization: `Bearer ${process.env.REPLICATE_API_TOKEN ?? ""}` },
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText);
+    throw new Error(`Replicate — statut échoué (${res.status}) : ${text}`);
+  }
+  return mapVideoPrediction((await res.json()) as ReplicatePrediction);
+}

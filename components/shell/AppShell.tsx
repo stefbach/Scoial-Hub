@@ -234,9 +234,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <CompanySwitcher />
         </div>
 
-        {/* Zone droite : aide + langue + avatar */}
+        {/* Zone droite : langue + avatar */}
         <div className="flex shrink-0 items-center gap-2">
-          <HelpButton />
           <LanguageSwitcher />
           <UserMenu />
         </div>
@@ -271,6 +270,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {children}
         </main>
       </div>
+
+      {/* Bouton d'aide : pastille violette fixe, en haut à droite sous l'avatar */}
+      <HelpButton />
     </div>
   );
 }

@@ -9,6 +9,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useCompany } from "@/lib/company-context";
 import { useT } from "@/lib/i18n";
+import { Spinner, BusyHint } from "@/components/ui/Spinner";
 
 // ── Types des contrats API ────────────────────────────────────────────────────
 interface AdAccount {
@@ -288,8 +289,8 @@ export default function MetaAdsPublisher() {
         <div className="section-label">{t("Compte publicitaire", "Ad account")}</div>
 
         {loading ? (
-          <div className="mt-3 flex items-center text-sm text-muted">
-            <span className="mr-2 inline-block h-4 w-4 animate-spin rounded-full border-2 border-hair border-t-primary" />
+          <div className="mt-3 flex items-center gap-2 text-sm text-muted">
+            <Spinner size={16} className="text-primary-600" />
             {t("Chargement…", "Loading…")}
           </div>
         ) : resp?.needsReconnect || !resp ? (
@@ -323,7 +324,10 @@ export default function MetaAdsPublisher() {
               </div>
               {resp.accounts.length > 0 && (
                 <label className="min-w-0 flex-1">
-                  <span className="block text-2xs text-muted">{t("Changer de compte", "Switch account")}</span>
+                  <span className="flex items-center gap-1.5 text-2xs text-muted">
+                    {t("Changer de compte", "Switch account")}
+                    {switching && <Spinner size={12} className="text-primary-600" />}
+                  </span>
                   <select
                     value={resp.selectedId ?? ""}
                     onChange={(e) => selectAccount(e.target.value)}
@@ -622,13 +626,19 @@ export default function MetaAdsPublisher() {
         >
           {publishing ? (
             <>
-              <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+              <Spinner size={16} className="text-white" />
               {t("Création…", "Creating…")}
             </>
           ) : (
             t("Créer la publicité (en pause)", "Create the ad (paused)")
           )}
         </button>
+
+        {publishing && (
+          <div className="mt-3">
+            <BusyHint label={t("Création de votre publicité (en pause)…", "Creating your ad (paused)…")} eta={t("~10–20 s", "~10–20 s")} />
+          </div>
+        )}
 
         {created && (
           <div className="mt-4 rounded-xl border border-success-500/30 bg-success-50 p-4 animate-fade-in">
@@ -662,9 +672,7 @@ export default function MetaAdsPublisher() {
                 disabled={activating}
                 className="btn-secondary mt-3 inline-flex items-center gap-2 disabled:opacity-50"
               >
-                {activating ? (
-                  <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-hair border-t-primary" />
-                ) : null}
+                {activating ? <Spinner size={16} className="text-primary-600" /> : null}
                 {t("Mettre en pause", "Pause")}
               </button>
             </div>
@@ -697,9 +705,7 @@ export default function MetaAdsPublisher() {
                     disabled={activating}
                     className="btn-primary inline-flex items-center gap-2 disabled:opacity-50"
                   >
-                    {activating ? (
-                      <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
-                    ) : null}
+                    {activating ? <Spinner size={16} className="text-white" /> : null}
                     {t("Oui, activer", "Yes, activate")}
                   </button>
                   <button type="button" onClick={() => setConfirming(false)} disabled={activating} className="btn-ghost">

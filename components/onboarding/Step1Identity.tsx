@@ -7,6 +7,7 @@
 import { useState } from "react";
 import { useOnboardingCtx } from "@/components/onboarding/context";
 import { OnboardingConnectors } from "@/components/onboarding/OnboardingConnectors";
+import { BusyHint } from "@/components/ui/Spinner";
 import { useT } from "@/lib/i18n";
 import type { SocialNetwork } from "@/lib/onboarding/types";
 
@@ -330,25 +331,51 @@ export default function Step1Identity() {
         </div>
 
         {/* Bouton d'analyse IA */}
-        <button
-          type="button"
-          onClick={handleAnalyze}
-          disabled={analyzing || (!website && !description.trim() && Object.values(handles).every((h) => !h))}
-          className="btn-primary flex w-full items-center justify-center gap-2 sm:w-auto disabled:opacity-50"
-          aria-busy={analyzing}
-        >
-          {analyzing ? (
-            <>
-              <SpinnerIcon />
-              {t("Analyse en cours… (10-20 s)", "Analysis in progress… (10-20 s)")}
-            </>
-          ) : (
-            <>
-              <SparkleIcon />
-              {t("Analyser mon identité avec l'IA", "Analyse my identity with AI")}
-            </>
-          )}
-        </button>
+        {(() => {
+          const nothingFilled =
+            !website && !description.trim() && Object.values(handles).every((h) => !h);
+          return (
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={handleAnalyze}
+                disabled={analyzing || nothingFilled}
+                className="btn-primary flex w-full items-center justify-center gap-2 sm:w-auto disabled:opacity-50"
+                aria-busy={analyzing}
+              >
+                {analyzing ? (
+                  <>
+                    <SpinnerIcon />
+                    {t("Analyse en cours… (10-20 s)", "Analysis in progress… (10-20 s)")}
+                  </>
+                ) : (
+                  <>
+                    <SparkleIcon />
+                    {t("Analyser mon identité avec l'IA", "Analyse my identity with AI")}
+                  </>
+                )}
+              </button>
+
+              {/* Aide quand le bouton est désactivé faute de saisie */}
+              {!analyzing && nothingFilled && (
+                <p className="text-2xs text-muted">
+                  {t(
+                    "Renseignez au moins un élément : site web, descriptif ou un compte social.",
+                    "Fill in at least one item: website, description or a social account."
+                  )}
+                </p>
+              )}
+
+              {/* Feedback visible immédiat pendant l'analyse */}
+              {analyzing && (
+                <BusyHint
+                  label={t("L'IA analyse votre marque…", "The AI is analysing your brand…")}
+                  eta={t("~10–20 s", "~10–20 s")}
+                />
+              )}
+            </div>
+          );
+        })()}
 
         {/* Alerte erreur */}
         {error && (
@@ -386,20 +413,18 @@ export default function Step1Identity() {
       {hasProfile ? (
         <ProfileResult onReanalyze={handleAnalyze} analyzing={analyzing} />
       ) : (
-        /* Hint vide : encourage à lancer l'analyse */
-        <div className="rounded-2xl border border-dashed border-hair bg-canvas p-8 text-center">
-          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl border border-hair bg-white shadow-sm">
-            <span className="text-muted">
-              <SparkleIcon />
-            </span>
+        /* Hint vide : CTA clair vers le bouton d'analyse */
+        <div className="rounded-2xl border border-dashed border-primary-200 bg-primary-50/40 p-8 text-center">
+          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl border border-primary-200 bg-white text-primary-600 shadow-sm">
+            <SparkleIcon />
           </div>
-          <p className="text-sm font-medium text-ink">
-            {t("Votre profil de marque apparaîtra ici", "Your brand profile will appear here")}
+          <p className="text-sm font-semibold text-ink">
+            {t("Lancez l'analyse pour construire votre profil", "Run the analysis to build your profile")}
           </p>
           <p className="mt-1 text-xs text-muted">
             {t(
-              "Renseignez votre site ou vos comptes, puis lancez l'analyse.",
-              "Fill in your website or accounts, then run the analysis."
+              "Renseignez votre site, un descriptif ou un compte ci-dessus, puis cliquez sur « Analyser mon identité avec l'IA ».",
+              "Fill in your website, a description or an account above, then click “Analyse my identity with AI”."
             )}
           </p>
         </div>

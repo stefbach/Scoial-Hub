@@ -7,6 +7,7 @@
 import { useState } from "react";
 import { useCompany } from "@/lib/company-context";
 import { useT } from "@/lib/i18n";
+import { Spinner, BusyHint } from "@/components/ui/Spinner";
 
 interface Article {
   title: string;
@@ -156,6 +157,17 @@ export default function ArticleLinkedInPage() {
 
   const inputCls = "w-full rounded-lg border border-hair bg-canvas px-3 py-2 text-sm text-ink outline-none focus:border-primary-400";
 
+  // STEPPER : déduit l'étape courante de l'état de l'écran.
+  const hasImages = Object.values(images).some((u) => u.length > 0);
+  const currentStep = hasImages ? 5 : article ? 4 : prompt ? 3 : input.trim() ? 2 : 1;
+  const steps: { n: number; fr: string; en: string }[] = [
+    { n: 1, fr: "Saisie", en: "Input" },
+    { n: 2, fr: "Prompt", en: "Prompt" },
+    { n: 3, fr: "Article", en: "Article" },
+    { n: 4, fr: "Visuels", en: "Visuals" },
+    { n: 5, fr: "Publier", en: "Publish" },
+  ];
+
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <header>
@@ -167,6 +179,37 @@ export default function ArticleLinkedInPage() {
           )}
         </p>
       </header>
+
+      {/* Stepper horizontal léger : où en suis-je ? */}
+      <nav aria-label={t("Progression", "Progress")} className="flex flex-wrap items-center gap-1.5">
+        {steps.map((s, i) => {
+          const done = s.n < currentStep;
+          const active = s.n === currentStep;
+          return (
+            <div key={s.n} className="flex items-center gap-1.5">
+              <span
+                className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-2xs font-medium ${
+                  active
+                    ? "bg-primary-600 text-white"
+                    : done
+                    ? "bg-primary-50 text-primary-700"
+                    : "bg-canvas text-muted ring-1 ring-hair"
+                }`}
+              >
+                <span
+                  className={`flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-bold ${
+                    active ? "bg-white/20 text-white" : done ? "bg-primary-100 text-primary-700" : "bg-hair text-muted"
+                  }`}
+                >
+                  {done ? "✓" : s.n}
+                </span>
+                {t(s.fr, s.en)}
+              </span>
+              {i < steps.length - 1 && <span className="text-2xs text-muted">→</span>}
+            </div>
+          );
+        })}
+      </nav>
 
       {/* 1. Saisie */}
       <section className="card p-5 space-y-4">
@@ -200,13 +243,17 @@ export default function ArticleLinkedInPage() {
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <button onClick={genPrompt} disabled={promptLoading} className="btn-secondary text-sm disabled:opacity-50">
+          <button onClick={genPrompt} disabled={promptLoading} className="btn-secondary inline-flex items-center gap-1.5 text-sm disabled:opacity-50">
+            {promptLoading && <Spinner size={14} className="text-current" />}
             {promptLoading ? t("Génération…", "Generating…") : t("① Générer le prompt", "① Generate prompt")}
           </button>
-          <button onClick={genArticle} disabled={articleLoading} className="btn-primary text-sm disabled:opacity-50">
+          <button onClick={genArticle} disabled={articleLoading} className="btn-primary inline-flex items-center gap-1.5 text-sm disabled:opacity-50">
+            {articleLoading && <Spinner size={16} className="text-white" />}
             {articleLoading ? t("Rédaction…", "Writing…") : t("② Générer l'article", "② Generate article")}
           </button>
         </div>
+        {promptLoading && <BusyHint label={t("L'IA prépare votre prompt…", "The AI is preparing your prompt…")} eta="~10 s" />}
+        {articleLoading && <BusyHint label={t("L'IA rédige votre article…", "The AI is writing your article…")} eta={t("~20–40 s", "~20–40 s")} />}
         {error && <p className="rounded-lg bg-danger-50 px-3 py-2 text-xs text-danger-700">{error}</p>}
       </section>
 
@@ -230,7 +277,8 @@ export default function ArticleLinkedInPage() {
             <h2 className="text-lg font-semibold text-ink">{article.title}</h2>
             <div className="flex gap-2">
               <button onClick={copyArticle} className="btn-secondary text-xs">{copied ? t("Copié ✓", "Copied ✓") : t("Copier", "Copy")}</button>
-              <button onClick={publish} disabled={publishing} className="btn-primary text-xs disabled:opacity-50">
+              <button onClick={publish} disabled={publishing} className="btn-primary inline-flex items-center gap-1.5 text-xs disabled:opacity-50">
+                {publishing && <Spinner size={14} className="text-white" />}
                 {publishing ? t("Publication…", "Publishing…") : t("Publier sur LinkedIn", "Publish to LinkedIn")}
               </button>
             </div>
@@ -268,9 +316,13 @@ export default function ArticleLinkedInPage() {
             {article.visualPrompts.map((vp, idx) => (
               <div key={idx} className="rounded-xl border border-hair p-3">
                 <p className="text-xs text-muted">{vp}</p>
-                <button onClick={() => genVisual(idx, vp)} disabled={imgLoading === idx} className="btn-secondary mt-2 text-xs disabled:opacity-50">
+                <button onClick={() => genVisual(idx, vp)} disabled={imgLoading === idx} className="btn-secondary mt-2 inline-flex items-center gap-1.5 text-xs disabled:opacity-50">
+                  {imgLoading === idx && <Spinner size={14} className="text-current" />}
                   {imgLoading === idx ? t("Génération…", "Generating…") : t("Générer ce visuel", "Generate this visual")}
                 </button>
+                {imgLoading === idx && (
+                  <BusyHint className="mt-2" label={t("Génération des visuels haute qualité…", "Generating high-quality visuals…")} eta={t("~20–60 s", "~20–60 s")} />
+                )}
                 {images[idx]?.length > 0 && (
                   <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
                     {images[idx].map((u, i) => (

@@ -8,6 +8,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Modal } from "@/components/ui/Modal";
+import { Spinner } from "@/components/ui/Spinner";
 import { useCompany } from "@/lib/company-context";
 import { useT } from "@/lib/i18n";
 import type { Company } from "@/lib/types";
@@ -84,7 +85,10 @@ export function NewCompanyModal({ open, onClose }: { open: boolean; onClose: () 
         </div>
 
         <div>
-          <label className="section-label">{t("Couleur", "Color")}</label>
+          <label className="section-label">{t("Couleur d'accent", "Accent color")}</label>
+          <p className="mt-0.5 text-2xs text-muted">
+            {t("Utilisée dans votre tableau de bord", "Used across your dashboard")}
+          </p>
           <div className="mt-1.5 flex gap-2">
             {ACCENTS.map((c) => (
               <button
@@ -111,7 +115,8 @@ export function NewCompanyModal({ open, onClose }: { open: boolean; onClose: () 
 
       <div className="flex justify-end gap-2 border-t border-hair px-5 py-3">
         <button onClick={onClose} className="btn-secondary text-sm">{t("Annuler", "Cancel")}</button>
-        <button onClick={create} disabled={saving} className="btn-primary text-sm disabled:opacity-50">
+        <button onClick={create} disabled={saving} className="btn-primary flex items-center gap-2 text-sm disabled:opacity-50">
+          {saving && <Spinner size={14} />}
           {saving ? t("Création…", "Creating…") : t("Créer et profiler", "Create & profile")}
         </button>
       </div>

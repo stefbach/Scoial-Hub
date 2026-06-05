@@ -5,6 +5,8 @@
 // Coque : header + rail de progression + étape courante + navigation.
 // L'état est persisté (reprise possible à tout moment, sur tout appareil).
 
+import { Suspense, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { OnboardingProvider, useOnboardingCtx } from "@/components/onboarding/context";
 import { Stepper, type StepMeta } from "@/components/onboarding/Stepper";
 import { useT } from "@/lib/i18n";
@@ -38,6 +40,33 @@ function StepBody() {
   }
 }
 
+// Bandeau de confirmation après la création d'une société (?new=1).
+// Compense l'absence de toast de création signalée par l'audit.
+function WelcomeBanner() {
+  const t = useT();
+  const params = useSearchParams();
+  const [dismissed, setDismissed] = useState(false);
+  if (dismissed || params.get("new") !== "1") return null;
+  return (
+    <div className="flex items-start gap-3 rounded-xl border border-success-200 bg-success-50 p-3" role="status">
+      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-success-100 text-sm font-bold text-success-600">
+        ✓
+      </span>
+      <p className="flex-1 text-sm font-medium text-success-700">
+        {t("Société créée ✓ — construisons son profil", "Company created ✓ — let's build its profile")}
+      </p>
+      <button
+        type="button"
+        onClick={() => setDismissed(true)}
+        aria-label={t("Fermer", "Dismiss")}
+        className="shrink-0 rounded-md px-1.5 text-success-600 hover:bg-success-100"
+      >
+        ✕
+      </button>
+    </div>
+  );
+}
+
 function Shell() {
   const { state, loading, saving, back, skip, next, totalSteps } = useOnboardingCtx();
   const t = useT();
@@ -48,6 +77,11 @@ function Shell() {
 
   return (
     <div className="animate-fade-in space-y-6">
+      {/* Confirmation de création de société */}
+      <Suspense fallback={null}>
+        <WelcomeBanner />
+      </Suspense>
+
       {/* En-tête */}
       <header className="space-y-1">
         <div className="flex items-center justify-between gap-3">

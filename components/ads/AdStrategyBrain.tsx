@@ -7,6 +7,7 @@
 import { useState } from "react";
 import { useCompany } from "@/lib/company-context";
 import { useT } from "@/lib/i18n";
+import { Spinner, BusyHint } from "@/components/ui/Spinner";
 
 interface Analysis {
   diagnostic: string;
@@ -75,13 +76,17 @@ export function AdStrategyBrain() {
             {t("Fusionne la performance réelle, la veille concurrents et la mémoire stratégique.", "Fuses real performance, competitor watch and strategic memory.")}
           </p>
         </div>
-        <button onClick={run} disabled={loading} className="btn-primary text-sm disabled:opacity-50">
-          {loading ? t("Analyse…", "Analyzing…") : analysis ? t("Ré-analyser", "Re-analyze") : t("Analyser la performance", "Analyze performance")}
+        <button onClick={run} disabled={loading} className="btn-primary inline-flex items-center gap-1.5 text-sm disabled:opacity-50">
+          {loading ? <><Spinner size={14} className="text-white" /> {t("Analyse…", "Analyzing…")}</> : analysis ? t("Ré-analyser", "Re-analyze") : t("Analyser la performance", "Analyze performance")}
         </button>
       </div>
 
       <div className="space-y-4 p-5">
         {error && <p className="rounded-lg bg-danger-50 px-3 py-2 text-sm text-danger-700">{error}</p>}
+
+        {loading && (
+          <BusyHint label={t("L'IA analyse vos campagnes + la veille…", "The AI is analyzing your campaigns + watch…")} eta={t("~20–40 s", "~20–40 s")} />
+        )}
 
         {!analysis && !loading && !error && (
           <p className="text-sm text-muted">

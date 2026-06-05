@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useCompany } from "@/lib/company-context";
 import { useT } from "@/lib/i18n";
 import { AgentModal } from "@/components/inbox/AgentModal";
+import { Spinner, BusyHint } from "@/components/ui/Spinner";
 import {
   CHANNEL_LABELS,
   type InboxAgent,
@@ -136,11 +137,16 @@ export default function InboxPage() {
           <button onClick={() => setSimulateOpen(true)} className="btn-secondary text-sm">
             {t("Simuler un message", "Simulate a message")}
           </button>
-          <button onClick={sync} disabled={syncing} className="btn-primary text-sm disabled:opacity-50">
+          <button onClick={sync} disabled={syncing} className="btn-primary inline-flex items-center gap-1.5 text-sm disabled:opacity-50">
+            {syncing && <Spinner size={16} className="text-white" />}
             {syncing ? t("Synchronisation…", "Syncing…") : t("Synchroniser Meta", "Sync Meta")}
           </button>
         </div>
       </header>
+
+      {syncing && (
+        <BusyHint label={t("Import des messages depuis Meta…", "Importing messages from Meta…")} eta={t("~10–20 s", "~10–20 s")} />
+      )}
 
       {banner && (
         <div
@@ -267,14 +273,18 @@ function AgentsSection({
   const t = useT();
   return (
     <section className="card overflow-hidden">
-      <div className="flex items-center justify-between border-b border-hair bg-canvas px-5 py-3">
+      <div className={`flex items-center justify-between border-b border-hair px-5 py-3 ${agents.length === 0 ? "bg-primary-50" : "bg-canvas"}`}>
         <div>
           <span className="section-label">{t("Agents de réponse", "Reply agents")}</span>
           <p className="mt-0.5 text-2xs text-muted">
-            {t("Un agent pour tout, ou un agent par canal.", "One agent for everything, or one per channel.")}
+            {agents.length === 0
+              ? t("Commencez ici : créez votre premier agent.", "Start here: create your first agent.")
+              : t("Un agent pour tout, ou un agent par canal.", "One agent for everything, or one per channel.")}
           </p>
         </div>
-        <button onClick={onCreate} className="btn-primary text-xs">{t("+ Nouvel agent", "+ New agent")}</button>
+        <button onClick={onCreate} className={`text-xs ${agents.length === 0 ? "btn-primary ring-2 ring-primary-200" : "btn-primary"}`}>
+          {t("+ Nouvel agent", "+ New agent")}
+        </button>
       </div>
       {agents.length === 0 ? (
         <div className="px-5 py-6 text-center">
@@ -285,6 +295,7 @@ function AgentsSection({
               "Create an agent: give it a voice, a scope, and tell it when to hand off to a human."
             )}
           </p>
+          <button onClick={onCreate} className="btn-primary mt-3 inline-flex text-xs">{t("+ Créer un agent", "+ Create an agent")}</button>
         </div>
       ) : (
         <ul className="divide-y divide-hair">
@@ -470,10 +481,12 @@ function MessageCard({
               className="w-full rounded-lg border border-hair bg-canvas px-3 py-2 text-sm text-ink outline-none focus:border-primary-400"
             />
             <div className="mt-2 flex flex-wrap items-center gap-2">
-              <button onClick={generate} disabled={generating || !hasAgent} className="btn-secondary text-xs disabled:opacity-50">
+              <button onClick={generate} disabled={generating || !hasAgent} className="btn-secondary inline-flex items-center gap-1.5 text-xs disabled:opacity-50">
+                {generating && <Spinner size={14} className="text-current" />}
                 {generating ? t("Génération…", "Generating…") : t("✨ Réponse IA", "✨ AI reply")}
               </button>
-              <button onClick={send} disabled={sending || !draft.trim()} className="btn-primary text-xs disabled:opacity-50">
+              <button onClick={send} disabled={sending || !draft.trim()} className="btn-primary inline-flex items-center gap-1.5 text-xs disabled:opacity-50">
+                {sending && <Spinner size={14} className="text-white" />}
                 {sending ? t("Envoi…", "Sending…") : t("Envoyer", "Send")}
               </button>
               <button onClick={() => setStatus("ignored")} className="text-xs text-muted hover:text-ink">
@@ -483,6 +496,9 @@ function MessageCard({
                 <span className="text-2xs text-muted">{t("Créez un agent pour la réponse IA.", "Create an agent for AI replies.")}</span>
               )}
             </div>
+            {generating && (
+              <BusyHint className="mt-2" label={t("L'agent rédige une réponse…", "The agent is drafting a reply…")} eta="~10 s" />
+            )}
           </>
         )}
 

@@ -403,10 +403,16 @@ function ComposeContent() {
               </button>
             </div>
             {when === "schedule" && (
-              <div className="mt-2.5 grid grid-cols-2 gap-2">
-                <DatePicker value={date} onChange={setDate} />
-                <TimePicker value={time} onChange={setTime} />
-              </div>
+              <>
+                <div className="mt-2.5 grid grid-cols-2 gap-2">
+                  <DatePicker value={date} onChange={setDate} />
+                  <TimePicker value={time} onChange={setTime} />
+                </div>
+                {/* Lève l'ambiguïté du fuseau : on planifie en heure locale. */}
+                <p className="mt-1.5 text-2xs text-muted">
+                  {t("Heure locale", "Local time")} : {Intl.DateTimeFormat().resolvedOptions().timeZone}
+                </p>
+              </>
             )}
           </div>
 

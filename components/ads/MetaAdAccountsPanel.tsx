@@ -9,6 +9,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useCompany } from "@/lib/company-context";
 import { useT } from "@/lib/i18n";
+import { Spinner } from "@/components/ui/Spinner";
 
 interface AdAccount { id: string; name: string; currency: string; active: boolean; amountSpent: number; }
 interface AdCampaignRow { name: string; status: string; objective: string; spend: number; impressions: number; clicks: number; currency: string; }
@@ -54,7 +55,12 @@ export function MetaAdAccountsPanel({ showCampaigns = true }: { showCampaigns?: 
   }
 
   if (loading) {
-    return <div className="card p-5 text-sm text-muted">{t("Chargement des comptes Meta…", "Loading Meta accounts…")}</div>;
+    return (
+      <div className="card flex items-center gap-2 p-5 text-sm text-muted">
+        <Spinner size={16} className="text-primary-600" />
+        {t("Chargement des comptes Meta…", "Loading Meta accounts…")}
+      </div>
+    );
   }
 
   if (!resp || resp.needsReconnect || resp.accounts.length === 0) {
@@ -105,8 +111,13 @@ export function MetaAdAccountsPanel({ showCampaigns = true }: { showCampaigns?: 
               </p>
               {isSel ? (
                 <span className="mt-1 inline-block text-2xs font-semibold text-primary-700">{t("Sélectionné ✓", "Selected ✓")}</span>
+              ) : selecting === a.id ? (
+                <span className="mt-1 inline-flex items-center gap-1.5 text-2xs text-muted">
+                  <Spinner size={12} className="text-primary-600" />
+                  {t("Sélection…", "Selecting…")}
+                </span>
               ) : (
-                <span className="mt-1 inline-block text-2xs text-muted">{selecting === a.id ? "…" : t("Utiliser ce compte", "Use this account")}</span>
+                <span className="mt-1 inline-block text-2xs text-muted">{t("Utiliser ce compte", "Use this account")}</span>
               )}
             </button>
           );

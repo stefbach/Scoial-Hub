@@ -12,6 +12,8 @@ export const maxDuration = 60;
 import { NextRequest, NextResponse } from "next/server";
 import { requireCompanyAccess } from "@/lib/auth/guard";
 import { getMetaContext } from "@/lib/connectors/meta-pages";
+import { createAdminClient } from "@/lib/supabase/server";
+import { resolveCompanyUuid } from "@/lib/repositories/resolve-company";
 
 const V = process.env.META_API_VERSION ?? "v21.0";
 
@@ -22,6 +24,26 @@ async function metaPost(path: string, params: Record<string, string>) {
     body: new URLSearchParams(params).toString(),
   });
   return (await res.json()) as { id?: string; post_id?: string; error?: { message?: string } };
+}
+
+/** Trace une publication réussie dans l'Historique (vérifiable côté /history). */
+async function logPublished(companyId: string, platform: string, body: string, url?: string) {
+  try {
+    const sb = createAdminClient();
+    if (!sb) return;
+    await sb.from("sh_history_items").insert({
+      company_id: await resolveCompanyUuid(companyId),
+      platform,
+      body: body.slice(0, 280),
+      full_body: body,
+      external_url: url ?? null,
+      published_at: new Date().toISOString(),
+      source: "manual",
+      status: "published",
+    });
+  } catch {
+    /* non bloquant */
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -60,7 +82,9 @@ export async function POST(req: NextRequest) {
         if (r.error) out.facebook = { ok: false, error: r.error.message };
         else {
           const pid = r.post_id || r.id || "";
-          out.facebook = { ok: true, url: pid ? `https://www.facebook.com/${pid}` : undefined };
+          const url = pid ? `https://www.facebook.com/${pid}` : undefined;
+          out.facebook = { ok: true, url };
+          await logPublished(companyId, "facebook", text ?? "", url);
         }
       } catch (e) {
         out.facebook = { ok: false, error: e instanceof Error ? e.message : "Échec FB" };
@@ -79,7 +103,10 @@ export async function POST(req: NextRequest) {
           } else {
             const pub = await metaPost(`${ctx.igId}/media_publish`, { creation_id: c.id, access_token: ctx.pageToken });
             if (pub.error) out.instagram = { ok: false, error: pub.error.message };
-            else out.instagram = { ok: true };
+            else {
+              out.instagram = { ok: true };
+              await logPublished(companyId, "instagram", text ?? "", undefined);
+            }
           }
         } catch (e) {
           out.instagram = { ok: false, error: e instanceof Error ? e.message : "Échec IG" };

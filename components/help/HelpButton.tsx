@@ -36,10 +36,11 @@ export function HelpButton() {
         title={t("Aide / Tutoriel de la page (?)", "Page help / tutorial (?)")}
         className="
           flex h-9 w-9 shrink-0 items-center justify-center rounded-full
-          text-muted ring-1 ring-hair
+          bg-primary-50 text-primary-700 ring-1 ring-primary-200
+          shadow-xs
           transition-colors duration-150
-          hover:bg-canvas hover:text-ink
-          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500
+          hover:bg-primary-100 hover:text-primary-800
+          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1
         "
       >
         <svg width="17" height="17" viewBox="0 0 18 18" fill="none" aria-hidden="true">

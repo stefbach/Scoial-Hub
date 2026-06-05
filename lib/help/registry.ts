@@ -2212,8 +2212,13 @@ function resolve(entry: BilingualEntry, lang: Lang): HelpEntry {
  * Si aucune route ne correspond, retourne le fallback générique bilingue.
  */
 export function getHelp(pathname: string, lang: Lang = "fr"): HelpEntry {
+  const path = (pathname || "/").split("?")[0].replace(/\/+$/, "") || "/";
+  // 1) Correspondance EXACTE (priorité absolue → bon contenu par page).
+  if (HELP_BILINGUAL[path]) return resolve(HELP_BILINGUAL[path], lang);
+  // 2) Sinon, préfixe par SEGMENT (ex. /campaigns/123 → /campaigns), du plus
+  //    long au plus court — jamais de collision partielle (ex. /ad ≠ /ad-x).
   const keys = Object.keys(HELP_BILINGUAL).sort((a, b) => b.length - a.length);
-  const match = keys.find((key) => pathname.startsWith(key));
+  const match = keys.find((key) => path === key || path.startsWith(key + "/"));
   const bilingual = match ? HELP_BILINGUAL[match] : FALLBACK_BILINGUAL;
   return resolve(bilingual, lang);
 }

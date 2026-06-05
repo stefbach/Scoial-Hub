@@ -133,14 +133,19 @@ export default function ArticleLinkedInPage() {
     setPublishing(true); setPublishMsg(null);
     try {
       const firstImg = Object.values(images).flat()[0];
-      const r = await fetch("/api/connectors/linkedin/publish", {
+      // Route réelle (par société + cible profil/Page), comme l'Espace LinkedIn.
+      const r = await fetch("/api/linkedin/publish", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyId, text: toPlainText(article), media: firstImg ? { url: firstImg } : undefined }),
+        body: JSON.stringify({ companyId, text: toPlainText(article), imageUrl: firstImg || undefined }),
       });
       const d = await r.json();
-      if (!r.ok) throw new Error(d.error);
+      if (d.connected === false) {
+        setPublishMsg(t("LinkedIn non connecté — ouvrez « Espace LinkedIn » et connectez-le.", "LinkedIn not connected — open “LinkedIn space” and connect it."));
+        return;
+      }
+      if (!r.ok) { setPublishMsg(d.error || t("Échec de la publication.", "Publish failed.")); return; }
       if (d.simulated) {
-        setPublishMsg(t("Publié en simulation — connectez LinkedIn (Connecteurs) pour publier réellement.", "Simulated — connect LinkedIn (Connectors) to publish for real."));
+        setPublishMsg(t("Publié en simulation (LinkedIn non configuré côté serveur).", "Simulated (LinkedIn not configured server-side)."));
       } else {
         setPublishMsg(t(`Publié sur LinkedIn ✓ ${d.url ?? ""}`, `Published on LinkedIn ✓ ${d.url ?? ""}`));
       }

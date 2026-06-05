@@ -20,6 +20,7 @@ import { EnvironmentAnalysis } from "./EnvironmentAnalysis";
 import { BenchmarkCard } from "./BenchmarkCard";
 import { Toast } from "@/components/ui/Toast";
 import { useT } from "@/lib/i18n";
+import { generateVideoPolling } from "@/lib/ai/generate-video-client";
 
 // ── Couleurs d'accent par agent ────────────────────────────────────────────
 
@@ -548,14 +549,17 @@ function CreativeStudioCard({ result }: { result: AgentRunResult }) {
     if (!result.videoPrompt) return;
     setVidState("loading"); setMsg(null);
     try {
-      const r = await fetch("/api/ai/generate-video", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: result.videoPrompt, platform: "tiktok", seconds: 5 }),
-      });
-      const d = await r.json();
-      const url = d.video?.url ?? (typeof d.video === "string" ? d.video : undefined);
-      if (d.simulated || !url) { setVidState("failed"); setMsg(d.message ?? t("Vidéo indisponible (REPLICATE_API_TOKEN ?).", "Video unavailable (REPLICATE_API_TOKEN?).")); return; }
-      setVid(url); setVidState("done");
+      const r = await generateVideoPolling({ prompt: result.videoPrompt, platform: "tiktok" });
+      if (r.simulated || !r.url) {
+        setVidState("failed");
+        setMsg(
+          r.error === "timeout"
+            ? t("La vidéo prend trop de temps. Réessayez.", "Video is taking too long. Try again.")
+            : t("Vidéo indisponible (REPLICATE_API_TOKEN ?).", "Video unavailable (REPLICATE_API_TOKEN?).")
+        );
+        return;
+      }
+      setVid(r.url); setVidState("done");
     } catch { setVidState("failed"); setMsg(t("Erreur réseau.", "Network error.")); }
   }
 

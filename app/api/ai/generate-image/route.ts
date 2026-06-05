@@ -9,8 +9,9 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 import { NextRequest, NextResponse } from "next/server";
-import { generateImage } from "@/lib/ai/replicate";
+import { generateImageModel } from "@/lib/ai/replicate";
 import { resolveImageAspect } from "@/lib/social-formats";
+import { getImageModel } from "@/lib/ai/model-catalog";
 
 interface RequestBody {
   prompt?: string;
@@ -22,17 +23,21 @@ interface RequestBody {
   format?: string;
   /** Nombre d'images souhaitées (1–4). */
   n?: number;
+  /** Identifiant de modèle Replicate (catalogue). Défaut : Flux 1.1 Pro. */
+  model?: string;
 }
 
 export async function POST(req: NextRequest) {
   try {
     const body: RequestBody = await req.json().catch(() => ({}));
-    const { prompt = "", platform, placement, format, n } = body;
+    const { prompt = "", platform, placement, format, n, model } = body;
 
     // Le format suit le réceptacle si non explicite (bons ratios par réseau).
     const resolvedFormat = format ?? resolveImageAspect(platform, placement);
 
-    const result = await generateImage({ prompt, format: resolvedFormat, n });
+    const gm = getImageModel(model);
+    const input = gm.buildInput(prompt, { aspect: resolvedFormat });
+    const result = await generateImageModel(gm.id, input, n ?? 1);
     return NextResponse.json({ ...result, format: resolvedFormat, platform: platform ?? null });
   } catch (err) {
     console.error("[api/ai/generate-image] Erreur :", err);

@@ -16,6 +16,8 @@ interface RequestBody {
   objective?: string;
   /** Société courante — permet d'injecter la mémoire stratégique (RAG). */
   companyId?: string;
+  /** Langue de diffusion imposée pour la rédaction (ex : "English", "Español"). */
+  language?: string;
 }
 
 // Platform-specific constraints
@@ -51,7 +53,7 @@ function mockResponse(action: Action, brandVoice: string, objective?: string): s
   }
 }
 
-const SYSTEM_PROMPT = (platform: Platform, brandVoice: string, objective?: string): string => `
+const SYSTEM_PROMPT = (platform: Platform, brandVoice: string, objective?: string, language?: string): string => `
 You are an expert social media copywriter who adapts to any brand, sector, or campaign — never assume a specific industry, company, or product unless it is stated in the brand voice or the user's brief.
 
 ## Brand Voice
@@ -70,7 +72,7 @@ ${PLATFORM_RULES[platform]}
 2. Make no unsubstantiated, guaranteed, or misleading claims about results, pricing, or outcomes.
 3. Avoid fear-mongering, urgency bait, or exploiting insecurities.
 4. If the brief touches a regulated sector (health, finance, legal, etc.), use measured, evidence-respecting language and avoid prohibited claims; recommend consulting a qualified professional where relevant.
-5. Write in the language of the user's brief (default to French if ambiguous).
+5. ${language ? `Write the post ENTIRELY in ${language}, regardless of the language of the user's brief. All text, including the call-to-action and hashtags, must be in ${language}.` : "Write in the language of the user's brief (default to French if ambiguous)."}
 
 ## Output Format
 Return ONLY the post text — no commentary, no "Here is your post:", no quotes wrapping the result. Just the ready-to-use content.
@@ -79,7 +81,7 @@ Return ONLY the post text — no commentary, no "Here is your post:", no quotes 
 export async function POST(req: NextRequest) {
   try {
     const body: RequestBody = await req.json();
-    const { prompt, platform, brandVoice, action, objective, companyId } = body;
+    const { prompt, platform, brandVoice, action, objective, companyId, language } = body;
 
     if (!prompt || !platform || !action) {
       return NextResponse.json(
@@ -118,7 +120,7 @@ export async function POST(req: NextRequest) {
     const response = await client.messages.create({
       model: env.anthropicModel,
       max_tokens: 1024,
-      system: SYSTEM_PROMPT(platform, brandVoice, objective),
+      system: SYSTEM_PROMPT(platform, brandVoice, objective, language),
       messages: [{ role: "user", content: userMessage }],
     });
 

@@ -36,6 +36,7 @@ export default function InboxPage() {
   const [agents, setAgents] = useState<InboxAgent[]>([]);
   const [messages, setMessages] = useState<InboxMessage[]>([]);
   const [filter, setFilter] = useState<Filter>("pending");
+  const [kindFilter, setKindFilter] = useState<"all" | "comment" | "dm">("all");
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [banner, setBanner] = useState<{ kind: "ok" | "warn"; text: string } | null>(null);
@@ -87,9 +88,15 @@ export default function InboxPage() {
       });
       const d = await r.json();
       if (!d.available) {
-        setBanner({ kind: "warn", text: t("Connectez votre Page Meta pour importer les commentaires.", "Connect your Meta Page to import comments.") });
+        setBanner({ kind: "warn", text: t("Connectez votre Page Meta pour importer les messages.", "Connect your Meta Page to import messages.") });
       } else {
-        setBanner({ kind: "ok", text: t(`${d.imported} message(s) importé(s).`, `${d.imported} message(s) imported.`) });
+        setBanner({
+          kind: "ok",
+          text: t(
+            `${d.imported} importé(s) — ${d.comments ?? 0} commentaire(s), ${d.dms ?? 0} message(s) privé(s).`,
+            `${d.imported} imported — ${d.comments ?? 0} comment(s), ${d.dms ?? 0} private message(s).`
+          ),
+        });
         await loadMessages(true);
       }
     } catch {
@@ -169,7 +176,24 @@ export default function InboxPage() {
         }}
       />
 
-      {/* Filtres */}
+      {/* Filtres par type (commentaire / message privé) */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        {([
+          { id: "all", fr: "Tous les types", en: "All types" },
+          { id: "comment", fr: "Commentaires", en: "Comments" },
+          { id: "dm", fr: "Messages privés", en: "Private messages" },
+        ] as const).map((k) => (
+          <button
+            key={k.id}
+            onClick={() => setKindFilter(k.id)}
+            className={`rounded-full px-3 py-1 text-2xs font-medium transition-colors ${kindFilter === k.id ? "bg-primary-600 text-white" : "bg-canvas text-muted hover:text-ink"}`}
+          >
+            {t(k.fr, k.en)}
+          </button>
+        ))}
+      </div>
+
+      {/* Filtres par statut */}
       <div className="flex flex-wrap items-center gap-1.5">
         {STATUS_FILTERS.map((f) => (
           <button
@@ -186,13 +210,13 @@ export default function InboxPage() {
       </div>
 
       {/* Messages */}
-      {loading ? (
-        <p className="text-sm text-muted">{t("Chargement…", "Loading…")}</p>
-      ) : messages.length === 0 ? (
-        <EmptyInbox t={t} hasAgents={agents.length > 0} />
-      ) : (
+      {(() => {
+        const visible = kindFilter === "all" ? messages : messages.filter((m) => m.kind === kindFilter);
+        if (loading) return <p className="text-sm text-muted">{t("Chargement…", "Loading…")}</p>;
+        if (visible.length === 0) return <EmptyInbox t={t} hasAgents={agents.length > 0} />;
+        return (
         <div className="space-y-3">
-          {messages.map((m) => (
+          {visible.map((m) => (
             <MessageCard
               key={m.id}
               companyId={companyId}
@@ -202,7 +226,8 @@ export default function InboxPage() {
             />
           ))}
         </div>
-      )}
+        );
+      })()}
 
       <AgentModal
         open={agentModal}
@@ -390,6 +415,13 @@ function MessageCard({
             <span className="font-medium text-ink">{message.authorName}</span>
             <span className="rounded-full bg-canvas px-2 py-0.5 text-2xs font-medium text-muted ring-1 ring-hair">
               {CHANNEL_LABELS[message.channel as InboxChannel] ?? message.channel}
+            </span>
+            <span className={`rounded-full px-2 py-0.5 text-2xs font-medium ${message.kind === "dm" ? "bg-ai-textbg text-ai-text" : "bg-canvas text-muted ring-1 ring-hair"}`}>
+              {message.kind === "dm"
+                ? t("Message privé", "Private message")
+                : message.kind === "mention"
+                ? t("Mention", "Mention")
+                : t("Commentaire", "Comment")}
             </span>
             {message.sentiment && (
               <span className={`rounded-full px-2 py-0.5 text-2xs font-medium ${SENTIMENT_STYLE[message.sentiment] ?? SENTIMENT_STYLE.neutral}`}>

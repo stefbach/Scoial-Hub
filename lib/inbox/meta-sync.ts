@@ -27,30 +27,63 @@ export interface SyncResult {
   imported: number;
   scanned: number;
   available: boolean;
+  comments: number;
+  dms: number;
   note?: string;
 }
 
-/** Importe les commentaires récents (FB + IG) en messages « pending ». */
+/** Suit la pagination Graph (champ paging.next) jusqu'à `maxPages`. */
+async function gpaged(
+  startPath: string,
+  token: string,
+  maxPages = 5
+): Promise<Array<Record<string, unknown>>> {
+  const out: Array<Record<string, unknown>> = [];
+  let page = await gget(startPath, token);
+  let guard = 0;
+  while (page && guard < maxPages) {
+    const data = (page.data as Array<Record<string, unknown>>) ?? [];
+    out.push(...data);
+    const next = (page.paging as { next?: string })?.next;
+    if (!next || data.length === 0) break;
+    guard++;
+    try {
+      const res = await fetch(next, { cache: "no-store" });
+      page = (await res.json()) as Record<string, unknown>;
+      if ((page as { error?: unknown }).error) break;
+    } catch {
+      break;
+    }
+  }
+  return out;
+}
+
+/**
+ * Importe TOUS les messages récupérables (commentaires FB + IG ET messages privés
+ * Messenger + IG DM) en messages « pending ». Idempotent (externalId unique).
+ */
 export async function syncMetaComments(companyId: string): Promise<SyncResult> {
   const ctx = await getMetaContext(companyId);
   const token = ctx.pageToken;
   if (!token) {
-    return { imported: 0, scanned: 0, available: false, note: "Page Meta non connectée." };
+    return { imported: 0, scanned: 0, comments: 0, dms: 0, available: false, note: "Page Meta non connectée." };
   }
 
-  let imported = 0;
+  let comments = 0;
+  let dms = 0;
   let scanned = 0;
 
-  // ── Facebook : posts récents → commentaires ────────────────────────────────
+  // ── Facebook : posts → commentaires (paginés) ──────────────────────────────
   if (ctx.pageId) {
-    const posts = await gget(
-      `${ctx.pageId}/posts?fields=permalink_url,comments.limit(15){id,from,message,created_time}&limit=10`,
-      token
+    const posts = await gpaged(
+      `${ctx.pageId}/posts?fields=permalink_url,comments.limit(50){id,from,message,created_time}&limit=25`,
+      token,
+      4
     );
-    for (const post of ((posts?.data as Array<Record<string, unknown>>) ?? [])) {
+    for (const post of posts) {
       const permalink = post.permalink_url ? String(post.permalink_url) : undefined;
-      const comments = (post.comments as { data?: Array<Record<string, unknown>> })?.data ?? [];
-      for (const c of comments) {
+      const comments_ = (post.comments as { data?: Array<Record<string, unknown>> })?.data ?? [];
+      for (const c of comments_) {
         scanned++;
         const from = c.from as { name?: string; id?: string } | undefined;
         const inserted = await ingestMessage(companyId, {
@@ -63,21 +96,50 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
           permalink,
           raw: c as Record<string, unknown>,
         });
-        if (inserted) imported++;
+        if (inserted) comments++;
+      }
+    }
+
+    // ── Messenger : conversations privées ────────────────────────────────────
+    const convos = await gpaged(
+      `${ctx.pageId}/conversations?fields=updated_time,messages.limit(25){id,message,from,created_time}&limit=50`,
+      token,
+      3
+    );
+    for (const conv of convos) {
+      const msgs = (conv.messages as { data?: Array<Record<string, unknown>> })?.data ?? [];
+      for (const m of msgs) {
+        const from = m.from as { name?: string; id?: string; email?: string } | undefined;
+        // On ignore les messages envoyés par la Page elle-même.
+        if (from?.id && ctx.pageId && from.id === ctx.pageId) continue;
+        const text = String(m.message ?? "");
+        if (!text) continue;
+        scanned++;
+        const inserted = await ingestMessage(companyId, {
+          channel: "facebook",
+          externalId: String(m.id ?? ""),
+          kind: "dm",
+          text,
+          authorName: from?.name ?? "Messenger",
+          authorHandle: from?.id ? String(from.id) : undefined,
+          raw: m as Record<string, unknown>,
+        });
+        if (inserted) dms++;
       }
     }
   }
 
-  // ── Instagram : médias récents → commentaires ──────────────────────────────
+  // ── Instagram : médias → commentaires (paginés) ────────────────────────────
   if (ctx.igId) {
-    const media = await gget(
-      `${ctx.igId}/media?fields=permalink,comments.limit(15){id,text,timestamp,username}&limit=10`,
-      token
+    const media = await gpaged(
+      `${ctx.igId}/media?fields=permalink,comments.limit(50){id,text,timestamp,username}&limit=25`,
+      token,
+      4
     );
-    for (const m of ((media?.data as Array<Record<string, unknown>>) ?? [])) {
+    for (const m of media) {
       const permalink = m.permalink ? String(m.permalink) : undefined;
-      const comments = (m.comments as { data?: Array<Record<string, unknown>> })?.data ?? [];
-      for (const c of comments) {
+      const comments_ = (m.comments as { data?: Array<Record<string, unknown>> })?.data ?? [];
+      for (const c of comments_) {
         scanned++;
         const username = c.username ? String(c.username) : undefined;
         const inserted = await ingestMessage(companyId, {
@@ -90,12 +152,41 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
           permalink,
           raw: c as Record<string, unknown>,
         });
-        if (inserted) imported++;
+        if (inserted) comments++;
+      }
+    }
+
+    // ── Instagram DM : conversations privées (via la Page, platform=instagram) ─
+    if (ctx.pageId) {
+      const igConvos = await gpaged(
+        `${ctx.pageId}/conversations?platform=instagram&fields=updated_time,messages.limit(25){id,message,from,created_time}&limit=50`,
+        token,
+        3
+      );
+      for (const conv of igConvos) {
+        const msgs = (conv.messages as { data?: Array<Record<string, unknown>> })?.data ?? [];
+        for (const m of msgs) {
+          const from = m.from as { username?: string; id?: string } | undefined;
+          if (from?.id && ctx.igId && from.id === ctx.igId) continue;
+          const text = String(m.message ?? "");
+          if (!text) continue;
+          scanned++;
+          const inserted = await ingestMessage(companyId, {
+            channel: "instagram",
+            externalId: String(m.id ?? ""),
+            kind: "dm",
+            text,
+            authorName: from?.username ? `@${from.username}` : "DM Instagram",
+            authorHandle: from?.username ?? from?.id,
+            raw: m as Record<string, unknown>,
+          });
+          if (inserted) dms++;
+        }
       }
     }
   }
 
-  return { imported, scanned, available: true };
+  return { imported: comments + dms, scanned, comments, dms, available: true };
 }
 
 export interface DeliverResult {
@@ -103,39 +194,66 @@ export interface DeliverResult {
   error?: string;
 }
 
-/**
- * Envoie une réponse vers la plateforme.
- * - Facebook : POST /{comment-id}/comments
- * - Instagram : POST /{ig-comment-id}/replies
- * Dégradation : si pas de token / canal non géré → renvoie delivered=false.
- */
-export async function deliverMetaReply(
-  companyId: string,
-  channel: InboxChannel,
-  externalId: string | undefined,
-  body: string
-): Promise<DeliverResult> {
-  if (!externalId) return { delivered: false, error: "Identifiant de message manquant." };
-  const ctx = await getMetaContext(companyId);
-  const token = ctx.pageToken;
-  if (!token) return { delivered: false, error: "Page Meta non connectée." };
+/** Cible d'envoi : un commentaire (réponse publique) ou un DM (réponse privée). */
+export interface DeliverTarget {
+  channel: InboxChannel;
+  kind: "comment" | "dm" | "mention" | "review";
+  externalId?: string;
+  /** Pour un DM : l'identifiant de l'expéditeur (PSID Messenger / id IG). */
+  authorHandle?: string;
+}
 
-  const path =
-    channel === "instagram" ? `${externalId}/replies` : `${externalId}/comments`;
-  if (channel !== "facebook" && channel !== "instagram") {
-    return { delivered: false, error: `Envoi automatique non géré pour ${channel}.` };
-  }
-
+async function metaPost(path: string, params: Record<string, string>): Promise<DeliverResult> {
   try {
     const res = await fetch(`https://graph.facebook.com/${V}/${path}`, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({ message: body, access_token: token }).toString(),
+      body: new URLSearchParams(params).toString(),
     });
-    const json = (await res.json()) as { id?: string; error?: { message?: string } };
+    const json = (await res.json()) as { id?: string; message_id?: string; error?: { message?: string } };
     if (json.error) return { delivered: false, error: json.error.message ?? "Erreur Meta." };
-    return { delivered: Boolean(json.id) };
+    return { delivered: Boolean(json.id || json.message_id) };
   } catch (e) {
     return { delivered: false, error: e instanceof Error ? e.message : "Échec réseau." };
   }
+}
+
+/**
+ * Envoie une réponse vers la plateforme.
+ * - Commentaire FB : POST /{comment-id}/comments
+ * - Commentaire IG : POST /{ig-comment-id}/replies
+ * - DM Messenger   : POST /{page-id}/messages (Send API, fenêtre 24 h)
+ * - DM Instagram   : POST /{ig-id}/messages
+ * Dégradation : si pas de token / cible manquante → delivered=false avec message.
+ */
+export async function deliverMetaReply(
+  companyId: string,
+  target: DeliverTarget,
+  body: string
+): Promise<DeliverResult> {
+  const { channel, kind, externalId, authorHandle } = target;
+  if (channel !== "facebook" && channel !== "instagram") {
+    return { delivered: false, error: `Envoi automatique non géré pour ${channel}.` };
+  }
+  const ctx = await getMetaContext(companyId);
+  const token = ctx.pageToken;
+  if (!token) return { delivered: false, error: "Page Meta non connectée." };
+
+  // ── Messages privés (Send API) ─────────────────────────────────────────────
+  if (kind === "dm") {
+    if (!authorHandle) return { delivered: false, error: "Destinataire du message privé inconnu." };
+    const senderNode = channel === "instagram" ? ctx.igId : ctx.pageId;
+    if (!senderNode) return { delivered: false, error: "Compte expéditeur introuvable." };
+    return metaPost(`${senderNode}/messages`, {
+      recipient: JSON.stringify({ id: authorHandle }),
+      message: JSON.stringify({ text: body }),
+      messaging_type: "RESPONSE",
+      access_token: token,
+    });
+  }
+
+  // ── Commentaires (réponse publique) ────────────────────────────────────────
+  if (!externalId) return { delivered: false, error: "Identifiant de message manquant." };
+  const path = channel === "instagram" ? `${externalId}/replies` : `${externalId}/comments`;
+  return metaPost(path, { message: body, access_token: token });
 }

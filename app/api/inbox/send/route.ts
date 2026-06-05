@@ -27,7 +27,11 @@ export async function POST(req: NextRequest) {
     if (!message) return NextResponse.json({ error: "Message introuvable" }, { status: 404 });
 
     // Tentative d'envoi réel vers la plateforme.
-    const delivery = await deliverMetaReply(companyId, message.channel, message.externalId, body.trim());
+    const delivery = await deliverMetaReply(
+      companyId,
+      { channel: message.channel, kind: message.kind, externalId: message.externalId, authorHandle: message.authorHandle },
+      body.trim()
+    );
     const now = new Date().toISOString();
 
     // Enregistre/maj la réponse. Un envoi humain est tracé generatedBy='human'.

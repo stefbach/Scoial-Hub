@@ -67,6 +67,16 @@ Colle la justification (en anglais, Meta l'exige) ci-dessous.
 > with the same AI-draft + human-approval / escalation workflow as Facebook. Required to read the
 > comments and publish replies on the connected Instagram account.
 
+### `pages_messaging`
+> Users read and answer private Messenger conversations of their own Facebook Page from our shared
+> inbox. AI drafts replies in the brand voice; the user approves and sends, or an autonomous agent
+> sends when confident, and sensitive messages are escalated to a human. Required to read the
+> conversation history and send replies within the standard messaging window.
+
+### `instagram_manage_messages`
+> Same as pages_messaging for the user's Instagram Business account: read and answer Instagram
+> Direct messages from our shared inbox with AI-draft + human-approval / escalation.
+
 ### `ads_management`
 > Users create, read and manage advertising campaigns on their own Meta ad accounts from our app.
 > Campaigns are created PAUSED and only activated by an explicit user action, with budget caps.

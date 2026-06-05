@@ -41,7 +41,11 @@ export async function POST(req: NextRequest) {
     let deliveryError: string | undefined;
 
     if (canAuto) {
-      const res = await deliverMetaReply(companyId, message.channel, message.externalId, draft.body);
+      const res = await deliverMetaReply(
+        companyId,
+        { channel: message.channel, kind: message.kind, externalId: message.externalId, authorHandle: message.authorHandle },
+        draft.body
+      );
       delivered = res.delivered;
       deliveryError = res.error;
     }

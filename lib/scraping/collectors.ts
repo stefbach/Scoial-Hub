@@ -714,14 +714,201 @@ class XpozCollector implements Collector {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
+   Collecteur ScrapeCreators (données RÉELLES, TOUS réseaux, une seule clé)
+   API REST unique couvrant Instagram, TikTok, YouTube, LinkedIn, Facebook,
+   Twitter/X. Auth : header `x-api-key`. Base : https://api.scrapecreators.com
+   Nécessite : SCRAPECREATORS_API_KEY dans l'environnement.
+
+   NOTE : les schémas de réponse varient selon le réseau / la version d'endpoint.
+   L'extraction des champs est volontairement DÉFENSIVE (xpick multi-alias +
+   conteneurs multiples) pour tolérer ces variations sans casser. En cas de
+   réponse vide ou inattendue, on retourne [] → le orchestrateur retombe alors
+   sur le simulateur (aucune page cassée).
+───────────────────────────────────────────────────────────────────────────── */
+
+interface ScEndpoint {
+  /** Chemin relatif de l'endpoint « posts/videos du compte ». */
+  path: string;
+  /** Nom du paramètre de requête portant le handle du compte. */
+  handleParam: string;
+}
+
+/** Endpoint « contenus d'un compte » par réseau. */
+const SC_ENDPOINTS: Record<ScrapeNetwork, ScEndpoint> = {
+  instagram: { path: "/v2/instagram/user/posts", handleParam: "handle" },
+  tiktok:    { path: "/v3/tiktok/profile/videos", handleParam: "handle" },
+  youtube:   { path: "/v1/youtube/channel-videos", handleParam: "handle" },
+  linkedin:  { path: "/v1/linkedin/company/posts", handleParam: "handle" },
+  facebook:  { path: "/v1/facebook/profile/posts", handleParam: "handle" },
+  twitter:   { path: "/v1/twitter/user-tweets", handleParam: "handle" },
+};
+
+/** Conteneurs possibles d'un tableau de posts dans la réponse JSON. */
+const SC_LIST_KEYS = ["posts", "items", "videos", "data", "tweets", "results", "edges"];
+
+/** Extrait le tableau de posts quelle que soit la forme de la réponse. */
+function scExtractList(data: unknown): Array<Record<string, unknown>> {
+  if (Array.isArray(data)) return data as Array<Record<string, unknown>>;
+  if (!data || typeof data !== "object") return [];
+  const obj = data as Record<string, unknown>;
+  for (const k of SC_LIST_KEYS) {
+    const v = obj[k];
+    if (Array.isArray(v)) return v as Array<Record<string, unknown>>;
+    // Forme imbriquée fréquente : { data: { items: [...] } }
+    if (v && typeof v === "object") {
+      for (const k2 of SC_LIST_KEYS) {
+        const v2 = (v as Record<string, unknown>)[k2];
+        if (Array.isArray(v2)) return v2 as Array<Record<string, unknown>>;
+      }
+    }
+  }
+  return [];
+}
+
+class ScrapeCreatorsCollector implements Collector {
+  isReal = true;
+  private static BASE = "https://api.scrapecreators.com";
+
+  constructor(public network: ScrapeNetwork, private apiKey: string) {}
+
+  async collect(query: ScrapeQuery): Promise<CompetitorContent[]> {
+    const targets = query.competitors.filter((c) => c.network === this.network);
+    if (targets.length === 0) return [];
+    const limit = query.limit ?? 20;
+    // Budget temps serré (≤60 s) : on plafonne comptes & posts.
+    const accounts = targets.slice(0, 5);
+    const per = Math.min(8, Math.max(3, Math.ceil(limit / Math.max(accounts.length, 1))));
+    const batches = await Promise.all(
+      accounts.map((c) => this.fetchAccount(c.handle, c.name, per))
+    );
+    return batches.flat().slice(0, limit);
+  }
+
+  private async fetchAccount(
+    handle: string,
+    name: string | undefined,
+    per: number
+  ): Promise<CompetitorContent[]> {
+    const username = handle.replace(/^@/, "").trim();
+    if (!username) return [];
+    const ep = SC_ENDPOINTS[this.network];
+    try {
+      const url = new URL(ScrapeCreatorsCollector.BASE + ep.path);
+      url.searchParams.set(ep.handleParam, username);
+      url.searchParams.set("amount", String(per));
+      url.searchParams.set("trim", "true");
+      const res = await fetch(url.toString(), {
+        headers: { "x-api-key": this.apiKey, Accept: "application/json" },
+        next: { revalidate: 0 },
+      });
+      if (!res.ok) {
+        console.warn("[ScrapeCreators] échec:", this.network, username, res.status, await res.text().catch(() => ""));
+        return [];
+      }
+      const data = await res.json();
+      const posts = scExtractList(data).slice(0, per);
+      const out: CompetitorContent[] = [];
+      for (const p of posts) {
+        out.push(this.mapPost(p, username, name));
+      }
+      return out;
+    } catch (err) {
+      console.warn("[ScrapeCreators] fetch échec:", this.network, username, err);
+      return [];
+    }
+  }
+
+  /** Normalise un post brut (forme variable) en CompetitorContent. */
+  private mapPost(p: Record<string, unknown>, username: string, name?: string): CompetitorContent {
+    const likes = xnum(xpick(p, [
+      "likeCount", "like_count", "likes", "diggCount", "digg_count",
+      "reactionCount", "reaction_count", "reactions", "favoriteCount", "favorite_count",
+    ]));
+    const comments = xnum(xpick(p, [
+      "commentCount", "comment_count", "comments", "replyCount", "reply_count",
+    ]));
+    const views = xnum(xpick(p, [
+      "playCount", "play_count", "viewCount", "view_count", "views",
+      "videoViewCount", "video_view_count", "impressions",
+    ]));
+    const shares = xnum(xpick(p, [
+      "shareCount", "share_count", "shares", "repostCount", "repost_count",
+      "forwardCount", "forward_count", "retweetCount", "retweet_count",
+    ]));
+    const caption = xstr(xpick(p, [
+      "caption", "text", "title", "description", "desc", "content", "message",
+    ]));
+    const url = xstr(xpick(p, [
+      "url", "permalink", "postUrl", "post_url", "shareUrl", "share_url",
+      "videoUrl", "video_url", "link", "codeUrl", "code_url",
+    ])) || this.fallbackUrl(username);
+    const thumb = xstr(xpick(p, [
+      "thumbnailUrl", "thumbnail_url", "thumbnail", "cover", "coverUrl", "cover_url",
+      "imageUrl", "image_url", "displayUrl", "display_url", "mediaUrl", "media_url",
+    ])) || undefined;
+    const postedAt = xstr(xpick(p, [
+      "postedAt", "posted_at", "createdAt", "created_at", "createdAtDate",
+      "created_at_date", "timestamp", "publishedAt", "published_at", "date", "takenAt", "taken_at",
+    ])) || new Date().toISOString();
+
+    // Type de contenu déduit du réseau + indices média.
+    const mt = xstr(xpick(p, ["mediaType", "media_type", "type", "productType", "product_type"])).toLowerCase();
+    const hasVideo = Boolean(xpick(p, ["videoUrl", "video_url", "playCount", "play_count"]));
+    let type: CompetitorContent["type"];
+    if (this.network === "youtube" || this.network === "tiktok") type = "video";
+    else if (this.network === "instagram") type = hasVideo || mt.includes("video") || mt.includes("reel") ? "reel" : "post";
+    else type = hasVideo || mt.includes("video") ? "video" : "post";
+
+    const er = views > 0 ? parseFloat(((likes + comments) / views).toFixed(4)) : 0;
+
+    return {
+      network: this.network,
+      handle: `@${username}`,
+      accountName: name ?? xstr(xpick(p, ["authorName", "author_name", "nickname", "fullName", "full_name", "username", "channelTitle"])) ?? username,
+      type,
+      url,
+      caption,
+      likes,
+      comments,
+      views,
+      shares,
+      engagementRate: er,
+      postedAt,
+      thumbnailUrl: thumb,
+      simulated: false,
+    };
+  }
+
+  private fallbackUrl(username: string): string {
+    const host: Record<ScrapeNetwork, string> = {
+      instagram: `https://instagram.com/${username}`,
+      tiktok: `https://www.tiktok.com/@${username}`,
+      youtube: `https://www.youtube.com/@${username}`,
+      linkedin: `https://www.linkedin.com/company/${username}`,
+      facebook: `https://www.facebook.com/${username}`,
+      twitter: `https://x.com/${username}`,
+    };
+    return host[this.network];
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
    Factory : retourne le meilleur collecteur disponible pour chaque réseau
 ───────────────────────────────────────────────────────────────────────────── */
 
 function getCollector(network: ScrapeNetwork, query: ScrapeQuery): Collector {
+  // YouTube : on privilégie l'API Google officielle GRATUITE si dispo
+  // (évite de consommer des crédits ScrapeCreators pour ce réseau).
   if (network === "youtube") {
     const ytKey = process.env.YOUTUBE_API_KEY;
     if (ytKey) return new YouTubeCollector(ytKey);
   }
+
+  // Priorité : ScrapeCreators — une seule clé couvre TOUS les réseaux
+  // (Instagram, TikTok, YouTube, LinkedIn, Facebook, Twitter).
+  const scKey = process.env.SCRAPECREATORS_API_KEY;
+  if (scKey) return new ScrapeCreatorsCollector(network, scKey);
+
   if (network === "instagram") {
     // Priorité : API officielle Meta (Business Discovery) si compte connecté…
     if (query.igAuth?.businessId && query.igAuth?.token) {

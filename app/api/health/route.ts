@@ -17,6 +17,7 @@ export async function GET() {
       REPLICATE_API_TOKEN: Boolean(process.env.REPLICATE_API_TOKEN),
       YOUTUBE_API_KEY: Boolean(process.env.YOUTUBE_API_KEY),
       XPOZ_API_KEY: Boolean(process.env.XPOZ_API_KEY),
+      SCRAPECREATORS_API_KEY: Boolean(process.env.SCRAPECREATORS_API_KEY),
       CLOUDINARY: Boolean(process.env.CLOUDINARY_CLOUD_NAME || process.env.CLOUDINARY_URL),
       META_AD_LIBRARY_TOKEN: Boolean(process.env.META_AD_LIBRARY_TOKEN),
       META_APP_ID: Boolean(process.env.META_APP_ID),

@@ -52,9 +52,11 @@ export function OrganicPublisher() {
         body: JSON.stringify({ prompt: text || "social media brand visual, professional, high quality", platform: "facebook", n: 1 }),
       });
       const d = await r.json();
+      if (!r.ok) { setError(d.error || t("Échec de génération d'image.", "Image generation failed.")); return; }
       const urls = extractImageUrls(d);
       if (urls[0]) setImageUrl(urls[0]);
-      else setError(t("Génération d'image non configurée (REPLICATE_API_TOKEN).", "Image generation not configured (REPLICATE_API_TOKEN)."));
+      else if (d.simulated) setError(t("Génération d'image non configurée (REPLICATE_API_TOKEN).", "Image generation not configured (REPLICATE_API_TOKEN)."));
+      else setError(t("Aucune image renvoyée. Réessayez.", "No image returned. Try again."));
     } finally { setImaging(false); }
   }
 

@@ -111,9 +111,13 @@ export default function ArticleLinkedInPage() {
         body: JSON.stringify({ prompt: vp, platform: "linkedin", n: 2 }),
       });
       const d = await r.json();
+      if (!r.ok) { setAiNote(d.error || t("Échec de génération d'image.", "Image generation failed.")); return; }
       const urls = extractImageUrls(d);
-      setImages((prev) => ({ ...prev, [idx]: urls }));
-      if (urls.length === 0) setAiNote(t("Génération d'images non configurée (REPLICATE_API_TOKEN).", "Image generation not configured (REPLICATE_API_TOKEN)."));
+      if (urls.length > 0) { setImages((prev) => ({ ...prev, [idx]: urls })); return; }
+      if (d.simulated) setAiNote(t("Génération d'images non configurée (REPLICATE_API_TOKEN).", "Image generation not configured (REPLICATE_API_TOKEN)."));
+      else setAiNote(t("Aucune image renvoyée par le modèle. Réessayez.", "No image returned by the model. Try again."));
+    } catch (e) {
+      setAiNote(e instanceof Error ? e.message : t("Échec de génération d'image.", "Image generation failed."));
     } finally { setImgLoading(null); }
   }
 

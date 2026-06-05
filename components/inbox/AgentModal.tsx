@@ -2,8 +2,17 @@
 
 import { useState } from "react";
 import { Modal } from "@/components/ui/Modal";
+import { Spinner } from "@/components/ui/Spinner";
 import { useT } from "@/lib/i18n";
 import { CHANNEL_LABELS, type InboxAgent, type InboxChannel } from "@/lib/inbox/types";
+
+interface TestResult {
+  body: string;
+  confidence: number;
+  needsHuman: boolean;
+  reason: string;
+  sentiment: string;
+}
 
 const CHANNELS: InboxChannel[] = ["facebook", "instagram", "linkedin", "telegram", "twitter"];
 
@@ -37,8 +46,58 @@ export function AgentModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Zone « Tester l'agent » : message d'exemple + résultat de l'aperçu.
+  const [testOpen, setTestOpen] = useState(false);
+  const [testMessage, setTestMessage] = useState("");
+  const [testing, setTesting] = useState(false);
+  const [testError, setTestError] = useState<string | null>(null);
+  const [testResult, setTestResult] = useState<TestResult | null>(null);
+
   function toggleChannel(c: InboxChannel) {
     setChannels((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]));
+  }
+
+  /** Config courante du formulaire (non persistée) — partagée par save & test. */
+  function currentAgentPayload() {
+    return {
+      name: name.trim(),
+      scope,
+      channels: scope === "channel" ? channels : [],
+      autonomy,
+      language,
+      persona: persona.trim(),
+      signature: signature.trim(),
+      confidenceThreshold: threshold,
+      escalationKeywords: keywords.split(",").map((k) => k.trim()).filter(Boolean),
+    };
+  }
+
+  async function runTest() {
+    setTestError(null);
+    setTestResult(null);
+    if (!testMessage.trim()) {
+      setTestError(t("Tapez un message d'exemple.", "Type an example message."));
+      return;
+    }
+    setTesting(true);
+    try {
+      const res = await fetch("/api/inbox/test-agent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          companyId,
+          message: testMessage.trim(),
+          agent: currentAgentPayload(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "test failed");
+      setTestResult(data as TestResult);
+    } catch (e) {
+      setTestError(e instanceof Error ? e.message : t("Échec du test.", "Test failed."));
+    } finally {
+      setTesting(false);
+    }
   }
 
   async function save() {
@@ -52,19 +111,7 @@ export function AgentModal({
       return;
     }
     setSaving(true);
-    const payload = {
-      companyId,
-      name: name.trim(),
-      scope,
-      channels: scope === "channel" ? channels : [],
-      autonomy,
-      language,
-      persona: persona.trim(),
-      signature: signature.trim(),
-      confidenceThreshold: threshold,
-      escalationKeywords: keywords.split(",").map((k) => k.trim()).filter(Boolean),
-      enabled,
-    };
+    const payload = { companyId, ...currentAgentPayload(), enabled };
     try {
       const url = editing ? `/api/inbox/agents/${agent!.id}` : "/api/inbox/agents";
       const res = await fetch(url, {
@@ -148,30 +195,51 @@ export function AgentModal({
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="section-label">{t("Autonomie", "Autonomy")}</label>
-            <select
-              value={autonomy}
-              onChange={(e) => setAutonomy(e.target.value as InboxAgent["autonomy"])}
-              className="mt-1 w-full rounded-lg border border-hair bg-canvas px-3 py-2 text-sm text-ink outline-none focus:border-primary-400"
+        <div>
+          <label className="section-label">{t("Comment l'agent agit", "How the agent acts")}</label>
+          <div className="mt-1 grid gap-2 sm:grid-cols-2">
+            <button
+              type="button"
+              onClick={() => setAutonomy("suggest")}
+              aria-pressed={autonomy === "suggest"}
+              className={`rounded-lg border px-3 py-2.5 text-left text-xs ${autonomy === "suggest" ? "border-primary-400 bg-primary-50 text-primary-700" : "border-hair text-muted hover:bg-canvas"}`}
             >
-              <option value="suggest">{t("Suggérer (valider à la main)", "Suggest (human approves)")}</option>
-              <option value="auto">{t("Répondre seul si confiant", "Auto-reply when confident")}</option>
-            </select>
-          </div>
-          <div>
-            <label className="section-label">{t("Langue", "Language")}</label>
-            <select
-              value={language}
-              onChange={(e) => setLanguage(e.target.value as InboxAgent["language"])}
-              className="mt-1 w-full rounded-lg border border-hair bg-canvas px-3 py-2 text-sm text-ink outline-none focus:border-primary-400"
+              <span className="block text-sm font-semibold text-ink">{t("Suggérer", "Suggest")}</span>
+              <span className="mt-0.5 block">
+                {t(
+                  "Je relis et je valide chaque réponse.",
+                  "I review and approve every reply."
+                )}
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setAutonomy("auto")}
+              aria-pressed={autonomy === "auto"}
+              className={`rounded-lg border px-3 py-2.5 text-left text-xs ${autonomy === "auto" ? "border-primary-400 bg-primary-50 text-primary-700" : "border-hair text-muted hover:bg-canvas"}`}
             >
-              <option value="auto">{t("Auto (langue du message)", "Auto (message language)")}</option>
-              <option value="fr">Français</option>
-              <option value="en">English</option>
-            </select>
+              <span className="block text-sm font-semibold text-ink">{t("Répondre seul si confiant", "Reply on its own when confident")}</span>
+              <span className="mt-0.5 block">
+                {t(
+                  "L'agent envoie, sauf sujets sensibles.",
+                  "The agent sends, except on sensitive topics."
+                )}
+              </span>
+            </button>
           </div>
+        </div>
+
+        <div>
+          <label className="section-label">{t("Langue", "Language")}</label>
+          <select
+            value={language}
+            onChange={(e) => setLanguage(e.target.value as InboxAgent["language"])}
+            className="mt-1 w-full rounded-lg border border-hair bg-canvas px-3 py-2 text-sm text-ink outline-none focus:border-primary-400"
+          >
+            <option value="auto">{t("Auto (langue du message)", "Auto (message language)")}</option>
+            <option value="fr">Français</option>
+            <option value="en">English</option>
+          </select>
         </div>
 
         <div>
@@ -190,33 +258,38 @@ export function AgentModal({
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="section-label">
-              {t("Seuil de confiance", "Confidence threshold")} · {Math.round(threshold * 100)}%
-            </label>
-            <input
-              type="range"
-              min={0.3}
-              max={0.95}
-              step={0.05}
-              value={threshold}
-              onChange={(e) => setThreshold(Number(e.target.value))}
-              className="mt-2 w-full accent-primary-600"
-            />
-            <p className="text-2xs text-muted">
-              {t("En dessous → passe à un humain.", "Below this → hand off to a human.")}
-            </p>
+        <div>
+          <label className="section-label">{t("Niveau de prudence", "Caution level")}</label>
+          <input
+            type="range"
+            min={0.3}
+            max={0.95}
+            step={0.05}
+            value={threshold}
+            onChange={(e) => setThreshold(Number(e.target.value))}
+            aria-label={t("Niveau de prudence", "Caution level")}
+            className="mt-2 w-full accent-primary-600"
+          />
+          <div className="mt-1 flex items-center justify-between text-2xs font-medium text-muted">
+            <span>{t("Prudent", "Cautious")}</span>
+            <span>{t("Réactif", "Responsive")}</span>
           </div>
-          <div>
-            <label className="section-label">{t("Signature", "Signature")}</label>
-            <input
-              value={signature}
-              onChange={(e) => setSignature(e.target.value)}
-              placeholder={t("— L'équipe", "— The team")}
-              className="mt-1 w-full rounded-lg border border-hair bg-canvas px-3 py-2 text-sm text-ink outline-none focus:border-primary-400"
-            />
-          </div>
+          <p className="mt-1 text-2xs text-muted">
+            {t(
+              "En dessous de ce seuil, l'agent passe la main à un humain.",
+              "Below this threshold, the agent hands off to a human."
+            )}
+          </p>
+        </div>
+
+        <div>
+          <label className="section-label">{t("Signature", "Signature")}</label>
+          <input
+            value={signature}
+            onChange={(e) => setSignature(e.target.value)}
+            placeholder={t("— L'équipe", "— The team")}
+            className="mt-1 w-full rounded-lg border border-hair bg-canvas px-3 py-2 text-sm text-ink outline-none focus:border-primary-400"
+          />
         </div>
 
         <div>
@@ -241,6 +314,79 @@ export function AgentModal({
           <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} className="accent-primary-600" />
           {t("Agent actif", "Agent enabled")}
         </label>
+
+        {/* Tester l'agent : aperçu sur un message d'exemple, rien n'est enregistré. */}
+        <div className="rounded-lg border border-hair bg-canvas p-3">
+          <button
+            type="button"
+            onClick={() => setTestOpen((v) => !v)}
+            aria-expanded={testOpen}
+            className="flex w-full items-center justify-between text-left text-sm font-semibold text-ink"
+          >
+            <span>🧪 {t("Tester l'agent", "Test the agent")}</span>
+            <span className="text-2xs font-medium text-muted">{testOpen ? "▲" : "▼"}</span>
+          </button>
+
+          {testOpen && (
+            <div className="mt-3 space-y-3">
+              <p className="text-2xs text-muted">
+                {t(
+                  "Essayez un message client : vous verrez la réponse, la confiance, et si un humain doit reprendre. Rien n'est enregistré.",
+                  "Try a customer message: you'll see the reply, the confidence, and whether a human is needed. Nothing is saved."
+                )}
+              </p>
+              <textarea
+                value={testMessage}
+                onChange={(e) => setTestMessage(e.target.value)}
+                rows={2}
+                placeholder={t(
+                  "ex. Bonjour, vous livrez en combien de temps ?",
+                  "e.g. Hi, how long does delivery take?"
+                )}
+                className="w-full rounded-lg border border-hair bg-card px-3 py-2 text-sm text-ink outline-none focus:border-primary-400"
+              />
+              <button
+                type="button"
+                onClick={runTest}
+                disabled={testing}
+                className="btn-secondary inline-flex items-center gap-2 text-sm disabled:opacity-50"
+              >
+                {testing && <Spinner size={14} className="text-primary-600" />}
+                {testing ? t("Test en cours…", "Testing…") : t("Lancer le test", "Run the test")}
+              </button>
+
+              {testError && (
+                <p className="rounded-lg bg-danger-50 px-3 py-2 text-xs text-danger-700">{testError}</p>
+              )}
+
+              {testResult && (
+                <div className="space-y-2 rounded-lg border border-hair bg-card p-3">
+                  <p className="whitespace-pre-wrap text-sm text-ink">{testResult.body}</p>
+                  <div className="flex flex-wrap items-center gap-1.5 text-2xs font-medium">
+                    <span className="rounded-full border border-hair px-2 py-0.5 text-muted">
+                      {t("Confiance", "Confidence")} {Math.round(testResult.confidence * 100)}%
+                    </span>
+                    {testResult.needsHuman ? (
+                      <span className="rounded-full bg-warning-50 px-2 py-0.5 text-warning-700">
+                        {t("Humain requis", "Human needed")}
+                      </span>
+                    ) : (
+                      <span className="rounded-full bg-success-50 px-2 py-0.5 text-success-700">
+                        {t("Peut répondre seul", "Can reply on its own")}
+                      </span>
+                    )}
+                    <span className="rounded-full border border-hair px-2 py-0.5 text-muted">
+                      {testResult.sentiment}
+                    </span>
+                  </div>
+                  {testResult.reason && (
+                    <p className="text-2xs text-muted">{testResult.reason}</p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
 
         {error && <p className="rounded-lg bg-danger-50 px-3 py-2 text-xs text-danger-700">{error}</p>}
       </div>

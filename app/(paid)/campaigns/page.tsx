@@ -19,6 +19,7 @@ import {
 } from "@/lib/campaign-store";
 import { eur } from "@/lib/format";
 import { useT } from "@/lib/i18n";
+import { Spinner } from "@/components/ui/Spinner";
 import type { Campaign } from "@/lib/types";
 
 export default function CampaignsPage() {
@@ -46,6 +47,7 @@ function CampaignsContent() {
   // Récupère les campagnes depuis l'API et les fusionne avec les données mock.
   // Si le fetch échoue, on continue d'afficher les données locales sans erreur.
   const [apiCampaigns, setApiCampaigns] = useState<Campaign[]>([]);
+  const [loadingApi, setLoadingApi] = useState(true);
   const fetchedForCompany = useRef<string | null>(null);
 
   useEffect(() => {
@@ -63,9 +65,12 @@ function CampaignsContent() {
         }
       } catch {
         // Silencieux — fallback données locales
+      } finally {
+        if (!cancelled) setLoadingApi(false);
       }
     }
 
+    setLoadingApi(true);
     fetchCampaigns();
 
     const handleFocus = () => { fetchCampaigns(); };
@@ -77,19 +82,32 @@ function CampaignsContent() {
     };
   }, [company.id]);
 
-  // Fusion : les campagnes API en premier (incluent les campagnes Agent IA),
-  // les campagnes locales complémentaires dédoublonnées par id.
-  const mergedCampaigns = useMemo(() => {
-    const apiIds = new Set(apiCampaigns.map((c) => c.id));
-    const localOnly = data.campaigns.list.filter((c) => !apiIds.has(c.id));
-    return [...apiCampaigns, ...localOnly];
-  }, [apiCampaigns, data.campaigns.list]);
+  // Séparation claire : les campagnes RÉELLES (API/Supabase, persistées) d'un
+  // côté, et les BROUILLONS locaux (mock, non encore en base) de l'autre.
+  const apiIds = useMemo(() => new Set(apiCampaigns.map((c) => c.id)), [apiCampaigns]);
+
+  // Brouillons = campagnes présentes uniquement dans le store local et pas
+  // encore renvoyées par l'API. Dédoublonnées par id.
+  const draftCampaigns = useMemo(
+    () => data.campaigns.list.filter((c) => !apiIds.has(c.id)),
+    [data.campaigns.list, apiIds]
+  );
+
+  // Campagnes réelles = ce que renvoie l'API (inclut les campagnes Agent IA).
+  const realCampaigns = apiCampaigns;
+
+  const mergedCampaigns = useMemo(
+    () => [...realCampaigns, ...draftCampaigns],
+    [realCampaigns, draftCampaigns]
+  );
 
   const c = {
     ...data.campaigns,
     list: mergedCampaigns,
     activeCampaigns: mergedCampaigns.filter((camp) => camp.status === "active").length || data.campaigns.activeCampaigns,
   };
+
+  const [draftsOpen, setDraftsOpen] = useState(true);
 
   const [adModal, setAdModal] = useState(false);
   const [campaignModal, setCampaignModal] = useState<{ open: boolean; campaign?: Campaign }>({
@@ -146,7 +164,12 @@ function CampaignsContent() {
       </div>
 
       {/* Campaign list */}
-      {c.list.length === 0 ? (
+      {loadingApi && c.list.length === 0 ? (
+        <div className="card flex items-center justify-center gap-2.5 px-6 py-16 text-sm text-muted">
+          <Spinner size={18} className="text-primary-600" />
+          {t("Chargement des campagnes…", "Loading campaigns…")}
+        </div>
+      ) : c.list.length === 0 ? (
         <EmptyState
           icon={<CampaignIcon />}
           title={t("Aucune campagne pour l'instant", "No campaigns yet")}
@@ -161,27 +184,95 @@ function CampaignsContent() {
           }
         />
       ) : (
-        <div className="card overflow-hidden">
-          <div className="flex items-center justify-between border-b border-hair bg-canvas/60 px-5 py-3">
-            <span className="section-label">{t("Toutes les campagnes", "All campaigns")} ({c.list.length})</span>
+        <div className="space-y-6">
+          {/* ── Section principale : campagnes réelles (persistées) ───────── */}
+          <div className="card overflow-hidden">
+            <div className="flex items-center justify-between border-b border-hair bg-canvas/60 px-5 py-3">
+              <span className="section-label">
+                {t("Campagnes", "Campaigns")} ({realCampaigns.length})
+              </span>
+              <span className="text-2xs text-muted">{t("Publiées · en base", "Published · in database")}</span>
+            </div>
+            {realCampaigns.length === 0 ? (
+              <div className="px-5 py-10 text-center text-sm text-muted">
+                {t(
+                  "Aucune campagne publiée pour le moment.",
+                  "No published campaigns yet."
+                )}
+                {draftCampaigns.length > 0 && (
+                  <span className="mt-1 block text-2xs">
+                    {t(
+                      "Vos brouillons apparaissent ci-dessous.",
+                      "Your drafts appear below."
+                    )}
+                  </span>
+                )}
+              </div>
+            ) : (
+              <div className="divide-y divide-hair">
+                {realCampaigns.map((camp) => (
+                  <CampaignRow
+                    key={camp.id}
+                    camp={camp}
+                    isFromApi
+                    open={expanded === camp.id}
+                    onChevron={() => setExpanded((e) => (e === camp.id ? null : camp.id))}
+                    onToggleEnabled={() => {
+                      toggleCampaign(company.id, camp.id);
+                      refresh();
+                    }}
+                    onEdit={() => setCampaignModal({ open: true, campaign: camp })}
+                    onDelete={() => setConfirmDelete(camp)}
+                  />
+                ))}
+              </div>
+            )}
           </div>
-          <div className="divide-y divide-hair">
-            {c.list.map((camp) => (
-              <CampaignRow
-                key={camp.id}
-                camp={camp}
-                isFromApi={apiCampaigns.some((a) => a.id === camp.id)}
-                open={expanded === camp.id}
-                onChevron={() => setExpanded((e) => (e === camp.id ? null : camp.id))}
-                onToggleEnabled={() => {
-                  toggleCampaign(company.id, camp.id);
-                  refresh();
-                }}
-                onEdit={() => setCampaignModal({ open: true, campaign: camp })}
-                onDelete={() => setConfirmDelete(camp)}
-              />
-            ))}
-          </div>
+
+          {/* ── Section repliable : brouillons (locaux, non publiés) ──────── */}
+          {draftCampaigns.length > 0 && (
+            <div className="card overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setDraftsOpen((o) => !o)}
+                aria-expanded={draftsOpen}
+                className="flex w-full items-center justify-between border-b border-hair bg-canvas/60 px-5 py-3 text-left transition-colors hover:bg-canvas"
+              >
+                <span className="flex items-center gap-2">
+                  <span
+                    className={`inline-block text-[10px] text-muted transition-transform duration-150 ${draftsOpen ? "rotate-90" : ""}`}
+                  >
+                    ▸
+                  </span>
+                  <span className="section-label">
+                    {t("Brouillons (non publiés)", "Drafts (unpublished)")} ({draftCampaigns.length})
+                  </span>
+                </span>
+                <span className="text-2xs text-muted">
+                  {t("Pas encore en base", "Not yet in database")}
+                </span>
+              </button>
+              {draftsOpen && (
+                <div className="divide-y divide-hair">
+                  {draftCampaigns.map((camp) => (
+                    <CampaignRow
+                      key={camp.id}
+                      camp={camp}
+                      isDraft
+                      open={expanded === camp.id}
+                      onChevron={() => setExpanded((e) => (e === camp.id ? null : camp.id))}
+                      onToggleEnabled={() => {
+                        toggleCampaign(company.id, camp.id);
+                        refresh();
+                      }}
+                      onEdit={() => setCampaignModal({ open: true, campaign: camp })}
+                      onDelete={() => setConfirmDelete(camp)}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -292,6 +383,7 @@ function EmptyState({
 function CampaignRow({
   camp,
   isFromApi,
+  isDraft,
   open,
   onChevron,
   onToggleEnabled,
@@ -300,6 +392,7 @@ function CampaignRow({
 }: {
   camp: Campaign;
   isFromApi?: boolean;
+  isDraft?: boolean;
   open: boolean;
   onChevron: () => void;
   onToggleEnabled: () => void;
@@ -348,6 +441,14 @@ function CampaignRow({
                 {camp.name}
               </Link>
               <StatusBadge tone={statusTone} dot>{status}</StatusBadge>
+              {isDraft && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-warning-50 px-2 py-0.5 text-2xs font-semibold text-warning-700 ring-1 ring-warning-200">
+                  <svg viewBox="0 0 12 12" fill="none" className="h-2.5 w-2.5">
+                    <path d="M8 1.5l2.5 2.5L4 10.5 1.5 11 2 8.5 8 1.5z" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  {t("Brouillon", "Draft")}
+                </span>
+              )}
               {camp.platforms.map((p) => (
                 <PlatformChip key={p} platform={p} />
               ))}

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { format } from "date-fns";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
+import { Spinner } from "@/components/ui/Spinner";
 import { Pills } from "@/components/ui/Tabs";
 import { DatePicker } from "@/components/ui/DateTimePicker";
 import { useCompany } from "@/lib/company-context";
@@ -37,6 +38,15 @@ export function NewCampaignModal({
   const { company, data } = useCompany();
   const t = useT();
   const editing = !!campaign;
+
+  // Preset de création : « Simple » (champs essentiels, valeurs par défaut
+  // raisonnables) ou « Avancé » (formulaire complet). Par défaut : Simple pour
+  // une création. En édition, on ouvre directement le mode Avancé pour ne rien
+  // masquer des réglages existants.
+  const [mode, setMode] = useState<"simple" | "advanced">(
+    editing ? "advanced" : "simple"
+  );
+  const simple = mode === "simple";
 
   const [name, setName] = useState(campaign?.name ?? "");
   const [objective, setObjective] = useState(
@@ -86,8 +96,10 @@ export function NewCampaignModal({
     }
 
     const amount = parseFloat(budgetAmount) || 0;
-    const dailyBudgetVal = budgetType === "daily" ? amount : undefined;
-    const lifetimeBudgetVal = budgetType === "lifetime" ? amount : undefined;
+    // En mode Simple, le budget est toujours journalier.
+    const effectiveBudgetType = simple ? "daily" : budgetType;
+    const dailyBudgetVal = effectiveBudgetType === "daily" ? amount : undefined;
+    const lifetimeBudgetVal = effectiveBudgetType === "lifetime" ? amount : undefined;
     const startIso = format(startDate, "yyyy-MM-dd");
     const endIso = endDate ? format(endDate, "yyyy-MM-dd") : null;
     const platforms = idToPlatforms(
@@ -187,6 +199,27 @@ export function NewCampaignModal({
           </div>
         )}
 
+        {/* Preset de création : Simple / Avancé */}
+        <div className="mb-4">
+          <div className="mb-1.5 flex items-center justify-between">
+            <label className="text-2xs font-medium text-muted">{t("Mode de création", "Creation mode")}</label>
+            <span className="text-2xs text-muted">
+              {simple
+                ? t("L'essentiel, prêt en 30 s", "Just the essentials, ready in 30s")
+                : t("Tous les réglages", "All settings")}
+            </span>
+          </div>
+          <Pills
+            key={mode}
+            options={[
+              { id: "simple", label: t("Simple", "Simple") },
+              { id: "advanced", label: t("Avancé", "Advanced") },
+            ]}
+            defaultId={mode}
+            onChange={(id) => setMode(id as "simple" | "advanced")}
+          />
+        </div>
+
         <div className="mb-3">
           <label className="text-2xs font-medium text-muted">{t("Nom de la campagne", "Campaign name")}</label>
           <input
@@ -206,81 +239,111 @@ export function NewCampaignModal({
           />
         </div>
 
-        <div className="mb-3">
-          <label className="mb-1 block text-2xs font-medium text-muted">{t("Plateformes", "Platforms")}</label>
-          <Pills
-            options={[
-              { id: "fb", label: "Facebook" },
-              { id: "ig", label: "Instagram" },
-              { id: "fbig", label: "Facebook + Instagram" },
-            ]}
-            defaultId={typeof platformId === "string" ? platformId : "fbig"}
-            tone="ai"
-            onChange={(id) => setPlatformId(id)}
-          />
-        </div>
-
-        <div className="mb-3 grid grid-cols-2 gap-3">
-          <div>
-            <label className="text-2xs font-medium text-muted">{t("Type de budget", "Budget type")}</label>
-            <select
-              value={budgetType}
-              onChange={(e) => setBudgetType(e.target.value as "daily" | "lifetime")}
-              className="mt-1 w-full rounded-md border-hair border-hair bg-card px-3 py-2 text-sm text-ink focus:outline-none"
-            >
-              <option value="daily">{t("Budget journalier", "Daily budget")}</option>
-              <option value="lifetime">{t("Budget total", "Lifetime budget")}</option>
-            </select>
+        {!simple && (
+          <div className="mb-3">
+            <label className="mb-1 block text-2xs font-medium text-muted">{t("Plateformes", "Platforms")}</label>
+            <Pills
+              options={[
+                { id: "fb", label: "Facebook" },
+                { id: "ig", label: "Instagram" },
+                { id: "fbig", label: "Facebook + Instagram" },
+              ]}
+              defaultId={typeof platformId === "string" ? platformId : "fbig"}
+              tone="ai"
+              onChange={(id) => setPlatformId(id)}
+            />
           </div>
-          <div>
-            <label className="text-2xs font-medium text-muted">{t("Montant", "Amount")}</label>
+        )}
+
+        {simple ? (
+          // Mode Simple : budget journalier uniquement (valeur par défaut 40 €/j)
+          <div className="mb-3">
+            <label className="text-2xs font-medium text-muted">{t("Budget par jour", "Budget per day")}</label>
             <div className="mt-1 flex items-center gap-2 rounded-md border-hair border-hair bg-card px-3 py-2">
               <span className="text-2xs text-muted">EUR</span>
               <input
+                inputMode="decimal"
                 value={budgetAmount}
                 onChange={(e) => setBudgetAmount(e.target.value)}
                 className="w-full bg-transparent text-sm text-ink focus:outline-none"
               />
-              <span className="shrink-0 text-2xs text-muted">{budgetSuffix}</span>
+              <span className="shrink-0 text-2xs text-muted">{t("/ jour", "/ day")}</span>
             </div>
           </div>
-        </div>
+        ) : (
+          <div className="mb-3 grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-2xs font-medium text-muted">{t("Type de budget", "Budget type")}</label>
+              <select
+                value={budgetType}
+                onChange={(e) => setBudgetType(e.target.value as "daily" | "lifetime")}
+                className="mt-1 w-full rounded-md border-hair border-hair bg-card px-3 py-2 text-sm text-ink focus:outline-none"
+              >
+                <option value="daily">{t("Budget journalier", "Daily budget")}</option>
+                <option value="lifetime">{t("Budget total", "Lifetime budget")}</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-2xs font-medium text-muted">{t("Montant", "Amount")}</label>
+              <div className="mt-1 flex items-center gap-2 rounded-md border-hair border-hair bg-card px-3 py-2">
+                <span className="text-2xs text-muted">EUR</span>
+                <input
+                  value={budgetAmount}
+                  onChange={(e) => setBudgetAmount(e.target.value)}
+                  className="w-full bg-transparent text-sm text-ink focus:outline-none"
+                />
+                <span className="shrink-0 text-2xs text-muted">{budgetSuffix}</span>
+              </div>
+            </div>
+          </div>
+        )}
 
-        <div className="mb-3 grid grid-cols-2 gap-3">
-          <div>
-            <label className="text-2xs font-medium text-muted">{t("Date de début", "Start date")}</label>
-            <div className="mt-1">
-              <DatePicker value={startDate} onChange={setStartDate} />
+        {!simple && (
+          <div className="mb-3 grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-2xs font-medium text-muted">{t("Date de début", "Start date")}</label>
+              <div className="mt-1">
+                <DatePicker value={startDate} onChange={setStartDate} />
+              </div>
             </div>
-          </div>
-          <div>
-            <label className="text-2xs font-medium text-muted">{t("Date de fin", "End date")}</label>
-            <div className="mt-1 flex items-center gap-2">
-              {endDate ? (
-                <>
-                  <div className="flex-1">
-                    <DatePicker value={endDate} onChange={setEndDate} />
-                  </div>
+            <div>
+              <label className="text-2xs font-medium text-muted">{t("Date de fin", "End date")}</label>
+              <div className="mt-1 flex items-center gap-2">
+                {endDate ? (
+                  <>
+                    <div className="flex-1">
+                      <DatePicker value={endDate} onChange={setEndDate} />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setEndDate(null)}
+                      className="rounded-md px-2 py-2 text-2xs text-muted hover:bg-canvas hover:text-ink"
+                    >
+                      {t("Effacer", "Clear")}
+                    </button>
+                  </>
+                ) : (
                   <button
                     type="button"
-                    onClick={() => setEndDate(null)}
-                    className="rounded-md px-2 py-2 text-2xs text-muted hover:bg-canvas hover:text-ink"
+                    onClick={() => setEndDate(startDate)}
+                    className="w-full rounded-md border-hair border-hair bg-card px-3 py-2 text-left text-sm text-muted hover:bg-canvas"
                   >
-                    {t("Effacer", "Clear")}
+                    {t("Pas de date de fin", "No end date")}
                   </button>
-                </>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setEndDate(startDate)}
-                  className="w-full rounded-md border-hair border-hair bg-card px-3 py-2 text-left text-sm text-muted hover:bg-canvas"
-                >
-                  {t("Pas de date de fin", "No end date")}
-                </button>
-              )}
+                )}
+              </div>
             </div>
           </div>
-        </div>
+        )}
+
+        {simple && (
+          <div className="mb-3 rounded-md border border-hair bg-canvas px-3 py-2 text-2xs text-muted">
+            {t(
+              "Mode Simple : Facebook + Instagram, démarrage aujourd'hui, sans date de fin. Passez en « Avancé » pour tout personnaliser.",
+              "Simple mode: Facebook + Instagram, starts today, no end date. Switch to “Advanced” to customize everything."
+            )}
+          </div>
+        )}
 
         <div className="rounded-md border-hair border-amber-200 bg-amber-50 px-3 py-2 text-2xs text-amber-700">
           {t(
@@ -300,11 +363,16 @@ export function NewCampaignModal({
         <div className="flex gap-2">
           <Button variant="secondary" onClick={onClose} disabled={saving}>{t("Annuler", "Cancel")}</Button>
           <Button variant="primary" onClick={save} disabled={saving || !name.trim()}>
-            {saving
-              ? t("Enregistrement…", "Saving…")
-              : editing
-              ? t("Enregistrer les modifications", "Save changes")
-              : t("Créer la campagne", "Create campaign")}
+            {saving ? (
+              <span className="flex items-center gap-2">
+                <Spinner size={14} />
+                {t("Enregistrement…", "Saving…")}
+              </span>
+            ) : editing ? (
+              t("Enregistrer les modifications", "Save changes")
+            ) : (
+              t("Créer la campagne", "Create campaign")
+            )}
           </Button>
         </div>
       </div>

@@ -1,11 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { useT } from "@/lib/i18n";
 
 export default function AdminLoginPage() {
-  const router = useRouter();
   const t = useT();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -27,8 +25,10 @@ export default function AdminLoginPage() {
         setLoading(false);
         return;
       }
-      router.push("/admin");
-      router.refresh();
+      // Navigation « dure » : garantit que le cookie de session admin fraîchement
+      // posé par /api/admin/login est envoyé au middleware dès la 1re requête
+      // /admin (évite la course cookie / soft-navigation qui renvoyait au login).
+      window.location.assign("/admin");
     } catch {
       setError(t("Erreur réseau, réessayez.", "Network error, please try again."));
       setLoading(false);

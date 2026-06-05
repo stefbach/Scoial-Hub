@@ -13,6 +13,7 @@ const NAV_TR: Record<string, [string, string]> = {
   "Pilotage IA": ["Veille & Stratégie", "Watch & Strategy"],
   "Centre de pilotage": ["Centre de pilotage", "Command Center"],
   "Agents": ["Agents", "Agents"],
+  "Inbox": ["Messagerie", "Inbox"],
   "Veille & Marché": ["Veille & Marché", "Market Watch"],
   "Competitor Ads": ["Pubs concurrentes", "Competitor Ads"],
   "Connecteurs": ["Connecteurs", "Connectors"],
@@ -56,6 +57,13 @@ const ICONS: Record<string, React.ReactNode> = {
             stroke="currentColor" strokeWidth="1.1" fill="none"/>
       <path d="M7.5 4v7" stroke="currentColor" strokeWidth="1" opacity="0.6"/>
       <circle cx="7.5" cy="13" r="1" fill="currentColor"/>
+    </svg>
+  ),
+  "/inbox": (
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+      <path d="M2 4a1.5 1.5 0 0 1 1.5-1.5h8A1.5 1.5 0 0 1 13 4v5a1.5 1.5 0 0 1-1.5 1.5H6l-2.5 2v-2H3.5A1.5 1.5 0 0 1 2 9V4Z"
+            stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" fill="none"/>
+      <path d="M5 5.5h5M5 7.5h3" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" opacity="0.7"/>
     </svg>
   ),
   "/compose": (
@@ -218,6 +226,7 @@ const GROUPS: { label?: string; items: NavItem[] }[] = [
     items: [
       { href: "/pages-meta",  label: "Mes Pages" },
       { href: "/agents",      label: "Agents" },
+      { href: "/inbox",       label: "Inbox" },
       { href: "/veille",      label: "Veille & Marché" },
       { href: "/publicites",  label: "Competitor Ads" },
       { href: "/parametres-connecteurs", label: "Connecteurs" },

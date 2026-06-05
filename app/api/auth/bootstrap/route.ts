@@ -112,9 +112,11 @@ export async function POST(req: NextRequest) {
 
     // Récupère le nom d'organisation depuis le body (optionnel)
     let orgName = "Mon Organisation";
+    let seedDemo = false;
     try {
-      const body: BootstrapBody = await req.json();
+      const body: BootstrapBody & { seedDemo?: boolean } = await req.json();
       if (body.orgName) orgName = body.orgName.trim() || orgName;
+      if (body.seedDemo) seedDemo = true;
     } catch {
       // body vide, on garde le nom par défaut
     }
@@ -143,8 +145,9 @@ export async function POST(req: NextRequest) {
       // On continue quand même pour les companies
     }
 
-    // 3. Crée les 3 companies de démo
-    for (const company of DEMO_COMPANIES) {
+    // 3. Companies : en production l'espace démarre VIERGE (le client crée ses
+    //    propres sociétés). Les sociétés de démo ne sont créées que si demandé.
+    for (const company of seedDemo ? DEMO_COMPANIES : []) {
       const { ad_safety: adSafetyDefaults, ...companyData } = company;
 
       const { data: createdCompany, error: companyError } = await admin

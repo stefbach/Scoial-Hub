@@ -42,12 +42,12 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let cancelled = false;
 
-    async function resolveApiUrl(): Promise<string> {
-      if (!isSupabaseConfigured) return "/api/companies";
+    async function resolveApiUrl(): Promise<{ url: string; authed: boolean }> {
+      if (!isSupabaseConfigured) return { url: "/api/companies", authed: false };
       const supabase = createClient();
-      if (!supabase) return "/api/companies";
+      if (!supabase) return { url: "/api/companies", authed: false };
       const { data } = await supabase.auth.getUser();
-      if (!data.user) return "/api/companies";
+      if (!data.user) return { url: "/api/companies", authed: false };
       // Récupère l'orgId depuis les memberships
       const { data: membership } = await supabase
         .from("sh_memberships")
@@ -56,24 +56,42 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
         .limit(1)
         .single();
       if (membership?.org_id) {
-        return `/api/companies?orgId=${encodeURIComponent(membership.org_id as string)}`;
+        return { url: `/api/companies?orgId=${encodeURIComponent(membership.org_id as string)}`, authed: true };
       }
-      return "/api/companies";
+      // Utilisateur connecté mais sans org : compte réel, espace (encore) vide.
+      return { url: "/api/companies", authed: true };
     }
 
+    let isAuthed = false;
     resolveApiUrl()
-      .then((url) => fetch(url))
+      .then(({ url, authed }) => {
+        isAuthed = authed;
+        return fetch(url);
+      })
       .then((res) => {
         if (!res.ok) throw new Error(`/api/companies returned ${res.status}`);
         return res.json() as Promise<Company[]>;
       })
       .then((fetched) => {
-        if (cancelled || !Array.isArray(fetched) || fetched.length === 0) return;
+        if (cancelled || !Array.isArray(fetched)) return;
 
-        // Merge fetched companies (vrais UUID Supabase) dans le store mock.
-        // On matche par CODE (OCC/TI/CV) pour REMPLACER l'entrée mock par la
-        // vraie (UUID), et on aliase les données riches mock sur le nouvel id
-        // afin que les pages continuent de s'afficher tout en utilisant l'UUID.
+        // ── Compte RÉEL (utilisateur connecté avec organisation) ──────────
+        // On affiche EXACTEMENT ses sociétés (jamais les marques de démo).
+        if (isAuthed) {
+          if (fetched.length === 0) return; // espace vierge → on garde le placeholder
+          for (const c of fetched) {
+            if (!COMPANY_DATA[c.id]) COMPANY_DATA[c.id] = makeEmptyCompanyData();
+          }
+          COMPANIES.splice(0, COMPANIES.length, ...fetched);
+          setCompanies([...COMPANIES]);
+          setCompanyId((prev) =>
+            COMPANIES.some((c) => c.id === prev) ? prev : (COMPANIES[0]?.id ?? prev)
+          );
+          return;
+        }
+
+        // ── Mode démo (pas d'auth) : fusion avec les marques de démonstration ──
+        if (fetched.length === 0) return;
         for (const c of fetched) {
           const byId = COMPANIES.findIndex((x) => x.id === c.id);
           const byCode = COMPANIES.findIndex((x) => x.code === c.code);

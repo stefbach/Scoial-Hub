@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
-import { ADMIN_COOKIE, verifyAdminSession } from "@/lib/admin";
+import { ADMIN_COOKIE, verifyAdminSessionEdge } from "@/lib/admin-edge";
 
 // Routes publiques : pas de redirection quelle que soit la config
 const PUBLIC_PATHS = ["/", "/login", "/signup", "/auth"];
@@ -26,7 +26,8 @@ export async function middleware(request: NextRequest) {
   if (pathname.startsWith("/admin")) {
     if (pathname === "/admin/login") return NextResponse.next();
     // Vérifie la signature + expiration du token de session (pas une constante).
-    const isAdmin = verifyAdminSession(request.cookies.get(ADMIN_COOKIE)?.value);
+    // Version Edge-safe (Web Crypto) : le module Node `crypto` n'existe pas ici.
+    const isAdmin = await verifyAdminSessionEdge(request.cookies.get(ADMIN_COOKIE)?.value);
     if (!isAdmin) {
       return NextResponse.redirect(new URL("/admin/login", request.url));
     }

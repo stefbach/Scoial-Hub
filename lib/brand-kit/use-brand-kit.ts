@@ -58,21 +58,25 @@ export function useBrandKit(companyId: string | undefined) {
   );
 
   /**
-   * Téléverse un fichier (logo/charte) dans le bucket public `sh-logos` et
-   * retourne son URL publique. Dégradation : retourne null si stockage absent.
+   * Téléverse un blob (logo/charte, rasterisé en PNG côté appelant) dans le
+   * bucket public `sh-logos` et retourne son URL publique. Dégradation :
+   * retourne null si stockage absent ou si l'upload échoue.
    */
   const uploadAsset = useCallback(
-    async (file: File, kind: "logo" | "charte"): Promise<string | null> => {
+    async (blob: Blob, kind: "logo" | "charte", fileName: string): Promise<string | null> => {
       if (!companyId) return null;
       const supabase = createClient();
       if (!supabase) return null;
       try {
-        const safe = file.name.replace(/[^a-zA-Z0-9.\-_]/g, "_");
+        const safe = fileName.replace(/[^a-zA-Z0-9.\-_]/g, "_") || `${kind}.png`;
         const path = `${companyId}/${kind}-${Date.now()}-${safe}`;
         const { error } = await supabase.storage
           .from("sh-logos")
-          .upload(path, file, { cacheControl: "3600", upsert: true, contentType: file.type || undefined });
-        if (error) return null;
+          .upload(path, blob, { cacheControl: "3600", upsert: true, contentType: blob.type || "image/png" });
+        if (error) {
+          console.warn("[brand-kit] upload error:", error.message);
+          return null;
+        }
         const { data } = supabase.storage.from("sh-logos").getPublicUrl(path);
         return data.publicUrl;
       } catch {

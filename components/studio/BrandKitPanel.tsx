@@ -19,13 +19,43 @@ export function canvasSafeSrc(url: string): string {
   return `/api/proxy-image?url=${encodeURIComponent(url)}`;
 }
 
-function fileToDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => resolve(String(r.result));
-    r.onerror = reject;
-    r.readAsDataURL(file);
-  });
+/**
+ * Rasterise n'importe quelle image (y compris SVG, souvent fourni pour les logos)
+ * en PNG via <canvas>. Garantit : un format lisible par l'IA vision (png/jpeg/…),
+ * la transparence préservée, et une taille raisonnable. Retourne data URL + blob.
+ */
+async function rasterizeToPng(file: File): Promise<{ dataUrl: string; blob: Blob; name: string }> {
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const im = new Image();
+      im.onload = () => resolve(im);
+      im.onerror = reject;
+      im.src = objectUrl;
+    });
+    const isSvg = (file.type || "").includes("svg") || /\.svg$/i.test(file.name);
+    let w = img.naturalWidth || 0;
+    let h = img.naturalHeight || 0;
+    if (!w || !h) { w = 512; h = 512; } // SVG sans dimensions intrinsèques
+    // SVG : rend net à ~512 px ; raster : plafonne à 1024 px (poids/coût IA).
+    const target = isSvg ? 512 : Math.min(1024, Math.max(w, h));
+    const scale = target / Math.max(w, h);
+    const cw = Math.max(1, Math.round(w * scale));
+    const ch = Math.max(1, Math.round(h * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = cw; canvas.height = ch;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("canvas indisponible");
+    ctx.drawImage(img, 0, 0, cw, ch);
+    const dataUrl = canvas.toDataURL("image/png");
+    const blob = await new Promise<Blob>((resolve, reject) =>
+      canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("toBlob"))), "image/png")
+    );
+    const name = file.name.replace(/\.[^.]+$/, "") + ".png";
+    return { dataUrl, blob, name };
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
 }
 
 export interface BrandKitPanelProps {
@@ -74,22 +104,32 @@ export default function BrandKitPanel({
   async function onLogoUpload(file: File | undefined) {
     if (!file) return;
     setNote(null);
-    const dataUrl = await fileToDataUrl(file);
-    setLogoDataUrl(dataUrl);
-    onLogo?.(dataUrl); // aperçu immédiat
-    const publicUrl = await uploadAsset(file, "logo");
-    const updated = await save({ logoUrl: publicUrl || dataUrl });
-    if (updated) onKit?.(updated);
-    if (!publicUrl) setNote(t("Logo non persistant (stockage indisponible) — actif pour cette session.", "Logo not persisted (storage unavailable) — active this session."));
+    try {
+      const { dataUrl, blob, name } = await rasterizeToPng(file);
+      setLogoDataUrl(dataUrl);
+      onLogo?.(dataUrl); // aperçu immédiat
+      const publicUrl = await uploadAsset(blob, "logo", name);
+      // Ne persiste l'image que si elle est hébergée (URL https) : on évite de
+      // stocker un énorme data URL en base — l'aperçu reste actif en session.
+      const updated = await save({ logoUrl: publicUrl || "" });
+      if (updated) onKit?.(updated);
+      if (!publicUrl) setNote(t("Logo actif pour cette session (échec de l'enregistrement permanent).", "Logo active this session (permanent save failed)."));
+    } catch {
+      setNote(t("Logo illisible — essayez un PNG ou un JPG.", "Unreadable logo — try a PNG or JPG."));
+    }
   }
 
   async function onCharteUpload(file: File | undefined) {
     if (!file) return;
     setNote(null);
-    const dataUrl = await fileToDataUrl(file);
-    setCharteDataUrl(dataUrl);
-    const publicUrl = await uploadAsset(file, "charte");
-    await save({ charteUrl: publicUrl || dataUrl });
+    try {
+      const { dataUrl, blob, name } = await rasterizeToPng(file);
+      setCharteDataUrl(dataUrl);
+      const publicUrl = await uploadAsset(blob, "charte", name);
+      await save({ charteUrl: publicUrl || "" });
+    } catch {
+      setNote(t("Charte illisible — essayez un PNG ou un JPG.", "Unreadable chart — try a PNG or JPG."));
+    }
   }
 
   async function analyze() {

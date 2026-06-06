@@ -122,10 +122,10 @@ function CampaignsContent() {
         title={t("Campagnes", "Campaigns")}
         actions={
           <>
-            <Button variant="secondary" onClick={() => setAdModal(true)}>{t("Nouvelle pub", "New ad")}</Button>
-            <Button variant="primary" onClick={() => setCampaignModal({ open: true })}>
-              {t("Nouvelle campagne", "New campaign")}
-            </Button>
+            <Button variant="secondary" onClick={() => setCampaignModal({ open: true })}>{t("Brouillon local", "Local draft")}</Button>
+            <Link href="/campaigns/new" className="btn-primary inline-flex items-center text-sm">
+              {t("Créer une pub Meta", "Create Meta ad")}
+            </Link>
           </>
         }
       />

@@ -35,12 +35,27 @@ function envOrder(): string[] {
   return shotstack.env === "v1" ? ["v1", "stage"] : ["stage", "v1"];
 }
 
+/** Couleurs de marque appliquées aux textes incrustés. */
+export interface BrandColors {
+  text?: string;
+  accent?: string;
+}
+
+/** Valide un hex (#rgb/#rrggbb) pour ne pas casser le timeline Shotstack. */
+function safeHex(c: string | undefined, fallback: string): string {
+  return c && /^#[0-9a-fA-F]{3,8}$/.test(c) ? c : fallback;
+}
+
 /** Construit le timeline Shotstack pour un cut + ses médias. */
-function buildEdit(cut: PlatformCut, assets: MediaAsset[], captions: CaptionSegment[], logoUrl?: string) {
+function buildEdit(cut: PlatformCut, assets: MediaAsset[], captions: CaptionSegment[], logoUrl?: string, brandColors?: BrandColors) {
   const size = SIZE[cut.aspect] ?? SIZE["9:16"];
   const videos = assets.filter((a) => a.kind === "video");
   const images = assets.filter((a) => a.kind === "image");
   const duration = cut.targetDurationSec > 0 ? cut.targetDurationSec : 20;
+
+  // Couleurs de marque (défauts neutres si non fournies).
+  const textColor = safeHex(brandColors?.text, "#ffffff");
+  const accentColor = safeHex(brandColors?.accent, "#5b2d8e");
 
   const mediaClips: unknown[] = [];
 
@@ -75,11 +90,11 @@ function buildEdit(cut: PlatformCut, assets: MediaAsset[], captions: CaptionSegm
     });
   }
 
-  // Track texte : hook (0-3s) + sous-titres.
+  // Track texte : hook (0-3s) + sous-titres — colorés aux couleurs de la marque.
   const textClips: unknown[] = [];
   if (cut.hook) {
     textClips.push({
-      asset: { type: "title", text: cut.hook, style: "subtitle", size: "large", position: "center" },
+      asset: { type: "title", text: cut.hook, style: "subtitle", size: "large", position: "center", color: textColor },
       start: 0,
       length: 3,
       transition: { in: "slideUp", out: "fade" },
@@ -88,19 +103,22 @@ function buildEdit(cut: PlatformCut, assets: MediaAsset[], captions: CaptionSegm
   for (const c of captions) {
     if (c.start >= duration) continue;
     textClips.push({
-      asset: { type: "title", text: c.text, style: "subtitle", size: "small", position: "bottom" },
+      asset: { type: "title", text: c.text, style: "subtitle", size: "small", position: "bottom", color: textColor },
       start: c.start,
       length: Math.max(1, Math.min(c.end, duration) - c.start),
     });
   }
 
   // Textes à l'écran (overlays) édités par l'utilisateur (hors hook 0-3s déjà posé).
+  // Le CTA reçoit un bandeau accent (couleur de marque) pour ressortir.
   for (const o of cut.overlays ?? []) {
     if (!o.text || o.atSecond >= duration) continue;
     if (o.style === "hook" && o.atSecond === 0) continue; // évite doublon avec le hook
     const position = o.style === "cta" ? "bottom" : o.style === "lower_third" ? "bottom" : "center";
+    const asset: Record<string, unknown> = { type: "title", text: o.text, style: "minimal", size: "medium", position, color: textColor };
+    if (o.style === "cta") asset.background = accentColor; // bandeau aux couleurs de la marque
     textClips.push({
-      asset: { type: "title", text: o.text, style: "minimal", size: "medium", position },
+      asset,
       start: Math.max(0, o.atSecond),
       length: 3,
       transition: { in: "fade", out: "fade" },
@@ -146,7 +164,8 @@ export async function submitRender(
   cut: PlatformCut,
   assets: MediaAsset[],
   captions: CaptionSegment[],
-  logoUrl?: string
+  logoUrl?: string,
+  brandColors?: BrandColors
 ): Promise<RenderSubmit> {
   if (!isShotstackConfigured) {
     return { ok: false, error: "Aucun moteur de rendu configuré (SHOTSTACK_API_KEY)." };
@@ -158,7 +177,7 @@ export async function submitRender(
     return { ok: false, error: "Aucun média à rendre." };
   }
 
-  const body = JSON.stringify(buildEdit(cut, assets, captions, logoUrl));
+  const body = JSON.stringify(buildEdit(cut, assets, captions, logoUrl, brandColors));
   let lastErr = "Erreur Shotstack";
   // Essaie l'environnement configuré, puis bascule sur l'autre si la clé
   // ne correspond pas (401/403). L'env retenu est encodé dans l'id renvoyé.

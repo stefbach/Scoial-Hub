@@ -46,6 +46,8 @@ export default function StudioPage() {
   const [brandHints, setBrandHints] = useState("");
   // URL publique du logo de marque (https) — incrustée dans le rendu vidéo.
   const [brandLogoUrl, setBrandLogoUrl] = useState("");
+  // Couleurs de marque appliquées aux textes/CTA incrustés.
+  const [brandColors, setBrandColors] = useState<{ text?: string; accent?: string }>({});
   const [pkg, setPkg] = useState<VideoMarketingPackage | null>(null);
   const [toast, setToast] = useState<{ message: string; key: number } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -167,7 +169,10 @@ export default function StudioPage() {
       <BrandKitPanel
         companyId={company.id}
         onPromptHints={setBrandHints}
-        onKit={(k) => setBrandLogoUrl(/^https?:\/\//.test(k.logoUrl) ? k.logoUrl : "")}
+        onKit={(k) => {
+          setBrandLogoUrl(/^https?:\/\//.test(k.logoUrl) ? k.logoUrl : "");
+          setBrandColors({ text: k.recommendedTextColor, accent: k.palette[0] });
+        }}
       />
 
       {/* Génération par prompt (IA) — image ou vidéo, tous formats publiables */}
@@ -305,7 +310,7 @@ export default function StudioPage() {
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             {pkg.cuts.map((c) => (
-              <CutCard key={c.platform} cut={c} assets={pkg.assets} captions={pkg.captions} brandLogoUrl={brandLogoUrl} onCopy={copy} t={t} />
+              <CutCard key={c.platform} cut={c} assets={pkg.assets} captions={pkg.captions} brandLogoUrl={brandLogoUrl} brandColors={brandColors} onCopy={copy} t={t} />
             ))}
           </div>
         </section>
@@ -335,6 +340,7 @@ function CutCard({
   assets,
   captions,
   brandLogoUrl,
+  brandColors,
   onCopy,
   t,
 }: {
@@ -342,6 +348,7 @@ function CutCard({
   assets: MediaAsset[];
   captions: CaptionSegment[];
   brandLogoUrl?: string;
+  brandColors?: { text?: string; accent?: string };
   onCopy: (text: string, label: string) => void;
   t: (fr: string, en: string) => string;
 }) {
@@ -421,7 +428,7 @@ function CutCard({
       const res = await fetch("/api/video/render", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cut: editedCut, assets, captions: caps, logoUrl: withLogo ? brandLogoUrl : undefined }),
+        body: JSON.stringify({ cut: editedCut, assets, captions: caps, logoUrl: withLogo ? brandLogoUrl : undefined, brandColors }),
       });
       const data = await res.json();
       if (!res.ok || !data.id) {

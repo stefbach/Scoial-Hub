@@ -17,12 +17,15 @@ export async function POST(req: NextRequest) {
       assets?: MediaAsset[];
       captions?: CaptionSegment[];
       logoUrl?: string;
+      brandColors?: { text?: string; accent?: string };
     };
     if (!body.cut || !Array.isArray(body.assets)) {
       return NextResponse.json({ error: "cut et assets requis." }, { status: 400 });
     }
     const logoUrl = typeof body.logoUrl === "string" && /^https?:\/\//.test(body.logoUrl) ? body.logoUrl : undefined;
-    const result = await submitRender(body.cut, body.assets, body.captions ?? [], logoUrl);
+    const hex = (c?: string) => (typeof c === "string" && /^#[0-9a-fA-F]{3,8}$/.test(c) ? c : undefined);
+    const brandColors = body.brandColors ? { text: hex(body.brandColors.text), accent: hex(body.brandColors.accent) } : undefined;
+    const result = await submitRender(body.cut, body.assets, body.captions ?? [], logoUrl, brandColors);
     if (!result.ok) {
       return NextResponse.json({ error: result.error, status: result.status }, { status: result.status === "unsupported" ? 422 : 400 });
     }

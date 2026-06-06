@@ -170,8 +170,23 @@ function sumConversions(actions: unknown): number {
   return total;
 }
 
-/** Lecture réelle : compte + campagnes (liste + métriques 90 j) via Marketing API. */
-export async function fetchAdAccountData(userToken: string, adAccountId: string): Promise<AdAccountData> {
+/** Presets de période Meta acceptés (sécurise l'entrée). */
+const VALID_DATE_PRESETS = new Set([
+  "today", "yesterday", "this_month", "last_month", "this_quarter", "last_quarter",
+  "this_year", "last_year", "last_7d", "last_14d", "last_30d", "last_90d", "maximum",
+]);
+
+/**
+ * Lecture réelle : compte + campagnes (liste + métriques) via Marketing API.
+ * `datePreset` contrôle la fenêtre des métriques (défaut "maximum" = durée de
+ * vie du compte, pour ne jamais afficher 0 alors qu'il existe de la data).
+ */
+export async function fetchAdAccountData(
+  userToken: string,
+  adAccountId: string,
+  datePreset = "maximum"
+): Promise<AdAccountData> {
+  const preset = VALID_DATE_PRESETS.has(datePreset) ? datePreset : "maximum";
   const out: AdAccountData = { campaigns: [] };
   const act = adAccountId.startsWith("act_") ? adAccountId : `act_${adAccountId}`;
   const currency = await (async () => {
@@ -187,9 +202,9 @@ export async function fetchAdAccountData(userToken: string, adAccountId: string)
   const list = await gget(`${act}/campaigns?fields=id,name,objective,effective_status&limit=40`, userToken);
   const camps = (list?.data as Array<Record<string, unknown>>) ?? [];
 
-  // Métriques 90 j par campagne (fusionnées par id de campagne).
+  // Métriques par campagne (fenêtre = preset), fusionnées par id de campagne.
   const ins = await gget(
-    `${act}/insights?level=campaign&fields=campaign_id,campaign_name,spend,impressions,reach,clicks,ctr,cpc,cpm,frequency,actions&date_preset=last_90d&limit=100`,
+    `${act}/insights?level=campaign&fields=campaign_id,campaign_name,spend,impressions,reach,clicks,ctr,cpc,cpm,frequency,actions&date_preset=${preset}&limit=200`,
     userToken
   );
   type Metrics = { spend: number; impressions: number; reach: number; clicks: number; ctr: number; cpc: number; cpm: number; frequency: number; conversions: number };

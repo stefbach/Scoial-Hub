@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
 MARQUE : ${brandName || "(non précisée)"}${brandVoice ? `\nVOIX : ${brandVoice}` : ""}
 COMPTE : ${account ? `${account.name} — devise ${account.currency}, dépense cumulée ${account.amountSpent / 100} ${account.currency}` : "(compte non sélectionné)"}
 
-PERFORMANCE PAR CAMPAGNE (90 j) :
+PERFORMANCE PAR CAMPAGNE (toute la période disponible) :
 ${perf.length ? JSON.stringify(perf, null, 2) : "(aucune campagne)"}
 
 MÉMOIRE STRATÉGIQUE (RAG — veille concurrents, pubs, Page) :

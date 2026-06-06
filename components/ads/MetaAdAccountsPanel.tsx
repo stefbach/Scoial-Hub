@@ -32,18 +32,26 @@ export function MetaAdAccountsPanel({ showCampaigns = true }: { showCampaigns?: 
   const [resp, setResp] = useState<Resp | null>(null);
   const [loading, setLoading] = useState(true);
   const [selecting, setSelecting] = useState<string | null>(null);
+  const [datePreset, setDatePreset] = useState("maximum");
+
+  const PERIODS: { id: string; fr: string; en: string }[] = [
+    { id: "last_7d", fr: "7 jours", en: "7 days" },
+    { id: "last_30d", fr: "30 jours", en: "30 days" },
+    { id: "last_90d", fr: "90 jours", en: "90 days" },
+    { id: "maximum", fr: "Maximum", en: "Maximum" },
+  ];
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await fetch(`/api/meta/adaccounts?companyId=${encodeURIComponent(companyId)}`);
+      const r = await fetch(`/api/meta/adaccounts?companyId=${encodeURIComponent(companyId)}&datePreset=${datePreset}`);
       setResp(r.ok ? await r.json() : null);
     } catch {
       setResp(null);
     } finally {
       setLoading(false);
     }
-  }, [companyId]);
+  }, [companyId, datePreset]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -133,9 +141,24 @@ export function MetaAdAccountsPanel({ showCampaigns = true }: { showCampaigns?: 
       {/* Campagnes réelles du compte sélectionné */}
       {showCampaigns && selected && (
         <div className="border-t border-hair p-4">
-          <div className="mb-2 flex items-center justify-between">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
             <span className="section-label">{t("Campagnes du compte", "Account campaigns")}</span>
-            {data?.account && <span className="text-2xs text-muted">{data.account.name}</span>}
+            <div className="flex items-center gap-2">
+              {/* Sélecteur de période — Maximum = toute la durée de vie du compte. */}
+              <div className="inline-flex rounded-lg border border-hair bg-canvas p-0.5">
+                {PERIODS.map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => setDatePreset(p.id)}
+                    disabled={loading && datePreset === p.id}
+                    className={`rounded-md px-2.5 py-1 text-2xs font-semibold transition-colors ${datePreset === p.id ? "bg-primary-600 text-white" : "text-muted hover:text-ink"}`}
+                  >
+                    {t(p.fr, p.en)}
+                  </button>
+                ))}
+              </div>
+              {data?.account && <span className="text-2xs text-muted">{data.account.name}</span>}
+            </div>
           </div>
           {data && data.campaigns.length > 0 ? (
             <>
@@ -187,7 +210,7 @@ export function MetaAdAccountsPanel({ showCampaigns = true }: { showCampaigns?: 
                     return (
                       <tfoot>
                         <tr className="border-t-2 border-hair text-2xs font-semibold text-ink">
-                          <td className="py-2 pr-3">{t("Total (90 j)", "Total (90d)")}</td>
+                          <td className="py-2 pr-3">{t("Total", "Total")} ({t(PERIODS.find((p) => p.id === datePreset)?.fr ?? "", PERIODS.find((p) => p.id === datePreset)?.en ?? "")})</td>
                           <td className="py-2 pr-3" />
                           <td className="py-2 pr-3 text-right">{money(sum.spend, cur)}</td>
                           <td className="py-2 pr-3 text-right">{nf(sum.impr)}</td>
@@ -203,7 +226,7 @@ export function MetaAdAccountsPanel({ showCampaigns = true }: { showCampaigns?: 
                   })()}
                 </table>
               </div>
-              <p className="mt-2 text-2xs text-muted">{t("Données réelles Meta (Marketing API) · fenêtre 90 jours.", "Real Meta data (Marketing API) · 90-day window.")}</p>
+              <p className="mt-2 text-2xs text-muted">{t("Données réelles Meta (Marketing API).", "Real Meta data (Marketing API).")} {datePreset === "maximum" ? t("Fenêtre : toute la durée de vie du compte.", "Window: full account lifetime.") : ""}</p>
             </>
           ) : (
             <p className="rounded-lg bg-canvas px-3 py-2.5 text-xs text-muted">

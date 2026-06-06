@@ -125,7 +125,7 @@ export function Hero3D() {
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(W(), H());
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.05;
+    renderer.toneMappingExposure = 1.18;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     mount.appendChild(renderer.domElement);
     renderer.domElement.style.width = "100%";
@@ -227,8 +227,22 @@ export function Hero3D() {
     };
     if (!reduce) window.addEventListener("mousemove", onMove);
 
-    const onResize = () => { renderer.setSize(W(), H()); composer.setSize(W(), H()); camera.aspect = W() / H(); camera.updateProjectionMatrix(); };
-    const ro = new ResizeObserver(onResize); ro.observe(mount);
+    // Cadrage + perf adaptatifs (mobile = caméra reculée, verre allégé).
+    const applyResponsive = () => {
+      const w = W(), h = H();
+      renderer.setSize(w, h); composer.setSize(w, h);
+      const small = w < 700;
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, small ? 1.5 : 2));
+      camera.aspect = w / h; camera.updateProjectionMatrix();
+      // Recule la caméra quand le cadre est étroit pour tout garder visible.
+      camera.position.z = camera.aspect < 0.85 ? 12 : camera.aspect < 1.25 ? 10 : 8.2;
+      bloom.strength = small ? 0.4 : 0.55;
+      // La transmission (verre) est coûteuse → on la coupe sur mobile.
+      dashMat.transmission = small ? 0 : 0.55;
+      dashMat.opacity = small ? 1 : 1;
+    };
+    const ro = new ResizeObserver(applyResponsive); ro.observe(mount);
+    applyResponsive();
 
     const clock = new THREE.Clock();
     let raf = 0;

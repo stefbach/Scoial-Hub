@@ -102,6 +102,43 @@ const FAQ = [
   { q: "C'est scalable pour plusieurs clients ?", a: "Oui — chaque société a son profil, ses connexions OAuth et ses campagnes, totalement isolés." },
 ];
 
+/* ───────────────────────── Réseau humain (SVG animé) ────────────────────── */
+function HumanNetwork() {
+  // Noeuds = personnes ; arêtes = liens. Couleurs réseaux pour les anneaux.
+  const nodes = [
+    { x: 90, y: 80, r: 30, c: "#1877F2" }, { x: 250, y: 50, r: 24, c: "#e1306c" },
+    { x: 420, y: 95, r: 32, c: "#0A66C2" }, { x: 560, y: 60, r: 22, c: "#111" },
+    { x: 160, y: 200, r: 26, c: "#e1306c" }, { x: 330, y: 220, r: 34, c: "#a855f7" },
+    { x: 500, y: 210, r: 26, c: "#1877F2" }, { x: 250, y: 330, r: 24, c: "#0A66C2" },
+    { x: 430, y: 340, r: 28, c: "#e1306c" }, { x: 600, y: 300, r: 22, c: "#a855f7" },
+  ];
+  const edges = [[0, 4], [0, 1], [1, 5], [2, 5], [2, 3], [3, 6], [4, 5], [5, 6], [4, 7], [5, 8], [7, 8], [6, 9], [8, 9], [1, 2]];
+  const person = "M0,7 a5,5 0 1,0 0.001,0 M-9,22 a9,9 0 0,1 18,0 Z";
+  return (
+    <svg className="mc-net" viewBox="0 0 680 400" fill="none" aria-hidden>
+      <defs>
+        {nodes.map((n, i) => (
+          <radialGradient key={i} id={`hn${i}`} cx="35%" cy="30%">
+            <stop offset="0%" stopColor={n.c} stopOpacity="0.95" /><stop offset="100%" stopColor={n.c} stopOpacity="0.55" />
+          </radialGradient>
+        ))}
+      </defs>
+      {edges.map(([a, b], i) => (
+        <line key={i} x1={nodes[a].x} y1={nodes[a].y} x2={nodes[b].x} y2={nodes[b].y}
+          stroke="#a855f7" strokeOpacity="0.35" strokeWidth="1.5" className="mc-net-edge" style={{ animationDelay: `${i * 0.15}s` }} />
+      ))}
+      {nodes.map((n, i) => (
+        <g key={i} className="mc-net-node" style={{ animationDelay: `${i * 0.12}s`, transformOrigin: `${n.x}px ${n.y}px` }}>
+          <circle cx={n.x} cy={n.y} r={n.r} fill={`url(#hn${i})`} stroke={n.c} strokeWidth="1.5" />
+          <g transform={`translate(${n.x},${n.y - n.r * 0.18}) scale(${n.r / 26})`} fill="#fff" fillOpacity="0.92">
+            <path d={person} />
+          </g>
+        </g>
+      ))}
+    </svg>
+  );
+}
+
 /* ───────────────────────── Tableau de bord 3D (CSS) ─────────────────────── */
 function Dashboard3D() {
   const bars = [42, 70, 35, 88, 60, 95, 52];
@@ -201,6 +238,24 @@ export default function Home() {
               <span key={`${k}-${i}`} className="mc-chip"><L s={22} /> {["Facebook", "Instagram", "LinkedIn", "X"][i]}</span>
             ))
           )}
+        </div>
+      </section>
+
+      {/* ── Humains connectés ── */}
+      <section className="mc-section mc-human">
+        <div className="mc-human-grid">
+          <div className="reveal">
+            <span className="mc-kicker">{t("Des humains, reliés", "Humans, connected")}</span>
+            <h2 className="mc-h2">{t("Vos communautés, au même endroit.", "Your communities, in one place.")}</h2>
+            <p className="mc-human-p">
+              {t(
+                "Facebook, Instagram, LinkedIn, X — vos audiences ne sont plus des silos. L'IA relie les conversations, les contenus et les campagnes autour de vraies personnes.",
+                "Facebook, Instagram, LinkedIn, X — your audiences are no longer silos. AI links conversations, content and campaigns around real people."
+              )}
+            </p>
+            <Link href="/pilotage" className="mc-btn mc-btn-glow mc-btn-lg">{t("Voir le pilotage", "See the command center")}</Link>
+          </div>
+          <div className="mc-human-viz reveal"><HumanNetwork /></div>
         </div>
       </section>
 
@@ -373,6 +428,7 @@ export default function Home() {
         .mc-navlinks a:hover{color:#fff;}
         @media(min-width:880px){.mc-navlinks{display:flex;}}
         .mc-navcta{display:flex;align-items:center;gap:.6rem;}
+        @media(max-width:560px){.mc-navcta .mc-btn-ghost{display:none;} .mc-nav{padding:.85rem 1rem;} .mc-brand{font-size:1.1rem;}}
 
         .mc-btn{display:inline-flex;align-items:center;justify-content:center;border-radius:.7rem;
           padding:.55rem 1rem;font-size:.86rem;font-weight:600;transition:.25s;white-space:nowrap;}
@@ -572,6 +628,18 @@ export default function Home() {
         .mc-plan ul{list-style:none;display:flex;flex-direction:column;gap:.5rem;margin:.4rem 0 1rem;flex:1;}
         .mc-plan li{font-size:.88rem;color:#c4b8df;padding-left:1.4rem;position:relative;}
         .mc-plan li:before{content:"✓";position:absolute;left:0;color:#a855f7;font-weight:700;}
+
+        /* Humains connectés */
+        .mc-human-grid{display:grid;gap:2rem;align-items:center;}
+        @media(min-width:900px){.mc-human-grid{grid-template-columns:1fr 1.1fr;}}
+        .mc-human-p{color:#b9add0;line-height:1.65;margin:1rem 0 1.6rem;max-width:34rem;}
+        .mc-human-viz{position:relative;}
+        .mc-net{width:100%;height:auto;display:block;filter:drop-shadow(0 20px 50px rgba(124,58,237,.35));}
+        .mc-net-edge{stroke-dasharray:6 8;animation:mcdash 3s linear infinite;}
+        @keyframes mcdash{to{stroke-dashoffset:-28}}
+        .mc-net-node{animation:mcpop .7s cubic-bezier(.2,1.2,.3,1) backwards;}
+        .mc-net-node{transform-box:fill-box;}
+        @keyframes mcpop{from{opacity:0;transform:scale(.4)}}
 
         /* FAQ */
         .mc-faq-list{max-width:760px;margin:0 auto;display:flex;flex-direction:column;gap:.6rem;}

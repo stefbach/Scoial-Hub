@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { useT } from "@/lib/i18n";
 
 const MAX_BYTES = 25 * 1024 * 1024;
 const ACCEPT = "image/png,image/jpeg,video/mp4";
@@ -24,6 +25,7 @@ export function MediaUpload({
   media: UploadedMedia | null;
   onChange: (m: UploadedMedia | null) => void;
 }) {
+  const t = useT();
   const inputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -94,8 +96,8 @@ export function MediaUpload({
           <path d="M12 16V4m0 0L7 9m5-5l5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
           <path d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
         </svg>
-        <span className="text-xs text-ink">Or upload your own image/video</span>
-        <span className="text-2xs text-muted">PNG, JPG, MP4 · up to 25MB</span>
+        <span className="text-xs text-ink">{t("Ou importez votre propre image/vidéo", "Or upload your own image/video")}</span>
+        <span className="text-2xs text-muted">{t("PNG, JPG, MP4 · jusqu'à 25 Mo", "PNG, JPG, MP4 · up to 25MB")}</span>
       </button>
       <input
         ref={inputRef}

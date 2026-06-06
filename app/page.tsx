@@ -79,6 +79,25 @@ const LOOP = [
   { n: "04", fr: "Optimisation", en: "Optimise", dfr: "Le Pilote Pub ajuste budgets et campagnes sur la performance réelle.", den: "Ad Pilot adjusts budgets and campaigns on real performance." },
 ];
 
+const TESTIMONIALS = [
+  { q: "On a relancé nos pubs Meta en 10 minutes, sans ouvrir le Business Manager.", a: "Dir. Marketing · clinique", net: 0 },
+  { q: "L'assistant rédige et cible mieux que notre ancienne agence — et reste sous contrôle.", a: "Fondateur · SaaS B2B", net: 2 },
+  { q: "Les visuels multi-formats partent direct en Reels et en fil. Gain de temps énorme.", a: "Social Media Manager", net: 1 },
+];
+
+const PLANS = [
+  { name: "Starter", price: "0", fr: "Pour tester", en: "To try", feats: ["1 marque", "Studios IA", "Publication organique", "Médiathèque"], cta: "Commencer", ctaEn: "Start", href: "/demarrage", hot: false },
+  { name: "Growth", price: "—", fr: "Le plus choisi", en: "Most chosen", feats: ["Marques illimitées", "Pubs Meta + assistant", "Pilote Pub (optimisation)", "Agents IA", "Veille concurrents"], cta: "Démarrer", ctaEn: "Get started", href: "/demarrage", hot: true },
+  { name: "Scale", price: "sur devis", fr: "Multi-équipes", en: "Multi-team", feats: ["Tout Growth", "Rôles & permissions", "Conformité avancée", "Support prioritaire"], cta: "Nous contacter", ctaEn: "Contact us", href: "/demarrage", hot: false },
+];
+
+const FAQ = [
+  { q: "Les pubs sont-elles publiées automatiquement ?", a: "Non. Tout est créé EN PAUSE sur votre compte Meta. L'activation (dépense réelle) est une action explicite, plafonnée et confirmée." },
+  { q: "Mes données et tokens sont-ils protégés ?", a: "Oui : isolation par société (multi-tenant), tokens chiffrés au repos (AES-256-GCM), et garde anti-IDOR sur chaque route." },
+  { q: "Quels réseaux sont supportés ?", a: "Facebook, Instagram et LinkedIn (publication réelle). TikTok & X côté formats/visuels. Chaque client connecte ses propres comptes." },
+  { q: "C'est scalable pour plusieurs clients ?", a: "Oui — chaque société a son profil, ses connexions OAuth et ses campagnes, totalement isolés." },
+];
+
 /* ───────────────────────── Téléphone 3D (CSS) ───────────────────────────── */
 function Phone3D() {
   return (
@@ -143,6 +162,21 @@ export default function Home() {
     return () => { window.removeEventListener("mousemove", onMove); el.removeEventListener("mouseleave", reset); };
   }, []);
 
+  // Révélations au scroll (IntersectionObserver).
+  useEffect(() => {
+    const els = Array.from(document.querySelectorAll(".reveal"));
+    if (!("IntersectionObserver" in window) || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+      els.forEach((e) => e.classList.add("is-in"));
+      return;
+    }
+    const io = new IntersectionObserver(
+      (entries) => entries.forEach((en) => { if (en.isIntersecting) { en.target.classList.add("is-in"); io.unobserve(en.target); } }),
+      { threshold: 0.16 }
+    );
+    els.forEach((e) => io.observe(e));
+    return () => io.disconnect();
+  }, []);
+
   return (
     <div className="mc-root">
       {/* Décor : mesh gradient + grain */}
@@ -154,7 +188,8 @@ export default function Home() {
         <Link href="/" className="mc-brand"><span className="mc-brand-dot" /> AXON<span>·AI</span></Link>
         <nav className="mc-navlinks">
           <a href="#capabilities">{t("Capacités", "Capabilities")}</a>
-          <a href="#loop">{t("Méthode", "Method")}</a>
+          <a href="#showcase">{t("Aperçu", "Preview")}</a>
+          <a href="#pricing">{t("Tarifs", "Pricing")}</a>
           <Link href="/agents">{t("Agents", "Agents")}</Link>
         </nav>
         <div className="mc-navcta">
@@ -261,6 +296,96 @@ export default function Home() {
               <h3>{t(l.fr, l.en)}</h3>
               <p>{t(l.dfr, l.den)}</p>
             </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── Showcase 3D produit ── */}
+      <section id="showcase" className="mc-section mc-showcase">
+        <header className="mc-sec-head reveal">
+          <span className="mc-kicker">{t("Vu de l'intérieur", "Inside the product")}</span>
+          <h2 className="mc-h2">{t("Un poste de pilotage, pas un tableur.", "A command deck, not a spreadsheet.")}</h2>
+        </header>
+        <div className="mc-window-wrap reveal">
+          <div className="mc-window">
+            <div className="mc-window-bar"><i /><i /><i /><span>app · /campaigns/new</span></div>
+            <div className="mc-window-body">
+              <div className="mc-w-side">
+                {["Pilotage", "Campagnes", "Médiathèque", "Agents", "Veille"].map((x, i) => (
+                  <span key={x} className={i === 1 ? "on" : ""}>{x}</span>
+                ))}
+              </div>
+              <div className="mc-w-main">
+                <div className="mc-w-row"><b>{t("Assistant — décrivez, l'IA remplit", "Assistant — describe, AI fills")}</b></div>
+                <div className="mc-w-bubble">{t("« Prospects chirurgie obésité, UK, 25€/j, formulaire »", "“Leads obesity surgery, UK, €25/d, form”")}</div>
+                <div className="mc-w-cards">
+                  <Dashboard3D />
+                  <div className="mc-w-mini">
+                    <div className="mc-w-mini-h"><InstagramLogo s={16} /> Reel 9:16</div>
+                    <div className="mc-w-mini-media" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          {/* cartes de posts flottantes en 3D */}
+          <div className="mc-float mc-float-a"><div className="mc-post"><FacebookLogo s={18} /><span /><span className="sh" /></div></div>
+          <div className="mc-float mc-float-b"><div className="mc-post"><LinkedInLogo s={18} /><span /><span className="sh" /></div></div>
+        </div>
+      </section>
+
+      {/* ── Témoignages ── */}
+      <section className="mc-section">
+        <header className="mc-sec-head reveal">
+          <span className="mc-kicker">{t("Ils pilotent avec AXON", "They steer with AXON")}</span>
+          <h2 className="mc-h2">{t("Moins d'outils. Plus de résultats.", "Fewer tools. More results.")}</h2>
+        </header>
+        <div className="mc-grid">
+          {TESTIMONIALS.map((tm, i) => {
+            const L = NETWORKS[tm.net];
+            return (
+              <figure key={i} className="mc-quote reveal" style={{ transitionDelay: `${i * 90}ms` }}>
+                <L s={26} />
+                <blockquote>“{tm.q}”</blockquote>
+                <figcaption>{tm.a}</figcaption>
+              </figure>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* ── Tarifs ── */}
+      <section id="pricing" className="mc-section">
+        <header className="mc-sec-head reveal">
+          <span className="mc-kicker">{t("Tarifs", "Pricing")}</span>
+          <h2 className="mc-h2">{t("Simple, comme l'outil.", "Simple, like the tool.")}</h2>
+        </header>
+        <div className="mc-plans">
+          {PLANS.map((p, i) => (
+            <div key={p.name} className={`mc-plan reveal${p.hot ? " hot" : ""}`} style={{ transitionDelay: `${i * 90}ms` }}>
+              {p.hot && <span className="mc-plan-badge">{t("Populaire", "Popular")}</span>}
+              <h3>{p.name}</h3>
+              <div className="mc-plan-price">{p.price}<span>{p.price === "0" ? "€" : ""}</span></div>
+              <p className="mc-plan-sub">{t(p.fr, p.en)}</p>
+              <ul>{p.feats.map((f) => <li key={f}>{f}</li>)}</ul>
+              <Link href={p.href} className={`mc-btn ${p.hot ? "mc-btn-glow" : "mc-btn-outline"} mc-btn-lg`} style={{ width: "100%" }}>{t(p.cta, p.ctaEn)}</Link>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── FAQ ── */}
+      <section className="mc-section mc-faq">
+        <header className="mc-sec-head reveal">
+          <span className="mc-kicker">FAQ</span>
+          <h2 className="mc-h2">{t("Les bonnes questions.", "The right questions.")}</h2>
+        </header>
+        <div className="mc-faq-list reveal">
+          {FAQ.map((f, i) => (
+            <details key={i} className="mc-faq-item">
+              <summary>{f.q}<span>+</span></summary>
+              <p>{f.a}</p>
+            </details>
           ))}
         </div>
       </section>
@@ -446,6 +571,72 @@ export default function Home() {
         .mc-foot{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;
           padding:2rem clamp(1rem,4vw,3rem);border-top:1px solid rgba(168,85,247,.14);color:#8b7fa8;font-size:.85rem;}
         .mc-foot-net{display:flex;gap:.6rem;}
+
+        /* Scroll reveal */
+        .reveal{opacity:0;transform:translateY(26px);transition:opacity .7s ease,transform .7s cubic-bezier(.2,.8,.2,1);}
+        .reveal.is-in{opacity:1;transform:none;}
+
+        /* Showcase : fenêtre app inclinée + posts flottants */
+        .mc-showcase{perspective:1500px;}
+        .mc-window-wrap{position:relative;max-width:920px;margin:0 auto;transform-style:preserve-3d;}
+        .mc-window{transform:rotateX(16deg) rotateY(-9deg);transform-style:preserve-3d;border-radius:16px;overflow:hidden;
+          background:linear-gradient(160deg,rgba(36,25,56,.95),rgba(16,11,28,.95));border:1px solid rgba(168,85,247,.28);
+          box-shadow:0 60px 120px -40px rgba(0,0,0,.85),0 0 0 1px rgba(255,255,255,.04) inset;transition:transform .5s;}
+        .mc-window-wrap:hover .mc-window{transform:rotateX(8deg) rotateY(-4deg);}
+        .mc-window-bar{display:flex;align-items:center;gap:.5rem;padding:.7rem 1rem;background:rgba(0,0,0,.3);border-bottom:1px solid rgba(168,85,247,.18);}
+        .mc-window-bar i{width:11px;height:11px;border-radius:50%;background:#5a4d75;}
+        .mc-window-bar i:nth-child(1){background:#ff5f57;}.mc-window-bar i:nth-child(2){background:#febc2e;}.mc-window-bar i:nth-child(3){background:#28c840;}
+        .mc-window-bar span{margin-left:.6rem;font-size:.72rem;color:#9b8fb5;}
+        .mc-window-body{display:grid;grid-template-columns:130px 1fr;min-height:300px;}
+        .mc-w-side{display:flex;flex-direction:column;gap:.3rem;padding:1rem .6rem;border-right:1px solid rgba(168,85,247,.14);}
+        .mc-w-side span{font-size:.8rem;color:#9b8fb5;padding:.45rem .6rem;border-radius:8px;}
+        .mc-w-side span.on{background:rgba(168,85,247,.18);color:#fff;font-weight:600;}
+        .mc-w-main{padding:1.2rem;display:flex;flex-direction:column;gap:.8rem;}
+        .mc-w-row b{font-family:var(--font-display);color:#fff;font-size:1.05rem;}
+        .mc-w-bubble{align-self:flex-start;background:linear-gradient(135deg,#a855f7,#7c3aed);color:#fff;font-size:.82rem;padding:.55rem .9rem;border-radius:14px 14px 14px 4px;max-width:90%;}
+        .mc-w-cards{display:grid;grid-template-columns:1.4fr 1fr;gap:.8rem;margin-top:.4rem;}
+        .mc-w-mini{border-radius:12px;border:1px solid rgba(168,85,247,.22);overflow:hidden;background:rgba(16,11,28,.6);}
+        .mc-w-mini-h{display:flex;align-items:center;gap:.4rem;font-size:.72rem;color:#cdbff0;padding:.5rem .6rem;}
+        .mc-w-mini-media{height:120px;background:linear-gradient(135deg,#e1306c,#a855f7,#1877F2);}
+        .mc-float{position:absolute;z-index:3;transform-style:preserve-3d;}
+        .mc-float-a{top:-26px;right:-10px;transform:translateZ(80px) rotate(6deg);animation:mcbob 6s ease-in-out infinite;}
+        .mc-float-b{bottom:-30px;left:-14px;transform:translateZ(60px) rotate(-5deg);animation:mcbob 7s ease-in-out infinite reverse;}
+        .mc-post{display:flex;align-items:center;gap:.5rem;background:rgba(20,14,32,.95);border:1px solid rgba(168,85,247,.3);border-radius:12px;padding:.6rem .8rem;box-shadow:0 20px 40px -16px rgba(0,0,0,.7);}
+        .mc-post span{display:block;height:7px;width:70px;background:#3a2f54;border-radius:4px;}
+        .mc-post span.sh{width:42px;margin-top:0;}
+        @media(max-width:640px){.mc-window{transform:none;}.mc-window-body{grid-template-columns:1fr;}.mc-w-side{flex-direction:row;flex-wrap:wrap;border-right:0;border-bottom:1px solid rgba(168,85,247,.14);}.mc-float{display:none;}}
+
+        /* Témoignages */
+        .mc-quote{display:flex;flex-direction:column;gap:.8rem;padding:1.6rem;border-radius:16px;
+          background:linear-gradient(160deg,rgba(255,255,255,.045),rgba(255,255,255,.01));border:1px solid rgba(255,255,255,.08);}
+        .mc-quote blockquote{font-family:var(--font-display);font-size:1.12rem;line-height:1.45;color:#f2ecff;}
+        .mc-quote figcaption{font-size:.82rem;color:#9b8fb5;}
+
+        /* Tarifs */
+        .mc-plans{display:grid;gap:1rem;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));align-items:start;}
+        .mc-plan{position:relative;padding:1.8rem 1.5rem;border-radius:18px;background:linear-gradient(160deg,rgba(255,255,255,.04),rgba(255,255,255,.01));
+          border:1px solid rgba(255,255,255,.09);display:flex;flex-direction:column;gap:.7rem;transition:.3s;}
+        .mc-plan.hot{border-color:rgba(168,85,247,.55);background:linear-gradient(160deg,rgba(168,85,247,.14),rgba(124,58,237,.05));
+          box-shadow:0 30px 70px -28px rgba(168,85,247,.6);transform:translateY(-8px);}
+        .mc-plan-badge{position:absolute;top:-11px;left:1.5rem;font-size:.66rem;letter-spacing:.12em;text-transform:uppercase;
+          background:linear-gradient(135deg,#a855f7,#7c3aed);color:#fff;padding:.25rem .6rem;border-radius:999px;}
+        .mc-plan h3{font-family:var(--font-display);font-size:1.3rem;color:#fff;}
+        .mc-plan-price{font-family:var(--font-display);font-size:2.4rem;color:#fff;line-height:1;}
+        .mc-plan-price span{font-size:1rem;color:#9b8fb5;}
+        .mc-plan-sub{font-size:.82rem;color:#b98bff;}
+        .mc-plan ul{list-style:none;display:flex;flex-direction:column;gap:.5rem;margin:.4rem 0 1rem;flex:1;}
+        .mc-plan li{font-size:.88rem;color:#c4b8df;padding-left:1.4rem;position:relative;}
+        .mc-plan li:before{content:"✓";position:absolute;left:0;color:#a855f7;font-weight:700;}
+
+        /* FAQ */
+        .mc-faq-list{max-width:760px;margin:0 auto;display:flex;flex-direction:column;gap:.6rem;}
+        .mc-faq-item{border:1px solid rgba(168,85,247,.18);border-radius:12px;background:rgba(255,255,255,.025);overflow:hidden;}
+        .mc-faq-item summary{cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:1rem;
+          padding:1.1rem 1.3rem;font-weight:600;color:#ece7f5;font-size:.98rem;}
+        .mc-faq-item summary::-webkit-details-marker{display:none;}
+        .mc-faq-item summary span{color:#a855f7;font-size:1.3rem;transition:transform .25s;}
+        .mc-faq-item[open] summary span{transform:rotate(45deg);}
+        .mc-faq-item p{padding:0 1.3rem 1.2rem;color:#a99dc4;line-height:1.6;font-size:.9rem;}
 
         @media(prefers-reduced-motion:reduce){
           .mc-mesh,.mc-layer-dash,.mc-layer-phone,.mc-orbit,.mc-core span,.mc-marquee-track,.dash3d-chart span{animation:none!important;}

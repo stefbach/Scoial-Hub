@@ -256,6 +256,9 @@ export default function StudioAffichePage() {
         <p className="mt-1 max-w-2xl text-sm text-muted">
           {t("Créez des affiches A4/A3 et des visuels réseaux : fond IA ou image, texte, logo — export prêt à imprimer ou à publier.", "Create A4/A3 posters and social visuals: AI or uploaded background, text, logo — export ready to print or publish.")}
         </p>
+        <a href="/campaigns/new" className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-primary-600 hover:underline">
+          {t("→ Créer une pub Meta (vos visuels sont dans la bibliothèque)", "→ Create a Meta ad (your visuals are in the library)")}
+        </a>
       </header>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[360px_1fr]">

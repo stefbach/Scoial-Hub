@@ -162,6 +162,9 @@ export default function StudioPage() {
               "Upload photos and/or videos — we assemble and market them automatically, network by network."
             )}
           </p>
+          <a href="/campaigns/new" className="mt-1 inline-flex items-center gap-1.5 text-sm font-medium text-primary-600 hover:underline">
+            {t("→ Créer une pub Meta avec votre média", "→ Create a Meta ad with your media")}
+          </a>
         </div>
       </div>
 

@@ -6,6 +6,7 @@ import { useCompany } from "@/lib/company-context";
 import { SOCIAL_FORMATS, type SocialPlatform } from "@/lib/social-formats";
 import { generateVideoPolling } from "@/lib/ai/generate-video-client";
 import type { MediaAsset } from "@/lib/video/types";
+import { IMAGE_MODELS, VIDEO_MODELS, DEFAULT_IMAGE_MODEL_ID, DEFAULT_VIDEO_MODEL_ID } from "@/lib/ai/model-catalog";
 
 // ── Studio par prompt : génère une image OU une vidéo depuis un prompt IA ─────────
 
@@ -80,14 +81,19 @@ interface ResultState {
 
 export default function PromptStudio({
   onGenerated,
+  brandHints,
 }: {
   onGenerated: (asset: MediaAsset) => void;
+  /** Indications de style issues du brand kit (injectées dans le prompt). */
+  brandHints?: string;
 }) {
   const t = useT();
   const { company } = useCompany();
 
   const [kind, setKind] = useState<Kind>("image");
   const [formatValue, setFormatValue] = useState<string>("");
+  const [imageModel, setImageModel] = useState(DEFAULT_IMAGE_MODEL_ID);
+  const [videoModel, setVideoModel] = useState(DEFAULT_VIDEO_MODEL_ID);
   const [prompt, setPrompt] = useState("");
   const [improving, setImproving] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -205,9 +211,11 @@ export default function PromptStudio({
   }
 
   async function generate() {
-    const idea = prompt.trim();
-    if (!idea || generating) return;
+    const base = prompt.trim();
+    if (!base || generating) return;
     if (!selected) return;
+    // Injecte le style de marque (brand kit) pour des visuels cohérents.
+    const idea = [base, brandHints?.trim()].filter(Boolean).join(". ");
     setGenerating(true);
     setNotice(null);
     setResult(null);
@@ -223,6 +231,7 @@ export default function PromptStudio({
             platform: selected.platform,
             placement: selected.placement,
             n: 1,
+            model: imageModel,
           }),
         });
         const data = await res.json().catch(() => ({}));
@@ -252,6 +261,7 @@ export default function PromptStudio({
           prompt: idea,
           aspect: selected.aspect,
           platform: selected.platform,
+          model: videoModel,
         });
         if (r.simulated) {
           setNotice(
@@ -342,6 +352,26 @@ export default function PromptStudio({
             </option>
           ))}
         </select>
+      </div>
+
+      {/* Modèle IA (choix du meilleur modèle du marché) */}
+      <div className="mb-3">
+        <label className="mb-1 block text-2xs font-semibold uppercase tracking-wide text-muted">
+          {kind === "image" ? t("Modèle d'image (IA)", "Image model (AI)") : t("Modèle vidéo (IA)", "Video model (AI)")}
+        </label>
+        {kind === "image" ? (
+          <select className="input w-full text-sm" value={imageModel} onChange={(e) => setImageModel(e.target.value)}>
+            {IMAGE_MODELS.map((m) => (
+              <option key={m.id} value={m.id}>{m.label}{m.note ? ` — ${m.note}` : ""}</option>
+            ))}
+          </select>
+        ) : (
+          <select className="input w-full text-sm" value={videoModel} onChange={(e) => setVideoModel(e.target.value)}>
+            {VIDEO_MODELS.map((m) => (
+              <option key={m.id} value={m.id}>{m.label}{m.note ? ` — ${m.note}` : ""}</option>
+            ))}
+          </select>
+        )}
       </div>
 
       {/* Prompt */}

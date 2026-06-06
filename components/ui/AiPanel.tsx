@@ -230,6 +230,7 @@ export function AiVisualsPanel({
   platform = "facebook",
   imageModel,
   videoModel,
+  brandHints,
 }: {
   used: number;
   cap: number;
@@ -239,6 +240,8 @@ export function AiVisualsPanel({
   imageModel?: string;
   /** Modèle de génération vidéo (catalogue Replicate). */
   videoModel?: string;
+  /** Indications de style issues du brand kit (injectées dans le prompt). */
+  brandHints?: string;
 }) {
   const t = useT();
   const [mode, setMode] = useState<"image" | "video">("image");
@@ -251,8 +254,10 @@ export function AiVisualsPanel({
   const isVideo = mode === "video";
 
   const handleGenerate = async () => {
-    const text = prompt.trim();
-    if (!text) return;
+    const base = prompt.trim();
+    if (!base) return;
+    // Enrichit le prompt avec le style de marque (brand kit) pour rester cohérent.
+    const text = [base, brandHints?.trim()].filter(Boolean).join(". ");
     setLoading(true);
     setError(null);
     setMockMessage(null);

@@ -19,6 +19,7 @@ import {
 } from "@/lib/video/types";
 import { captionsToSrt } from "@/lib/video/srt";
 import PromptStudio from "@/components/studio/PromptStudio";
+import BrandKitPanel from "@/components/studio/BrandKitPanel";
 
 // ── Studio Créatif : images + vidéos → assemblage & marketing pro ────────────────
 
@@ -42,6 +43,7 @@ export default function StudioPage() {
   const [platforms, setPlatforms] = useState<VideoPlatform[]>(["tiktok", "instagram_reels", "linkedin"]);
   const [uploading, setUploading] = useState(false);
   const [working, setWorking] = useState(false);
+  const [brandHints, setBrandHints] = useState("");
   const [pkg, setPkg] = useState<VideoMarketingPackage | null>(null);
   const [toast, setToast] = useState<{ message: string; key: number } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -159,8 +161,11 @@ export default function StudioPage() {
         </div>
       </div>
 
+      {/* Brand kit persistant — logo / charte / palette, réutilisés partout */}
+      <BrandKitPanel companyId={company.id} onPromptHints={setBrandHints} />
+
       {/* Génération par prompt (IA) — image ou vidéo, tous formats publiables */}
-      <PromptStudio onGenerated={(a) => setAssets((prev) => [...prev, a])} />
+      <PromptStudio onGenerated={(a) => setAssets((prev) => [...prev, a])} brandHints={brandHints} />
 
       {/* Étape 1 : médias */}
       <section className="card p-5">

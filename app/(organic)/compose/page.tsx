@@ -11,6 +11,7 @@ import { AiTextPanel, AiVisualsPanel } from "@/components/ui/AiPanel";
 import { CreativeInspiration } from "@/components/compose/CreativeInspiration";
 import { MediaEditor } from "@/components/compose/MediaEditor";
 import { PostPreview, type PreviewPlatform } from "@/components/compose/PostPreview";
+import BrandKitPanel from "@/components/studio/BrandKitPanel";
 import { IMAGE_MODELS, VIDEO_MODELS, DEFAULT_IMAGE_MODEL_ID, DEFAULT_VIDEO_MODEL_ID } from "@/lib/ai/model-catalog";
 import { MediaUpload, type UploadedMedia } from "@/components/ui/MediaUpload";
 import { DatePicker, TimePicker } from "@/components/ui/DateTimePicker";
@@ -93,6 +94,7 @@ function ComposeContent() {
   const [language, setLanguage] = useState("Français");
   const [imageModel, setImageModel] = useState(DEFAULT_IMAGE_MODEL_ID);
   const [videoModel, setVideoModel] = useState(DEFAULT_VIDEO_MODEL_ID);
+  const [brandHints, setBrandHints] = useState("");
   const [previewPlatform, setPreviewPlatform] = useState<PreviewPlatform>("facebook");
   const [submitting, setSubmitting] = useState(false);
   const [savingLibrary, setSavingLibrary] = useState(false);
@@ -295,9 +297,9 @@ function ComposeContent() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_320px]">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_360px]">
         {/* Editor card */}
-        <div className="card space-y-5 p-5">
+        <div className="card space-y-7 p-6">
           {/* Platform selector — cible de publication explicite */}
           <div>
             <div className="mb-2.5 flex items-baseline justify-between gap-2">
@@ -392,6 +394,9 @@ function ComposeContent() {
             </label>
           </div>
 
+          {/* Brand kit persistant — logo / charte / palette réutilisés partout */}
+          <BrandKitPanel companyId={company.id} onPromptHints={setBrandHints} />
+
           {/* Inspiration depuis une créa existante (vos pubs / concurrents / veille) */}
           <CreativeInspiration
             companyId={company.id}
@@ -406,7 +411,7 @@ function ComposeContent() {
 
           {/* AI panels — réseau dérivé du 1er compte sélectionné (respecte le réseau). */}
           <AiTextPanel brandVoiceLabel={company.code} platform={activePlatform} language={language} />
-          <AiVisualsPanel used={data.library.aiBudgetUsed} cap={data.library.aiBudgetCap} platform={activePlatform} imageModel={imageModel} videoModel={videoModel} />
+          <AiVisualsPanel used={data.library.aiBudgetUsed} cap={data.library.aiBudgetCap} platform={activePlatform} imageModel={imageModel} videoModel={videoModel} brandHints={brandHints} />
 
           {/* Media upload */}
           <MediaUpload media={upload} onChange={setUpload} />

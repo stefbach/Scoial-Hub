@@ -251,8 +251,8 @@ export default function ArticleLinkedInPage() {
             <span className="font-semibold">{t("S'appuyer sur la marque & la veille (RAG)", "Ground in brand & insights (RAG)")}</span>
             <span className="ml-1 text-muted">
               {t(
-                "— ancre l'article dans votre positionnement, vos thèmes et votre mémoire stratégique. Décoché : vous écrivez librement sur le sujet saisi (la voix de marque est conservée).",
-                "— anchors the article in your positioning, themes and strategic memory. Unchecked: you write freely on your topic (brand voice is kept)."
+                "— ancre l'article dans votre marque (voix, positionnement, thèmes) et votre mémoire stratégique. Décoché : écriture 100 % libre sur le sujet saisi, aucune info client imposée.",
+                "— anchors the article in your brand (voice, positioning, themes) and strategic memory. Unchecked: write 100% freely on your topic, no client info imposed."
               )}
             </span>
           </span>

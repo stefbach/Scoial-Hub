@@ -63,11 +63,12 @@ interface BrandContext {
   memory: string;
 }
 
-// Charge le contexte de marque. La voix/ton sont toujours chargés (pour le
-// style) ; le positionnement, les thèmes et la mémoire stratégique (RAG) ne
-// sont chargés que si `includeRag` est vrai — sinon on laisse l'auteur libre.
+// Charge le contexte de marque UNIQUEMENT si le RAG est demandé. Sans RAG, on
+// renvoie un contexte vide : l'auteur écrit librement, aucune info client n'est
+// injectée (le prompt n'est plus « verrouillé » sur la marque).
 async function loadBrandContext(companyId: string, includeRag: boolean): Promise<BrandContext> {
   const ctx: BrandContext = { name: "", voice: "", positioning: "", audience: "", tone: "", themes: [], memory: "" };
+  if (!includeRag) return ctx;
   try {
     const uuid = await resolveCompanyUuid(companyId);
     const sb = createAdminClient();
@@ -81,14 +82,12 @@ async function loadBrandContext(companyId: string, includeRag: boolean): Promise
         .maybeSingle();
       if (prof) {
         ctx.tone = String(prof.tone ?? "");
-        if (includeRag) {
-          ctx.positioning = String(prof.positioning ?? prof.summary ?? "");
-          ctx.audience = String(prof.audience ?? "");
-          ctx.themes = Array.isArray(prof.themes) ? (prof.themes as string[]) : [];
-        }
+        ctx.positioning = String(prof.positioning ?? prof.summary ?? "");
+        ctx.audience = String(prof.audience ?? "");
+        ctx.themes = Array.isArray(prof.themes) ? (prof.themes as string[]) : [];
       }
     }
-    if (includeRag) ctx.memory = await getMemoryContext(companyId, 10).catch(() => "");
+    ctx.memory = await getMemoryContext(companyId, 10).catch(() => "");
   } catch {
     /* dégradation */
   }
@@ -101,18 +100,29 @@ const LENGTH_GUIDE: Record<string, string> = {
   long: "Article LinkedIn approfondi de leadership éclairé (700–1100 mots, intertitres, exemples concrets, données si pertinentes).",
 };
 
-function buildBrandBlock(b: BrandContext, language: string): string {
-  const lang = language === "en" ? "English" : "français";
+function langName(language: string): string {
+  return language === "en" ? "English" : "français";
+}
+
+// Lignes de contexte de marque (vide si RAG désactivé). NE contient PAS la
+// langue de sortie — gérée séparément pour rester active même en écriture libre.
+function brandLines(b: BrandContext): string {
   return [
-    `Marque : ${b.name || "(non précisée)"}`,
+    b.name ? `Marque : ${b.name}` : "",
     b.voice ? `Voix de marque : ${b.voice}` : "",
     b.positioning ? `Positionnement : ${b.positioning}` : "",
     b.audience ? `Audience : ${b.audience}` : "",
     b.tone ? `Ton : ${b.tone}` : "",
     b.themes.length ? `Thèmes clés : ${b.themes.join(", ")}` : "",
     b.memory ? `Mémoire stratégique :\n${b.memory}` : "",
-    `Langue de sortie : ${lang}`,
   ].filter(Boolean).join("\n");
+}
+
+// Section « CONTEXTE MARQUE » prête à insérer — chaîne vide s'il n'y a aucun
+// contexte (écriture libre), pour ne pas verrouiller le prompt sur le client.
+function brandSection(b: BrandContext, label: string): string {
+  const lines = brandLines(b);
+  return lines ? `\n\n${label} :\n${lines}` : "";
 }
 
 // ── Mode "prompt" : fabrique un brief/prompt professionnel éditable ──────────
@@ -125,28 +135,28 @@ async function generatePrompt(body: Body, brand: BrandContext): Promise<string> 
     `Format : ${LENGTH_GUIDE[body.length ?? "article"]}`,
   ].filter(Boolean).join("\n");
 
+  const lang = langName(body.language ?? "fr");
+
   if (!isAiConfigured) {
     return [
       `Rédige un ${body.length === "post" ? "post" : "article"} LinkedIn de niveau professionnel à partir de ${sourceLabel} :`,
       `"""${body.input}"""`,
-      "",
-      buildBrandBlock(brand, body.language ?? "fr"),
+      brandSection(brand, "CONTEXTE MARQUE").trim(),
       params,
+      `Langue de sortie : ${lang}`,
       "",
       "Exigences : accroche forte dès la 1re ligne, structure claire (intertitres), une idée par paragraphe, crédibilité (exemples concrets, pas de jargon creux), un appel à l'action, 3–5 hashtags pertinents. Évite les promesses non étayées.",
     ].filter(Boolean).join("\n");
   }
 
-  const meta = `Tu es un expert en stratégie de contenu LinkedIn B2B. À partir des éléments ci-dessous, RÉDIGE UN PROMPT (un brief de rédaction) clair, détaillé et professionnel qui servira ensuite à générer l'article. Ne rédige PAS l'article — rédige seulement le prompt, prêt à être édité par un humain.
+  const meta = `Tu es un expert en stratégie de contenu LinkedIn B2B. À partir des éléments ci-dessous, RÉDIGE UN PROMPT (un brief de rédaction) clair, détaillé et professionnel qui servira ensuite à générer l'article. Le SUJET imposé par l'utilisateur est prioritaire : le prompt doit porter exactement sur ce sujet, sans le détourner vers d'autres thèmes.
 
 ENTRÉE (${sourceLabel}) :
-"""${body.input}"""
-
-CONTEXTE MARQUE :
-${buildBrandBlock(brand, body.language ?? "fr")}
+"""${body.input}"""${brandSection(brand, "CONTEXTE MARQUE (à intégrer sans dévier du sujet)")}
 
 PARAMÈTRES :
 ${params}
+Langue de sortie : ${lang}
 
 Le prompt que tu produis doit préciser : l'objectif éditorial, l'angle unique, le public visé, le ton, la structure attendue (accroche + sections), les preuves/exemples à mobiliser, les écueils à éviter, et le style LinkedIn (lisible, aéré, expert mais accessible). Réponds UNIQUEMENT par le texte du prompt.`;
 
@@ -189,10 +199,8 @@ async function generateArticle(body: Body, brand: BrandContext): Promise<{ artic
     ? body.customPrompt.trim()
     : `Rédige un article LinkedIn à partir de ${body.source === "text" ? "ce texte" : "ces mots-clés"} : """${body.input}"""\n${LENGTH_GUIDE[body.length ?? "article"]}`;
 
-  const prompt = `${directive}
-
-CONTEXTE MARQUE (à respecter) :
-${buildBrandBlock(brand, body.language ?? "fr")}
+  const prompt = `${directive}${brandSection(brand, "CONTEXTE MARQUE (à intégrer sans dévier du sujet demandé)")}
+Langue de sortie : ${langName(body.language ?? "fr")}
 
 Retourne STRICTEMENT ce JSON :
 {

@@ -25,14 +25,14 @@ const VOICE_LANGS = [
   { label: "Italiano", code: "it-IT" },
 ];
 
-// Avatars 3D par défaut (CDN Ready Player Me). On essaie dans l'ordre ; si l'un
-// échoue (404), on bascule sur le suivant. Remplaçable par votre propre avatar.
-const DEFAULT_MODELS = [
-  "https://models.readyplayer.me/65893b0514f9f5f28e61d783.glb?morphTargets=ARKit,Oculus%20Visemes",
-  "https://models.readyplayer.me/62ea7bc28a6d28ec134bbcce.glb?morphTargets=ARKit,Oculus%20Visemes",
-  // Modèle de secours garanti joignable (échantillon glTF Khronos) — prouve la 3D.
-  "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/CesiumMan/glTF-Binary/CesiumMan.glb",
+// Préréglages d'avatars 3D hébergés sur des sources FIABLES (three.js / Khronos).
+// (Ready Player Me est actuellement injoignable — DNS NXDOMAIN.)
+const PRESETS: { label: string; url: string }[] = [
+  { label: "Soldat", url: "https://threejs.org/examples/models/gltf/Soldier.glb" },
+  { label: "Robot", url: "https://threejs.org/examples/models/gltf/RobotExpressive/RobotExpressive.glb" },
+  { label: "Humain", url: "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/CesiumMan/glTF-Binary/CesiumMan.glb" },
 ];
+const DEFAULT_MODELS = PRESETS.map((p) => p.url);
 const DEFAULT_MODEL = DEFAULT_MODELS[0];
 
 /** Ajoute les morphs ARKit/Visemes (lip-sync + clignement) à une URL RPM .glb. */
@@ -413,28 +413,47 @@ export function AvatarChat({ companyId }: { companyId: string }) {
         )}
 
         {use3D && (
-          <details className="w-full max-w-xs text-2xs text-muted">
-            <summary className="cursor-pointer">{t("Le créateur ne s'affiche pas ?", "Creator not showing?")}</summary>
-            <div className="mt-2 space-y-1">
-              <a href="https://readyplayer.me/avatar" target="_blank" rel="noopener noreferrer" className="block text-primary-600 hover:underline">
-                {t("1. Ouvrir le créateur dans un onglet ↗", "1. Open the creator in a tab ↗")}
-              </a>
-              <p>{t("2. Créez votre avatar (selfie/photo), copiez son URL ou ID, collez-le ci-dessous :", "2. Create your avatar (selfie/photo), copy its URL or ID, paste below:")}</p>
-              <input
-                value={urlDraft}
-                onChange={(e) => setUrlDraft(e.target.value)}
-                placeholder="…/64xxxx.glb ou ID"
-                className="input w-full text-2xs"
-              />
-              <button
-                type="button"
-                onClick={() => { const u = toGlbUrl(urlDraft); if (u) applyAvatar(u); else setNote(t("URL/ID d'avatar invalide.", "Invalid avatar URL/ID.")); }}
-                className="btn-secondary w-full text-2xs px-2 py-1"
-              >
-                {t("Appliquer cet avatar", "Apply this avatar")}
-              </button>
+          <div className="w-full max-w-xs space-y-2">
+            {/* Galerie de préréglages 3D fiables */}
+            <div className="flex flex-wrap justify-center gap-1">
+              {PRESETS.map((p) => (
+                <button
+                  key={p.url}
+                  type="button"
+                  onClick={() => applyAvatar(p.url)}
+                  className={`rounded-md border px-2 py-1 text-2xs ${model3DUrl.startsWith(p.url) ? "border-primary-400 bg-primary-50 text-primary-700" : "border-hair text-muted hover:border-primary-200"}`}
+                >
+                  {p.label}
+                </button>
+              ))}
             </div>
-          </details>
+
+            <details className="text-2xs text-muted">
+              <summary className="cursor-pointer">{t("Utiliser mon propre avatar (.glb)", "Use my own avatar (.glb)")}</summary>
+              <div className="mt-2 space-y-1">
+                <p>{t("Collez l'URL d'un fichier .glb (GitHub, three.js…) :", "Paste a .glb file URL (GitHub, three.js…):")}</p>
+                <input
+                  value={urlDraft}
+                  onChange={(e) => setUrlDraft(e.target.value)}
+                  placeholder="https://…/avatar.glb"
+                  className="input w-full text-2xs"
+                />
+                <button
+                  type="button"
+                  onClick={() => { const u = toGlbUrl(urlDraft); if (u) applyAvatar(u); else setNote(t("URL .glb invalide.", "Invalid .glb URL.")); }}
+                  className="btn-secondary w-full text-2xs px-2 py-1"
+                >
+                  {t("Appliquer cet avatar", "Apply this avatar")}
+                </button>
+                <p className="text-[10px] leading-snug text-amber-600">
+                  {t(
+                    "Note : Ready Player Me est actuellement injoignable (DNS), ses avatars ne se chargent pas.",
+                    "Note: Ready Player Me is currently unreachable (DNS); its avatars won't load.",
+                  )}
+                </p>
+              </div>
+            </details>
+          </div>
         )}
       </div>
 

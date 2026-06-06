@@ -71,11 +71,26 @@ export interface PublishAdInput {
   companyId: string;
   name: string;
   objective: string;          // notoriété | trafic | engagement | leads/prospects | ventes
-  dailyBudgetCents: number;    // budget quotidien en centimes
+  dailyBudgetCents: number;    // budget quotidien en centimes (si budgetType=daily)
+  /** "daily" (défaut) ou "lifetime" (budget total, exige endTime). */
+  budgetType?: "daily" | "lifetime";
+  lifetimeBudgetCents?: number;
+  startTime?: string;          // ISO — début de diffusion (défaut : +1h)
+  endTime?: string;            // ISO — fin (obligatoire si budget à vie)
   countries: string[];         // ex ["FR","MU"]
   ageMin?: number;
   ageMax?: number;
-  imageUrl: string;            // visuel (Studio / bibliothèque)
+  gender?: "all" | "male" | "female";
+  /** Centres d'intérêt Meta (ids issus de la recherche adinterest). */
+  interests?: { id: string; name: string }[];
+  /** "auto" (Advantage+) ou "manual" (placements choisis). */
+  placement?: "auto" | "manual";
+  publisherPlatforms?: string[];   // ["facebook","instagram"]
+  facebookPositions?: string[];    // ["feed","story"]
+  instagramPositions?: string[];   // ["stream","story","reels"]
+  imageUrl: string;            // visuel principal
+  /** Visuels supplémentaires → carrousel (2 à 10 cartes au total avec imageUrl). */
+  images?: string[];
   primaryText: string;         // texte principal
   headline?: string;
   link: string;                // URL de destination
@@ -128,9 +143,13 @@ export async function publishAd(input: PublishAdInput): Promise<PublishAdResult>
   const token = ctx.userToken;
   const act = `act_${ctx.adAccountId}`;
 
-  const budget = Math.max(100, Math.round(input.dailyBudgetCents || 0));
-  if (budget > MAX_DAILY_BUDGET_CENTS) {
+  const isLifetime = input.budgetType === "lifetime";
+  const budget = Math.max(100, Math.round((isLifetime ? input.lifetimeBudgetCents : input.dailyBudgetCents) || 0));
+  if (!isLifetime && budget > MAX_DAILY_BUDGET_CENTS) {
     throw new Error(`Budget quotidien trop élevé (max ${(MAX_DAILY_BUDGET_CENTS / 100).toFixed(0)} €/j).`);
+  }
+  if (isLifetime && !input.endTime) {
+    throw new Error("Une date de fin est requise pour un budget à vie.");
   }
 
   const { objective, optimization, cta } = mapObjective(input.objective);
@@ -152,44 +171,76 @@ export async function publishAd(input: PublishAdInput): Promise<PublishAdResult>
   }, token);
   const campaignId = String(campaign.id);
 
-  // 2) Ad Set (budget + ciblage + géo, PAUSE)
-  const targeting = {
+  // 2) Ciblage : géo + âge + genre + centres d'intérêt + placements.
+  const targeting: Params = {
     geo_locations: { countries: input.countries.length ? input.countries : ["FR"] },
     age_min: input.ageMin ?? 18,
     age_max: input.ageMax ?? 65,
   };
-  const adset = await graphPost(`${act}/adsets`, {
+  if (input.gender === "male") targeting.genders = [1];
+  else if (input.gender === "female") targeting.genders = [2];
+  if (input.interests?.length) {
+    targeting.flexible_spec = [{ interests: input.interests.map((i) => ({ id: i.id, name: i.name })) }];
+  }
+  if (input.placement === "manual") {
+    if (input.publisherPlatforms?.length) targeting.publisher_platforms = input.publisherPlatforms;
+    if (input.facebookPositions?.length) targeting.facebook_positions = input.facebookPositions;
+    if (input.instagramPositions?.length) targeting.instagram_positions = input.instagramPositions;
+  }
+
+  // Budget + calendrier.
+  const startTime = input.startTime || new Date(Date.now() + 3600_000).toISOString();
+  const adsetParams: Params = {
     name: `${input.name} — Ad set`,
     campaign_id: campaignId,
-    daily_budget: budget,
     billing_event: "IMPRESSIONS",
     optimization_goal: isLead ? "LEAD_GENERATION" : optimization,
     bid_strategy: "LOWEST_COST_WITHOUT_CAP",
     targeting,
     status: "PAUSED",
-    start_time: new Date(Date.now() + 3600_000).toISOString(),
-    // Les Lead Ads exigent un promoted_object pointant la Page.
+    start_time: startTime,
     ...(isLead ? { promoted_object: { page_id: ctx.pageId } } : {}),
-  }, token);
+  };
+  if (isLifetime) {
+    adsetParams.lifetime_budget = budget;
+    adsetParams.end_time = input.endTime;
+  } else {
+    adsetParams.daily_budget = budget;
+    if (input.endTime) adsetParams.end_time = input.endTime;
+  }
+  const adset = await graphPost(`${act}/adsets`, adsetParams, token);
   const adSetId = String(adset.id);
 
-  // 3) Créative (image + texte + lien + CTA) liée à la Page.
-  //    En mode lead : le CTA ouvre le formulaire instantané (lead_gen_form_id).
+  // 3) Créative : image unique OU carrousel (≥ 2 visuels). En mode lead, le CTA
+  //    ouvre le formulaire instantané ; sinon il pointe vers le lien.
   const callToAction = isLead
     ? { type: "SIGN_UP", value: { lead_gen_form_id: leadFormId } }
     : { type: input.cta || cta, value: { link: input.link } };
-  const creative = await graphPost(`${act}/adcreatives`, {
-    name: `${input.name} — Créative`,
-    object_story_spec: {
-      page_id: ctx.pageId,
-      link_data: {
+  const allImages = [input.imageUrl, ...(input.images ?? [])].filter(Boolean);
+  const isCarousel = !isLead && allImages.length > 1;
+  const linkData: Params = isCarousel
+    ? {
+        message: input.primaryText,
+        link: input.link,
+        child_attachments: allImages.slice(0, 10).map((pic) => ({
+          link: input.link,
+          picture: pic,
+          name: input.headline || input.name,
+          call_to_action: callToAction,
+        })),
+        multi_share_optimized: true,
+        multi_share_end_card: false,
+      }
+    : {
         message: input.primaryText,
         link: input.link,
         name: input.headline || input.name,
         picture: input.imageUrl,
         call_to_action: callToAction,
-      },
-    },
+      };
+  const creative = await graphPost(`${act}/adcreatives`, {
+    name: `${input.name} — Créative`,
+    object_story_spec: { page_id: ctx.pageId, link_data: linkData },
   }, token);
   const creativeId = String(creative.id);
 

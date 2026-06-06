@@ -65,10 +65,33 @@ export default function NewMetaAdPage() {
   const [thankYouTitle, setThankYouTitle] = useState("");
   const [thankYouBody, setThankYouBody] = useState("");
   const [budget, setBudget] = useState(20); // EUR / jour
+  const [budgetType, setBudgetType] = useState<"daily" | "lifetime">("daily");
+  const [lifetimeBudget, setLifetimeBudget] = useState(300);
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [countriesStr, setCountriesStr] = useState("FR");
   const [ageMin, setAgeMin] = useState(18);
   const [ageMax, setAgeMax] = useState(65);
+  const [gender, setGender] = useState<"all" | "male" | "female">("all");
+
+  // Audience : centres d'intérêt
+  const [interestQuery, setInterestQuery] = useState("");
+  const [interestResults, setInterestResults] = useState<{ id: string; name: string; audienceSize?: number }[]>([]);
+  const [searchingInt, setSearchingInt] = useState(false);
+  const [selInterests, setSelInterests] = useState<{ id: string; name: string }[]>([]);
+
+  // Placements
+  const [placement, setPlacement] = useState<"auto" | "manual">("auto");
+  const [plFacebook, setPlFacebook] = useState(true);
+  const [plInstagram, setPlInstagram] = useState(true);
+  const [posFeed, setPosFeed] = useState(true);
+  const [posStory, setPosStory] = useState(false);
+  const [posReels, setPosReels] = useState(false);
+
+  // Visuels (carrousel possible)
   const [imageUrl, setImageUrl] = useState("");
+  const [extraImages, setExtraImages] = useState<string[]>([]);
+  const [newExtraUrl, setNewExtraUrl] = useState("");
   const [primaryText, setPrimaryText] = useState("");
   const [headline, setHeadline] = useState("");
   const [link, setLink] = useState("");
@@ -127,6 +150,25 @@ export default function NewMetaAdPage() {
     } finally { setGenImg(false); }
   }
 
+  async function searchInterests() {
+    if (interestQuery.trim().length < 2) return;
+    setSearchingInt(true);
+    try {
+      const r = await fetch(`/api/meta/ad-interests?companyId=${encodeURIComponent(companyId)}&q=${encodeURIComponent(interestQuery.trim())}`);
+      const d = await r.json();
+      setInterestResults(Array.isArray(d.interests) ? d.interests : []);
+    } catch {
+      setInterestResults([]);
+    } finally { setSearchingInt(false); }
+  }
+  function toggleInterest(it: { id: string; name: string }) {
+    setSelInterests((cur) => cur.some((x) => x.id === it.id) ? cur.filter((x) => x.id !== it.id) : [...cur, { id: it.id, name: it.name }]);
+  }
+  function addExtraImage() {
+    const u = newExtraUrl.trim();
+    if (u && /^https?:\/\//i.test(u)) { setExtraImages((a) => [...a, u]); setNewExtraUrl(""); }
+  }
+
   function validate(): string | null {
     if (!name.trim()) return t("Donnez un nom à la campagne.", "Name the campaign.");
     if (!primaryText.trim()) return t("Écrivez le texte principal.", "Write the primary text.");
@@ -164,14 +206,28 @@ export default function NewMetaAdPage() {
         thankYouBody: thankYouBody.trim() || undefined,
         locale: "fr_FR",
       } : undefined;
+      const igPositions = [posFeed && "stream", posStory && "story", posReels && "reels"].filter(Boolean) as string[];
+      const fbPositions = [posFeed && "feed", posStory && "story"].filter(Boolean) as string[];
       const r = await fetch("/api/meta/ads/publish", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           companyId, name,
           objective: adType === "lead" ? "leads" : objective,
+          budgetType,
           dailyBudgetCents: Math.round(budget * 100),
+          lifetimeBudgetCents: Math.round(lifetimeBudget * 100),
+          startTime: startDate ? new Date(startDate).toISOString() : undefined,
+          endTime: endDate ? new Date(endDate).toISOString() : undefined,
           countries: countries.length ? countries : ["FR"],
-          ageMin, ageMax, imageUrl, primaryText, headline,
+          ageMin, ageMax, gender,
+          interests: selInterests.length ? selInterests : undefined,
+          placement,
+          publisherPlatforms: placement === "manual" ? [plFacebook && "facebook", plInstagram && "instagram"].filter(Boolean) : undefined,
+          facebookPositions: placement === "manual" && plFacebook ? fbPositions : undefined,
+          instagramPositions: placement === "manual" && plInstagram ? igPositions : undefined,
+          imageUrl,
+          images: extraImages.length ? extraImages : undefined,
+          primaryText, headline,
           link: link || (adType === "lead" ? privacyUrl : ""),
           cta: adType === "lead" ? "SIGN_UP" : cta,
           leadForm,
@@ -290,14 +346,51 @@ export default function NewMetaAdPage() {
               <p className="mt-1 text-2xs text-muted">{t("Notoriété → portée ; Engagement → interactions ; les autres → trafic vers le site.", "Awareness → reach; Engagement → interactions; others → website traffic.")}</p>
             </div>
           )}
+          {/* Budget : quotidien ou à vie */}
+          <div>
+            <label className="mb-1 block text-xs font-medium text-muted">{t("Budget", "Budget")}</label>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="inline-flex rounded-lg border border-hair bg-canvas p-0.5">
+                {(["daily", "lifetime"] as const).map((b) => (
+                  <button key={b} type="button" onClick={() => setBudgetType(b)}
+                    className={`rounded-md px-2.5 py-1 text-2xs font-semibold ${budgetType === b ? "bg-primary-600 text-white" : "text-muted hover:text-ink"}`}>
+                    {b === "daily" ? t("Quotidien", "Daily") : t("À vie", "Lifetime")}
+                  </button>
+                ))}
+              </div>
+              {budgetType === "daily" ? (
+                <div className="flex items-center gap-1"><span className="text-2xs text-muted">EUR</span><input type="number" min={1} value={budget} onChange={(e) => setBudget(Number(e.target.value))} className={`${inputCls} w-28`} /><span className="text-2xs text-muted">/ {t("jour", "day")}</span></div>
+              ) : (
+                <div className="flex items-center gap-1"><span className="text-2xs text-muted">EUR</span><input type="number" min={1} value={lifetimeBudget} onChange={(e) => setLifetimeBudget(Number(e.target.value))} className={`${inputCls} w-28`} /><span className="text-2xs text-muted">{t("au total", "total")}</span></div>
+              )}
+            </div>
+          </div>
+
+          {/* Calendrier */}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
-              <label className="mb-1 block text-xs font-medium text-muted">{t("Budget / jour (EUR)", "Daily budget (EUR)")}</label>
-              <input type="number" min={1} value={budget} onChange={(e) => setBudget(Number(e.target.value))} className={inputCls} />
+              <label className="mb-1 block text-xs font-medium text-muted">{t("Début (optionnel)", "Start (optional)")}</label>
+              <input type="datetime-local" value={startDate} onChange={(e) => setStartDate(e.target.value)} className={inputCls} />
             </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted">{budgetType === "lifetime" ? t("Fin (obligatoire)", "End (required)") : t("Fin (optionnel)", "End (optional)")}</label>
+              <input type="datetime-local" value={endDate} onChange={(e) => setEndDate(e.target.value)} className={inputCls} />
+            </div>
+          </div>
+
+          {/* Ciblage de base */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className="mb-1 block text-xs font-medium text-muted">{t("Pays (codes ISO, séparés par des virgules)", "Countries (ISO codes, comma-separated)")}</label>
               <input value={countriesStr} onChange={(e) => setCountriesStr(e.target.value)} placeholder="FR, MU, BE" className={inputCls} />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted">{t("Genre", "Gender")}</label>
+              <select value={gender} onChange={(e) => setGender(e.target.value as typeof gender)} className={inputCls}>
+                <option value="all">{t("Tous", "All")}</option>
+                <option value="female">{t("Femmes", "Women")}</option>
+                <option value="male">{t("Hommes", "Men")}</option>
+              </select>
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-muted">{t("Âge min", "Min age")}</label>
@@ -308,6 +401,74 @@ export default function NewMetaAdPage() {
               <input type="number" min={13} max={65} value={ageMax} onChange={(e) => setAgeMax(Number(e.target.value))} className={inputCls} />
             </div>
           </div>
+        </section>
+
+        {/* Audience — centres d'intérêt */}
+        <section className="card p-5 space-y-3">
+          <span className="section-label">{t("Audience — centres d'intérêt", "Audience — interests")}</span>
+          <div className="flex gap-2">
+            <input
+              value={interestQuery}
+              onChange={(e) => setInterestQuery(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); searchInterests(); } }}
+              placeholder={t("ex. nutrition, perte de poids, bien-être…", "e.g. nutrition, weight loss, wellness…")}
+              className={inputCls}
+            />
+            <button type="button" onClick={searchInterests} disabled={searchingInt} className="btn-secondary inline-flex shrink-0 items-center gap-1.5 text-xs disabled:opacity-50">
+              {searchingInt && <Spinner size={14} className="text-current" />}
+              {t("Rechercher", "Search")}
+            </button>
+          </div>
+          {interestResults.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {interestResults.map((it) => {
+                const on = selInterests.some((x) => x.id === it.id);
+                return (
+                  <button key={it.id} type="button" onClick={() => toggleInterest(it)}
+                    className={`rounded-full px-3 py-1 text-2xs font-medium ${on ? "bg-primary-600 text-white" : "bg-canvas text-muted ring-1 ring-hair hover:text-ink"}`}>
+                    {it.name}{it.audienceSize ? ` · ${(it.audienceSize / 1e6).toFixed(1)}M` : ""}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          {selInterests.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-2xs text-muted">{t("Sélectionnés :", "Selected:")}</span>
+              {selInterests.map((it) => (
+                <button key={it.id} type="button" onClick={() => toggleInterest(it)} className="rounded-full bg-primary-50 px-2.5 py-1 text-2xs font-semibold text-primary-700 ring-1 ring-primary-200">
+                  {it.name} ✕
+                </button>
+              ))}
+            </div>
+          )}
+          <p className="text-2xs text-muted">{t("Laissez vide pour une audience large (recommandé au début, l'IA de Meta optimise).", "Leave empty for a broad audience (recommended at first — Meta's AI optimizes).")}</p>
+        </section>
+
+        {/* Placements */}
+        <section className="card p-5 space-y-3">
+          <span className="section-label">{t("Placements", "Placements")}</span>
+          <div className="inline-flex rounded-lg border border-hair bg-canvas p-0.5">
+            {(["auto", "manual"] as const).map((p) => (
+              <button key={p} type="button" onClick={() => setPlacement(p)}
+                className={`rounded-md px-2.5 py-1 text-2xs font-semibold ${placement === p ? "bg-primary-600 text-white" : "text-muted hover:text-ink"}`}>
+                {p === "auto" ? t("Automatiques (Advantage+)", "Automatic (Advantage+)") : t("Manuels", "Manual")}
+              </button>
+            ))}
+          </div>
+          {placement === "manual" && (
+            <div className="space-y-2">
+              <div className="flex flex-wrap gap-3">
+                <label className="inline-flex items-center gap-1.5 text-sm text-ink"><input type="checkbox" checked={plFacebook} onChange={(e) => setPlFacebook(e.target.checked)} className="h-4 w-4 accent-primary-600" />Facebook</label>
+                <label className="inline-flex items-center gap-1.5 text-sm text-ink"><input type="checkbox" checked={plInstagram} onChange={(e) => setPlInstagram(e.target.checked)} className="h-4 w-4 accent-primary-600" />Instagram</label>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <label className="inline-flex items-center gap-1.5 text-xs text-muted"><input type="checkbox" checked={posFeed} onChange={(e) => setPosFeed(e.target.checked)} className="h-4 w-4 accent-primary-600" />{t("Fil", "Feed")}</label>
+                <label className="inline-flex items-center gap-1.5 text-xs text-muted"><input type="checkbox" checked={posStory} onChange={(e) => setPosStory(e.target.checked)} className="h-4 w-4 accent-primary-600" />Stories</label>
+                <label className="inline-flex items-center gap-1.5 text-xs text-muted"><input type="checkbox" checked={posReels} onChange={(e) => setPosReels(e.target.checked)} className="h-4 w-4 accent-primary-600" />Reels</label>
+              </div>
+            </div>
+          )}
         </section>
 
         {/* Créative */}
@@ -357,6 +518,30 @@ export default function NewMetaAdPage() {
               <img src={imageUrl} alt="aperçu" className="mt-3 max-h-56 w-auto rounded-lg border border-hair object-contain" />
             )}
           </div>
+
+          {/* Carrousel : visuels supplémentaires (mode trafic uniquement) */}
+          {adType === "traffic" && (
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted">{t("Visuels supplémentaires → carrousel (optionnel)", "Extra visuals → carousel (optional)")}</label>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <input value={newExtraUrl} onChange={(e) => setNewExtraUrl(e.target.value)} placeholder="https://…/image2.jpg" className={inputCls} />
+                <button type="button" onClick={addExtraImage} className="btn-secondary shrink-0 text-xs">{t("Ajouter", "Add")}</button>
+              </div>
+              {extraImages.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {extraImages.map((u, i) => (
+                    <div key={i} className="relative">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={u} alt={`carrousel ${i + 1}`} className="h-20 w-20 rounded-lg border border-hair object-cover" />
+                      <button type="button" onClick={() => setExtraImages((a) => a.filter((_, j) => j !== i))}
+                        className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-danger-600 text-[10px] font-bold text-white">✕</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {extraImages.length > 0 && <p className="mt-1 text-2xs text-muted">{t(`Carrousel de ${extraImages.length + 1} cartes.`, `Carousel of ${extraImages.length + 1} cards.`)}</p>}
+            </div>
+          )}
         </section>
 
         {/* Formulaire de prospects (Instant Form) */}

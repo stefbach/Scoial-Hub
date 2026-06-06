@@ -30,7 +30,9 @@ export const SOCIAL_FORMATS: Record<SocialPlatform, MediaFormat[]> = {
   linkedin: [
     { id: "li_feed", label: "Feed 1.91:1", aspect: "1.91:1", width: 1200, height: 627, kind: "image", placement: "feed" },
     { id: "li_square", label: "Feed carré 1:1", aspect: "1:1", width: 1080, height: 1080, kind: "image", placement: "feed" },
+    { id: "li_portrait", label: "Portrait 4:5", aspect: "4:5", width: 1080, height: 1350, kind: "image", placement: "feed" },
     { id: "li_video", label: "Vidéo 16:9", aspect: "16:9", width: 1280, height: 720, kind: "video", placement: "feed" },
+    { id: "li_video_sq", label: "Vidéo carrée 1:1", aspect: "1:1", width: 1080, height: 1080, kind: "video", placement: "feed" },
   ],
   tiktok: [
     { id: "tt_video", label: "Vidéo 9:16", aspect: "9:16", width: 1080, height: 1920, kind: "video", placement: "feed" },

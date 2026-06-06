@@ -411,7 +411,7 @@ function ComposeContent() {
 
           {/* AI panels — réseau dérivé du 1er compte sélectionné (respecte le réseau). */}
           <AiTextPanel brandVoiceLabel={company.code} platform={activePlatform} language={language} />
-          <AiVisualsPanel used={data.library.aiBudgetUsed} cap={data.library.aiBudgetCap} platform={activePlatform} imageModel={imageModel} videoModel={videoModel} brandHints={brandHints} />
+          <AiVisualsPanel used={data.library.aiBudgetUsed} cap={data.library.aiBudgetCap} platform={activePlatform} imageModel={imageModel} videoModel={videoModel} brandHints={brandHints} companyId={company.id} />
 
           {/* Media upload */}
           <MediaUpload media={upload} onChange={setUpload} />

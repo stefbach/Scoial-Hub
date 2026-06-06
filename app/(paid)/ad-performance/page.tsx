@@ -154,6 +154,31 @@ function trend(curr: number, prev: number): string {
   return pct >= 0 ? `UP ${pct}%` : `DN ${Math.abs(pct)}%`;
 }
 
+// ── Données réelles Meta (Performance Ads) ───────────────────────────────────
+interface RealAdRow {
+  id: string; name: string; campaignName: string; adSetName: string;
+  status: string; platform: "facebook" | "instagram";
+  spend: number; impressions: number; clicks: number; ctr: number; cpc: number; conversions: number; cpa: number; currency: string;
+}
+interface RealPerf {
+  totals: { spend: number; impressions: number; reach: number; clicks: number; conversions: number; ctr: number; cpc: number; currency: string; count: number };
+  series: { spend: number[]; impressions: number[]; clicks: number[]; conversions: number[]; ctr: number[]; cpc: number[] };
+  ads: RealAdRow[];
+}
+
+/** Traduit la plage de l'UI en paramètres Meta (since/until ou datePreset). */
+function rangeQuery(range: RangeId, customFrom: Date | null, customTo: Date | null): string {
+  const fmt = (d: Date) => format(d, "yyyy-MM-dd");
+  const today = new Date();
+  if (range === "all") return "datePreset=maximum";
+  if (range === "custom") {
+    if (customFrom) return `since=${fmt(customFrom)}&until=${fmt(customTo ?? today)}`;
+    return "datePreset=last_30d";
+  }
+  const d = range === "7d" ? 7 : range === "30d" ? 30 : range === "90d" ? 90 : 365;
+  return `since=${fmt(new Date(today.getTime() - d * 86400000))}&until=${fmt(today)}`;
+}
+
 export default function AdPerformancePage() {
   return (
     <Suspense fallback={null}>
@@ -170,41 +195,9 @@ function AdPerformanceContent() {
   const [, setTick] = useState(0);
   const refresh = () => setTick((n) => n + 1);
 
-  // ── Totaux RÉELS Meta (Marketing API) pour les KPI ─────────────────
-  // Remplacent l'estimation démo dès qu'un compte pub Meta est connecté.
-  const [realMeta, setRealMeta] = useState<
-    { spend: number; impressions: number; reach: number; clicks: number; conversions: number; cpc: number; count: number } | null
-  >(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const r = await fetch(`/api/meta/adaccounts?companyId=${encodeURIComponent(company.id)}&datePreset=maximum`);
-        if (!r.ok) return;
-        const d = await r.json();
-        const camps = d?.data?.campaigns as
-          | Array<{ spend: number; impressions: number; reach: number; clicks: number; conversions: number }>
-          | undefined;
-        if (!cancelled && Array.isArray(camps) && camps.length > 0) {
-          const tot = camps.reduce(
-            (a, c) => ({
-              spend: a.spend + (c.spend || 0),
-              impressions: a.impressions + (c.impressions || 0),
-              reach: a.reach + (c.reach || 0),
-              clicks: a.clicks + (c.clicks || 0),
-              conversions: a.conversions + (c.conversions || 0),
-            }),
-            { spend: 0, impressions: 0, reach: 0, clicks: 0, conversions: 0 }
-          );
-          setRealMeta({ ...tot, cpc: tot.clicks ? Number((tot.spend / tot.clicks).toFixed(2)) : 0, count: camps.length });
-        }
-      } catch {
-        /* silencieux — on garde l'estimation démo */
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [company.id]);
+  // ── Performance RÉELLE Meta (Marketing API) : totaux + séries + pubs ───────
+  // Remplace l'estimation démo dès qu'un compte pub Meta est connecté.
+  const [realPerf, setRealPerf] = useState<RealPerf | null>(null);
 
   const RANGE_LABEL: Record<RangeId, string> = {
     "7d": t("7 derniers jours", "Last 7 days"),
@@ -287,6 +280,28 @@ function AdPerformanceContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [range, customFrom, customTo, focus, campaignFilter, platformFilter, statusFilter, search, sortKey, sortDir]);
 
+  // ── Récupération de la performance réelle Meta (suit la période) ──────────
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const q = rangeQuery(range, customFrom, customTo);
+        const r = await fetch(`/api/meta/ad-performance?companyId=${encodeURIComponent(company.id)}&${q}`);
+        if (!r.ok) { if (!cancelled) setRealPerf(null); return; }
+        const d = await r.json();
+        if (!cancelled) {
+          setRealPerf(d?.connected && d?.totals ? { totals: d.totals, series: d.series, ads: d.ads ?? [] } : null);
+        }
+      } catch {
+        if (!cancelled) setRealPerf(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [company.id, range, customFrom, customTo]);
+
+  // Vraies données Meta présentes ?
+  const hasRealMeta = !!realPerf && (realPerf.totals.spend > 0 || realPerf.ads.length > 0);
+
   // ── Derived data ──────────────────────────────────────────────────
   const { days } = rangeWindow(range, customFrom, customTo);
   const allRows = useMemo(
@@ -323,6 +338,8 @@ function AdPerformanceContent() {
     return Array.from(chips);
   }, [focus, chips]);
 
+  // Séries effectives : réelles (Meta) si dispo, sinon estimation démo.
+  const effSeries = hasRealMeta && realPerf ? realPerf.series : series;
   const chartSeries: ChartSeries[] = useMemo(() => {
     return activeChips.map((id) => {
       const meta = METRICS[id];
@@ -332,10 +349,10 @@ function AdPerformanceContent() {
         color: meta.color,
         dashed: meta.dashed,
         format: meta.format,
-        data: series[id],
+        data: effSeries[id],
       };
     });
-  }, [activeChips, series]);
+  }, [activeChips, effSeries]);
 
   const tableSortKey: SortKey = focus
     ? focus === "impressions" || focus === "clicks"
@@ -355,6 +372,22 @@ function AdPerformanceContent() {
     });
     return rows;
   }, [filteredRows, tableSortKey, tableSortDir]);
+
+  // Lignes RÉELLES par publicité (filtrées/triées comme la table démo).
+  const realSortedRows = useMemo(() => {
+    if (!hasRealMeta || !realPerf) return [] as RealAdRow[];
+    const rows = realPerf.ads.filter((r) => {
+      if (platformFilter !== "all" && r.platform !== platformFilter) return false;
+      const isActive = r.status === "ACTIVE";
+      if (statusFilter === "active" && !isActive) return false;
+      if (statusFilter === "paused" && isActive) return false;
+      if (search.trim() && !r.name.toLowerCase().includes(search.toLowerCase())) return false;
+      return true;
+    });
+    if (tableSortDir === "off") return rows;
+    const key = tableSortKey;
+    return [...rows].sort((a, b) => (tableSortDir === "asc" ? a[key] - b[key] : b[key] - a[key]));
+  }, [hasRealMeta, realPerf, platformFilter, statusFilter, search, tableSortKey, tableSortDir]);
 
   const topPerformer = useMemo(() => {
     const candidates = [...allRows];
@@ -437,8 +470,6 @@ function AdPerformanceContent() {
     }
   };
 
-  // Vrais totaux Meta présents ?
-  const hasRealMeta = !!realMeta && realMeta.count > 0;
   // True when no campaign data exists at all (ni démo, ni réel).
   const hasNoData = data.campaigns.list.length === 0 && !hasRealMeta;
 
@@ -563,8 +594,8 @@ function AdPerformanceContent() {
             </span>
             <p className="text-2xs leading-relaxed text-success-700">
               {t(
-                "Les indicateurs ci-dessous proviennent de votre compte Meta Ads (durée de vie). Le graphique temporel et le tableau par publicité plus bas restent une modélisation de démonstration.",
-                "The KPIs below come from your Meta Ads account (lifetime). The time chart and per-ad table further down are still a demo model."
+                "KPI, graphique dans le temps et tableau par publicité proviennent de votre compte Meta Ads, pour la période sélectionnée.",
+                "KPIs, time chart and per-ad table all come from your Meta Ads account, for the selected period."
               )}
             </p>
           </div>
@@ -588,7 +619,7 @@ function AdPerformanceContent() {
       <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <MetricCard
           label={t("Dépenses", "Spend")}
-          value={eur(hasRealMeta ? realMeta!.spend : totalSpend)}
+          value={eur(hasRealMeta ? realPerf!.totals.spend : totalSpend)}
           sub={hasRealMeta ? t("réel · Meta", "real · Meta") : undefined}
           trend={hasRealMeta ? undefined : trend(totalSpend, prevSpend)}
           active={focus === "spend"}
@@ -596,7 +627,7 @@ function AdPerformanceContent() {
         />
         <MetricCard
           label={t("Impressions", "Impressions")}
-          value={(hasRealMeta ? realMeta!.impressions : totalImpressions).toLocaleString()}
+          value={(hasRealMeta ? realPerf!.totals.impressions : totalImpressions).toLocaleString()}
           sub={hasRealMeta ? t("réel · Meta", "real · Meta") : undefined}
           trend={hasRealMeta ? undefined : trend(totalImpressions, prevImpressions)}
           active={focus === "impressions"}
@@ -604,7 +635,7 @@ function AdPerformanceContent() {
         />
         <MetricCard
           label={t("Clics", "Clicks")}
-          value={(hasRealMeta ? realMeta!.clicks : totalClicks).toLocaleString()}
+          value={(hasRealMeta ? realPerf!.totals.clicks : totalClicks).toLocaleString()}
           sub={hasRealMeta ? t("réel · Meta", "real · Meta") : undefined}
           trend={hasRealMeta ? undefined : trend(totalClicks, prevClicks)}
           active={focus === "clicks"}
@@ -612,7 +643,7 @@ function AdPerformanceContent() {
         />
         <MetricCard
           label={t("Conversions", "Conversions")}
-          value={String(hasRealMeta ? realMeta!.conversions : totalConversions)}
+          value={String(hasRealMeta ? realPerf!.totals.conversions : totalConversions)}
           sub={hasRealMeta ? t("réel · Meta", "real · Meta") : undefined}
           trend={hasRealMeta ? undefined : trend(totalConversions, prevConversions)}
           active={focus === "conversions"}
@@ -620,7 +651,7 @@ function AdPerformanceContent() {
         />
         <MetricCard
           label={t("CPC moyen", "Avg. CPC")}
-          value={eur(hasRealMeta ? realMeta!.cpc : avgCpc, { decimals: true })}
+          value={eur(hasRealMeta ? realPerf!.totals.cpc : avgCpc, { decimals: true })}
           sub={hasRealMeta ? t("réel · Meta", "real · Meta") : undefined}
           trend={hasRealMeta ? undefined : trend(prevCpc, avgCpc)}
           active={focus === "cpc"}
@@ -664,7 +695,7 @@ function AdPerformanceContent() {
         <>
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-sm font-semibold text-ink">{t("Meilleures publicités", "Top performing ads")}</h2>
-            <span className="text-2xs text-muted">{sortedRows.length} {t("pubs", "ads")}</span>
+            <span className="text-2xs text-muted">{(hasRealMeta ? realSortedRows.length : sortedRows.length)} {t("pubs", "ads")}{hasRealMeta ? t(" · réel", " · real") : ""}</span>
           </div>
 
           <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -777,7 +808,37 @@ function AdPerformanceContent() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-hair">
-                {sortedRows.length === 0 ? (
+                {hasRealMeta ? (
+                  realSortedRows.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="px-5 py-10 text-center text-sm text-muted">
+                        {t("Aucune publicité ne correspond à ces filtres.", "No ads match these filters.")}
+                      </td>
+                    </tr>
+                  ) : (
+                    realSortedRows.map((r) => {
+                      const active = r.status === "ACTIVE";
+                      return (
+                        <tr key={r.id} className="transition-colors hover:bg-canvas/70">
+                          <td className="px-5 py-3.5">
+                            <div className="font-medium text-ink">{r.name}</div>
+                            <div className="mt-0.5 text-2xs text-muted">{r.campaignName} · {r.adSetName}</div>
+                          </td>
+                          <td className="px-5 py-3.5 tabular-nums text-ink">{eur(r.spend)}</td>
+                          <td className="px-5 py-3.5 tabular-nums font-medium text-success-600">{r.ctr.toFixed(2)}%</td>
+                          <td className="px-5 py-3.5 tabular-nums text-ink">{eur(r.cpc, { decimals: true })}</td>
+                          <td className="px-5 py-3.5 tabular-nums text-ink">{r.conversions}</td>
+                          <td className="px-5 py-3.5">
+                            <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-2xs font-medium ${active ? "bg-success-50 text-success-700" : "bg-canvas text-muted"}`}>
+                              <span className={`inline-block h-1.5 w-1.5 rounded-full ${active ? "bg-success-500" : "bg-muted/40"}`} />
+                              {r.status || (active ? t("Actif", "Active") : t("En pause", "Paused"))}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )
+                ) : sortedRows.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="px-5 py-10 text-center text-sm text-muted">
                       {t("Aucune publicité ne correspond à ces filtres.", "No ads match these filters.")}

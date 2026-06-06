@@ -248,7 +248,114 @@ export async function fetchAdAccountData(
   return out;
 }
 
-// ── Insights / données réelles d'une Page + compte Instagram ─────────────────
+// ── Performance détaillée (séries quotidiennes + lignes par publicité) ────────
+
+export interface AdDaySeries {
+  spend: number[]; impressions: number[]; clicks: number[]; conversions: number[]; ctr: number[]; cpc: number[];
+}
+export interface AdPerfRow {
+  id: string; name: string; campaignName: string; adSetName: string;
+  status: string; platform: "facebook" | "instagram";
+  spend: number; impressions: number; clicks: number; ctr: number; cpc: number; conversions: number; cpa: number;
+  currency: string;
+}
+export interface AdPerformance {
+  account?: { id: string; name: string; currency: string };
+  totals: { spend: number; impressions: number; reach: number; clicks: number; conversions: number; ctr: number; cpc: number; currency: string; count: number };
+  series: AdDaySeries;
+  ads: AdPerfRow[];
+}
+
+/** Construit le paramètre de période Meta : time_range (since/until) ou date_preset. */
+function dateParam(opts: { datePreset?: string; since?: string; until?: string }): string {
+  if (opts.since && opts.until) {
+    return `time_range=${encodeURIComponent(JSON.stringify({ since: opts.since, until: opts.until }))}`;
+  }
+  const p = opts.datePreset && VALID_DATE_PRESETS.has(opts.datePreset) ? opts.datePreset : "maximum";
+  return `date_preset=${p}`;
+}
+
+/** Devine la plateforme à partir des noms (heuristique, sans breakdown). */
+function guessPlatform(...names: string[]): "facebook" | "instagram" {
+  return /insta|instagram|\big\b|reel|story/i.test(names.join(" ")) ? "instagram" : "facebook";
+}
+
+/**
+ * Performance réelle pour la page Performance Ads : séries jour par jour (graphe),
+ * totaux agrégés (KPI) et lignes par publicité (tableau), sur la période choisie.
+ */
+export async function fetchAdPerformance(
+  userToken: string,
+  adAccountId: string,
+  opts: { datePreset?: string; since?: string; until?: string } = {}
+): Promise<AdPerformance> {
+  const act = adAccountId.startsWith("act_") ? adAccountId : `act_${adAccountId}`;
+  const dp = dateParam(opts);
+
+  const acc = await gget(`${act}?fields=name,currency`, userToken);
+  const currency = String(acc?.currency ?? "EUR");
+  const account = acc ? { id: act, name: String(acc.name ?? ""), currency } : undefined;
+
+  // 1) Série quotidienne (time_increment=1) au niveau compte.
+  const ser = await gget(`${act}/insights?fields=spend,impressions,clicks,actions&time_increment=1&${dp}&limit=500`, userToken);
+  const days = ((ser?.data as Array<Record<string, unknown>>) ?? [])
+    .slice()
+    .sort((a, b) => String(a.date_start ?? "").localeCompare(String(b.date_start ?? "")));
+  const series: AdDaySeries = { spend: [], impressions: [], clicks: [], conversions: [], ctr: [], cpc: [] };
+  for (const r of days) {
+    const sp = Number(r.spend ?? 0), im = Number(r.impressions ?? 0), cl = Number(r.clicks ?? 0), cv = sumConversions(r.actions);
+    series.spend.push(sp); series.impressions.push(im); series.clicks.push(cl); series.conversions.push(cv);
+    series.ctr.push(im ? +(cl / im * 100).toFixed(2) : 0);
+    series.cpc.push(cl ? +(sp / cl).toFixed(2) : 0);
+  }
+
+  // 2) Totaux agrégés (une ligne au niveau compte).
+  const totIns = await gget(`${act}/insights?fields=spend,impressions,reach,clicks,actions&${dp}&limit=1`, userToken);
+  const tr = ((totIns?.data as Array<Record<string, unknown>>) ?? [])[0] ?? {};
+  const tSpend = Number(tr.spend ?? 0), tImpr = Number(tr.impressions ?? 0), tClicks = Number(tr.clicks ?? 0);
+
+  // 3) Lignes par publicité + statut réel.
+  const adIns = await gget(
+    `${act}/insights?level=ad&fields=ad_id,ad_name,campaign_name,adset_name,spend,impressions,clicks,ctr,cpc,actions&${dp}&limit=300`,
+    userToken
+  );
+  const adsMeta = await gget(`${act}/ads?fields=id,effective_status&limit=500`, userToken);
+  const statusById = new Map<string, string>();
+  for (const a of (adsMeta?.data as Array<Record<string, unknown>>) ?? []) {
+    statusById.set(String(a.id ?? ""), String(a.effective_status ?? ""));
+  }
+
+  const ads: AdPerfRow[] = ((adIns?.data as Array<Record<string, unknown>>) ?? []).map((r) => {
+    const id = String(r.ad_id ?? "");
+    const spend = Number(r.spend ?? 0), impressions = Number(r.impressions ?? 0), clicks = Number(r.clicks ?? 0);
+    const conversions = sumConversions(r.actions);
+    const campaignName = String(r.campaign_name ?? ""), adSetName = String(r.adset_name ?? ""), name = String(r.ad_name ?? "");
+    return {
+      id, name, campaignName, adSetName,
+      status: statusById.get(id) ?? "",
+      platform: guessPlatform(name, adSetName, campaignName),
+      spend, impressions, clicks,
+      ctr: Number(r.ctr ?? 0) || (impressions ? +(clicks / impressions * 100).toFixed(2) : 0),
+      cpc: Number(r.cpc ?? 0) || (clicks ? +(spend / clicks).toFixed(2) : 0),
+      conversions,
+      cpa: conversions ? +(spend / conversions).toFixed(2) : 0,
+      currency,
+    };
+  }).sort((a, b) => b.spend - a.spend).slice(0, 50);
+
+  return {
+    account,
+    totals: {
+      spend: tSpend, impressions: tImpr, reach: Number(tr.reach ?? 0), clicks: tClicks,
+      conversions: sumConversions(tr.actions),
+      ctr: tImpr ? +(tClicks / tImpr * 100).toFixed(2) : 0,
+      cpc: tClicks ? +(tSpend / tClicks).toFixed(2) : 0,
+      currency, count: ads.length,
+    },
+    series,
+    ads,
+  };
+}
 
 export interface MetaPost {
   id: string;

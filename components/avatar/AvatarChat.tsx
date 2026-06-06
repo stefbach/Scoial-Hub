@@ -113,6 +113,7 @@ export function AvatarChat({ companyId }: { companyId: string }) {
   const [use3D, setUse3D] = useState(true);
   const [failed3D, setFailed3D] = useState(false);
   const [err3D, setErr3D] = useState<string | null>(null);
+  const [loading3D, setLoading3D] = useState(true);
   const [model3DUrl, setModel3DUrl] = useState(DEFAULT_MODEL); // avatar 3D par défaut
   const [creatorOpen, setCreatorOpen] = useState(false);
   const [urlDraft, setUrlDraft] = useState("");
@@ -129,7 +130,7 @@ export function AvatarChat({ companyId }: { companyId: string }) {
   useEffect(() => {
     try {
       const saved = localStorage.getItem("avatar3dUrl");
-      if (saved) setModel3DUrl(saved);
+      if (saved && /^https?:\/\/.+\.glb/i.test(saved)) setModel3DUrl(saved);
     } catch { /* noop */ }
   }, []);
 
@@ -139,6 +140,7 @@ export function AvatarChat({ companyId }: { companyId: string }) {
     setModel3DUrl(url);
     setFailed3D(false);
     setErr3D(null);
+    setLoading3D(true);
     setCreatorOpen(false);
     try { localStorage.setItem("avatar3dUrl", url); } catch { /* noop */ }
   }, []);
@@ -147,6 +149,10 @@ export function AvatarChat({ companyId }: { companyId: string }) {
     mouthRef.current = v;
     setMouth(v);
   }, []);
+
+  // Callbacks STABLES pour Avatar3D (sinon le rendu 3D se relance en boucle).
+  const handle3DReady = useCallback(() => setLoading3D(false), []);
+  const handle3DError = useCallback((m: string) => { setFailed3D(true); setErr3D(m); setLoading3D(false); }, []);
 
   // Clignement périodique.
   useEffect(() => {
@@ -321,9 +327,20 @@ export function AvatarChat({ companyId }: { companyId: string }) {
       <div className="flex flex-col items-center gap-3">
         <div className="relative aspect-[11/12] w-full max-w-xs overflow-hidden rounded-2xl bg-gradient-to-b from-indigo-50 to-violet-100 shadow-sm ring-1 ring-hair">
           {use3D && model3DUrl && !failed3D ? (
-            <Avatar3D modelUrl={model3DUrl} mouthRef={mouthRef} onError={(m) => { setFailed3D(true); setErr3D(m); }} />
+            <Avatar3D modelUrl={model3DUrl} mouthRef={mouthRef} onReady={handle3DReady} onError={handle3DError} />
           ) : (
             <AvatarFace face={face} mouth={mouth} blink={blink} />
+          )}
+          {use3D && model3DUrl && !failed3D && loading3D && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/10 text-2xs text-ink">
+              <span className="h-6 w-6 animate-spin rounded-full border-2 border-primary-400 border-t-transparent" />
+              {t("Chargement de l'avatar 3D…", "Loading 3D avatar…")}
+            </div>
+          )}
+          {use3D && failed3D && err3D && (
+            <div className="absolute inset-x-0 top-0 bg-danger-600/90 px-2 py-1 text-center text-[10px] text-white">
+              3D: {err3D}
+            </div>
           )}
           {use3D && (!model3DUrl || failed3D) && (
             <button

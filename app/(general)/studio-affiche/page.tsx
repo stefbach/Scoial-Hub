@@ -160,12 +160,23 @@ export default function StudioAffichePage() {
     if (!ctx) return;
 
     // Fond
-    ctx.fillStyle = "#f3f4f6";
-    ctx.fillRect(0, 0, W, H);
-    if (bgImg) drawCover(ctx, bgImg, W, H);
-    else {
-      ctx.fillStyle = company.accent ?? "#5b2d8e";
+    if (bgImg) {
+      drawCover(ctx, bgImg, W, H);
+    } else {
+      // État vide = page neutre (PAS un aplat de couleur) + invite, pour qu'on
+      // voie tout de suite une « page blanche » prête à composer.
+      const g = ctx.createLinearGradient(0, 0, 0, H);
+      g.addColorStop(0, "#ffffff");
+      g.addColorStop(1, "#eef2f7");
+      ctx.fillStyle = g;
       ctx.fillRect(0, 0, W, H);
+      if (!headline && !subtitle) {
+        ctx.fillStyle = "#94a3b8";
+        ctx.textAlign = "center";
+        ctx.font = `500 ${Math.round(W * 0.028)}px Manrope, system-ui, sans-serif`;
+        ctx.fillText(t("Générez un fond (IA) ou importez une image", "Generate a background (AI) or upload an image"), W / 2, H / 2);
+        ctx.textAlign = "left";
+      }
     }
 
     // Voile pour lisibilité du texte

@@ -12,6 +12,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useT } from "@/lib/i18n";
 import { Avatar3D } from "./Avatar3D";
+import { RpmCreator } from "./RpmCreator";
 
 interface Msg { role: "user" | "assistant"; content: string }
 type Face = "idle" | "thinking" | "speaking";
@@ -24,10 +25,11 @@ const VOICE_LANGS = [
   { label: "Italiano", code: "it-IT" },
 ];
 
-// Avatar 3D Ready Player Me par défaut (modifiable). Les morphs ARKit/Visemes
-// sont demandés pour permettre le lip-sync et le clignement.
-const DEFAULT_RPM =
-  "https://models.readyplayer.me/64bfa15f0e72c63d7c3934a6.glb?morphTargets=ARKit,Oculus%20Visemes&textureSizeLimit=1024";
+/** Ajoute les morphs ARKit/Visemes (lip-sync + clignement) à une URL RPM .glb. */
+function withMorphs(url: string): string {
+  if (url.includes("morphTargets")) return url;
+  return `${url}${url.includes("?") ? "&" : "?"}morphTargets=ARKit,Oculus%20Visemes`;
+}
 
 /* ── Avatar SVG animé ──────────────────────────────────────────────────────── */
 function AvatarFace({ face, mouth, blink }: { face: Face; mouth: number; blink: boolean }) {
@@ -95,8 +97,8 @@ export function AvatarChat({ companyId }: { companyId: string }) {
   const [note, setNote] = useState<string | null>(null);
   const [use3D, setUse3D] = useState(true);
   const [failed3D, setFailed3D] = useState(false);
-  const [model3DUrl, setModel3DUrl] = useState(DEFAULT_RPM);
-  const [urlDraft, setUrlDraft] = useState("");
+  const [model3DUrl, setModel3DUrl] = useState(""); // vide tant qu'aucun avatar choisi
+  const [creatorOpen, setCreatorOpen] = useState(false);
 
   const mouthTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const mouthRef = useRef(0); // 0..1 partagé avec l'avatar 3D
@@ -110,8 +112,17 @@ export function AvatarChat({ companyId }: { companyId: string }) {
   useEffect(() => {
     try {
       const saved = localStorage.getItem("avatar3dUrl");
-      if (saved) { setModel3DUrl(saved); setUrlDraft(saved); }
+      if (saved) setModel3DUrl(saved);
     } catch { /* noop */ }
+  }, []);
+
+  // Applique un avatar Ready Player Me exporté.
+  const applyAvatar = useCallback((glbUrl: string) => {
+    const url = withMorphs(glbUrl);
+    setModel3DUrl(url);
+    setFailed3D(false);
+    setCreatorOpen(false);
+    try { localStorage.setItem("avatar3dUrl", url); } catch { /* noop */ }
   }, []);
 
   const applyMouth = useCallback((v: number) => {
@@ -290,11 +301,22 @@ export function AvatarChat({ companyId }: { companyId: string }) {
     <div className="grid gap-4 lg:grid-cols-[320px,1fr]">
       {/* Avatar */}
       <div className="flex flex-col items-center gap-3">
-        <div className="aspect-[11/12] w-full max-w-xs overflow-hidden rounded-2xl bg-gradient-to-b from-indigo-50 to-violet-100 shadow-sm ring-1 ring-hair">
-          {use3D && !failed3D ? (
+        <div className="relative aspect-[11/12] w-full max-w-xs overflow-hidden rounded-2xl bg-gradient-to-b from-indigo-50 to-violet-100 shadow-sm ring-1 ring-hair">
+          {use3D && model3DUrl && !failed3D ? (
             <Avatar3D modelUrl={model3DUrl} mouthRef={mouthRef} onError={() => setFailed3D(true)} />
           ) : (
             <AvatarFace face={face} mouth={mouth} blink={blink} />
+          )}
+          {use3D && (!model3DUrl || failed3D) && (
+            <button
+              type="button"
+              onClick={() => setCreatorOpen(true)}
+              className="absolute inset-x-3 bottom-3 rounded-lg bg-primary-600 px-3 py-2 text-2xs font-semibold text-white shadow hover:bg-primary-700"
+            >
+              {failed3D
+                ? t("Avatar 3D indisponible — créer le mien", "3D avatar unavailable — create mine")
+                : t("🧑‍🎨 Créer mon avatar 3D réaliste", "🧑‍🎨 Create my realistic 3D avatar")}
+            </button>
           )}
         </div>
 
@@ -321,41 +343,14 @@ export function AvatarChat({ companyId }: { companyId: string }) {
           {use3D && failed3D && " · " + t("3D indisponible (avatar 2D)", "3D unavailable (2D avatar)")}
         </p>
 
-        {use3D && (
-          <div className="w-full max-w-xs space-y-1">
-            <input
-              value={urlDraft}
-              onChange={(e) => setUrlDraft(e.target.value)}
-              placeholder={t("URL d'avatar Ready Player Me (.glb)…", "Ready Player Me avatar URL (.glb)…")}
-              className="input w-full text-2xs"
-            />
-            <div className="flex gap-1">
-              <button
-                type="button"
-                onClick={() => {
-                  const u = urlDraft.trim();
-                  if (!u) return;
-                  const withMorphs = u.includes("morphTargets") ? u : `${u}${u.includes("?") ? "&" : "?"}morphTargets=ARKit,Oculus%20Visemes`;
-                  setModel3DUrl(withMorphs); setFailed3D(false);
-                  try { localStorage.setItem("avatar3dUrl", withMorphs); } catch { /* noop */ }
-                }}
-                className="btn-secondary flex-1 text-2xs px-2 py-1"
-              >
-                {t("Appliquer l'avatar", "Apply avatar")}
-              </button>
-              <a href="https://readyplayer.me/avatar" target="_blank" rel="noopener noreferrer" className="btn-secondary text-2xs px-2 py-1">
-                {t("Créer", "Create")}
-              </a>
-            </div>
-            <p className="text-[10px] leading-snug text-muted">
-              {t(
-                "Créez un avatar réaliste sur readyplayer.me, copiez l'URL .glb et collez-la ici.",
-                "Create a realistic avatar on readyplayer.me, copy the .glb URL and paste it here.",
-              )}
-            </p>
-          </div>
+        {use3D && model3DUrl && !failed3D && (
+          <button type="button" onClick={() => setCreatorOpen(true)} className="btn-secondary text-2xs px-2 py-1">
+            {t("🧑‍🎨 Changer d'avatar", "🧑‍🎨 Change avatar")}
+          </button>
         )}
       </div>
+
+      {creatorOpen && <RpmCreator onExported={applyAvatar} onClose={() => setCreatorOpen(false)} />}
 
       {/* Conversation */}
       <div className="flex h-[60vh] flex-col rounded-2xl border border-hair bg-card">

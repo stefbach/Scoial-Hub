@@ -25,9 +25,13 @@ const VOICE_LANGS = [
   { label: "Italiano", code: "it-IT" },
 ];
 
-// Avatar 3D par défaut (URL publique fiable) — prouve que la 3D fonctionne ;
-// remplaçable par votre propre avatar Ready Player Me.
-const DEFAULT_MODEL = "https://readyplayerme.github.io/visage/male.glb";
+// Avatars 3D par défaut (CDN Ready Player Me). On essaie dans l'ordre ; si l'un
+// échoue (404), on bascule sur le suivant. Remplaçable par votre propre avatar.
+const DEFAULT_MODELS = [
+  "https://models.readyplayer.me/65893b0514f9f5f28e61d783.glb?morphTargets=ARKit,Oculus%20Visemes",
+  "https://models.readyplayer.me/62ea7bc28a6d28ec134bbcce.glb?morphTargets=ARKit,Oculus%20Visemes",
+];
+const DEFAULT_MODEL = DEFAULT_MODELS[0];
 
 /** Ajoute les morphs ARKit/Visemes (lip-sync + clignement) à une URL RPM .glb. */
 function withMorphs(url: string): string {
@@ -152,7 +156,20 @@ export function AvatarChat({ companyId }: { companyId: string }) {
 
   // Callbacks STABLES pour Avatar3D (sinon le rendu 3D se relance en boucle).
   const handle3DReady = useCallback(() => setLoading3D(false), []);
-  const handle3DError = useCallback((m: string) => { setFailed3D(true); setErr3D(m); setLoading3D(false); }, []);
+  const handle3DError = useCallback((m: string) => {
+    // Si un avatar par défaut échoue, on tente le suivant avant d'abandonner.
+    setModel3DUrl((cur) => {
+      const idx = DEFAULT_MODELS.indexOf(cur);
+      if (idx >= 0 && idx < DEFAULT_MODELS.length - 1) {
+        setLoading3D(true);
+        return DEFAULT_MODELS[idx + 1];
+      }
+      setFailed3D(true);
+      setErr3D(m);
+      setLoading3D(false);
+      return cur;
+    });
+  }, []);
 
   // Clignement périodique.
   useEffect(() => {

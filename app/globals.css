@@ -553,3 +553,8 @@
           .mc-mesh,.mc-layer-dash,.mc-layer-phone,.mc-orbit,.mc-core span,.mc-marquee-track,.dash3d-chart span{animation:none!important;}
         }
       
+
+/* Photo "humains connectés" optionnelle (recouvre le réseau SVG si présente) */
+.mc-human-viz{position:relative;}
+.mc-human-photo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:18px;
+  box-shadow:0 30px 70px -28px rgba(124,58,237,.55);}

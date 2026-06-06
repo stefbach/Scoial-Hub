@@ -255,7 +255,12 @@ export default function Home() {
             </p>
             <Link href="/pilotage" className="mc-btn mc-btn-glow mc-btn-lg">{t("Voir le pilotage", "See the command center")}</Link>
           </div>
-          <div className="mc-human-viz reveal"><HumanNetwork /></div>
+          <div className="mc-human-viz reveal">
+            <HumanNetwork />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/hero/network.jpg" alt="" className="mc-human-photo"
+              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
+          </div>
         </div>
       </section>
 

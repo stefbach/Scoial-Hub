@@ -231,6 +231,10 @@ export async function generateImage(
 /**
  * Génère des images avec un modèle Replicate arbitraire (catalogue) et un input
  * déjà construit pour son schéma. Parallélise si plusieurs images sont demandées.
+ *
+ * Robustesse : on utilise allSettled — si UNE prédiction échoue (sécurité,
+ * rate-limit, transitoire), on garde quand même les images réussies. On ne lève
+ * que si AUCUNE image n'a été produite (en remontant la vraie erreur Replicate).
  */
 export async function generateImageModel(
   modelId: string,
@@ -250,8 +254,24 @@ export async function generateImageModel(
       ? [raw]
       : [];
   };
-  const batches = await Promise.all(Array.from({ length: numOutputs }, runOne));
-  return { images: batches.flat().map((url) => ({ url })), model: modelId };
+  const settled = await Promise.allSettled(
+    Array.from({ length: numOutputs }, runOne)
+  );
+
+  const urls: string[] = [];
+  let lastError: unknown;
+  for (const s of settled) {
+    if (s.status === "fulfilled") urls.push(...s.value);
+    else lastError = s.reason;
+  }
+
+  if (urls.length === 0) {
+    throw lastError instanceof Error
+      ? lastError
+      : new Error("Replicate — aucune image générée.");
+  }
+
+  return { images: urls.map((url) => ({ url })), model: modelId };
 }
 
 // --------------- API publique — Vidéos ---------------

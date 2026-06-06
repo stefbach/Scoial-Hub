@@ -57,13 +57,13 @@ export const IMAGE_MODELS: GenModel[] = [
     id: "black-forest-labs/flux-1.1-pro",
     label: "Flux 1.1 Pro",
     note: "Photoréaliste, polyvalent",
-    buildInput: (p, o) => ({ prompt: p, aspect_ratio: imgRatio(o.aspect), output_format: "webp", output_quality: 80, safety_tolerance: 2 }),
+    buildInput: (p, o) => ({ prompt: p, aspect_ratio: imgRatio(o.aspect), output_format: "webp", output_quality: 90, safety_tolerance: 5 }),
   },
   {
     id: "black-forest-labs/flux-1.1-pro-ultra",
     label: "Flux 1.1 Pro Ultra",
     note: "Ultra-net (jusqu'à 4 MP)",
-    buildInput: (p, o) => ({ prompt: p, aspect_ratio: imgRatio(o.aspect), output_format: "webp", safety_tolerance: 2 }),
+    buildInput: (p, o) => ({ prompt: p, aspect_ratio: imgRatio(o.aspect), output_format: "webp", safety_tolerance: 5 }),
   },
   {
     id: "black-forest-labs/flux-schnell",

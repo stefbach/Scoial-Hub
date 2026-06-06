@@ -107,7 +107,7 @@ export default function ArticleLinkedInPage() {
   }
 
   async function genVisual(idx: number, vp: string) {
-    setImgLoading(idx);
+    setImgLoading(idx); setAiNote(null);
     try {
       const r = await fetch("/api/ai/generate-image", {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -116,7 +116,11 @@ export default function ArticleLinkedInPage() {
       const d = await r.json();
       if (!r.ok) { setAiNote(d.error || t("Échec de génération d'image.", "Image generation failed.")); return; }
       const urls = extractImageUrls(d);
-      if (urls.length > 0) { setImages((prev) => ({ ...prev, [idx]: urls })); return; }
+      if (urls.length > 0) {
+        setImages((prev) => ({ ...prev, [idx]: urls }));
+        if (d.fallbackUsed) setAiNote(t(`Image générée via un modèle de repli (${d.fallbackUsed}).`, `Image generated with a fallback model (${d.fallbackUsed}).`));
+        return;
+      }
       if (d.simulated) setAiNote(t("Génération d'images non configurée (REPLICATE_API_TOKEN).", "Image generation not configured (REPLICATE_API_TOKEN)."));
       else setAiNote(t("Aucune image renvoyée par le modèle. Réessayez.", "No image returned by the model. Try again."));
     } catch (e) {

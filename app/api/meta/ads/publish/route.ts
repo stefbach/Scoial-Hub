@@ -13,11 +13,16 @@ import { requireCompanyAccess } from "@/lib/auth/guard";
 export async function POST(req: NextRequest): Promise<NextResponse> {
   try {
     const body = (await req.json()) as Partial<PublishAdInput>;
-    if (!body.companyId || !body.imageUrl || !body.link || !body.primaryText || !body.name) {
+    // En mode formulaire de prospects, le lien peut être l'URL de confidentialité.
+    const effectiveLink = body.link || body.leadForm?.privacyUrl;
+    if (!body.companyId || !body.imageUrl || !effectiveLink || !body.primaryText || !body.name) {
       return NextResponse.json(
-        { error: "Champs requis : companyId, name, imageUrl, link, primaryText." },
+        { error: "Champs requis : companyId, name, imageUrl, primaryText, et un lien (ou l'URL de confidentialité en mode formulaire)." },
         { status: 400 }
       );
+    }
+    if (body.leadForm && !body.leadForm.privacyUrl?.trim()) {
+      return NextResponse.json({ error: "Le formulaire de prospects exige une URL de politique de confidentialité." }, { status: 400 });
     }
 
     const guard = await requireCompanyAccess(body.companyId);
@@ -34,8 +39,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       imageUrl: body.imageUrl,
       primaryText: body.primaryText,
       headline: body.headline,
-      link: body.link,
+      link: effectiveLink,
       cta: body.cta,
+      leadForm: body.leadForm,
     });
     return NextResponse.json({ ok: true, ...result });
   } catch (err) {

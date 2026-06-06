@@ -53,10 +53,24 @@ function mapObjective(o: string): { objective: string; optimization: string; cta
   return { objective: "OUTCOME_TRAFFIC", optimization: "LINK_CLICKS", cta: "LEARN_MORE" };
 }
 
+/** Champs proposés dans un formulaire de prospects (Instant Form). */
+export type LeadFieldType = "FULL_NAME" | "EMAIL" | "PHONE" | "CITY" | "JOB_TITLE";
+
+export interface LeadFormSpec {
+  formName: string;
+  privacyUrl: string;            // URL de politique de confidentialité (obligatoire Meta)
+  privacyLinkText?: string;
+  intro?: string;                // titre d'accroche du formulaire
+  fields: LeadFieldType[];       // questions (au moins EMAIL recommandé)
+  thankYouTitle?: string;
+  thankYouBody?: string;
+  locale?: string;               // ex "fr_FR"
+}
+
 export interface PublishAdInput {
   companyId: string;
   name: string;
-  objective: string;          // notoriété | trafic | leads | ventes | engagement
+  objective: string;          // notoriété | trafic | engagement | leads/prospects | ventes
   dailyBudgetCents: number;    // budget quotidien en centimes
   countries: string[];         // ex ["FR","MU"]
   ageMin?: number;
@@ -66,6 +80,8 @@ export interface PublishAdInput {
   headline?: string;
   link: string;                // URL de destination
   cta?: string;                // type CTA Meta (LEARN_MORE, SHOP_NOW, SIGN_UP, CONTACT_US…)
+  /** Si fourni (objectif Prospects) : crée un formulaire instantané et une pub lead. */
+  leadForm?: LeadFormSpec;
 }
 
 export interface PublishAdResult {
@@ -73,7 +89,34 @@ export interface PublishAdResult {
   adSetId: string;
   creativeId: string;
   adId: string;
+  leadFormId?: string;
   status: "PAUSED";
+}
+
+/** Crée un formulaire de prospects (Instant Form) sur la Page et renvoie son id. */
+async function createLeadForm(pageId: string, pageToken: string, spec: LeadFormSpec): Promise<string> {
+  const fields = (spec.fields?.length ? spec.fields : ["FULL_NAME", "EMAIL", "PHONE"]) as LeadFieldType[];
+  const questions = fields.map((t) => ({ type: t }));
+  const params: Params = {
+    name: spec.formName || "Formulaire de prospects",
+    locale: spec.locale || "fr_FR",
+    questions,
+    privacy_policy: { url: spec.privacyUrl, link_text: spec.privacyLinkText || "Politique de confidentialité" },
+    follow_up_action_text: "Merci !",
+  };
+  if (spec.intro) {
+    params.context_card = { title: spec.intro, style: "PARAGRAPH_STYLE" };
+  }
+  if (spec.thankYouTitle || spec.thankYouBody) {
+    params.thank_you_page = {
+      title: spec.thankYouTitle || "Merci !",
+      body: spec.thankYouBody || "Nous vous recontactons rapidement.",
+      button_type: "VIEW_WEBSITE",
+    };
+  }
+  const res = await graphPost(`${pageId}/leadgen_forms`, params, pageToken);
+  if (!res.id) throw new Error("Échec de création du formulaire de prospects.");
+  return String(res.id);
 }
 
 /** Crée la pub complète EN PAUSE (aucune diffusion tant que non activée). */
@@ -92,10 +135,18 @@ export async function publishAd(input: PublishAdInput): Promise<PublishAdResult>
 
   const { objective, optimization, cta } = mapObjective(input.objective);
 
+  // Mode « formulaire de prospects » (Lead Ads / Instant Form) si demandé.
+  const isLead = Boolean(input.leadForm) && input.leadForm!.privacyUrl?.trim();
+  let leadFormId: string | undefined;
+  if (isLead) {
+    if (!ctx.pageToken) throw new Error("Token de Page requis pour créer un formulaire de prospects.");
+    leadFormId = await createLeadForm(ctx.pageId, ctx.pageToken, input.leadForm!);
+  }
+
   // 1) Campagne (PAUSE)
   const campaign = await graphPost(`${act}/campaigns`, {
     name: `${input.name} — Campagne`,
-    objective,
+    objective: isLead ? "OUTCOME_LEADS" : objective,
     status: "PAUSED",
     special_ad_categories: [],
   }, token);
@@ -112,15 +163,21 @@ export async function publishAd(input: PublishAdInput): Promise<PublishAdResult>
     campaign_id: campaignId,
     daily_budget: budget,
     billing_event: "IMPRESSIONS",
-    optimization_goal: optimization,
+    optimization_goal: isLead ? "LEAD_GENERATION" : optimization,
     bid_strategy: "LOWEST_COST_WITHOUT_CAP",
     targeting,
     status: "PAUSED",
     start_time: new Date(Date.now() + 3600_000).toISOString(),
+    // Les Lead Ads exigent un promoted_object pointant la Page.
+    ...(isLead ? { promoted_object: { page_id: ctx.pageId } } : {}),
   }, token);
   const adSetId = String(adset.id);
 
-  // 3) Créative (image + texte + lien + CTA) liée à la Page
+  // 3) Créative (image + texte + lien + CTA) liée à la Page.
+  //    En mode lead : le CTA ouvre le formulaire instantané (lead_gen_form_id).
+  const callToAction = isLead
+    ? { type: "SIGN_UP", value: { lead_gen_form_id: leadFormId } }
+    : { type: input.cta || cta, value: { link: input.link } };
   const creative = await graphPost(`${act}/adcreatives`, {
     name: `${input.name} — Créative`,
     object_story_spec: {
@@ -130,7 +187,7 @@ export async function publishAd(input: PublishAdInput): Promise<PublishAdResult>
         link: input.link,
         name: input.headline || input.name,
         picture: input.imageUrl,
-        call_to_action: { type: input.cta || cta, value: { link: input.link } },
+        call_to_action: callToAction,
       },
     },
   }, token);
@@ -145,7 +202,7 @@ export async function publishAd(input: PublishAdInput): Promise<PublishAdResult>
   }, token);
   const adId = String(ad.id);
 
-  return { campaignId, adSetId, creativeId, adId, status: "PAUSED" };
+  return { campaignId, adSetId, creativeId, adId, leadFormId, status: "PAUSED" };
 }
 
 /** Active (diffuse) ou met en pause une pub déjà créée. */

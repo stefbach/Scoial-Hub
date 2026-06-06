@@ -24,6 +24,7 @@ interface PublishResult {
   adSetId: string;
   creativeId: string;
   adId: string;
+  leadFormId?: string;
   status: string;
 }
 
@@ -47,9 +48,22 @@ export default function NewMetaAdPage() {
   const [conn, setConn] = useState<Conn | null>(null);
   const [loadingConn, setLoadingConn] = useState(true);
 
+  // Type de publicité : trafic vers le site OU formulaire de prospects (Lead Ad)
+  const [adType, setAdType] = useState<"traffic" | "lead">("traffic");
+
   // Champs
   const [name, setName] = useState("");
   const [objective, setObjective] = useState("trafic");
+
+  // Formulaire de prospects (Instant Form)
+  const [formName, setFormName] = useState("");
+  const [privacyUrl, setPrivacyUrl] = useState("");
+  const [formIntro, setFormIntro] = useState("");
+  const [fldFullName, setFldFullName] = useState(true);
+  const [fldEmail, setFldEmail] = useState(true);
+  const [fldPhone, setFldPhone] = useState(true);
+  const [thankYouTitle, setThankYouTitle] = useState("");
+  const [thankYouBody, setThankYouBody] = useState("");
   const [budget, setBudget] = useState(20); // EUR / jour
   const [countriesStr, setCountriesStr] = useState("FR");
   const [ageMin, setAgeMin] = useState(18);
@@ -116,10 +130,23 @@ export default function NewMetaAdPage() {
   function validate(): string | null {
     if (!name.trim()) return t("Donnez un nom à la campagne.", "Name the campaign.");
     if (!primaryText.trim()) return t("Écrivez le texte principal.", "Write the primary text.");
-    if (!link.trim() || !/^https?:\/\//i.test(link)) return t("Indiquez une URL de destination valide (https://…).", "Enter a valid destination URL (https://…).");
     if (!imageUrl.trim()) return t("Ajoutez un visuel (URL ou génération IA).", "Add a visual (URL or AI generation).");
     if (!budget || budget < 1) return t("Indiquez un budget quotidien.", "Enter a daily budget.");
+    if (adType === "lead") {
+      if (!privacyUrl.trim() || !/^https?:\/\//i.test(privacyUrl)) return t("Le formulaire exige une URL de politique de confidentialité valide.", "The form requires a valid privacy policy URL.");
+      if (!fldFullName && !fldEmail && !fldPhone) return t("Sélectionnez au moins un champ du formulaire.", "Select at least one form field.");
+    } else if (!link.trim() || !/^https?:\/\//i.test(link)) {
+      return t("Indiquez une URL de destination valide (https://…).", "Enter a valid destination URL (https://…).");
+    }
     return null;
+  }
+
+  function leadFieldsArr(): string[] {
+    const f: string[] = [];
+    if (fldFullName) f.push("FULL_NAME");
+    if (fldEmail) f.push("EMAIL");
+    if (fldPhone) f.push("PHONE");
+    return f;
   }
 
   async function publish() {
@@ -128,13 +155,26 @@ export default function NewMetaAdPage() {
     setError(null); setPublishing(true); setResult(null); setLiveMsg(null); setIsLive(false);
     try {
       const countries = countriesStr.split(/[,\s]+/).map((s) => s.trim().toUpperCase()).filter(Boolean);
+      const leadForm = adType === "lead" ? {
+        formName: formName.trim() || `${name} — Formulaire`,
+        privacyUrl: privacyUrl.trim(),
+        intro: formIntro.trim() || undefined,
+        fields: leadFieldsArr(),
+        thankYouTitle: thankYouTitle.trim() || undefined,
+        thankYouBody: thankYouBody.trim() || undefined,
+        locale: "fr_FR",
+      } : undefined;
       const r = await fetch("/api/meta/ads/publish", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          companyId, name, objective,
+          companyId, name,
+          objective: adType === "lead" ? "leads" : objective,
           dailyBudgetCents: Math.round(budget * 100),
           countries: countries.length ? countries : ["FR"],
-          ageMin, ageMax, imageUrl, primaryText, headline, link, cta,
+          ageMin, ageMax, imageUrl, primaryText, headline,
+          link: link || (adType === "lead" ? privacyUrl : ""),
+          cta: adType === "lead" ? "SIGN_UP" : cta,
+          leadForm,
         }),
       });
       const raw = await r.text();
@@ -144,7 +184,7 @@ export default function NewMetaAdPage() {
         return;
       }
       if (!r.ok) { setError(d.error || t("Échec de la création.", "Creation failed.")); return; }
-      setResult({ campaignId: d.campaignId, adSetId: d.adSetId, creativeId: d.creativeId, adId: d.adId, status: d.status });
+      setResult({ campaignId: d.campaignId, adSetId: d.adSetId, creativeId: d.creativeId, adId: d.adId, leadFormId: d.leadFormId, status: d.status });
     } catch (e) {
       setError(e instanceof Error ? e.message : t("Échec de la création.", "Creation failed."));
     } finally { setPublishing(false); }
@@ -212,6 +252,23 @@ export default function NewMetaAdPage() {
       )}
 
       <fieldset disabled={!conn?.connected || publishing} className="space-y-5 disabled:opacity-60">
+        {/* Type de publicité */}
+        <section className="card p-5 space-y-3">
+          <span className="section-label">{t("Type de publicité", "Ad type")}</span>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {([
+              { id: "traffic", fr: "Trafic vers le site", en: "Website traffic", desc: t("Envoie vers une page (site, prise de RDV…).", "Sends to a page (site, booking…).") },
+              { id: "lead", fr: "Formulaire de prospects", en: "Lead form", desc: t("Formulaire instantané rempli dans Facebook/Instagram.", "Instant form filled inside Facebook/Instagram.") },
+            ] as const).map((o) => (
+              <button key={o.id} type="button" onClick={() => setAdType(o.id)}
+                className={`rounded-xl border p-3 text-left transition-all ${adType === o.id ? "border-primary-400 bg-primary-50 ring-2 ring-primary-200" : "border-hair hover:border-primary-200"}`}>
+                <span className="block text-sm font-semibold text-ink">{t(o.fr, o.en)}</span>
+                <span className="mt-0.5 block text-2xs text-muted">{o.desc}</span>
+              </button>
+            ))}
+          </div>
+        </section>
+
         {/* Réglages campagne */}
         <section className="card p-5 space-y-4">
           <span className="section-label">{t("Campagne", "Campaign")}</span>
@@ -219,18 +276,20 @@ export default function NewMetaAdPage() {
             <label className="mb-1 block text-xs font-medium text-muted">{t("Nom de la campagne", "Campaign name")}</label>
             <input value={name} onChange={(e) => setName(e.target.value)} placeholder={t("ex. Programme Détox — Prospects", "e.g. Detox Program — Leads")} className={inputCls} />
           </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted">{t("Objectif", "Objective")}</label>
-            <div className="flex flex-wrap gap-1.5">
-              {OBJECTIVES.map((o) => (
-                <button key={o.id} type="button" onClick={() => setObjective(o.id)}
-                  className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${objective === o.id ? "bg-primary-600 text-white" : "bg-canvas text-muted ring-1 ring-hair hover:text-ink"}`}>
-                  {t(o.fr, o.en)}
-                </button>
-              ))}
+          {adType === "traffic" && (
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted">{t("Objectif", "Objective")}</label>
+              <div className="flex flex-wrap gap-1.5">
+                {OBJECTIVES.filter((o) => o.id !== "leads").map((o) => (
+                  <button key={o.id} type="button" onClick={() => setObjective(o.id)}
+                    className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${objective === o.id ? "bg-primary-600 text-white" : "bg-canvas text-muted ring-1 ring-hair hover:text-ink"}`}>
+                    {t(o.fr, o.en)}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-1 text-2xs text-muted">{t("Notoriété → portée ; Engagement → interactions ; les autres → trafic vers le site.", "Awareness → reach; Engagement → interactions; others → website traffic.")}</p>
             </div>
-            <p className="mt-1 text-2xs text-muted">{t("Notoriété → portée ; Engagement → interactions ; les autres → trafic vers le site.", "Awareness → reach; Engagement → interactions; others → website traffic.")}</p>
-          </div>
+          )}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className="mb-1 block text-xs font-medium text-muted">{t("Budget / jour (EUR)", "Daily budget (EUR)")}</label>
@@ -263,15 +322,24 @@ export default function NewMetaAdPage() {
               <label className="mb-1 block text-xs font-medium text-muted">{t("Titre (accroche)", "Headline")}</label>
               <input value={headline} onChange={(e) => setHeadline(e.target.value)} className={inputCls} />
             </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-muted">{t("Bouton (CTA)", "Button (CTA)")}</label>
-              <select value={cta} onChange={(e) => setCta(e.target.value)} className={inputCls}>
-                {CTAS.map((c) => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
+            {adType === "traffic" ? (
+              <div>
+                <label className="mb-1 block text-xs font-medium text-muted">{t("Bouton (CTA)", "Button (CTA)")}</label>
+                <select value={cta} onChange={(e) => setCta(e.target.value)} className={inputCls}>
+                  {CTAS.map((c) => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+            ) : (
+              <div>
+                <label className="mb-1 block text-xs font-medium text-muted">{t("Bouton (CTA)", "Button (CTA)")}</label>
+                <input value="SIGN_UP" disabled className={`${inputCls} opacity-60`} />
+              </div>
+            )}
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-muted">{t("URL de destination", "Destination URL")}</label>
+            <label className="mb-1 block text-xs font-medium text-muted">
+              {adType === "lead" ? t("Lien (optionnel — sinon l'URL de confidentialité)", "Link (optional — falls back to privacy URL)") : t("URL de destination", "Destination URL")}
+            </label>
             <input value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://…" className={inputCls} />
           </div>
           <div>
@@ -290,6 +358,46 @@ export default function NewMetaAdPage() {
             )}
           </div>
         </section>
+
+        {/* Formulaire de prospects (Instant Form) */}
+        {adType === "lead" && (
+          <section className="card p-5 space-y-4">
+            <span className="section-label">{t("Formulaire de prospects", "Lead form")}</span>
+            <p className="text-2xs text-muted">{t("Le prospect remplit ces champs directement dans Facebook/Instagram, sans quitter l'app.", "The prospect fills these fields directly in Facebook/Instagram, without leaving the app.")}</p>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-muted">{t("Nom du formulaire", "Form name")}</label>
+                <input value={formName} onChange={(e) => setFormName(e.target.value)} placeholder={t("ex. Prospects — Consultation", "e.g. Leads — Consultation")} className={inputCls} />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-muted">{t("URL politique de confidentialité", "Privacy policy URL")}</label>
+                <input value={privacyUrl} onChange={(e) => setPrivacyUrl(e.target.value)} placeholder="https://…/confidentialite" className={inputCls} />
+              </div>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted">{t("Accroche du formulaire", "Form intro")}</label>
+              <input value={formIntro} onChange={(e) => setFormIntro(e.target.value)} placeholder={t("ex. Recevez votre bilan personnalisé", "e.g. Get your personalized assessment")} className={inputCls} />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted">{t("Champs demandés", "Requested fields")}</label>
+              <div className="flex flex-wrap gap-3">
+                <label className="inline-flex items-center gap-1.5 text-sm text-ink"><input type="checkbox" checked={fldFullName} onChange={(e) => setFldFullName(e.target.checked)} className="h-4 w-4 accent-primary-600" />{t("Nom complet", "Full name")}</label>
+                <label className="inline-flex items-center gap-1.5 text-sm text-ink"><input type="checkbox" checked={fldEmail} onChange={(e) => setFldEmail(e.target.checked)} className="h-4 w-4 accent-primary-600" />{t("E-mail", "Email")}</label>
+                <label className="inline-flex items-center gap-1.5 text-sm text-ink"><input type="checkbox" checked={fldPhone} onChange={(e) => setFldPhone(e.target.checked)} className="h-4 w-4 accent-primary-600" />{t("Téléphone", "Phone")}</label>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-muted">{t("Remerciement — titre", "Thank-you — title")}</label>
+                <input value={thankYouTitle} onChange={(e) => setThankYouTitle(e.target.value)} placeholder={t("Merci !", "Thank you!")} className={inputCls} />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-muted">{t("Remerciement — message", "Thank-you — message")}</label>
+                <input value={thankYouBody} onChange={(e) => setThankYouBody(e.target.value)} placeholder={t("Nous vous recontactons vite.", "We'll get back to you soon.")} className={inputCls} />
+              </div>
+            </div>
+          </section>
+        )}
 
         {error && <p className="rounded-lg bg-danger-50 px-3 py-2 text-sm text-danger-700">{error}</p>}
 
@@ -318,6 +426,7 @@ export default function NewMetaAdPage() {
             <span>Ad set: {result.adSetId}</span>
             <span>Creative: {result.creativeId}</span>
             <span>Ad: {result.adId}</span>
+            {result.leadFormId && <span>{t("Formulaire", "Form")}: {result.leadFormId}</span>}
           </div>
           <div className="mt-4 flex flex-wrap items-center gap-2">
             <button onClick={activate} disabled={activating || isLive} className="btn-primary inline-flex items-center gap-1.5 text-sm disabled:opacity-50">

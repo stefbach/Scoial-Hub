@@ -184,7 +184,7 @@ export function Hero3D() {
     const body = new THREE.Mesh(bodyGeo, bodyMat); phone.add(body);
     const scrTex = screenTexture();
     const scrMat = new THREE.MeshStandardMaterial({ map: scrTex, emissive: 0xffffff, emissiveMap: scrTex, emissiveIntensity: 0.55, roughness: 0.25, metalness: 0 });
-    const screen = new THREE.Mesh(new THREE.PlaneGeometry(1.34, 2.86), scrMat);
+    const screen: THREE.Mesh = new THREE.Mesh(new THREE.PlaneGeometry(1.34, 2.86), scrMat);
     screen.position.z = 0.116; phone.add(screen);
     phone.position.set(2.4, -0.2, 0.6); phone.rotation.set(0.12, -0.5, 0.04);
     deck.add(phone);
@@ -201,7 +201,7 @@ export function Hero3D() {
     const dashMat = new THREE.MeshPhysicalMaterial({ color: 0x140e22, metalness: 0.3, roughness: 0.12, transmission: 0.6, ior: 1.4, thickness: 0.6, clearcoat: 1, transparent: true });
     const dash = new THREE.Mesh(dashGeo, dashMat);
     const dashFaceMat = new THREE.MeshStandardMaterial({ map: dashTex, emissive: 0xffffff, emissiveMap: dashTex, emissiveIntensity: 0.55, roughness: 0.4 });
-    const dashFace = new THREE.Mesh(new THREE.PlaneGeometry(3.0, 1.86), dashFaceMat);
+    const dashFace: THREE.Mesh = new THREE.Mesh(new THREE.PlaneGeometry(3.0, 1.86), dashFaceMat);
     dashFace.position.z = 0.055; dash.add(dashFace);
     dash.position.set(-1.7, 0.7, -0.4); dash.rotation.set(0.1, 0.45, -0.04);
     deck.add(dash);

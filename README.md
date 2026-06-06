@@ -16,17 +16,33 @@
 | **Multi-sociétés** | `/comptes` | L'utilisateur crée lui-même N sociétés (marques), chacune avec son profil, ses connexions, ses campagnes. |
 | **Mes Pages Meta** | `/pages-meta` | Page FB/IG connectée : données réelles, posts, **publication organique** (FB/IG), **publication via Ads**, **analyse stratégique IA**. |
 | **Espace LinkedIn** | `/linkedin` | Compte connecté, **publier en tant que** profil **ou Page entreprise**, stratégie de contenu IA. |
-| **Studio Article LinkedIn** | `/article-linkedin` | Mots-clés/texte → **prompt personnalisé éditable** → article pro → **visuels HD** → publication. |
-| **Studio Créatif** | `/studio-video` | Visuels (Flux) et vidéos (Veo-3/MiniMax) générés aux bons formats. |
-| **Composer** | `/compose` | Composition multi-réseaux, programmation, IA texte + visuels. |
+| **Studio Article LinkedIn** | `/article-linkedin` | Mots-clés/texte → **prompt personnalisé éditable** → article pro → **visuels HD multi-formats** → **aperçu prêt à publier** → publication. RAG **opt-in** (écriture libre par défaut). |
+| **Studio Créatif** | `/studio-video` | Visuels (Flux) et vidéos (Veo-3/MiniMax) générés aux bons formats ; rendus **enregistrés en Médiathèque**. |
+| **Studio Affiches** | `/studio-affiche` | Affiches A4/A3 + visuels réseaux (fond IA ou image, texte, logo, charte) ; export PNG + **enregistrement en Médiathèque**. |
+| **Médiathèque** | `/media` | Galerie des **visuels & vidéos réels** de la marque (générés partout). Actions : **Créer une pub** (lien pré-rempli), **Décliner** (img2img Flux Kontext), ajout par URL. |
+| **Modèles de posts** | `/library` | Bibliothèque de **modèles de contenu (texte)** + génération en masse (distincte de la Médiathèque). |
+| **Composer** | `/compose` | Composition multi-réseaux, programmation, IA texte + visuels **multi-formats** (Meta/TikTok/LinkedIn), **lanceur d'agent**. |
 | **Messagerie & agents** | `/inbox` | Agents qui répondent aux **commentaires + DM** (FB/IG) dans la voix de marque, **escalade humaine** automatique. |
 | **Veille / Pubs concurrentes** | `/veille`, `/publicites` | Collecte + analyse des pubs/contenus concurrents → mémoire stratégique. |
-| **Publicité** | `/campaigns`, `/audiences`, `/ad-performance` | Accès aux **comptes pub Meta réels** + **Cerveau Pub** (analyse LLM de la performance + stratégie). |
-| **Agents IA** | `/agents` | 8 agents (orchestrateur, stratège, copywriter, créatif, media buyer, analyste, conformité, publisher). |
+| **Publicité Meta** | `/campaigns`, `/campaigns/new`, `/ad-performance` | **Création de vraie pub Meta** (assistant chat ou formulaire) : image / **carrousel** / **vidéo** / **formulaire de prospects**, ciblage (pays, âge, genre, **intérêts**, **audiences**, placements), **conversions (pixel)**, budget quotidien/à vie — créée **EN PAUSE**, **activation** explicite. Perfs **réelles** (KPI + graphe + tableau) + **Cerveau Pub** + **Pilote Pub** (optimisations applicables). |
+| **Centre de pilotage** | `/pilotage` | Poste de commande **données réelles** : perf pub Meta (30 j), abonnés/engagement/portée/vues organiques (FB/IG), veille, recommandations d'agents, liens vers tous les outils, **lanceur d'agent**. |
+| **Agents IA** | `/agents` | 8 agents (orchestrateur, stratège, copywriter, créatif, media buyer, analyste, conformité, publisher). Le **créatif génère un vrai visuel** (enregistré en Médiathèque), le **media buyer** fournit un lien prêt-à-créer la campagne. **Lançables depuis n'importe quelle page** (Campagnes, Compose, Performance, Pilotage). |
 | **Console admin** | `/admin` | Création des comptes utilisateurs (auth séparée par cookie signé). |
 
 ### Le « cerveau » (RAG + LLM)
 Une **mémoire stratégique persistante** (RAG-lite, `sh_strategy_memory` + `sh_strategy_brief`) accumule les insights de la veille, des pubs et des Pages. Elle est **réinjectée** dans la génération de contenu et le **Cerveau Pub** (`/api/meta/ads-strategy`), qui fusionne la performance réelle + la veille concurrents + le profil de marque pour produire des recommandations chiffrées — et **réécrit ses conclusions dans le RAG** (boucle d'apprentissage).
+
+### Création de pub assistée par IA (`/campaigns/new`)
+- **Assistant conversationnel** (`/api/meta/ads/assist`) : on décrit la campagne en langage naturel, l'IA pose une question si besoin puis **remplit tout le formulaire** (objectif, budget, calendrier, ciblage, intérêts résolus en ids Meta, texte, **visuel auto-généré multi-formats**, formulaire de prospects, événement de conversion) selon les **règles Meta**. Bouton « Créer directement (EN PAUSE) ».
+- **Sécurité monétaire** : tout est créé **EN PAUSE** (aucune dépense) ; l'**activation** est une action explicite avec re-vérification d'appartenance du compte et **plafond de budget** (`META_ADS_MAX_DAILY_CENTS`).
+
+### Pilote Pub (optimisation continue)
+`/api/meta/ads/pilot` lit la **performance réelle** et propose des **actions concrètes** (pause / ajustement de budget / activation) taguées « sûre » ou « dépense » ; `/api/meta/ads/apply` les **applique** avec garde-fous (pause/baisse = direct, activation/hausse = confirmation). UI : composant **Pilote Pub** sur `/ad-performance`.
+
+### Médiathèque & génération de visuels
+- Table `sh_media_assets` + `/api/media` : **toute génération** (page campagne, article LinkedIn, studios, agents — toute route passant un `companyId`) **enregistre l'asset** ; réutilisable partout.
+- `/api/ai/generate-image` : multi-modèles avec repli, **multi-formats** (1:1, 4:5, 9:16, 1.91:1), gestion du throttling Replicate (429), et **img2img** (paramètre `imageUrl` → Flux Kontext) pour **décliner** un visuel existant.
+- `/campaigns/new` accepte `?image=`/`?video=`/`?text=`/`?name=` → **créer une campagne depuis n'importe où** (studios, médiathèque).
 
 ---
 
@@ -52,7 +68,8 @@ auth.users (Supabase Auth)
 - **Dégradation gracieuse** : sans clé (Supabase/IA/Replicate…), la couche concernée retombe sur des données simulées au lieu de planter.
 
 ### Connecteurs
-- **Meta** (`lib/connectors/meta*.ts`) : Facebook Login for Business ; un OAuth connecte FB + IG + Meta Ads. Publication organique (`/api/meta/publish`), publicité (création en PAUSE → activation explicite, plafond budget), webhook temps réel (`/api/inbox/webhook`).
+- **Meta** (`lib/connectors/meta*.ts`) : Facebook Login for Business ; un OAuth connecte FB + IG + Meta Ads. Publication organique (`/api/meta/publish`), **création de pub complète** (`/api/meta/ads/publish` : campagne→ad set→créative→ad, image/carrousel/vidéo/lead form, conversions/pixel, audiences, placements, A/B — en PAUSE), **activation** (`/api/meta/ads/activate`), **pilote** (`/api/meta/ads/pilot` + `/apply`), lectures réelles (`/api/meta/ad-performance`, `/api/meta/pixels`, `/api/meta/audiences`, `/api/meta/ad-interests`, `/api/meta/leads`, `/api/meta/insights`), webhook temps réel (`/api/inbox/webhook`). Intégration **directe et multi-société** (scalable) — pas de dépendance à un MCP externe.
+- **LinkedIn** : publication organique texte **et image** (Images API, upload réel) via `/api/linkedin/publish`.
 - **LinkedIn** (`lib/connectors/linkedin.ts`) : OAuth ; scopes sans revue par défaut (`openid profile email w_member_social`), scopes organisation en option (`LINKEDIN_ORG_SCOPES=true`). Publication profil **ou** Page (`/api/linkedin/*`).
 - **TikTok / X** : présents dans le catalogue mais pas encore de connecteur OAuth complet.
 
@@ -90,7 +107,7 @@ npx next build       # build de production
 ```
 
 ### Base de données
-Les migrations sont dans `supabase/migrations/` (`0001_init`, `0002_seed`, `0003_inbox_agents`, `0005_tenant_isolation_identity`, …). Appliquez-les via le dashboard Supabase ou le MCP. Projet : `kgohjmivilsfoewrcovn`.
+Les migrations sont dans `supabase/migrations/` (`0001_init`, `0002_seed`, `0003_inbox_agents`, `0005_tenant_isolation_identity`, …) ; tables notables récentes : `sh_brand_kits` (logo/charte/palette), `sh_media_assets` (médiathèque). Appliquez-les via le dashboard Supabase ou le MCP. Projet : `kgohjmivilsfoewrcovn`.
 
 ### Déploiement (Vercel)
 Le projet `social-hub` se déploie automatiquement sur push de `main` (domaine `scoial-hub.vercel.app`). Workflow de dev : brancher → développer → fast-forward `main`.
@@ -109,13 +126,13 @@ Le projet `social-hub` se déploie automatiquement sur push de `main` (domaine `
 
 ```
 app/
-  (general)/   pages-meta, linkedin, article-linkedin, inbox, veille, agents, demarrage, …
-  (organic)/   compose, history, …
-  (paid)/      campaigns, audiences, ad-performance
+  (general)/   pages-meta, linkedin, article-linkedin, inbox, veille, agents, pilotage, studio-affiche, studio-video, demarrage, …
+  (organic)/   compose, media, library, history, …
+  (paid)/      campaigns, campaigns/new, audiences, ad-performance
   admin/       console d'administration
-  api/         routes serveur (meta/*, linkedin/*, inbox/*, ai/*, companies, …)
+  api/         routes serveur (meta/ads/*, meta/{insights,pixels,audiences,ad-interests,leads,ad-performance}, media, ai/*, linkedin/*, inbox/*, agents/*, companies, …)
   page.tsx     landing
-components/     ads/, meta/, inbox/, company/, onboarding/, help/, shell/, ui/, landing/
+components/     ads/ (AdPilot, AdStrategyBrain, MetaAdAccountsPanel), agents/ (AgentLauncher), meta/, inbox/, studio/, company/, onboarding/, help/, shell/, ui/, landing/
 lib/
   auth/        guard, auth, admin(-edge)
   connectors/  meta*, linkedin, oauth-state

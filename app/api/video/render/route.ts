@@ -16,11 +16,13 @@ export async function POST(req: NextRequest) {
       cut?: PlatformCut;
       assets?: MediaAsset[];
       captions?: CaptionSegment[];
+      logoUrl?: string;
     };
     if (!body.cut || !Array.isArray(body.assets)) {
       return NextResponse.json({ error: "cut et assets requis." }, { status: 400 });
     }
-    const result = await submitRender(body.cut, body.assets, body.captions ?? []);
+    const logoUrl = typeof body.logoUrl === "string" && /^https?:\/\//.test(body.logoUrl) ? body.logoUrl : undefined;
+    const result = await submitRender(body.cut, body.assets, body.captions ?? [], logoUrl);
     if (!result.ok) {
       return NextResponse.json({ error: result.error, status: result.status }, { status: result.status === "unsupported" ? 422 : 400 });
     }

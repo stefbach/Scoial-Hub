@@ -36,7 +36,7 @@ function envOrder(): string[] {
 }
 
 /** Construit le timeline Shotstack pour un cut + ses médias. */
-function buildEdit(cut: PlatformCut, assets: MediaAsset[], captions: CaptionSegment[]) {
+function buildEdit(cut: PlatformCut, assets: MediaAsset[], captions: CaptionSegment[], logoUrl?: string) {
   const size = SIZE[cut.aspect] ?? SIZE["9:16"];
   const videos = assets.filter((a) => a.kind === "video");
   const images = assets.filter((a) => a.kind === "image");
@@ -107,9 +107,25 @@ function buildEdit(cut: PlatformCut, assets: MediaAsset[], captions: CaptionSegm
     });
   }
 
+  // Track logo de la marque (PNG transparent), incrusté en haut à droite tout
+  // le long de la vidéo. Placé au-dessus de tout (1er track = premier plan).
+  const logoClips: unknown[] = [];
+  if (logoUrl) {
+    logoClips.push({
+      asset: { type: "image", src: logoUrl },
+      start: 0,
+      length: duration,
+      fit: "none",
+      scale: 0.18,
+      position: "topRight",
+      offset: { x: -0.04, y: -0.04 },
+      opacity: 0.95,
+    });
+  }
+
   const timeline: Record<string, unknown> = {
     background: "#000000",
-    tracks: [{ clips: textClips }, { clips: mediaClips }].filter((tr) => (tr.clips as unknown[]).length > 0),
+    tracks: [{ clips: logoClips }, { clips: textClips }, { clips: mediaClips }].filter((tr) => (tr.clips as unknown[]).length > 0),
   };
   // Musique de fond (fondu) si fournie.
   if (cut.musicUrl) {
@@ -129,7 +145,8 @@ export function isRenderable(cut: PlatformCut): boolean {
 export async function submitRender(
   cut: PlatformCut,
   assets: MediaAsset[],
-  captions: CaptionSegment[]
+  captions: CaptionSegment[],
+  logoUrl?: string
 ): Promise<RenderSubmit> {
   if (!isShotstackConfigured) {
     return { ok: false, error: "Aucun moteur de rendu configuré (SHOTSTACK_API_KEY)." };
@@ -141,7 +158,7 @@ export async function submitRender(
     return { ok: false, error: "Aucun média à rendre." };
   }
 
-  const body = JSON.stringify(buildEdit(cut, assets, captions));
+  const body = JSON.stringify(buildEdit(cut, assets, captions, logoUrl));
   let lastErr = "Erreur Shotstack";
   // Essaie l'environnement configuré, puis bascule sur l'autre si la clé
   // ne correspond pas (401/403). L'env retenu est encodé dans l'id renvoyé.

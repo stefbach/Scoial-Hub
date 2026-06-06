@@ -78,7 +78,8 @@ export default function BrandKitPanel({
     setLogoDataUrl(dataUrl);
     onLogo?.(dataUrl); // aperçu immédiat
     const publicUrl = await uploadAsset(file, "logo");
-    await save({ logoUrl: publicUrl || dataUrl });
+    const updated = await save({ logoUrl: publicUrl || dataUrl });
+    if (updated) onKit?.(updated);
     if (!publicUrl) setNote(t("Logo non persistant (stockage indisponible) — actif pour cette session.", "Logo not persisted (storage unavailable) — active this session."));
   }
 

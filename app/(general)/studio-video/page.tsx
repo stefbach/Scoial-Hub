@@ -44,6 +44,8 @@ export default function StudioPage() {
   const [uploading, setUploading] = useState(false);
   const [working, setWorking] = useState(false);
   const [brandHints, setBrandHints] = useState("");
+  // URL publique du logo de marque (https) — incrustée dans le rendu vidéo.
+  const [brandLogoUrl, setBrandLogoUrl] = useState("");
   const [pkg, setPkg] = useState<VideoMarketingPackage | null>(null);
   const [toast, setToast] = useState<{ message: string; key: number } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -162,7 +164,11 @@ export default function StudioPage() {
       </div>
 
       {/* Brand kit persistant — logo / charte / palette, réutilisés partout */}
-      <BrandKitPanel companyId={company.id} onPromptHints={setBrandHints} />
+      <BrandKitPanel
+        companyId={company.id}
+        onPromptHints={setBrandHints}
+        onKit={(k) => setBrandLogoUrl(/^https?:\/\//.test(k.logoUrl) ? k.logoUrl : "")}
+      />
 
       {/* Génération par prompt (IA) — image ou vidéo, tous formats publiables */}
       <PromptStudio onGenerated={(a) => setAssets((prev) => [...prev, a])} brandHints={brandHints} />
@@ -299,7 +305,7 @@ export default function StudioPage() {
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             {pkg.cuts.map((c) => (
-              <CutCard key={c.platform} cut={c} assets={pkg.assets} captions={pkg.captions} onCopy={copy} t={t} />
+              <CutCard key={c.platform} cut={c} assets={pkg.assets} captions={pkg.captions} brandLogoUrl={brandLogoUrl} onCopy={copy} t={t} />
             ))}
           </div>
         </section>
@@ -328,12 +334,14 @@ function CutCard({
   cut,
   assets,
   captions,
+  brandLogoUrl,
   onCopy,
   t,
 }: {
   cut: PlatformCut;
   assets: MediaAsset[];
   captions: CaptionSegment[];
+  brandLogoUrl?: string;
   onCopy: (text: string, label: string) => void;
   t: (fr: string, en: string) => string;
 }) {
@@ -347,6 +355,7 @@ function CutCard({
   const [caps, setCaps] = useState<CaptionSegment[]>(captions);
   const [musicId, setMusicId] = useState("none");
   const [customMusic, setCustomMusic] = useState("");
+  const [withLogo, setWithLogo] = useState(true);
   const [slides, setSlides] = useState(cut.slides);
 
   // Génération d'images (Cloudinary) pour les formats statiques.
@@ -412,7 +421,7 @@ function CutCard({
       const res = await fetch("/api/video/render", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cut: editedCut, assets, captions: caps }),
+        body: JSON.stringify({ cut: editedCut, assets, captions: caps, logoUrl: withLogo ? brandLogoUrl : undefined }),
       });
       const data = await res.json();
       if (!res.ok || !data.id) {
@@ -529,6 +538,19 @@ function CutCard({
             value={customMusic}
             onChange={(e) => setCustomMusic(e.target.value)}
           />
+        </Field>
+      )}
+
+      {renderable && (
+        <Field label={t("🏷️ Logo de la marque", "🏷️ Brand logo")}>
+          {brandLogoUrl ? (
+            <label className="flex items-center gap-2 text-xs text-ink">
+              <input type="checkbox" checked={withLogo} onChange={(e) => setWithLogo(e.target.checked)} className="accent-primary-600" />
+              {t("Incruster le logo (haut droite)", "Burn in the logo (top right)")}
+            </label>
+          ) : (
+            <p className="text-2xs text-muted">{t("Importez un logo dans le brand kit pour l'incruster dans la vidéo.", "Upload a logo in the brand kit to burn it into the video.")}</p>
+          )}
         </Field>
       )}
 

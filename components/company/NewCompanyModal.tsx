@@ -13,7 +13,7 @@ import { useCompany } from "@/lib/company-context";
 import { useT } from "@/lib/i18n";
 import type { Company } from "@/lib/types";
 
-const ACCENTS = ["#2563eb", "#5b2d8e", "#0f766e", "#b45309", "#be123c", "#1f2937"];
+const ACCENTS = ["#60a5fa", "#5b2d8e", "#0f766e", "#b45309", "#be123c", "#1f2937"];
 
 export function NewCompanyModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const t = useT();

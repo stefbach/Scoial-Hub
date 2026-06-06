@@ -33,12 +33,12 @@ import type { Ad, AdSet, Campaign } from "@/lib/types";
 type MetricId = "spend" | "impressions" | "clicks" | "conversions" | "ctr" | "cpc";
 
 const METRICS: { id: MetricId; label: string; color: string; dashed?: boolean }[] = [
-  { id: "spend", label: "Spend", color: "#2563eb" },
-  { id: "conversions", label: "Conversions", color: "#166534", dashed: true },
+  { id: "spend", label: "Spend", color: "#60a5fa" },
+  { id: "conversions", label: "Conversions", color: "#4ade80", dashed: true },
   { id: "impressions", label: "Impressions", color: "#d62976" },
   { id: "clicks", label: "Clicks", color: "#7c3aed" },
   { id: "ctr", label: "CTR", color: "#ea580c" },
-  { id: "cpc", label: "CPC", color: "#0a66c2" },
+  { id: "cpc", label: "CPC", color: "#38bdf8" },
 ];
 
 function fmtDate(iso?: string | null, noEndLabel = "No end date") {

@@ -29,12 +29,12 @@ const METRICS: Record<
   MetricId,
   { label: string; color: string; dashed?: boolean; format: (n: number) => string }
 > = {
-  spend: { label: "Spend", color: "#2563eb", format: (n) => eur(n) },
-  conversions: { label: "Conversions", color: "#166534", dashed: true, format: (n) => `${n}` },
-  impressions: { label: "Impressions", color: "#d62976", format: (n) => n.toLocaleString() },
-  clicks: { label: "Clicks", color: "#7c3aed", format: (n) => n.toLocaleString() },
-  ctr: { label: "CTR", color: "#ea580c", format: (n) => `${n.toFixed(2)}%` },
-  cpc: { label: "CPC", color: "#0a66c2", format: (n) => eur(n, { decimals: true }) },
+  spend: { label: "Spend", color: "#60a5fa", format: (n) => eur(n) },
+  conversions: { label: "Conversions", color: "#4ade80", dashed: true, format: (n) => `${n}` },
+  impressions: { label: "Impressions", color: "#f472b6", format: (n) => n.toLocaleString() },
+  clicks: { label: "Clicks", color: "#a78bfa", format: (n) => n.toLocaleString() },
+  ctr: { label: "CTR", color: "#fb923c", format: (n) => `${n.toFixed(2)}%` },
+  cpc: { label: "CPC", color: "#38bdf8", format: (n) => eur(n, { decimals: true }) },
 };
 
 type PlatformFilter = "all" | "facebook" | "instagram";

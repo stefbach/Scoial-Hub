@@ -28,13 +28,13 @@ const METRICS: Record<
   engagement: {
     labelFr: "Engagement",
     labelEn: "Engagement",
-    color: "#166534",
+    color: "#4ade80",
     format: (n) => n.toLocaleString(),
   },
   postsPublished: {
     labelFr: "Publications",
     labelEn: "Posts published",
-    color: "#2563eb",
+    color: "#60a5fa",
     format: (n) => `${n}`,
   },
   adSpend: {
@@ -54,7 +54,7 @@ const METRICS: Record<
 const COMPANY_COLOR: Record<string, string> = {
   occ: "#1e3a5f",
   tibok: "#6b1f3a",
-  cvmi: "#166534",
+  cvmi: "#4ade80",
 };
 
 // "Now" is dynamic so date-range filters stay correct over time.

@@ -24,7 +24,7 @@ const DEMO_COMPANIES = [
     code: "OCC",
     name: "Obesity Care Clinic",
     brand_voice: "warm, professional, evidence-based",
-    accent: "#2563eb",
+    accent: "#60a5fa",
     default_platforms: ["facebook", "instagram"],
     default_posting_time: "09:00",
     default_needs_review: false,

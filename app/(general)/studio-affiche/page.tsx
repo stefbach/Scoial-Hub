@@ -32,7 +32,7 @@ const FORMATS: Format[] = [
   { id: "wide", label: "Paysage 16:9", w: 1920, h: 1080, ar: "16:9" },
 ];
 
-const TEXT_COLORS = ["#ffffff", "#0f172a", "#2563eb", "#5b2d8e", "#be123c", "#f59e0b"];
+const TEXT_COLORS = ["#ffffff", "#0f172a", "#60a5fa", "#5b2d8e", "#be123c", "#f59e0b"];
 
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {

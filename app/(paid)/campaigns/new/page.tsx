@@ -114,6 +114,11 @@ export default function NewMetaAdPage() {
   const [loadingLeads, setLoadingLeads] = useState(false);
 
   const isConvObjective = objective === "ventes" || objective === "conversions";
+
+  // Assistant IA (brief → remplissage automatique)
+  const [brief, setBrief] = useState("");
+  const [assisting, setAssisting] = useState(false);
+  const [planNote, setPlanNote] = useState("");
   const [primaryText, setPrimaryText] = useState("");
   const [headline, setHeadline] = useState("");
   const [link, setLink] = useState("");
@@ -150,9 +155,9 @@ export default function NewMetaAdPage() {
 
   useEffect(() => { loadConn(); }, [loadConn]);
 
-  async function generateVisual() {
-    const prompt = [headline, primaryText, name].find((s) => s.trim()) || "";
-    if (!prompt.trim()) { setError(t("Écrivez d'abord un texte ou un titre pour générer le visuel.", "Write some text or a headline first to generate the visual.")); return; }
+  async function generateVisual(promptOverride?: string) {
+    const prompt = (promptOverride ?? [headline, primaryText, name].find((s) => s.trim()) ?? "").trim();
+    if (!prompt) { setError(t("Écrivez d'abord un texte ou un titre pour générer le visuel.", "Write some text or a headline first to generate the visual.")); return; }
     setError(null); setGenImg(true);
     try {
       const r = await fetch("/api/ai/generate-image", {
@@ -170,6 +175,71 @@ export default function NewMetaAdPage() {
     } catch (e) {
       setError(e instanceof Error ? e.message : t("Échec de génération d'image.", "Image generation failed."));
     } finally { setGenImg(false); }
+  }
+
+  // Convertit une date (ISO ou yyyy-mm-dd) au format input datetime-local.
+  function toLocalInput(d?: string): string {
+    if (!d) return "";
+    if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return `${d}T09:00`;
+    const dt = new Date(d);
+    return isNaN(dt.getTime()) ? "" : dt.toISOString().slice(0, 16);
+  }
+
+  /* eslint-disable @typescript-eslint/no-explicit-any */
+  function applyPlan(p: any) {
+    if (!p) return;
+    const lead = p.adType === "lead";
+    setAdType(lead ? "lead" : "traffic");
+    if (!lead && typeof p.objective === "string" && OBJECTIVES.some((o) => o.id === p.objective)) setObjective(p.objective);
+    setBudgetType(p.budgetType === "lifetime" ? "lifetime" : "daily");
+    if (Number(p.dailyBudget) > 0) setBudget(Math.round(Number(p.dailyBudget)));
+    if (Number(p.lifetimeBudget) > 0) setLifetimeBudget(Math.round(Number(p.lifetimeBudget)));
+    if (p.startDate) setStartDate(toLocalInput(p.startDate));
+    if (p.endDate) setEndDate(toLocalInput(p.endDate));
+    if (Array.isArray(p.countries) && p.countries.length) setCountriesStr(p.countries.join(", "));
+    if (["all", "male", "female"].includes(p.gender)) setGender(p.gender);
+    if (Number(p.ageMin)) setAgeMin(Number(p.ageMin));
+    if (Number(p.ageMax)) setAgeMax(Number(p.ageMax));
+    if (Array.isArray(p.interests)) setSelInterests(p.interests.filter((i: any) => i?.id && i?.name).map((i: any) => ({ id: String(i.id), name: String(i.name) })));
+    setPlacement(p.placement === "manual" ? "manual" : "auto");
+    if (p.primaryText) setPrimaryText(String(p.primaryText));
+    if (p.headline) setHeadline(String(p.headline));
+    if (p.cta) setCta(String(p.cta));
+    if (typeof p.link === "string") setLink(p.link);
+    if (Array.isArray(p.variants)) setVariants(p.variants.filter(Boolean).slice(0, 4).map(String));
+    if (p.conversionEvent) setConversionEvent(String(p.conversionEvent));
+    if (lead && p.leadForm) {
+      const lf = p.leadForm;
+      if (lf.formName) setFormName(String(lf.formName));
+      if (lf.privacyUrl) setPrivacyUrl(String(lf.privacyUrl));
+      if (lf.intro) setFormIntro(String(lf.intro));
+      const f: string[] = Array.isArray(lf.fields) ? lf.fields : [];
+      setFldFullName(f.includes("FULL_NAME"));
+      setFldEmail(f.includes("EMAIL") || f.length === 0);
+      setFldPhone(f.includes("PHONE"));
+      if (lf.thankYouTitle) setThankYouTitle(String(lf.thankYouTitle));
+      if (lf.thankYouBody) setThankYouBody(String(lf.thankYouBody));
+    }
+    // Génère automatiquement un visuel si l'IA a proposé un prompt et qu'aucun n'est posé.
+    if (p.visualPrompt && !imageUrl.trim() && !videoUrl.trim()) generateVisual(String(p.visualPrompt));
+  }
+  /* eslint-enable @typescript-eslint/no-explicit-any */
+
+  async function runAssist() {
+    if (!brief.trim()) return;
+    setAssisting(true); setError(null); setPlanNote("");
+    try {
+      const r = await fetch("/api/meta/ads/assist", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyId, brief }),
+      });
+      const d = await r.json();
+      if (!r.ok) { setError(d.error || t("L'assistant a échoué.", "Assistant failed.")); return; }
+      applyPlan(d.plan);
+      setPlanNote(d.plan?.rationale || "");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t("L'assistant a échoué.", "Assistant failed."));
+    } finally { setAssisting(false); }
   }
 
   async function searchInterests() {
@@ -369,6 +439,40 @@ export default function NewMetaAdPage() {
           {t("Compte :", "Account:")} {conn.accountName || "—"} {conn.currency ? `· ${conn.currency}` : ""}
         </div>
       )}
+
+      {/* Assistant IA : décrire la campagne → tout est pré-rempli */}
+      <section className="card mb-5 border-l-4 border-ai-text p-5">
+        <div className="flex items-center gap-2">
+          <span className="section-label text-ai-text">{t("Assistant IA — décrivez, l'IA remplit tout", "AI assistant — describe it, AI fills everything")}</span>
+        </div>
+        <p className="mt-0.5 text-2xs text-muted">
+          {t(
+            "Ex : « Campagne de prospects pour la chirurgie de l'obésité à Malte, cible UK 30-60 ans, 25 €/jour, formulaire avec nom/email/téléphone ». L'IA choisit objectif, ciblage, texte, visuel et règles Meta.",
+            "E.g. \"Lead campaign for obesity surgery in Malta, UK audience 30-60, €25/day, form with name/email/phone\". The AI picks objective, targeting, copy, visual and Meta rules."
+          )}
+        </p>
+        <textarea
+          value={brief}
+          onChange={(e) => setBrief(e.target.value)}
+          rows={3}
+          placeholder={t("Décrivez votre campagne en une ou deux phrases…", "Describe your campaign in a sentence or two…")}
+          className="mt-3 w-full rounded-lg border border-hair bg-canvas px-3 py-2 text-sm text-ink outline-none focus:border-primary-400"
+        />
+        <div className="mt-2 flex items-center gap-2">
+          <button type="button" onClick={runAssist} disabled={assisting || !conn?.connected || !brief.trim()} className="btn-primary inline-flex items-center gap-1.5 text-sm disabled:opacity-50">
+            {assisting && <Spinner size={14} className="text-white" />}
+            {assisting ? t("L'IA prépare la campagne…", "AI is preparing the campaign…") : t("✨ Générer la campagne", "✨ Generate the campaign")}
+          </button>
+          {!conn?.connected && <span className="text-2xs text-muted">{t("Connectez Meta pour activer l'assistant.", "Connect Meta to enable the assistant.")}</span>}
+        </div>
+        {assisting && <BusyHint className="mt-2" label={t("Choix de l'objectif, du ciblage, du texte et du visuel…", "Choosing objective, targeting, copy and visual…")} eta={t("~10–30 s", "~10–30 s")} />}
+        {planNote && (
+          <p className="mt-3 rounded-lg bg-ai-textbg/40 px-3 py-2 text-xs text-ink">
+            <span className="font-semibold text-ai-text">{t("Plan IA : ", "AI plan: ")}</span>{planNote}
+            <span className="mt-1 block text-2xs text-muted">{t("Tout est pré-rempli ci-dessous — vérifiez puis publiez.", "Everything is pre-filled below — review then publish.")}</span>
+          </p>
+        )}
+      </section>
 
       <fieldset disabled={!conn?.connected || publishing} className="space-y-5 disabled:opacity-60">
         {/* Type de publicité */}
@@ -612,7 +716,7 @@ export default function NewMetaAdPage() {
             <label className="mb-1 block text-xs font-medium text-muted">{t("Visuel (URL d'image publique)", "Visual (public image URL)")}</label>
             <div className="flex flex-col gap-2 sm:flex-row">
               <input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://…/image.jpg" className={inputCls} />
-              <button type="button" onClick={generateVisual} disabled={genImg} className="btn-secondary inline-flex shrink-0 items-center gap-1.5 text-xs disabled:opacity-50">
+              <button type="button" onClick={() => generateVisual()} disabled={genImg} className="btn-secondary inline-flex shrink-0 items-center gap-1.5 text-xs disabled:opacity-50">
                 {genImg && <Spinner size={14} className="text-current" />}
                 {genImg ? t("Génération…", "Generating…") : t("✨ Générer (IA)", "✨ Generate (AI)")}
               </button>

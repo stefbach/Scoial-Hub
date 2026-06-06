@@ -37,6 +37,7 @@ export async function PUT(req: NextRequest) {
     if (typeof p.tone === "string") patch.tone = p.tone;
     if (typeof p.promptHints === "string") patch.promptHints = p.promptHints;
     if (typeof p.summary === "string") patch.summary = p.summary;
+    if (p.chart && typeof p.chart === "object") patch.chart = p.chart;
     if (typeof p.aiGenerated === "boolean") patch.aiGenerated = p.aiGenerated;
 
     const kit = await saveBrandKit(companyId, patch);

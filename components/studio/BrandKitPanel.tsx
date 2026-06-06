@@ -10,6 +10,7 @@ import { useEffect, useRef, useState } from "react";
 import { useT } from "@/lib/i18n";
 import { Spinner, BusyHint } from "@/components/ui/Spinner";
 import { useBrandKit } from "@/lib/brand-kit/use-brand-kit";
+import BrandChartView from "@/components/studio/BrandChartView";
 import type { BrandKit } from "@/lib/brand-kit/types";
 
 /** Source utilisable sur un <canvas> sans taint CORS. */
@@ -60,6 +61,8 @@ async function rasterizeToPng(file: File): Promise<{ dataUrl: string; blob: Blob
 
 export interface BrandKitPanelProps {
   companyId: string | undefined;
+  /** Nom de marque (titre de la charte générée). */
+  brandName?: string;
   /** Couleur de texte courante (pour surligner la pastille sélectionnée). */
   textColor?: string;
   /** Sélection d'une couleur (palette / couleur recommandée). */
@@ -74,6 +77,7 @@ export interface BrandKitPanelProps {
 
 export default function BrandKitPanel({
   companyId,
+  brandName,
   textColor,
   onPickColor,
   onLogo,
@@ -86,6 +90,7 @@ export default function BrandKitPanel({
   const [logoDataUrl, setLogoDataUrl] = useState("");
   const [charteDataUrl, setCharteDataUrl] = useState("");
   const [analyzing, setAnalyzing] = useState(false);
+  const [generatingChart, setGeneratingChart] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const hydrated = useRef(false);
 
@@ -176,8 +181,43 @@ export default function BrandKitPanel({
     }
   }
 
+  // Génère une charte graphique complète À PARTIR DU LOGO (palette, typo, ton,
+  // règles d'usage, do/don't, baseline), puis la mémorise dans le brand kit.
+  async function generateChart() {
+    if (!companyId) return;
+    const hasLogo = logoDataUrl || (kit?.logoUrl && /^https?:\/\//.test(kit.logoUrl));
+    if (!hasLogo) {
+      setNote(t("Importez d'abord un logo pour générer la charte.", "Upload a logo first to generate the chart."));
+      return;
+    }
+    setGeneratingChart(true);
+    setNote(null);
+    try {
+      const r = await fetch("/api/ai/generate-brand-chart", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyId, imageDataUrl: logoDataUrl || undefined, logoUrl: kit?.logoUrl || undefined }),
+      });
+      const d = await r.json();
+      if (!r.ok) {
+        setNote(d.error || t("Échec de la génération.", "Generation failed."));
+        return;
+      }
+      if (d.chart) {
+        const updated = await save({ chart: d.chart });
+        if (updated) onKit?.(updated);
+        if (d.chart.aiGenerated === false) setNote(t("Charte indisponible (IA non configurée).", "Chart unavailable (AI not configured)."));
+      }
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : t("Échec de la génération.", "Generation failed."));
+    } finally {
+      setGeneratingChart(false);
+    }
+  }
+
   const k = kit;
   const hasAnalysis = !!k && (k.summary || k.palette.length > 0 || k.style || k.tone);
+  const canChart = !!(logoDataUrl || (k?.logoUrl && /^https?:\/\//.test(k.logoUrl)));
 
   return (
     <section className="card p-4 space-y-3">
@@ -201,9 +241,13 @@ export default function BrandKitPanel({
         <button onClick={analyze} disabled={analyzing || (!charteDataUrl && !logoDataUrl)} className="btn-primary text-xs disabled:opacity-50">
           {analyzing ? <span className="inline-flex items-center gap-1.5"><Spinner size={12} className="text-white" />{t("Analyse…", "Analyzing…")}</span> : t("🔎 Analyser la marque", "🔎 Analyze brand")}
         </button>
+        <button onClick={generateChart} disabled={generatingChart || !canChart} title={!canChart ? t("Importez un logo d'abord", "Upload a logo first") : undefined} className="btn-secondary text-xs disabled:opacity-50">
+          {generatingChart ? <span className="inline-flex items-center gap-1.5"><Spinner size={12} className="text-primary-600" />{t("Charte…", "Chart…")}</span> : t("📐 Générer la charte (IA)", "📐 Generate chart (AI)")}
+        </button>
       </div>
 
       {analyzing && <BusyHint label={t("L'IA analyse votre identité visuelle…", "The AI analyzes your visual identity…")} eta={t("~10–20 s", "~10–20 s")} />}
+      {generatingChart && <BusyHint label={t("L'IA construit votre charte graphique…", "The AI is building your brand guidelines…")} eta={t("~15–30 s", "~15–30 s")} />}
 
       {hasAnalysis && k && (
         <div className="rounded-lg border border-hair bg-canvas p-3 text-xs">
@@ -230,6 +274,10 @@ export default function BrandKitPanel({
             <p className="mt-2 text-2xs text-ai-text">{t("✓ Style de marque injecté dans la génération.", "✓ Brand style injected into generation.")}</p>
           )}
         </div>
+      )}
+
+      {k?.chart && k.chart.palette.length > 0 && (
+        <BrandChartView chart={k.chart} logoSrc={k.logoUrl || logoDataUrl} brandName={brandName ?? ""} />
       )}
 
       {note && <p className="rounded-lg bg-warning-50 px-3 py-2 text-2xs text-warning-700">{note}</p>}

@@ -6,7 +6,7 @@
 import { createAdminClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/env";
 import { resolveCompanyUuid } from "@/lib/repositories/resolve-company";
-import { BrandKit, makeEmptyBrandKit } from "@/lib/brand-kit/types";
+import { BrandKit, BrandChart, makeEmptyBrandKit } from "@/lib/brand-kit/types";
 
 const STORE = new Map<string, BrandKit>();
 
@@ -21,6 +21,7 @@ function rowToKit(companyId: string, row: Record<string, unknown>): BrandKit {
     tone: (row.tone as string) ?? "",
     promptHints: (row.prompt_hints as string) ?? "",
     summary: (row.summary as string) ?? "",
+    chart: (row.chart as BrandChart | null) ?? null,
     aiGenerated: Boolean(row.ai_generated),
     updatedAt: (row.updated_at as string) ?? null,
   };
@@ -84,6 +85,7 @@ export async function saveBrandKit(
         tone: merged.tone,
         prompt_hints: merged.promptHints,
         summary: merged.summary,
+        chart: merged.chart,
         ai_generated: merged.aiGenerated,
         updated_at: merged.updatedAt,
       },

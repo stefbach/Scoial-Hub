@@ -339,6 +339,7 @@ export default function StudioAffichePage() {
           {/* Brand kit persistant (logo + charte + analyse IA, mémorisé par marque) */}
           <BrandKitPanel
             companyId={companyId}
+            brandName={company.name}
             textColor={color}
             onPickColor={setColor}
             onLogo={onBrandLogo}

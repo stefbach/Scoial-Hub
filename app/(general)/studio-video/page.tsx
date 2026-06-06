@@ -168,6 +168,7 @@ export default function StudioPage() {
       {/* Brand kit persistant — logo / charte / palette, réutilisés partout */}
       <BrandKitPanel
         companyId={company.id}
+        brandName={company.name}
         onPromptHints={setBrandHints}
         onKit={(k) => {
           setBrandLogoUrl(/^https?:\/\//.test(k.logoUrl) ? k.logoUrl : "");

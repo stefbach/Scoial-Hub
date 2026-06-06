@@ -3,6 +3,31 @@
 // serveur. Le logo et la charte sont stockés dans Supabase Storage (bucket
 // public `sh-logos`), seules leurs URLs sont persistées en base.
 
+export interface BrandColorRole {
+  hex: string;
+  /** Nom de la couleur (ex. « Bleu nuit »). */
+  name: string;
+  /** Rôle (ex. « Principale », « Accent », « Fond », « Texte »). */
+  role: string;
+}
+
+/** Charte graphique structurée, générée par IA à partir du logo. */
+export interface BrandChart {
+  palette: BrandColorRole[];
+  headingFont: string;
+  bodyFont: string;
+  typographyNote: string;
+  toneWords: string[];
+  voice: string;
+  logoUsage: string[];
+  dos: string[];
+  donts: string[];
+  imagery: string;
+  tagline: string;
+  aiGenerated: boolean;
+  generatedAt: string | null;
+}
+
 export interface BrandKit {
   companyId: string;
   /** URL publique du logo (Supabase Storage) ou data URL en session. */
@@ -21,6 +46,8 @@ export interface BrandKit {
   promptHints: string;
   /** Résumé FR de l'identité visuelle. */
   summary: string;
+  /** Charte graphique structurée (générée par IA à partir du logo). */
+  chart: BrandChart | null;
   /** Vrai si l'analyse provient de l'IA (vision). */
   aiGenerated: boolean;
   updatedAt: string | null;
@@ -37,6 +64,7 @@ export function makeEmptyBrandKit(companyId: string): BrandKit {
     tone: "",
     promptHints: "",
     summary: "",
+    chart: null,
     aiGenerated: false,
     updatedAt: null,
   };

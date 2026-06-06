@@ -395,7 +395,7 @@ function ComposeContent() {
           </div>
 
           {/* Brand kit persistant — logo / charte / palette réutilisés partout */}
-          <BrandKitPanel companyId={company.id} onPromptHints={setBrandHints} />
+          <BrandKitPanel companyId={company.id} brandName={company.name} onPromptHints={setBrandHints} />
 
           {/* Inspiration depuis une créa existante (vos pubs / concurrents / veille) */}
           <CreativeInspiration

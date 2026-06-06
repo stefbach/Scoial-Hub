@@ -3,8 +3,9 @@
 // Médiathèque : galerie des visuels & vidéos de la marque (bibliothèque média),
 // filtrable, avec actions « Décliner (IA) » et « Créer une pub » sur chaque média.
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import Link from "next/link";
+import { createClient } from "@/lib/supabase/client";
 import { useCompany } from "@/lib/company-context";
 import { useT } from "@/lib/i18n";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -53,6 +54,32 @@ export default function MediaLibraryPage() {
     const type: "image" | "video" = /\.(mp4|mov|webm|m4v)(\?|$)/i.test(url) ? "video" : "image";
     await fetch("/api/media", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ companyId, url, type, source: "import" }) });
     setAddUrl(""); setNote(t("Ajouté ✓", "Added ✓")); load();
+  }
+
+  // Import de fichiers (image/vidéo) → stockage Supabase → bibliothèque.
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  async function uploadFiles(files: FileList | null) {
+    if (!files || files.length === 0) return;
+    const sb = createClient();
+    if (!sb) { setNote(t("Stockage indisponible.", "Storage unavailable.")); return; }
+    setUploading(true); setNote(null);
+    try {
+      for (const file of Array.from(files)) {
+        const safe = file.name.replace(/[^a-zA-Z0-9.\-_]/g, "_");
+        const path = `${companyId}/${Date.now()}-${safe}`;
+        const { error } = await sb.storage.from("sh-videos").upload(path, file, { upsert: true, contentType: file.type });
+        if (error) { setNote(t("Échec de l'envoi.", "Upload failed.")); continue; }
+        const { data } = sb.storage.from("sh-videos").getPublicUrl(path);
+        const url = data?.publicUrl;
+        if (!url) continue;
+        const type: "image" | "video" = file.type.startsWith("video") ? "video" : "image";
+        await fetch("/api/media", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ companyId, url, type, source: "upload" }) });
+      }
+      setNote(t("Import terminé ✓", "Upload complete ✓")); load();
+    } catch {
+      setNote(t("Échec de l'import.", "Upload failed."));
+    } finally { setUploading(false); }
   }
 
   async function derive() {
@@ -106,9 +133,16 @@ export default function MediaLibraryPage() {
         <Link href="/library" className="text-primary-600 hover:underline">{t("→ Modèles", "→ Templates")}</Link>
       </p>
 
-      {/* Ajout par URL */}
+      {/* Import : fichier OU URL */}
       <div className="mb-5 flex flex-col gap-2 sm:flex-row">
-        <input value={addUrl} onChange={(e) => setAddUrl(e.target.value)} placeholder={t("Ajouter un média par URL (https://…)", "Add media by URL (https://…)")}
+        <input ref={fileRef} type="file" accept="image/*,video/*" multiple className="hidden"
+          onChange={(e) => uploadFiles(e.target.files)} />
+        <button onClick={() => fileRef.current?.click()} disabled={uploading}
+          className="btn-primary inline-flex shrink-0 items-center gap-1.5 text-sm disabled:opacity-50">
+          {uploading && <Spinner size={14} className="text-white" />}
+          {uploading ? t("Import…", "Uploading…") : t("⬆︎ Importer des fichiers", "⬆︎ Upload files")}
+        </button>
+        <input value={addUrl} onChange={(e) => setAddUrl(e.target.value)} placeholder={t("…ou ajouter par URL (https://…)", "…or add by URL (https://…)")}
           className="w-full rounded-lg border border-hair bg-canvas px-3 py-2 text-sm text-ink outline-none focus:border-primary-400" />
         <button onClick={addByUrl} className="btn-secondary shrink-0 text-sm">{t("Ajouter", "Add")}</button>
       </div>

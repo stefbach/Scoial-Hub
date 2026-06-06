@@ -369,6 +369,9 @@ export interface MetaInsights {
   instagram?: { id: string; username: string; followers: number; mediaCount: number; picture?: string };
   facebookPosts: MetaPost[];
   instagramPosts: MetaPost[];
+  /** Portée & vues organiques cumulées sur 28 j (best-effort, selon permissions). */
+  reach?: number;
+  views?: number;
 }
 
 async function gget(path: string, token: string): Promise<Record<string, unknown> | null> {
@@ -443,6 +446,27 @@ export async function fetchMetaInsights(ctx: MetaContext): Promise<MetaInsights>
       comments: typeof m.comments_count === "number" ? m.comments_count : undefined,
     }));
   }
+
+  // Portée & vues organiques sur 28 j (best-effort — nécessite read_insights).
+  let reach = 0, views = 0;
+  if (ctx.pageId) {
+    const pi = await gget(`${ctx.pageId}/insights?metric=page_impressions_unique,page_impressions&period=days_28`, token);
+    for (const m of (pi?.data as Array<Record<string, unknown>>) ?? []) {
+      const vals = (m.values as Array<{ value?: number }>) ?? [];
+      const v = Number(vals[vals.length - 1]?.value ?? 0);
+      if (m.name === "page_impressions_unique") reach += v;
+      else if (m.name === "page_impressions") views += v;
+    }
+  }
+  if (ctx.igId) {
+    const igi = await gget(`${ctx.igId}/insights?metric=reach&period=days_28`, token);
+    for (const m of (igi?.data as Array<Record<string, unknown>>) ?? []) {
+      const vals = (m.values as Array<{ value?: number }>) ?? [];
+      if (m.name === "reach") reach += Number(vals[vals.length - 1]?.value ?? 0);
+    }
+  }
+  if (reach > 0) out.reach = reach;
+  if (views > 0) out.views = views;
 
   return out;
 }

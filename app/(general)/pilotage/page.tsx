@@ -144,7 +144,7 @@ export default function PilotagePage() {
   }, [company.id]);
 
   // KPIs organiques RÉELS (Facebook + Instagram) via /api/meta/insights.
-  const [realKpi, setRealKpi] = useState<{ followers: number; likes: number; comments: number; engagementRate: number; perNet: { net: string; followers: number; engagementRate: number }[] } | null>(null);
+  const [realKpi, setRealKpi] = useState<{ followers: number; likes: number; comments: number; engagementRate: number; reach?: number; views?: number; perNet: { net: string; followers: number; engagementRate: number }[] } | null>(null);
   useEffect(() => {
     let alive = true;
     fetch(`/api/meta/insights?companyId=${encodeURIComponent(company.id)}`)
@@ -165,7 +165,7 @@ export default function PilotagePage() {
         ];
         const totFollowers = fbF + igF;
         const totRate = perNet.length ? +(perNet.reduce((a, n) => a + n.engagementRate, 0) / perNet.length).toFixed(2) : 0;
-        if (totFollowers > 0 || likes > 0) setRealKpi({ followers: totFollowers, likes, comments, engagementRate: totRate, perNet });
+        if (totFollowers > 0 || likes > 0) setRealKpi({ followers: totFollowers, likes, comments, engagementRate: totRate, reach: Number(d.reach ?? 0) || undefined, views: Number(d.views ?? 0) || undefined, perNet });
       })
       .catch(() => {});
     return () => { alive = false; };
@@ -313,11 +313,13 @@ export default function PilotagePage() {
         <div className="section-label mb-2.5">{t("Indicateurs clés · tous réseaux", "Key metrics · all networks")}</div>
         {realKpi ? (
           <>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
               <Kpi label={t("Abonnés", "Followers")} value={fmt(realKpi.followers)} />
               <Kpi label={t("Engagement moyen", "Avg. engagement")} value={`${realKpi.engagementRate}%`} accent />
               <Kpi label={t("Likes (récents)", "Likes (recent)")} value={fmt(realKpi.likes)} />
               <Kpi label={t("Commentaires (récents)", "Comments (recent)")} value={fmt(realKpi.comments)} />
+              {typeof realKpi.reach === "number" && <Kpi label={t("Portée (28 j)", "Reach (28d)")} value={fmt(realKpi.reach)} />}
+              {typeof realKpi.views === "number" && <Kpi label={t("Vues (28 j)", "Views (28d)")} value={fmt(realKpi.views)} />}
             </div>
             <div className="mt-2 flex flex-wrap gap-2">
               {realKpi.perNet.map((n) => (

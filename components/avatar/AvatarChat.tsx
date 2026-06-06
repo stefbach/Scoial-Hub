@@ -344,7 +344,12 @@ export function AvatarChat({ companyId }: { companyId: string }) {
       <div className="flex flex-col items-center gap-3">
         <div className="relative aspect-[11/12] w-full max-w-xs overflow-hidden rounded-2xl bg-gradient-to-b from-indigo-50 to-violet-100 shadow-sm ring-1 ring-hair">
           {use3D && model3DUrl && !failed3D ? (
-            <Avatar3D modelUrl={model3DUrl} mouthRef={mouthRef} onReady={handle3DReady} onError={handle3DError} />
+            <Avatar3D
+              modelUrl={`/api/avatar-proxy?url=${encodeURIComponent(model3DUrl)}`}
+              mouthRef={mouthRef}
+              onReady={handle3DReady}
+              onError={handle3DError}
+            />
           ) : (
             <AvatarFace face={face} mouth={mouth} blink={blink} />
           )}

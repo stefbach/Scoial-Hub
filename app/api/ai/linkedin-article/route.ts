@@ -10,7 +10,7 @@
 // Dégradation gracieuse : sans clé IA, renvoie un résultat « démo » cohérent.
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
@@ -217,7 +217,7 @@ Retourne STRICTEMENT ce JSON :
     const client = new Anthropic({ apiKey: env.anthropicKey });
     const res = await client.messages.create({
       model: env.anthropicModel,
-      max_tokens: 4096,
+      max_tokens: 3500,
       system: SYSTEM,
       messages: [{ role: "user", content: prompt }],
     });

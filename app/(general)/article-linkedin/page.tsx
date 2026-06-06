@@ -28,6 +28,22 @@ interface Article {
   visualPrompts: string[];
 }
 
+/** Lit une réponse JSON en tolérant les erreurs serveur non-JSON (ex. 504/HTML). */
+async function readJson(r: Response): Promise<Record<string, unknown>> {
+  const raw = await r.text();
+  try {
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    // Réponse non-JSON (timeout passerelle, page d'erreur Vercel…)
+    if (r.status === 504 || r.status === 502 || r.status === 408) {
+      throw new Error(
+        "La génération a dépassé le temps imparti. Réessayez, ou choisissez « Article » au lieu d'« Article long » (plus rapide)."
+      );
+    }
+    throw new Error(`Réponse serveur inattendue (${r.status}). Réessayez.`);
+  }
+}
+
 function extractImageUrls(data: unknown): string[] {
   const d = data as { images?: Array<string | { url?: string }> };
   if (!Array.isArray(d?.images)) return [];
@@ -92,9 +108,9 @@ export default function ArticleLinkedInPage() {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ companyId, mode: "prompt", source, input, angle, audience, tone, length, language, useMemory }),
       });
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.error);
-      setPrompt(d.prompt);
+      const d = await readJson(r);
+      if (!r.ok) throw new Error((d.error as string) || t("Échec.", "Failed."));
+      setPrompt(d.prompt as string);
     } catch (e) {
       setError(e instanceof Error ? e.message : t("Échec.", "Failed."));
     } finally { setPromptLoading(false); }
@@ -108,9 +124,9 @@ export default function ArticleLinkedInPage() {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ companyId, mode: "article", source, input, angle, audience, tone, length, language, customPrompt: prompt || undefined, useMemory }),
       });
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.error);
-      setArticle(d.article);
+      const d = await readJson(r);
+      if (!r.ok) throw new Error((d.error as string) || t("Échec.", "Failed."));
+      setArticle(d.article as Article);
       if (!d.aiGenerated) setAiNote(t("Démo — IA non configurée (ANTHROPIC_API_KEY).", "Demo — AI not configured (ANTHROPIC_API_KEY)."));
     } catch (e) {
       setError(e instanceof Error ? e.message : t("Échec.", "Failed."));
@@ -124,13 +140,13 @@ export default function ArticleLinkedInPage() {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt: vp, platform: "linkedin", n: 2, model: imgModel }),
       });
-      const d = await r.json();
-      if (!r.ok) { setAiNote(d.error || t("Échec de génération d'image.", "Image generation failed.")); return; }
+      const d = await readJson(r);
+      if (!r.ok) { setAiNote((d.error as string) || t("Échec de génération d'image.", "Image generation failed.")); return; }
       const urls = extractImageUrls(d);
       if (urls.length > 0) {
         setImages((prev) => ({ ...prev, [idx]: urls }));
         setSelectedImage((cur) => cur ?? urls[0]); // sélectionne le 1er visuel par défaut
-        if (d.fallbackUsed) setAiNote(t(`Image générée via un modèle de repli (${d.fallbackUsed}).`, `Image generated with a fallback model (${d.fallbackUsed}).`));
+        if (d.fallbackUsed) { const fb = String(d.fallbackUsed); setAiNote(t(`Image générée via un modèle de repli (${fb}).`, `Image generated with a fallback model (${fb}).`)); }
         return;
       }
       if (d.simulated) setAiNote(t("Génération d'images non configurée (REPLICATE_API_TOKEN).", "Image generation not configured (REPLICATE_API_TOKEN)."));
@@ -157,16 +173,17 @@ export default function ArticleLinkedInPage() {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ companyId, text: toPlainText(article), imageUrl: chosenImg || undefined }),
       });
-      const d = await r.json();
+      const d = await readJson(r);
       if (d.connected === false) {
         setPublishMsg(t("LinkedIn non connecté — ouvrez « Espace LinkedIn » et connectez-le.", "LinkedIn not connected — open “LinkedIn space” and connect it."));
         return;
       }
-      if (!r.ok) { setPublishMsg(d.error || t("Échec de la publication.", "Publish failed.")); return; }
+      if (!r.ok) { setPublishMsg((d.error as string) || t("Échec de la publication.", "Publish failed.")); return; }
       if (d.simulated) {
         setPublishMsg(t("Publié en simulation (LinkedIn non configuré côté serveur).", "Simulated (LinkedIn not configured server-side)."));
       } else {
-        setPublishMsg(t(`Publié sur LinkedIn ✓ ${d.url ?? ""}`, `Published on LinkedIn ✓ ${d.url ?? ""}`));
+        const url = (d.url as string) ?? "";
+        setPublishMsg(t(`Publié sur LinkedIn ✓ ${url}`, `Published on LinkedIn ✓ ${url}`));
       }
     } catch (e) {
       setPublishMsg(e instanceof Error ? e.message : t("Échec de la publication.", "Publish failed."));
@@ -285,7 +302,7 @@ export default function ArticleLinkedInPage() {
           </button>
         </div>
         {promptLoading && <BusyHint label={t("L'IA prépare votre prompt…", "The AI is preparing your prompt…")} eta="~10 s" />}
-        {articleLoading && <BusyHint label={t("L'IA rédige votre article…", "The AI is writing your article…")} eta={t("~20–40 s", "~20–40 s")} />}
+        {articleLoading && <BusyHint label={t("L'IA rédige votre article…", "The AI is writing your article…")} eta={length === "long" ? t("~40–90 s", "~40–90 s") : t("~20–40 s", "~20–40 s")} />}
         {error && <p className="rounded-lg bg-danger-50 px-3 py-2 text-xs text-danger-700">{error}</p>}
       </section>
 

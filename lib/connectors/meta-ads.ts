@@ -366,3 +366,56 @@ export async function setAdLive(
   await graphPost(ids.adSetId, { status }, token);
   await graphPost(ids.adId, { status }, token);
 }
+
+/** Vérifie qu'une campagne appartient bien au compte pub de la société. */
+async function assertCampaignOwnership(campaignId: string, ctx: { userToken?: string; adAccountId?: string }): Promise<void> {
+  if (!ctx.adAccountId) throw new Error("Aucun compte publicitaire configuré.");
+  const camp = await graphGet(campaignId, "account_id", ctx.userToken!);
+  const acc = String(camp.account_id ?? "").replace(/^act_/, "");
+  if (!acc || acc !== String(ctx.adAccountId).replace(/^act_/, "")) {
+    throw new Error("Action refusée : cette campagne n'appartient pas au compte publicitaire de la société.");
+  }
+}
+
+/** Met une CAMPAGNE entière en pause ou en diffusion (Pilote Pub). */
+export async function setCampaignStatus(companyId: string, campaignId: string, status: "ACTIVE" | "PAUSED"): Promise<void> {
+  const ctx = await getMetaContext(companyId);
+  if (!ctx.userToken) throw new Error("Meta non connecté.");
+  // L'activation (dépense réelle) exige la re-vérification d'appartenance.
+  if (status === "ACTIVE") await assertCampaignOwnership(campaignId, ctx);
+  await graphPost(campaignId, { status }, ctx.userToken);
+}
+
+/** Ajuste le budget quotidien des ad sets d'une campagne (facteur multiplicatif). */
+export async function scaleCampaignBudget(
+  companyId: string,
+  campaignId: string,
+  factor: number
+): Promise<{ adSetId: string; oldCents: number; newCents: number }[]> {
+  const ctx = await getMetaContext(companyId);
+  if (!ctx.userToken) throw new Error("Meta non connecté.");
+  const token = ctx.userToken;
+  // Toute modification de budget re-vérifie l'appartenance (sensible).
+  await assertCampaignOwnership(campaignId, ctx);
+  const f = Math.max(0.1, Math.min(5, factor)); // borne le facteur (0.1×–5×)
+  const list = await graphGet(`${campaignId}/adsets`, "id,daily_budget,lifetime_budget", token);
+  const rows = ((list?.data as Array<Record<string, unknown>>) ?? []);
+  const changes: { adSetId: string; oldCents: number; newCents: number }[] = [];
+  for (const r of rows) {
+    const adSetId = String(r.id ?? "");
+    const daily = Number(r.daily_budget ?? 0);
+    if (daily > 0) {
+      const newCents = Math.max(100, Math.min(MAX_DAILY_BUDGET_CENTS, Math.round(daily * f)));
+      await graphPost(adSetId, { daily_budget: newCents }, token);
+      changes.push({ adSetId, oldCents: daily, newCents });
+    } else {
+      const life = Number(r.lifetime_budget ?? 0);
+      if (life > 0) {
+        const newCents = Math.max(100, Math.round(life * f));
+        await graphPost(adSetId, { lifetime_budget: newCents }, token);
+        changes.push({ adSetId, oldCents: life, newCents });
+      }
+    }
+  }
+  return changes;
+}

@@ -40,6 +40,14 @@ const OBJECTIVES: { id: string; fr: string; en: string }[] = [
 
 const CTAS = ["LEARN_MORE", "SHOP_NOW", "SIGN_UP", "CONTACT_US", "SUBSCRIBE", "BOOK_TRAVEL", "GET_OFFER", "DOWNLOAD"];
 
+// Formats de visuel adaptés aux placements Meta.
+const VISUAL_FORMATS: { id: string; fr: string; en: string }[] = [
+  { id: "1:1", fr: "Carré (fil)", en: "Square (feed)" },
+  { id: "4:5", fr: "Portrait (fil)", en: "Portrait (feed)" },
+  { id: "9:16", fr: "Story / Reel", en: "Story / Reel" },
+  { id: "1.91:1", fr: "Paysage", en: "Landscape" },
+];
+
 export default function NewMetaAdPage() {
   const t = useT();
   const { company } = useCompany();
@@ -95,6 +103,10 @@ export default function NewMetaAdPage() {
   const [newExtraUrl, setNewExtraUrl] = useState("");
   const [videoUrl, setVideoUrl] = useState("");
   const [videoThumbUrl, setVideoThumbUrl] = useState("");
+  // Prompt du visuel + formats à générer
+  const [visualPrompt, setVisualPrompt] = useState("");
+  const [visualFormats, setVisualFormats] = useState<string[]>(["1:1"]);
+  const [generatedVisuals, setGeneratedVisuals] = useState<{ format: string; url: string }[]>([]);
 
   // Conversions (pixel)
   const [pixels, setPixels] = useState<{ id: string; name: string }[]>([]);
@@ -156,26 +168,38 @@ export default function NewMetaAdPage() {
 
   useEffect(() => { loadConn(); }, [loadConn]);
 
-  async function generateVisual(promptOverride?: string) {
-    const prompt = (promptOverride ?? [headline, primaryText, name].find((s) => s.trim()) ?? "").trim();
-    if (!prompt) { setError(t("Écrivez d'abord un texte ou un titre pour générer le visuel.", "Write some text or a headline first to generate the visual.")); return; }
+  // Génère le visuel pour chaque format sélectionné (carré, portrait, story…).
+  async function generateVisual(promptOverride?: string, formatsOverride?: string[]) {
+    const prompt = ((promptOverride ?? visualPrompt) || [headline, primaryText, name].find((s) => s.trim()) || "").trim();
+    if (!prompt) { setError(t("Écrivez un prompt de visuel (ou un titre/texte).", "Write a visual prompt (or a headline/text).")); return; }
+    const formats = formatsOverride && formatsOverride.length ? formatsOverride : visualFormats;
+    if (!formats.length) { setError(t("Choisissez au moins un format.", "Pick at least one format.")); return; }
     setError(null); setGenImg(true);
     try {
-      const r = await fetch("/api/ai/generate-image", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt, platform: "facebook", n: 1 }),
-      });
-      const raw = await r.text();
-      let d: { images?: Array<string | { url?: string }>; error?: string; simulated?: boolean } = {};
-      try { d = raw ? JSON.parse(raw) : {}; } catch { setError(t("Réponse inattendue lors de la génération.", "Unexpected response while generating.")); return; }
-      if (!r.ok) { setError(d.error || t("Échec de génération d'image.", "Image generation failed.")); return; }
-      const urls = (d.images ?? []).map((i) => (typeof i === "string" ? i : i?.url ?? "")).filter(Boolean);
-      if (urls[0]) setImageUrl(urls[0]);
-      else if (d.simulated) setError(t("Génération d'images non configurée (REPLICATE_API_TOKEN).", "Image generation not configured."));
-      else setError(t("Aucune image renvoyée. Réessayez.", "No image returned. Try again."));
+      const results: { format: string; url: string }[] = [];
+      for (const fmt of formats) {
+        const r = await fetch("/api/ai/generate-image", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt, format: fmt, n: 1 }),
+        });
+        const raw = await r.text();
+        let d: { images?: Array<string | { url?: string }>; error?: string; simulated?: boolean } = {};
+        try { d = raw ? JSON.parse(raw) : {}; } catch { setError(t("Réponse inattendue lors de la génération.", "Unexpected response while generating.")); continue; }
+        if (!r.ok) { setError(d.error || t("Échec de génération d'image.", "Image generation failed.")); continue; }
+        if (d.simulated) { setError(t("Génération d'images non configurée (REPLICATE_API_TOKEN).", "Image generation not configured.")); break; }
+        const urls = (d.images ?? []).map((i) => (typeof i === "string" ? i : i?.url ?? "")).filter(Boolean);
+        if (urls[0]) results.push({ format: fmt, url: urls[0] });
+      }
+      if (results.length) {
+        setGeneratedVisuals((prev) => [...prev.filter((p) => !results.some((r) => r.format === p.format)), ...results]);
+        setImageUrl((cur) => cur || results[0].url); // 1er format = visuel principal par défaut
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : t("Échec de génération d'image.", "Image generation failed."));
     } finally { setGenImg(false); }
+  }
+  function toggleFormat(f: string) {
+    setVisualFormats((cur) => cur.includes(f) ? cur.filter((x) => x !== f) : [...cur, f]);
   }
 
   // Convertit une date (ISO ou yyyy-mm-dd) au format input datetime-local.
@@ -222,8 +246,14 @@ export default function NewMetaAdPage() {
       if (lf.thankYouTitle) setThankYouTitle(String(lf.thankYouTitle));
       if (lf.thankYouBody) setThankYouBody(String(lf.thankYouBody));
     }
-    // Génère automatiquement un visuel si l'IA a proposé un prompt et qu'aucun n'est posé.
-    if (p.visualPrompt && !imageUrl.trim() && !videoUrl.trim()) generateVisual(String(p.visualPrompt));
+    // Prompt visuel proposé par l'IA → mémorisé + génération auto multi-formats
+    // (carré pour le fil + 9:16 pour stories/reels) si aucun visuel n'est posé.
+    if (p.visualPrompt) {
+      setVisualPrompt(String(p.visualPrompt));
+      const autoFormats = ["1:1", "9:16"];
+      setVisualFormats(autoFormats);
+      if (!imageUrl.trim() && !videoUrl.trim()) generateVisual(String(p.visualPrompt), autoFormats);
+    }
   }
   /* eslint-enable @typescript-eslint/no-explicit-any */
 
@@ -749,19 +779,54 @@ export default function NewMetaAdPage() {
             <input value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://…" className={inputCls} />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-muted">{t("Visuel (URL d'image publique)", "Visual (public image URL)")}</label>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://…/image.jpg" className={inputCls} />
-              <button type="button" onClick={() => generateVisual()} disabled={genImg} className="btn-secondary inline-flex shrink-0 items-center gap-1.5 text-xs disabled:opacity-50">
-                {genImg && <Spinner size={14} className="text-current" />}
-                {genImg ? t("Génération…", "Generating…") : t("✨ Générer (IA)", "✨ Generate (AI)")}
-              </button>
+            <label className="mb-1 block text-xs font-medium text-muted">{t("Prompt du visuel (IA)", "Visual prompt (AI)")}</label>
+            <textarea
+              value={visualPrompt}
+              onChange={(e) => setVisualPrompt(e.target.value)}
+              rows={2}
+              placeholder={t("Décrivez l'image souhaitée (style, sujet, ambiance)…", "Describe the image you want (style, subject, mood)…")}
+              className={inputCls}
+            />
+            {/* Formats à générer */}
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              <span className="text-2xs text-muted">{t("Formats :", "Formats:")}</span>
+              {VISUAL_FORMATS.map((f) => (
+                <button key={f.id} type="button" onClick={() => toggleFormat(f.id)}
+                  className={`rounded-full px-2.5 py-1 text-2xs font-medium ${visualFormats.includes(f.id) ? "bg-primary-600 text-white" : "bg-canvas text-muted ring-1 ring-hair hover:text-ink"}`}>
+                  {t(f.fr, f.en)} · {f.id}
+                </button>
+              ))}
             </div>
-            {genImg && <BusyHint className="mt-2" label={t("Génération du visuel…", "Generating visual…")} eta={t("~20–60 s", "~20–60 s")} />}
-            {imageUrl && (
+            <button type="button" onClick={() => generateVisual()} disabled={genImg} className="btn-secondary mt-2 inline-flex items-center gap-1.5 text-xs disabled:opacity-50">
+              {genImg && <Spinner size={14} className="text-current" />}
+              {genImg ? t("Génération…", "Generating…") : t("✨ Générer le(s) visuel(s)", "✨ Generate visual(s)")}
+            </button>
+            {genImg && <BusyHint className="mt-2" label={t("Génération des visuels…", "Generating visuals…")} eta={t("~20–60 s / format", "~20–60 s / format")} />}
+
+            {/* Visuels générés — clic pour choisir le visuel principal de l'annonce */}
+            {generatedVisuals.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {generatedVisuals.map((g) => {
+                  const on = imageUrl === g.url;
+                  return (
+                    <button key={g.format} type="button" onClick={() => setImageUrl(g.url)}
+                      className={`relative overflow-hidden rounded-lg border-2 ${on ? "border-primary-500 ring-2 ring-primary-200" : "border-hair hover:border-primary-300"}`}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={g.url} alt={g.format} className="h-28 w-28 object-cover" />
+                      <span className="absolute bottom-0 left-0 right-0 bg-black/55 px-1 py-0.5 text-center text-[10px] text-white">{g.format}{on ? " ✓" : ""}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            <label className="mt-3 mb-1 block text-2xs font-medium text-muted">{t("…ou coller une URL d'image publique", "…or paste a public image URL")}</label>
+            <input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://…/image.jpg" className={inputCls} />
+            {imageUrl && !generatedVisuals.some((g) => g.url === imageUrl) && (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={imageUrl} alt="aperçu" className="mt-3 max-h-56 w-auto rounded-lg border border-hair object-contain" />
             )}
+            <p className="mt-1 text-2xs text-muted">{t("Le visuel sélectionné (✓) est celui de l'annonce. Générez plusieurs formats pour couvrir fil, portrait et stories.", "The selected (✓) visual is used for the ad. Generate several formats to cover feed, portrait and stories.")}</p>
           </div>
 
           {/* Carrousel : visuels supplémentaires (mode trafic uniquement) */}

@@ -170,6 +170,42 @@ function AdPerformanceContent() {
   const [, setTick] = useState(0);
   const refresh = () => setTick((n) => n + 1);
 
+  // ── Totaux RÉELS Meta (Marketing API) pour les KPI ─────────────────
+  // Remplacent l'estimation démo dès qu'un compte pub Meta est connecté.
+  const [realMeta, setRealMeta] = useState<
+    { spend: number; impressions: number; reach: number; clicks: number; conversions: number; cpc: number; count: number } | null
+  >(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch(`/api/meta/adaccounts?companyId=${encodeURIComponent(company.id)}&datePreset=maximum`);
+        if (!r.ok) return;
+        const d = await r.json();
+        const camps = d?.data?.campaigns as
+          | Array<{ spend: number; impressions: number; reach: number; clicks: number; conversions: number }>
+          | undefined;
+        if (!cancelled && Array.isArray(camps) && camps.length > 0) {
+          const tot = camps.reduce(
+            (a, c) => ({
+              spend: a.spend + (c.spend || 0),
+              impressions: a.impressions + (c.impressions || 0),
+              reach: a.reach + (c.reach || 0),
+              clicks: a.clicks + (c.clicks || 0),
+              conversions: a.conversions + (c.conversions || 0),
+            }),
+            { spend: 0, impressions: 0, reach: 0, clicks: 0, conversions: 0 }
+          );
+          setRealMeta({ ...tot, cpc: tot.clicks ? Number((tot.spend / tot.clicks).toFixed(2)) : 0, count: camps.length });
+        }
+      } catch {
+        /* silencieux — on garde l'estimation démo */
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [company.id]);
+
   const RANGE_LABEL: Record<RangeId, string> = {
     "7d": t("7 derniers jours", "Last 7 days"),
     "30d": t("30 derniers jours", "Last 30 days"),
@@ -401,8 +437,10 @@ function AdPerformanceContent() {
     }
   };
 
-  // True when no campaign data exists at all (zero-data state).
-  const hasNoData = data.campaigns.list.length === 0;
+  // Vrais totaux Meta présents ?
+  const hasRealMeta = !!realMeta && realMeta.count > 0;
+  // True when no campaign data exists at all (ni démo, ni réel).
+  const hasNoData = data.campaigns.list.length === 0 && !hasRealMeta;
 
   return (
     <div className="animate-fade-in">
@@ -516,20 +554,33 @@ function AdPerformanceContent() {
         </div>
       )}
 
-      {/* Estimation/demo banner — these figures are modelled from budget, not
-          pulled live from the ad platform. Be honest about it. */}
+      {/* Bandeau : KPI réels (Meta) si compte connecté ; sinon estimation démo. */}
       {!hasNoData && (
-        <div className="mb-4 flex items-start gap-2.5 rounded-lg border border-warning-100 bg-warning-50 px-4 py-2.5">
-          <span className="mt-0.5 shrink-0 rounded-full bg-warning-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-warning-700">
-            {t("Estimation · démo", "Estimate · demo")}
-          </span>
-          <p className="text-2xs leading-relaxed text-warning-700">
-            {t(
-              "Impressions, clics, CTR, CPC et tendances sont estimés à partir du budget — ce ne sont pas encore des chiffres réels de la régie publicitaire. Connectez votre compte Meta Ads pour des données réelles.",
-              "Impressions, clicks, CTR, CPC and trends are estimated from budget — these are not yet real figures from the ad platform. Connect your Meta Ads account for real data."
-            )}
-          </p>
-        </div>
+        hasRealMeta ? (
+          <div className="mb-4 flex items-start gap-2.5 rounded-lg border border-success-100 bg-success-50 px-4 py-2.5">
+            <span className="mt-0.5 shrink-0 rounded-full bg-success-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-success-700">
+              {t("Réel · Meta", "Real · Meta")}
+            </span>
+            <p className="text-2xs leading-relaxed text-success-700">
+              {t(
+                "Les indicateurs ci-dessous proviennent de votre compte Meta Ads (durée de vie). Le graphique temporel et le tableau par publicité plus bas restent une modélisation de démonstration.",
+                "The KPIs below come from your Meta Ads account (lifetime). The time chart and per-ad table further down are still a demo model."
+              )}
+            </p>
+          </div>
+        ) : (
+          <div className="mb-4 flex items-start gap-2.5 rounded-lg border border-warning-100 bg-warning-50 px-4 py-2.5">
+            <span className="mt-0.5 shrink-0 rounded-full bg-warning-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-warning-700">
+              {t("Estimation · démo", "Estimate · demo")}
+            </span>
+            <p className="text-2xs leading-relaxed text-warning-700">
+              {t(
+                "Impressions, clics, CTR, CPC et tendances sont estimés à partir du budget — ce ne sont pas encore des chiffres réels de la régie publicitaire. Connectez votre compte Meta Ads pour des données réelles.",
+                "Impressions, clicks, CTR, CPC and trends are estimated from budget — these are not yet real figures from the ad platform. Connect your Meta Ads account for real data."
+              )}
+            </p>
+          </div>
+        )
       )}
 
       {/* Metric cards — clickable focus */}
@@ -537,36 +588,41 @@ function AdPerformanceContent() {
       <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <MetricCard
           label={t("Dépenses", "Spend")}
-          value={eur(totalSpend)}
-          trend={trend(totalSpend, prevSpend)}
+          value={eur(hasRealMeta ? realMeta!.spend : totalSpend)}
+          sub={hasRealMeta ? t("réel · Meta", "real · Meta") : undefined}
+          trend={hasRealMeta ? undefined : trend(totalSpend, prevSpend)}
           active={focus === "spend"}
           onClick={() => handleFocus("spend")}
         />
         <MetricCard
           label={t("Impressions", "Impressions")}
-          value={totalImpressions.toLocaleString()}
-          trend={trend(totalImpressions, prevImpressions)}
+          value={(hasRealMeta ? realMeta!.impressions : totalImpressions).toLocaleString()}
+          sub={hasRealMeta ? t("réel · Meta", "real · Meta") : undefined}
+          trend={hasRealMeta ? undefined : trend(totalImpressions, prevImpressions)}
           active={focus === "impressions"}
           onClick={() => handleFocus("impressions")}
         />
         <MetricCard
           label={t("Clics", "Clicks")}
-          value={totalClicks.toLocaleString()}
-          trend={trend(totalClicks, prevClicks)}
+          value={(hasRealMeta ? realMeta!.clicks : totalClicks).toLocaleString()}
+          sub={hasRealMeta ? t("réel · Meta", "real · Meta") : undefined}
+          trend={hasRealMeta ? undefined : trend(totalClicks, prevClicks)}
           active={focus === "clicks"}
           onClick={() => handleFocus("clicks")}
         />
         <MetricCard
           label={t("Conversions", "Conversions")}
-          value={String(totalConversions)}
-          trend={trend(totalConversions, prevConversions)}
+          value={String(hasRealMeta ? realMeta!.conversions : totalConversions)}
+          sub={hasRealMeta ? t("réel · Meta", "real · Meta") : undefined}
+          trend={hasRealMeta ? undefined : trend(totalConversions, prevConversions)}
           active={focus === "conversions"}
           onClick={() => handleFocus("conversions")}
         />
         <MetricCard
           label={t("CPC moyen", "Avg. CPC")}
-          value={eur(avgCpc, { decimals: true })}
-          trend={trend(prevCpc, avgCpc)}
+          value={eur(hasRealMeta ? realMeta!.cpc : avgCpc, { decimals: true })}
+          sub={hasRealMeta ? t("réel · Meta", "real · Meta") : undefined}
+          trend={hasRealMeta ? undefined : trend(prevCpc, avgCpc)}
           active={focus === "cpc"}
           onClick={() => handleFocus("cpc")}
         />

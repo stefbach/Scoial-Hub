@@ -58,10 +58,21 @@ export function AdStrategyBrain() {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ companyId }),
       });
-      const d = await r.json();
+      // Lecture tolérante : en cas de 504/erreur, la réponse n'est pas du JSON.
+      const raw = await r.text();
+      let d: { error?: string; analysis?: Analysis; campaignsCount?: number; account?: { name: string } } = {};
+      try { d = raw ? JSON.parse(raw) : {}; }
+      catch {
+        setError(
+          r.status === 504 || r.status === 502
+            ? t("L'analyse a dépassé le temps imparti. Réessayez.", "Analysis timed out. Please try again.")
+            : t(`Réponse serveur inattendue (${r.status}). Réessayez.`, `Unexpected server response (${r.status}). Please try again.`)
+        );
+        return;
+      }
       if (!r.ok) { setError(d.error || t("Échec de l'analyse.", "Analysis failed.")); return; }
-      setAnalysis(d.analysis);
-      setMeta({ campaignsCount: d.campaignsCount, account: d.account });
+      setAnalysis(d.analysis ?? null);
+      setMeta({ campaignsCount: d.campaignsCount ?? 0, account: d.account });
     } catch (e) {
       setError(e instanceof Error ? e.message : t("Échec de l'analyse.", "Analysis failed."));
     } finally { setLoading(false); }

@@ -48,6 +48,12 @@ function vidRatio(fmt?: string): string {
 
 export const IMAGE_MODELS: GenModel[] = [
   {
+    id: "google/nano-banana",
+    label: "Nano Banana (Gemini)",
+    note: "Google — top qualité & cohérence",
+    buildInput: (p) => ({ prompt: p, output_format: "png" }),
+  },
+  {
     id: "black-forest-labs/flux-1.1-pro",
     label: "Flux 1.1 Pro",
     note: "Photoréaliste, polyvalent",
@@ -158,11 +164,16 @@ export const VIDEO_MODELS: GenModel[] = [
 
 /* ── Lookups ───────────────────────────────────────────────────────────────── */
 
-export const DEFAULT_IMAGE_MODEL_ID = IMAGE_MODELS[0].id;
+// Défaut explicite = Flux 1.1 Pro (ne dépend pas de l'ordre du tableau, pour ne
+// pas changer le comportement des autres écrans quand un modèle est ajouté en tête).
+export const DEFAULT_IMAGE_MODEL_ID = "black-forest-labs/flux-1.1-pro";
 export const DEFAULT_VIDEO_MODEL_ID = VIDEO_MODELS[0].id;
 
+const FALLBACK_IMAGE_MODEL =
+  IMAGE_MODELS.find((m) => m.id === DEFAULT_IMAGE_MODEL_ID) ?? IMAGE_MODELS[0];
+
 export function getImageModel(id?: string): GenModel {
-  return IMAGE_MODELS.find((m) => m.id === id) ?? IMAGE_MODELS[0];
+  return IMAGE_MODELS.find((m) => m.id === id) ?? FALLBACK_IMAGE_MODEL;
 }
 export function getVideoModel(id?: string): GenModel {
   return VIDEO_MODELS.find((m) => m.id === id) ?? VIDEO_MODELS[0];

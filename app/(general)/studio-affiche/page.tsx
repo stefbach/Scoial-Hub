@@ -11,6 +11,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useCompany } from "@/lib/company-context";
 import { useT } from "@/lib/i18n";
 import { Spinner, BusyHint } from "@/components/ui/Spinner";
+import { IMAGE_MODELS, DEFAULT_IMAGE_MODEL_ID } from "@/lib/ai/model-catalog";
 
 interface Format { id: string; label: string; w: number; h: number; print?: boolean; ar: string; }
 
@@ -69,9 +70,11 @@ export default function StudioAffichePage() {
   const format = useMemo(() => FORMATS.find((f) => f.id === formatId)!, [formatId]);
 
   const [prompt, setPrompt] = useState("");
+  const [modelId, setModelId] = useState(DEFAULT_IMAGE_MODEL_ID);
   const [bgImg, setBgImg] = useState<HTMLImageElement | null>(null);
   const [logoImg, setLogoImg] = useState<HTMLImageElement | null>(null);
   const [generating, setGenerating] = useState(false);
+  const [suggesting, setSuggesting] = useState(false);
 
   const [headline, setHeadline] = useState("");
   const [subtitle, setSubtitle] = useState("");
@@ -89,7 +92,7 @@ export default function StudioAffichePage() {
     try {
       const r = await fetch("/api/ai/generate-image", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: prompt || `affiche professionnelle pour ${company.name}`, format: format.ar, n: 1 }),
+        body: JSON.stringify({ prompt: prompt || `affiche professionnelle pour ${company.name}`, format: format.ar, n: 1, model: modelId }),
       });
       const d = await r.json();
       if (!r.ok) { setNote(d.error || t("Échec de génération.", "Generation failed.")); return; }
@@ -101,6 +104,22 @@ export default function StudioAffichePage() {
     } catch (e) {
       setNote(e instanceof Error ? e.message : t("Échec.", "Failed."));
     } finally { setGenerating(false); }
+  }
+
+  // ── Prompt généré par l'IA (puis utilisé pour générer l'image) ──────────────
+  async function suggestPrompt() {
+    setSuggesting(true); setNote(null);
+    try {
+      const r = await fetch("/api/ai/suggest-image-prompt", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyId, brief: prompt, format: format.label, kind: format.print ? "affiche" : "visuel réseau social" }),
+      });
+      const d = await r.json();
+      if (d.prompt) setPrompt(d.prompt);
+      if (d.aiGenerated === false) setNote(t("Prompt généré en mode démo (IA non configurée).", "Prompt generated in demo mode (AI not configured)."));
+    } catch {
+      setNote(t("Échec de la suggestion de prompt.", "Prompt suggestion failed."));
+    } finally { setSuggesting(false); }
   }
 
   function onUpload(file: File | undefined, kind: "bg" | "logo") {
@@ -230,9 +249,23 @@ export default function StudioAffichePage() {
           {/* Fond */}
           <section className="card p-4 space-y-3">
             <div className="section-label">{t("Fond", "Background")}</div>
-            <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} rows={2}
-              placeholder={t("Décrivez le visuel (IA)…", "Describe the visual (AI)…")} className={inputCls} />
+
+            {/* Modèle IA */}
+            <div>
+              <label className="text-2xs font-medium text-muted">{t("Modèle d'image (IA)", "Image model (AI)")}</label>
+              <select value={modelId} onChange={(e) => setModelId(e.target.value)} className={`mt-1 ${inputCls}`}>
+                {IMAGE_MODELS.map((m) => (
+                  <option key={m.id} value={m.id}>{m.label}{m.note ? ` — ${m.note}` : ""}</option>
+                ))}
+              </select>
+            </div>
+
+            <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} rows={3}
+              placeholder={t("Décrivez le visuel… ou laissez l'IA proposer un prompt", "Describe the visual… or let the AI suggest a prompt")} className={inputCls} />
             <div className="flex flex-wrap gap-2">
+              <button onClick={suggestPrompt} disabled={suggesting} className="btn-secondary text-xs disabled:opacity-50">
+                {suggesting ? <span className="inline-flex items-center gap-1.5"><Spinner size={12} className="text-primary-600" />{t("Prompt…", "Prompt…")}</span> : t("🧠 Suggérer un prompt (IA)", "🧠 Suggest a prompt (AI)")}
+              </button>
               <button onClick={generateBackground} disabled={generating} className="btn-primary text-xs disabled:opacity-50">
                 {generating ? <span className="inline-flex items-center gap-1.5"><Spinner size={12} className="text-white" />{t("Génération…", "Generating…")}</span> : t("✨ Générer le fond (IA)", "✨ Generate background (AI)")}
               </button>
@@ -241,7 +274,7 @@ export default function StudioAffichePage() {
                 <input type="file" accept="image/*" className="hidden" onChange={(e) => onUpload(e.target.files?.[0], "bg")} />
               </label>
             </div>
-            {generating && <BusyHint label={t("Création du visuel…", "Creating the visual…")} eta={t("~15–30 s", "~15–30 s")} />}
+            {generating && <BusyHint label={t("Création du visuel…", "Creating the visual…")} eta={t("~15–40 s", "~15–40 s")} />}
           </section>
 
           {/* Texte */}

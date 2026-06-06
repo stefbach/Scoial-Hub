@@ -189,24 +189,19 @@ export async function fetchAdAccountData(
   const preset = VALID_DATE_PRESETS.has(datePreset) ? datePreset : "maximum";
   const out: AdAccountData = { campaigns: [] };
   const act = adAccountId.startsWith("act_") ? adAccountId : `act_${adAccountId}`;
-  const currency = await (async () => {
-    const acc = await gget(`${act}?fields=name,currency,amount_spent`, userToken);
-    if (acc) {
-      out.account = { id: act, name: String(acc.name ?? ""), currency: String(acc.currency ?? "EUR"), amountSpent: Number(acc.amount_spent ?? 0) };
-      return String(acc.currency ?? "EUR");
-    }
-    return "EUR";
-  })();
 
-  // Liste des campagnes (même sans dépense récente).
-  const list = await gget(`${act}/campaigns?fields=id,name,objective,effective_status&limit=40`, userToken);
+  // Appels Graph indépendants en parallèle (compte, liste campagnes, métriques).
+  const [acc, list, ins] = await Promise.all([
+    gget(`${act}?fields=name,currency,amount_spent`, userToken),
+    gget(`${act}/campaigns?fields=id,name,objective,effective_status&limit=40`, userToken),
+    gget(`${act}/insights?level=campaign&fields=campaign_id,campaign_name,spend,impressions,reach,clicks,ctr,cpc,cpm,frequency,actions&date_preset=${preset}&limit=200`, userToken),
+  ]);
+
+  const currency = String(acc?.currency ?? "EUR");
+  if (acc) {
+    out.account = { id: act, name: String(acc.name ?? ""), currency, amountSpent: Number(acc.amount_spent ?? 0) };
+  }
   const camps = (list?.data as Array<Record<string, unknown>>) ?? [];
-
-  // Métriques par campagne (fenêtre = preset), fusionnées par id de campagne.
-  const ins = await gget(
-    `${act}/insights?level=campaign&fields=campaign_id,campaign_name,spend,impressions,reach,clicks,ctr,cpc,cpm,frequency,actions&date_preset=${preset}&limit=200`,
-    userToken
-  );
   type Metrics = { spend: number; impressions: number; reach: number; clicks: number; ctr: number; cpc: number; cpm: number; frequency: number; conversions: number };
   const byId = new Map<string, Metrics>();
   for (const r of (ins?.data as Array<Record<string, unknown>>) ?? []) {
@@ -292,12 +287,19 @@ export async function fetchAdPerformance(
   const act = adAccountId.startsWith("act_") ? adAccountId : `act_${adAccountId}`;
   const dp = dateParam(opts);
 
-  const acc = await gget(`${act}?fields=name,currency`, userToken);
+  // Appels Graph indépendants lancés EN PARALLÈLE (latence ÷ ~5).
+  const [acc, ser, totIns, adIns, adsMeta] = await Promise.all([
+    gget(`${act}?fields=name,currency`, userToken),
+    gget(`${act}/insights?fields=spend,impressions,clicks,actions&time_increment=1&${dp}&limit=500`, userToken),
+    gget(`${act}/insights?fields=spend,impressions,reach,clicks,actions&${dp}&limit=1`, userToken),
+    gget(`${act}/insights?level=ad&fields=ad_id,ad_name,campaign_name,adset_name,spend,impressions,clicks,ctr,cpc,actions&${dp}&limit=300`, userToken),
+    gget(`${act}/ads?fields=id,effective_status&limit=500`, userToken),
+  ]);
+
   const currency = String(acc?.currency ?? "EUR");
   const account = acc ? { id: act, name: String(acc.name ?? ""), currency } : undefined;
 
   // 1) Série quotidienne (time_increment=1) au niveau compte.
-  const ser = await gget(`${act}/insights?fields=spend,impressions,clicks,actions&time_increment=1&${dp}&limit=500`, userToken);
   const days = ((ser?.data as Array<Record<string, unknown>>) ?? [])
     .slice()
     .sort((a, b) => String(a.date_start ?? "").localeCompare(String(b.date_start ?? "")));
@@ -310,16 +312,10 @@ export async function fetchAdPerformance(
   }
 
   // 2) Totaux agrégés (une ligne au niveau compte).
-  const totIns = await gget(`${act}/insights?fields=spend,impressions,reach,clicks,actions&${dp}&limit=1`, userToken);
   const tr = ((totIns?.data as Array<Record<string, unknown>>) ?? [])[0] ?? {};
   const tSpend = Number(tr.spend ?? 0), tImpr = Number(tr.impressions ?? 0), tClicks = Number(tr.clicks ?? 0);
 
   // 3) Lignes par publicité + statut réel.
-  const adIns = await gget(
-    `${act}/insights?level=ad&fields=ad_id,ad_name,campaign_name,adset_name,spend,impressions,clicks,ctr,cpc,actions&${dp}&limit=300`,
-    userToken
-  );
-  const adsMeta = await gget(`${act}/ads?fields=id,effective_status&limit=500`, userToken);
   const statusById = new Map<string, string>();
   for (const a of (adsMeta?.data as Array<Record<string, unknown>>) ?? []) {
     statusById.set(String(a.id ?? ""), String(a.effective_status ?? ""));

@@ -198,6 +198,7 @@ function AdPerformanceContent() {
   // ── Performance RÉELLE Meta (Marketing API) : totaux + séries + pubs ───────
   // Remplace l'estimation démo dès qu'un compte pub Meta est connecté.
   const [realPerf, setRealPerf] = useState<RealPerf | null>(null);
+  const [realLoading, setRealLoading] = useState(true);
 
   const RANGE_LABEL: Record<RangeId, string> = {
     "7d": t("7 derniers jours", "Last 7 days"),
@@ -224,7 +225,7 @@ function AdPerformanceContent() {
 
   // ── URL-driven state ──────────────────────────────────────────────
   const rangeParam = params.get("range") as RangeId | null;
-  const initialRange: RangeId = rangeParam && RANGE_LABEL[rangeParam] ? rangeParam : "30d";
+  const initialRange: RangeId = rangeParam && RANGE_LABEL[rangeParam] ? rangeParam : "all";
   const [range, setRange] = useState<RangeId>(initialRange);
   const [customFrom, setCustomFrom] = useState<Date | null>(
     params.get("from") ? new Date(`${params.get("from")}T00:00:00`) : null
@@ -261,7 +262,7 @@ function AdPerformanceContent() {
   // Keep URL in sync.
   useEffect(() => {
     const qs = new URLSearchParams();
-    if (range !== "30d") qs.set("range", range);
+    if (range !== "all") qs.set("range", range);
     if (range === "custom") {
       if (customFrom) qs.set("from", format(customFrom, "yyyy-MM-dd"));
       if (customTo) qs.set("to", format(customTo, "yyyy-MM-dd"));
@@ -283,24 +284,29 @@ function AdPerformanceContent() {
   // ── Récupération de la performance réelle Meta (suit la période) ──────────
   useEffect(() => {
     let cancelled = false;
+    setRealLoading(true);
     (async () => {
       try {
         const q = rangeQuery(range, customFrom, customTo);
         const r = await fetch(`/api/meta/ad-performance?companyId=${encodeURIComponent(company.id)}&${q}`);
         if (!r.ok) { if (!cancelled) setRealPerf(null); return; }
         const d = await r.json();
+        // Dès qu'un compte Meta est connecté, on affiche le RÉEL (même si 0 sur
+        // la fenêtre) — on ne retombe jamais sur la démo.
         if (!cancelled) {
-          setRealPerf(d?.connected && d?.totals ? { totals: d.totals, series: d.series, ads: d.ads ?? [] } : null);
+          setRealPerf(d?.connected ? { totals: d.totals, series: d.series, ads: d.ads ?? [] } : null);
         }
       } catch {
         if (!cancelled) setRealPerf(null);
+      } finally {
+        if (!cancelled) setRealLoading(false);
       }
     })();
     return () => { cancelled = true; };
   }, [company.id, range, customFrom, customTo]);
 
-  // Vraies données Meta présentes ?
-  const hasRealMeta = !!realPerf && (realPerf.totals.spend > 0 || realPerf.ads.length > 0);
+  // Compte Meta connecté → on est en mode données réelles (même fenêtre à 0).
+  const hasRealMeta = !!realPerf;
 
   // ── Derived data ──────────────────────────────────────────────────
   const { days } = rangeWindow(range, customFrom, customTo);
@@ -587,7 +593,11 @@ function AdPerformanceContent() {
 
       {/* Bandeau : KPI réels (Meta) si compte connecté ; sinon estimation démo. */}
       {!hasNoData && (
-        hasRealMeta ? (
+        realLoading && !hasRealMeta ? (
+          <div className="mb-4 rounded-lg border border-hair bg-canvas px-4 py-2.5 text-2xs text-muted">
+            {t("Chargement des données Meta…", "Loading Meta data…")}
+          </div>
+        ) : hasRealMeta ? (
           <div className="mb-4 flex items-start gap-2.5 rounded-lg border border-success-100 bg-success-50 px-4 py-2.5">
             <span className="mt-0.5 shrink-0 rounded-full bg-success-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-success-700">
               {t("Réel · Meta", "Real · Meta")}

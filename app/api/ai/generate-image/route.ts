@@ -6,7 +6,7 @@
 // ============================================================
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 import { NextRequest, NextResponse } from "next/server";
 import { generateImageModel } from "@/lib/ai/replicate";
@@ -69,7 +69,11 @@ export async function POST(req: NextRequest) {
         }
       } catch (e) {
         lastError = e;
-        console.warn(`[api/ai/generate-image] modèle ${gm.id} a échoué, repli…`, e instanceof Error ? e.message : e);
+        // Throttling (429) : limite globale du compte Replicate → changer de
+        // modèle n'aide pas et aggrave le throttle. On arrête et on remonte.
+        const msg = e instanceof Error ? e.message : String(e);
+        if (/débit Replicate|429|throttl/i.test(msg)) break;
+        console.warn(`[api/ai/generate-image] modèle ${gm.id} a échoué, repli…`, msg);
       }
     }
 

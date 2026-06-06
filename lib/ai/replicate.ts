@@ -29,6 +29,37 @@ const PREDICTION_TIMEOUT_MS = 120_000; // 2 minutes
 /** Intervalle entre deux vérifications de statut (ms). */
 const POLLING_INTERVAL_MS = 2_000;
 
+/** Petite pause utilitaire. */
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * fetch Replicate avec gestion du throttling (429). Replicate réduit fortement
+ * le débit quand le crédit est faible (< 5 $ : burst de 1 requête, 6/min). On
+ * respecte alors l'en-tête/`retry_after` et on retente quelques fois.
+ */
+async function replicateFetch(
+  url: string,
+  init: RequestInit,
+  attempt = 0
+): Promise<Response> {
+  const res = await fetch(url, init);
+  if (res.status !== 429 || attempt >= 4) return res;
+
+  // Détermine le délai d'attente : corps JSON `retry_after` ou en-tête, défaut 10 s.
+  let waitSec = 10;
+  try {
+    const body = (await res.clone().json()) as { retry_after?: number };
+    if (typeof body.retry_after === "number") waitSec = body.retry_after;
+  } catch {
+    const hdr = Number(res.headers.get("retry-after"));
+    if (Number.isFinite(hdr) && hdr > 0) waitSec = hdr;
+  }
+  await sleep(Math.min(Math.max(waitSec, 1), 30) * 1000 + 500);
+  return replicateFetch(url, init, attempt + 1);
+}
+
 // --------------- Types internes ---------------
 
 interface ReplicatePrediction {
@@ -62,7 +93,7 @@ async function createPrediction(
   const [owner, name] = model.split("/");
   const url = `${REPLICATE_API_BASE}/models/${owner}/${name}/predictions`;
 
-  const res = await fetch(url, {
+  const res = await replicateFetch(url, {
     method: "POST",
     headers: replicateHeaders(),
     body: JSON.stringify({ input }),
@@ -70,6 +101,11 @@ async function createPrediction(
 
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText);
+    if (res.status === 429) {
+      throw new Error(
+        "Limite de débit Replicate atteinte (crédit faible : 1 image à la fois, ~6/min). Réessayez dans ~10 s, ou ajoutez du crédit Replicate pour lever la limite."
+      );
+    }
     throw new Error(
       `Replicate — création de prédiction échouée (${res.status}) : ${text}`
     );
@@ -90,7 +126,7 @@ async function pollPrediction(
   while (Date.now() < deadline) {
     await new Promise((resolve) => setTimeout(resolve, POLLING_INTERVAL_MS));
 
-    const res = await fetch(
+    const res = await replicateFetch(
       `${REPLICATE_API_BASE}/predictions/${predictionId}`,
       { headers: replicateHeaders() }
     );
@@ -254,15 +290,17 @@ export async function generateImageModel(
       ? [raw]
       : [];
   };
-  const settled = await Promise.allSettled(
-    Array.from({ length: numOutputs }, runOne)
-  );
 
+  // SÉQUENTIEL (pas Promise.all) : Replicate limite à 1 requête simultanée quand
+  // le crédit est faible. On garde les images réussies, on ne lève que si zéro.
   const urls: string[] = [];
   let lastError: unknown;
-  for (const s of settled) {
-    if (s.status === "fulfilled") urls.push(...s.value);
-    else lastError = s.reason;
+  for (let i = 0; i < numOutputs; i++) {
+    try {
+      urls.push(...(await runOne()));
+    } catch (e) {
+      lastError = e;
+    }
   }
 
   if (urls.length === 0) {

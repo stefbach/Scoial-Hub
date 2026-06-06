@@ -143,6 +143,34 @@ export default function PilotagePage() {
     return () => { alive = false; };
   }, [company.id]);
 
+  // KPIs organiques RÉELS (Facebook + Instagram) via /api/meta/insights.
+  const [realKpi, setRealKpi] = useState<{ followers: number; likes: number; comments: number; engagementRate: number; perNet: { net: string; followers: number; engagementRate: number }[] } | null>(null);
+  useEffect(() => {
+    let alive = true;
+    fetch(`/api/meta/insights?companyId=${encodeURIComponent(company.id)}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (!alive || !d?.connected) return;
+        const fbF = Number(d.facebook?.followers ?? d.facebook?.fanCount ?? 0);
+        const igF = Number(d.instagram?.followers ?? 0);
+        const fbPosts = (d.facebookPosts ?? []) as Array<{ likes?: number; comments?: number; shares?: number }>;
+        const igPosts = (d.instagramPosts ?? []) as Array<{ likes?: number; comments?: number; shares?: number }>;
+        const sumEng = (ps: typeof fbPosts) => ps.reduce((a, p) => a + (p.likes ?? 0) + (p.comments ?? 0) + (p.shares ?? 0), 0);
+        const likes = [...fbPosts, ...igPosts].reduce((a, p) => a + (p.likes ?? 0), 0);
+        const comments = [...fbPosts, ...igPosts].reduce((a, p) => a + (p.comments ?? 0), 0);
+        const rate = (f: number, ps: typeof fbPosts) => (f && ps.length ? +((sumEng(ps) / ps.length / f) * 100).toFixed(2) : 0);
+        const perNet = [
+          ...(d.facebook ? [{ net: "Facebook", followers: fbF, engagementRate: rate(fbF, fbPosts) }] : []),
+          ...(d.instagram ? [{ net: "Instagram", followers: igF, engagementRate: rate(igF, igPosts) }] : []),
+        ];
+        const totFollowers = fbF + igF;
+        const totRate = perNet.length ? +(perNet.reduce((a, n) => a + n.engagementRate, 0) / perNet.length).toFixed(2) : 0;
+        if (totFollowers > 0 || likes > 0) setRealKpi({ followers: totFollowers, likes, comments, engagementRate: totRate, perNet });
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [company.id]);
+
   const setStatus = (id: string, status: Decision["status"]) =>
     setDecisions((ds) => ds.map((d) => (d.id === id ? { ...d, status } : d)));
 
@@ -283,7 +311,24 @@ export default function PilotagePage() {
       {/* ── KPIs agrégés ───────────────────────────────── */}
       <section>
         <div className="section-label mb-2.5">{t("Indicateurs clés · tous réseaux", "Key metrics · all networks")}</div>
-        {hasKpiData ? (
+        {realKpi ? (
+          <>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <Kpi label={t("Abonnés", "Followers")} value={fmt(realKpi.followers)} />
+              <Kpi label={t("Engagement moyen", "Avg. engagement")} value={`${realKpi.engagementRate}%`} accent />
+              <Kpi label={t("Likes (récents)", "Likes (recent)")} value={fmt(realKpi.likes)} />
+              <Kpi label={t("Commentaires (récents)", "Comments (recent)")} value={fmt(realKpi.comments)} />
+            </div>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {realKpi.perNet.map((n) => (
+                <span key={n.net} className="rounded-full border border-hair bg-card px-3 py-1 text-2xs text-ink">
+                  {n.net} · {fmt(n.followers)} {t("abonnés", "followers")} · {n.engagementRate}% {t("eng.", "eng.")}
+                </span>
+              ))}
+              <span className="self-center text-2xs text-muted">{t("Données réelles · posts récents", "Real data · recent posts")}</span>
+            </div>
+          </>
+        ) : hasKpiData ? (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
             <Kpi label={t("Abonnés", "Followers")} value={fmt(agg.followers)} />
             <Kpi label={t("Engagement", "Engagement")} value={`${agg.engagementRate}%`} accent />

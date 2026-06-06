@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useCompany } from "@/lib/company-context";
+import { AgentLauncher } from "@/components/agents/AgentLauncher";
 import { useScope } from "@/lib/scope";
 import { useT } from "@/lib/i18n";
 import {
@@ -173,6 +175,26 @@ export default function PilotagePage() {
 
   return (
     <div className="animate-fade-in space-y-6">
+      {/* ── Liens rapides : le pilotage relie tous les outils ──────────── */}
+      <div className="flex flex-wrap items-center gap-2">
+        {([
+          ["/veille", t("Veille", "Watch")],
+          ["/agents", t("Agents", "Agents")],
+          ["/campaigns", t("Campagnes", "Campaigns")],
+          ["/ad-performance", t("Performance Ads", "Ad Performance")],
+          ["/inbox", t("Messagerie", "Inbox")],
+          ["/media", t("Médiathèque", "Media")],
+          ["/compose", "Compose"],
+        ] as [string, string][]).map(([href, label]) => (
+          <Link key={href} href={href} className="rounded-full border border-hair bg-card px-3 py-1 text-xs text-ink hover:border-primary-300 hover:text-primary-700">
+            {label} →
+          </Link>
+        ))}
+      </div>
+
+      {/* Agent IA lançable directement depuis le centre de pilotage */}
+      <AgentLauncher context={t("Centre de pilotage", "Steering center")} defaultObjective={t("Définir et lancer la stratégie social media", "Define and launch the social media strategy")} />
+
       {/* ── Bandeau stratégie ──────────────────────────── */}
       <div className="card overflow-hidden">
         <div className="border-b border-hair bg-canvas/60 px-4 py-3 sm:px-5">

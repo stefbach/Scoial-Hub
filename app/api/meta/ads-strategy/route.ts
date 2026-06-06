@@ -104,8 +104,20 @@ Retourne STRICTEMENT ce JSON (français, concret, chiffré quand possible) :
 }
 Max 5 éléments par liste. Base-toi sur les données réelles ; si peu de données, dis-le et propose un plan de test.`;
 
-    const parsed = await callClaudeJSON<Partial<Analysis>>(prompt, { maxTokens: 2200 });
-    if (!parsed) return NextResponse.json({ analysis: empty, account, campaignsCount: campaigns.length });
+    const parsed = await callClaudeJSON<Partial<Analysis>>(prompt, { maxTokens: 3500 });
+    if (!parsed) {
+      // L'IA est configurée mais n'a pas renvoyé d'analyse exploitable.
+      return NextResponse.json({
+        analysis: {
+          ...empty,
+          diagnostic: campaigns.length === 0
+            ? empty.diagnostic
+            : "L'analyse IA n'a pas abouti cette fois (réponse non exploitable). Cliquez sur « Ré-analyser » pour réessayer.",
+        },
+        account,
+        campaignsCount: campaigns.length,
+      });
+    }
 
     const analysis: Analysis = {
       diagnostic: parsed.diagnostic ?? empty.diagnostic,

@@ -9,10 +9,17 @@
  */
 
 export const runtime = "nodejs";
+export const maxDuration = 30;
 
 import { NextRequest, NextResponse } from "next/server";
 
-const ALLOWED_SUFFIXES = ["readyplayer.me", "readyplayerme.github.io"];
+const ALLOWED_SUFFIXES = [
+  "readyplayer.me",
+  "readyplayerme.github.io",
+  "githubusercontent.com",
+  "github.io",
+  "threejs.org",
+];
 
 export async function GET(req: NextRequest) {
   const url = req.nextUrl.searchParams.get("url");
@@ -30,8 +37,16 @@ export async function GET(req: NextRequest) {
   if (!allowed) return NextResponse.json({ error: "hôte non autorisé" }, { status: 403 });
 
   try {
-    const res = await fetch(url, { headers: { Accept: "model/gltf-binary,*/*" } });
+    const res = await fetch(url, {
+      redirect: "follow",
+      headers: {
+        Accept: "model/gltf-binary,application/octet-stream,*/*",
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+      },
+    });
     if (!res.ok) {
+      console.warn("[avatar-proxy] upstream", res.status, url);
       return NextResponse.json({ error: `source ${res.status}` }, { status: res.status });
     }
     const buf = await res.arrayBuffer();
@@ -43,6 +58,7 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (err) {
+    console.error("[avatar-proxy] fetch threw for", url, "→", err);
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "fetch error" },
       { status: 502 }

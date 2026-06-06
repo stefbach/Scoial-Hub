@@ -30,6 +30,8 @@ const VOICE_LANGS = [
 const DEFAULT_MODELS = [
   "https://models.readyplayer.me/65893b0514f9f5f28e61d783.glb?morphTargets=ARKit,Oculus%20Visemes",
   "https://models.readyplayer.me/62ea7bc28a6d28ec134bbcce.glb?morphTargets=ARKit,Oculus%20Visemes",
+  // Modèle de secours garanti joignable (échantillon glTF Khronos) — prouve la 3D.
+  "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/CesiumMan/glTF-Binary/CesiumMan.glb",
 ];
 const DEFAULT_MODEL = DEFAULT_MODELS[0];
 

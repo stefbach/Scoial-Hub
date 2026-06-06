@@ -8,6 +8,7 @@ import { useT } from "@/lib/i18n";
 const NAV_TR: Record<string, [string, string]> = {
   "Dashboard": ["Tableau de bord", "Dashboard"],
   "Médiathèque": ["Médiathèque", "Media library"],
+  "Modèles": ["Modèles", "Templates"],
   "Get started": ["Démarrage assisté", "Assisted onboarding"],
   "Modules": ["Modules", "Modules"],
   "Mes Pages": ["Mes Pages & données", "My Pages & data"],
@@ -265,7 +266,7 @@ const GROUPS: { label?: string; items: NavItem[] }[] = [
       { href: "/studio-affiche", label: "Studio Affiches" },
       { href: "/media",       label: "Médiathèque" },
       { href: "/scheduled",   label: "Scheduled" },
-      { href: "/library",     label: "Library" },
+      { href: "/library",     label: "Modèles" },
       { href: "/automations", label: "Automations" },
       { href: "/history",     label: "History" },
     ],

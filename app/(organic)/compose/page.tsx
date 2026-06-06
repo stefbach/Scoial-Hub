@@ -12,6 +12,7 @@ import { CreativeInspiration } from "@/components/compose/CreativeInspiration";
 import { MediaEditor } from "@/components/compose/MediaEditor";
 import { PostPreview, type PreviewPlatform } from "@/components/compose/PostPreview";
 import BrandKitPanel from "@/components/studio/BrandKitPanel";
+import { AgentLauncher } from "@/components/agents/AgentLauncher";
 import { IMAGE_MODELS, VIDEO_MODELS, DEFAULT_IMAGE_MODEL_ID, DEFAULT_VIDEO_MODEL_ID } from "@/lib/ai/model-catalog";
 import { MediaUpload, type UploadedMedia } from "@/components/ui/MediaUpload";
 import { DatePicker, TimePicker } from "@/components/ui/DateTimePicker";
@@ -409,6 +410,8 @@ function ComposeContent() {
             onApplyMedia={setUpload}
           />
 
+          {/* Agent IA — rédige/planifie depuis la page Compose */}
+          <AgentLauncher context={t("page Compose", "Compose page")} defaultObjective={t("Rédiger une série de posts pour les réseaux", "Draft a series of posts for the networks")} />
           {/* AI panels — réseau dérivé du 1er compte sélectionné (respecte le réseau). */}
           <AiTextPanel brandVoiceLabel={company.code} platform={activePlatform} language={language} />
           <AiVisualsPanel used={data.library.aiBudgetUsed} cap={data.library.aiBudgetCap} platform={activePlatform} imageModel={imageModel} videoModel={videoModel} brandHints={brandHints} companyId={company.id} />

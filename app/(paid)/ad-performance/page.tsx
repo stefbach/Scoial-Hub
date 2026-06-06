@@ -14,6 +14,7 @@ import { AdSetModal } from "@/components/paid/AdSetModal";
 import { hydrateCampaigns } from "@/lib/campaign-store";
 import { MetaAdAccountsPanel } from "@/components/ads/MetaAdAccountsPanel";
 import { AdStrategyBrain } from "@/components/ads/AdStrategyBrain";
+import { AgentLauncher } from "@/components/agents/AgentLauncher";
 import { downloadFile } from "@/lib/history-store";
 import { eur } from "@/lib/format";
 import { useT } from "@/lib/i18n";
@@ -544,6 +545,7 @@ function AdPerformanceContent() {
       <div className="mb-6 space-y-4">
         <MetaAdAccountsPanel />
         <AdStrategyBrain />
+        <AgentLauncher context={t("page Performance Ads", "Ad Performance page")} defaultObjective={t("Analyser la performance et proposer des optimisations", "Analyze performance and propose optimizations")} />
       </div>
 
       {range === "custom" && (

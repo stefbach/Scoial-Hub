@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useMemo, useState } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useCompany } from "@/lib/company-context";
 import { useT } from "@/lib/i18n";
@@ -104,7 +105,7 @@ function LibraryContent() {
   return (
     <div className={`animate-fade-in ${selectMode ? "pb-16" : ""}`}>
       <PageHeader
-        title={t("Bibliothèque", "Library")}
+        title={t("Modèles de posts", "Post templates")}
         actions={
           <>
             <Button
@@ -120,6 +121,11 @@ function LibraryContent() {
           </>
         }
       />
+
+      <p className="mb-4 text-2xs text-muted">
+        {t("Ici : vos modèles de contenu (texte). Pour vos visuels & vidéos :", "Here: your content templates (text). For your visuals & videos:")}{" "}
+        <Link href="/media" className="text-primary-600 hover:underline">{t("→ Médiathèque", "→ Media library")}</Link>
+      </p>
 
       {/* Metric strips */}
       <div className="mb-5 grid grid-cols-3 gap-4">

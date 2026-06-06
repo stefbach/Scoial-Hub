@@ -139,12 +139,19 @@ export async function storeMetaAds(companyId: string, account: AdAccount, userTo
 }
 
 export interface AdCampaignRow {
+  id: string;
   name: string;
   status: string;
   objective: string;
   spend: number;
   impressions: number;
+  reach: number;
   clicks: number;
+  ctr: number;
+  cpc: number;
+  cpm: number;
+  frequency: number;
+  conversions: number;
   currency: string;
 }
 export interface AdAccountData {
@@ -152,7 +159,18 @@ export interface AdAccountData {
   campaigns: AdCampaignRow[];
 }
 
-/** Lecture réelle : compte + campagnes (liste + dépense 90 j) via Marketing API. */
+/** Somme des actions de conversion (achats, leads, inscriptions) renvoyées par Meta. */
+function sumConversions(actions: unknown): number {
+  if (!Array.isArray(actions)) return 0;
+  const CONV = /purchase|lead|complete_registration|add_to_cart|initiate_checkout|subscribe|contact|submit_application/i;
+  let total = 0;
+  for (const a of actions as Array<Record<string, unknown>>) {
+    if (CONV.test(String(a.action_type ?? ""))) total += Number(a.value ?? 0);
+  }
+  return total;
+}
+
+/** Lecture réelle : compte + campagnes (liste + métriques 90 j) via Marketing API. */
 export async function fetchAdAccountData(userToken: string, adAccountId: string): Promise<AdAccountData> {
   const out: AdAccountData = { campaigns: [] };
   const act = adAccountId.startsWith("act_") ? adAccountId : `act_${adAccountId}`;
@@ -166,26 +184,48 @@ export async function fetchAdAccountData(userToken: string, adAccountId: string)
   })();
 
   // Liste des campagnes (même sans dépense récente).
-  const list = await gget(`${act}/campaigns?fields=name,objective,effective_status&limit=40`, userToken);
+  const list = await gget(`${act}/campaigns?fields=id,name,objective,effective_status&limit=40`, userToken);
   const camps = (list?.data as Array<Record<string, unknown>>) ?? [];
 
-  // Dépense 90 j par campagne (fusionnée par nom).
-  const ins = await gget(`${act}/insights?level=campaign&fields=campaign_name,spend,impressions,clicks&date_preset=last_90d&limit=100`, userToken);
-  const spendByName = new Map<string, { spend: number; impressions: number; clicks: number }>();
+  // Métriques 90 j par campagne (fusionnées par id de campagne).
+  const ins = await gget(
+    `${act}/insights?level=campaign&fields=campaign_id,campaign_name,spend,impressions,reach,clicks,ctr,cpc,cpm,frequency,actions&date_preset=last_90d&limit=100`,
+    userToken
+  );
+  type Metrics = { spend: number; impressions: number; reach: number; clicks: number; ctr: number; cpc: number; cpm: number; frequency: number; conversions: number };
+  const byId = new Map<string, Metrics>();
   for (const r of (ins?.data as Array<Record<string, unknown>>) ?? []) {
-    spendByName.set(String(r.campaign_name ?? ""), {
-      spend: Number(r.spend ?? 0), impressions: Number(r.impressions ?? 0), clicks: Number(r.clicks ?? 0),
+    byId.set(String(r.campaign_id ?? ""), {
+      spend: Number(r.spend ?? 0),
+      impressions: Number(r.impressions ?? 0),
+      reach: Number(r.reach ?? 0),
+      clicks: Number(r.clicks ?? 0),
+      ctr: Number(r.ctr ?? 0),
+      cpc: Number(r.cpc ?? 0),
+      cpm: Number(r.cpm ?? 0),
+      frequency: Number(r.frequency ?? 0),
+      conversions: sumConversions(r.actions),
     });
   }
 
   out.campaigns = camps.map((c) => {
-    const name = String(c.name ?? "");
-    const m = spendByName.get(name) ?? { spend: 0, impressions: 0, clicks: 0 };
+    const id = String(c.id ?? "");
+    const m = byId.get(id) ?? { spend: 0, impressions: 0, reach: 0, clicks: 0, ctr: 0, cpc: 0, cpm: 0, frequency: 0, conversions: 0 };
     return {
-      name,
+      id,
+      name: String(c.name ?? ""),
       status: String(c.effective_status ?? ""),
       objective: String(c.objective ?? ""),
-      spend: m.spend, impressions: m.impressions, clicks: m.clicks,
+      spend: m.spend,
+      impressions: m.impressions,
+      reach: m.reach,
+      clicks: m.clicks,
+      // CTR/CPC : valeurs Meta si présentes, sinon recalculées.
+      ctr: m.ctr || (m.impressions ? +(m.clicks / m.impressions * 100).toFixed(2) : 0),
+      cpc: m.cpc || (m.clicks ? +(m.spend / m.clicks).toFixed(2) : 0),
+      cpm: m.cpm,
+      frequency: m.frequency,
+      conversions: m.conversions,
       currency,
     };
   }).sort((a, b) => b.spend - a.spend).slice(0, 25);

@@ -12,11 +12,17 @@ import { useT } from "@/lib/i18n";
 import { Spinner } from "@/components/ui/Spinner";
 
 interface AdAccount { id: string; name: string; currency: string; active: boolean; amountSpent: number; }
-interface AdCampaignRow { name: string; status: string; objective: string; spend: number; impressions: number; clicks: number; currency: string; }
+interface AdCampaignRow {
+  id: string; name: string; status: string; objective: string;
+  spend: number; impressions: number; reach: number; clicks: number;
+  ctr: number; cpc: number; cpm: number; frequency: number; conversions: number; currency: string;
+}
 interface AccountData { account?: { id: string; name: string; currency: string; amountSpent: number }; campaigns: AdCampaignRow[]; }
 interface Resp { accounts: AdAccount[]; selectedId: string | null; data: AccountData | null; needsReconnect: boolean; }
 
 const nf = (n: number) => n.toLocaleString("fr-FR");
+// Montant lisible (2 décimales pour les petits, entier au-delà).
+const money = (n: number, cur: string) => `${n >= 100 ? nf(Math.round(n)) : n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${cur}`;
 
 export function MetaAdAccountsPanel({ showCampaigns = true }: { showCampaigns?: boolean }) {
   const t = useT();
@@ -132,34 +138,73 @@ export function MetaAdAccountsPanel({ showCampaigns = true }: { showCampaigns?: 
             {data?.account && <span className="text-2xs text-muted">{data.account.name}</span>}
           </div>
           {data && data.campaigns.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[34rem] text-left text-sm">
-                <thead>
-                  <tr className="border-b border-hair text-2xs uppercase tracking-wide text-muted">
-                    <th className="py-2 pr-3 font-semibold">{t("Campagne", "Campaign")}</th>
-                    <th className="py-2 pr-3 font-semibold">{t("Statut", "Status")}</th>
-                    <th className="py-2 pr-3 text-right font-semibold">{t("Dépense", "Spend")}</th>
-                    <th className="py-2 pr-3 text-right font-semibold">Impr.</th>
-                    <th className="py-2 text-right font-semibold">{t("Clics", "Clicks")}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.campaigns.map((c, i) => (
-                    <tr key={i} className="border-b border-hair/60">
-                      <td className="py-2 pr-3 font-medium text-ink">{c.name}</td>
-                      <td className="py-2 pr-3">
-                        <span className={`rounded-full px-2 py-0.5 text-2xs font-semibold ${c.status === "ACTIVE" ? "bg-success-50 text-success-700" : "bg-canvas text-muted ring-1 ring-hair"}`}>
-                          {c.status}
-                        </span>
-                      </td>
-                      <td className="py-2 pr-3 text-right text-ink">{nf(c.spend)} {c.currency}</td>
-                      <td className="py-2 pr-3 text-right text-muted">{nf(c.impressions)}</td>
-                      <td className="py-2 text-right text-muted">{nf(c.clicks)}</td>
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[52rem] text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-hair text-2xs uppercase tracking-wide text-muted">
+                      <th className="py-2 pr-3 font-semibold">{t("Campagne", "Campaign")}</th>
+                      <th className="py-2 pr-3 font-semibold">{t("Statut", "Status")}</th>
+                      <th className="py-2 pr-3 text-right font-semibold">{t("Dépense", "Spend")}</th>
+                      <th className="py-2 pr-3 text-right font-semibold">Impr.</th>
+                      <th className="py-2 pr-3 text-right font-semibold">{t("Portée", "Reach")}</th>
+                      <th className="py-2 pr-3 text-right font-semibold">{t("Clics", "Clicks")}</th>
+                      <th className="py-2 pr-3 text-right font-semibold">CTR</th>
+                      <th className="py-2 pr-3 text-right font-semibold">CPC</th>
+                      <th className="py-2 pr-3 text-right font-semibold">CPM</th>
+                      <th className="py-2 text-right font-semibold">{t("Conv.", "Conv.")}</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {data.campaigns.map((c, i) => (
+                      <tr key={c.id || i} className="border-b border-hair/60">
+                        <td className="py-2 pr-3 font-medium text-ink">{c.name}</td>
+                        <td className="py-2 pr-3">
+                          <span className={`rounded-full px-2 py-0.5 text-2xs font-semibold ${c.status === "ACTIVE" ? "bg-success-50 text-success-700" : "bg-canvas text-muted ring-1 ring-hair"}`}>
+                            {c.status}
+                          </span>
+                        </td>
+                        <td className="py-2 pr-3 text-right text-ink">{money(c.spend, c.currency)}</td>
+                        <td className="py-2 pr-3 text-right text-muted">{nf(c.impressions)}</td>
+                        <td className="py-2 pr-3 text-right text-muted">{nf(c.reach)}</td>
+                        <td className="py-2 pr-3 text-right text-muted">{nf(c.clicks)}</td>
+                        <td className="py-2 pr-3 text-right text-muted">{c.ctr ? `${c.ctr.toFixed(2)} %` : "—"}</td>
+                        <td className="py-2 pr-3 text-right text-muted">{c.cpc ? money(c.cpc, c.currency) : "—"}</td>
+                        <td className="py-2 pr-3 text-right text-muted">{c.cpm ? money(c.cpm, c.currency) : "—"}</td>
+                        <td className="py-2 text-right font-medium text-ink">{c.conversions ? nf(c.conversions) : "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  {(() => {
+                    const sum = data.campaigns.reduce(
+                      (a, c) => ({ spend: a.spend + c.spend, impr: a.impr + c.impressions, reach: a.reach + c.reach, clicks: a.clicks + c.clicks, conv: a.conv + c.conversions }),
+                      { spend: 0, impr: 0, reach: 0, clicks: 0, conv: 0 }
+                    );
+                    const cur = data.campaigns[0]?.currency ?? "EUR";
+                    const ctr = sum.impr ? (sum.clicks / sum.impr) * 100 : 0;
+                    const cpc = sum.clicks ? sum.spend / sum.clicks : 0;
+                    const cpm = sum.impr ? (sum.spend / sum.impr) * 1000 : 0;
+                    return (
+                      <tfoot>
+                        <tr className="border-t-2 border-hair text-2xs font-semibold text-ink">
+                          <td className="py-2 pr-3">{t("Total (90 j)", "Total (90d)")}</td>
+                          <td className="py-2 pr-3" />
+                          <td className="py-2 pr-3 text-right">{money(sum.spend, cur)}</td>
+                          <td className="py-2 pr-3 text-right">{nf(sum.impr)}</td>
+                          <td className="py-2 pr-3 text-right">{nf(sum.reach)}</td>
+                          <td className="py-2 pr-3 text-right">{nf(sum.clicks)}</td>
+                          <td className="py-2 pr-3 text-right">{ctr ? `${ctr.toFixed(2)} %` : "—"}</td>
+                          <td className="py-2 pr-3 text-right">{cpc ? money(cpc, cur) : "—"}</td>
+                          <td className="py-2 pr-3 text-right">{cpm ? money(cpm, cur) : "—"}</td>
+                          <td className="py-2 text-right">{sum.conv ? nf(sum.conv) : "—"}</td>
+                        </tr>
+                      </tfoot>
+                    );
+                  })()}
+                </table>
+              </div>
+              <p className="mt-2 text-2xs text-muted">{t("Données réelles Meta (Marketing API) · fenêtre 90 jours.", "Real Meta data (Marketing API) · 90-day window.")}</p>
+            </>
           ) : (
             <p className="rounded-lg bg-canvas px-3 py-2.5 text-xs text-muted">
               {t("Aucune campagne sur ce compte (ou aucune dépense récente).", "No campaign on this account (or no recent spend).")}

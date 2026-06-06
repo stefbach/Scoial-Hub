@@ -76,6 +76,12 @@ export default function StudioAffichePage() {
   const [generating, setGenerating] = useState(false);
   const [suggesting, setSuggesting] = useState(false);
 
+  // ── Identité de marque (logo + charte) analysée par l'IA ───────────────────
+  const [logoDataUrl, setLogoDataUrl] = useState<string>("");
+  const [charteDataUrl, setCharteDataUrl] = useState<string>("");
+  const [brand, setBrand] = useState<{ palette: string[]; recommendedTextColor: string; style: string; tone: string; promptHints: string; summary: string; aiGenerated: boolean } | null>(null);
+  const [analyzingBrand, setAnalyzingBrand] = useState(false);
+
   const [headline, setHeadline] = useState("");
   const [subtitle, setSubtitle] = useState("");
   const [color, setColor] = useState("#ffffff");
@@ -92,7 +98,7 @@ export default function StudioAffichePage() {
     try {
       const r = await fetch("/api/ai/generate-image", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: prompt || `affiche professionnelle pour ${company.name}`, format: format.ar, n: 1, model: modelId }),
+        body: JSON.stringify({ prompt: [prompt || `affiche professionnelle pour ${company.name}`, brand?.promptHints].filter(Boolean).join(". "), format: format.ar, n: 1, model: modelId }),
       });
       const d = await r.json();
       if (!r.ok) { setNote(d.error || t("Échec de génération.", "Generation failed.")); return; }
@@ -112,7 +118,7 @@ export default function StudioAffichePage() {
     try {
       const r = await fetch("/api/ai/suggest-image-prompt", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyId, brief: prompt, format: format.label, kind: format.print ? "affiche" : "visuel réseau social" }),
+        body: JSON.stringify({ companyId, brief: [prompt, brand?.promptHints].filter(Boolean).join(" — "), format: format.label, kind: format.print ? "affiche" : "visuel réseau social" }),
       });
       const d = await r.json();
       if (d.prompt) setPrompt(d.prompt);
@@ -128,10 +134,38 @@ export default function StudioAffichePage() {
     reader.onload = async () => {
       try {
         const img = await loadImage(String(reader.result));
-        if (kind === "bg") setBgImg(img); else setLogoImg(img);
+        if (kind === "bg") setBgImg(img);
+        else { setLogoImg(img); setLogoDataUrl(String(reader.result)); }
       } catch { setNote(t("Image illisible.", "Unreadable image.")); }
     };
     reader.readAsDataURL(file);
+  }
+
+  function onCharteUpload(file: File | undefined) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setCharteDataUrl(String(reader.result));
+    reader.readAsDataURL(file);
+  }
+
+  // Analyse IA du logo / de la charte → palette, couleur de texte, style, hints.
+  async function analyzeBrand() {
+    const imageDataUrl = charteDataUrl || logoDataUrl;
+    if (!imageDataUrl) { setNote(t("Importez d'abord un logo ou une charte.", "Upload a logo or brand chart first.")); return; }
+    setAnalyzingBrand(true); setNote(null);
+    try {
+      const r = await fetch("/api/ai/analyze-brand-visual", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyId, imageDataUrl, kind: charteDataUrl ? "charte" : "logo" }),
+      });
+      const d = await r.json();
+      if (!r.ok) { setNote(d.error || t("Échec de l'analyse.", "Analysis failed.")); return; }
+      setBrand(d.visual);
+      if (d.visual?.recommendedTextColor) setColor(d.visual.recommendedTextColor);
+      if (d.visual?.aiGenerated === false) setNote(t("Analyse IA non configurée — palette à choisir manuellement.", "AI analysis not configured — pick colors manually."));
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : t("Échec de l'analyse.", "Analysis failed."));
+    } finally { setAnalyzingBrand(false); }
   }
 
   // ── Rendu canvas ────────────────────────────────────────────────────────────
@@ -319,6 +353,50 @@ export default function StudioAffichePage() {
                   <button key={k} onClick={() => setLogoCorner(k)}
                     className={`h-7 w-7 rounded-lg text-sm ${logoCorner === k ? "bg-ink text-white" : "bg-canvas text-muted"}`}>{ic}</button>
                 ))}
+              </div>
+            )}
+          </section>
+
+          {/* Identité de marque : charte + analyse IA */}
+          <section className="card p-4 space-y-3">
+            <div className="section-label">{t("Identité de marque (IA)", "Brand identity (AI)")}</div>
+            <p className="text-2xs text-muted">
+              {t("Importez votre charte graphique (ou utilisez le logo) : l'IA en extrait la palette, le style et le ton pour des affiches cohérentes.", "Upload your brand chart (or use the logo): the AI extracts the palette, style and tone for on-brand posters.")}
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="btn-secondary cursor-pointer text-xs">
+                {charteDataUrl ? t("Changer la charte", "Change chart") : t("📁 Importer la charte", "📁 Upload chart")}
+                <input type="file" accept="image/*" className="hidden" onChange={(e) => onCharteUpload(e.target.files?.[0])} />
+              </label>
+              <button onClick={analyzeBrand} disabled={analyzingBrand || (!charteDataUrl && !logoDataUrl)} className="btn-primary text-xs disabled:opacity-50">
+                {analyzingBrand ? <span className="inline-flex items-center gap-1.5"><Spinner size={12} className="text-white" />{t("Analyse…", "Analyzing…")}</span> : t("🔎 Analyser la marque", "🔎 Analyze brand")}
+              </button>
+            </div>
+            {analyzingBrand && <BusyHint label={t("L'IA analyse votre identité visuelle…", "The AI analyzes your visual identity…")} eta={t("~10–20 s", "~10–20 s")} />}
+            {brand && (brand.summary || brand.palette.length > 0) && (
+              <div className="rounded-lg border border-hair bg-canvas p-3 text-xs">
+                {brand.summary && <p className="text-ink">{brand.summary}</p>}
+                {(brand.style || brand.tone) && (
+                  <p className="mt-1 text-2xs text-muted">
+                    {brand.style && <>{t("Style", "Style")} : <span className="text-ink">{brand.style}</span></>}
+                    {brand.style && brand.tone && " · "}
+                    {brand.tone && <>{t("Ton", "Tone")} : <span className="text-ink">{brand.tone}</span></>}
+                  </p>
+                )}
+                {brand.palette.length > 0 && (
+                  <div className="mt-2">
+                    <span className="text-2xs text-muted">{t("Palette (cliquez = couleur du texte)", "Palette (click = text color)")}</span>
+                    <div className="mt-1 flex flex-wrap gap-1.5">
+                      {brand.palette.map((c) => (
+                        <button key={c} onClick={() => setColor(c)} title={c}
+                          className={`h-7 w-7 rounded-md ring-2 ${color === c ? "ring-ink" : "ring-hair"}`} style={{ backgroundColor: c }} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {brand.promptHints && (
+                  <p className="mt-2 text-2xs text-ai-text">{t("✓ Style de marque injecté dans la génération.", "✓ Brand style injected into generation.")}</p>
+                )}
               </div>
             )}
           </section>

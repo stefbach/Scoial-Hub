@@ -125,7 +125,7 @@ export function Hero3D() {
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(W(), H());
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.0;
+    renderer.toneMappingExposure = 0.92;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     mount.appendChild(renderer.domElement);
     renderer.domElement.style.width = "100%";
@@ -150,7 +150,7 @@ export function Hero3D() {
     const composer = new EffectComposer(renderer);
     composer.setSize(W(), H());
     composer.addPass(new RenderPass(scene, camera));
-    const bloom = new UnrealBloomPass(new THREE.Vector2(W(), H()), 0.28, 0.55, 0.9);
+    const bloom = new UnrealBloomPass(new THREE.Vector2(W(), H()), 0.18, 0.5, 1.0);
     composer.addPass(bloom);
     composer.addPass(new OutputPass());
 
@@ -189,7 +189,11 @@ export function Hero3D() {
     phone.position.set(2.4, -0.2, 0.6); phone.rotation.set(0.12, -0.5, 0.04);
     deck.add(phone);
     disposables.push(bodyGeo, bodyMat, scrTex, scrMat, screen.geometry);
-    tryTexture(HERO_SCREEN_URL, 1.34 / 2.86, (tx) => { scrMat.map = tx; scrMat.emissiveMap = tx; scrMat.needsUpdate = true; });
+    // Écran = image fidèle (matériau non éclairé) → pas de surexposition.
+    tryTexture(HERO_SCREEN_URL, 1.34 / 2.86, (tx) => {
+      const m = new THREE.MeshBasicMaterial({ map: tx });
+      screen.material = m; disposables.push(m);
+    });
 
     // ── Tableau de bord (verre) ──
     const dashTex = dashTexture();
@@ -202,7 +206,10 @@ export function Hero3D() {
     dash.position.set(-1.7, 0.7, -0.4); dash.rotation.set(0.1, 0.45, -0.04);
     deck.add(dash);
     disposables.push(dashTex, dashGeo, dashMat, dashFace.geometry, dashFaceMat);
-    tryTexture(HERO_DASH_URL, 3.0 / 1.86, (tx) => { dashFaceMat.map = tx; dashFaceMat.emissiveMap = tx; dashFaceMat.needsUpdate = true; });
+    tryTexture(HERO_DASH_URL, 3.0 / 1.86, (tx) => {
+      const m = new THREE.MeshBasicMaterial({ map: tx });
+      dashFace.material = m; disposables.push(m);
+    });
 
     // ── Noyau IA ──
     const coreGeo = new THREE.IcosahedronGeometry(0.42, 2);
@@ -246,7 +253,7 @@ export function Hero3D() {
       camera.aspect = w / h; camera.updateProjectionMatrix();
       // Recule la caméra quand le cadre est étroit pour tout garder visible.
       camera.position.z = camera.aspect < 0.85 ? 12 : camera.aspect < 1.25 ? 10 : 8.2;
-      bloom.strength = small ? 0.18 : 0.28;
+      bloom.strength = small ? 0.12 : 0.18;
       // La transmission (verre) est coûteuse → on la coupe sur mobile.
       dashMat.transmission = small ? 0 : 0.55;
       dashMat.opacity = small ? 1 : 1;

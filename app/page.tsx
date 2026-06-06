@@ -6,10 +6,14 @@
    - Réseaux mis en avant : Facebook, Instagram, LinkedIn, X (Twitter).
    - Thème local sombre (la page publique n'utilise pas les tokens clairs). */
 
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useT } from "@/lib/i18n";
 import { LanguageSwitcher } from "@/lib/i18n";
+
+// Scène WebGL (Three.js) — chargée côté client uniquement.
+const Hero3D = dynamic(() => import("@/components/landing/Hero3D").then((m) => m.Hero3D), { ssr: false });
 
 /* ───────────────────────── Logos réseaux (SVG inline) ───────────────────── */
 function FacebookLogo({ s = 28 }: { s?: number }) {
@@ -98,27 +102,6 @@ const FAQ = [
   { q: "C'est scalable pour plusieurs clients ?", a: "Oui — chaque société a son profil, ses connexions OAuth et ses campagnes, totalement isolés." },
 ];
 
-/* ───────────────────────── Téléphone 3D (CSS) ───────────────────────────── */
-function Phone3D() {
-  return (
-    <div className="phone3d">
-      <div className="phone3d-body">
-        <div className="phone3d-notch" />
-        <div className="phone3d-screen">
-          <div className="ps-top">
-            <span className="ps-av" />
-            <div className="ps-meta"><span className="ps-name" /><span className="ps-sub" /></div>
-            <FacebookLogo s={16} />
-          </div>
-          <div className="ps-media" />
-          <div className="ps-actions"><span /><span /><span /></div>
-          <div className="ps-line" /><div className="ps-line short" />
-        </div>
-      </div>
-    </div>
-  );
-}
-
 /* ───────────────────────── Tableau de bord 3D (CSS) ─────────────────────── */
 function Dashboard3D() {
   const bars = [42, 70, 35, 88, 60, 95, 52];
@@ -142,25 +125,6 @@ function Dashboard3D() {
 
 export default function Home() {
   const t = useT();
-  const sceneRef = useRef<HTMLDivElement>(null);
-
-  // Parallax 3D piloté à la souris (désactivé si reduced-motion).
-  useEffect(() => {
-    const el = sceneRef.current;
-    if (!el) return;
-    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
-    const onMove = (e: MouseEvent) => {
-      const r = el.getBoundingClientRect();
-      const px = (e.clientX - r.left) / r.width - 0.5;
-      const py = (e.clientY - r.top) / r.height - 0.5;
-      el.style.setProperty("--ry", `${px * 18}deg`);
-      el.style.setProperty("--rx", `${-py * 14}deg`);
-    };
-    const reset = () => { el.style.setProperty("--ry", "0deg"); el.style.setProperty("--rx", "0deg"); };
-    window.addEventListener("mousemove", onMove);
-    el.addEventListener("mouseleave", reset);
-    return () => { window.removeEventListener("mousemove", onMove); el.removeEventListener("mouseleave", reset); };
-  }, []);
 
   // Révélations au scroll (IntersectionObserver).
   useEffect(() => {
@@ -225,31 +189,8 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Scène 3D */}
-        <div className="mc-scene" ref={sceneRef}>
-          <div className="mc-deck">
-            <div className="mc-glow mc-glow-a" />
-            <div className="mc-glow mc-glow-b" />
-
-            {/* Orbites de logos sociaux */}
-            <div className="mc-orbit mc-orbit-1">
-              <span className="mc-sat" style={{ ["--a" as string]: "0deg" }}><FacebookLogo /></span>
-              <span className="mc-sat" style={{ ["--a" as string]: "180deg" }}><LinkedInLogo /></span>
-            </div>
-            <div className="mc-orbit mc-orbit-2">
-              <span className="mc-sat" style={{ ["--a" as string]: "90deg" }}><InstagramLogo /></span>
-              <span className="mc-sat" style={{ ["--a" as string]: "270deg" }}><XLogo /></span>
-            </div>
-
-            {/* Tableau de bord 3D */}
-            <div className="mc-layer mc-layer-dash"><Dashboard3D /></div>
-            {/* Téléphone 3D */}
-            <div className="mc-layer mc-layer-phone"><Phone3D /></div>
-
-            {/* Noyau IA */}
-            <div className="mc-core"><span /></div>
-          </div>
-        </div>
+        {/* Scène WebGL (Three.js) — téléphone + dashboard verre + logos en orbite */}
+        <div className="mc-scene"><Hero3D /></div>
       </section>
 
       {/* ── Bandeau réseaux ── */}
@@ -459,8 +400,12 @@ export default function Home() {
         .mc-stat b{display:block;font-family:var(--font-display);font-size:1.8rem;color:#fff;}
         .mc-stat span{font-size:.8rem;color:#9b8fb5;}
 
-        /* Scène 3D */
-        .mc-scene{perspective:1300px;height:clamp(360px,52vw,560px);position:relative;}
+        /* Scène 3D / WebGL */
+        .mc-scene{height:clamp(380px,54vw,580px);position:relative;}
+        .mc-webgl{position:absolute;inset:0;width:100%;height:100%;}
+        .mc-webgl canvas{display:block;}
+        /* (anciens styles CSS-3D conservés pour compat, non utilisés) */
+        .mc-scene-legacy{perspective:1300px;}
         .mc-deck{position:absolute;inset:0;transform-style:preserve-3d;
           transform:rotateX(var(--rx,8deg)) rotateY(var(--ry,-14deg));transition:transform .25s ease-out;}
         .mc-glow{position:absolute;border-radius:50%;filter:blur(50px);opacity:.6;}

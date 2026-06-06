@@ -25,6 +25,10 @@ const VOICE_LANGS = [
   { label: "Italiano", code: "it-IT" },
 ];
 
+// Avatar 3D par défaut (URL publique fiable) — prouve que la 3D fonctionne ;
+// remplaçable par votre propre avatar Ready Player Me.
+const DEFAULT_MODEL = "https://readyplayerme.github.io/visage/male.glb";
+
 /** Ajoute les morphs ARKit/Visemes (lip-sync + clignement) à une URL RPM .glb. */
 function withMorphs(url: string): string {
   if (url.includes("morphTargets")) return url;
@@ -108,7 +112,8 @@ export function AvatarChat({ companyId }: { companyId: string }) {
   const [note, setNote] = useState<string | null>(null);
   const [use3D, setUse3D] = useState(true);
   const [failed3D, setFailed3D] = useState(false);
-  const [model3DUrl, setModel3DUrl] = useState(""); // vide tant qu'aucun avatar choisi
+  const [err3D, setErr3D] = useState<string | null>(null);
+  const [model3DUrl, setModel3DUrl] = useState(DEFAULT_MODEL); // avatar 3D par défaut
   const [creatorOpen, setCreatorOpen] = useState(false);
   const [urlDraft, setUrlDraft] = useState("");
 
@@ -133,6 +138,7 @@ export function AvatarChat({ companyId }: { companyId: string }) {
     const url = withMorphs(glbUrl);
     setModel3DUrl(url);
     setFailed3D(false);
+    setErr3D(null);
     setCreatorOpen(false);
     try { localStorage.setItem("avatar3dUrl", url); } catch { /* noop */ }
   }, []);
@@ -315,7 +321,7 @@ export function AvatarChat({ companyId }: { companyId: string }) {
       <div className="flex flex-col items-center gap-3">
         <div className="relative aspect-[11/12] w-full max-w-xs overflow-hidden rounded-2xl bg-gradient-to-b from-indigo-50 to-violet-100 shadow-sm ring-1 ring-hair">
           {use3D && model3DUrl && !failed3D ? (
-            <Avatar3D modelUrl={model3DUrl} mouthRef={mouthRef} onError={() => setFailed3D(true)} />
+            <Avatar3D modelUrl={model3DUrl} mouthRef={mouthRef} onError={(m) => { setFailed3D(true); setErr3D(m); }} />
           ) : (
             <AvatarFace face={face} mouth={mouth} blink={blink} />
           )}
@@ -352,8 +358,12 @@ export function AvatarChat({ companyId }: { companyId: string }) {
 
         <p className="max-w-xs text-center text-2xs text-muted">
           {face === "thinking" ? t("réfléchit…", "thinking…") : face === "speaking" ? t("parle…", "speaking…") : t("prêt", "ready")}
-          {use3D && failed3D && " · " + t("3D indisponible (avatar 2D)", "3D unavailable (2D avatar)")}
         </p>
+        {use3D && failed3D && (
+          <p className="max-w-xs break-words text-center text-[10px] text-danger-600">
+            {t("3D indisponible → avatar 2D.", "3D unavailable → 2D avatar.")} {err3D ? `(${err3D})` : ""}
+          </p>
+        )}
 
         {use3D && model3DUrl && !failed3D && (
           <button type="button" onClick={() => setCreatorOpen(true)} className="btn-secondary text-2xs px-2 py-1">

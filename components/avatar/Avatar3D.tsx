@@ -17,7 +17,7 @@ export function Avatar3D({
 }: {
   modelUrl: string;
   mouthRef: React.MutableRefObject<number>;
-  onError?: () => void;
+  onError?: (message: string) => void;
   onReady?: () => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -40,9 +40,7 @@ export function Avatar3D({
         const h = el.clientHeight || 360;
 
         scene = new THREE.Scene();
-        camera = new THREE.PerspectiveCamera(26, w / h, 0.1, 100);
-        camera.position.set(0, 1.6, 0.72);
-        camera.lookAt(0, 1.58, 0);
+        camera = new THREE.PerspectiveCamera(30, w / h, 0.01, 100);
 
         renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -66,6 +64,15 @@ export function Avatar3D({
 
         const model = gltf.scene;
         scene.add(model);
+
+        // Cadrage automatique sur la tête (robuste quel que soit le modèle).
+        const box = new THREE.Box3().setFromObject(model);
+        const size = box.getSize(new THREE.Vector3());
+        const center = box.getCenter(new THREE.Vector3());
+        const headY = box.max.y - size.y * 0.13; // hauteur des yeux ~
+        const dist = Math.max(0.5, size.y * 0.62);
+        camera.position.set(center.x, headY, center.z + dist);
+        camera.lookAt(center.x, headY, center.z);
 
         // Collecte des meshes à morphs (tête, dents…).
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -129,7 +136,7 @@ export function Avatar3D({
         cleanupFns.push(() => window.removeEventListener("resize", onResize));
       } catch (err) {
         console.warn("[Avatar3D] load failed:", err);
-        onError?.();
+        onError?.(err instanceof Error ? err.message : String(err));
       }
     })();
 

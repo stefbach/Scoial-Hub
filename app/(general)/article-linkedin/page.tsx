@@ -51,6 +51,8 @@ export default function ArticleLinkedInPage() {
   const [tone, setTone] = useState("");
   const [length, setLength] = useState<"post" | "article" | "long">("article");
   const [language, setLanguage] = useState<"fr" | "en">("fr");
+  // RAG opt-in : écrire librement par défaut ; s'appuyer sur la marque/veille à la demande.
+  const [useMemory, setUseMemory] = useState(false);
 
   // Prompt personnalisé
   const [prompt, setPrompt] = useState("");
@@ -77,7 +79,7 @@ export default function ArticleLinkedInPage() {
     try {
       const r = await fetch("/api/ai/linkedin-article", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyId, mode: "prompt", source, input, angle, audience, tone, length, language }),
+        body: JSON.stringify({ companyId, mode: "prompt", source, input, angle, audience, tone, length, language, useMemory }),
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error);
@@ -93,7 +95,7 @@ export default function ArticleLinkedInPage() {
     try {
       const r = await fetch("/api/ai/linkedin-article", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyId, mode: "article", source, input, angle, audience, tone, length, language, customPrompt: prompt || undefined }),
+        body: JSON.stringify({ companyId, mode: "article", source, input, angle, audience, tone, length, language, customPrompt: prompt || undefined, useMemory }),
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error);
@@ -241,6 +243,20 @@ export default function ArticleLinkedInPage() {
             </select>
           </div>
         </div>
+
+        {/* RAG opt-in : par défaut, l'article suit librement le sujet saisi. */}
+        <label className="flex cursor-pointer items-start gap-2.5 rounded-lg border border-hair bg-canvas px-3 py-2.5">
+          <input type="checkbox" checked={useMemory} onChange={(e) => setUseMemory(e.target.checked)} className="mt-0.5 h-4 w-4 shrink-0 accent-primary-600" />
+          <span className="text-xs leading-relaxed text-ink">
+            <span className="font-semibold">{t("S'appuyer sur la marque & la veille (RAG)", "Ground in brand & insights (RAG)")}</span>
+            <span className="ml-1 text-muted">
+              {t(
+                "— ancre l'article dans votre positionnement, vos thèmes et votre mémoire stratégique. Décoché : vous écrivez librement sur le sujet saisi (la voix de marque est conservée).",
+                "— anchors the article in your positioning, themes and strategic memory. Unchecked: you write freely on your topic (brand voice is kept)."
+              )}
+            </span>
+          </span>
+        </label>
 
         <div className="flex flex-wrap gap-2">
           <button onClick={genPrompt} disabled={promptLoading} className="btn-secondary inline-flex items-center gap-1.5 text-sm disabled:opacity-50">

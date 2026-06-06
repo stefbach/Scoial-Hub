@@ -47,6 +47,7 @@ export default function LinkedInPage() {
 
   const [text, setText] = useState("");
   const [link, setLink] = useState("");
+  const [useMemory, setUseMemory] = useState(false);
   const [writing, setWriting] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [pubMsg, setPubMsg] = useState<string | null>(null);
@@ -95,7 +96,7 @@ export default function LinkedInPage() {
     try {
       const r = await fetch("/api/ai/generate-post", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: text || t("Rédige un post LinkedIn professionnel et engageant.", "Write a professional, engaging LinkedIn post."), platform: "linkedin", brandVoice: company.brandVoice ?? "", action: text ? "rewrite" : "generate", companyId }),
+        body: JSON.stringify({ prompt: text || t("Rédige un post LinkedIn professionnel et engageant.", "Write a professional, engaging LinkedIn post."), platform: "linkedin", brandVoice: company.brandVoice ?? "", action: text ? "rewrite" : "generate", companyId, useMemory }),
       });
       const d = await r.json();
       if (d.text) setText(d.text);
@@ -242,6 +243,10 @@ export default function LinkedInPage() {
             {writing && <Spinner size={14} className="text-current" />}
             {writing ? t("Rédaction…", "Writing…") : t("✨ Rédiger avec l'IA", "✨ Write with AI")}
           </button>
+          <label className="inline-flex cursor-pointer items-center gap-1.5 text-2xs text-muted" title={t("S'appuyer sur votre marque et votre veille (RAG). Décoché : rédaction libre.", "Ground in your brand & insights (RAG). Unchecked: free writing.")}>
+            <input type="checkbox" checked={useMemory} onChange={(e) => setUseMemory(e.target.checked)} className="h-3.5 w-3.5 accent-primary-600" />
+            {t("S'appuyer sur la marque (RAG)", "Ground in brand (RAG)")}
+          </label>
           <button onClick={publish} disabled={publishing} className="btn-primary ml-auto inline-flex items-center gap-1.5 text-sm disabled:opacity-50">
             {publishing && <Spinner size={16} className="text-white" />}
             {publishing ? t("Publication…", "Publishing…") : t("Publier maintenant", "Publish now")}

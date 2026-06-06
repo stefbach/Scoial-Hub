@@ -34,6 +34,13 @@ interface Body {
   language?: "fr" | "en";
   /** En mode "article" : le prompt (éventuellement édité) à utiliser. */
   customPrompt?: string;
+  /**
+   * RAG opt-in : si vrai, on injecte le positionnement, les thèmes et la
+   * mémoire stratégique (veille/pubs/Page) pour ancrer l'article dans la marque.
+   * Si faux (défaut), l'article suit librement le sujet saisi — on ne garde que
+   * la voix de marque pour le ton. « Le RAG doit servir si on le demande. »
+   */
+  useMemory?: boolean;
 }
 
 interface ArticleResult {
@@ -56,7 +63,10 @@ interface BrandContext {
   memory: string;
 }
 
-async function loadBrandContext(companyId: string): Promise<BrandContext> {
+// Charge le contexte de marque. La voix/ton sont toujours chargés (pour le
+// style) ; le positionnement, les thèmes et la mémoire stratégique (RAG) ne
+// sont chargés que si `includeRag` est vrai — sinon on laisse l'auteur libre.
+async function loadBrandContext(companyId: string, includeRag: boolean): Promise<BrandContext> {
   const ctx: BrandContext = { name: "", voice: "", positioning: "", audience: "", tone: "", themes: [], memory: "" };
   try {
     const uuid = await resolveCompanyUuid(companyId);
@@ -70,13 +80,15 @@ async function loadBrandContext(companyId: string): Promise<BrandContext> {
         .eq("company_id", uuid)
         .maybeSingle();
       if (prof) {
-        ctx.positioning = String(prof.positioning ?? prof.summary ?? "");
-        ctx.audience = String(prof.audience ?? "");
         ctx.tone = String(prof.tone ?? "");
-        ctx.themes = Array.isArray(prof.themes) ? (prof.themes as string[]) : [];
+        if (includeRag) {
+          ctx.positioning = String(prof.positioning ?? prof.summary ?? "");
+          ctx.audience = String(prof.audience ?? "");
+          ctx.themes = Array.isArray(prof.themes) ? (prof.themes as string[]) : [];
+        }
       }
     }
-    ctx.memory = await getMemoryContext(companyId, 10).catch(() => "");
+    if (includeRag) ctx.memory = await getMemoryContext(companyId, 10).catch(() => "");
   } catch {
     /* dégradation */
   }
@@ -232,7 +244,7 @@ export async function POST(req: NextRequest) {
     const guard = await requireCompanyAccess(body.companyId);
     if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
 
-    const brand = await loadBrandContext(body.companyId);
+    const brand = await loadBrandContext(body.companyId, body.useMemory === true);
 
     if (body.mode === "prompt") {
       const prompt = await generatePrompt(body, brand);

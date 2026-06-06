@@ -11,6 +11,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useT } from "@/lib/i18n";
+import { Avatar3D } from "./Avatar3D";
 
 interface Msg { role: "user" | "assistant"; content: string }
 type Face = "idle" | "thinking" | "speaking";
@@ -22,6 +23,11 @@ const VOICE_LANGS = [
   { label: "Deutsch", code: "de-DE" },
   { label: "Italiano", code: "it-IT" },
 ];
+
+// Avatar 3D Ready Player Me par défaut (modifiable). Les morphs ARKit/Visemes
+// sont demandés pour permettre le lip-sync et le clignement.
+const DEFAULT_RPM =
+  "https://models.readyplayer.me/64bfa15f0e72c63d7c3934a6.glb?morphTargets=ARKit,Oculus%20Visemes&textureSizeLimit=1024";
 
 /* ── Avatar SVG animé ──────────────────────────────────────────────────────── */
 function AvatarFace({ face, mouth, blink }: { face: Face; mouth: number; blink: boolean }) {
@@ -87,11 +93,31 @@ export function AvatarChat({ companyId }: { companyId: string }) {
   const [listening, setListening] = useState(false);
   const [lang, setLang] = useState(VOICE_LANGS[0]);
   const [note, setNote] = useState<string | null>(null);
+  const [use3D, setUse3D] = useState(true);
+  const [failed3D, setFailed3D] = useState(false);
+  const [model3DUrl, setModel3DUrl] = useState(DEFAULT_RPM);
+  const [urlDraft, setUrlDraft] = useState("");
 
   const mouthTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const mouthRef = useRef(0); // 0..1 partagé avec l'avatar 3D
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recRef = useRef<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const audioCtxRef = useRef<any>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Restaure l'URL d'avatar 3D personnalisée.
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("avatar3dUrl");
+      if (saved) { setModel3DUrl(saved); setUrlDraft(saved); }
+    } catch { /* noop */ }
+  }, []);
+
+  const applyMouth = useCallback((v: number) => {
+    mouthRef.current = v;
+    setMouth(v);
+  }, []);
 
   // Clignement périodique.
   useEffect(() => {
@@ -109,35 +135,94 @@ export function AvatarChat({ companyId }: { companyId: string }) {
   const stopMouth = useCallback(() => {
     if (mouthTimer.current) clearInterval(mouthTimer.current);
     mouthTimer.current = null;
-    setMouth(0);
-  }, []);
+    applyMouth(0);
+  }, [applyMouth]);
 
-  const speak = useCallback(
+  // Voix navigateur (repli) — bouche animée aléatoirement.
+  const speakBrowser = useCallback(
     (text: string) => {
-      if (!voiceOn || typeof window === "undefined" || !window.speechSynthesis) {
-        setFace("idle");
-        return;
-      }
+      if (typeof window === "undefined" || !window.speechSynthesis) { setFace("idle"); return; }
       try {
         window.speechSynthesis.cancel();
         const u = new SpeechSynthesisUtterance(text);
         u.lang = lang.code;
         const voices = window.speechSynthesis.getVoices();
-        const v = voices.find((vo) => vo.lang === lang.code) || voices.find((vo) => vo.lang.startsWith(lang.code.slice(0, 2)));
-        if (v) u.voice = v;
+        // Préfère une voix féminine de la bonne langue.
+        const sameLang = voices.filter((vo) => vo.lang.startsWith(lang.code.slice(0, 2)));
+        const female = sameLang.find((vo) => /female|femme|aurelie|amelie|virginie|google/i.test(vo.name));
+        u.voice = female || sameLang[0] || voices[0];
         u.onstart = () => {
           setFace("speaking");
           stopMouth();
-          mouthTimer.current = setInterval(() => setMouth(0.2 + Math.random() * 0.8), 110);
+          mouthTimer.current = setInterval(() => applyMouth(0.2 + Math.random() * 0.8), 110);
         };
         u.onend = () => { stopMouth(); setFace("idle"); };
         u.onerror = () => { stopMouth(); setFace("idle"); };
         window.speechSynthesis.speak(u);
-      } catch {
-        setFace("idle");
-      }
+      } catch { setFace("idle"); }
     },
-    [voiceOn, lang, stopMouth]
+    [lang, stopMouth, applyMouth]
+  );
+
+  // Joue un audio (MiniMax) avec lip-sync sur l'amplitude réelle.
+  const playWithLipsync = useCallback(
+    (src: string) =>
+      new Promise<void>((resolve, reject) => {
+        try {
+          const audio = new Audio(src);
+          audio.crossOrigin = "anonymous";
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const AC = (window.AudioContext || (window as any).webkitAudioContext);
+          const ctx = new AC();
+          audioCtxRef.current = ctx;
+          const srcNode = ctx.createMediaElementSource(audio);
+          const analyser = ctx.createAnalyser();
+          analyser.fftSize = 512;
+          srcNode.connect(analyser);
+          analyser.connect(ctx.destination);
+          const buf = new Uint8Array(analyser.frequencyBinCount);
+          let raf = 0;
+          const loop = () => {
+            analyser.getByteTimeDomainData(buf);
+            let sum = 0;
+            for (let i = 0; i < buf.length; i++) { const d = (buf[i] - 128) / 128; sum += d * d; }
+            const rms = Math.sqrt(sum / buf.length);
+            applyMouth(Math.min(1, rms * 3.2));
+            raf = requestAnimationFrame(loop);
+          };
+          audio.onplay = () => { setFace("speaking"); loop(); };
+          const finish = () => { cancelAnimationFrame(raf); applyMouth(0); setFace("idle"); try { ctx.close(); } catch { /* noop */ } };
+          audio.onended = () => { finish(); resolve(); };
+          audio.onerror = () => { finish(); reject(new Error("audio")); };
+          void audio.play();
+        } catch (e) {
+          reject(e instanceof Error ? e : new Error("lipsync"));
+        }
+      }),
+    [applyMouth]
+  );
+
+  const speak = useCallback(
+    async (text: string) => {
+      if (!voiceOn) { setFace("idle"); return; }
+      setFace("speaking");
+      // 1) Voix premium MiniMax (si configurée côté serveur).
+      try {
+        const res = await fetch("/api/ai/tts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text, language: lang.label }),
+        });
+        const data = (await res.json()) as { audioBase64?: string; format?: string; fallback?: boolean };
+        if (data.audioBase64) {
+          await playWithLipsync(`data:audio/${data.format ?? "mp3"};base64,${data.audioBase64}`);
+          return;
+        }
+      } catch { /* → repli navigateur */ }
+      // 2) Repli : voix du navigateur.
+      speakBrowser(text);
+    },
+    [voiceOn, lang, playWithLipsync, speakBrowser]
   );
 
   const send = useCallback(
@@ -205,13 +290,22 @@ export function AvatarChat({ companyId }: { companyId: string }) {
     <div className="grid gap-4 lg:grid-cols-[320px,1fr]">
       {/* Avatar */}
       <div className="flex flex-col items-center gap-3">
-        <div className="aspect-[11/12] w-full max-w-xs overflow-hidden rounded-2xl shadow-sm ring-1 ring-hair">
-          <AvatarFace face={face} mouth={mouth} blink={blink} />
+        <div className="aspect-[11/12] w-full max-w-xs overflow-hidden rounded-2xl bg-gradient-to-b from-indigo-50 to-violet-100 shadow-sm ring-1 ring-hair">
+          {use3D && !failed3D ? (
+            <Avatar3D modelUrl={model3DUrl} mouthRef={mouthRef} onError={() => setFailed3D(true)} />
+          ) : (
+            <AvatarFace face={face} mouth={mouth} blink={blink} />
+          )}
         </div>
+
         <div className="flex w-full max-w-xs items-center justify-between gap-2 text-xs">
           <label className="flex items-center gap-1">
             <input type="checkbox" checked={voiceOn} onChange={(e) => setVoiceOn(e.target.checked)} />
             🔊 {t("Voix", "Voice")}
+          </label>
+          <label className="flex items-center gap-1">
+            <input type="checkbox" checked={use3D} onChange={(e) => { setUse3D(e.target.checked); setFailed3D(false); }} />
+            🧑 3D
           </label>
           <select
             value={lang.code}
@@ -221,9 +315,46 @@ export function AvatarChat({ companyId }: { companyId: string }) {
             {VOICE_LANGS.map((l) => <option key={l.code} value={l.code}>{l.label}</option>)}
           </select>
         </div>
+
         <p className="max-w-xs text-center text-2xs text-muted">
           {face === "thinking" ? t("réfléchit…", "thinking…") : face === "speaking" ? t("parle…", "speaking…") : t("prêt", "ready")}
+          {use3D && failed3D && " · " + t("3D indisponible (avatar 2D)", "3D unavailable (2D avatar)")}
         </p>
+
+        {use3D && (
+          <div className="w-full max-w-xs space-y-1">
+            <input
+              value={urlDraft}
+              onChange={(e) => setUrlDraft(e.target.value)}
+              placeholder={t("URL d'avatar Ready Player Me (.glb)…", "Ready Player Me avatar URL (.glb)…")}
+              className="input w-full text-2xs"
+            />
+            <div className="flex gap-1">
+              <button
+                type="button"
+                onClick={() => {
+                  const u = urlDraft.trim();
+                  if (!u) return;
+                  const withMorphs = u.includes("morphTargets") ? u : `${u}${u.includes("?") ? "&" : "?"}morphTargets=ARKit,Oculus%20Visemes`;
+                  setModel3DUrl(withMorphs); setFailed3D(false);
+                  try { localStorage.setItem("avatar3dUrl", withMorphs); } catch { /* noop */ }
+                }}
+                className="btn-secondary flex-1 text-2xs px-2 py-1"
+              >
+                {t("Appliquer l'avatar", "Apply avatar")}
+              </button>
+              <a href="https://readyplayer.me/avatar" target="_blank" rel="noopener noreferrer" className="btn-secondary text-2xs px-2 py-1">
+                {t("Créer", "Create")}
+              </a>
+            </div>
+            <p className="text-[10px] leading-snug text-muted">
+              {t(
+                "Créez un avatar réaliste sur readyplayer.me, copiez l'URL .glb et collez-la ici.",
+                "Create a realistic avatar on readyplayer.me, copy the .glb URL and paste it here.",
+              )}
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Conversation */}

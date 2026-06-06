@@ -380,6 +380,7 @@ export default function NewMetaAdPage() {
       if (!r.ok) { setError(d.error || t("Échec de la création.", "Creation failed.")); return; }
       setResult({ campaignId: d.campaignId, adSetId: d.adSetId, creativeId: d.creativeId, adId: d.adId, adIds: d.adIds, leadFormId: d.leadFormId, status: d.status });
       setLeads(null);
+      setTimeout(() => window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" }), 150);
     } catch (e) {
       setError(e instanceof Error ? e.message : t("Échec de la création.", "Creation failed."));
     } finally { setPublishing(false); }
@@ -473,9 +474,21 @@ export default function NewMetaAdPage() {
         )}
 
         {planReady && (
-          <p className="mt-2 rounded-lg bg-success-50 px-3 py-2 text-xs text-success-700">
-            {t("✓ Campagne pré-remplie ci-dessous — vérifiez puis publiez (en PAUSE).", "✓ Campaign pre-filled below — review then publish (PAUSED).")}
-          </p>
+          <div className="mt-2 rounded-lg bg-success-50 px-3 py-2.5 text-xs text-success-700">
+            {t("✓ Campagne pré-remplie ci-dessous. Vérifiez, ou créez-la directement (en PAUSE).", "✓ Campaign pre-filled below. Review, or create it directly (PAUSED).")}
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={publish}
+                disabled={publishing || genImg}
+                className="btn-primary inline-flex items-center gap-1.5 text-sm disabled:opacity-50"
+              >
+                {publishing && <Spinner size={14} className="text-white" />}
+                {publishing ? t("Création sur Meta…", "Creating on Meta…") : t("Créer directement (EN PAUSE)", "Create directly (PAUSED)")}
+              </button>
+              {genImg && <span className="inline-flex items-center gap-1.5 text-2xs text-muted"><Spinner size={12} className="text-ai-text" /> {t("Visuel en cours de génération…", "Visual being generated…")}</span>}
+            </div>
+          </div>
         )}
 
         <div className="mt-3 flex items-end gap-2">

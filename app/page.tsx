@@ -69,11 +69,19 @@ const STATS = [
 
 const CAPABILITIES = [
   { c: "#1877F2", fr: "Créer une pub Meta", en: "Create a Meta ad", dfr: "Image, carrousel, vidéo ou formulaire de prospects — créée EN PAUSE, activée d'un clic.", den: "Image, carousel, video or lead form — created PAUSED, activated in one click.", href: "/campaigns/new", icon: "M4 19V5m5 14V9m5 10v-6m5 6V7" },
-  { c: "#a855f7", fr: "Assistant conversationnel", en: "Conversational assistant", dfr: "Décrivez la campagne, l'IA remplit tout : ciblage, budget, visuel, texte — règles Meta incluses.", den: "Describe the campaign, the AI fills everything per Meta rules.", href: "/campaigns/new", icon: "M4 5h16v10H8l-4 4V5Z" },
-  { c: "#e1306c", fr: "Studios & Médiathèque", en: "Studios & Media library", dfr: "Affiches, vidéos, visuels IA multi-formats — tout est stocké et réutilisable.", den: "Posters, videos, multi-format AI visuals — all stored and reusable.", href: "/media", icon: "m15 10 5-3v10l-5-3v3a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v2Z" },
-  { c: "#0A66C2", fr: "Article LinkedIn", en: "LinkedIn Article", dfr: "Mots-clés → article pro + visuels HD → aperçu prêt à publier.", den: "Keywords → pro article + HD visuals → ready-to-publish preview.", href: "/article-linkedin", icon: "M5 3h14v18l-7-3-7 3V3Z" },
+  { c: "#a855f7", fr: "Assistant conversationnel", en: "Conversational assistant", dfr: "Décrivez la campagne, l'IA remplit tout : objectif, ciblage, budget, visuel, texte — règles Meta incluses.", den: "Describe it, the AI fills everything per Meta rules.", href: "/campaigns/new", icon: "M4 5h16v10H8l-4 4V5Z" },
   { c: "#22c55e", fr: "Pilote Pub", en: "Ad Pilot", dfr: "L'IA lit la performance réelle et applique pause / budget / activation, avec garde-fous.", den: "AI reads real performance and applies pause/budget/activation, with guardrails.", href: "/ad-performance", icon: "M3 12h4l3 8 4-16 3 8h4" },
-  { c: "#f59e0b", fr: "Centre de pilotage", en: "Command center", dfr: "Vos vraies données : perf pub, abonnés, engagement, veille — et agents lançables partout.", den: "Your real data: ad perf, followers, engagement, watch — agents everywhere.", href: "/pilotage", icon: "M12 3l9 5v8l-9 5-9-5V8l9-5Z" },
+  { c: "#16a34a", fr: "Performance réelle", en: "Real performance", dfr: "Dépense, CTR, CPC, conversions, portée — vraies données Meta, graphes et tableaux.", den: "Spend, CTR, CPC, conversions, reach — real Meta data, charts and tables.", href: "/ad-performance", icon: "M4 19V5m4 14v-8m4 8V8m4 11v-5m4 5V7" },
+  { c: "#e1306c", fr: "Studio Affiches", en: "Poster Studio", dfr: "Affiches A4/A3 et visuels réseaux : fond IA, texte, logo, charte — export & médiathèque.", den: "A4/A3 posters and social visuals: AI background, text, logo, brand kit.", href: "/studio-affiche", icon: "M4 4h16v16H4zM4 14l4-4 4 4 4-5 4 5" },
+  { c: "#f43f5e", fr: "Studio Créatif vidéo", en: "Creative video studio", dfr: "Montez et marketez photos & vidéos automatiquement, réseau par réseau.", den: "Assemble and market photos & videos automatically, per network.", href: "/studio-video", icon: "m15 10 5-3v10l-5-3v3a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v2Z" },
+  { c: "#8b5cf6", fr: "Médiathèque & déclinaison", en: "Media library & remix", dfr: "Tous vos visuels/vidéos stockés, réutilisables, et déclinables en IA (img-to-img).", den: "All your visuals/videos stored, reusable, AI-remixable (img-to-img).", href: "/media", icon: "M4 5h16v14H4zM8 5v14M4 9h4" },
+  { c: "#0A66C2", fr: "Article LinkedIn", en: "LinkedIn Article", dfr: "Mots-clés → article pro + visuels HD → aperçu prêt à publier.", den: "Keywords → pro article + HD visuals → ready-to-publish preview.", href: "/article-linkedin", icon: "M5 3h14v18l-7-3-7 3V3Z" },
+  { c: "#3b82f6", fr: "Publier partout", en: "Publish everywhere", dfr: "Posts organiques Facebook, Instagram & LinkedIn — texte IA + visuels, multi-formats.", den: "Organic posts on Facebook, Instagram & LinkedIn — AI copy + visuals.", href: "/compose", icon: "M4 4h16v12H7l-3 3V4Z" },
+  { c: "#10b981", fr: "Messagerie & réponses IA", en: "Inbox & AI replies", dfr: "Les agents répondent aux commentaires et DM dans votre voix, avec escalade humaine.", den: "Agents reply to comments and DMs in your voice, with human handoff.", href: "/inbox", icon: "M4 5h16v10H8l-4 4V5Z" },
+  { c: "#eab308", fr: "Veille concurrents", en: "Competitor watch", dfr: "Pubs et contenus concurrents analysés en continu → mémoire stratégique (RAG).", den: "Competitor ads and content analysed continuously → strategic memory.", href: "/veille", icon: "M11 4a7 7 0 1 0 4.9 12l4.1 4.1M11 4a7 7 0 0 1 7 7" },
+  { c: "#6366f1", fr: "8 agents IA", en: "8 AI agents", dfr: "Stratège, copywriter, créatif, conformité, media buyer… lançables depuis chaque page.", den: "Strategist, copywriter, creative, compliance, media buyer… runnable from any page.", href: "/agents", icon: "M12 3a4 4 0 0 1 4 4 4 4 0 0 1-1 7H9a4 4 0 0 1-1-7 4 4 0 0 1 4-4Z" },
+  { c: "#f59e0b", fr: "Centre de pilotage", en: "Command center", dfr: "Toutes vos vraies données en un poste de commande, relié à tous les outils.", den: "All your real data in one command deck, linked to every tool.", href: "/pilotage", icon: "M12 3l9 5v8l-9 5-9-5V8l9-5Z" },
+  { c: "#ec4899", fr: "Plusieurs marques", en: "Multiple brands", dfr: "Gérez N sociétés, chacune avec son profil, ses connexions et ses campagnes — isolées.", den: "Manage N companies, each with its own profile, connections and campaigns.", href: "/comptes", icon: "M3 21V8l9-5 9 5v13M9 21v-6h6v6" },
 ];
 
 const LOOP = [
@@ -87,19 +95,6 @@ const TESTIMONIALS = [
   { q: "On a relancé nos pubs Meta en 10 minutes, sans ouvrir le Business Manager.", a: "Dir. Marketing · clinique", net: 0 },
   { q: "L'assistant rédige et cible mieux que notre ancienne agence — et reste sous contrôle.", a: "Fondateur · SaaS B2B", net: 2 },
   { q: "Les visuels multi-formats partent direct en Reels et en fil. Gain de temps énorme.", a: "Social Media Manager", net: 1 },
-];
-
-const PLANS = [
-  { name: "Starter", price: "0", fr: "Pour tester", en: "To try", feats: ["1 marque", "Studios IA", "Publication organique", "Médiathèque"], cta: "Commencer", ctaEn: "Start", href: "/demarrage", hot: false },
-  { name: "Growth", price: "—", fr: "Le plus choisi", en: "Most chosen", feats: ["Marques illimitées", "Pubs Meta + assistant", "Pilote Pub (optimisation)", "Agents IA", "Veille concurrents"], cta: "Démarrer", ctaEn: "Get started", href: "/demarrage", hot: true },
-  { name: "Scale", price: "sur devis", fr: "Multi-équipes", en: "Multi-team", feats: ["Tout Growth", "Rôles & permissions", "Conformité avancée", "Support prioritaire"], cta: "Nous contacter", ctaEn: "Contact us", href: "/demarrage", hot: false },
-];
-
-const FAQ = [
-  { q: "Les pubs sont-elles publiées automatiquement ?", a: "Non. Tout est créé EN PAUSE sur votre compte Meta. L'activation (dépense réelle) est une action explicite, plafonnée et confirmée." },
-  { q: "Mes données et tokens sont-ils protégés ?", a: "Oui : isolation par société (multi-tenant), tokens chiffrés au repos (AES-256-GCM), et garde anti-IDOR sur chaque route." },
-  { q: "Quels réseaux sont supportés ?", a: "Facebook, Instagram et LinkedIn (publication réelle). TikTok & X côté formats/visuels. Chaque client connecte ses propres comptes." },
-  { q: "C'est scalable pour plusieurs clients ?", a: "Oui — chaque société a son profil, ses connexions OAuth et ses campagnes, totalement isolés." },
 ];
 
 /* ───────────────────────── Réseau humain (SVG animé) ────────────────────── */
@@ -188,9 +183,8 @@ export default function Home() {
       <header className="mc-nav">
         <Link href="/" className="mc-brand"><span className="mc-brand-dot" /> AXON<span>·AI</span></Link>
         <nav className="mc-navlinks">
-          <a href="#capabilities">{t("Capacités", "Capabilities")}</a>
+          <a href="#capabilities">{t("Fonctionnalités", "Features")}</a>
           <a href="#showcase">{t("Aperçu", "Preview")}</a>
-          <a href="#pricing">{t("Tarifs", "Pricing")}</a>
           <Link href="/agents">{t("Agents", "Agents")}</Link>
         </nav>
         <div className="mc-navcta">
@@ -264,15 +258,16 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ── Capacités ── */}
+      {/* ── Fonctionnalités (toutes) ── */}
       <section id="capabilities" className="mc-section">
-        <header className="mc-sec-head">
-          <span className="mc-kicker">{t("Ce que vous faites, vraiment", "What you actually do")}</span>
-          <h2 className="mc-h2">{t("Une chaîne complète, sous contrôle.", "A complete chain, under control.")}</h2>
+        <header className="mc-sec-head reveal">
+          <span className="mc-kicker">{t("Tout ce que vous pouvez faire", "Everything you can do")}</span>
+          <h2 className="mc-h2">{t("Une plateforme, toutes les fonctions.", "One platform, every function.")}</h2>
+          <p className="mc-sec-sub">{t("De la création à l'optimisation, en passant par la publication, la messagerie et la veille — chaque carte est une vraie page de l'app.", "From creation to optimisation, publishing, inbox and watch — each card is a real page of the app.")}</p>
         </header>
         <div className="mc-grid">
-          {CAPABILITIES.map((c) => (
-            <Link key={c.fr} href={c.href} className="mc-card tilt" style={{ ["--c" as string]: c.c }}>
+          {CAPABILITIES.map((c, i) => (
+            <Link key={c.fr} href={c.href} className="mc-card tilt reveal" style={{ ["--c" as string]: c.c, transitionDelay: `${(i % 3) * 70 + Math.floor(i / 3) * 40}ms` }}>
               <span className="mc-card-ic">
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d={c.icon} /></svg>
               </span>
@@ -281,6 +276,19 @@ export default function Home() {
               <span className="mc-card-go">{t("Ouvrir", "Open")} →</span>
             </Link>
           ))}
+        </div>
+      </section>
+
+      {/* Bandeau dynamique : toutes les fonctions défilent */}
+      <section className="mc-marquee mc-marquee-feat">
+        <div className="mc-marquee-track mc-marquee-rev">
+          {Array.from({ length: 2 }).flatMap((_, k) =>
+            CAPABILITIES.map((c, i) => (
+              <span key={`${k}-${i}`} className="mc-chip" style={{ ["--c" as string]: c.c }}>
+                <span className="mc-chip-dot" /> {t(c.fr, c.en)}
+              </span>
+            ))
+          )}
         </div>
       </section>
 
@@ -352,42 +360,6 @@ export default function Home() {
               </figure>
             );
           })}
-        </div>
-      </section>
-
-      {/* ── Tarifs ── */}
-      <section id="pricing" className="mc-section">
-        <header className="mc-sec-head reveal">
-          <span className="mc-kicker">{t("Tarifs", "Pricing")}</span>
-          <h2 className="mc-h2">{t("Simple, comme l'outil.", "Simple, like the tool.")}</h2>
-        </header>
-        <div className="mc-plans">
-          {PLANS.map((p, i) => (
-            <div key={p.name} className={`mc-plan reveal${p.hot ? " hot" : ""}`} style={{ transitionDelay: `${i * 90}ms` }}>
-              {p.hot && <span className="mc-plan-badge">{t("Populaire", "Popular")}</span>}
-              <h3>{p.name}</h3>
-              <div className="mc-plan-price">{p.price}<span>{p.price === "0" ? "€" : ""}</span></div>
-              <p className="mc-plan-sub">{t(p.fr, p.en)}</p>
-              <ul>{p.feats.map((f) => <li key={f}>{f}</li>)}</ul>
-              <Link href={p.href} className={`mc-btn ${p.hot ? "mc-btn-glow" : "mc-btn-outline"} mc-btn-lg`} style={{ width: "100%" }}>{t(p.cta, p.ctaEn)}</Link>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* ── FAQ ── */}
-      <section className="mc-section mc-faq">
-        <header className="mc-sec-head reveal">
-          <span className="mc-kicker">FAQ</span>
-          <h2 className="mc-h2">{t("Les bonnes questions.", "The right questions.")}</h2>
-        </header>
-        <div className="mc-faq-list reveal">
-          {FAQ.map((f, i) => (
-            <details key={i} className="mc-faq-item">
-              <summary>{f.q}<span>+</span></summary>
-              <p>{f.a}</p>
-            </details>
-          ))}
         </div>
       </section>
 

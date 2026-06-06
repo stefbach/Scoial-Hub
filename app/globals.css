@@ -558,3 +558,11 @@
 .mc-human-viz{position:relative;}
 .mc-human-photo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:18px;
   box-shadow:0 30px 70px -28px rgba(124,58,237,.55);}
+
+/* Fonctionnalités — sous-titre + bandeau dynamique */
+.mc-sec-sub{color:#b9add0;max-width:46rem;margin:.8rem 0 0;line-height:1.6;font-size:.96rem;}
+.mc-marquee-feat{margin-top:0;}
+.mc-marquee-rev{animation-name:mcscrollrev;animation-duration:32s;}
+@keyframes mcscrollrev{from{transform:translateX(-50%)}to{transform:translateX(0)}}
+.mc-chip-dot{width:8px;height:8px;border-radius:50%;background:var(--c,#a855f7);box-shadow:0 0 10px 1px var(--c,#a855f7);display:inline-block;}
+.mc-chip{border-color:color-mix(in srgb, var(--c,#a855f7) 35%, transparent);}

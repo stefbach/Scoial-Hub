@@ -126,14 +126,14 @@ export default function ClientTelegramPage() {
           ) : (
             /* Bot central non configuré → message d'accompagnement (admin) */
             <div className="rounded-lg border border-warning-200 bg-warning-50 p-4">
-              <p className="text-sm font-semibold text-warning-800">{t("Le bot AXON-AI doit d'abord être activé", "The AXON-AI bot must be activated first")}</p>
+              <p className="text-sm font-semibold text-warning-700">{t("Le bot AXON-AI doit d'abord être activé", "The AXON-AI bot must be activated first")}</p>
               <p className="mt-1.5 text-sm leading-relaxed text-warning-700">
                 {t(
                   "La connexion par code utilise un bot Telegram central, partagé par tous les comptes. L'administrateur doit le configurer une seule fois dans Vercel :",
                   "Code pairing uses a central Telegram bot, shared by all accounts. The administrator must configure it once in Vercel:"
                 )}
               </p>
-              <ol className="mt-2 space-y-1 text-xs text-warning-800">
+              <ol className="mt-2 space-y-1 text-xs text-warning-700">
                 <li>1. {t("Créer un bot via ", "Create a bot via ")}<a href="https://t.me/BotFather" target="_blank" rel="noopener noreferrer" className="underline">@BotFather</a> ({t("commande ", "command ")}<code className="font-mono">/newbot</code>).</li>
                 <li>2. {t("Dans Vercel → Settings → Environment Variables, ajouter ", "In Vercel → Settings → Environment Variables, add ")}<code className="font-mono">TELEGRAM_BOT_TOKEN</code> {t("et ", "and ")}<code className="font-mono">TELEGRAM_BOT_USERNAME</code>.</li>
                 <li>3. {t("Redéployer, puis appeler une fois ", "Redeploy, then call once ")}<code className="font-mono">/api/telegram/bot/setup</code> {t("pour enregistrer le webhook.", "to register the webhook.")}</li>

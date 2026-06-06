@@ -289,7 +289,7 @@ export default function PilotagePage() {
                     className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-2xs font-medium transition-colors ${
                       selected
                         ? "border-page bg-page text-white hover:bg-page hover:border-page"
-                        : "border-hair bg-canvas text-ink hover:bg-white hover:border-[#bb9fff]"
+                        : "border-hair bg-canvas text-ink hover:bg-white/[0.06] hover:border-page/50"
                     }`}
                   >
                     {t("Niv.", "Lvl.")} {lvl} {lvl === 1 ? t("· Reco", "· Reco") : lvl === 2 ? t("· Semi", "· Semi") : t("· Auto", "· Auto")}

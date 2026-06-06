@@ -319,10 +319,10 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
             "group relative flex items-center gap-2.5 rounded-lg px-3 py-[0.4rem] text-sm",
             "transition-all duration-[120ms]",
             active
-              ? "bg-[#efe7d9] text-ink font-semibold"
+              ? "bg-page/20 text-ink font-semibold"
               : entry
-              ? "bg-primary-50 text-primary-700 font-semibold hover:bg-primary-100"
-              : "text-muted hover:bg-[#f1eadd] hover:text-ink",
+              ? "bg-page/15 text-ink font-semibold hover:bg-page/25"
+              : "text-muted hover:bg-white/[0.06] hover:text-ink",
           ].join(" ")}
         >
           {active && (

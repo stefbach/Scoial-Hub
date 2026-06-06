@@ -309,7 +309,7 @@ function ProgrammationSection() {
                   className={[
                     "px-4 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500",
                     isActive
-                      ? "bg-primary-600 text-white"
+                      ? "bg-page text-white"
                       : "text-muted hover:bg-canvas hover:text-ink",
                   ].join(" ")}
                 >

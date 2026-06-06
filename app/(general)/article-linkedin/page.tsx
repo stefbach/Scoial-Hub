@@ -225,7 +225,7 @@ export default function ArticleLinkedInPage() {
               <span
                 className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-2xs font-medium ${
                   active
-                    ? "bg-primary-600 text-white"
+                    ? "bg-page text-white"
                     : done
                     ? "bg-primary-50 text-primary-700"
                     : "bg-canvas text-muted ring-1 ring-hair"
@@ -394,7 +394,7 @@ export default function ArticleLinkedInPage() {
                         >
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img src={u} alt={`visuel ${idx}-${i}`} className="h-full w-full object-cover" />
-                          {on && <span className="absolute right-1 top-1 rounded-full bg-primary-600 px-1.5 py-0.5 text-[10px] font-bold text-white">✓</span>}
+                          {on && <span className="absolute right-1 top-1 rounded-full bg-page px-1.5 py-0.5 text-[10px] font-bold text-white">✓</span>}
                         </button>
                       );
                     })}

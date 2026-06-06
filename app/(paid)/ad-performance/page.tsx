@@ -585,7 +585,7 @@ function AdPerformanceContent() {
           </p>
           <a
             href="/campaigns"
-            className="mt-5 inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-4 py-2 text-xs font-semibold text-white shadow-xs hover:bg-primary-700 transition-colors"
+            className="mt-5 inline-flex items-center gap-1.5 rounded-lg bg-page px-4 py-2 text-xs font-semibold text-white shadow-xs hover:opacity-90 transition-colors"
           >
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
               <path d="M6 1v10M1 6h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
@@ -925,7 +925,7 @@ function AdPerformanceContent() {
                     </button>
                     <button
                       onClick={() => setOpenAd(topPerformer)}
-                      className="rounded-md border border-ai-text/30 bg-card px-3 py-1.5 text-2xs font-medium text-ai-text hover:bg-white"
+                      className="rounded-md border border-ai-text/30 bg-card px-3 py-1.5 text-2xs font-medium text-ai-text hover:bg-ai-text/10"
                     >
                       {t("Générer des publicités similaires", "Generate similar ads")}
                     </button>

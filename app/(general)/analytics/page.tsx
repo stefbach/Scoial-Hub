@@ -456,7 +456,7 @@ function AnalyticsContent() {
           </p>
           <a
             href="/accounts"
-            className="mt-5 inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-4 py-2 text-xs font-semibold text-white shadow-xs hover:bg-primary-700 transition-colors"
+            className="mt-5 inline-flex items-center gap-1.5 rounded-lg bg-page px-4 py-2 text-xs font-semibold text-white shadow-xs hover:opacity-90 transition-colors"
           >
             {t("Connecter mes réseaux", "Connect my networks")}
           </a>

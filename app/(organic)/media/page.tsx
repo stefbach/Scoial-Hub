@@ -114,7 +114,7 @@ export default function MediaLibraryPage() {
           <div className="inline-flex rounded-lg border border-hair bg-canvas p-0.5">
             {(["all", "image", "video"] as Filter[]).map((f) => (
               <button key={f} onClick={() => setFilter(f)}
-                className={`rounded-md px-3 py-1.5 text-xs font-semibold ${filter === f ? "bg-primary-600 text-white" : "text-muted hover:text-ink"}`}>
+                className={`rounded-md px-3 py-1.5 text-xs font-semibold ${filter === f ? "bg-page text-white" : "text-muted hover:text-ink"}`}>
                 {f === "all" ? t("Tout", "All") : f === "image" ? t("Images", "Images") : t("Vidéos", "Videos")}
               </button>
             ))}

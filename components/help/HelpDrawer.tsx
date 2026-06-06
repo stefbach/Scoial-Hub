@@ -140,7 +140,7 @@ export function HelpDrawer({ open, onClose }: HelpDrawerProps) {
         aria-label={ui.aria}
         className={[
           "fixed right-0 top-0 z-50 h-full w-full max-w-[480px]",
-          "flex flex-col bg-white shadow-2xl",
+          "flex flex-col bg-card shadow-2xl",
           "border-l border-hair",
           "transition-transform duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]",
           open ? "translate-x-0" : "translate-x-full",
@@ -203,7 +203,7 @@ export function HelpDrawer({ open, onClose }: HelpDrawerProps) {
                   {entry.actions.map((action, i) => (
                     <li
                       key={i}
-                      className="flex gap-3 rounded-lg border border-hair bg-white px-4 py-3 text-sm leading-relaxed shadow-xs"
+                      className="flex gap-3 rounded-lg border border-hair bg-white/[0.04] px-4 py-3 text-sm leading-relaxed shadow-xs"
                     >
                       <span
                         aria-hidden="true"

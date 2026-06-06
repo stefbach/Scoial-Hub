@@ -192,7 +192,7 @@ export default function InboxPage() {
           <button
             key={k.id}
             onClick={() => setKindFilter(k.id)}
-            className={`rounded-full px-3 py-1 text-2xs font-medium transition-colors ${kindFilter === k.id ? "bg-primary-600 text-white" : "bg-canvas text-muted hover:text-ink"}`}
+            className={`rounded-full px-3 py-1 text-2xs font-medium transition-colors ${kindFilter === k.id ? "bg-page text-white" : "bg-canvas text-muted hover:text-ink"}`}
           >
             {t(k.fr, k.en)}
           </button>

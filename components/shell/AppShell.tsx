@@ -207,9 +207,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <div className="min-h-screen bg-canvas">
+    <div className="app-shell">
+      {/* Décor spatial « Mission Control » — derrière tout le contenu */}
+      <div className="app-mesh" aria-hidden="true" />
+      <div className="app-grain" aria-hidden="true" />
+
       {/* Header sticky — blur + ombre au scroll via CSS */}
-      <header className="app-header sticky top-0 z-30 flex items-center justify-between border-b border-hair bg-card/90 px-3 py-2.5 backdrop-blur-md sm:px-5">
+      <header className="app-header sticky top-0 z-30 flex items-center justify-between border-b border-hair bg-canvas/70 px-3 py-2.5 backdrop-blur-xl sm:px-5">
         <div className="flex min-w-0 items-center gap-2 sm:gap-3">
           {/* Hamburger (mobile only) */}
           <button

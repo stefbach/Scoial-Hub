@@ -1,0 +1,275 @@
+"use client";
+
+/**
+ * Avatar IA conversationnel intégré au Hub.
+ *  - cerveau : /api/ai/avatar-chat (Claude + mémoire stratégique de la marque)
+ *  - voix    : synthèse vocale du navigateur (TTS) + reconnaissance vocale (STT)
+ *  - visuel  : avatar SVG animé (blink + lip-sync) — fiable, sans dépendance.
+ *              Option « HD (Live2D) » chargée à la demande depuis le CDN, avec
+ *              repli automatique sur le SVG en cas d'échec.
+ */
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useT } from "@/lib/i18n";
+
+interface Msg { role: "user" | "assistant"; content: string }
+type Face = "idle" | "thinking" | "speaking";
+
+const VOICE_LANGS = [
+  { label: "Français", code: "fr-FR" },
+  { label: "English", code: "en-US" },
+  { label: "Español", code: "es-ES" },
+  { label: "Deutsch", code: "de-DE" },
+  { label: "Italiano", code: "it-IT" },
+];
+
+/* ── Avatar SVG animé ──────────────────────────────────────────────────────── */
+function AvatarFace({ face, mouth, blink }: { face: Face; mouth: number; blink: boolean }) {
+  const eyeH = blink ? 0.12 : 1; // clignement
+  const m = Math.max(0, Math.min(1, mouth));
+  const mouthRy = face === "speaking" ? 3 + m * 9 : 3;
+  const mouthRx = face === "speaking" ? 9 - m * 2 : 11;
+  return (
+    <svg viewBox="0 0 220 240" className="h-full w-full">
+      <defs>
+        <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#eef2ff" />
+          <stop offset="100%" stopColor="#e0e7ff" />
+        </linearGradient>
+        <linearGradient id="hair" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#4f46e5" />
+          <stop offset="100%" stopColor="#7c3aed" />
+        </linearGradient>
+      </defs>
+      <rect width="220" height="240" rx="18" fill="url(#bg)" />
+      {/* épaules */}
+      <path d="M40 240 Q40 188 110 188 Q180 188 180 240 Z" fill="#6366f1" />
+      <path d="M95 178 h30 v22 h-30 z" fill="#f1c9a5" />
+      {/* tête */}
+      <g style={{ transformOrigin: "110px 120px", transform: face === "idle" ? "translateY(0)" : "translateY(-1px)" }}>
+        <ellipse cx="110" cy="110" rx="62" ry="68" fill="#f6d2b3" />
+        {/* cheveux */}
+        <path d="M48 104 Q44 40 110 40 Q176 40 172 104 Q150 78 110 78 Q70 78 48 104 Z" fill="url(#hair)" />
+        <path d="M48 104 Q60 92 70 104 L70 130 Q56 124 48 104 Z" fill="url(#hair)" />
+        <path d="M172 104 Q160 92 150 104 L150 130 Q164 124 172 104 Z" fill="url(#hair)" />
+        {/* sourcils */}
+        <rect x="74" y="92" width="26" height="4" rx="2" fill="#7c3aed" transform={face === "thinking" ? "rotate(-8 87 94)" : undefined} />
+        <rect x="120" y="92" width="26" height="4" rx="2" fill="#7c3aed" transform={face === "thinking" ? "rotate(8 133 94)" : undefined} />
+        {/* yeux */}
+        <g style={{ transform: `scaleY(${eyeH})`, transformOrigin: "110px 112px", transition: "transform 80ms" }}>
+          <ellipse cx="87" cy="112" rx="9" ry="12" fill="#fff" />
+          <ellipse cx="133" cy="112" rx="9" ry="12" fill="#fff" />
+          <circle cx="88" cy="114" r="5" fill="#3b2f2f" />
+          <circle cx="134" cy="114" r="5" fill="#3b2f2f" />
+          <circle cx="90" cy="112" r="1.6" fill="#fff" />
+          <circle cx="136" cy="112" r="1.6" fill="#fff" />
+        </g>
+        {/* joues */}
+        <circle cx="74" cy="135" r="7" fill="#f7a9a0" opacity="0.5" />
+        <circle cx="146" cy="135" r="7" fill="#f7a9a0" opacity="0.5" />
+        {/* bouche */}
+        <ellipse cx="110" cy="150" rx={mouthRx} ry={mouthRy} fill="#9b3b3b" />
+        {face === "speaking" && m > 0.4 && <ellipse cx="110" cy={150 + mouthRy * 0.3} rx={mouthRx * 0.5} ry={mouthRy * 0.4} fill="#e98b8b" />}
+      </g>
+    </svg>
+  );
+}
+
+export function AvatarChat({ companyId }: { companyId: string }) {
+  const t = useT();
+  const [messages, setMessages] = useState<Msg[]>([]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [face, setFace] = useState<Face>("idle");
+  const [mouth, setMouth] = useState(0);
+  const [blink, setBlink] = useState(false);
+  const [voiceOn, setVoiceOn] = useState(true);
+  const [listening, setListening] = useState(false);
+  const [lang, setLang] = useState(VOICE_LANGS[0]);
+  const [note, setNote] = useState<string | null>(null);
+
+  const mouthTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const recRef = useRef<any>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Clignement périodique.
+  useEffect(() => {
+    const id = setInterval(() => {
+      setBlink(true);
+      setTimeout(() => setBlink(false), 140);
+    }, 3500 + Math.random() * 2000);
+    return () => clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+  }, [messages, loading]);
+
+  const stopMouth = useCallback(() => {
+    if (mouthTimer.current) clearInterval(mouthTimer.current);
+    mouthTimer.current = null;
+    setMouth(0);
+  }, []);
+
+  const speak = useCallback(
+    (text: string) => {
+      if (!voiceOn || typeof window === "undefined" || !window.speechSynthesis) {
+        setFace("idle");
+        return;
+      }
+      try {
+        window.speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = lang.code;
+        const voices = window.speechSynthesis.getVoices();
+        const v = voices.find((vo) => vo.lang === lang.code) || voices.find((vo) => vo.lang.startsWith(lang.code.slice(0, 2)));
+        if (v) u.voice = v;
+        u.onstart = () => {
+          setFace("speaking");
+          stopMouth();
+          mouthTimer.current = setInterval(() => setMouth(0.2 + Math.random() * 0.8), 110);
+        };
+        u.onend = () => { stopMouth(); setFace("idle"); };
+        u.onerror = () => { stopMouth(); setFace("idle"); };
+        window.speechSynthesis.speak(u);
+      } catch {
+        setFace("idle");
+      }
+    },
+    [voiceOn, lang, stopMouth]
+  );
+
+  const send = useCallback(
+    async (text: string) => {
+      const msg = text.trim();
+      if (!msg || loading) return;
+      setInput("");
+      setMessages((m) => [...m, { role: "user", content: msg }]);
+      setLoading(true);
+      setFace("thinking");
+      setNote(null);
+      try {
+        const history = messages.slice(-10);
+        const res = await fetch("/api/ai/avatar-chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ companyId, message: msg, history, language: lang.label }),
+        });
+        const data = (await res.json()) as { reply?: string; mock?: boolean };
+        const reply = data.reply ?? t("Désolé, je n'ai pas pu répondre.", "Sorry, I couldn't answer.");
+        setMessages((m) => [...m, { role: "assistant", content: reply }]);
+        if (data.mock) setNote(t("Mode démo (ANTHROPIC_API_KEY non configurée).", "Demo mode (ANTHROPIC_API_KEY not set)."));
+        speak(reply);
+      } catch {
+        setFace("idle");
+        setNote(t("Erreur réseau.", "Network error."));
+      } finally {
+        setLoading(false);
+      }
+    },
+    [messages, loading, companyId, lang, t, speak]
+  );
+
+  // Reconnaissance vocale (micro).
+  const toggleMic = useCallback(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const w = window as any;
+    const SR = w.SpeechRecognition || w.webkitSpeechRecognition;
+    if (!SR) {
+      setNote(t("La reconnaissance vocale n'est pas supportée par ce navigateur.", "Speech recognition isn't supported by this browser."));
+      return;
+    }
+    if (listening) {
+      recRef.current?.stop();
+      setListening(false);
+      return;
+    }
+    const rec = new SR();
+    rec.lang = lang.code;
+    rec.interimResults = false;
+    rec.maxAlternatives = 1;
+    rec.onresult = (e: { results: { [k: number]: { [k: number]: { transcript: string } } } }) => {
+      const transcript = e.results[0][0].transcript;
+      setListening(false);
+      void send(transcript);
+    };
+    rec.onerror = () => setListening(false);
+    rec.onend = () => setListening(false);
+    recRef.current = rec;
+    rec.start();
+    setListening(true);
+  }, [listening, lang, send, t]);
+
+  return (
+    <div className="grid gap-4 lg:grid-cols-[320px,1fr]">
+      {/* Avatar */}
+      <div className="flex flex-col items-center gap-3">
+        <div className="aspect-[11/12] w-full max-w-xs overflow-hidden rounded-2xl shadow-sm ring-1 ring-hair">
+          <AvatarFace face={face} mouth={mouth} blink={blink} />
+        </div>
+        <div className="flex w-full max-w-xs items-center justify-between gap-2 text-xs">
+          <label className="flex items-center gap-1">
+            <input type="checkbox" checked={voiceOn} onChange={(e) => setVoiceOn(e.target.checked)} />
+            🔊 {t("Voix", "Voice")}
+          </label>
+          <select
+            value={lang.code}
+            onChange={(e) => setLang(VOICE_LANGS.find((l) => l.code === e.target.value) ?? VOICE_LANGS[0])}
+            className="input text-2xs"
+          >
+            {VOICE_LANGS.map((l) => <option key={l.code} value={l.code}>{l.label}</option>)}
+          </select>
+        </div>
+        <p className="max-w-xs text-center text-2xs text-muted">
+          {face === "thinking" ? t("réfléchit…", "thinking…") : face === "speaking" ? t("parle…", "speaking…") : t("prêt", "ready")}
+        </p>
+      </div>
+
+      {/* Conversation */}
+      <div className="flex h-[60vh] flex-col rounded-2xl border border-hair bg-card">
+        <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto p-4">
+          {messages.length === 0 && (
+            <div className="mt-8 text-center text-sm text-muted">
+              {t(
+                "Bonjour 👋 Je suis votre assistant de marque. Posez-moi une question (clavier ou micro) — je connais votre stratégie, votre veille et vos pubs.",
+                "Hi 👋 I'm your brand assistant. Ask me anything (keyboard or mic) — I know your strategy, watch and ads.",
+              )}
+            </div>
+          )}
+          {messages.map((m, i) => (
+            <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+              <div className={`max-w-[80%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm ${m.role === "user" ? "bg-primary-600 text-white" : "bg-canvas text-ink"}`}>
+                {m.content}
+              </div>
+            </div>
+          ))}
+          {loading && <div className="text-2xs text-muted">{t("…", "…")}</div>}
+        </div>
+
+        {note && <p className="px-4 text-2xs text-muted">{note}</p>}
+
+        <div className="flex items-center gap-2 border-t border-hair p-3">
+          <button
+            type="button"
+            onClick={toggleMic}
+            className={`rounded-full p-2 text-lg ${listening ? "bg-danger-100 text-danger-600 animate-pulse" : "bg-canvas text-ink"}`}
+            title={t("Parler", "Speak")}
+          >
+            🎤
+          </button>
+          <input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && send(input)}
+            placeholder={t("Écrivez ou parlez à votre avatar…", "Type or talk to your avatar…")}
+            className="input flex-1 text-sm"
+          />
+          <button type="button" onClick={() => send(input)} disabled={loading || !input.trim()} className="btn-primary text-sm">
+            {t("Envoyer", "Send")}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

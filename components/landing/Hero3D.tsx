@@ -16,8 +16,8 @@ import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 
 /* Visuels photoréalistes optionnels (Flux Ultra) déposés dans /public/hero/.
    S'ils existent, ils servent de texture ; sinon repli procédural. */
-const HERO_SCREEN_URL = "/hero/phone-screen.jpg"; // mockup de post ultra
-const HERO_DASH_URL = "/hero/dashboard.jpg";       // tableau de bord ultra
+const HERO_SCREEN_URL = "/hero/phone.png";       // visuel téléphone (importé)
+const HERO_DASH_URL = "/hero/dashboard.webp";     // visuel dashboard (importé)
 
 /* Dessine une texture de logo réseau sur un canvas → CanvasTexture. */
 function logoTexture(kind: "fb" | "ig" | "li" | "x"): THREE.CanvasTexture {
@@ -157,11 +157,21 @@ export function Hero3D() {
     const deck = new THREE.Group(); scene.add(deck);
     const disposables: { dispose: () => void }[] = [envTex, pmrem];
 
-    // Charge un visuel ultra (Flux) s'il existe, sinon garde le procédural.
-    const tryTexture = (url: string, apply: (tx: THREE.Texture) => void) => {
+    // Charge un visuel s'il existe (sinon repli procédural). `planeAspect` permet
+    // un recadrage "cover" (pas de déformation de l'image carrée sur un plan non carré).
+    const tryTexture = (url: string, planeAspect: number, apply: (tx: THREE.Texture) => void) => {
       new THREE.TextureLoader().load(
         url,
-        (tx) => { tx.colorSpace = THREE.SRGBColorSpace; tx.anisotropy = 8; apply(tx); disposables.push(tx); },
+        (tx) => {
+          tx.colorSpace = THREE.SRGBColorSpace; tx.anisotropy = 8;
+          const img = tx.image as { width: number; height: number };
+          const imgA = img.width / img.height;
+          tx.center.set(0.5, 0.5);
+          if (imgA > planeAspect) tx.repeat.set(planeAspect / imgA, 1);
+          else tx.repeat.set(1, imgA / planeAspect);
+          tx.needsUpdate = true;
+          apply(tx); disposables.push(tx);
+        },
         undefined,
         () => { /* absent → repli procédural */ }
       );
@@ -179,7 +189,7 @@ export function Hero3D() {
     phone.position.set(2.4, -0.2, 0.6); phone.rotation.set(0.12, -0.5, 0.04);
     deck.add(phone);
     disposables.push(bodyGeo, bodyMat, scrTex, scrMat, screen.geometry);
-    tryTexture(HERO_SCREEN_URL, (tx) => { scrMat.map = tx; scrMat.emissiveMap = tx; scrMat.needsUpdate = true; });
+    tryTexture(HERO_SCREEN_URL, 1.34 / 2.86, (tx) => { scrMat.map = tx; scrMat.emissiveMap = tx; scrMat.needsUpdate = true; });
 
     // ── Tableau de bord (verre) ──
     const dashTex = dashTexture();
@@ -192,7 +202,7 @@ export function Hero3D() {
     dash.position.set(-1.7, 0.7, -0.4); dash.rotation.set(0.1, 0.45, -0.04);
     deck.add(dash);
     disposables.push(dashTex, dashGeo, dashMat, dashFace.geometry, dashFaceMat);
-    tryTexture(HERO_DASH_URL, (tx) => { dashFaceMat.map = tx; dashFaceMat.emissiveMap = tx; dashFaceMat.needsUpdate = true; });
+    tryTexture(HERO_DASH_URL, 3.0 / 1.86, (tx) => { dashFaceMat.map = tx; dashFaceMat.emissiveMap = tx; dashFaceMat.needsUpdate = true; });
 
     // ── Noyau IA ──
     const coreGeo = new THREE.IcosahedronGeometry(0.42, 2);

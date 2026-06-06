@@ -44,6 +44,22 @@ export default function BrandChartView({
 }) {
   const t = useT();
 
+  // Normalisation défensive : la charte peut venir de la DB (jsonb) avec des
+  // champs manquants — on garantit des tableaux/chaînes pour ne jamais planter.
+  const palette = Array.isArray(chart?.palette)
+    ? chart.palette.filter((c) => c && typeof c.hex === "string" && /^#[0-9a-fA-F]{3,8}$/.test(c.hex))
+    : [];
+  const toneWords = Array.isArray(chart?.toneWords) ? chart.toneWords.filter((w) => typeof w === "string") : [];
+  const logoUsage = Array.isArray(chart?.logoUsage) ? chart.logoUsage.filter((w) => typeof w === "string") : [];
+  const dos = Array.isArray(chart?.dos) ? chart.dos.filter((w) => typeof w === "string") : [];
+  const donts = Array.isArray(chart?.donts) ? chart.donts.filter((w) => typeof w === "string") : [];
+  const headingFont = chart?.headingFont || "";
+  const bodyFont = chart?.bodyFont || "";
+  const typographyNote = chart?.typographyNote || "";
+  const voice = chart?.voice || "";
+  const imagery = chart?.imagery || "";
+  const tagline = chart?.tagline || "";
+
   async function exportPng() {
     const W = 1240, H = 1754;
     const canvas = document.createElement("canvas");
@@ -103,7 +119,7 @@ export default function BrandChartView({
     // Palette
     section(t("Palette", "Palette"));
     const sw = 150, gap = 18; let x = pad;
-    for (const c of chart.palette) {
+    for (const c of palette) {
       if (x + sw > W - pad) { x = pad; y += 150; }
       ctx.fillStyle = c.hex; ctx.strokeStyle = hair;
       ctx.fillRect(x, y, sw, 90); ctx.strokeRect(x, y, sw, 90);
@@ -118,30 +134,30 @@ export default function BrandChartView({
     // Typographie
     section(t("Typographie", "Typography"));
     ctx.fillStyle = ink; ctx.font = "700 30px Manrope, system-ui, sans-serif";
-    ctx.fillText(`${t("Titres", "Headings")} : ${chart.headingFont}`, pad, y); y += 44;
-    ctx.fillText(`${t("Texte", "Body")} : ${chart.bodyFont}`, pad, y); y += 44;
-    para(chart.typographyNote);
+    ctx.fillText(`${t("Titres", "Headings")} : ${headingFont}`, pad, y); y += 44;
+    ctx.fillText(`${t("Texte", "Body")} : ${bodyFont}`, pad, y); y += 44;
+    para(typographyNote);
 
     // Ton & voix
     section(t("Ton & voix", "Tone & voice"));
-    if (chart.toneWords.length) para(chart.toneWords.join(" · "), ink, 26);
-    para(chart.voice);
+    if (toneWords.length) para(toneWords.join(" · "), ink, 26);
+    para(voice);
 
     // Usage du logo
-    if (chart.logoUsage.length) { section(t("Usage du logo", "Logo usage")); bullets(chart.logoUsage); }
+    if (logoUsage.length) { section(t("Usage du logo", "Logo usage")); bullets(logoUsage); }
 
     // Do / Don't
-    if (chart.dos.length || chart.donts.length) {
+    if (dos.length || donts.length) {
       section(t("Bonnes pratiques", "Best practices"));
-      ctx.fillStyle = "#16a34a"; bullets(chart.dos, "✓", "#16a34a");
-      ctx.fillStyle = "#dc2626"; bullets(chart.donts, "✗", "#dc2626");
+      ctx.fillStyle = "#16a34a"; bullets(dos, "✓", "#16a34a");
+      ctx.fillStyle = "#dc2626"; bullets(donts, "✗", "#dc2626");
     }
 
     // Imagerie + baseline
-    if (chart.imagery) { section(t("Imagerie", "Imagery")); para(chart.imagery); }
-    if (chart.tagline) {
+    if (imagery) { section(t("Imagerie", "Imagery")); para(imagery); }
+    if (tagline) {
       ctx.fillStyle = "#5b2d8e"; ctx.font = "italic 700 30px Manrope, system-ui, sans-serif";
-      for (const ln of wrap(ctx, `« ${chart.tagline} »`, W - pad * 2)) { ctx.fillText(ln, pad, y); y += 42; }
+      for (const ln of wrap(ctx, `« ${tagline} »`, W - pad * 2)) { ctx.fillText(ln, pad, y); y += 42; }
     }
 
     const a = document.createElement("a");
@@ -157,69 +173,69 @@ export default function BrandChartView({
         <button onClick={exportPng} className="btn-secondary text-2xs">⬇︎ {t("Télécharger (PNG A4)", "Download (A4 PNG)")}</button>
       </div>
 
-      {chart.palette.length > 0 && (
+      {palette.length > 0 && (
         <div className="mb-3">
           <div className="mb-1 text-2xs font-semibold uppercase tracking-wide text-muted">{t("Palette", "Palette")}</div>
           <div className="flex flex-wrap gap-2">
-            {chart.palette.map((c) => (
-              <div key={c.hex} className="w-20">
+            {palette.map((c, i) => (
+              <div key={`${c.hex}-${i}`} className="w-20">
                 <div className="h-10 w-full rounded-md ring-1 ring-hair" style={{ backgroundColor: c.hex }} />
                 <div className="mt-1 font-mono text-[10px] text-ink">{c.hex.toUpperCase()}</div>
-                <div className="text-[10px] leading-tight text-muted">{c.name}{c.role ? ` · ${c.role}` : ""}</div>
+                <div className="text-[10px] leading-tight text-muted">{c.name || ""}{c.role ? ` · ${c.role}` : ""}</div>
               </div>
             ))}
           </div>
         </div>
       )}
 
-      {(chart.headingFont || chart.bodyFont) && (
+      {(headingFont || bodyFont) && (
         <div className="mb-3">
           <div className="mb-1 text-2xs font-semibold uppercase tracking-wide text-muted">{t("Typographie", "Typography")}</div>
-          <p className="text-ink"><span className="font-semibold">{t("Titres", "Headings")}</span> : {chart.headingFont} · <span className="font-semibold">{t("Texte", "Body")}</span> : {chart.bodyFont}</p>
-          {chart.typographyNote && <p className="text-muted">{chart.typographyNote}</p>}
+          <p className="text-ink"><span className="font-semibold">{t("Titres", "Headings")}</span> : {headingFont} · <span className="font-semibold">{t("Texte", "Body")}</span> : {bodyFont}</p>
+          {typographyNote && <p className="text-muted">{typographyNote}</p>}
         </div>
       )}
 
-      {(chart.toneWords.length > 0 || chart.voice) && (
+      {(toneWords.length > 0 || voice) && (
         <div className="mb-3">
           <div className="mb-1 text-2xs font-semibold uppercase tracking-wide text-muted">{t("Ton & voix", "Tone & voice")}</div>
-          {chart.toneWords.length > 0 && (
+          {toneWords.length > 0 && (
             <div className="mb-1 flex flex-wrap gap-1">
-              {chart.toneWords.map((w) => <span key={w} className="chip text-2xs">{w}</span>)}
+              {toneWords.map((w, i) => <span key={`${w}-${i}`} className="chip text-2xs">{w}</span>)}
             </div>
           )}
-          {chart.voice && <p className="text-muted">{chart.voice}</p>}
+          {voice && <p className="text-muted">{voice}</p>}
         </div>
       )}
 
-      {chart.logoUsage.length > 0 && (
+      {logoUsage.length > 0 && (
         <div className="mb-3">
           <div className="mb-1 text-2xs font-semibold uppercase tracking-wide text-muted">{t("Usage du logo", "Logo usage")}</div>
-          <ul className="space-y-0.5 text-ink">{chart.logoUsage.map((u, i) => <li key={i} className="flex gap-1.5"><span className="text-primary">›</span>{u}</li>)}</ul>
+          <ul className="space-y-0.5 text-ink">{logoUsage.map((u, i) => <li key={i} className="flex gap-1.5"><span className="text-primary">›</span>{u}</li>)}</ul>
         </div>
       )}
 
-      {(chart.dos.length > 0 || chart.donts.length > 0) && (
+      {(dos.length > 0 || donts.length > 0) && (
         <div className="mb-3 grid grid-cols-2 gap-3">
           <div>
             <div className="mb-1 text-2xs font-semibold uppercase tracking-wide text-success-700">{t("À faire", "Do")}</div>
-            <ul className="space-y-0.5 text-ink">{chart.dos.map((d, i) => <li key={i} className="flex gap-1.5"><span className="text-success-600">✓</span>{d}</li>)}</ul>
+            <ul className="space-y-0.5 text-ink">{dos.map((d, i) => <li key={i} className="flex gap-1.5"><span className="text-success-600">✓</span>{d}</li>)}</ul>
           </div>
           <div>
             <div className="mb-1 text-2xs font-semibold uppercase tracking-wide text-danger-600">{t("À éviter", "Don't")}</div>
-            <ul className="space-y-0.5 text-ink">{chart.donts.map((d, i) => <li key={i} className="flex gap-1.5"><span className="text-danger-600">✗</span>{d}</li>)}</ul>
+            <ul className="space-y-0.5 text-ink">{donts.map((d, i) => <li key={i} className="flex gap-1.5"><span className="text-danger-600">✗</span>{d}</li>)}</ul>
           </div>
         </div>
       )}
 
-      {chart.imagery && (
+      {imagery && (
         <div className="mb-3">
           <div className="mb-1 text-2xs font-semibold uppercase tracking-wide text-muted">{t("Imagerie", "Imagery")}</div>
-          <p className="text-muted">{chart.imagery}</p>
+          <p className="text-muted">{imagery}</p>
         </div>
       )}
 
-      {chart.tagline && <p className="text-center text-sm font-semibold italic text-primary-700">« {chart.tagline} »</p>}
+      {tagline && <p className="text-center text-sm font-semibold italic text-primary-700">« {tagline} »</p>}
     </div>
   );
 }

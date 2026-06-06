@@ -11,6 +11,7 @@ import { useT } from "@/lib/i18n";
 import { Spinner, BusyHint } from "@/components/ui/Spinner";
 import { useBrandKit } from "@/lib/brand-kit/use-brand-kit";
 import BrandChartView from "@/components/studio/BrandChartView";
+import { SafeBoundary } from "@/components/ui/SafeBoundary";
 import type { BrandKit } from "@/lib/brand-kit/types";
 
 /** Source utilisable sur un <canvas> sans taint CORS. */
@@ -276,8 +277,10 @@ export default function BrandKitPanel({
         </div>
       )}
 
-      {k?.chart && k.chart.palette.length > 0 && (
-        <BrandChartView chart={k.chart} logoSrc={k.logoUrl || logoDataUrl} brandName={brandName ?? ""} />
+      {k?.chart && Array.isArray(k.chart.palette) && k.chart.palette.length > 0 && (
+        <SafeBoundary label="BrandChartView">
+          <BrandChartView chart={k.chart} logoSrc={k.logoUrl || logoDataUrl} brandName={brandName ?? ""} />
+        </SafeBoundary>
       )}
 
       {note && <p className="rounded-lg bg-warning-50 px-3 py-2 text-2xs text-warning-700">{note}</p>}

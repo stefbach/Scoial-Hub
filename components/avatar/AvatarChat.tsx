@@ -31,6 +31,17 @@ function withMorphs(url: string): string {
   return `${url}${url.includes("?") ? "&" : "?"}morphTargets=ARKit,Oculus%20Visemes`;
 }
 
+/** Construit une URL .glb Ready Player Me depuis une URL, un lien de partage ou un ID. */
+function toGlbUrl(input: string): string | null {
+  const s = input.trim();
+  if (!s) return null;
+  if (s.includes("models.readyplayer.me") && s.includes(".glb")) return withMorphs(s);
+  const id = s.match(/[a-f0-9]{24}/i); // id RPM (24 hex)
+  if (id) return withMorphs(`https://models.readyplayer.me/${id[0]}.glb`);
+  if (s.endsWith(".glb")) return withMorphs(s);
+  return null;
+}
+
 /* ── Avatar SVG animé ──────────────────────────────────────────────────────── */
 function AvatarFace({ face, mouth, blink }: { face: Face; mouth: number; blink: boolean }) {
   const eyeH = blink ? 0.12 : 1; // clignement
@@ -99,6 +110,7 @@ export function AvatarChat({ companyId }: { companyId: string }) {
   const [failed3D, setFailed3D] = useState(false);
   const [model3DUrl, setModel3DUrl] = useState(""); // vide tant qu'aucun avatar choisi
   const [creatorOpen, setCreatorOpen] = useState(false);
+  const [urlDraft, setUrlDraft] = useState("");
 
   const mouthTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const mouthRef = useRef(0); // 0..1 partagé avec l'avatar 3D
@@ -224,9 +236,9 @@ export function AvatarChat({ companyId }: { companyId: string }) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ text, language: lang.label }),
         });
-        const data = (await res.json()) as { audioBase64?: string; format?: string; fallback?: boolean };
+        const data = (await res.json()) as { audioBase64?: string; mime?: string; fallback?: boolean };
         if (data.audioBase64) {
-          await playWithLipsync(`data:audio/${data.format ?? "mp3"};base64,${data.audioBase64}`);
+          await playWithLipsync(`data:${data.mime ?? "audio/mpeg"};base64,${data.audioBase64}`);
           return;
         }
       } catch { /* → repli navigateur */ }
@@ -347,6 +359,31 @@ export function AvatarChat({ companyId }: { companyId: string }) {
           <button type="button" onClick={() => setCreatorOpen(true)} className="btn-secondary text-2xs px-2 py-1">
             {t("🧑‍🎨 Changer d'avatar", "🧑‍🎨 Change avatar")}
           </button>
+        )}
+
+        {use3D && (
+          <details className="w-full max-w-xs text-2xs text-muted">
+            <summary className="cursor-pointer">{t("Le créateur ne s'affiche pas ?", "Creator not showing?")}</summary>
+            <div className="mt-2 space-y-1">
+              <a href="https://readyplayer.me/avatar" target="_blank" rel="noopener noreferrer" className="block text-primary-600 hover:underline">
+                {t("1. Ouvrir le créateur dans un onglet ↗", "1. Open the creator in a tab ↗")}
+              </a>
+              <p>{t("2. Créez votre avatar (selfie/photo), copiez son URL ou ID, collez-le ci-dessous :", "2. Create your avatar (selfie/photo), copy its URL or ID, paste below:")}</p>
+              <input
+                value={urlDraft}
+                onChange={(e) => setUrlDraft(e.target.value)}
+                placeholder="…/64xxxx.glb ou ID"
+                className="input w-full text-2xs"
+              />
+              <button
+                type="button"
+                onClick={() => { const u = toGlbUrl(urlDraft); if (u) applyAvatar(u); else setNote(t("URL/ID d'avatar invalide.", "Invalid avatar URL/ID.")); }}
+                className="btn-secondary w-full text-2xs px-2 py-1"
+              >
+                {t("Appliquer cet avatar", "Apply this avatar")}
+              </button>
+            </div>
+          </details>
         )}
       </div>
 

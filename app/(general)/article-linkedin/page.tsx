@@ -9,6 +9,15 @@ import { useCompany } from "@/lib/company-context";
 import { useT } from "@/lib/i18n";
 import { Spinner, BusyHint } from "@/components/ui/Spinner";
 
+// Modèles visuels de qualité proposés sur cet écran (du plus net au plus rapide).
+const VISUAL_MODELS: { id: string; label: string }[] = [
+  { id: "black-forest-labs/flux-1.1-pro-ultra", label: "Flux 1.1 Pro Ultra — ultra-net" },
+  { id: "google/imagen-4-ultra", label: "Imagen 4 Ultra (Google)" },
+  { id: "google/nano-banana", label: "Nano Banana (Gemini)" },
+  { id: "black-forest-labs/flux-1.1-pro", label: "Flux 1.1 Pro" },
+  { id: "ideogram-ai/ideogram-v3-quality", label: "Ideogram v3 — texte/affiche" },
+];
+
 interface Article {
   title: string;
   hook: string;
@@ -66,6 +75,8 @@ export default function ArticleLinkedInPage() {
   // Visuels
   const [images, setImages] = useState<Record<number, string[]>>({});
   const [imgLoading, setImgLoading] = useState<number | null>(null);
+  const [imgModel, setImgModel] = useState(VISUAL_MODELS[0].id);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   // Publication
   const [publishing, setPublishing] = useState(false);
@@ -111,13 +122,14 @@ export default function ArticleLinkedInPage() {
     try {
       const r = await fetch("/api/ai/generate-image", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: vp, platform: "linkedin", n: 2 }),
+        body: JSON.stringify({ prompt: vp, platform: "linkedin", n: 2, model: imgModel }),
       });
       const d = await r.json();
       if (!r.ok) { setAiNote(d.error || t("Échec de génération d'image.", "Image generation failed.")); return; }
       const urls = extractImageUrls(d);
       if (urls.length > 0) {
         setImages((prev) => ({ ...prev, [idx]: urls }));
+        setSelectedImage((cur) => cur ?? urls[0]); // sélectionne le 1er visuel par défaut
         if (d.fallbackUsed) setAiNote(t(`Image générée via un modèle de repli (${d.fallbackUsed}).`, `Image generated with a fallback model (${d.fallbackUsed}).`));
         return;
       }
@@ -139,11 +151,11 @@ export default function ArticleLinkedInPage() {
     if (!article) return;
     setPublishing(true); setPublishMsg(null);
     try {
-      const firstImg = Object.values(images).flat()[0];
+      const chosenImg = selectedImage || Object.values(images).flat()[0];
       // Route réelle (par société + cible profil/Page), comme l'Espace LinkedIn.
       const r = await fetch("/api/linkedin/publish", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyId, text: toPlainText(article), imageUrl: firstImg || undefined }),
+        body: JSON.stringify({ companyId, text: toPlainText(article), imageUrl: chosenImg || undefined }),
       });
       const d = await r.json();
       if (d.connected === false) {
@@ -331,7 +343,16 @@ export default function ArticleLinkedInPage() {
       {/* Visuels */}
       {article && article.visualPrompts.length > 0 && (
         <section className="card p-5">
-          <span className="section-label">{t("Visuels associés (haute qualité)", "Associated visuals (high quality)")}</span>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="section-label">{t("Visuels associés (haute qualité)", "Associated visuals (high quality)")}</span>
+            <label className="flex items-center gap-1.5 text-2xs text-muted">
+              {t("Modèle :", "Model:")}
+              <select value={imgModel} onChange={(e) => setImgModel(e.target.value)} className="rounded-lg border border-hair bg-canvas px-2 py-1 text-2xs text-ink outline-none focus:border-primary-400">
+                {VISUAL_MODELS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+              </select>
+            </label>
+          </div>
+          <p className="mt-1 text-2xs text-muted">{t("Cliquez une image pour la choisir comme visuel de la publication.", "Click an image to set it as the post visual.")}</p>
           <div className="mt-3 space-y-4">
             {article.visualPrompts.map((vp, idx) => (
               <div key={idx} className="rounded-xl border border-hair p-3">
@@ -345,17 +366,69 @@ export default function ArticleLinkedInPage() {
                 )}
                 {images[idx]?.length > 0 && (
                   <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                    {images[idx].map((u, i) => (
-                      <a key={i} href={u} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-lg border border-hair">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={u} alt={`visuel ${idx}-${i}`} className="h-full w-full object-cover" />
-                      </a>
-                    ))}
+                    {images[idx].map((u, i) => {
+                      const on = selectedImage === u;
+                      return (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => setSelectedImage(on ? null : u)}
+                          className={`relative block overflow-hidden rounded-lg border-2 ${on ? "border-primary-500 ring-2 ring-primary-200" : "border-hair hover:border-primary-300"}`}
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={u} alt={`visuel ${idx}-${i}`} className="h-full w-full object-cover" />
+                          {on && <span className="absolute right-1 top-1 rounded-full bg-primary-600 px-1.5 py-0.5 text-[10px] font-bold text-white">✓</span>}
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
               </div>
             ))}
           </div>
+        </section>
+      )}
+
+      {/* Aperçu prêt à publier — rendu fidèle au post LinkedIn (texte + visuel) */}
+      {article && (
+        <section className="card p-5">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <span className="section-label">{t("Aperçu prêt à publier", "Ready-to-publish preview")}</span>
+            <div className="flex gap-2">
+              <button onClick={copyArticle} className="btn-secondary text-xs">{copied ? t("Copié ✓", "Copied ✓") : t("Copier le texte", "Copy text")}</button>
+              <button onClick={publish} disabled={publishing} className="btn-primary inline-flex items-center gap-1.5 text-xs disabled:opacity-50">
+                {publishing && <Spinner size={14} className="text-white" />}
+                {publishing ? t("Publication…", "Publishing…") : t("Publier sur LinkedIn", "Publish to LinkedIn")}
+              </button>
+            </div>
+          </div>
+
+          <div className="mx-auto max-w-xl rounded-xl border border-hair bg-canvas p-4">
+            {/* En-tête type LinkedIn */}
+            <div className="flex items-center gap-2.5">
+              <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#0A66C2] text-sm font-bold text-white">
+                {(company.name || "in").slice(0, 2).toUpperCase()}
+              </span>
+              <div className="leading-tight">
+                <p className="text-sm font-semibold text-ink">{company.name || t("Votre marque", "Your brand")}</p>
+                <p className="text-2xs text-muted">{t("Maintenant · 🌐", "Now · 🌐")}</p>
+              </div>
+            </div>
+
+            {/* Corps du post */}
+            <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-ink">{toPlainText(article)}</p>
+
+            {/* Visuel choisi */}
+            {(selectedImage || Object.values(images).flat()[0]) && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={selectedImage || Object.values(images).flat()[0]}
+                alt="visuel de la publication"
+                className="mt-3 w-full rounded-lg border border-hair object-cover"
+              />
+            )}
+          </div>
+          {publishMsg && <p className="mt-3 rounded-lg bg-canvas px-3 py-2 text-xs text-ink">{publishMsg}</p>}
         </section>
       )}
     </div>

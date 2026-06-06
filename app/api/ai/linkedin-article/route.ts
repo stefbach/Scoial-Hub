@@ -95,9 +95,9 @@ async function loadBrandContext(companyId: string, includeRag: boolean): Promise
 }
 
 const LENGTH_GUIDE: Record<string, string> = {
-  post: "Post LinkedIn court et percutant (120–200 mots).",
-  article: "Article LinkedIn structuré (350–600 mots, 3–4 sections avec intertitres).",
-  long: "Article LinkedIn approfondi de leadership éclairé (700–1100 mots, intertitres, exemples concrets, données si pertinentes).",
+  post: "Post LinkedIn court et percutant (150–250 mots), une idée forte développée avec un exemple concret.",
+  article: "Article LinkedIn structuré et fouillé (600–900 mots, 4–5 sections avec intertitres, chaque section développée avec exemples concrets et raisonnement — pas de généralités creuses).",
+  long: "Article LinkedIn approfondi de leadership éclairé (1200–1800 mots, intertitres clairs, exemples concrets, mise en perspective nuancée, données chiffrées uniquement si véridiques — sinon ne pas inventer).",
 };
 
 function langName(language: string): string {
@@ -175,7 +175,7 @@ Le prompt que tu produis doit préciser : l'objectif éditorial, l'angle unique,
 }
 
 // ── Mode "article" : génère l'article structuré + prompts visuels ─────────────
-const SYSTEM = `Tu es un rédacteur LinkedIn d'élite (leadership éclairé B2B). Tu écris des articles crédibles, structurés et engageants, jamais sensationnalistes, sans promesses non étayées. Tu t'adaptes strictement au secteur et à la voix de marque fournis ; tu n'inventes ni chiffres ni faits. Pour les secteurs régulés (santé, finance, droit), tu emploies un langage mesuré.`;
+const SYSTEM = `Tu es un rédacteur LinkedIn d'élite (leadership éclairé B2B). Tu écris des articles crédibles, structurés, engageants et PROFONDS — chaque idée est développée avec un raisonnement clair et des exemples concrets, jamais des généralités creuses ni du remplissage. Style LinkedIn : accroche forte dès la 1re ligne, paragraphes courts et aérés, intertitres explicites, transitions fluides. Jamais sensationnaliste, aucune promesse non étayée. Tu t'adaptes strictement au sujet demandé (prioritaire) et, s'il est fourni, à la voix de marque ; tu n'inventes ni chiffres ni faits. Pour les secteurs régulés (santé, finance, droit), langage mesuré.`;
 
 function fallbackArticle(body: Body, brand: BrandContext): ArticleResult {
   const topic = body.input.slice(0, 80);
@@ -206,18 +206,18 @@ Retourne STRICTEMENT ce JSON :
 {
   "title": "titre d'article fort et professionnel",
   "hook": "1-2 phrases d'accroche qui donnent envie de lire (1re ligne du post)",
-  "body": "le corps de l'article en markdown : intertitres (##), paragraphes aérés, listes si utile. Niveau professionnel, crédible, sans jargon creux.",
-  "keyTakeaways": ["3 à 5 enseignements clés et concrets"],
+  "body": "le corps de l'article en markdown : intertitres (##), paragraphes aérés et courts, listes si utile. Développé, crédible, riche en exemples concrets, sans jargon creux. Respecte la longueur demandée.",
+  "keyTakeaways": ["3 à 5 enseignements clés et concrets (phrases complètes, actionnables)"],
   "hashtags": ["3 à 5 hashtags LinkedIn pertinents et spécifiques"],
   "cta": "un appel à l'action / question d'engagement en fin d'article",
-  "visualPrompts": ["2 à 3 prompts DÉTAILLÉS en anglais pour générer des visuels haute qualité adaptés à l'article (style, composition, couleurs ; sans texte incrusté)"]
+  "visualPrompts": ["2 à 3 prompts TRÈS DÉTAILLÉS en anglais pour des visuels éditoriaux de niveau professionnel (photographie corporate moderne ou illustration épurée) : sujet précis lié à l'article, composition, cadrage, lumière, palette sobre, ambiance ; rendu haute définition, réaliste et premium ; AUCUN texte ni logo incrusté"]
 }`;
 
   try {
     const client = new Anthropic({ apiKey: env.anthropicKey });
     const res = await client.messages.create({
       model: env.anthropicModel,
-      max_tokens: 2600,
+      max_tokens: 4096,
       system: SYSTEM,
       messages: [{ role: "user", content: prompt }],
     });

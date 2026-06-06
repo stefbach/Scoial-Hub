@@ -15,9 +15,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const body = (await req.json()) as Partial<PublishAdInput>;
     // En mode formulaire de prospects, le lien peut être l'URL de confidentialité.
     const effectiveLink = body.link || body.leadForm?.privacyUrl;
-    if (!body.companyId || !body.imageUrl || !effectiveLink || !body.primaryText || !body.name) {
+    if (!body.companyId || (!body.imageUrl && !body.videoUrl) || !effectiveLink || !body.primaryText || !body.name) {
       return NextResponse.json(
-        { error: "Champs requis : companyId, name, imageUrl, primaryText, et un lien (ou l'URL de confidentialité en mode formulaire)." },
+        { error: "Champs requis : companyId, name, un visuel (image ou vidéo), primaryText, et un lien (ou l'URL de confidentialité en mode formulaire)." },
         { status: 400 }
       );
     }
@@ -46,13 +46,19 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       publisherPlatforms: body.publisherPlatforms,
       facebookPositions: body.facebookPositions,
       instagramPositions: body.instagramPositions,
-      imageUrl: body.imageUrl,
+      imageUrl: body.imageUrl ?? "",
       images: Array.isArray(body.images) ? body.images : undefined,
+      videoUrl: body.videoUrl,
+      videoThumbUrl: body.videoThumbUrl,
       primaryText: body.primaryText,
       headline: body.headline,
-      link: effectiveLink,
+      link: effectiveLink as string,
       cta: body.cta,
       leadForm: body.leadForm,
+      pixelId: body.pixelId,
+      conversionEvent: body.conversionEvent,
+      customAudiences: Array.isArray(body.customAudiences) ? body.customAudiences : undefined,
+      variants: Array.isArray(body.variants) ? body.variants : undefined,
     });
     return NextResponse.json({ ok: true, ...result });
   } catch (err) {

@@ -24,6 +24,7 @@ interface PublishResult {
   adSetId: string;
   creativeId: string;
   adId: string;
+  adIds?: string[];
   leadFormId?: string;
   status: string;
 }
@@ -88,10 +89,31 @@ export default function NewMetaAdPage() {
   const [posStory, setPosStory] = useState(false);
   const [posReels, setPosReels] = useState(false);
 
-  // Visuels (carrousel possible)
+  // Visuels (carrousel possible) + vidéo
   const [imageUrl, setImageUrl] = useState("");
   const [extraImages, setExtraImages] = useState<string[]>([]);
   const [newExtraUrl, setNewExtraUrl] = useState("");
+  const [videoUrl, setVideoUrl] = useState("");
+  const [videoThumbUrl, setVideoThumbUrl] = useState("");
+
+  // Conversions (pixel)
+  const [pixels, setPixels] = useState<{ id: string; name: string }[]>([]);
+  const [pixelId, setPixelId] = useState("");
+  const [conversionEvent, setConversionEvent] = useState("LEAD");
+
+  // Audiences personnalisées / similaires
+  const [audiences, setAudiences] = useState<{ id: string; name: string; subtype: string; size?: number }[]>([]);
+  const [selAudiences, setSelAudiences] = useState<{ id: string; name: string }[]>([]);
+  const [loadingAud, setLoadingAud] = useState(false);
+
+  // Variantes A/B (textes principaux additionnels)
+  const [variants, setVariants] = useState<string[]>([]);
+
+  // Prospects récupérés (après création d'une pub formulaire)
+  const [leads, setLeads] = useState<{ createdTime: string; fields: Record<string, string> }[] | null>(null);
+  const [loadingLeads, setLoadingLeads] = useState(false);
+
+  const isConvObjective = objective === "ventes" || objective === "conversions";
   const [primaryText, setPrimaryText] = useState("");
   const [headline, setHeadline] = useState("");
   const [link, setLink] = useState("");
@@ -168,11 +190,45 @@ export default function NewMetaAdPage() {
     const u = newExtraUrl.trim();
     if (u && /^https?:\/\//i.test(u)) { setExtraImages((a) => [...a, u]); setNewExtraUrl(""); }
   }
+  async function loadAudiences() {
+    setLoadingAud(true);
+    try {
+      const r = await fetch(`/api/meta/audiences?companyId=${encodeURIComponent(companyId)}`);
+      const d = await r.json();
+      setAudiences(Array.isArray(d.audiences) ? d.audiences : []);
+    } catch { setAudiences([]); } finally { setLoadingAud(false); }
+  }
+  function toggleAudience(a: { id: string; name: string }) {
+    setSelAudiences((cur) => cur.some((x) => x.id === a.id) ? cur.filter((x) => x.id !== a.id) : [...cur, { id: a.id, name: a.name }]);
+  }
+  async function fetchLeads(formId: string) {
+    setLoadingLeads(true);
+    try {
+      const r = await fetch(`/api/meta/leads?companyId=${encodeURIComponent(companyId)}&formId=${encodeURIComponent(formId)}`);
+      const d = await r.json();
+      setLeads(Array.isArray(d.leads) ? d.leads : []);
+    } catch { setLeads([]); } finally { setLoadingLeads(false); }
+  }
+
+  // Charge les pixels quand l'objectif devient « Ventes/Conversions ».
+  useEffect(() => {
+    if (adType !== "traffic" || !isConvObjective || !conn?.connected || pixels.length) return;
+    (async () => {
+      try {
+        const r = await fetch(`/api/meta/pixels?companyId=${encodeURIComponent(companyId)}`);
+        const d = await r.json();
+        const px = Array.isArray(d.pixels) ? d.pixels : [];
+        setPixels(px);
+        if (px[0] && !pixelId) setPixelId(px[0].id);
+      } catch { /* ignore */ }
+    })();
+  }, [adType, isConvObjective, conn?.connected, companyId, pixels.length, pixelId]);
 
   function validate(): string | null {
     if (!name.trim()) return t("Donnez un nom à la campagne.", "Name the campaign.");
     if (!primaryText.trim()) return t("Écrivez le texte principal.", "Write the primary text.");
-    if (!imageUrl.trim()) return t("Ajoutez un visuel (URL ou génération IA).", "Add a visual (URL or AI generation).");
+    if (!imageUrl.trim() && !videoUrl.trim()) return t("Ajoutez un visuel (image ou vidéo).", "Add a visual (image or video).");
+    if (adType === "traffic" && isConvObjective && !pixelId) return t("Sélectionnez un pixel pour l'objectif Conversions.", "Select a pixel for the Conversions objective.");
     if (!budget || budget < 1) return t("Indiquez un budget quotidien.", "Enter a daily budget.");
     if (adType === "lead") {
       if (!privacyUrl.trim() || !/^https?:\/\//i.test(privacyUrl)) return t("Le formulaire exige une URL de politique de confidentialité valide.", "The form requires a valid privacy policy URL.");
@@ -227,10 +283,16 @@ export default function NewMetaAdPage() {
           instagramPositions: placement === "manual" && plInstagram ? igPositions : undefined,
           imageUrl,
           images: extraImages.length ? extraImages : undefined,
+          videoUrl: videoUrl.trim() || undefined,
+          videoThumbUrl: videoThumbUrl.trim() || undefined,
           primaryText, headline,
           link: link || (adType === "lead" ? privacyUrl : ""),
           cta: adType === "lead" ? "SIGN_UP" : cta,
           leadForm,
+          pixelId: adType === "traffic" && isConvObjective ? pixelId : undefined,
+          conversionEvent: adType === "traffic" && isConvObjective ? conversionEvent : undefined,
+          customAudiences: selAudiences.length ? selAudiences : undefined,
+          variants: variants.map((v) => ({ primaryText: v })).filter((v) => v.primaryText.trim()),
         }),
       });
       const raw = await r.text();
@@ -240,7 +302,8 @@ export default function NewMetaAdPage() {
         return;
       }
       if (!r.ok) { setError(d.error || t("Échec de la création.", "Creation failed.")); return; }
-      setResult({ campaignId: d.campaignId, adSetId: d.adSetId, creativeId: d.creativeId, adId: d.adId, leadFormId: d.leadFormId, status: d.status });
+      setResult({ campaignId: d.campaignId, adSetId: d.adSetId, creativeId: d.creativeId, adId: d.adId, adIds: d.adIds, leadFormId: d.leadFormId, status: d.status });
+      setLeads(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : t("Échec de la création.", "Creation failed."));
     } finally { setPublishing(false); }
@@ -343,7 +406,24 @@ export default function NewMetaAdPage() {
                   </button>
                 ))}
               </div>
-              <p className="mt-1 text-2xs text-muted">{t("Notoriété → portée ; Engagement → interactions ; les autres → trafic vers le site.", "Awareness → reach; Engagement → interactions; others → website traffic.")}</p>
+              <p className="mt-1 text-2xs text-muted">{t("Notoriété → portée ; Engagement → interactions ; Ventes/Conversions → optimisé pixel ; sinon trafic.", "Awareness → reach; Engagement → interactions; Sales/Conversions → pixel-optimized; otherwise traffic.")}</p>
+            </div>
+          )}
+          {adType === "traffic" && isConvObjective && (
+            <div className="rounded-lg border border-hair bg-canvas p-3">
+              <span className="text-xs font-semibold text-ink">{t("Conversions (pixel)", "Conversions (pixel)")}</span>
+              {pixels.length === 0 ? (
+                <p className="mt-1 text-2xs text-muted">{t("Aucun pixel détecté sur le compte. Sans pixel, l'objectif retombe sur du trafic optimisé.", "No pixel found on the account. Without a pixel, the objective falls back to optimized traffic.")}</p>
+              ) : (
+                <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <select value={pixelId} onChange={(e) => setPixelId(e.target.value)} className={inputCls}>
+                    {pixels.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                  <select value={conversionEvent} onChange={(e) => setConversionEvent(e.target.value)} className={inputCls}>
+                    {["LEAD", "PURCHASE", "COMPLETE_REGISTRATION", "CONTACT", "ADD_TO_CART", "SCHEDULE"].map((ev) => <option key={ev} value={ev}>{ev}</option>)}
+                  </select>
+                </div>
+              )}
             </div>
           )}
           {/* Budget : quotidien ou à vie */}
@@ -443,6 +523,31 @@ export default function NewMetaAdPage() {
             </div>
           )}
           <p className="text-2xs text-muted">{t("Laissez vide pour une audience large (recommandé au début, l'IA de Meta optimise).", "Leave empty for a broad audience (recommended at first — Meta's AI optimizes).")}</p>
+
+          {/* Audiences personnalisées / similaires */}
+          <div className="border-t border-hair pt-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-ink">{t("Audiences personnalisées / similaires", "Custom / lookalike audiences")}</span>
+              <button type="button" onClick={loadAudiences} disabled={loadingAud} className="btn-secondary inline-flex items-center gap-1.5 text-2xs disabled:opacity-50">
+                {loadingAud && <Spinner size={12} className="text-current" />}
+                {audiences.length ? t("Recharger", "Reload") : t("Charger", "Load")}
+              </button>
+            </div>
+            {audiences.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {audiences.map((a) => {
+                  const on = selAudiences.some((x) => x.id === a.id);
+                  return (
+                    <button key={a.id} type="button" onClick={() => toggleAudience(a)}
+                      className={`rounded-full px-3 py-1 text-2xs font-medium ${on ? "bg-primary-600 text-white" : "bg-canvas text-muted ring-1 ring-hair hover:text-ink"}`}
+                      title={a.subtype}>
+                      {a.name}{a.size ? ` · ${(a.size / 1000).toFixed(0)}k` : ""}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </section>
 
         {/* Placements */}
@@ -542,6 +647,38 @@ export default function NewMetaAdPage() {
               {extraImages.length > 0 && <p className="mt-1 text-2xs text-muted">{t(`Carrousel de ${extraImages.length + 1} cartes.`, `Carousel of ${extraImages.length + 1} cards.`)}</p>}
             </div>
           )}
+
+          {/* Vidéo (prioritaire sur l'image si renseignée) */}
+          {adType === "traffic" && (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-muted">{t("Vidéo (URL publique .mp4, optionnel)", "Video (public .mp4 URL, optional)")}</label>
+                <input value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)} placeholder="https://…/video.mp4" className={inputCls} />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-muted">{t("Miniature vidéo (optionnel)", "Video thumbnail (optional)")}</label>
+                <input value={videoThumbUrl} onChange={(e) => setVideoThumbUrl(e.target.value)} placeholder="https://…/thumb.jpg" className={inputCls} />
+              </div>
+              {videoUrl && <p className="text-2xs text-muted sm:col-span-2">{t("Une vidéo remplace l'image/carrousel pour cette annonce.", "A video replaces the image/carousel for this ad.")}</p>}
+            </div>
+          )}
+
+          {/* Variantes A/B (textes additionnels → annonces supplémentaires) */}
+          {adType === "traffic" && (
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted">{t("Variantes A/B (textes alternatifs, optionnel)", "A/B variants (alternative texts, optional)")}</label>
+              {variants.map((v, i) => (
+                <div key={i} className="mb-2 flex gap-2">
+                  <input value={v} onChange={(e) => setVariants((a) => a.map((x, j) => (j === i ? e.target.value : x)))} placeholder={t(`Variante ${i + 2}`, `Variant ${i + 2}`)} className={inputCls} />
+                  <button type="button" onClick={() => setVariants((a) => a.filter((_, j) => j !== i))} className="btn-secondary shrink-0 text-xs">✕</button>
+                </div>
+              ))}
+              {variants.length < 4 && (
+                <button type="button" onClick={() => setVariants((a) => [...a, ""])} className="btn-secondary text-xs">{t("+ Ajouter une variante", "+ Add a variant")}</button>
+              )}
+              <p className="mt-1 text-2xs text-muted">{t("Chaque variante crée une annonce supplémentaire dans le même ad set (test créatif).", "Each variant creates an extra ad in the same ad set (creative test).")}</p>
+            </div>
+          )}
         </section>
 
         {/* Formulaire de prospects (Instant Form) */}
@@ -609,8 +746,7 @@ export default function NewMetaAdPage() {
           <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-2xs text-muted sm:grid-cols-4">
             <span>Campaign: {result.campaignId}</span>
             <span>Ad set: {result.adSetId}</span>
-            <span>Creative: {result.creativeId}</span>
-            <span>Ad: {result.adId}</span>
+            <span>{t("Annonces", "Ads")}: {result.adIds?.length ?? 1}</span>
             {result.leadFormId && <span>{t("Formulaire", "Form")}: {result.leadFormId}</span>}
           </div>
           <div className="mt-4 flex flex-wrap items-center gap-2">
@@ -625,8 +761,37 @@ export default function NewMetaAdPage() {
               {t("Ouvrir le Gestionnaire de pubs", "Open Ads Manager")}
             </a>
             <Link href="/ad-performance" className="text-xs text-primary-600 hover:underline">{t("Voir la performance →", "View performance →")}</Link>
+            {result.leadFormId && (
+              <button onClick={() => fetchLeads(result.leadFormId!)} disabled={loadingLeads} className="btn-secondary inline-flex items-center gap-1.5 text-sm disabled:opacity-50">
+                {loadingLeads && <Spinner size={14} className="text-current" />}
+                {t("Voir les prospects", "View leads")}
+              </button>
+            )}
           </div>
           {liveMsg && <p className="mt-3 rounded-lg bg-canvas px-3 py-2 text-xs text-ink">{liveMsg}</p>}
+
+          {/* Prospects récupérés du formulaire */}
+          {leads && (
+            <div className="mt-4 border-t border-hair pt-3">
+              <span className="section-label">{t("Prospects reçus", "Leads received")} ({leads.length})</span>
+              {leads.length === 0 ? (
+                <p className="mt-1 text-2xs text-muted">{t("Aucun prospect pour l'instant (le formulaire doit être actif et avoir reçu des soumissions). La récupération exige la permission « leads_retrieval » sur la Page.", "No leads yet (the form must be active and have submissions). Retrieval requires the Page 'leads_retrieval' permission.")}</p>
+              ) : (
+                <div className="mt-2 space-y-2">
+                  {leads.slice(0, 20).map((ld, i) => (
+                    <div key={i} className="rounded-lg border border-hair bg-canvas p-2 text-xs">
+                      <div className="flex flex-wrap gap-x-4 gap-y-0.5">
+                        {Object.entries(ld.fields).map(([k, v]) => (
+                          <span key={k} className="text-ink"><span className="text-muted">{k}:</span> {v}</span>
+                        ))}
+                      </div>
+                      {ld.createdTime && <span className="text-2xs text-muted">{new Date(ld.createdTime).toLocaleString("fr-FR")}</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </section>
       )}
     </div>

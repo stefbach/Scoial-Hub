@@ -91,12 +91,22 @@ export interface PublishAdInput {
   imageUrl: string;            // visuel principal
   /** Visuels supplémentaires → carrousel (2 à 10 cartes au total avec imageUrl). */
   images?: string[];
+  /** Vidéo (URL publique) → créative vidéo (prioritaire sur l'image hors lead). */
+  videoUrl?: string;
+  videoThumbUrl?: string;
   primaryText: string;         // texte principal
   headline?: string;
   link: string;                // URL de destination
   cta?: string;                // type CTA Meta (LEARN_MORE, SHOP_NOW, SIGN_UP, CONTACT_US…)
   /** Si fourni (objectif Prospects) : crée un formulaire instantané et une pub lead. */
   leadForm?: LeadFormSpec;
+  /** Conversions de site : pixel + événement (objectif Ventes/Conversions). */
+  pixelId?: string;
+  conversionEvent?: string;    // PURCHASE | LEAD | COMPLETE_REGISTRATION | CONTACT | ADD_TO_CART | SCHEDULE
+  /** Audiences personnalisées / similaires à inclure dans le ciblage. */
+  customAudiences?: { id: string; name?: string }[];
+  /** Variantes A/B : annonces supplémentaires (même ciblage), textes différents. */
+  variants?: { primaryText: string; headline?: string }[];
 }
 
 export interface PublishAdResult {
@@ -104,8 +114,16 @@ export interface PublishAdResult {
   adSetId: string;
   creativeId: string;
   adId: string;
+  adIds?: string[];
   leadFormId?: string;
   status: "PAUSED";
+}
+
+/** Upload d'une vidéo hébergée (URL publique) vers le compte pub → renvoie son id. */
+async function uploadAdVideo(act: string, token: string, fileUrl: string): Promise<string> {
+  const res = await graphPost(`${act}/advideos`, { file_url: fileUrl }, token);
+  if (!res.id) throw new Error("Échec de l'upload de la vidéo.");
+  return String(res.id);
 }
 
 /** Crée un formulaire de prospects (Instant Form) sur la Page et renvoie son id. */
@@ -162,10 +180,15 @@ export async function publishAd(input: PublishAdInput): Promise<PublishAdResult>
     leadFormId = await createLeadForm(ctx.pageId, ctx.pageToken, input.leadForm!);
   }
 
+  // Mode « conversions de site » : objectif Ventes/Conversions + pixel fourni.
+  const ok = input.objective.toLowerCase();
+  const isConv = !isLead && Boolean(input.pixelId) && (ok.includes("vente") || ok.includes("sale") || ok.includes("conversion"));
+
   // 1) Campagne (PAUSE)
+  const campaignObjective = isLead ? "OUTCOME_LEADS" : isConv ? "OUTCOME_SALES" : objective;
   const campaign = await graphPost(`${act}/campaigns`, {
     name: `${input.name} — Campagne`,
-    objective: isLead ? "OUTCOME_LEADS" : objective,
+    objective: campaignObjective,
     status: "PAUSED",
     special_ad_categories: [],
   }, token);
@@ -187,19 +210,27 @@ export async function publishAd(input: PublishAdInput): Promise<PublishAdResult>
     if (input.facebookPositions?.length) targeting.facebook_positions = input.facebookPositions;
     if (input.instagramPositions?.length) targeting.instagram_positions = input.instagramPositions;
   }
+  if (input.customAudiences?.length) {
+    targeting.custom_audiences = input.customAudiences.map((a) => ({ id: a.id }));
+  }
 
   // Budget + calendrier.
   const startTime = input.startTime || new Date(Date.now() + 3600_000).toISOString();
+  const promotedObject = isLead
+    ? { page_id: ctx.pageId }
+    : isConv
+    ? { pixel_id: input.pixelId, custom_event_type: input.conversionEvent || "PURCHASE" }
+    : undefined;
   const adsetParams: Params = {
     name: `${input.name} — Ad set`,
     campaign_id: campaignId,
     billing_event: "IMPRESSIONS",
-    optimization_goal: isLead ? "LEAD_GENERATION" : optimization,
+    optimization_goal: isLead ? "LEAD_GENERATION" : isConv ? "OFFSITE_CONVERSIONS" : optimization,
     bid_strategy: "LOWEST_COST_WITHOUT_CAP",
     targeting,
     status: "PAUSED",
     start_time: startTime,
-    ...(isLead ? { promoted_object: { page_id: ctx.pageId } } : {}),
+    ...(promotedObject ? { promoted_object: promotedObject } : {}),
   };
   if (isLifetime) {
     adsetParams.lifetime_budget = budget;
@@ -211,49 +242,76 @@ export async function publishAd(input: PublishAdInput): Promise<PublishAdResult>
   const adset = await graphPost(`${act}/adsets`, adsetParams, token);
   const adSetId = String(adset.id);
 
-  // 3) Créative : image unique OU carrousel (≥ 2 visuels). En mode lead, le CTA
-  //    ouvre le formulaire instantané ; sinon il pointe vers le lien.
+  // 3) Créative(s). Le CTA : formulaire (lead) ou lien (sinon).
   const callToAction = isLead
     ? { type: "SIGN_UP", value: { lead_gen_form_id: leadFormId } }
     : { type: input.cta || cta, value: { link: input.link } };
   const allImages = [input.imageUrl, ...(input.images ?? [])].filter(Boolean);
-  const isCarousel = !isLead && allImages.length > 1;
-  const linkData: Params = isCarousel
-    ? {
-        message: input.primaryText,
-        link: input.link,
-        child_attachments: allImages.slice(0, 10).map((pic) => ({
-          link: input.link,
-          picture: pic,
-          name: input.headline || input.name,
+  const isCarousel = !isLead && !input.videoUrl && allImages.length > 1;
+
+  // Vidéo : on l'upload une fois (réutilisée par toutes les variantes).
+  let videoId: string | undefined;
+  if (input.videoUrl && !isLead) videoId = await uploadAdVideo(act, token, input.videoUrl);
+
+  // Construit l'object_story_spec pour un (message, titre) donné.
+  const buildStorySpec = (message: string, head: string): Params => {
+    if (videoId) {
+      return {
+        page_id: ctx.pageId,
+        video_data: {
+          video_id: videoId,
+          message,
+          title: head,
           call_to_action: callToAction,
-        })),
-        multi_share_optimized: true,
-        multi_share_end_card: false,
-      }
-    : {
-        message: input.primaryText,
-        link: input.link,
-        name: input.headline || input.name,
-        picture: input.imageUrl,
-        call_to_action: callToAction,
+          ...(input.videoThumbUrl || input.imageUrl ? { image_url: input.videoThumbUrl || input.imageUrl } : {}),
+        },
       };
-  const creative = await graphPost(`${act}/adcreatives`, {
-    name: `${input.name} — Créative`,
-    object_story_spec: { page_id: ctx.pageId, link_data: linkData },
-  }, token);
-  const creativeId = String(creative.id);
+    }
+    if (isCarousel) {
+      return {
+        page_id: ctx.pageId,
+        link_data: {
+          message,
+          link: input.link,
+          child_attachments: allImages.slice(0, 10).map((pic) => ({ link: input.link, picture: pic, name: head, call_to_action: callToAction })),
+          multi_share_optimized: true,
+          multi_share_end_card: false,
+        },
+      };
+    }
+    return {
+      page_id: ctx.pageId,
+      link_data: { message, link: input.link, name: head, picture: input.imageUrl, call_to_action: callToAction },
+    };
+  };
 
-  // 4) Ad (PAUSE)
-  const ad = await graphPost(`${act}/ads`, {
-    name: `${input.name} — Annonce`,
-    adset_id: adSetId,
-    creative: { creative_id: creativeId },
-    status: "PAUSED",
-  }, token);
-  const adId = String(ad.id);
+  // Variante principale + variantes A/B (non-lead) → une annonce chacune.
+  const variants = [
+    { primaryText: input.primaryText, headline: input.headline || input.name },
+    ...(!isLead ? (input.variants ?? []) : []).map((v) => ({ primaryText: v.primaryText, headline: v.headline || input.headline || input.name })),
+  ].filter((v) => v.primaryText?.trim());
 
-  return { campaignId, adSetId, creativeId, adId, leadFormId, status: "PAUSED" };
+  const adIds: string[] = [];
+  let firstCreativeId = "";
+  let n = 0;
+  for (const v of variants) {
+    n++;
+    const creative = await graphPost(`${act}/adcreatives`, {
+      name: `${input.name} — Créative ${n}`,
+      object_story_spec: buildStorySpec(v.primaryText, v.headline),
+    }, token);
+    const cId = String(creative.id);
+    if (!firstCreativeId) firstCreativeId = cId;
+    const ad = await graphPost(`${act}/ads`, {
+      name: `${input.name} — Annonce ${n}`,
+      adset_id: adSetId,
+      creative: { creative_id: cId },
+      status: "PAUSED",
+    }, token);
+    adIds.push(String(ad.id));
+  }
+
+  return { campaignId, adSetId, creativeId: firstCreativeId, adId: adIds[0], adIds, leadFormId, status: "PAUSED" };
 }
 
 /** Active (diffuse) ou met en pause une pub déjà créée. */

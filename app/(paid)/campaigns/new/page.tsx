@@ -10,6 +10,7 @@ import { useCompany } from "@/lib/company-context";
 import { useT } from "@/lib/i18n";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Spinner, BusyHint } from "@/components/ui/Spinner";
+import { generateVideoPolling } from "@/lib/ai/generate-video-client";
 
 interface Conn {
   connected: boolean;
@@ -103,6 +104,8 @@ export default function NewMetaAdPage() {
   const [newExtraUrl, setNewExtraUrl] = useState("");
   const [videoUrl, setVideoUrl] = useState("");
   const [videoThumbUrl, setVideoThumbUrl] = useState("");
+  const [genVid, setGenVid] = useState(false);
+  const [vidStatus, setVidStatus] = useState("");
   // Prompt du visuel + formats à générer
   const [visualPrompt, setVisualPrompt] = useState("");
   const [visualFormats, setVisualFormats] = useState<string[]>(["1:1"]);
@@ -167,6 +170,31 @@ export default function NewMetaAdPage() {
   }, [companyId]);
 
   useEffect(() => { loadConn(); }, [loadConn]);
+
+  // Pré-remplissage depuis n'importe quelle page (studio, bibliothèque, post) via
+  // ?image=…&video=…&text=…&name=…  → « créer une campagne » lié de partout.
+  useEffect(() => {
+    const sp = new URLSearchParams(window.location.search);
+    const img = sp.get("image"); const vid = sp.get("video"); const txt = sp.get("text"); const nm = sp.get("name");
+    if (img) { setImageUrl(img); setGeneratedVisuals((g) => [{ format: "import", url: img }, ...g]); }
+    if (vid) setVideoUrl(vid);
+    if (txt) setPrimaryText(txt);
+    if (nm) setName(nm);
+  }, []);
+
+  // Génération vidéo IA (asynchrone) pour la créative de campagne.
+  async function generateVideo() {
+    const prompt = ((visualPrompt || [headline, primaryText, name].find((s) => s.trim()) || "").trim());
+    if (!prompt) { setError(t("Écrivez un prompt (ou un titre/texte) pour la vidéo.", "Write a prompt (or headline/text) for the video.")); return; }
+    setError(null); setGenVid(true); setVidStatus(t("Lancement…", "Starting…"));
+    try {
+      const aspect = visualFormats.includes("9:16") ? "9:16" : visualFormats.includes("1.91:1") ? "16:9" : "1:1";
+      const res = await generateVideoPolling({ prompt, aspect, seconds: 6 }, { onStatus: (s) => setVidStatus(s) });
+      if (res.url) { setVideoUrl(res.url); setVidStatus(""); }
+      else if (res.simulated) setError(t("Génération vidéo non configurée (REPLICATE_API_TOKEN).", "Video generation not configured."));
+      else setError(res.error === "network" ? t("Erreur réseau.", "Network error.") : t("Échec de génération vidéo. Réessayez.", "Video generation failed. Try again."));
+    } finally { setGenVid(false); setVidStatus(""); }
+  }
 
   // Génère le visuel pour chaque format sélectionné (carré, portrait, story…).
   async function generateVisual(promptOverride?: string, formatsOverride?: string[]) {
@@ -858,13 +886,26 @@ export default function NewMetaAdPage() {
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <label className="mb-1 block text-xs font-medium text-muted">{t("Vidéo (URL publique .mp4, optionnel)", "Video (public .mp4 URL, optional)")}</label>
-                <input value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)} placeholder="https://…/video.mp4" className={inputCls} />
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <input value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)} placeholder="https://…/video.mp4" className={inputCls} />
+                  <button type="button" onClick={generateVideo} disabled={genVid} className="btn-secondary inline-flex shrink-0 items-center gap-1.5 text-xs disabled:opacity-50">
+                    {genVid && <Spinner size={14} className="text-current" />}
+                    {genVid ? t("Génération…", "Generating…") : t("🎬 Générer (IA)", "🎬 Generate (AI)")}
+                  </button>
+                </div>
+                {genVid && <BusyHint className="mt-2" label={`${t("Génération de la vidéo…", "Generating video…")} ${vidStatus}`} eta={t("~2–5 min", "~2–5 min")} />}
               </div>
               <div>
                 <label className="mb-1 block text-xs font-medium text-muted">{t("Miniature vidéo (optionnel)", "Video thumbnail (optional)")}</label>
                 <input value={videoThumbUrl} onChange={(e) => setVideoThumbUrl(e.target.value)} placeholder="https://…/thumb.jpg" className={inputCls} />
               </div>
-              {videoUrl && <p className="text-2xs text-muted sm:col-span-2">{t("Une vidéo remplace l'image/carrousel pour cette annonce.", "A video replaces the image/carousel for this ad.")}</p>}
+              {videoUrl && (
+                <div className="sm:col-span-2">
+                  {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+                  <video src={videoUrl} controls className="max-h-56 w-auto rounded-lg border border-hair" />
+                  <p className="text-2xs text-muted">{t("Une vidéo remplace l'image/carrousel pour cette annonce.", "A video replaces the image/carousel for this ad.")}</p>
+                </div>
+              )}
             </div>
           )}
 

@@ -7,6 +7,7 @@ import { useT } from "@/lib/i18n";
 // Traductions des libellés de navigation (FR par défaut → EN).
 const NAV_TR: Record<string, [string, string]> = {
   "Dashboard": ["Tableau de bord", "Dashboard"],
+  "Médiathèque": ["Médiathèque", "Media library"],
   "Get started": ["Démarrage assisté", "Assisted onboarding"],
   "Modules": ["Modules", "Modules"],
   "Mes Pages": ["Mes Pages & données", "My Pages & data"],
@@ -262,6 +263,7 @@ const GROUPS: { label?: string; items: NavItem[] }[] = [
       { href: "/article-linkedin", label: "Article LinkedIn" },
       { href: "/studio-video", label: "Video Studio" },
       { href: "/studio-affiche", label: "Studio Affiches" },
+      { href: "/media",       label: "Médiathèque" },
       { href: "/scheduled",   label: "Scheduled" },
       { href: "/library",     label: "Library" },
       { href: "/automations", label: "Automations" },

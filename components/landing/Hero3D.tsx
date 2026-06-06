@@ -125,7 +125,7 @@ export function Hero3D() {
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(W(), H());
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.18;
+    renderer.toneMappingExposure = 1.0;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     mount.appendChild(renderer.domElement);
     renderer.domElement.style.width = "100%";
@@ -141,16 +141,16 @@ export function Hero3D() {
     scene.environment = envTex;
 
     // Lumières (key + accents marque).
-    scene.add(new THREE.AmbientLight(0xffffff, 0.35));
-    const key = new THREE.DirectionalLight(0xffffff, 2.1); key.position.set(4, 6, 6); scene.add(key);
-    const p1 = new THREE.PointLight(0xa855f7, 60, 30); p1.position.set(-4, 2, 4); scene.add(p1);
-    const p2 = new THREE.PointLight(0x1877f2, 40, 30); p2.position.set(4, -3, 3); scene.add(p2);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+    const key = new THREE.DirectionalLight(0xffffff, 2.0); key.position.set(4, 6, 6); scene.add(key);
+    const p1 = new THREE.PointLight(0xa855f7, 12, 30); p1.position.set(-4, 2, 4); scene.add(p1);
+    const p2 = new THREE.PointLight(0x1877f2, 9, 30); p2.position.set(4, -3, 3); scene.add(p2);
 
     // Post-processing : bloom cinématique (qualité "ultra").
     const composer = new EffectComposer(renderer);
     composer.setSize(W(), H());
     composer.addPass(new RenderPass(scene, camera));
-    const bloom = new UnrealBloomPass(new THREE.Vector2(W(), H()), 0.55, 0.85, 0.2);
+    const bloom = new UnrealBloomPass(new THREE.Vector2(W(), H()), 0.28, 0.55, 0.9);
     composer.addPass(bloom);
     composer.addPass(new OutputPass());
 
@@ -196,9 +196,9 @@ export function Hero3D() {
 
     // ── Noyau IA ──
     const coreGeo = new THREE.IcosahedronGeometry(0.42, 2);
-    const coreMat = new THREE.MeshStandardMaterial({ color: 0xa855f7, emissive: 0xa855f7, emissiveIntensity: 2.2, roughness: 0.3, metalness: 0.2 });
+    const coreMat = new THREE.MeshStandardMaterial({ color: 0xa855f7, emissive: 0xa855f7, emissiveIntensity: 1.5, roughness: 0.3, metalness: 0.2 });
     const core = new THREE.Mesh(coreGeo, coreMat); core.position.set(0.1, 0.1, 0.2); deck.add(core);
-    const coreLight = new THREE.PointLight(0xc084fc, 30, 14); core.add(coreLight);
+    const coreLight = new THREE.PointLight(0xc084fc, 7, 14); core.add(coreLight);
     disposables.push(coreGeo, coreMat);
 
     // ── Logos sociaux en orbite ──
@@ -236,7 +236,7 @@ export function Hero3D() {
       camera.aspect = w / h; camera.updateProjectionMatrix();
       // Recule la caméra quand le cadre est étroit pour tout garder visible.
       camera.position.z = camera.aspect < 0.85 ? 12 : camera.aspect < 1.25 ? 10 : 8.2;
-      bloom.strength = small ? 0.4 : 0.55;
+      bloom.strength = small ? 0.18 : 0.28;
       // La transmission (verre) est coûteuse → on la coupe sur mobile.
       dashMat.transmission = small ? 0 : 0.55;
       dashMat.opacity = small ? 1 : 1;
@@ -253,7 +253,7 @@ export function Hero3D() {
       orbit.rotation.z = t * 0.35;
       sats.forEach((m) => m.rotation.z = -t * 0.35); // logos restent droits
       core.rotation.y = t * 0.6; core.rotation.x = t * 0.3;
-      coreMat.emissiveIntensity = 1.9 + Math.sin(t * 2) * 0.5;
+      coreMat.emissiveIntensity = 1.3 + Math.sin(t * 2) * 0.3;
       phone.position.y = -0.2 + Math.sin(t * 1.1) * 0.12;
       dash.position.y = 0.7 + Math.sin(t * 0.9 + 1) * 0.1;
       composer.render();

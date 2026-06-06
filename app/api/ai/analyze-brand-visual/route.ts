@@ -46,6 +46,11 @@ export async function POST(req: NextRequest) {
     if (!parsed) return NextResponse.json({ error: "Format d'image invalide" }, { status: 400 });
     if (parsed.data.length > 8_000_000) return NextResponse.json({ error: "Image trop lourde (max ~6 Mo)" }, { status: 413 });
 
+    // Claude vision n'accepte que png/jpeg/gif/webp ; le client rasterise déjà
+    // en PNG, mais on garde-fou ici contre tout autre type (ex. SVG).
+    const SUPPORTED = ["image/png", "image/jpeg", "image/gif", "image/webp"];
+    const mediaType = SUPPORTED.includes(parsed.mediaType) ? parsed.mediaType : "image/png";
+
     const empty: BrandVisual = {
       palette: [], recommendedTextColor: "#ffffff", style: "", tone: "", promptHints: "",
       summary: "Analyse IA non configuree — importez votre logo/charte et choisissez les couleurs manuellement.",
@@ -74,7 +79,7 @@ Retourne STRICTEMENT ce JSON :
         messages: [{
           role: "user",
           content: [
-            { type: "image", source: { type: "base64", media_type: parsed.mediaType as "image/png", data: parsed.data } },
+            { type: "image", source: { type: "base64", media_type: mediaType as "image/png", data: parsed.data } },
             { type: "text", text: prompt },
           ],
         }],
@@ -94,8 +99,12 @@ Retourne STRICTEMENT ce JSON :
       };
       return NextResponse.json({ visual });
     } catch (e) {
-      console.warn("[analyze-brand-visual] fallback:", e);
-      return NextResponse.json({ visual: empty });
+      const detail = e instanceof Error ? e.message : String(e);
+      console.warn("[analyze-brand-visual] fallback:", detail);
+      // On signale la vraie raison (au lieu de « non configuré ») pour le débogage.
+      return NextResponse.json({
+        visual: { ...empty, summary: `Analyse indisponible : ${detail}. Réessayez ou choisissez les couleurs manuellement.` },
+      });
     }
   } catch (e) {
     console.error("[POST /api/ai/analyze-brand-visual]", e);

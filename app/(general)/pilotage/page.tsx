@@ -127,6 +127,22 @@ export default function PilotagePage() {
     return () => { alive = false; };
   }, [company.id]);
 
+  // Performance publicitaire RÉELLE (Meta, 30 j) — données concrètes et utiles.
+  const [ads, setAds] = useState<{ spend: number; impressions: number; clicks: number; conversions: number; currency: string; count: number } | null>(null);
+  useEffect(() => {
+    let alive = true;
+    fetch(`/api/meta/adaccounts?companyId=${encodeURIComponent(company.id)}&datePreset=last_30d`)
+      .then((r) => r.json())
+      .then((d) => {
+        const camps = d?.data?.campaigns as Array<{ spend: number; impressions: number; clicks: number; conversions: number; currency?: string }> | undefined;
+        if (!alive || !Array.isArray(camps) || camps.length === 0) return;
+        const sum = camps.reduce((a, c) => ({ spend: a.spend + (c.spend || 0), impressions: a.impressions + (c.impressions || 0), clicks: a.clicks + (c.clicks || 0), conversions: a.conversions + (c.conversions || 0) }), { spend: 0, impressions: 0, clicks: 0, conversions: 0 });
+        setAds({ ...sum, currency: camps[0]?.currency || "EUR", count: camps.length });
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [company.id]);
+
   const setStatus = (id: string, status: Decision["status"]) =>
     setDecisions((ds) => ds.map((d) => (d.id === id ? { ...d, status } : d)));
 
@@ -194,6 +210,23 @@ export default function PilotagePage() {
 
       {/* Agent IA lançable directement depuis le centre de pilotage */}
       <AgentLauncher context={t("Centre de pilotage", "Steering center")} defaultObjective={t("Définir et lancer la stratégie social media", "Define and launch the social media strategy")} />
+
+      {/* Performance publicitaire réelle (Meta, 30 j) — données concrètes */}
+      {ads && (
+        <div className="card p-4">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="section-label">{t("Performance pub · Meta (30 j)", "Ad performance · Meta (30d)")}</span>
+            <Link href="/ad-performance" className="text-2xs text-primary-600 hover:underline">{t("Détail →", "Details →")}</Link>
+          </div>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div><div className="text-2xs text-muted">{t("Dépense", "Spend")}</div><div className="text-lg font-bold text-ink">{ads.spend >= 1000 ? Math.round(ads.spend).toLocaleString("fr-FR") : ads.spend.toFixed(2)} {ads.currency}</div></div>
+            <div><div className="text-2xs text-muted">Impressions</div><div className="text-lg font-bold text-ink">{ads.impressions.toLocaleString("fr-FR")}</div></div>
+            <div><div className="text-2xs text-muted">{t("Clics", "Clicks")}</div><div className="text-lg font-bold text-ink">{ads.clicks.toLocaleString("fr-FR")}</div></div>
+            <div><div className="text-2xs text-muted">{t("Conversions", "Conversions")}</div><div className="text-lg font-bold text-ink">{ads.conversions.toLocaleString("fr-FR")}</div></div>
+          </div>
+          <p className="mt-1.5 text-2xs text-muted">{ads.count} {t("campagne(s) · données réelles", "campaign(s) · real data")}</p>
+        </div>
+      )}
 
       {/* ── Bandeau stratégie ──────────────────────────── */}
       <div className="card overflow-hidden">

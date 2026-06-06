@@ -115,10 +115,11 @@ export default function NewMetaAdPage() {
 
   const isConvObjective = objective === "ventes" || objective === "conversions";
 
-  // Assistant IA (brief → remplissage automatique)
-  const [brief, setBrief] = useState("");
+  // Assistant IA conversationnel (chat → remplissage automatique)
+  const [chatMessages, setChatMessages] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
+  const [chatInput, setChatInput] = useState("");
   const [assisting, setAssisting] = useState(false);
-  const [planNote, setPlanNote] = useState("");
+  const [planReady, setPlanReady] = useState(false);
   const [primaryText, setPrimaryText] = useState("");
   const [headline, setHeadline] = useState("");
   const [link, setLink] = useState("");
@@ -190,6 +191,7 @@ export default function NewMetaAdPage() {
     if (!p) return;
     const lead = p.adType === "lead";
     setAdType(lead ? "lead" : "traffic");
+    if (p.name) setName(String(p.name));
     if (!lead && typeof p.objective === "string" && OBJECTIVES.some((o) => o.id === p.objective)) setObjective(p.objective);
     setBudgetType(p.budgetType === "lifetime" ? "lifetime" : "daily");
     if (Number(p.dailyBudget) > 0) setBudget(Math.round(Number(p.dailyBudget)));
@@ -225,18 +227,22 @@ export default function NewMetaAdPage() {
   }
   /* eslint-enable @typescript-eslint/no-explicit-any */
 
-  async function runAssist() {
-    if (!brief.trim()) return;
-    setAssisting(true); setError(null); setPlanNote("");
+  async function sendChat() {
+    const text = chatInput.trim();
+    if (!text || assisting) return;
+    const next = [...chatMessages, { role: "user" as const, content: text }];
+    setChatMessages(next);
+    setChatInput("");
+    setAssisting(true); setError(null);
     try {
       const r = await fetch("/api/meta/ads/assist", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyId, brief }),
+        body: JSON.stringify({ companyId, messages: next }),
       });
       const d = await r.json();
       if (!r.ok) { setError(d.error || t("L'assistant a échoué.", "Assistant failed.")); return; }
-      applyPlan(d.plan);
-      setPlanNote(d.plan?.rationale || "");
+      setChatMessages((m) => [...m, { role: "assistant", content: d.reply || "" }]);
+      if (d.done && d.plan) { applyPlan(d.plan); setPlanReady(true); }
     } catch (e) {
       setError(e instanceof Error ? e.message : t("L'assistant a échoué.", "Assistant failed."));
     } finally { setAssisting(false); }
@@ -440,38 +446,55 @@ export default function NewMetaAdPage() {
         </div>
       )}
 
-      {/* Assistant IA : décrire la campagne → tout est pré-rempli */}
+      {/* Assistant IA conversationnel : on discute, l'IA remplit tout */}
       <section className="card mb-5 border-l-4 border-ai-text p-5">
-        <div className="flex items-center gap-2">
-          <span className="section-label text-ai-text">{t("Assistant IA — décrivez, l'IA remplit tout", "AI assistant — describe it, AI fills everything")}</span>
-        </div>
+        <span className="section-label text-ai-text">{t("Assistant IA — discutez, l'IA construit la campagne", "AI assistant — chat, AI builds the campaign")}</span>
         <p className="mt-0.5 text-2xs text-muted">
           {t(
-            "Ex : « Campagne de prospects pour la chirurgie de l'obésité à Malte, cible UK 30-60 ans, 25 €/jour, formulaire avec nom/email/téléphone ». L'IA choisit objectif, ciblage, texte, visuel et règles Meta.",
-            "E.g. \"Lead campaign for obesity surgery in Malta, UK audience 30-60, €25/day, form with name/email/phone\". The AI picks objective, targeting, copy, visual and Meta rules."
+            "Dites ce que vous voulez ; l'IA pose une question si besoin, puis remplit tout (objectif, budget, ciblage, texte, visuel, formulaire) selon les règles Meta.",
+            "Tell it what you want; the AI asks a question if needed, then fills everything (objective, budget, targeting, copy, visual, form) per Meta rules."
           )}
         </p>
-        <textarea
-          value={brief}
-          onChange={(e) => setBrief(e.target.value)}
-          rows={3}
-          placeholder={t("Décrivez votre campagne en une ou deux phrases…", "Describe your campaign in a sentence or two…")}
-          className="mt-3 w-full rounded-lg border border-hair bg-canvas px-3 py-2 text-sm text-ink outline-none focus:border-primary-400"
-        />
-        <div className="mt-2 flex items-center gap-2">
-          <button type="button" onClick={runAssist} disabled={assisting || !conn?.connected || !brief.trim()} className="btn-primary inline-flex items-center gap-1.5 text-sm disabled:opacity-50">
-            {assisting && <Spinner size={14} className="text-white" />}
-            {assisting ? t("L'IA prépare la campagne…", "AI is preparing the campaign…") : t("✨ Générer la campagne", "✨ Generate the campaign")}
-          </button>
-          {!conn?.connected && <span className="text-2xs text-muted">{t("Connectez Meta pour activer l'assistant.", "Connect Meta to enable the assistant.")}</span>}
-        </div>
-        {assisting && <BusyHint className="mt-2" label={t("Choix de l'objectif, du ciblage, du texte et du visuel…", "Choosing objective, targeting, copy and visual…")} eta={t("~10–30 s", "~10–30 s")} />}
-        {planNote && (
-          <p className="mt-3 rounded-lg bg-ai-textbg/40 px-3 py-2 text-xs text-ink">
-            <span className="font-semibold text-ai-text">{t("Plan IA : ", "AI plan: ")}</span>{planNote}
-            <span className="mt-1 block text-2xs text-muted">{t("Tout est pré-rempli ci-dessous — vérifiez puis publiez.", "Everything is pre-filled below — review then publish.")}</span>
+
+        {/* Fil de conversation */}
+        {chatMessages.length > 0 && (
+          <div className="mt-3 max-h-72 space-y-2 overflow-y-auto rounded-lg border border-hair bg-canvas p-3">
+            {chatMessages.map((m, i) => (
+              <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+                <span className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm ${m.role === "user" ? "bg-primary-600 text-white" : "bg-card text-ink ring-1 ring-hair"}`}>
+                  {m.content}
+                </span>
+              </div>
+            ))}
+            {assisting && (
+              <div className="flex justify-start"><span className="inline-flex items-center gap-1.5 rounded-2xl bg-card px-3 py-2 text-sm text-muted ring-1 ring-hair"><Spinner size={12} className="text-ai-text" /> {t("L'IA réfléchit…", "AI is thinking…")}</span></div>
+            )}
+          </div>
+        )}
+
+        {planReady && (
+          <p className="mt-2 rounded-lg bg-success-50 px-3 py-2 text-xs text-success-700">
+            {t("✓ Campagne pré-remplie ci-dessous — vérifiez puis publiez (en PAUSE).", "✓ Campaign pre-filled below — review then publish (PAUSED).")}
           </p>
         )}
+
+        <div className="mt-3 flex items-end gap-2">
+          <textarea
+            value={chatInput}
+            onChange={(e) => setChatInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChat(); } }}
+            rows={2}
+            placeholder={chatMessages.length === 0
+              ? t("Ex : « Des prospects pour la chirurgie de l'obésité, cible UK, 25 €/jour »", "E.g. \"Leads for obesity surgery, UK audience, €25/day\"")
+              : t("Votre réponse…", "Your reply…")}
+            className="flex-1 rounded-lg border border-hair bg-canvas px-3 py-2 text-sm text-ink outline-none focus:border-primary-400"
+          />
+          <button type="button" onClick={sendChat} disabled={assisting || !conn?.connected || !chatInput.trim()} className="btn-primary inline-flex shrink-0 items-center gap-1.5 text-sm disabled:opacity-50">
+            {assisting && <Spinner size={14} className="text-white" />}
+            {t("Envoyer", "Send")}
+          </button>
+        </div>
+        {!conn?.connected && <p className="mt-1 text-2xs text-muted">{t("Connectez Meta pour activer l'assistant.", "Connect Meta to enable the assistant.")}</p>}
       </section>
 
       <fieldset disabled={!conn?.connected || publishing} className="space-y-5 disabled:opacity-60">

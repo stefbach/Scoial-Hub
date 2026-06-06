@@ -19,6 +19,7 @@ import { isAiConfigured } from "@/lib/env";
 const V = process.env.META_API_VERSION ?? "v21.0";
 
 interface AdPlan {
+  name: string;
   adType: "traffic" | "lead";
   objective: string;
   budgetType: "daily" | "lifetime";
@@ -58,10 +59,19 @@ async function resolveInterests(keywords: string[], token: string): Promise<{ id
   return out;
 }
 
+interface ChatMsg { role: "user" | "assistant"; content: string }
+
 export async function POST(req: NextRequest) {
   try {
-    const { companyId, brief } = (await req.json()) as { companyId?: string; brief?: string };
-    if (!companyId || !brief?.trim()) return NextResponse.json({ error: "companyId et brief requis" }, { status: 400 });
+    const body = (await req.json()) as { companyId?: string; brief?: string; messages?: ChatMsg[] };
+    const companyId = body.companyId;
+    // Conversation : on accepte une liste de messages OU un brief unique (legacy).
+    const messages: ChatMsg[] = Array.isArray(body.messages) && body.messages.length
+      ? body.messages
+      : body.brief?.trim()
+      ? [{ role: "user", content: body.brief.trim() }]
+      : [];
+    if (!companyId || messages.length === 0) return NextResponse.json({ error: "companyId et message requis" }, { status: 400 });
     const guard = await requireCompanyAccess(companyId);
     if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
     if (!isAiConfigured) return NextResponse.json({ error: "IA non configurée (ANTHROPIC_API_KEY)." }, { status: 503 });
@@ -80,42 +90,59 @@ export async function POST(req: NextRequest) {
 
     const ctx = await getMetaContext(companyId);
     const today = new Date().toISOString().slice(0, 10);
+    const transcript = messages.map((m) => `${m.role === "user" ? "UTILISATEUR" : "ASSISTANT"} : ${m.content}`).join("\n");
 
-    const prompt = `Tu es un media buyer Meta (Facebook/Instagram) senior. À partir du BRIEF, produis un PLAN DE CAMPAGNE complet, précis et CONFORME aux règles Meta, prêt à pré-remplir un formulaire de création. Date du jour : ${today}.
+    const prompt = `Tu es un media buyer Meta (Facebook/Instagram) senior et pédagogue. Tu construis une campagne AVEC l'utilisateur via une conversation. Date du jour : ${today}.
 
 MARQUE : ${brandName || "(non précisée)"}${brandVoice ? ` — voix : ${brandVoice}` : ""}${site ? ` — site : ${site}` : ""}
 
-BRIEF DE L'UTILISATEUR :
-"""${brief}"""
+CONVERSATION JUSQU'ICI :
+${transcript}
 
-RÈGLES :
-- "adType" = "lead" si l'objectif est de collecter des contacts/prospects via formulaire, sinon "traffic".
-- "objective" ∈ ["notoriété","trafic","engagement","ventes","conversions"] (ignoré si adType="lead").
-- Budget : propose un montant réaliste. "budgetType" "daily" (défaut) avec "dailyBudget" en EUR, ou "lifetime" avec "lifetimeBudget" + "endDate".
-- Ciblage : "countries" (codes ISO2), "gender" ("all"/"male"/"female"), "ageMin","ageMax". "interestKeywords" : 3 à 6 intérêts pertinents (en anglais de préférence pour le matching Meta). "placement" "auto" sauf demande contraire.
-- Créative : "primaryText" (accrocheur, conforme — pas de promesses médicales trompeuses ni d'attributs personnels interdits par Meta), "headline" court, "cta" (un type Meta : LEARN_MORE, SIGN_UP, BOOK_TRAVEL, CONTACT_US, SHOP_NOW…), "link" (utilise le site de la marque si pertinent, sinon laisse vide), "visualPrompt" (prompt EN ANGLAIS pour générer un visuel pro, sans texte incrusté), "variants" (1 à 2 textes alternatifs pour test A/B).
-- Si adType="lead" : remplis "leadForm" { formName, privacyUrl (utilise le site/мarque, sinon laisse vide), intro, fields (sous-ensemble de ["FULL_NAME","EMAIL","PHONE"]), thankYouTitle, thankYouBody }.
-- Si objectif "conversions"/"ventes" et pertinent : "conversionEvent" ∈ ["LEAD","PURCHASE","COMPLETE_REGISTRATION","CONTACT","ADD_TO_CART","SCHEDULE"].
-- Secteur régulé (santé) : langage mesuré, pas de ciblage par état de santé (interdit Meta).
+TA MISSION :
+- S'il MANQUE une information ESSENTIELLE pour une campagne pertinente (objectif/intention, budget approximatif, zone géographique, et — pour des prospects — la destination ou l'usage d'un formulaire), pose UNE seule question courte et claire (done=false). Une question à la fois.
+- Pour tout le reste, fais des HYPOTHÈSES intelligentes (âge, intérêts, placements auto, textes) — n'embête pas l'utilisateur avec des détails secondaires.
+- Dès que tu as l'essentiel, renvoie le PLAN COMPLET (done=true) et un court récap.
+
+RÈGLES MÉTA :
+- "adType"="lead" si collecte de contacts via formulaire, sinon "traffic".
+- "objective" ∈ ["notoriété","trafic","engagement","ventes","conversions"] (ignoré si lead).
+- Budget réaliste. "budgetType" "daily" (+"dailyBudget" EUR) ou "lifetime" (+"lifetimeBudget"+"endDate").
+- Ciblage : "countries" (ISO2), "gender", "ageMin","ageMax", "interestKeywords" (3-6, en anglais), "placement" "auto" par défaut.
+- Créative : "primaryText" conforme (santé = langage mesuré, pas de promesses trompeuses ni d'attributs personnels interdits), "headline" court, "cta" (LEARN_MORE/SIGN_UP/CONTACT_US/SHOP_NOW…), "link" (site marque si utile), "visualPrompt" (anglais, sans texte incrusté), "variants" (1-2).
+- Lead : "leadForm" { formName, privacyUrl, intro, fields ⊂ ["FULL_NAME","EMAIL","PHONE"], thankYouTitle, thankYouBody }.
+- Ventes/conversions : "conversionEvent" ∈ ["LEAD","PURCHASE","COMPLETE_REGISTRATION","CONTACT","ADD_TO_CART","SCHEDULE"].
+- Pas de ciblage par état de santé (interdit Meta).
 
 Réponds STRICTEMENT en JSON :
 {
- "adType","objective","budgetType","dailyBudget","lifetimeBudget","startDate","endDate",
- "countries":[],"gender","ageMin","ageMax","interestKeywords":[],"placement",
- "primaryText","headline","cta","link","visualPrompt","variants":[],
- "conversionEvent","leadForm":{...} ou null,
- "rationale":"2-3 phrases expliquant les choix"
+ "done": true|false,
+ "reply": "ta question (si done=false) OU un court récap du plan (si done=true)",
+ "plan": null | {
+   "name":"nom court et clair de la campagne",
+   "adType","objective","budgetType","dailyBudget","lifetimeBudget","startDate","endDate",
+   "countries":[],"gender","ageMin","ageMax","interestKeywords":[],"placement",
+   "primaryText","headline","cta","link","visualPrompt","variants":[],
+   "conversionEvent","leadForm":{...}|null,"rationale":""
+ }
 }`;
 
-    const plan = await callClaudeJSON<AdPlan>(prompt, { maxTokens: 1800 });
-    if (!plan) return NextResponse.json({ error: "L'IA n'a pas pu produire de plan. Reformulez le brief." }, { status: 502 });
+    const result = await callClaudeJSON<{ done?: boolean; reply?: string; plan?: AdPlan | null }>(prompt, { maxTokens: 1900 });
+    if (!result) return NextResponse.json({ error: "L'IA n'a pas pu répondre. Reformulez." }, { status: 502 });
 
-    // Résout les intérêts en vrais ids Meta si un token est disponible.
-    if (ctx.userToken && Array.isArray(plan.interestKeywords) && plan.interestKeywords.length) {
+    const done = Boolean(result.done && result.plan);
+    const plan = done ? result.plan! : null;
+
+    // Résout les intérêts en vrais ids Meta quand le plan est finalisé.
+    if (plan && ctx.userToken && Array.isArray(plan.interestKeywords) && plan.interestKeywords.length) {
       plan.interests = await resolveInterests(plan.interestKeywords, ctx.userToken);
     }
 
-    return NextResponse.json({ plan });
+    return NextResponse.json({
+      done,
+      reply: result.reply || (done ? "Voici votre campagne." : "Pouvez-vous préciser ?"),
+      plan,
+    });
   } catch (e) {
     console.error("[POST /api/meta/ads/assist]", e);
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });

@@ -25,6 +25,8 @@ interface RequestBody {
   n?: number;
   /** Identifiant de modèle Replicate (catalogue). Défaut : Flux 1.1 Pro. */
   model?: string;
+  /** Si fourni : enregistre les images générées dans la bibliothèque média. */
+  companyId?: string;
 }
 
 // Modèles de repli si le modèle demandé échoue (crédits, sécurité, rate-limit,
@@ -40,7 +42,7 @@ const FALLBACK_IMAGE_MODELS = [
 export async function POST(req: NextRequest) {
   try {
     const body: RequestBody = await req.json().catch(() => ({}));
-    const { prompt = "", platform, placement, format, n, model } = body;
+    const { prompt = "", platform, placement, format, n, model, companyId } = body;
 
     if (!prompt.trim()) {
       return NextResponse.json({ error: "Prompt requis pour générer une image." }, { status: 400 });
@@ -59,6 +61,13 @@ export async function POST(req: NextRequest) {
         const input = gm.buildInput(prompt, { aspect: resolvedFormat });
         const result = await generateImageModel(gm.id, input, n ?? 1);
         if (result.images.length > 0 || result.simulated) {
+          // Enregistre dans la bibliothèque média (si société fournie). Non bloquant.
+          if (companyId && result.images.length > 0) {
+            try {
+              const { saveMediaAsset } = await import("@/lib/repositories/media");
+              await Promise.all(result.images.map((im) => saveMediaAsset(companyId, { url: im.url, type: "image", format: resolvedFormat, source: "generate-image", prompt })));
+            } catch { /* non bloquant */ }
+          }
           return NextResponse.json({
             ...result,
             format: resolvedFormat,

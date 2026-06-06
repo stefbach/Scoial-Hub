@@ -138,7 +138,7 @@ export default function ArticleLinkedInPage() {
     try {
       const r = await fetch("/api/ai/generate-image", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: vp, platform: "linkedin", n: 1, model: imgModel }),
+        body: JSON.stringify({ prompt: vp, platform: "linkedin", n: 1, model: imgModel, companyId }),
       });
       const d = await readJson(r);
       if (!r.ok) { setAiNote((d.error as string) || t("Échec de génération d'image.", "Image generation failed.")); return; }

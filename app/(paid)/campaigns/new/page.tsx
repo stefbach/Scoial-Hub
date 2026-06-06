@@ -110,6 +110,10 @@ export default function NewMetaAdPage() {
   const [visualPrompt, setVisualPrompt] = useState("");
   const [visualFormats, setVisualFormats] = useState<string[]>(["1:1"]);
   const [generatedVisuals, setGeneratedVisuals] = useState<{ format: string; url: string }[]>([]);
+  // Bibliothèque média
+  const [libOpen, setLibOpen] = useState(false);
+  const [libAssets, setLibAssets] = useState<{ url: string; type: string; format?: string; source?: string }[]>([]);
+  const [libLoading, setLibLoading] = useState(false);
 
   // Conversions (pixel)
   const [pixels, setPixels] = useState<{ id: string; name: string }[]>([]);
@@ -190,7 +194,7 @@ export default function NewMetaAdPage() {
     try {
       const aspect = visualFormats.includes("9:16") ? "9:16" : visualFormats.includes("1.91:1") ? "16:9" : "1:1";
       const res = await generateVideoPolling({ prompt, aspect, seconds: 6 }, { onStatus: (s) => setVidStatus(s) });
-      if (res.url) { setVideoUrl(res.url); setVidStatus(""); }
+      if (res.url) { setVideoUrl(res.url); setVidStatus(""); saveToLibrary(res.url, "video"); }
       else if (res.simulated) setError(t("Génération vidéo non configurée (REPLICATE_API_TOKEN).", "Video generation not configured."));
       else setError(res.error === "network" ? t("Erreur réseau.", "Network error.") : t("Échec de génération vidéo. Réessayez.", "Video generation failed. Try again."));
     } finally { setGenVid(false); setVidStatus(""); }
@@ -208,7 +212,7 @@ export default function NewMetaAdPage() {
       for (const fmt of formats) {
         const r = await fetch("/api/ai/generate-image", {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ prompt, format: fmt, n: 1 }),
+          body: JSON.stringify({ prompt, format: fmt, n: 1, companyId }),
         });
         const raw = await r.text();
         let d: { images?: Array<string | { url?: string }>; error?: string; simulated?: boolean } = {};
@@ -221,6 +225,7 @@ export default function NewMetaAdPage() {
       if (results.length) {
         setGeneratedVisuals((prev) => [...prev.filter((p) => !results.some((r) => r.format === p.format)), ...results]);
         setImageUrl((cur) => cur || results[0].url); // 1er format = visuel principal par défaut
+        // (enregistrement bibliothèque fait côté serveur via companyId)
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : t("Échec de génération d'image.", "Image generation failed."));
@@ -228,6 +233,22 @@ export default function NewMetaAdPage() {
   }
   function toggleFormat(f: string) {
     setVisualFormats((cur) => cur.includes(f) ? cur.filter((x) => x !== f) : [...cur, f]);
+  }
+  // Enregistre un asset dans la bibliothèque (non bloquant).
+  function saveToLibrary(url: string, type: "image" | "video", format?: string) {
+    if (!url) return;
+    fetch("/api/media", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ companyId, url, type, format, source: "campaign" }),
+    }).catch(() => {});
+  }
+  async function loadLibrary() {
+    setLibOpen(true); setLibLoading(true);
+    try {
+      const r = await fetch(`/api/media?companyId=${encodeURIComponent(companyId)}`);
+      const d = await r.json();
+      setLibAssets(Array.isArray(d.assets) ? d.assets : []);
+    } catch { setLibAssets([]); } finally { setLibLoading(false); }
   }
 
   // Convertit une date (ISO ou yyyy-mm-dd) au format input datetime-local.
@@ -825,10 +846,42 @@ export default function NewMetaAdPage() {
                 </button>
               ))}
             </div>
-            <button type="button" onClick={() => generateVisual()} disabled={genImg} className="btn-secondary mt-2 inline-flex items-center gap-1.5 text-xs disabled:opacity-50">
-              {genImg && <Spinner size={14} className="text-current" />}
-              {genImg ? t("Génération…", "Generating…") : t("✨ Générer le(s) visuel(s)", "✨ Generate visual(s)")}
-            </button>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <button type="button" onClick={() => generateVisual()} disabled={genImg} className="btn-secondary inline-flex items-center gap-1.5 text-xs disabled:opacity-50">
+                {genImg && <Spinner size={14} className="text-current" />}
+                {genImg ? t("Génération…", "Generating…") : t("✨ Générer le(s) visuel(s)", "✨ Generate visual(s)")}
+              </button>
+              <button type="button" onClick={() => (libOpen ? setLibOpen(false) : loadLibrary())} className="btn-secondary inline-flex items-center gap-1.5 text-xs">
+                {libLoading && <Spinner size={14} className="text-current" />}
+                {t("📚 Bibliothèque", "📚 Library")}
+              </button>
+            </div>
+
+            {/* Bibliothèque média : visuels/vidéos déjà créés, réutilisables */}
+            {libOpen && (
+              <div className="mt-3 rounded-lg border border-hair bg-canvas p-3">
+                {libLoading ? (
+                  <p className="text-2xs text-muted">{t("Chargement…", "Loading…")}</p>
+                ) : libAssets.length === 0 ? (
+                  <p className="text-2xs text-muted">{t("Bibliothèque vide. Les visuels générés ici (et le logo de marque) y apparaîtront.", "Empty library. Visuals generated here (and the brand logo) will appear here.")}</p>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {libAssets.map((a, i) => (
+                      <button key={i} type="button"
+                        onClick={() => { if (a.type === "video") setVideoUrl(a.url); else setImageUrl(a.url); }}
+                        className="relative overflow-hidden rounded-lg border border-hair hover:border-primary-400" title={a.source}>
+                        {a.type === "video"
+                          // eslint-disable-next-line jsx-a11y/media-has-caption
+                          ? <video src={a.url} className="h-24 w-24 object-cover" />
+                          // eslint-disable-next-line @next/next/no-img-element
+                          : <img src={a.url} alt="" className="h-24 w-24 object-cover" />}
+                        <span className="absolute bottom-0 left-0 right-0 bg-black/55 px-1 py-0.5 text-center text-[10px] text-white">{a.type === "video" ? "▶ vidéo" : (a.format || t("image", "image"))}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
             {genImg && <BusyHint className="mt-2" label={t("Génération des visuels…", "Generating visuals…")} eta={t("~20–60 s / format", "~20–60 s / format")} />}
 
             {/* Visuels générés — clic pour choisir le visuel principal de l'annonce */}

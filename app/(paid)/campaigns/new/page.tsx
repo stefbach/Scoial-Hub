@@ -201,7 +201,8 @@ export default function NewMetaAdPage() {
   }
 
   // Génère le visuel pour chaque format sélectionné (carré, portrait, story…).
-  async function generateVisual(promptOverride?: string, formatsOverride?: string[]) {
+  // `sourceUrl` → mode déclinaison (img2img) à partir d'un visuel existant.
+  async function generateVisual(promptOverride?: string, formatsOverride?: string[], sourceUrl?: string) {
     const prompt = ((promptOverride ?? visualPrompt) || [headline, primaryText, name].find((s) => s.trim()) || "").trim();
     if (!prompt) { setError(t("Écrivez un prompt de visuel (ou un titre/texte).", "Write a visual prompt (or a headline/text).")); return; }
     const formats = formatsOverride && formatsOverride.length ? formatsOverride : visualFormats;
@@ -212,7 +213,7 @@ export default function NewMetaAdPage() {
       for (const fmt of formats) {
         const r = await fetch("/api/ai/generate-image", {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ prompt, format: fmt, n: 1, companyId }),
+          body: JSON.stringify({ prompt, format: fmt, n: 1, companyId, imageUrl: sourceUrl || undefined }),
         });
         const raw = await r.text();
         let d: { images?: Array<string | { url?: string }>; error?: string; simulated?: boolean } = {};
@@ -854,6 +855,11 @@ export default function NewMetaAdPage() {
               <button type="button" onClick={() => (libOpen ? setLibOpen(false) : loadLibrary())} className="btn-secondary inline-flex items-center gap-1.5 text-xs">
                 {libLoading && <Spinner size={14} className="text-current" />}
                 {t("📚 Bibliothèque", "📚 Library")}
+              </button>
+              <button type="button" onClick={() => generateVisual(undefined, undefined, imageUrl)} disabled={genImg || !imageUrl}
+                className="btn-secondary inline-flex items-center gap-1.5 text-xs disabled:opacity-50"
+                title={t("Repart du visuel sélectionné et applique le prompt (déclinaison)", "Starts from the selected visual and applies the prompt (variation)")}>
+                {t("⤳ Décliner depuis ce visuel", "⤳ Derive from this visual")}
               </button>
             </div>
 

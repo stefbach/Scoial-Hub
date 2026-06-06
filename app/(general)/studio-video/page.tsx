@@ -314,7 +314,7 @@ export default function StudioPage() {
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             {pkg.cuts.map((c) => (
-              <CutCard key={c.platform} cut={c} assets={pkg.assets} captions={pkg.captions} brandLogoUrl={brandLogoUrl} brandColors={brandColors} onCopy={copy} t={t} />
+              <CutCard key={c.platform} cut={c} assets={pkg.assets} captions={pkg.captions} brandLogoUrl={brandLogoUrl} brandColors={brandColors} companyId={company.id} onCopy={copy} t={t} />
             ))}
           </div>
         </section>
@@ -345,6 +345,7 @@ function CutCard({
   captions,
   brandLogoUrl,
   brandColors,
+  companyId,
   onCopy,
   t,
 }: {
@@ -353,6 +354,7 @@ function CutCard({
   captions: CaptionSegment[];
   brandLogoUrl?: string;
   brandColors?: { text?: string; accent?: string };
+  companyId: string;
   onCopy: (text: string, label: string) => void;
   t: (fr: string, en: string) => string;
 }) {
@@ -392,8 +394,11 @@ function CutCard({
         setImgErr(data.error ?? `Erreur ${res.status}`);
         return;
       }
-      setImages(data.images as string[]);
+      const imgs = data.images as string[];
+      setImages(imgs);
       setImgState("done");
+      // → bibliothèque média (réutilisable en pub)
+      imgs.forEach((u) => fetch("/api/media", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ companyId, url: u, type: "image", format: cut.aspect, source: "studio-video" }) }).catch(() => {}));
     } catch {
       setImgState("failed");
       setImgErr("Erreur réseau");
@@ -458,6 +463,7 @@ function CutCard({
             if (pollRef.current) clearInterval(pollRef.current);
             setRUrl(s.url ?? null);
             setRState("done");
+            if (s.url) fetch("/api/media", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ companyId, url: s.url, type: "video", format: cut.aspect, source: "studio-video" }) }).catch(() => {});
           } else if (s.status === "failed") {
             if (pollRef.current) clearInterval(pollRef.current);
             setRErr(s.error ?? t("Échec du rendu", "Render failed"));

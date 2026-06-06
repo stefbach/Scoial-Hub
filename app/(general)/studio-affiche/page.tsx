@@ -8,6 +8,7 @@
 // • grand aperçu en temps réel + export PNG haute définition (hors réseaux aussi)
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 import { useCompany } from "@/lib/company-context";
 import { useT } from "@/lib/i18n";
 import { Spinner, BusyHint } from "@/components/ui/Spinner";
@@ -246,6 +247,34 @@ export default function StudioAffichePage() {
     }
   }
 
+  const [savingLib, setSavingLib] = useState(false);
+  // Enregistre l'affiche (PNG du canvas) dans la bibliothèque média, réutilisable
+  // partout (campagnes, etc.).
+  async function saveToLibrary() {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    setSavingLib(true); setNote(null);
+    try {
+      const blob: Blob | null = await new Promise((res) => canvas.toBlob((b) => res(b), "image/png"));
+      if (!blob) { setNote(t("Enregistrement impossible (image protégée). Régénérez le fond via l'IA.", "Save failed (protected image). Regenerate the background via AI.")); return; }
+      const sb = createClient();
+      if (!sb) { setNote(t("Stockage indisponible.", "Storage unavailable.")); return; }
+      const path = `${companyId}/affiche-${Date.now()}-${format.id}.png`;
+      const { error } = await sb.storage.from("sh-videos").upload(path, blob, { contentType: "image/png", upsert: true });
+      if (error) { setNote(t("Échec de l'envoi au stockage.", "Upload to storage failed.")); return; }
+      const { data } = sb.storage.from("sh-videos").getPublicUrl(path);
+      const url = data?.publicUrl;
+      if (!url) { setNote(t("URL publique indisponible.", "Public URL unavailable.")); return; }
+      await fetch("/api/media", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyId, url, type: "image", format: format.id, source: "studio-affiche" }),
+      });
+      setNote(t("✓ Enregistré dans la bibliothèque — réutilisable dans une pub.", "✓ Saved to the library — reusable in an ad."));
+    } catch {
+      setNote(t("Échec de l'enregistrement.", "Save failed."));
+    } finally { setSavingLib(false); }
+  }
+
   const inputCls = "w-full rounded-lg border border-hair bg-canvas px-3 py-2 text-sm text-ink outline-none focus:border-primary-400";
 
   return (
@@ -368,6 +397,10 @@ export default function StudioAffichePage() {
           />
 
           <button onClick={exportPng} className="btn-primary w-full">{t("⬇︎ Télécharger (PNG haute déf)", "⬇︎ Download (high-res PNG)")}</button>
+          <button onClick={saveToLibrary} disabled={savingLib} className="btn-secondary inline-flex w-full items-center justify-center gap-1.5 disabled:opacity-50">
+            {savingLib && <Spinner size={14} className="text-current" />}
+            {savingLib ? t("Enregistrement…", "Saving…") : t("📚 Enregistrer dans la bibliothèque", "📚 Save to library")}
+          </button>
           {note && <p className="rounded-lg bg-warning-50 px-3 py-2 text-xs text-warning-700">{note}</p>}
         </div>
 

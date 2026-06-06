@@ -27,6 +27,17 @@ interface RequestBody {
   model?: string;
   /** Si fourni : enregistre les images générées dans la bibliothèque média. */
   companyId?: string;
+  /** Image source (URL) → mode édition / déclinaison (img2img). */
+  imageUrl?: string;
+}
+
+/** Ratio pour Flux Kontext (édition) : ratios connus, sinon on garde l'original. */
+function kontextAspect(fmt?: string): string {
+  const map: Record<string, string> = {
+    square: "1:1", portrait: "4:5", landscape: "16:9", story: "9:16",
+    "1:1": "1:1", "4:5": "4:5", "16:9": "16:9", "9:16": "9:16", "1.91:1": "16:9",
+  };
+  return map[fmt ?? ""] ?? "match_input_image";
 }
 
 // Modèles de repli si le modèle demandé échoue (crédits, sécurité, rate-limit,
@@ -42,7 +53,7 @@ const FALLBACK_IMAGE_MODELS = [
 export async function POST(req: NextRequest) {
   try {
     const body: RequestBody = await req.json().catch(() => ({}));
-    const { prompt = "", platform, placement, format, n, model, companyId } = body;
+    const { prompt = "", platform, placement, format, n, model, companyId, imageUrl } = body;
 
     if (!prompt.trim()) {
       return NextResponse.json({ error: "Prompt requis pour générer une image." }, { status: 400 });
@@ -51,15 +62,20 @@ export async function POST(req: NextRequest) {
     // Le format suit le réceptacle si non explicite (bons ratios par réseau).
     const resolvedFormat = format ?? resolveImageAspect(platform, placement);
 
-    // Chaîne de modèles à essayer dans l'ordre (modèle demandé d'abord).
-    const order = Array.from(new Set([model, ...FALLBACK_IMAGE_MODELS].filter(Boolean))) as string[];
+    // Mode édition / déclinaison (img2img) : on part d'un visuel source via Flux Kontext.
+    const editMode = Boolean(imageUrl && /^https?:\/\//i.test(imageUrl));
+    const order = editMode
+      ? ["black-forest-labs/flux-kontext-pro"]
+      : (Array.from(new Set([model, ...FALLBACK_IMAGE_MODELS].filter(Boolean))) as string[]);
 
     let lastError: unknown;
     for (const id of order) {
       const gm = getImageModel(id);
       try {
-        const input = gm.buildInput(prompt, { aspect: resolvedFormat });
-        const result = await generateImageModel(gm.id, input, n ?? 1);
+        const input = editMode
+          ? { prompt, input_image: imageUrl, aspect_ratio: kontextAspect(resolvedFormat), output_format: "jpg", safety_tolerance: 2 }
+          : gm.buildInput(prompt, { aspect: resolvedFormat });
+        const result = await generateImageModel(editMode ? "black-forest-labs/flux-kontext-pro" : gm.id, input, n ?? 1);
         if (result.images.length > 0 || result.simulated) {
           // Enregistre dans la bibliothèque média (si société fournie). Non bloquant.
           if (companyId && result.images.length > 0) {

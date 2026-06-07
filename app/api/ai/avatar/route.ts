@@ -11,7 +11,31 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireCompanyAccess } from "@/lib/auth/guard";
 import { callClaudeJSON } from "@/lib/ai/claude-json";
 import { runReplicateUrl, generateImageModel, startAvatarLipsync, startSubtitles, cloneVoiceMiniMax, getReplicatePrediction, isReplicateConfigured } from "@/lib/ai/replicate";
-import { getAvatarModel, getLang, TTS_MULTILINGUAL_MODEL, VOICE_BY_GENDER } from "@/lib/ai/avatar-models";
+import { getAvatarModel, getLang, TTS_MULTILINGUAL_MODEL, XTTS_MODEL, VOICE_BY_GENDER } from "@/lib/ai/avatar-models";
+
+/**
+ * Synthèse vocale routée : FR/EN → MiniMax (voix preset/clonée) ; autres langues
+ * → XTTS-v2 (multilingue natif) à partir d'un échantillon de voix (speakerUrl).
+ */
+async function synthesizeTTS(
+  text: string,
+  langCode: string | undefined,
+  voiceId: string | undefined,
+  speakerUrl: string | undefined
+): Promise<string | null> {
+  const lang = getLang(langCode);
+  if (lang.native) {
+    return runReplicateUrl(TTS_MULTILINGUAL_MODEL, {
+      text,
+      voice_id: voiceId || VOICE_BY_GENDER.female,
+      language_boost: lang.boost,
+    });
+  }
+  if (!speakerUrl) {
+    throw new Error("Pour cette langue, téléversez un échantillon de voix (clonage) : XTTS s'en sert de référence.");
+  }
+  return runReplicateUrl(XTTS_MODEL, { text, speaker: speakerUrl, language: lang.xtts });
+}
 import { isAiConfigured } from "@/lib/env";
 
 interface Body {
@@ -27,6 +51,7 @@ interface Body {
   faceUrl?: string;
   gender?: "male" | "female";
   voiceId?: string;
+  speakerUrl?: string;
   text?: string;
   lipsyncModel?: string;
   environment?: string;
@@ -86,11 +111,7 @@ Réponds en JSON: { "script": "..." }`,
     const sample = (raw ? raw.split(/(?<=[.!?])\s/)[0] : "")
       .slice(0, 160) || (lang.code === "en" ? "Hello, here is a preview of this voice." : "Bonjour, voici un aperçu de cette voix.");
     try {
-      const audioUrl = await runReplicateUrl(TTS_MULTILINGUAL_MODEL, {
-        text: sample,
-        voice_id: voiceId,
-        language_boost: lang.boost,
-      });
+      const audioUrl = await synthesizeTTS(sample, body.language, voiceId, body.speakerUrl);
       if (!audioUrl) return NextResponse.json({ error: "Aperçu indisponible." }, { status: 502 });
       return NextResponse.json({ audioUrl });
     } catch (e) {
@@ -122,7 +143,6 @@ Réponds en JSON: { "script": "..." }`,
   if (!faceUrl) return NextResponse.json({ error: "Image de visage (URL) requise" }, { status: 400 });
   if (!isReplicateConfigured) return NextResponse.json({ simulated: true });
 
-  const lang = getLang(body.language);
   const voiceId = body.voiceId || VOICE_BY_GENDER[body.gender === "male" ? "male" : "female"];
   const avatarSpec = getAvatarModel(body.lipsyncModel);
 
@@ -150,12 +170,8 @@ Réponds en JSON: { "script": "..." }`,
       }
     }
 
-    // 1) Voix (TTS multilingue MiniMax) — langue + genre, synchrone (rapide).
-    const audioUrl = await runReplicateUrl(TTS_MULTILINGUAL_MODEL, {
-      text: script,
-      voice_id: voiceId,
-      language_boost: lang.boost,
-    });
+    // 1) Voix (TTS) — FR/EN via MiniMax, autres langues via XTTS (voix clonée).
+    const audioUrl = await synthesizeTTS(script, body.language, voiceId, body.speakerUrl);
     if (!audioUrl) throw new Error("Échec de la génération de la voix (TTS).");
 
     // 2) Lip-sync : DÉMARRE la prédiction sans attendre (les modèles avatar

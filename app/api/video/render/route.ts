@@ -8,6 +8,7 @@ export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from "next/server";
 import { submitRender } from "@/lib/video/render";
+import { requireCompanyAccess } from "@/lib/auth/guard";
 import type { CaptionSegment, MediaAsset, PlatformCut } from "@/lib/video/types";
 
 export async function POST(req: NextRequest) {
@@ -18,7 +19,10 @@ export async function POST(req: NextRequest) {
       captions?: CaptionSegment[];
       logoUrl?: string;
       brandColors?: { text?: string; accent?: string };
+      companyId?: string;
     };
+    const guard = await requireCompanyAccess(body.companyId, { mode: "edit" });
+    if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
     if (!body.cut || !Array.isArray(body.assets)) {
       return NextResponse.json({ error: "cut et assets requis." }, { status: 400 });
     }

@@ -8,17 +8,20 @@ export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from "next/server";
 import { buildImagesForCut, isCloudinaryConfigured } from "@/lib/video/cloudinary";
+import { requireCompanyAccess } from "@/lib/auth/guard";
 import type { MediaAsset, PlatformCut } from "@/lib/video/types";
 
 export async function POST(req: NextRequest) {
   try {
+    const body = (await req.json()) as { cut?: PlatformCut; assets?: MediaAsset[]; companyId?: string };
+    const guard = await requireCompanyAccess(body.companyId, { mode: "edit" });
+    if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
     if (!isCloudinaryConfigured()) {
       return NextResponse.json(
         { error: "Cloudinary non configuré (ajoutez CLOUDINARY_CLOUD_NAME ou CLOUDINARY_URL)." },
         { status: 400 }
       );
     }
-    const body = (await req.json()) as { cut?: PlatformCut; assets?: MediaAsset[] };
     if (!body.cut || !Array.isArray(body.assets)) {
       return NextResponse.json({ error: "cut et assets requis." }, { status: 400 });
     }

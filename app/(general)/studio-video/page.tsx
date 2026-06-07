@@ -55,6 +55,15 @@ export default function StudioPage() {
 
   const notify = (m: string) => setToast({ message: m, key: Date.now() });
 
+  // Réinitialise le studio au changement de société (évite que des médias ou un
+  // package générés pour une société restent affichés/enregistrés sous une autre).
+  useEffect(() => {
+    setAssets([]);
+    setUrlInput("");
+    setObjective("");
+    setPkg(null);
+  }, [company.id]);
+
   function togglePlatform(p: VideoPlatform) {
     setPlatforms((prev) => (prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p]));
   }
@@ -305,9 +314,21 @@ export default function StudioPage() {
         </div>
       </section>
 
-      <button className="btn-primary w-full justify-center py-3 text-sm disabled:opacity-50" onClick={marketize} disabled={working || uploading || !canEdit} title={!canEdit ? t("Lecture seule", "View only") : undefined}>
+      <button
+        className="btn-primary w-full justify-center py-3 text-sm disabled:opacity-50"
+        onClick={marketize}
+        disabled={working || uploading || !canEdit || assets.length === 0 || platforms.length === 0}
+        title={!canEdit ? t("Lecture seule", "View only") : undefined}
+      >
         {working ? t("Le studio travaille…", "The studio is working…") : t("✨ Assembler & marketer", "✨ Assemble & market")}
       </button>
+      {canEdit && (assets.length === 0 || platforms.length === 0) && (
+        <p className="-mt-2 text-center text-2xs text-muted">
+          {assets.length === 0
+            ? t("Ajoutez au moins un média (import ou génération IA).", "Add at least one media item (import or AI generation).")
+            : t("Choisissez au moins un réseau.", "Choose at least one network.")}
+        </p>
+      )}
 
       {/* Résultat */}
       {pkg && (
@@ -403,7 +424,7 @@ function CutCard({
       const res = await fetch("/api/video/image", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cut: editedCut, assets }),
+        body: JSON.stringify({ cut: editedCut, assets, companyId }),
       });
       const data = await res.json();
       if (!res.ok || !data.images) {
@@ -446,6 +467,8 @@ function CutCard({
   useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
 
   async function startRender() {
+    // Évite un double polling si un rendu précédent tourne encore (coût/réseau).
+    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
     setRErr(null);
     setRUrl(null);
     setRState("queued");
@@ -454,7 +477,7 @@ function CutCard({
       const res = await fetch("/api/video/render", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cut: editedCut, assets, captions: caps, logoUrl: withLogo ? brandLogoUrl : undefined, brandColors }),
+        body: JSON.stringify({ cut: editedCut, assets, captions: caps, logoUrl: withLogo ? brandLogoUrl : undefined, brandColors, companyId }),
       });
       const data = await res.json();
       if (!res.ok || !data.id) {

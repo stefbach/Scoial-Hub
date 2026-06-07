@@ -16,6 +16,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { startVideoPrediction, getVideoPrediction } from "@/lib/ai/replicate";
 import { resolveVideoAspect } from "@/lib/social-formats";
 import { getVideoModel } from "@/lib/ai/model-catalog";
+import { requireCompanyAccess } from "@/lib/auth/guard";
 
 interface RequestBody {
   prompt?: string;
@@ -24,12 +25,15 @@ interface RequestBody {
   aspect?: string;
   /** Identifiant de modèle Replicate (catalogue). Défaut : Veo 3. */
   model?: string;
+  companyId?: string;
 }
 
 export async function POST(req: NextRequest) {
   try {
     const body: RequestBody = await req.json().catch(() => ({}));
     const { prompt = "", platform, aspect, seconds, model } = body;
+    const guard = await requireCompanyAccess(body.companyId, { mode: "edit" });
+    if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
     const resolvedAspect = aspect ?? resolveVideoAspect(platform);
 
     const gm = getVideoModel(model);

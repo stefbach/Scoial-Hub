@@ -262,6 +262,7 @@ export default function PromptStudio({
           aspect: selected.aspect,
           platform: selected.platform,
           model: videoModel,
+          companyId: company.id,
         });
         if (r.simulated) {
           setNotice(

@@ -92,9 +92,35 @@ const LOOP = [
 ];
 
 const TESTIMONIALS = [
-  { q: "Avant, je publiais à minuit, épuisée. Aujourd'hui je valide trois posts depuis mon téléphone le matin — et c'est réglé.", a: "Sophie · gérante de clinique", m: "−65 % de temps", net: 0 },
-  { q: "L'assistant rédige et cible mieux que notre ancienne agence — et je garde la main sur tout.", a: "Thomas · fondateur, SaaS B2B", m: "×2,4 de clics LinkedIn", net: 2 },
-  { q: "Je gère 6 marques depuis un seul espace, et les visuels s'adaptent tout seuls à chaque réseau.", a: "Léa · social media manager", m: "6 marques, 1 outil", net: 1 },
+  { q: "Avant, je publiais à minuit, épuisée. Aujourd'hui je valide trois posts depuis mon téléphone le matin — et c'est réglé.", a: "Sophie · gérante de clinique", m: "−65 % de temps", net: 0, av: "S", c: "#e1306c" },
+  { q: "L'assistant rédige et cible mieux que notre ancienne agence — et je garde la main sur tout.", a: "Thomas · fondateur, SaaS B2B", m: "×2,4 de clics LinkedIn", net: 2, av: "T", c: "#0A66C2" },
+  { q: "Je gère 6 marques depuis un seul espace, et les visuels s'adaptent tout seuls à chaque réseau.", a: "Léa · social media manager", m: "6 marques, 1 outil", net: 1, av: "L", c: "#a855f7" },
+];
+
+const FOR_WHO = [
+  { e: "🧑‍💼", fr: "Dirigeant·e de PME", en: "Small-business owner", dfr: "Vous faites déjà tout. Reprenez vos soirées : vos assistants publient pendant que vous vivez.", den: "You already do everything. Get your evenings back — your assistants post while you live your life." },
+  { e: "🎯", fr: "Responsable marketing solo", en: "Solo marketing manager", dfr: "Une personne, la charge d'une équipe. AXON, ce sont vos renforts : création, publication, pubs, réponses.", den: "One person, a team's workload. AXON is your backup: create, publish, ads, replies." },
+  { e: "🏢", fr: "Agence ou freelance", en: "Agency or freelancer", dfr: "Gérez plusieurs marques isolées, exportez les performances, générez les visuels en charte — en minutes.", den: "Manage several isolated brands, export performance, generate on-brand visuals — in minutes." },
+];
+
+const HOW = [
+  { n: "1", e: "🔌", fr: "Connectez en 2 minutes", en: "Connect in 2 minutes", dfr: "Liez Facebook, Instagram ou LinkedIn. Aucune configuration technique, aucune carte bancaire.", den: "Link Facebook, Instagram or LinkedIn. No technical setup, no credit card." },
+  { n: "2", e: "💬", fr: "Décrivez, l'IA crée", en: "Describe it, AI creates", dfr: "« Une pub pour ma clinique, 30 €/j, femmes 35-55 ans. » Texte, visuel et ciblage générés — en pause, prêts à relire.", den: "\"An ad for my clinic, €30/d, women 35-55.\" Copy, visual and targeting generated — paused, ready to review." },
+  { n: "3", e: "📈", fr: "Vous validez, on suit", en: "You approve, we track", dfr: "Rien ne part sans votre accord. Ensuite, le tableau de bord affiche vos vrais résultats, simplement.", den: "Nothing goes live without your approval. Then the dashboard shows your real results, simply." },
+];
+
+const REASSURE = [
+  { e: "🔒", fr: "Vos données restent les vôtres", en: "Your data stays yours", dfr: "Comptes, visuels, chiffres : privés et chiffrés. Connexion via l'API officielle Meta, aucun mot de passe stocké.", den: "Accounts, visuals, numbers: private and encrypted. Official Meta API, no passwords stored." },
+  { e: "✅", fr: "Rien ne se publie sans vous", en: "Nothing posts without you", dfr: "Chaque post et chaque pub attend votre feu vert. Toujours.", den: "Every post and ad waits for your green light. Always." },
+  { e: "🗣️", fr: "Dans votre voix", en: "In your own voice", dfr: "Les assistants apprennent votre ton et écrivent comme vous, pas comme un robot.", den: "Your assistants learn your tone and write like you, not like a robot." },
+  { e: "🤝", fr: "Sans engagement", en: "No commitment", dfr: "Démarrez gratuitement. Résiliez quand vous voulez. Support humain en français.", den: "Start free. Cancel anytime. Human support included." },
+];
+
+const FAQ = [
+  { qfr: "Mes pubs partent-elles automatiquement sans que je valide ?", qen: "Do my ads go live automatically?", afr: "Non. Tout est créé EN PAUSE. Vous activez vous-même, quand vous êtes prêt.", aen: "No. Everything is created PAUSED. You activate it yourself, when ready." },
+  { qfr: "Je n'y connais rien en publicité Meta. Ça marche quand même ?", qen: "I know nothing about Meta ads. Will it work?", afr: "Oui. L'assistant vous guide pas à pas : ciblage, budget conseillé et visuel générés pour vous.", aen: "Yes. The assistant guides you step by step: targeting, suggested budget and visual generated for you." },
+  { qfr: "Je gère plusieurs marques. Comment ça se passe ?", qen: "I manage several brands. How does it work?", afr: "Chaque marque a son espace isolé (connexions, campagnes, médias). On passe de l'une à l'autre en un clic.", aen: "Each brand has its own isolated workspace. Switch between them in one click." },
+  { qfr: "Combien ça coûte ?", qen: "How much does it cost?", afr: "Démarrez gratuitement, sans carte bancaire. Les plans payants débloquent l'IA avancée, les pubs et le multi-marques.", aen: "Start free, no credit card. Paid plans unlock advanced AI, ads and multi-brand." },
 ];
 
 /* ───────────────────────── Réseau humain (SVG animé) ────────────────────── */
@@ -221,7 +247,31 @@ export default function Home() {
         </div>
 
         {/* Scène WebGL (Three.js) — téléphone + dashboard verre + logos en orbite */}
-        <div className="mc-scene"><Hero3D /></div>
+        <div className="mc-scene">
+          <Hero3D />
+          {/* Médaillon humain chaleureux (déposez /public/hero/human-hero.webp) */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/hero/human-hero.webp"
+            alt=""
+            className="mc-hero-human"
+            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+          />
+        </div>
+      </section>
+
+      {/* ── Bande humaine : la vraie promesse, ce sont des gens reliés ── */}
+      <section className="mc-human-band reveal">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/hero/connect.webp"
+          alt={t("Des personnes reliées par AXON-AI", "People connected by AXON-AI")}
+          onError={(e) => { (e.currentTarget as HTMLImageElement).closest("section")?.style.setProperty("display", "none"); }}
+        />
+        <div className="mc-human-band-cap">
+          <span className="mc-kicker">{t("La technologie au service du lien", "Technology in service of connection")}</span>
+          <p>{t("Derrière chaque post, il y a une vraie relation. AXON s'occupe de la machine — vous, de l'humain.", "Behind every post is a real relationship. AXON handles the machine — you handle the human.")}</p>
+        </div>
       </section>
 
       {/* ── Bandeau réseaux ── */}
@@ -292,11 +342,46 @@ export default function Home() {
         </div>
       </section>
 
+      {/* ── Pour qui ? ── */}
+      <section className="mc-section">
+        <header className="mc-sec-head reveal">
+          <span className="mc-kicker">{t("Pour qui ?", "Who is it for?")}</span>
+          <h2 className="mc-h2">{t("Pensé pour celles et ceux qui portent déjà trop de casquettes.", "Built for people already wearing too many hats.")}</h2>
+        </header>
+        <div className="mc-grid mc-grid-3">
+          {FOR_WHO.map((w, i) => (
+            <div key={w.fr} className="mc-persona reveal" style={{ transitionDelay: `${i * 80}ms` }}>
+              <span className="mc-persona-e" aria-hidden>{w.e}</span>
+              <h3>{t(w.fr, w.en)}</h3>
+              <p>{t(w.dfr, w.den)}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── Comment ça marche ── */}
+      <section className="mc-section mc-section--warm">
+        <header className="mc-sec-head reveal">
+          <span className="mc-kicker">{t("Comment ça marche", "How it works")}</span>
+          <h2 className="mc-h2">{t("Trois étapes. Cinq minutes. Vous gardez la main.", "Three steps. Five minutes. You stay in control.")}</h2>
+        </header>
+        <div className="mc-loop-row">
+          {HOW.map((h, i) => (
+            <div key={h.n} className="mc-how reveal" style={{ transitionDelay: `${i * 80}ms` }}>
+              <span className="mc-how-n">{h.n}</span>
+              <span className="mc-how-e" aria-hidden>{h.e}</span>
+              <h3>{t(h.fr, h.en)}</h3>
+              <p>{t(h.dfr, h.den)}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
       {/* ── Méthode (boucle) ── */}
       <section id="loop" className="mc-section mc-loop">
         <header className="mc-sec-head">
           <span className="mc-kicker">{t("La boucle d'apprentissage", "The learning loop")}</span>
-          <h2 className="mc-h2">{t("Analyser · Créer · Diffuser · Optimiser", "Analyse · Create · Publish · Optimise")}</h2>
+          <h2 className="mc-h2">{t("On écoute, on crée, on publie, on améliore.", "We listen, create, publish, improve.")}</h2>
         </header>
         <div className="mc-loop-row">
           {LOOP.map((l) => (
@@ -313,7 +398,7 @@ export default function Home() {
       <section id="showcase" className="mc-section mc-showcase">
         <header className="mc-sec-head reveal">
           <span className="mc-kicker">{t("Vu de l'intérieur", "Inside the product")}</span>
-          <h2 className="mc-h2">{t("Un poste de pilotage, pas un tableur.", "A command deck, not a spreadsheet.")}</h2>
+          <h2 className="mc-h2">{t("Simple à prendre en main, dès la première minute.", "Easy to use, from the very first minute.")}</h2>
         </header>
         <div className="mc-window-wrap reveal">
           <div className="mc-window">
@@ -354,7 +439,10 @@ export default function Home() {
             const L = NETWORKS[tm.net];
             return (
               <figure key={i} className="mc-quote reveal" style={{ transitionDelay: `${i * 90}ms` }}>
-                <L s={26} />
+                <div className="mc-quote-top">
+                  <span className="mc-avatar" style={{ background: tm.c }} aria-hidden>{tm.av}</span>
+                  <L s={22} />
+                </div>
                 <blockquote>“{tm.q}”</blockquote>
                 <figcaption>
                   {tm.a}
@@ -363,6 +451,39 @@ export default function Home() {
               </figure>
             );
           })}
+        </div>
+      </section>
+
+      {/* ── Réassurance ── */}
+      <section className="mc-section">
+        <header className="mc-sec-head reveal">
+          <span className="mc-kicker">{t("Vous pouvez nous faire confiance", "You can trust us")}</span>
+          <h2 className="mc-h2">{t("L'IA fait le travail. Vous gardez la dernière décision.", "The AI does the work. You keep the final say.")}</h2>
+        </header>
+        <div className="mc-grid mc-grid-4">
+          {REASSURE.map((r, i) => (
+            <div key={r.fr} className="mc-trust reveal" style={{ transitionDelay: `${i * 70}ms` }}>
+              <span className="mc-trust-e" aria-hidden>{r.e}</span>
+              <h3>{t(r.fr, r.en)}</h3>
+              <p>{t(r.dfr, r.den)}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── FAQ ── */}
+      <section className="mc-section">
+        <header className="mc-sec-head reveal">
+          <span className="mc-kicker">{t("Questions fréquentes", "Frequently asked")}</span>
+          <h2 className="mc-h2">{t("Tout ce que vous vous demandez sûrement.", "Everything you're probably wondering.")}</h2>
+        </header>
+        <div className="mc-faq">
+          {FAQ.map((f, i) => (
+            <details key={i} className="mc-faq-item reveal" style={{ transitionDelay: `${i * 60}ms` }}>
+              <summary>{t(f.qfr, f.qen)}</summary>
+              <p>{t(f.afr, f.aen)}</p>
+            </details>
+          ))}
         </div>
       </section>
 

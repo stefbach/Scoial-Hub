@@ -90,21 +90,10 @@ function UserMenu() {
 
       {open && (
         <div className="absolute right-0 top-10 z-50 w-56 rounded-xl border border-hair bg-card shadow-lg animate-fade-in">
-          <div className="px-4 py-3 border-b border-hair">
+          <div className="px-4 py-3">
             <p className="text-2xs text-muted section-label mb-0.5">Connecté en tant que</p>
             <p className="text-sm font-medium text-ink truncate">{email}</p>
-          </div>
-          <div className="p-1.5">
-            <a
-              href="/api/auth/logout"
-              onClick={() => { try { window.localStorage.removeItem("sh_company_id"); } catch { /* ignore */ } }}
-              className="w-full flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-ink hover:bg-canvas transition-colors text-left"
-            >
-              <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
-                <path d="M6 2H3a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h3M10 10l3-3-3-3M13 7H5.5" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-              Se déconnecter
-            </a>
+            <p className="mt-1.5 text-2xs text-muted">↙ {"Se déconnecter via le menu de gauche"}</p>
           </div>
         </div>
       )}

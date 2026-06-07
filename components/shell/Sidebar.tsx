@@ -298,7 +298,6 @@ const GROUPS: { label?: string; items: NavItem[] }[] = [
     label: "Organic",
     items: [
       { href: "/compose",      label: "Compose" },
-      { href: "/article-linkedin", label: "Article LinkedIn" },
       { href: "/studio-video", label: "Video Studio" },
       { href: "/studio-affiche", label: "Studio Affiches" },
       { href: "/media",       label: "Médiathèque" },

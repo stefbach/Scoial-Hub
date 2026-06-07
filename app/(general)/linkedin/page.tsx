@@ -4,10 +4,10 @@
 // LinkedIn connecté de la société → publier → analyser la stratégie.
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
 import { useCompany } from "@/lib/company-context";
 import { useT } from "@/lib/i18n";
 import { Spinner, BusyHint } from "@/components/ui/Spinner";
+import { ArticleStudio } from "@/components/linkedin/ArticleStudio";
 import { ConnectGuide } from "@/components/connect/ConnectGuide";
 
 interface Account {
@@ -57,6 +57,14 @@ export default function LinkedInPage() {
   const [analyzing, setAnalyzing] = useState(false);
 
   const [guide, setGuide] = useState(false);
+  const [tab, setTab] = useState<"publish" | "article">("publish");
+
+  // Onglet initial depuis l'URL (?tab=article) — ex. lien/redirection.
+  useEffect(() => {
+    try {
+      if (new URLSearchParams(window.location.search).get("tab") === "article") setTab("article");
+    } catch { /* ignore */ }
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -144,7 +152,7 @@ export default function LinkedInPage() {
         <p className="section-label text-primary-500">LinkedIn</p>
         <h1 className="mt-1 text-2xl font-bold tracking-tight text-ink">{t("Votre espace LinkedIn", "Your LinkedIn space")}</h1>
         <p className="mt-1 max-w-2xl text-sm text-muted">
-          {t("Compte connecté, publication, et stratégie de contenu LinkedIn.", "Connected account, publishing, and LinkedIn content strategy.")}
+          {t("Compte connecté, publication, stratégie, et studio d'articles & visuels LinkedIn.", "Connected account, publishing, strategy, and LinkedIn article & visuals studio.")}
         </p>
       </header>
 
@@ -177,11 +185,32 @@ export default function LinkedInPage() {
         </div>
       )}
 
+      {/* Onglets : Publication & stratégie | Article & visuels */}
+      <div className="flex gap-1 rounded-xl border border-hair bg-card p-1">
+        {([
+          { id: "publish", label: t("Publication & stratégie", "Publishing & strategy") },
+          { id: "article", label: t("Article & visuels", "Article & visuals") },
+        ] as const).map((tb) => (
+          <button
+            key={tb.id}
+            onClick={() => setTab(tb.id)}
+            className={`flex-1 rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
+              tab === tb.id ? "bg-page text-white" : "text-muted hover:text-ink"
+            }`}
+          >
+            {tb.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "article" && <ArticleStudio />}
+
+      {tab === "publish" && (
+      <>
       {/* Publication */}
       <section className="card p-5 space-y-3">
         <div className="flex items-center justify-between">
           <span className="section-label">{t("Publier sur LinkedIn", "Publish to LinkedIn")}</span>
-          <Link href="/article-linkedin" className="text-xs text-primary-600 hover:underline">{t("Studio Article →", "Article Studio →")}</Link>
         </div>
 
         {/* CONNECT-FIRST : si non connecté, message clair + CTA avant toute saisie */}
@@ -338,6 +367,8 @@ export default function LinkedInPage() {
           </div>
         )}
       </section>
+      </>
+      )}
 
       <ConnectGuide
         open={guide}

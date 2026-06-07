@@ -667,7 +667,7 @@ function CutCard({
                 <a href={rUrl} target="_blank" rel="noopener noreferrer" download className="btn-secondary flex-1 justify-center text-2xs">
                   ⬇ {t("Télécharger", "Download")}
                 </a>
-                <a href="/compose" className="btn-primary flex-1 justify-center text-2xs">
+                <a href={`/compose?media=${encodeURIComponent(rUrl)}&kind=video`} className="btn-primary flex-1 justify-center text-2xs">
                   {t("Publier / Programmer →", "Publish / Schedule →")}
                 </a>
                 <button className="btn-ghost shrink-0 text-2xs" onClick={startRender}>

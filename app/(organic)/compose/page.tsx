@@ -91,7 +91,20 @@ function ComposeContent() {
     new Date(`${scheduleSource?.date ?? "2026-05-27"}T00:00:00`)
   );
   const [time, setTime] = useState(scheduleSource?.time ?? "09:00");
-  const [upload, setUpload] = useState<UploadedMedia | null>(null);
+  // Média pré-rempli depuis un studio (Avatar/Vidéo) ou la Médiathèque :
+  //   /compose?media=<url>&kind=video   (ou ?video=<url> / ?image=<url>)
+  const mediaParam = params.get("media") || params.get("video") || params.get("image");
+  const mediaKind: "image" | "video" =
+    params.get("video") ? "video"
+    : params.get("image") ? "image"
+    : params.get("kind") === "video" ? "video"
+    : /\.(mp4|mov|webm|m4v)(\?|$)/i.test(mediaParam ?? "") ? "video"
+    : "image";
+  const [upload, setUpload] = useState<UploadedMedia | null>(
+    mediaParam && /^https?:\/\//i.test(mediaParam)
+      ? { url: mediaParam, name: mediaKind === "video" ? "Vidéo" : "Image", size: 0, kind: mediaKind }
+      : null
+  );
   const [editing, setEditing] = useState(false);
   const [language, setLanguage] = useState("Français");
   const [imageModel, setImageModel] = useState(DEFAULT_IMAGE_MODEL_ID);

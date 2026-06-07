@@ -489,7 +489,7 @@ export default function StudioAvatarPage() {
                 </a>
                 <div className="flex gap-2">
                   <a href="/media" className="btn-ghost flex-1 justify-center text-xs">{t("📚 Médiathèque", "📚 Media library")}</a>
-                  <a href="/compose" className="btn-primary flex-1 justify-center text-xs">{t("Publier / Programmer →", "Publish / Schedule →")}</a>
+                  <a href={`/compose?media=${encodeURIComponent(videoUrl)}&kind=video`} className="btn-primary flex-1 justify-center text-xs">{t("Publier / Programmer →", "Publish / Schedule →")}</a>
                 </div>
                 {!savedToLibrary && (
                   <button onClick={() => videoUrl && saveToLibrary(videoUrl)} className="btn-ghost w-full justify-center text-2xs text-muted">

@@ -567,6 +567,17 @@
           filter:drop-shadow(0 30px 60px rgba(168,85,247,.35)) drop-shadow(0 10px 30px rgba(255,138,76,.25));}
         @media(max-width:860px){.mc-cap-head{grid-template-columns:1fr;gap:1.5rem;}.mc-cap-phone{max-width:230px;}}
 
+        /* Onglets dynamiques des capacités */
+        .mc-tabs{display:flex;flex-wrap:wrap;gap:.5rem;justify-content:center;margin:0 0 1.6rem;}
+        .mc-tab{padding:.55rem 1.1rem;border-radius:999px;font-size:.9rem;font-weight:600;cursor:pointer;
+          color:rgb(var(--color-muted));background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);
+          transition:.25s ease;}
+        .mc-tab:hover{color:#fff;border-color:rgba(255,138,76,.4);}
+        .mc-tab.on{color:#fff;background:linear-gradient(135deg,#a855f7,#f4728a 60%,#ff8a4c);border-color:transparent;
+          box-shadow:0 8px 24px -8px rgba(255,138,76,.5);}
+        .mc-grid-anim{animation:mcFadeUp .45s cubic-bezier(.22,1,.36,1);}
+        @keyframes mcFadeUp{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}
+
         /* Sections humaines (lot 2) */
         .mc-grid-3{grid-template-columns:repeat(3,1fr);}
         .mc-grid-4{grid-template-columns:repeat(4,1fr);}

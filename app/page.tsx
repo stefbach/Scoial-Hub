@@ -6,7 +6,7 @@
    - Réseaux mis en avant : Facebook, Instagram, LinkedIn, X (Twitter).
    - Thème local sombre (la page publique n'utilise pas les tokens clairs). */
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useT } from "@/lib/i18n";
@@ -83,6 +83,15 @@ const CAPABILITIES = [
   { c: "#f59e0b", fr: "Centre de pilotage", en: "Command center", dfr: "Toutes vos vraies données en un poste de commande, relié à tous les outils.", den: "All your real data in one command deck, linked to every tool.", href: "/pilotage", icon: "M12 3l9 5v8l-9 5-9-5V8l9-5Z" },
   { c: "#ec4899", fr: "Plusieurs marques", en: "Multiple brands", dfr: "Gérez N sociétés, chacune avec son profil, ses connexions et ses campagnes — isolées.", den: "Manage N companies, each with its own profile, connections and campaigns.", href: "/comptes", icon: "M3 21V8l9-5 9 5v13M9 21v-6h6v6" },
 ];
+
+const CAP_CATEGORIES = [
+  { id: "ads", fr: "Publicité Meta", en: "Meta ads" },
+  { id: "create", fr: "Création de contenu", en: "Content creation" },
+  { id: "publish", fr: "Publication & relation", en: "Publishing & relations" },
+  { id: "pilot", fr: "Pilotage & veille", en: "Steering & watch" },
+];
+// Catégorie de chaque capacité (même ordre que CAPABILITIES).
+const CAP_CAT_OF = ["ads", "ads", "ads", "ads", "create", "create", "create", "create", "publish", "publish", "pilot", "pilot", "pilot", "pilot"];
 
 const LOOP = [
   { n: "01", fr: "Analyse", en: "Analyse", dfr: "Marché, concurrents et veille décodés en mémoire stratégique.", den: "Market, competitors & watch decoded into strategic memory." },
@@ -183,6 +192,7 @@ function Dashboard3D() {
 
 export default function Home() {
   const t = useT();
+  const [capCat, setCapCat] = useState("ads");
 
   // Révélations au scroll (IntersectionObserver).
   useEffect(() => {
@@ -316,17 +326,35 @@ export default function Home() {
             onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
           />
         </div>
-        <div className="mc-grid">
-          {CAPABILITIES.map((c, i) => (
-            <Link key={c.fr} href={c.href} className="mc-card tilt reveal" style={{ ["--c" as string]: c.c, transitionDelay: `${(i % 3) * 70 + Math.floor(i / 3) * 40}ms` }}>
-              <span className="mc-card-ic">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d={c.icon} /></svg>
-              </span>
-              <h3>{t(c.fr, c.en)}</h3>
-              <p>{t(c.dfr, c.den)}</p>
-              <span className="mc-card-go">{t("Ouvrir", "Open")} →</span>
-            </Link>
+
+        {/* Onglets dynamiques par catégorie — allège l'affichage (3-4 cartes) */}
+        <div className="mc-tabs reveal" role="tablist">
+          {CAP_CATEGORIES.map((cat) => (
+            <button
+              key={cat.id}
+              role="tab"
+              aria-selected={capCat === cat.id}
+              onClick={() => setCapCat(cat.id)}
+              className={`mc-tab ${capCat === cat.id ? "on" : ""}`}
+            >
+              {t(cat.fr, cat.en)}
+            </button>
           ))}
+        </div>
+
+        <div key={capCat} className="mc-grid mc-grid-anim">
+          {CAPABILITIES.map((c, i) => ({ c, i }))
+            .filter(({ i }) => CAP_CAT_OF[i] === capCat)
+            .map(({ c }, j) => (
+              <Link key={c.fr} href={c.href} className="mc-card tilt reveal is-in" style={{ ["--c" as string]: c.c, transitionDelay: `${j * 70}ms` }}>
+                <span className="mc-card-ic">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d={c.icon} /></svg>
+                </span>
+                <h3>{t(c.fr, c.en)}</h3>
+                <p>{t(c.dfr, c.den)}</p>
+                <span className="mc-card-go">{t("Ouvrir", "Open")} →</span>
+              </Link>
+            ))}
         </div>
       </section>
 

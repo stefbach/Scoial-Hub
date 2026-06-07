@@ -12,7 +12,8 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { useCompany } from "@/lib/company-context";
-import { useScope, COUNTRIES } from "@/lib/scope";
+import { useScope } from "@/lib/scope";
+import { CountryCombobox } from "@/components/ui/CountryCombobox";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { ContentCard } from "@/components/veille/ContentCard";
 import { AnalysisPanel } from "@/components/veille/AnalysisPanel";
@@ -392,20 +393,14 @@ export default function VeillePage() {
             {/* Zone géographique */}
             <div className="card p-4 space-y-3">
               <p className="section-label">{t("Zone géographique", "Geographic area")}</p>
-              <select
+              <CountryCombobox
                 value={geo}
-                onChange={(e) => {
-                  setGeo(e.target.value);
-                  setCountryId(e.target.value);
+                onChange={(id) => {
+                  setGeo(id);
+                  setCountryId(id);
                 }}
-                className="input"
-              >
-                {COUNTRIES.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.flag} {c.label}
-                  </option>
-                ))}
-              </select>
+                placeholder={t("Tapez un pays…", "Type a country…")}
+              />
             </div>
 
             {/* Thématique + mots-clés */}

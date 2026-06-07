@@ -5,12 +5,12 @@
 //     mode "video"  : { script, faceUrl, voice? }           → { videoUrl, audioUrl, simulated }
 
 export const runtime = "nodejs";
-export const maxDuration = 300;
+export const maxDuration = 120;
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireCompanyAccess } from "@/lib/auth/guard";
 import { callClaudeJSON } from "@/lib/ai/claude-json";
-import { runReplicateUrl, generateImageModel, lipsyncAvatar, isReplicateConfigured } from "@/lib/ai/replicate";
+import { runReplicateUrl, generateImageModel, startAvatarLipsync, getReplicatePrediction, isReplicateConfigured } from "@/lib/ai/replicate";
 import { getVoiceModel, getAvatarModel } from "@/lib/ai/avatar-models";
 import { isAiConfigured } from "@/lib/env";
 
@@ -97,7 +97,7 @@ Réponds en JSON: { "script": "..." }`,
       }
     }
 
-    // 1) Voix (TTS)
+    // 1) Voix (TTS) — rapide, synchrone.
     const audioUrl = await runReplicateUrl(voiceSpec.id, {
       [voiceSpec.textKey]: script,
       ...(body.voice && voiceSpec.voiceKey ? { [voiceSpec.voiceKey]: body.voice } : {}),
@@ -105,16 +105,33 @@ Réponds en JSON: { "script": "..." }`,
     });
     if (!audioUrl) throw new Error("Échec de la génération de la voix (TTS).");
 
-    // 2) Lip-sync (visage + audio → vidéo) — clés d'entrée auto-détectées.
-    const videoUrl = await lipsyncAvatar(avatarSpec.id, sourceImage, audioUrl);
-    if (!videoUrl) throw new Error("Échec de la génération de la vidéo (lip-sync).");
-
-    return NextResponse.json({ videoUrl, audioUrl, sourceImage });
+    // 2) Lip-sync : DÉMARRE la prédiction sans attendre (les modèles avatar
+    //    prennent plusieurs minutes → on évite le timeout serverless).
+    const started = await startAvatarLipsync(avatarSpec.id, sourceImage, audioUrl);
+    if (started.error) throw new Error(started.error);
+    if (started.videoUrl) {
+      return NextResponse.json({ videoUrl: started.videoUrl, audioUrl, sourceImage });
+    }
+    if (!started.id) throw new Error("Démarrage du lip-sync impossible.");
+    // Le client interroge GET /api/ai/avatar?id=… jusqu'au résultat.
+    return NextResponse.json({ pending: true, predictionId: started.id, audioUrl, sourceImage });
   } catch (e) {
     console.error("[POST /api/ai/avatar]", e);
     return NextResponse.json(
       { error: e instanceof Error ? e.message : "Échec de génération de l'avatar." },
       { status: 502 }
     );
+  }
+}
+
+// GET /api/ai/avatar?id=… → statut de la prédiction lip-sync (polling client).
+export async function GET(req: NextRequest) {
+  const id = req.nextUrl.searchParams.get("id");
+  if (!id) return NextResponse.json({ error: "id requis" }, { status: 400 });
+  try {
+    const r = await getReplicatePrediction(id);
+    return NextResponse.json(r);
+  } catch (e) {
+    return NextResponse.json({ status: "failed", error: e instanceof Error ? e.message : "Erreur" });
   }
 }

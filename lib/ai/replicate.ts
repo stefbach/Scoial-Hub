@@ -504,17 +504,8 @@ export async function runReplicateUrl(
   return firstUrl(prediction.output);
 }
 
-/**
- * Lip-sync ROBUSTE : auto-détecte les clés d'entrée image & audio du modèle
- * (via son schéma OpenAPI) puis lance la prédiction. Fonctionne avec n'importe
- * quel modèle de la collection lipsync (omni-human, sync, heygen, veed, …).
- */
-export async function lipsyncAvatar(
-  model: string,
-  imageUrl: string,
-  audioUrl: string
-): Promise<string | null> {
-  if (!isReplicateConfigured) return null;
+/** Auto-détecte les clés d'entrée image & audio d'un modèle (schéma OpenAPI). */
+async function detectAvatarKeys(model: string): Promise<{ imageKey: string; audioKey: string }> {
   let imageKey = "image";
   let audioKey = "audio";
   try {
@@ -533,9 +524,53 @@ export async function lipsyncAvatar(
       if (aud) audioKey = aud;
     }
   } catch {
-    /* on garde les clés par défaut */
+    /* clés par défaut */
   }
+  return { imageKey, audioKey };
+}
+
+/**
+ * Lip-sync ROBUSTE (synchrone) : auto-détecte les clés puis attend le résultat.
+ * Réservé aux modèles rapides ; pour les modèles lents (OmniHuman…) préférer
+ * startAvatarLipsync + getReplicatePrediction (asynchrone, évite les timeouts).
+ */
+export async function lipsyncAvatar(
+  model: string,
+  imageUrl: string,
+  audioUrl: string
+): Promise<string | null> {
+  if (!isReplicateConfigured) return null;
+  const { imageKey, audioKey } = await detectAvatarKeys(model);
   return runReplicateUrl(model, { [imageKey]: imageUrl, [audioKey]: audioUrl });
+}
+
+/** Démarre un lip-sync SANS attendre (asynchrone). Renvoie l'id de prédiction. */
+export async function startAvatarLipsync(
+  model: string,
+  imageUrl: string,
+  audioUrl: string
+): Promise<{ id?: string; status?: string; videoUrl?: string; error?: string }> {
+  if (!isReplicateConfigured) return { error: "not-configured" };
+  const { imageKey, audioKey } = await detectAvatarKeys(model);
+  const pred = await createPrediction(model, { [imageKey]: imageUrl, [audioKey]: audioUrl });
+  if (pred.status === "succeeded") return { id: pred.id, status: "succeeded", videoUrl: firstUrl(pred.output) ?? undefined };
+  if (pred.status === "failed" || pred.status === "canceled") return { id: pred.id, status: "failed", error: pred.error ?? "failed" };
+  return { id: pred.id, status: pred.status };
+}
+
+/** Interroge une prédiction Replicate (générique) et renvoie l'URL de sortie. */
+export async function getReplicatePrediction(
+  id: string
+): Promise<{ status: string; videoUrl?: string; error?: string }> {
+  if (!isReplicateConfigured) return { status: "failed", error: "not-configured" };
+  const res = await replicateFetch(`${REPLICATE_API_BASE}/predictions/${id}`, {
+    headers: replicateHeaders(),
+  });
+  if (!res.ok) return { status: "failed", error: `HTTP ${res.status}` };
+  const p = (await res.json()) as ReplicatePrediction;
+  if (p.status === "succeeded") return { status: "succeeded", videoUrl: firstUrl(p.output) ?? undefined };
+  if (p.status === "failed" || p.status === "canceled") return { status: "failed", error: p.error ?? "failed" };
+  return { status: p.status };
 }
 
 export interface AvatarResult {

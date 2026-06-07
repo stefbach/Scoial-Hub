@@ -80,6 +80,7 @@ export async function getBrandProfile(companyId: string): Promise<BrandProfile |
       keyMessage: "",
       personality: [],
       visualDirection: "",
+      networkStrategies: [],
       philosophyLocked: false,
       keywords: [],
       recommendedNetworks: [],

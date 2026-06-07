@@ -15,6 +15,16 @@ import type { BrandProfile } from "@/lib/onboarding/types";
 
 interface ChatMsg { role: "user" | "assistant"; content: string }
 
+interface NetStrategy {
+  network: "instagram" | "facebook" | "tiktok" | "linkedin";
+  angle?: string;
+  formats?: string[];
+  tone?: string;
+  contentPillars?: string[];
+  cadence?: string;
+  cta?: string;
+}
+
 interface BrandDna {
   summary?: string;
   positioning?: string;
@@ -27,7 +37,15 @@ interface BrandDna {
   themes?: string[];
   visualDirection?: string;
   keywords?: string[];
+  networkStrategies?: NetStrategy[];
 }
+
+const NET_META: Record<NetStrategy["network"], { label: string; icon: string; color: string }> = {
+  instagram: { label: "Instagram", icon: "📸", color: "#e1306c" },
+  facebook: { label: "Facebook", icon: "👍", color: "#1877f2" },
+  tiktok: { label: "TikTok", icon: "🎵", color: "#ec4899" },
+  linkedin: { label: "LinkedIn", icon: "💼", color: "#0a66c2" },
+};
 
 interface VisualTest {
   prompt: string;
@@ -107,7 +125,18 @@ export function BrandConsultant({
         if (!res.ok) throw new Error(data?.error || `Erreur ${res.status}`);
         const reply: string = data.reply || "…";
         setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
-        if (data.dna) setDna((prev) => ({ ...prev, ...data.dna }));
+        if (data.dna) {
+          // Fusion non destructive : une valeur vide ne doit pas écraser un acquis.
+          setDna((prev) => {
+            const next: BrandDna = { ...prev };
+            const d = data.dna as Record<string, unknown>;
+            for (const [k, v] of Object.entries(d)) {
+              const empty = v == null || v === "" || (Array.isArray(v) && v.length === 0);
+              if (!empty) (next as Record<string, unknown>)[k] = v;
+            }
+            return next;
+          });
+        }
         setReadyToLock(Boolean(data.readyToLock));
         if (Array.isArray(data.visualPrompts) && data.visualPrompts.length) {
           setVisualPrompts(data.visualPrompts);
@@ -351,6 +380,46 @@ export function BrandConsultant({
             </div>
           )}
         </div>
+
+        {/* Stratégie par réseau — chaque plateforme a ses codes */}
+        {dna.networkStrategies && dna.networkStrategies.length > 0 && (
+          <div className="card p-4">
+            <p className="section-label">{t("Stratégie par réseau", "Per-network strategy")}</p>
+            <div className="mt-3 space-y-2.5">
+              {dna.networkStrategies.map((s) => {
+                const meta = NET_META[s.network];
+                if (!meta) return null;
+                return (
+                  <div key={s.network} className="rounded-lg border border-hair bg-white/[0.03] p-3">
+                    <div className="flex items-center gap-2">
+                      <span>{meta.icon}</span>
+                      <span className="text-sm font-semibold text-ink" style={{ color: meta.color }}>{meta.label}</span>
+                      {s.cadence && <span className="ml-auto text-2xs text-muted">{s.cadence}</span>}
+                    </div>
+                    {s.angle && <p className="mt-1 text-2xs leading-snug text-ink">{s.angle}</p>}
+                    {(s.formats?.length || s.contentPillars?.length) && (
+                      <div className="mt-1.5 flex flex-wrap gap-1">
+                        {(s.formats ?? []).map((f, i) => (
+                          <span key={`f${i}`} className="chip text-[10px]">{f}</span>
+                        ))}
+                        {(s.contentPillars ?? []).map((p, i) => (
+                          <span key={`p${i}`} className="chip text-[10px] text-ai-text">{p}</span>
+                        ))}
+                      </div>
+                    )}
+                    {(s.tone || s.cta) && (
+                      <p className="mt-1.5 text-[10px] text-muted">
+                        {s.tone && <>{t("Ton", "Tone")} : {s.tone}</>}
+                        {s.tone && s.cta && " · "}
+                        {s.cta && <>CTA : {s.cta}</>}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Tests visuels */}
         {(visualPrompts.length > 0 || visuals.length > 0) && (

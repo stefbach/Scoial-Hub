@@ -41,15 +41,6 @@ function UserMenu() {
     return () => document.removeEventListener("mousedown", handleClick);
   }, [open]);
 
-  function handleSignOut() {
-    setOpen(false);
-    // Oublie la société active persistée…
-    try { window.localStorage.removeItem("sh_company_id"); } catch { /* ignore */ }
-    // …puis NAVIGUE vers la route serveur qui invalide la session, efface les
-    // cookies et redirige vers /login. Pas d'appel JS susceptible de se bloquer.
-    window.location.href = "/api/auth/logout";
-  }
-
   // Mode démo ou non connecté : avatar statique
   if (!isSupabaseConfigured || !email) {
     return (
@@ -105,15 +96,16 @@ function UserMenu() {
             <p className="text-sm font-medium text-ink truncate">{email}</p>
           </div>
           <div className="p-1.5">
-            <button
-              onClick={handleSignOut}
+            <a
+              href="/api/auth/logout"
+              onClick={() => { try { window.localStorage.removeItem("sh_company_id"); } catch { /* ignore */ } }}
               className="w-full flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-ink hover:bg-canvas transition-colors text-left"
             >
               <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
                 <path d="M6 2H3a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h3M10 10l3-3-3-3M13 7H5.5" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
               Se déconnecter
-            </button>
+            </a>
           </div>
         </div>
       )}

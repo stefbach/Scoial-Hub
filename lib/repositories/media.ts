@@ -13,6 +13,51 @@ export interface MediaAsset {
   createdAt?: string;
 }
 
+const STORAGE_BUCKET = "sh-videos";
+
+/** Extension de fichier déduite du content-type (repli sur le type de média). */
+function extFromContentType(ct: string, kind: "image" | "video"): string {
+  if (ct.includes("png")) return "png";
+  if (ct.includes("jpeg") || ct.includes("jpg")) return "jpg";
+  if (ct.includes("webp")) return "webp";
+  if (ct.includes("gif")) return "gif";
+  if (ct.startsWith("video")) return "mp4";
+  return kind === "video" ? "mp4" : "png";
+}
+
+/**
+ * Télécharge un média depuis une URL éphémère (Replicate / Shotstack / etc.) et
+ * le stocke durablement sur Supabase Storage. Renvoie l'URL publique permanente,
+ * ou l'URL d'origine en cas d'échec (dégradation gracieuse, jamais bloquant).
+ * Idempotent : une URL déjà hébergée sur notre bucket est renvoyée telle quelle.
+ */
+export async function persistRemoteMedia(
+  companyId: string,
+  url: string,
+  kind: "image" | "video" = "image"
+): Promise<string> {
+  if (!url || !/^https?:\/\//i.test(url)) return url;
+  if (url.includes(`/storage/v1/object/public/${STORAGE_BUCKET}/`)) return url;
+  try {
+    const sb = createAdminClient();
+    if (!sb) return url;
+    const uuid = await resolveCompanyUuid(companyId);
+    if (!uuid) return url;
+    const resp = await fetch(url);
+    if (!resp.ok) return url;
+    const ct = resp.headers.get("content-type") || (kind === "video" ? "video/mp4" : "image/png");
+    const ext = extFromContentType(ct, kind);
+    const buf = Buffer.from(await resp.arrayBuffer());
+    const path = `${uuid}/persist/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+    const { error } = await sb.storage.from(STORAGE_BUCKET).upload(path, buf, { contentType: ct, upsert: true });
+    if (error) return url;
+    const { data } = sb.storage.from(STORAGE_BUCKET).getPublicUrl(path);
+    return data?.publicUrl || url;
+  } catch {
+    return url;
+  }
+}
+
 /** Enregistre un asset dans la bibliothèque (idempotent par company+url). */
 export async function saveMediaAsset(
   companyId: string,

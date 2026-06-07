@@ -9,7 +9,6 @@ export const maxDuration = 120;
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireCompanyAccess } from "@/lib/auth/guard";
-import { createAdminClient } from "@/lib/supabase/server";
 import { callClaudeJSON } from "@/lib/ai/claude-json";
 import { runReplicateUrl, generateImageModel, startAvatarLipsync, startSubtitles, cloneVoiceMiniMax, getReplicatePrediction, isReplicateConfigured } from "@/lib/ai/replicate";
 import { getAvatarModel, getLang, TTS_MULTILINGUAL_MODEL, XTTS_MODEL, VOICE_BY_GENDER } from "@/lib/ai/avatar-models";
@@ -96,20 +95,8 @@ Réponds en JSON: { "script": "..." }`,
   if (body.mode === "persist") {
     const url = (body.videoUrl ?? "").trim();
     if (!url) return NextResponse.json({ error: "videoUrl requise" }, { status: 400 });
-    try {
-      const sb = createAdminClient();
-      if (!sb || !guard.uuid) return NextResponse.json({ url });
-      const resp = await fetch(url);
-      if (!resp.ok) return NextResponse.json({ url });
-      const buf = Buffer.from(await resp.arrayBuffer());
-      const path = `${guard.uuid}/avatar/${Date.now()}.mp4`;
-      const { error: upErr } = await sb.storage.from("sh-videos").upload(path, buf, { contentType: "video/mp4", upsert: true });
-      if (upErr) return NextResponse.json({ url });
-      const { data } = sb.storage.from("sh-videos").getPublicUrl(path);
-      return NextResponse.json({ url: data?.publicUrl || url });
-    } catch {
-      return NextResponse.json({ url });
-    }
+    const { persistRemoteMedia } = await import("@/lib/repositories/media");
+    return NextResponse.json({ url: await persistRemoteMedia(body.companyId!, url, "video") });
   }
 
   // ── Clonage de voix : échantillon audio → voice_id réutilisable ────────────

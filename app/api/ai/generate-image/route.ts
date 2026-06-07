@@ -77,10 +77,14 @@ export async function POST(req: NextRequest) {
           : gm.buildInput(prompt, { aspect: resolvedFormat });
         const result = await generateImageModel(editMode ? "black-forest-labs/flux-kontext-pro" : gm.id, input, n ?? 1);
         if (result.images.length > 0 || result.simulated) {
-          // Enregistre dans la bibliothèque média (si société fournie). Non bloquant.
+          // Persiste (URL Replicate éphémère → Supabase) puis enregistre dans la
+          // bibliothèque média (si société fournie). Non bloquant.
           if (companyId && result.images.length > 0) {
             try {
-              const { saveMediaAsset } = await import("@/lib/repositories/media");
+              const { saveMediaAsset, persistRemoteMedia } = await import("@/lib/repositories/media");
+              result.images = await Promise.all(
+                result.images.map(async (im) => ({ ...im, url: await persistRemoteMedia(companyId, im.url, "image") }))
+              );
               await Promise.all(result.images.map((im) => saveMediaAsset(companyId, { url: im.url, type: "image", format: resolvedFormat, source: "generate-image", prompt })));
             } catch { /* non bloquant */ }
           }

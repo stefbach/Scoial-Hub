@@ -29,7 +29,7 @@ import { env, isAiConfigured } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/server";
 import { isReplicateConfigured, generateImageModel } from "@/lib/ai/replicate";
 import { getImageModel } from "@/lib/ai/model-catalog";
-import { saveMediaAsset } from "@/lib/repositories/media";
+import { saveMediaAsset, persistRemoteMedia } from "@/lib/repositories/media";
 import type {
   AgentId,
   AgentRunResult,
@@ -658,8 +658,10 @@ async function runCreative(
         generateImageModel(gm.id, input2, 1),
         new Promise<null>((resolve) => setTimeout(() => resolve(null), 35_000)),
       ]);
-      const url = res && "images" in res ? res.images[0]?.url : undefined;
-      if (url) {
+      const rawUrl = res && "images" in res ? res.images[0]?.url : undefined;
+      if (rawUrl) {
+        // Persiste (URL Replicate éphémère → Supabase) avant enregistrement durable.
+        const url = await persistRemoteMedia(input.companyId, rawUrl, "image").catch(() => rawUrl);
         generatedImages = [{ url }];
         await saveMediaAsset(input.companyId, { url, type: "image", format: "1:1", source: "agent-creative", prompt: imagePrompt }).catch(() => {});
       }

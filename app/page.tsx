@@ -252,7 +252,7 @@ export default function Home() {
           {/* Médaillon humain chaleureux (déposez /public/hero/human-hero.webp) */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src="/hero/human-hero.webp"
+            src="/hero/femme%20.png"
             alt=""
             className="mc-hero-human"
             onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
@@ -264,7 +264,7 @@ export default function Home() {
       <section className="mc-human-band reveal">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src="/hero/connect.webp"
+          src="/hero/inetraction.png"
           alt={t("Des personnes reliées par AXON-AI", "People connected by AXON-AI")}
           onError={(e) => { (e.currentTarget as HTMLImageElement).closest("section")?.style.setProperty("display", "none"); }}
         />
@@ -302,7 +302,7 @@ export default function Home() {
           <div className="mc-human-viz reveal">
             <HumanNetwork />
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/hero/network.webp" alt={t("Humains connectés", "Connected humans")} className="mc-human-photo"
+            <img src="/hero/femme%20tel.png" alt={t("Humains connectés", "Connected humans")} className="mc-human-photo"
               onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
           </div>
         </div>

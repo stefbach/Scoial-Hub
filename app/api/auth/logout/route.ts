@@ -1,22 +1,44 @@
-// POST /api/auth/logout — déconnexion FIABLE côté serveur : invalide la session
-// et efface les cookies d'auth (ce que le client navigateur ne fait pas toujours
-// de façon fiable). Le front fait ensuite un rechargement complet vers /login.
+// /api/auth/logout — déconnexion FIABLE côté serveur.
+//  POST → invalide la session + efface les cookies, renvoie { ok }
+//         (appelé par le bouton « Se déconnecter », suivi d'un reload).
+//  GET  → même chose puis REDIRIGE vers /login. Porte de secours : il suffit de
+//         visiter /api/auth/logout dans la barre d'adresse pour se déconnecter.
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 
-export async function POST() {
+async function endSession() {
   try {
     const supabase = createClient();
-    if (supabase) {
-      // scope global : révoque la session côté Supabase + efface les cookies.
-      await supabase.auth.signOut();
-    }
+    if (supabase) await supabase.auth.signOut();
   } catch {
-    // best-effort : on renvoie ok quand même, le client redirige.
+    /* best-effort : on efface les cookies de toute façon ci-dessous */
   }
-  return NextResponse.json({ ok: true });
+}
+
+/** Efface explicitement TOUS les cookies d'auth Supabase (filet de sécurité). */
+function clearAuthCookies(res: NextResponse) {
+  for (const c of cookies().getAll()) {
+    if (c.name.startsWith("sb-")) {
+      res.cookies.set(c.name, "", { maxAge: 0, path: "/" });
+    }
+  }
+}
+
+export async function POST() {
+  await endSession();
+  const res = NextResponse.json({ ok: true });
+  clearAuthCookies(res);
+  return res;
+}
+
+export async function GET(req: NextRequest) {
+  await endSession();
+  const res = NextResponse.redirect(new URL("/login", req.url));
+  clearAuthCookies(res);
+  return res;
 }

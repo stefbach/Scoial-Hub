@@ -41,21 +41,13 @@ function UserMenu() {
     return () => document.removeEventListener("mousedown", handleClick);
   }, [open]);
 
-  async function handleSignOut() {
+  function handleSignOut() {
     setOpen(false);
-    // 1) Déconnexion client (efface le stockage local du navigateur).
-    try {
-      const supabase = createClient();
-      if (supabase) await supabase.auth.signOut();
-    } catch { /* ignore */ }
-    // 2) Déconnexion SERVEUR (efface les cookies de session de façon fiable).
-    try {
-      await fetch("/api/auth/logout", { method: "POST" });
-    } catch { /* ignore */ }
-    // 3) Oublie la société active persistée.
+    // Oublie la société active persistée…
     try { window.localStorage.removeItem("sh_company_id"); } catch { /* ignore */ }
-    // 4) Rechargement COMPLET vers /login (évite tout rebond dû au cache SSR).
-    window.location.href = "/login";
+    // …puis NAVIGUE vers la route serveur qui invalide la session, efface les
+    // cookies et redirige vers /login. Pas d'appel JS susceptible de se bloquer.
+    window.location.href = "/api/auth/logout";
   }
 
   // Mode démo ou non connecté : avatar statique

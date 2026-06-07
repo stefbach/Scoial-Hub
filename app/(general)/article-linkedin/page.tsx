@@ -64,7 +64,8 @@ function toPlainText(a: Article): string {
 }
 
 export default function ArticleLinkedInPage() {
-  const { company } = useCompany();
+  const { company, access } = useCompany();
+  const canEdit = access.canEdit;
   const companyId = company.id;
   const t = useT();
 
@@ -292,11 +293,11 @@ export default function ArticleLinkedInPage() {
         </label>
 
         <div className="flex flex-wrap gap-2">
-          <button onClick={genPrompt} disabled={promptLoading} className="btn-secondary inline-flex items-center gap-1.5 text-sm disabled:opacity-50">
+          <button onClick={genPrompt} disabled={promptLoading || !canEdit} className="btn-secondary inline-flex items-center gap-1.5 text-sm disabled:opacity-50">
             {promptLoading && <Spinner size={14} className="text-current" />}
             {promptLoading ? t("Génération…", "Generating…") : t("① Générer le prompt", "① Generate prompt")}
           </button>
-          <button onClick={genArticle} disabled={articleLoading} className="btn-primary inline-flex items-center gap-1.5 text-sm disabled:opacity-50">
+          <button onClick={genArticle} disabled={articleLoading || !canEdit} title={!canEdit ? t("Lecture seule", "View only") : undefined} className="btn-primary inline-flex items-center gap-1.5 text-sm disabled:opacity-50">
             {articleLoading && <Spinner size={16} className="text-white" />}
             {articleLoading ? t("Rédaction…", "Writing…") : t("② Générer l'article", "② Generate article")}
           </button>
@@ -326,7 +327,7 @@ export default function ArticleLinkedInPage() {
             <h2 className="text-lg font-semibold text-ink">{article.title}</h2>
             <div className="flex gap-2">
               <button onClick={copyArticle} className="btn-secondary text-xs">{copied ? t("Copié ✓", "Copied ✓") : t("Copier", "Copy")}</button>
-              <button onClick={publish} disabled={publishing} className="btn-primary inline-flex items-center gap-1.5 text-xs disabled:opacity-50">
+              <button onClick={publish} disabled={publishing || !canEdit} title={!canEdit ? t("Lecture seule", "View only") : undefined} className="btn-primary inline-flex items-center gap-1.5 text-xs disabled:opacity-50">
                 {publishing && <Spinner size={14} className="text-white" />}
                 {publishing ? t("Publication…", "Publishing…") : t("Publier sur LinkedIn", "Publish to LinkedIn")}
               </button>
@@ -413,7 +414,7 @@ export default function ArticleLinkedInPage() {
             <span className="section-label">{t("Aperçu prêt à publier", "Ready-to-publish preview")}</span>
             <div className="flex gap-2">
               <button onClick={copyArticle} className="btn-secondary text-xs">{copied ? t("Copié ✓", "Copied ✓") : t("Copier le texte", "Copy text")}</button>
-              <button onClick={publish} disabled={publishing} className="btn-primary inline-flex items-center gap-1.5 text-xs disabled:opacity-50">
+              <button onClick={publish} disabled={publishing || !canEdit} title={!canEdit ? t("Lecture seule", "View only") : undefined} className="btn-primary inline-flex items-center gap-1.5 text-xs disabled:opacity-50">
                 {publishing && <Spinner size={14} className="text-white" />}
                 {publishing ? t("Publication…", "Publishing…") : t("Publier sur LinkedIn", "Publish to LinkedIn")}
               </button>

@@ -232,3 +232,8 @@ export function useCompany() {
   if (!ctx) throw new Error("useCompany must be used within CompanyProvider");
   return ctx;
 }
+
+/** Raccourci : l'utilisateur peut-il MODIFIER la société active ? */
+export function useCanEdit(): boolean {
+  return useCompany().access.canEdit;
+}

@@ -15,7 +15,7 @@ import { BrandConsultant } from "@/components/onboarding/BrandConsultant";
 import { useT } from "@/lib/i18n";
 
 export default function IdentitePage() {
-  const { company } = useCompany();
+  const { company, access } = useCompany();
   const router = useRouter();
   const t = useT();
 
@@ -31,14 +31,24 @@ export default function IdentitePage() {
         </p>
       </div>
 
-      <BrandConsultant
-        companyId={company.id}
-        companyName={company.name}
-        onContinue={() => router.push("/demarrage")}
-        continueLabel={t("Continuer vers le démarrage guidé", "Continue to guided setup")}
-      />
-
-      <RagMemoryCard companyId={company.id} />
+      {!access.canEdit ? (
+        <div className="card p-8 text-center text-sm text-muted">
+          {t(
+            "Accès en lecture seule : la définition de l'identité de marque est réservée aux utilisateurs ayant un accès en édition.",
+            "View-only access: defining the brand identity is reserved for users with edit access."
+          )}
+        </div>
+      ) : (
+        <>
+          <BrandConsultant
+            companyId={company.id}
+            companyName={company.name}
+            onContinue={() => router.push("/demarrage")}
+            continueLabel={t("Continuer vers le démarrage guidé", "Continue to guided setup")}
+          />
+          <RagMemoryCard companyId={company.id} />
+        </>
+      )}
     </div>
   );
 }

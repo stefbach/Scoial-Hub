@@ -31,7 +31,8 @@ function kindFromUrl(url: string): MediaKind {
 }
 
 export default function StudioPage() {
-  const { company } = useCompany();
+  const { company, access } = useCompany();
+  const canEdit = access.canEdit;
   const t = useT();
   const { lang } = useLang();
 
@@ -304,7 +305,7 @@ export default function StudioPage() {
         </div>
       </section>
 
-      <button className="btn-primary w-full justify-center py-3 text-sm" onClick={marketize} disabled={working || uploading}>
+      <button className="btn-primary w-full justify-center py-3 text-sm disabled:opacity-50" onClick={marketize} disabled={working || uploading || !canEdit} title={!canEdit ? t("Lecture seule", "View only") : undefined}>
         {working ? t("Le studio travaille…", "The studio is working…") : t("✨ Assembler & marketer", "✨ Assemble & market")}
       </button>
 

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
 import { CompanyIndicator } from "./CompanyIndicator";
+import { ReadOnlyBanner } from "./ReadOnlyBanner";
 import { Sidebar } from "./Sidebar";
 import { ScopeBar } from "./ScopeBar";
 import { HelpButton } from "@/components/help/HelpButton";
@@ -271,6 +272,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
         <main className="min-w-0 flex-1 px-4 py-5 sm:px-6 sm:py-6 lg:px-7">
           <DemoBanner />
+          <ReadOnlyBanner />
           {children}
         </main>
       </div>

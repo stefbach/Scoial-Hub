@@ -68,7 +68,8 @@ function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number)
 
 export default function StudioAffichePage() {
   const t = useT();
-  const { company } = useCompany();
+  const { company, access } = useCompany();
+  const canEdit = access.canEdit;
   const companyId = company.id;
 
   const [formatId, setFormatId] = useState("a4p");
@@ -347,10 +348,10 @@ export default function StudioAffichePage() {
             <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} rows={3}
               placeholder={t("Décrivez le visuel… ou laissez l'IA proposer un prompt", "Describe the visual… or let the AI suggest a prompt")} className={inputCls} />
             <div className="flex flex-wrap gap-2">
-              <button onClick={suggestPrompt} disabled={suggesting} className="btn-secondary text-xs disabled:opacity-50">
+              <button onClick={suggestPrompt} disabled={suggesting || !canEdit} className="btn-secondary text-xs disabled:opacity-50">
                 {suggesting ? <span className="inline-flex items-center gap-1.5"><Spinner size={12} className="text-primary-600" />{t("Prompt…", "Prompt…")}</span> : t("🧠 Suggérer un prompt (IA)", "🧠 Suggest a prompt (AI)")}
               </button>
-              <button onClick={generateBackground} disabled={generating} className="btn-primary text-xs disabled:opacity-50">
+              <button onClick={generateBackground} disabled={generating || !canEdit} title={!canEdit ? t("Lecture seule", "View only") : undefined} className="btn-primary text-xs disabled:opacity-50">
                 {generating ? <span className="inline-flex items-center gap-1.5"><Spinner size={12} className="text-white" />{t("Génération…", "Generating…")}</span> : t("✨ Générer le fond (IA)", "✨ Generate background (AI)")}
               </button>
               <label className="btn-secondary cursor-pointer text-xs">
@@ -421,7 +422,7 @@ export default function StudioAffichePage() {
           />
 
           <button onClick={exportPng} className="btn-primary w-full">{t("⬇︎ Télécharger (PNG haute déf)", "⬇︎ Download (high-res PNG)")}</button>
-          <button onClick={saveToLibrary} disabled={savingLib} className="btn-secondary inline-flex w-full items-center justify-center gap-1.5 disabled:opacity-50">
+          <button onClick={saveToLibrary} disabled={savingLib || !canEdit} className="btn-secondary inline-flex w-full items-center justify-center gap-1.5 disabled:opacity-50">
             {savingLib && <Spinner size={14} className="text-current" />}
             {savingLib ? t("Enregistrement…", "Saving…") : t("📚 Enregistrer dans la bibliothèque", "📚 Save to library")}
           </button>

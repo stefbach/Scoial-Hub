@@ -36,7 +36,8 @@ interface Strategy {
 
 export default function LinkedInPage() {
   const t = useT();
-  const { company } = useCompany();
+  const { company, access } = useCompany();
+  const canEdit = access.canEdit;
   const companyId = company.id;
 
   const [account, setAccount] = useState<Account | null>(null);
@@ -247,7 +248,7 @@ export default function LinkedInPage() {
             <input type="checkbox" checked={useMemory} onChange={(e) => setUseMemory(e.target.checked)} className="h-3.5 w-3.5 accent-primary-600" />
             {t("S'appuyer sur la marque (RAG)", "Ground in brand (RAG)")}
           </label>
-          <button onClick={publish} disabled={publishing} className="btn-primary ml-auto inline-flex items-center gap-1.5 text-sm disabled:opacity-50">
+          <button onClick={publish} disabled={publishing || !canEdit} title={!canEdit ? t("Lecture seule", "View only") : undefined} className="btn-primary ml-auto inline-flex items-center gap-1.5 text-sm disabled:opacity-50">
             {publishing && <Spinner size={16} className="text-white" />}
             {publishing ? t("Publication…", "Publishing…") : t("Publier maintenant", "Publish now")}
           </button>

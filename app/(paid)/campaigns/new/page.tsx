@@ -51,7 +51,8 @@ const VISUAL_FORMATS: { id: string; fr: string; en: string }[] = [
 
 export default function NewMetaAdPage() {
   const t = useT();
-  const { company } = useCompany();
+  const { company, access } = useCompany();
+  const canEdit = access.canEdit;
   const companyId = company.id;
 
   // Connexion Meta
@@ -560,7 +561,8 @@ export default function NewMetaAdPage() {
               <button
                 type="button"
                 onClick={publish}
-                disabled={publishing || genImg}
+                disabled={publishing || genImg || !canEdit}
+                title={!canEdit ? t("Lecture seule", "View only") : undefined}
                 className="btn-primary inline-flex items-center gap-1.5 text-sm disabled:opacity-50"
               >
                 {publishing && <Spinner size={14} className="text-white" />}
@@ -582,7 +584,7 @@ export default function NewMetaAdPage() {
               : t("Votre réponse…", "Your reply…")}
             className="flex-1 rounded-lg border border-hair bg-canvas px-3 py-2 text-sm text-ink outline-none focus:border-primary-400"
           />
-          <button type="button" onClick={sendChat} disabled={assisting || !conn?.connected || !chatInput.trim()} className="btn-primary inline-flex shrink-0 items-center gap-1.5 text-sm disabled:opacity-50">
+          <button type="button" onClick={sendChat} disabled={assisting || !conn?.connected || !chatInput.trim() || !canEdit} className="btn-primary inline-flex shrink-0 items-center gap-1.5 text-sm disabled:opacity-50">
             {assisting && <Spinner size={14} className="text-white" />}
             {t("Envoyer", "Send")}
           </button>
@@ -590,7 +592,7 @@ export default function NewMetaAdPage() {
         {!conn?.connected && <p className="mt-1 text-2xs text-muted">{t("Connectez Meta pour activer l'assistant.", "Connect Meta to enable the assistant.")}</p>}
       </section>
 
-      <fieldset disabled={!conn?.connected || publishing} className="space-y-5 disabled:opacity-60">
+      <fieldset disabled={!conn?.connected || publishing || !canEdit} className="space-y-5 disabled:opacity-60">
         {/* Type de publicité */}
         <section className="card p-5 space-y-3">
           <span className="section-label">{t("Type de publicité", "Ad type")}</span>

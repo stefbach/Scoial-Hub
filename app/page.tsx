@@ -93,6 +93,7 @@ const CAP_CATEGORIES = [
 // Catégorie de chaque capacité (même ordre que CAPABILITIES).
 const CAP_CAT_OF = ["ads", "ads", "ads", "ads", "create", "create", "create", "create", "publish", "publish", "pilot", "pilot", "pilot", "pilot"];
 
+const LOOP = [
   { n: "01", fr: "Analyse", en: "Analyse", dfr: "Marché, concurrents et veille décodés en mémoire stratégique.", den: "Market, competitors & watch decoded into strategic memory." },
   { n: "02", fr: "Création", en: "Create", dfr: "Textes, visuels et vidéos générés à votre image, tous formats.", den: "On-brand copy, visuals and videos, every format." },
   { n: "03", fr: "Diffusion", en: "Publish", dfr: "Organique et publicité Meta — en pause d'abord, activation maîtrisée.", den: "Organic & Meta ads — paused first, controlled activation." },

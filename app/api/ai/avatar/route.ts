@@ -10,7 +10,8 @@ export const maxDuration = 300;
 import { NextRequest, NextResponse } from "next/server";
 import { requireCompanyAccess } from "@/lib/auth/guard";
 import { callClaudeJSON } from "@/lib/ai/claude-json";
-import { generateAvatarVideo, isReplicateConfigured } from "@/lib/ai/replicate";
+import { runReplicateUrl, generateImageModel, isReplicateConfigured } from "@/lib/ai/replicate";
+import { getVoiceModel, getAvatarModel } from "@/lib/ai/avatar-models";
 import { isAiConfigured } from "@/lib/env";
 
 interface Body {
@@ -23,6 +24,9 @@ interface Body {
   script?: string;
   faceUrl?: string;
   voice?: string;
+  ttsModel?: string;
+  lipsyncModel?: string;
+  environment?: string;
 }
 
 export async function POST(req: NextRequest) {
@@ -59,18 +63,57 @@ Réponds en JSON: { "script": "..." }`,
     return NextResponse.json({ script, aiGenerated: true });
   }
 
-  // ── Génération de la vidéo d'avatar (TTS + lip-sync) ───────────────────────
+  // ── Génération de la vidéo d'avatar (environnement → TTS → lip-sync) ───────
   const script = (body.script ?? "").trim();
   const faceUrl = (body.faceUrl ?? "").trim();
   if (!script) return NextResponse.json({ error: "Script requis" }, { status: 400 });
   if (!faceUrl) return NextResponse.json({ error: "Image de visage (URL) requise" }, { status: 400 });
-  if (!isReplicateConfigured) {
-    return NextResponse.json({ simulated: true });
-  }
+  if (!isReplicateConfigured) return NextResponse.json({ simulated: true });
+
+  const voiceSpec = getVoiceModel(body.ttsModel);
+  const avatarSpec = getAvatarModel(body.lipsyncModel);
 
   try {
-    const result = await generateAvatarVideo({ text: script, faceUrl, voice: body.voice });
-    return NextResponse.json(result);
+    // 0) Environnement (optionnel) : remplace le fond du portrait via Flux Kontext,
+    //    en conservant la personne. Haute qualité, photoréaliste.
+    let sourceImage = faceUrl;
+    const env = (body.environment ?? "").trim();
+    if (env) {
+      try {
+        const edit = await generateImageModel(
+          "black-forest-labs/flux-kontext-pro",
+          {
+            prompt: `Garde EXACTEMENT la même personne et le même visage. Remplace uniquement l'arrière-plan par : ${env}. Rendu photoréaliste, éclairage cohérent et professionnel, haute qualité.`,
+            input_image: faceUrl,
+            aspect_ratio: "match_input_image",
+            output_format: "jpg",
+            safety_tolerance: 2,
+          },
+          1
+        );
+        if (edit.images?.[0]?.url) sourceImage = edit.images[0].url;
+      } catch (e) {
+        console.warn("[avatar] environnement Kontext échoué, portrait d'origine conservé:", e);
+      }
+    }
+
+    // 1) Voix (TTS)
+    const audioUrl = await runReplicateUrl(voiceSpec.id, {
+      [voiceSpec.textKey]: script,
+      ...(body.voice && voiceSpec.voiceKey ? { [voiceSpec.voiceKey]: body.voice } : {}),
+      ...(voiceSpec.extra ?? {}),
+    });
+    if (!audioUrl) throw new Error("Échec de la génération de la voix (TTS).");
+
+    // 2) Lip-sync (visage + audio → vidéo)
+    const videoUrl = await runReplicateUrl(avatarSpec.id, {
+      [avatarSpec.faceKey]: sourceImage,
+      [avatarSpec.audioKey]: audioUrl,
+      ...(avatarSpec.extra ?? {}),
+    });
+    if (!videoUrl) throw new Error("Échec de la génération de la vidéo (lip-sync).");
+
+    return NextResponse.json({ videoUrl, audioUrl, sourceImage });
   } catch (e) {
     console.error("[POST /api/ai/avatar]", e);
     return NextResponse.json(

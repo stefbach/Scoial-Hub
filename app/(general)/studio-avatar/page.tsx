@@ -4,11 +4,13 @@
 // Visage + sujet → script (Claude) → voix (TTS) → lip-sync (Replicate) → vidéo
 // d'avatar parlant. Téléchargeable et publiable.
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useCompany } from "@/lib/company-context";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Spinner, BusyHint } from "@/components/ui/Spinner";
 import { useT } from "@/lib/i18n";
+import { createClient } from "@/lib/supabase/client";
+import { VOICE_MODELS, AVATAR_MODELS, DEFAULT_VOICE_MODEL, DEFAULT_AVATAR_MODEL } from "@/lib/ai/avatar-models";
 
 export default function StudioAvatarPage() {
   const { company, access } = useCompany();
@@ -20,12 +22,35 @@ export default function StudioAvatarPage() {
   const [language, setLanguage] = useState<"fr" | "en">("fr");
   const [seconds, setSeconds] = useState(20);
   const [script, setScript] = useState("");
+  const [environment, setEnvironment] = useState("");
+  const [ttsModel, setTtsModel] = useState(DEFAULT_VOICE_MODEL);
+  const [lipsyncModel, setLipsyncModel] = useState(DEFAULT_AVATAR_MODEL);
 
+  const [uploading, setUploading] = useState(false);
   const [writing, setWriting] = useState(false);
   const [rendering, setRendering] = useState(false);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  async function uploadFace(files: FileList | null) {
+    if (!files || files.length === 0) return;
+    const sb = createClient();
+    if (!sb) { setError(t("Stockage indisponible.", "Storage unavailable.")); return; }
+    setUploading(true); setError(null);
+    try {
+      const file = files[0];
+      const safe = file.name.replace(/[^a-zA-Z0-9.\-_]/g, "_");
+      const path = `${company.id}/avatar/${Date.now()}-${safe}`;
+      const { error: upErr } = await sb.storage.from("sh-videos").upload(path, file, { upsert: true, contentType: file.type });
+      if (upErr) { setError(t("Échec de l'envoi.", "Upload failed.")); return; }
+      const { data } = sb.storage.from("sh-videos").getPublicUrl(path);
+      if (data?.publicUrl) setFaceUrl(data.publicUrl);
+    } catch {
+      setError(t("Échec de l'envoi.", "Upload failed."));
+    } finally { setUploading(false); }
+  }
 
   async function genScript() {
     if (!topic.trim()) { setError(t("Indiquez un sujet.", "Enter a topic.")); return; }
@@ -51,7 +76,7 @@ export default function StudioAvatarPage() {
     try {
       const r = await fetch("/api/ai/avatar", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyId: company.id, mode: "video", script, faceUrl }),
+        body: JSON.stringify({ companyId: company.id, mode: "video", script, faceUrl, environment, ttsModel, lipsyncModel }),
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || t("Échec.", "Failed."));
@@ -89,8 +114,14 @@ export default function StudioAvatarPage() {
           <div className="space-y-4">
             <section className="card p-5 space-y-3">
               <p className="section-label">{t("1 · Visage de l'avatar", "1 · Avatar face")}</p>
-              <input value={faceUrl} onChange={(e) => setFaceUrl(e.target.value)} placeholder={t("URL d'un portrait (https://…)", "Portrait URL (https://…)")} className="input" />
-              <p className="text-2xs text-muted">{t("Collez l'URL d'une photo de visage nette (ou un visuel de la Médiathèque).", "Paste a clear face photo URL (or a Media library asset).")}</p>
+              <div className="flex gap-2">
+                <input value={faceUrl} onChange={(e) => setFaceUrl(e.target.value)} placeholder={t("URL d'un portrait (https://…)", "Portrait URL (https://…)")} className="input flex-1" />
+                <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => uploadFace(e.target.files)} />
+                <button onClick={() => fileRef.current?.click()} disabled={uploading} className="btn-secondary shrink-0 text-xs disabled:opacity-50">
+                  {uploading ? t("Envoi…", "Uploading…") : t("⬆︎ Téléverser une photo", "⬆︎ Upload a photo")}
+                </button>
+              </div>
+              <p className="text-2xs text-muted">{t("Téléversez ou collez l'URL d'un portrait net, de face. C'est cette personne qui deviendra l'avatar.", "Upload or paste a clear front-facing portrait. This person becomes the avatar.")}</p>
               {faceUrl.trim() && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={faceUrl} alt="" className="h-32 w-32 rounded-xl object-cover ring-1 ring-hair" onError={(e) => { e.currentTarget.style.display = "none"; }} />
@@ -115,6 +146,29 @@ export default function StudioAvatarPage() {
                 </button>
               </div>
               <textarea value={script} onChange={(e) => setScript(e.target.value)} rows={6} placeholder={t("Le script parlé apparaîtra ici (éditable)…", "The spoken script will appear here (editable)…")} className="input" />
+            </section>
+
+            <section className="card p-5 space-y-3">
+              <p className="section-label">{t("3 · Environnement, voix & rendu", "3 · Environment, voice & render")}</p>
+              <div>
+                <label className="text-2xs text-muted">{t("Environnement / décor (optionnel)", "Environment / background (optional)")}</label>
+                <input value={environment} onChange={(e) => setEnvironment(e.target.value)} placeholder={t("Ex. « bureau moderne lumineux », « clinique épurée », « studio fond dégradé violet »", "E.g. \"bright modern office\", \"clean clinic\", \"purple gradient studio\"")} className="input mt-1" />
+                <p className="mt-1 text-2xs text-muted">{t("Décrivez le décor : l'arrière-plan du portrait sera remplacé par l'IA (Flux Kontext), la personne conservée.", "Describe the scene: the portrait background is replaced by AI (Flux Kontext), the person preserved.")}</p>
+              </div>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <div>
+                  <label className="text-2xs text-muted">{t("Voix (modèle)", "Voice (model)")}</label>
+                  <select value={ttsModel} onChange={(e) => setTtsModel(e.target.value)} className="input mt-1">
+                    {VOICE_MODELS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-2xs text-muted">{t("Avatar (modèle)", "Avatar (model)")}</label>
+                  <select value={lipsyncModel} onChange={(e) => setLipsyncModel(e.target.value)} className="input mt-1">
+                    {AVATAR_MODELS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+                  </select>
+                </div>
+              </div>
             </section>
 
             <button onClick={genVideo} disabled={rendering} className="btn-primary w-full justify-center py-3 text-sm disabled:opacity-50">

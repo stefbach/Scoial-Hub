@@ -25,7 +25,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: "Le formulaire de prospects exige une URL de politique de confidentialité." }, { status: 400 });
     }
 
-    const guard = await requireCompanyAccess(body.companyId);
+    const guard = await requireCompanyAccess(body.companyId, { mode: "edit" });
     if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
 
     const result = await publishAd({

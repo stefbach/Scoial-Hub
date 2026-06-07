@@ -151,7 +151,7 @@ export function MetaAdAccountsPanel({ showCampaigns = true }: { showCampaigns?: 
                     key={p.id}
                     onClick={() => setDatePreset(p.id)}
                     disabled={loading && datePreset === p.id}
-                    className={`rounded-md px-2.5 py-1 text-2xs font-semibold transition-colors ${datePreset === p.id ? "bg-primary-600 text-white" : "text-muted hover:text-ink"}`}
+                    className={`rounded-md px-2.5 py-1 text-2xs font-semibold transition-colors ${datePreset === p.id ? "bg-page text-white" : "text-muted hover:text-ink"}`}
                   >
                     {t(p.fr, p.en)}
                   </button>

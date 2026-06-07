@@ -112,7 +112,7 @@ export async function POST(req: NextRequest) {
       name: input.name,
       code,
       brandVoice: input.brandVoice ?? "",
-      accent: input.accent ?? "#2563eb",
+      accent: input.accent ?? "#60a5fa",
       logoUrl: input.logoUrl,
       defaultPlatforms: input.defaultPlatforms,
       defaultPostingTime: input.defaultPostingTime,

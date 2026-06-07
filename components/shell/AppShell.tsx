@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
-import { CompanySwitcher } from "./CompanySwitcher";
+import { CompanyIndicator } from "./CompanyIndicator";
+import { ReadOnlyBanner } from "./ReadOnlyBanner";
 import { Sidebar } from "./Sidebar";
 import { ScopeBar } from "./ScopeBar";
 import { HelpButton } from "@/components/help/HelpButton";
@@ -14,7 +15,6 @@ import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/env";
 
 function UserMenu() {
-  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -43,10 +43,19 @@ function UserMenu() {
 
   async function handleSignOut() {
     setOpen(false);
-    const supabase = createClient();
-    if (supabase) await supabase.auth.signOut();
-    router.push("/login");
-    router.refresh();
+    // 1) Déconnexion client (efface le stockage local du navigateur).
+    try {
+      const supabase = createClient();
+      if (supabase) await supabase.auth.signOut();
+    } catch { /* ignore */ }
+    // 2) Déconnexion SERVEUR (efface les cookies de session de façon fiable).
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } catch { /* ignore */ }
+    // 3) Oublie la société active persistée.
+    try { window.localStorage.removeItem("sh_company_id"); } catch { /* ignore */ }
+    // 4) Rechargement COMPLET vers /login (évite tout rebond dû au cache SSR).
+    window.location.href = "/login";
   }
 
   // Mode démo ou non connecté : avatar statique
@@ -207,9 +216,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <div className="min-h-screen bg-canvas">
+    <div className="app-shell">
+      {/* Décor spatial « Mission Control » — derrière tout le contenu */}
+      <div className="app-mesh" aria-hidden="true" />
+      <div className="app-grain" aria-hidden="true" />
+
       {/* Header sticky — blur + ombre au scroll via CSS */}
-      <header className="app-header sticky top-0 z-30 flex items-center justify-between border-b border-hair bg-card/90 px-3 py-2.5 backdrop-blur-md sm:px-5">
+      <header className="app-header sticky top-0 z-30 flex items-center justify-between border-b border-hair bg-canvas/70 px-3 py-2.5 backdrop-blur-xl sm:px-5">
         <div className="flex min-w-0 items-center gap-2 sm:gap-3">
           {/* Hamburger (mobile only) */}
           <button
@@ -231,7 +244,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {/* Séparateur vertical */}
           <span className="hidden h-4 w-px bg-hair sm:block" aria-hidden="true" />
 
-          <CompanySwitcher />
+          <CompanyIndicator />
         </div>
 
         {/* Zone droite : langue + avatar */}
@@ -267,6 +280,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
         <main className="min-w-0 flex-1 px-4 py-5 sm:px-6 sm:py-6 lg:px-7">
           <DemoBanner />
+          <ReadOnlyBanner />
           {children}
         </main>
       </div>

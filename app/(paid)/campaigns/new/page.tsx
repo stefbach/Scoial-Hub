@@ -51,7 +51,8 @@ const VISUAL_FORMATS: { id: string; fr: string; en: string }[] = [
 
 export default function NewMetaAdPage() {
   const t = useT();
-  const { company } = useCompany();
+  const { company, access } = useCompany();
+  const canEdit = access.canEdit;
   const companyId = company.id;
 
   // Connexion Meta
@@ -542,7 +543,7 @@ export default function NewMetaAdPage() {
           <div className="mt-3 max-h-72 space-y-2 overflow-y-auto rounded-lg border border-hair bg-canvas p-3">
             {chatMessages.map((m, i) => (
               <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-                <span className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm ${m.role === "user" ? "bg-primary-600 text-white" : "bg-card text-ink ring-1 ring-hair"}`}>
+                <span className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm ${m.role === "user" ? "bg-page text-white" : "bg-card text-ink ring-1 ring-hair"}`}>
                   {m.content}
                 </span>
               </div>
@@ -560,7 +561,8 @@ export default function NewMetaAdPage() {
               <button
                 type="button"
                 onClick={publish}
-                disabled={publishing || genImg}
+                disabled={publishing || genImg || !canEdit}
+                title={!canEdit ? t("Lecture seule", "View only") : undefined}
                 className="btn-primary inline-flex items-center gap-1.5 text-sm disabled:opacity-50"
               >
                 {publishing && <Spinner size={14} className="text-white" />}
@@ -582,7 +584,7 @@ export default function NewMetaAdPage() {
               : t("Votre réponse…", "Your reply…")}
             className="flex-1 rounded-lg border border-hair bg-canvas px-3 py-2 text-sm text-ink outline-none focus:border-primary-400"
           />
-          <button type="button" onClick={sendChat} disabled={assisting || !conn?.connected || !chatInput.trim()} className="btn-primary inline-flex shrink-0 items-center gap-1.5 text-sm disabled:opacity-50">
+          <button type="button" onClick={sendChat} disabled={assisting || !conn?.connected || !chatInput.trim() || !canEdit} className="btn-primary inline-flex shrink-0 items-center gap-1.5 text-sm disabled:opacity-50">
             {assisting && <Spinner size={14} className="text-white" />}
             {t("Envoyer", "Send")}
           </button>
@@ -590,7 +592,7 @@ export default function NewMetaAdPage() {
         {!conn?.connected && <p className="mt-1 text-2xs text-muted">{t("Connectez Meta pour activer l'assistant.", "Connect Meta to enable the assistant.")}</p>}
       </section>
 
-      <fieldset disabled={!conn?.connected || publishing} className="space-y-5 disabled:opacity-60">
+      <fieldset disabled={!conn?.connected || publishing || !canEdit} className="space-y-5 disabled:opacity-60">
         {/* Type de publicité */}
         <section className="card p-5 space-y-3">
           <span className="section-label">{t("Type de publicité", "Ad type")}</span>
@@ -621,7 +623,7 @@ export default function NewMetaAdPage() {
               <div className="flex flex-wrap gap-1.5">
                 {OBJECTIVES.filter((o) => o.id !== "leads").map((o) => (
                   <button key={o.id} type="button" onClick={() => setObjective(o.id)}
-                    className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${objective === o.id ? "bg-primary-600 text-white" : "bg-canvas text-muted ring-1 ring-hair hover:text-ink"}`}>
+                    className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${objective === o.id ? "bg-page text-white" : "bg-canvas text-muted ring-1 ring-hair hover:text-ink"}`}>
                     {t(o.fr, o.en)}
                   </button>
                 ))}
@@ -653,7 +655,7 @@ export default function NewMetaAdPage() {
               <div className="inline-flex rounded-lg border border-hair bg-canvas p-0.5">
                 {(["daily", "lifetime"] as const).map((b) => (
                   <button key={b} type="button" onClick={() => setBudgetType(b)}
-                    className={`rounded-md px-2.5 py-1 text-2xs font-semibold ${budgetType === b ? "bg-primary-600 text-white" : "text-muted hover:text-ink"}`}>
+                    className={`rounded-md px-2.5 py-1 text-2xs font-semibold ${budgetType === b ? "bg-page text-white" : "text-muted hover:text-ink"}`}>
                     {b === "daily" ? t("Quotidien", "Daily") : t("À vie", "Lifetime")}
                   </button>
                 ))}
@@ -725,7 +727,7 @@ export default function NewMetaAdPage() {
                 const on = selInterests.some((x) => x.id === it.id);
                 return (
                   <button key={it.id} type="button" onClick={() => toggleInterest(it)}
-                    className={`rounded-full px-3 py-1 text-2xs font-medium ${on ? "bg-primary-600 text-white" : "bg-canvas text-muted ring-1 ring-hair hover:text-ink"}`}>
+                    className={`rounded-full px-3 py-1 text-2xs font-medium ${on ? "bg-page text-white" : "bg-canvas text-muted ring-1 ring-hair hover:text-ink"}`}>
                     {it.name}{it.audienceSize ? ` · ${(it.audienceSize / 1e6).toFixed(1)}M` : ""}
                   </button>
                 );
@@ -759,7 +761,7 @@ export default function NewMetaAdPage() {
                   const on = selAudiences.some((x) => x.id === a.id);
                   return (
                     <button key={a.id} type="button" onClick={() => toggleAudience(a)}
-                      className={`rounded-full px-3 py-1 text-2xs font-medium ${on ? "bg-primary-600 text-white" : "bg-canvas text-muted ring-1 ring-hair hover:text-ink"}`}
+                      className={`rounded-full px-3 py-1 text-2xs font-medium ${on ? "bg-page text-white" : "bg-canvas text-muted ring-1 ring-hair hover:text-ink"}`}
                       title={a.subtype}>
                       {a.name}{a.size ? ` · ${(a.size / 1000).toFixed(0)}k` : ""}
                     </button>
@@ -776,7 +778,7 @@ export default function NewMetaAdPage() {
           <div className="inline-flex rounded-lg border border-hair bg-canvas p-0.5">
             {(["auto", "manual"] as const).map((p) => (
               <button key={p} type="button" onClick={() => setPlacement(p)}
-                className={`rounded-md px-2.5 py-1 text-2xs font-semibold ${placement === p ? "bg-primary-600 text-white" : "text-muted hover:text-ink"}`}>
+                className={`rounded-md px-2.5 py-1 text-2xs font-semibold ${placement === p ? "bg-page text-white" : "text-muted hover:text-ink"}`}>
                 {p === "auto" ? t("Automatiques (Advantage+)", "Automatic (Advantage+)") : t("Manuels", "Manual")}
               </button>
             ))}
@@ -842,7 +844,7 @@ export default function NewMetaAdPage() {
               <span className="text-2xs text-muted">{t("Formats :", "Formats:")}</span>
               {VISUAL_FORMATS.map((f) => (
                 <button key={f.id} type="button" onClick={() => toggleFormat(f.id)}
-                  className={`rounded-full px-2.5 py-1 text-2xs font-medium ${visualFormats.includes(f.id) ? "bg-primary-600 text-white" : "bg-canvas text-muted ring-1 ring-hair hover:text-ink"}`}>
+                  className={`rounded-full px-2.5 py-1 text-2xs font-medium ${visualFormats.includes(f.id) ? "bg-page text-white" : "bg-canvas text-muted ring-1 ring-hair hover:text-ink"}`}>
                   {t(f.fr, f.en)} · {f.id}
                 </button>
               ))}
@@ -931,7 +933,7 @@ export default function NewMetaAdPage() {
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={u} alt={`carrousel ${i + 1}`} className="h-20 w-20 rounded-lg border border-hair object-cover" />
                       <button type="button" onClick={() => setExtraImages((a) => a.filter((_, j) => j !== i))}
-                        className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-danger-600 text-[10px] font-bold text-white">✕</button>
+                        className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-danger-500 text-[10px] font-bold text-white">✕</button>
                     </div>
                   ))}
                 </div>

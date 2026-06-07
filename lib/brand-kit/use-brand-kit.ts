@@ -57,6 +57,27 @@ export function useBrandKit(companyId: string | undefined) {
     [companyId]
   );
 
+  /** Remet le brand kit à zéro (logo, charte, palette, charte IA…). */
+  const reset = useCallback(async (): Promise<BrandKit | null> => {
+    if (!companyId) return null;
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/brand-kit?companyId=${encodeURIComponent(companyId)}`, {
+        method: "DELETE",
+      });
+      const d = await res.json();
+      if (res.ok && d.kit) {
+        setKit(d.kit as BrandKit);
+        return d.kit as BrandKit;
+      }
+      return null;
+    } catch {
+      return null;
+    } finally {
+      setSaving(false);
+    }
+  }, [companyId]);
+
   /**
    * Téléverse un blob (logo/charte, rasterisé en PNG côté appelant) dans le
    * bucket public `sh-logos` et retourne son URL publique. Dégradation :
@@ -86,5 +107,5 @@ export function useBrandKit(companyId: string | undefined) {
     [companyId]
   );
 
-  return { kit: kit ?? (companyId ? makeEmptyBrandKit(companyId) : null), hasKit: !!kit, loading, saving, save, uploadAsset };
+  return { kit: kit ?? (companyId ? makeEmptyBrandKit(companyId) : null), hasKit: !!kit, loading, saving, save, reset, uploadAsset };
 }

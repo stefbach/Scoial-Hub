@@ -1,0 +1,193 @@
+"use client";
+
+// ── Mes sociétés ─────────────────────────────────────────────────────────────
+// Surface de sélection (verrouillée, plus de menu déroulant volatil) ET de
+// gestion des sociétés : choisir la société active, créer, éditer, gérer les
+// connexions, supprimer. La création/édition/suppression est réservée à
+// l'admin du compte.
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { useCompany } from "@/lib/company-context";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { NewCompanyModal } from "@/components/company/NewCompanyModal";
+import { useT } from "@/lib/i18n";
+import type { Company } from "@/lib/types";
+
+export default function MesSocietesPage() {
+  const { companies, company, setCompanyId, updateCompany, access } = useCompany();
+  const router = useRouter();
+  const t = useT();
+  const [openNew, setOpenNew] = useState(false);
+  const [editing, setEditing] = useState<Company | null>(null);
+
+  const isAdmin = access.isAccountAdmin;
+
+  function open(id: string) {
+    setCompanyId(id);
+    router.push("/dashboard");
+  }
+
+  async function remove(c: Company) {
+    if (!window.confirm(t(`Supprimer « ${c.name} » ? Cette action est définitive.`, `Delete "${c.name}"? This is permanent.`))) return;
+    const res = await fetch(`/api/companies/${encodeURIComponent(c.id)}`, { method: "DELETE" });
+    if (res.ok) window.location.reload();
+    else window.alert(t("Suppression impossible.", "Could not delete."));
+  }
+
+  return (
+    <div className="mx-auto max-w-5xl space-y-5">
+      <PageHeader
+        title={t("Mes sociétés", "My companies")}
+        scoped={false}
+        actions={
+          isAdmin ? (
+            <button onClick={() => setOpenNew(true)} className="btn-primary text-sm">
+              + {t("Nouvelle société", "New company")}
+            </button>
+          ) : undefined
+        }
+      />
+      <p className="-mt-3 max-w-3xl text-sm text-muted">
+        {t(
+          "Choisissez la société sur laquelle travailler — c'est ici que se verrouille votre périmètre. Gérez aussi leurs connexions et leur identité.",
+          "Pick the company you work on — this is where your scope is locked. Also manage their connections and identity."
+        )}
+      </p>
+
+      {companies.filter((c) => c.id).length === 0 ? (
+        <div className="card p-8 text-center">
+          <p className="text-sm text-muted">
+            {t("Aucune société pour le moment.", "No company yet.")}
+          </p>
+          {isAdmin && (
+            <button onClick={() => setOpenNew(true)} className="btn-primary mt-3 text-sm">
+              + {t("Créer ma première société", "Create my first company")}
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {companies.filter((c) => c.id).map((c) => {
+            const active = c.id === company.id;
+            return (
+              <div key={c.id} className={`card p-4 ${active ? "ring-2 ring-page/50" : ""}`}>
+                <div className="flex items-start gap-3">
+                  <span
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-sm font-bold text-white"
+                    style={{ background: c.accent || "#7c3aed" }}
+                  >
+                    {(c.code || "—").slice(0, 2).toUpperCase()}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="truncate text-sm font-semibold text-ink">{c.name}</p>
+                      {active && <span className="chip text-success-600">{t("active", "active")}</span>}
+                    </div>
+                    {c.brandVoice && <p className="mt-0.5 line-clamp-2 text-2xs text-muted">{c.brandVoice}</p>}
+                  </div>
+                </div>
+
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <button onClick={() => open(c.id)} className="btn-primary text-2xs">
+                    {t("Ouvrir", "Open")}
+                  </button>
+                  <Link href="/accounts" onClick={() => setCompanyId(c.id)} className="btn-secondary text-2xs">
+                    {t("Connexions", "Connections")}
+                  </Link>
+                  {isAdmin && (
+                    <>
+                      <button onClick={() => setEditing(c)} className="btn-ghost text-2xs text-muted">
+                        {t("Modifier", "Edit")}
+                      </button>
+                      <button onClick={() => remove(c)} className="btn-ghost text-2xs text-danger-600">
+                        {t("Supprimer", "Delete")}
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <NewCompanyModal open={openNew} onClose={() => setOpenNew(false)} />
+      {editing && (
+        <EditCompanyModal
+          company={editing}
+          onClose={() => setEditing(null)}
+          onSaved={(patch) => {
+            updateCompany(editing.id, patch);
+            setEditing(null);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function EditCompanyModal({
+  company,
+  onClose,
+  onSaved,
+}: {
+  company: Company;
+  onClose: () => void;
+  onSaved: (patch: Partial<Company>) => void;
+}) {
+  const t = useT();
+  const [name, setName] = useState(company.name);
+  const [brandVoice, setBrandVoice] = useState(company.brandVoice);
+  const [accent, setAccent] = useState(company.accent);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function save() {
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/companies/${encodeURIComponent(company.id)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, brandVoice, accent }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || "fail");
+      onSaved({ name, brandVoice, accent });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t("Échec.", "Failed."));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/50 p-4 backdrop-blur-sm" onClick={onClose}>
+      <div className="card w-full max-w-md p-5" onClick={(e) => e.stopPropagation()}>
+        <h2 className="text-base font-semibold text-ink">{t("Modifier la société", "Edit company")}</h2>
+        <div className="mt-4 space-y-3">
+          <div>
+            <label className="section-label">{t("Nom", "Name")}</label>
+            <input value={name} onChange={(e) => setName(e.target.value)} className="input mt-1" />
+          </div>
+          <div>
+            <label className="section-label">{t("Voix de marque", "Brand voice")}</label>
+            <input value={brandVoice} onChange={(e) => setBrandVoice(e.target.value)} className="input mt-1" />
+          </div>
+          <div>
+            <label className="section-label">{t("Couleur d'accent", "Accent color")}</label>
+            <input type="color" value={accent} onChange={(e) => setAccent(e.target.value)} className="mt-1 h-9 w-16 cursor-pointer rounded border border-hair bg-card" />
+          </div>
+          {error && <p className="text-2xs text-danger-600">{error}</p>}
+        </div>
+        <div className="mt-5 flex justify-end gap-2">
+          <button onClick={onClose} className="btn-secondary text-sm">{t("Annuler", "Cancel")}</button>
+          <button onClick={save} disabled={saving} className="btn-primary text-sm">
+            {saving ? t("Enregistrement…", "Saving…") : t("Enregistrer", "Save")}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

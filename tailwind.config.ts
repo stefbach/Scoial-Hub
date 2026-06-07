@@ -10,19 +10,21 @@ const config: Config = {
     extend: {
       colors: {
         // ── Core tokens (noms inchangés) ──────────────────────────────
-        // Nouvelle palette : Prune-Améthyste — accent unique, fort, mémorable
-        page:   "#5b2d8e",   // prune-violet profond — accent principal premium
-        canvas: "#f6f4f9",   // lavande très claire — fond général raffiné
-        card:   "#ffffff",   // blanc pur — surfaces élevées
-        ink:    "#1c1625",   // quasi-noir violet-chaud — lisibilité absolue
-        muted:  "#7a6f8a",   // violet-gris doux — textes secondaires
-        hair:   "#e8e4f0",   // bordure lavande discrète et élégante
-        // ── AI tokens (noms inchangés) ────────────────────────────────
+        // Thème « Mission Control » — sombre, cinématique, améthyste.
+        // Pilotés par variables CSS (RGB) -> support natif des modificateurs
+        // d'opacité Tailwind (bg-card/90, text-muted/50, …).
+        page:   "rgb(var(--color-page) / <alpha-value>)",   // améthyste — accent principal
+        canvas: "rgb(var(--color-canvas) / <alpha-value>)", // fond spatial profond
+        card:   "rgb(var(--color-card) / <alpha-value>)",   // surface verre sombre
+        ink:    "rgb(var(--color-ink) / <alpha-value>)",    // texte clair haute lisibilité
+        muted:  "rgb(var(--color-muted) / <alpha-value>)",  // texte secondaire violet-gris
+        hair:   "rgb(var(--color-hair) / <alpha-value>)",   // bordure violette discrète
+        // ── AI tokens (noms inchangés) — adaptés au thème sombre ──────
         ai: {
-          text:     "#7c3aed",   // violet vif — IA distinguée
-          textbg:   "#f3eeff",   // fond violet très clair
-          visual:   "#9333ea",   // violet riche pour visuels IA
-          visualbg: "#faf0ff",   // fond violet ultra-clair
+          text:     "#b794f6",   // violet lumineux — IA distinguée sur fond sombre
+          textbg:   "#1d1536",   // fond violet profond (callouts IA)
+          visual:   "#c084fc",   // violet clair éclatant pour visuels IA
+          visualbg: "#221636",   // fond violet ultra-profond
         },
         // ── Platform tokens (noms inchangés) ─────────────────────────
         platform: {
@@ -30,45 +32,46 @@ const config: Config = {
           instagram: "#e1306c",
           linkedin:  "#0a66c2",
         },
-        // ── Palette primaire — accord avec le prune-améthyste ────────
+        // ── Palette primaire — améthyste, calibrée pour fond sombre ───
+        // 50/100 = tuiles sombres (callouts) ; 600/700 = texte clair lisible.
         primary: {
-          50:  "#f5f0ff",
-          100: "#ece3ff",
-          200: "#d8c8ff",
-          300: "#bb9fff",
+          50:  "#1b1330",   // tuile violette profonde (fond de callout)
+          100: "#251a40",   // tuile violette un peu plus claire
+          200: "#3a2c5e",   // bordures discrètes
+          300: "#bb9fff",   // accents clairs (rings)
           400: "#9b6eff",
-          500: "#7c3aed",
-          600: "#6d28d9",
-          700: "#5b21b6",
+          500: "#7c3aed",   // accent solide (boutons)
+          600: "#a78bfa",   // TEXTE clair sur fond sombre
+          700: "#c4b5fd",   // TEXTE très clair
           800: "#4c1d95",
           900: "#3b0764",
         },
-        // ── Sémantiques ───────────────────────────────────────────────
+        // ── Sémantiques — fonds sombres + textes clairs ───────────────
         success: {
-          50:  "#f0fdf4",
-          100: "#dcfce7",
-          500: "#22c55e",
-          600: "#16a34a",
-          700: "#15803d",
+          50:  "#0f2a1c",   // tuile verte profonde
+          100: "#15351f",
+          500: "#22c55e",   // solide (points, boutons)
+          600: "#4ade80",   // TEXTE clair
+          700: "#86efac",   // TEXTE très clair
         },
         warning: {
-          50:  "#fffbeb",
-          100: "#fef3c7",
-          500: "#f59e0b",
-          600: "#d97706",
-          700: "#b45309",
+          50:  "#2a2110",   // tuile ambre profonde
+          100: "#3a2c12",
+          500: "#f59e0b",   // solide
+          600: "#fbbf24",   // TEXTE clair
+          700: "#fcd34d",   // TEXTE très clair
         },
         danger: {
-          50:  "#fff1f2",
-          100: "#ffe4e6",
-          200: "#fecdd3",
-          500: "#f43f5e",
-          600: "#e11d48",
-          700: "#be123c",
+          50:  "#2c1417",   // tuile rouge profonde
+          100: "#3a181e",
+          200: "#5a2730",   // bordures discrètes
+          500: "#f43f5e",   // solide
+          600: "#fb7185",   // TEXTE clair
+          700: "#fda4af",   // TEXTE très clair
         },
       },
       borderColor: {
-        DEFAULT: "#e8e4f0",
+        DEFAULT: "rgb(var(--color-hair))",
       },
       fontSize: {
         "2xs": ["0.6875rem", { lineHeight: "1rem" }],

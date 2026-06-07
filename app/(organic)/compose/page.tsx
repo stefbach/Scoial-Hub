@@ -56,7 +56,8 @@ export default function ComposePage() {
 }
 
 function ComposeContent() {
-  const { company, data } = useCompany();
+  const { company, data, access } = useCompany();
+  const canEdit = access.canEdit;
   const router = useRouter();
   const params = useSearchParams();
   const t = useT();
@@ -287,10 +288,10 @@ function ComposeContent() {
           <p className="mt-0.5 w-full text-2xs text-muted">{modeSub}</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="secondary" onClick={handleSaveDraft} disabled={noneSelected || submitting}>
+          <Button variant="secondary" onClick={handleSaveDraft} disabled={noneSelected || submitting || !canEdit}>
             {t("Enregistrer comme brouillon", "Save as draft")}
           </Button>
-          <Button variant="secondary" onClick={handleSaveToLibrary} disabled={savingLibrary}>
+          <Button variant="secondary" onClick={handleSaveToLibrary} disabled={savingLibrary || !canEdit}>
             {savingLibrary
               ? t("Enregistrement…", "Saving…")
               : t("Enregistrer dans la bibliothèque", "Save to library")}
@@ -478,8 +479,8 @@ function ComposeContent() {
             <Button
               variant="primary"
               onClick={handleSubmit}
-              disabled={noneSelected || submitting}
-              title={noneSelected ? t("Sélectionnez au moins une plateforme", "Select at least one platform") : undefined}
+              disabled={noneSelected || submitting || !canEdit}
+              title={!canEdit ? t("Lecture seule", "View only") : noneSelected ? t("Sélectionnez au moins une plateforme", "Select at least one platform") : undefined}
             >
               {submitting && (
                 <span

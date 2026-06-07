@@ -9,7 +9,7 @@
 
 /* ── Variables CSS ─────────────────────────────────────────────────── */
 :root {
-  color-scheme: light;
+  color-scheme: dark;
 
   /* Paire typographique premium :
      – Titres  : Fraunces — serif optique variable, éditorial chic, signature visuelle forte
@@ -17,14 +17,15 @@
   --font-sans:    'Manrope', ui-sans-serif, system-ui, -apple-system, sans-serif;
   --font-display: 'Fraunces', ui-serif, Georgia, serif;
 
-  /* Couleurs (synchronisées avec tokens Tailwind) ─ palette Prune-Améthyste */
-  /* Accent : prune-violet profond, unique et mémorable, idéal SaaS marketing premium */
-  --color-page:    #5b2d8e;   /* prune-violet profond — accent principal              */
-  --color-canvas:  #f6f4f9;   /* lavande très claire — fond général raffiné           */
-  --color-card:    #ffffff;   /* blanc pur — surfaces élevées                        */
-  --color-ink:     #1c1625;   /* quasi-noir violet-chaud — lisibilité absolue         */
-  --color-muted:   #7a6f8a;   /* violet-gris doux — textes secondaires               */
-  --color-hair:    #e8e4f0;   /* bordure lavande discrète et élégante                */
+  /* Couleurs « Mission Control » — sombre cinématique, accent améthyste.
+     Exprimées en triplets RGB (sans rgb()) pour piloter les tokens Tailwind
+     `rgb(var(--color-x) / <alpha-value>)` avec support des opacités.        */
+  --color-page:    124 58 237;   /* améthyste vif — accent principal                  */
+  --color-canvas:  10 7 16;      /* fond spatial profond (#0a0710)                    */
+  --color-card:    23 17 34;     /* surface verre sombre (#171122)                    */
+  --color-ink:     236 231 245;  /* texte clair haute lisibilité (#ece7f5)            */
+  --color-muted:   168 156 196;  /* texte secondaire violet-gris (#a89cc4)            */
+  --color-hair:    54 44 79;     /* bordure violette discrète (#362c4f)               */
 
   /* Transitions globales cohérentes */
   --transition-fast: 120ms cubic-bezier(0.4, 0, 0.2, 1);
@@ -49,8 +50,8 @@
   }
 
   body {
-    background: var(--color-canvas);
-    color: var(--color-ink);
+    background: rgb(var(--color-canvas));
+    color: rgb(var(--color-ink));
     line-height: 1.6;
   }
 
@@ -105,17 +106,17 @@
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background: #cfc9e0;
+    background: #3a2f54;
     border-radius: 99px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: #a89ec0;
+    background: #5a4d75;
   }
 
-  /* Sélection de texte — teinte prune douce */
+  /* Sélection de texte — améthyste lumineuse sur fond sombre */
   ::selection {
-    background: rgb(124 58 237 / 0.15);
-    color: #1c1625;
+    background: rgb(168 85 247 / 0.35);
+    color: #fff;
   }
 }
 
@@ -125,8 +126,12 @@
   /* ── Card — surface principale avec ombre premium ──────────────── */
   /* Ombre à teinte prune subtile, deux couches, bordure lavande fine */
   .card {
-    @apply rounded-xl border border-hair bg-card;
-    box-shadow: 0 1px 3px 0 rgb(91 45 142 / 0.07), 0 1px 2px -1px rgb(91 45 142 / 0.04);
+    @apply rounded-xl border border-hair;
+    /* Verre sombre : léger dégradé translucide sur le fond spatial */
+    background:
+      linear-gradient(160deg, rgb(255 255 255 / 0.045), rgb(255 255 255 / 0.012)),
+      rgb(var(--color-card));
+    box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.5), inset 0 1px 0 rgb(255 255 255 / 0.05);
     transition: box-shadow var(--transition-base), border-color var(--transition-base);
   }
   /* Hover uniquement pour les cards cliquables */
@@ -134,13 +139,14 @@
     @apply cursor-pointer;
   }
   .card:where([href], [role="button"], button):hover {
-    box-shadow: 0 4px 14px 0 rgb(91 45 142 / 0.12), 0 2px 4px -1px rgb(91 45 142 / 0.06);
-    border-color: #d8c8ff; /* teinte améthyste claire au hover */
+    box-shadow: 0 18px 40px -20px rgb(124 58 237 / 0.55), inset 0 1px 0 rgb(255 255 255 / 0.07);
+    border-color: rgb(168 85 247 / 0.55); /* améthyste lumineuse au hover */
   }
 
-  /* ── Panel — surface secondaire (lavande claire) ──────────────── */
+  /* ── Panel — surface secondaire (verre plus sobre) ────────────── */
   .panel {
-    @apply rounded-xl border border-hair bg-canvas shadow-xs;
+    @apply rounded-xl border border-hair;
+    background: rgb(255 255 255 / 0.025);
   }
 
   /* ── Section label — libellé de groupe ───────────────────────── */
@@ -216,8 +222,8 @@
     transition: background-color var(--transition-fast), border-color var(--transition-fast);
   }
   .chip:hover {
-    @apply bg-white;
-    border-color: #bb9fff;
+    background: rgb(168 85 247 / 0.16);
+    border-color: rgb(168 85 247 / 0.6);
   }
 
   /* ── Divider ──────────────────────────────────────────────────── */
@@ -291,8 +297,45 @@
 /* ── AppShell — header avec ombre au scroll (CSS only) ─────────────── */
 /* L'ombre du header est gérée par la classe sticky + scroll-shadow */
 .app-header {
-  box-shadow: 0 1px 0 0 var(--color-hair);
+  box-shadow: 0 1px 0 0 rgb(var(--color-hair));
   transition: box-shadow var(--transition-base);
+}
+
+/* ── App shell « Mission Control » — décor spatial sous toutes les pages ─── */
+/* Même langage visuel que la home : nébuleuse améthyste + grain, posés en
+   fixed derrière le contenu. Le contenu est explicitement remonté en z-index. */
+.app-shell {
+  position: relative;
+  min-height: 100vh;
+  background: rgb(var(--color-canvas));
+}
+.app-shell > .app-mesh {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(42% 50% at 82% -6%, rgba(168, 85, 247, 0.22), transparent 60%),
+    radial-gradient(38% 46% at 2% 12%, rgba(24, 119, 242, 0.14), transparent 60%),
+    radial-gradient(46% 56% at 62% 112%, rgba(225, 48, 108, 0.10), transparent 60%);
+  filter: saturate(1.1);
+  animation: mcfloat 22s ease-in-out infinite alternate;
+}
+.app-shell > .app-grain {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.04;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+.app-shell > *:not(.app-mesh):not(.app-grain) {
+  position: relative;
+  z-index: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-shell > .app-mesh { animation: none; }
 }
 /* Quand un élément juste après le header est scrollé, CSS ne peut pas le détecter
    directement. On utilise plutôt une ombre initiale fine qui s'intensifie grâce à

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useCompany } from "@/lib/company-context";
+import { useCompany, useCanEdit } from "@/lib/company-context";
 import { useT } from "@/lib/i18n";
 import { AgentModal } from "@/components/inbox/AgentModal";
 import { Spinner, BusyHint } from "@/components/ui/Spinner";
@@ -192,7 +192,7 @@ export default function InboxPage() {
           <button
             key={k.id}
             onClick={() => setKindFilter(k.id)}
-            className={`rounded-full px-3 py-1 text-2xs font-medium transition-colors ${kindFilter === k.id ? "bg-primary-600 text-white" : "bg-canvas text-muted hover:text-ink"}`}
+            className={`rounded-full px-3 py-1 text-2xs font-medium transition-colors ${kindFilter === k.id ? "bg-page text-white" : "bg-canvas text-muted hover:text-ink"}`}
           >
             {t(k.fr, k.en)}
           </button>
@@ -271,6 +271,7 @@ function AgentsSection({
   onDelete: (a: InboxAgent) => void;
 }) {
   const t = useT();
+  const canEdit = useCanEdit();
   return (
     <section className="card overflow-hidden">
       <div className={`flex items-center justify-between border-b border-hair px-5 py-3 ${agents.length === 0 ? "bg-primary-50" : "bg-canvas"}`}>
@@ -282,7 +283,7 @@ function AgentsSection({
               : t("Un agent pour tout, ou un agent par canal.", "One agent for everything, or one per channel.")}
           </p>
         </div>
-        <button onClick={onCreate} className={`text-xs ${agents.length === 0 ? "btn-primary ring-2 ring-primary-200" : "btn-primary"}`}>
+        <button onClick={onCreate} disabled={!canEdit} title={!canEdit ? t("Lecture seule", "View only") : undefined} className={`text-xs disabled:opacity-50 ${agents.length === 0 ? "btn-primary ring-2 ring-primary-200" : "btn-primary"}`}>
           {t("+ Nouvel agent", "+ New agent")}
         </button>
       </div>
@@ -295,7 +296,7 @@ function AgentsSection({
               "Create an agent: give it a voice, a scope, and tell it when to hand off to a human."
             )}
           </p>
-          <button onClick={onCreate} className="btn-primary mt-3 inline-flex text-xs">{t("+ Créer un agent", "+ Create an agent")}</button>
+          <button onClick={onCreate} disabled={!canEdit} className="btn-primary mt-3 inline-flex text-xs disabled:opacity-50">{t("+ Créer un agent", "+ Create an agent")}</button>
         </div>
       ) : (
         <ul className="divide-y divide-hair">
@@ -318,14 +319,15 @@ function AgentsSection({
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <label className="flex cursor-pointer items-center gap-1.5 text-2xs text-muted">
-                  <input type="checkbox" checked={a.enabled} onChange={(e) => onToggle(a, e.target.checked)} className="accent-primary-600" />
+                <label className={`flex items-center gap-1.5 text-2xs text-muted ${canEdit ? "cursor-pointer" : "opacity-50"}`}>
+                  <input type="checkbox" checked={a.enabled} disabled={!canEdit} onChange={(e) => onToggle(a, e.target.checked)} className="accent-primary-600" />
                   {t("Actif", "On")}
                 </label>
-                <button onClick={() => onEdit(a)} className="btn-secondary text-2xs">{t("Modifier", "Edit")}</button>
+                <button onClick={() => onEdit(a)} disabled={!canEdit} className="btn-secondary text-2xs disabled:opacity-50">{t("Modifier", "Edit")}</button>
                 <button
                   onClick={() => { if (confirm(t("Supprimer cet agent ?", "Delete this agent?"))) onDelete(a); }}
-                  className="text-2xs text-danger-600 hover:underline"
+                  disabled={!canEdit}
+                  className="text-2xs text-danger-600 hover:underline disabled:opacity-50"
                 >
                   {t("Suppr.", "Delete")}
                 </button>
@@ -351,6 +353,7 @@ function MessageCard({
   onChanged: (m: InboxMessage) => void;
 }) {
   const t = useT();
+  const canEdit = useCanEdit();
   const [draft, setDraft] = useState(message.reply?.body ?? "");
   const [reply, setReply] = useState(message.reply ?? null);
   const [generating, setGenerating] = useState(false);
@@ -481,15 +484,15 @@ function MessageCard({
               className="w-full rounded-lg border border-hair bg-canvas px-3 py-2 text-sm text-ink outline-none focus:border-primary-400"
             />
             <div className="mt-2 flex flex-wrap items-center gap-2">
-              <button onClick={generate} disabled={generating || !hasAgent} className="btn-secondary inline-flex items-center gap-1.5 text-xs disabled:opacity-50">
+              <button onClick={generate} disabled={generating || !hasAgent || !canEdit} className="btn-secondary inline-flex items-center gap-1.5 text-xs disabled:opacity-50">
                 {generating && <Spinner size={14} className="text-current" />}
                 {generating ? t("Génération…", "Generating…") : t("✨ Réponse IA", "✨ AI reply")}
               </button>
-              <button onClick={send} disabled={sending || !draft.trim()} className="btn-primary inline-flex items-center gap-1.5 text-xs disabled:opacity-50">
+              <button onClick={send} disabled={sending || !draft.trim() || !canEdit} title={!canEdit ? t("Lecture seule", "View only") : undefined} className="btn-primary inline-flex items-center gap-1.5 text-xs disabled:opacity-50">
                 {sending && <Spinner size={14} className="text-white" />}
                 {sending ? t("Envoi…", "Sending…") : t("Envoyer", "Send")}
               </button>
-              <button onClick={() => setStatus("ignored")} className="text-xs text-muted hover:text-ink">
+              <button onClick={() => setStatus("ignored")} disabled={!canEdit} className="text-xs text-muted hover:text-ink disabled:opacity-50">
                 {t("Ignorer", "Ignore")}
               </button>
               {!hasAgent && (
@@ -544,6 +547,7 @@ function SimulateModal({
   onCreated: () => void;
 }) {
   const t = useT();
+  const canEdit = useCanEdit();
   const [channel, setChannel] = useState<InboxChannel>("facebook");
   const [authorName, setAuthorName] = useState("");
   const [text, setText] = useState("");
@@ -593,7 +597,7 @@ function SimulateModal({
         </div>
         <div className="mt-4 flex justify-end gap-2">
           <button onClick={onClose} className="btn-secondary text-sm">{t("Annuler", "Cancel")}</button>
-          <button onClick={create} disabled={saving || !text.trim()} className="btn-primary text-sm disabled:opacity-50">
+          <button onClick={create} disabled={saving || !text.trim() || !canEdit} className="btn-primary text-sm disabled:opacity-50">
             {saving ? t("Ajout…", "Adding…") : t("Ajouter", "Add")}
           </button>
         </div>

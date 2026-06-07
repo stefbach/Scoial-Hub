@@ -54,13 +54,13 @@ export function Logo({
         <span className="flex flex-col leading-none">
           <span
             className="font-bold tracking-tight"
-            style={{ fontFamily: "var(--font-display)", fontSize: size * 0.58, color: onDark ? "#fff" : "var(--color-ink)" }}
+            style={{ fontFamily: "var(--font-display)", fontSize: size * 0.58, color: onDark ? "#fff" : "rgb(var(--color-ink))" }}
           >
             AXON-AI
           </span>
           <span
             className="mt-0.5 text-[0.625rem] font-semibold uppercase tracking-[0.18em]"
-            style={{ color: onDark ? "rgba(255,255,255,0.65)" : "var(--color-muted)" }}
+            style={{ color: onDark ? "rgba(255,255,255,0.65)" : "rgb(var(--color-muted))" }}
           >
             Social Media
           </span>

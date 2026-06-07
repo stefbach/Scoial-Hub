@@ -104,7 +104,7 @@ export function AdPilot() {
               <button
                 onClick={() => apply(a, i)}
                 disabled={applying === i || !!done[i]}
-                className={`inline-flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold disabled:opacity-50 ${a.impact === "spend" ? "bg-warning-600 text-white" : "bg-primary-600 text-white"}`}
+                className={`inline-flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold disabled:opacity-50 ${a.impact === "spend" ? "bg-warning-500 text-white" : "bg-page text-white"}`}
               >
                 {applying === i && <Spinner size={12} className="text-white" />}
                 {done[i] ?? (applying === i ? t("Application…", "Applying…") : t("Appliquer", "Apply"))}

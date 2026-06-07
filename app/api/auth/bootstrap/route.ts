@@ -24,7 +24,7 @@ const DEMO_COMPANIES = [
     code: "OCC",
     name: "Obesity Care Clinic",
     brand_voice: "warm, professional, evidence-based",
-    accent: "#2563eb",
+    accent: "#60a5fa",
     default_platforms: ["facebook", "instagram"],
     default_posting_time: "09:00",
     default_needs_review: false,
@@ -102,6 +102,24 @@ export async function POST(req: NextRequest) {
 
     if (existingMembership?.org_id) {
       return NextResponse.json({ ok: true, orgId: existingMembership.org_id, created: false });
+    }
+
+    // Invitations en attente : l'utilisateur REJOINT l'org de l'admin qui l'a
+    // invité (équipe), avec ses accès par société — il ne crée pas sa propre org.
+    try {
+      const { consumeInvitations } = await import("@/lib/repositories/access");
+      const joined = await consumeInvitations(user.id, user.email ?? "");
+      if (joined > 0) {
+        const { data: m } = await supabase
+          .from("sh_memberships")
+          .select("org_id")
+          .eq("user_id", user.id)
+          .limit(1)
+          .single();
+        return NextResponse.json({ ok: true, orgId: m?.org_id ?? null, created: false, joinedTeam: true });
+      }
+    } catch (e) {
+      console.error("[bootstrap] consumeInvitations:", e);
     }
 
     // Utilise le client admin pour créer l'organisation (bypass RLS pour l'insert initial)

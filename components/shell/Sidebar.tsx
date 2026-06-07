@@ -6,6 +6,11 @@ import { useT } from "@/lib/i18n";
 
 // Traductions des libellés de navigation (FR par défaut → EN).
 const NAV_TR: Record<string, [string, string]> = {
+  "Aide & tutoriel": ["Aide & tutoriel", "Help & tutorial"],
+  "Organisation": ["Organisation", "Organization"],
+  "Mes sociétés": ["Mes sociétés", "My companies"],
+  "Mon équipe": ["Mon équipe", "My team"],
+  "Identité de marque": ["Identité de marque", "Brand identity"],
   "Dashboard": ["Tableau de bord", "Dashboard"],
   "Médiathèque": ["Médiathèque", "Media library"],
   "Modèles": ["Modèles", "Templates"],
@@ -44,6 +49,28 @@ const NAV_TR: Record<string, [string, string]> = {
 
 /* ── Icônes SVG inline ─────────────────────────────────────────────── */
 const ICONS: Record<string, React.ReactNode> = {
+  "/mes-societes": (
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+      <rect x="2" y="5" width="5.5" height="8" rx="1" stroke="currentColor" strokeWidth="1.2" fill="none"/>
+      <rect x="8" y="2" width="5" height="11" rx="1" stroke="currentColor" strokeWidth="1.2" fill="none"/>
+      <path d="M9.5 4.5h2M9.5 6.5h2M9.5 8.5h2M4 7.5h1.5M4 9.5h1.5" stroke="currentColor" strokeWidth="1" strokeLinecap="round"/>
+    </svg>
+  ),
+  "/mon-equipe": (
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+      <circle cx="5.5" cy="5" r="2" stroke="currentColor" strokeWidth="1.2" fill="none"/>
+      <circle cx="10.5" cy="5.5" r="1.6" stroke="currentColor" strokeWidth="1.1" fill="none" opacity="0.7"/>
+      <path d="M1.5 12.5c0-2.2 1.8-3.6 4-3.6s4 1.4 4 3.6" stroke="currentColor" strokeWidth="1.2" fill="none" strokeLinecap="round"/>
+      <path d="M10.5 9c1.6.2 3 1.4 3 3.5" stroke="currentColor" strokeWidth="1.1" fill="none" strokeLinecap="round" opacity="0.7"/>
+    </svg>
+  ),
+  "/identite": (
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+      <path d="M7.5 1.5l1.4 3.1 3.1 1.4-3.1 1.4-1.4 3.1-1.4-3.1L2.5 6l3.1-1.4L7.5 1.5Z"
+            stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round" fill="none"/>
+      <circle cx="11.5" cy="11.5" r="1.6" stroke="currentColor" strokeWidth="1.1" fill="none"/>
+    </svg>
+  ),
   "/dashboard": (
     <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
       <path d="M7.5 1.5L1.5 7H3v6h3.5v-4h2v4H12V7h1.5L7.5 1.5Z" fill="currentColor"/>
@@ -238,6 +265,7 @@ type NavItem = { href: string; label: string };
    pilote depuis le tableau de bord et le centre de pilotage. Le reste
    (ci-dessous) ce sont des « Modules » où l'on plonge pour approfondir. */
 const SPINE: NavItem[] = [
+  { href: "/identite",  label: "Identité de marque" },
   { href: "/demarrage", label: "Get started" },
   { href: "/dashboard", label: "Dashboard" },
   { href: "/pilotage",  label: "Centre de pilotage" },
@@ -245,6 +273,13 @@ const SPINE: NavItem[] = [
 
 /* ── Modules (secondaires) ─────────────────────────────────────────── */
 const GROUPS: { label?: string; items: NavItem[] }[] = [
+  {
+    label: "Organisation",
+    items: [
+      { href: "/mes-societes", label: "Mes sociétés" },
+      { href: "/mon-equipe", label: "Mon équipe" },
+    ],
+  },
   {
     label: "Pilotage IA",
     items: [
@@ -319,10 +354,10 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
             "group relative flex items-center gap-2.5 rounded-lg px-3 py-[0.4rem] text-sm",
             "transition-all duration-[120ms]",
             active
-              ? "bg-[#efe7d9] text-ink font-semibold"
+              ? "bg-page/20 text-ink font-semibold"
               : entry
-              ? "bg-primary-50 text-primary-700 font-semibold hover:bg-primary-100"
-              : "text-muted hover:bg-[#f1eadd] hover:text-ink",
+              ? "bg-page/15 text-ink font-semibold hover:bg-page/25"
+              : "text-muted hover:bg-white/[0.06] hover:text-ink",
           ].join(" ")}
         >
           {active && (
@@ -372,6 +407,29 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
           </ul>
         </div>
       ))}
+
+      {/* Aide contextuelle : ouvre le panneau d'aide sur le côté droit */}
+      <div className="mt-5 border-t border-hair pt-4">
+        <button
+          type="button"
+          onClick={() => {
+            onNavigate?.();
+            window.dispatchEvent(new Event("axon:help"));
+          }}
+          className="group relative flex w-full items-center gap-2.5 rounded-lg px-3 py-[0.4rem] text-sm text-muted transition-all duration-[120ms] hover:bg-white/[0.06] hover:text-ink"
+          title={tr("Aide & tutoriel") + " (?)"}
+        >
+          <span className="shrink-0 opacity-45 transition-opacity duration-[120ms] group-hover:opacity-65">
+            <svg width="15" height="15" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+              <circle cx="9" cy="9" r="7.2" stroke="currentColor" strokeWidth="1.3" fill="none" />
+              <path d="M6.8 6.8A2.2 2.2 0 0 1 9 4.7c1.2 0 2.2.9 2.2 2.1 0 1.1-.8 1.6-1.4 2-.5.3-.8.6-.8 1.3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" fill="none" />
+              <circle cx="9" cy="12.6" r="0.85" fill="currentColor" />
+            </svg>
+          </span>
+          <span className="font-medium">{tr("Aide & tutoriel")}</span>
+          <kbd className="ml-auto rounded border border-hair px-1 text-[10px] text-muted">?</kbd>
+        </button>
+      </div>
     </nav>
   );
 }

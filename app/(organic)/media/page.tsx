@@ -17,7 +17,8 @@ type Filter = "all" | "image" | "video";
 const DERIVE_FORMATS = ["match", "1:1", "4:5", "9:16", "1.91:1"];
 
 export default function MediaLibraryPage() {
-  const { company } = useCompany();
+  const { company, access } = useCompany();
+  const canEdit = access.canEdit;
   const companyId = company.id;
   const t = useT();
 
@@ -114,7 +115,7 @@ export default function MediaLibraryPage() {
           <div className="inline-flex rounded-lg border border-hair bg-canvas p-0.5">
             {(["all", "image", "video"] as Filter[]).map((f) => (
               <button key={f} onClick={() => setFilter(f)}
-                className={`rounded-md px-3 py-1.5 text-xs font-semibold ${filter === f ? "bg-primary-600 text-white" : "text-muted hover:text-ink"}`}>
+                className={`rounded-md px-3 py-1.5 text-xs font-semibold ${filter === f ? "bg-page text-white" : "text-muted hover:text-ink"}`}>
                 {f === "all" ? t("Tout", "All") : f === "image" ? t("Images", "Images") : t("Vidéos", "Videos")}
               </button>
             ))}
@@ -137,14 +138,15 @@ export default function MediaLibraryPage() {
       <div className="mb-5 flex flex-col gap-2 sm:flex-row">
         <input ref={fileRef} type="file" accept="image/*,video/*" multiple className="hidden"
           onChange={(e) => uploadFiles(e.target.files)} />
-        <button onClick={() => fileRef.current?.click()} disabled={uploading}
+        <button onClick={() => fileRef.current?.click()} disabled={uploading || !canEdit}
+          title={!canEdit ? t("Lecture seule", "View only") : undefined}
           className="btn-primary inline-flex shrink-0 items-center gap-1.5 text-sm disabled:opacity-50">
           {uploading && <Spinner size={14} className="text-white" />}
           {uploading ? t("Import…", "Uploading…") : t("⬆︎ Importer des fichiers", "⬆︎ Upload files")}
         </button>
-        <input value={addUrl} onChange={(e) => setAddUrl(e.target.value)} placeholder={t("…ou ajouter par URL (https://…)", "…or add by URL (https://…)")}
-          className="w-full rounded-lg border border-hair bg-canvas px-3 py-2 text-sm text-ink outline-none focus:border-primary-400" />
-        <button onClick={addByUrl} className="btn-secondary shrink-0 text-sm">{t("Ajouter", "Add")}</button>
+        <input value={addUrl} onChange={(e) => setAddUrl(e.target.value)} disabled={!canEdit} placeholder={t("…ou ajouter par URL (https://…)", "…or add by URL (https://…)")}
+          className="w-full rounded-lg border border-hair bg-canvas px-3 py-2 text-sm text-ink outline-none focus:border-primary-400 disabled:opacity-50" />
+        <button onClick={addByUrl} disabled={!canEdit} className="btn-secondary shrink-0 text-sm disabled:opacity-50">{t("Ajouter", "Add")}</button>
       </div>
 
       {note && <p className="mb-4 rounded-lg bg-canvas px-3 py-2 text-xs text-ink ring-1 ring-hair">{note}</p>}
@@ -164,7 +166,7 @@ export default function MediaLibraryPage() {
                 <select value={deriveFormat} onChange={(e) => setDeriveFormat(e.target.value)} className="rounded-lg border border-hair bg-canvas px-2 py-1 text-2xs text-ink">
                   {DERIVE_FORMATS.map((f) => <option key={f} value={f}>{f === "match" ? t("Garder le format", "Keep format") : f}</option>)}
                 </select>
-                <button onClick={derive} disabled={deriving} className="btn-primary inline-flex items-center gap-1.5 text-xs disabled:opacity-50">
+                <button onClick={derive} disabled={deriving || !canEdit} className="btn-primary inline-flex items-center gap-1.5 text-xs disabled:opacity-50">
                   {deriving && <Spinner size={14} className="text-white" />}
                   {deriving ? t("Génération…", "Generating…") : t("Générer la déclinaison", "Generate variation")}
                 </button>

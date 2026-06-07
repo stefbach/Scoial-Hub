@@ -22,7 +22,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: "companyId, campaignId, adSetId, adId requis" }, { status: 400 });
     }
 
-    const guard = await requireCompanyAccess(companyId);
+    const guard = await requireCompanyAccess(companyId, { mode: "edit" });
     if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
 
     await setAdLive(companyId, { campaignId, adSetId, adId }, Boolean(live));

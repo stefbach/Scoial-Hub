@@ -32,7 +32,7 @@ const FORMATS: Format[] = [
   { id: "wide", label: "Paysage 16:9", w: 1920, h: 1080, ar: "16:9" },
 ];
 
-const TEXT_COLORS = ["#ffffff", "#0f172a", "#2563eb", "#5b2d8e", "#be123c", "#f59e0b"];
+const TEXT_COLORS = ["#ffffff", "#0f172a", "#60a5fa", "#5b2d8e", "#be123c", "#f59e0b"];
 
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -68,7 +68,8 @@ function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number)
 
 export default function StudioAffichePage() {
   const t = useT();
-  const { company } = useCompany();
+  const { company, access } = useCompany();
+  const canEdit = access.canEdit;
   const companyId = company.id;
 
   const [formatId, setFormatId] = useState("a4p");
@@ -247,6 +248,25 @@ export default function StudioAffichePage() {
     }
   }
 
+  // Repart d'une affiche vierge (rien n'est figé). Conserve le format choisi et
+  // le brand kit ; remet à zéro le fond, le texte et le logo de l'affiche.
+  function resetStudio() {
+    if (typeof window !== "undefined" && !window.confirm(
+      t("Réinitialiser l'affiche en cours ? Fond, texte et logo seront effacés.",
+        "Reset the current poster? Background, text and logo will be cleared.")
+    )) return;
+    setPrompt("");
+    setBgImg(null);
+    setLogoImg(null);
+    setHeadline("");
+    setSubtitle("");
+    setColor("#ffffff");
+    setPos("bottom");
+    setScrim(true);
+    setNote(null);
+    setPreviewTab("affiche");
+  }
+
   const [savingLib, setSavingLib] = useState(false);
   // Enregistre l'affiche (PNG du canvas) dans la bibliothèque média, réutilisable
   // partout (campagnes, etc.).
@@ -279,15 +299,20 @@ export default function StudioAffichePage() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
-      <header>
-        <p className="section-label text-primary-500">{t("Studio", "Studio")}</p>
-        <h1 className="mt-1 text-2xl font-bold tracking-tight text-ink">{t("Studio Affiches & Visuels", "Poster & Visual Studio")}</h1>
-        <p className="mt-1 max-w-2xl text-sm text-muted">
-          {t("Créez des affiches A4/A3 et des visuels réseaux : fond IA ou image, texte, logo — export prêt à imprimer ou à publier.", "Create A4/A3 posters and social visuals: AI or uploaded background, text, logo — export ready to print or publish.")}
-        </p>
-        <a href="/campaigns/new" className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-primary-600 hover:underline">
-          {t("→ Créer une pub Meta (vos visuels sont dans la bibliothèque)", "→ Create a Meta ad (your visuals are in the library)")}
-        </a>
+      <header className="flex items-start justify-between gap-3">
+        <div>
+          <p className="section-label text-primary-500">{t("Studio", "Studio")}</p>
+          <h1 className="mt-1 text-2xl font-bold tracking-tight text-ink">{t("Studio Affiches & Visuels", "Poster & Visual Studio")}</h1>
+          <p className="mt-1 max-w-2xl text-sm text-muted">
+            {t("Créez des affiches A4/A3 et des visuels réseaux : fond IA ou image, texte, logo — export prêt à imprimer ou à publier.", "Create A4/A3 posters and social visuals: AI or uploaded background, text, logo — export ready to print or publish.")}
+          </p>
+          <a href="/campaigns/new" className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-primary-600 hover:underline">
+            {t("→ Créer une pub Meta (vos visuels sont dans la bibliothèque)", "→ Create a Meta ad (your visuals are in the library)")}
+          </a>
+        </div>
+        <button onClick={resetStudio} className="btn-ghost shrink-0 text-xs text-muted" title={t("Repartir d'une affiche vierge", "Start from a blank poster")}>
+          {t("↺ Réinitialiser", "↺ Reset")}
+        </button>
       </header>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[360px_1fr]">
@@ -323,10 +348,10 @@ export default function StudioAffichePage() {
             <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} rows={3}
               placeholder={t("Décrivez le visuel… ou laissez l'IA proposer un prompt", "Describe the visual… or let the AI suggest a prompt")} className={inputCls} />
             <div className="flex flex-wrap gap-2">
-              <button onClick={suggestPrompt} disabled={suggesting} className="btn-secondary text-xs disabled:opacity-50">
+              <button onClick={suggestPrompt} disabled={suggesting || !canEdit} className="btn-secondary text-xs disabled:opacity-50">
                 {suggesting ? <span className="inline-flex items-center gap-1.5"><Spinner size={12} className="text-primary-600" />{t("Prompt…", "Prompt…")}</span> : t("🧠 Suggérer un prompt (IA)", "🧠 Suggest a prompt (AI)")}
               </button>
-              <button onClick={generateBackground} disabled={generating} className="btn-primary text-xs disabled:opacity-50">
+              <button onClick={generateBackground} disabled={generating || !canEdit} title={!canEdit ? t("Lecture seule", "View only") : undefined} className="btn-primary text-xs disabled:opacity-50">
                 {generating ? <span className="inline-flex items-center gap-1.5"><Spinner size={12} className="text-white" />{t("Génération…", "Generating…")}</span> : t("✨ Générer le fond (IA)", "✨ Generate background (AI)")}
               </button>
               <label className="btn-secondary cursor-pointer text-xs">
@@ -397,7 +422,7 @@ export default function StudioAffichePage() {
           />
 
           <button onClick={exportPng} className="btn-primary w-full">{t("⬇︎ Télécharger (PNG haute déf)", "⬇︎ Download (high-res PNG)")}</button>
-          <button onClick={saveToLibrary} disabled={savingLib} className="btn-secondary inline-flex w-full items-center justify-center gap-1.5 disabled:opacity-50">
+          <button onClick={saveToLibrary} disabled={savingLib || !canEdit} className="btn-secondary inline-flex w-full items-center justify-center gap-1.5 disabled:opacity-50">
             {savingLib && <Spinner size={14} className="text-current" />}
             {savingLib ? t("Enregistrement…", "Saving…") : t("📚 Enregistrer dans la bibliothèque", "📚 Save to library")}
           </button>

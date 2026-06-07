@@ -80,7 +80,7 @@ export function AgentLauncher({
         <div className="inline-flex rounded-lg border border-hair bg-canvas p-0.5">
           {([1, 2, 3] as const).map((a) => (
             <button key={a} onClick={() => setAutonomy(a)}
-              className={`rounded-md px-2.5 py-1 text-2xs font-semibold ${autonomy === a ? "bg-primary-600 text-white" : "text-muted hover:text-ink"}`}
+              className={`rounded-md px-2.5 py-1 text-2xs font-semibold ${autonomy === a ? "bg-page text-white" : "text-muted hover:text-ink"}`}
               title={a === 1 ? t("Recommandation", "Recommendation") : a === 2 ? t("Semi-auto (validation)", "Semi-auto (review)") : t("Auto (si conforme)", "Auto (if compliant)")}>
               {t("Niveau", "Level")} {a}
             </button>

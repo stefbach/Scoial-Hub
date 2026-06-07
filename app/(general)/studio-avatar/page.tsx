@@ -149,12 +149,32 @@ export default function StudioAvatarPage() {
         setNote(t("Génération vidéo non configurée (REPLICATE_API_TOKEN).", "Video generation not configured (REPLICATE_API_TOKEN)."));
       } else if (d.videoUrl) {
         setVideoUrl(d.videoUrl);
+      } else if (d.pending && d.predictionId) {
+        // Lip-sync long → on interroge le statut jusqu'au résultat (≤ 8 min).
+        const url = await pollAvatar(d.predictionId);
+        if (url) setVideoUrl(url);
+        else setError(t("La génération a échoué ou dépassé le temps imparti.", "Generation failed or timed out."));
       } else {
         setError(t("Aucune vidéo renvoyée.", "No video returned."));
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : t("Échec.", "Failed."));
     } finally { setRendering(false); }
+  }
+
+  // Interroge GET /api/ai/avatar?id=… jusqu'à succès/échec (poll 5s, max ~8 min).
+  async function pollAvatar(id: string): Promise<string | null> {
+    const deadline = Date.now() + 8 * 60_000;
+    while (Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 5000));
+      try {
+        const res = await fetch(`/api/ai/avatar?id=${encodeURIComponent(id)}`);
+        const d = await res.json();
+        if (d.status === "succeeded" && d.videoUrl) return d.videoUrl;
+        if (d.status === "failed") return null;
+      } catch { /* on retente */ }
+    }
+    return null;
   }
 
   return (

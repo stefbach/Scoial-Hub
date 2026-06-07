@@ -478,6 +478,40 @@ export async function runReplicateUrl(
   return firstUrl(prediction.output);
 }
 
+/**
+ * Lip-sync ROBUSTE : auto-détecte les clés d'entrée image & audio du modèle
+ * (via son schéma OpenAPI) puis lance la prédiction. Fonctionne avec n'importe
+ * quel modèle de la collection lipsync (omni-human, sync, heygen, veed, …).
+ */
+export async function lipsyncAvatar(
+  model: string,
+  imageUrl: string,
+  audioUrl: string
+): Promise<string | null> {
+  if (!isReplicateConfigured) return null;
+  let imageKey = "image";
+  let audioKey = "audio";
+  try {
+    const res = await replicateFetch(`${REPLICATE_API_BASE}/models/${model}`, {
+      headers: replicateHeaders(),
+    });
+    if (res.ok) {
+      const data = (await res.json()) as {
+        latest_version?: { openapi_schema?: { components?: { schemas?: { Input?: { properties?: Record<string, unknown> } } } } };
+      };
+      const props = data.latest_version?.openapi_schema?.components?.schemas?.Input?.properties ?? {};
+      const names = Object.keys(props);
+      const img = names.find((n) => /image|img|source|face|portrait|photo|video|input/i.test(n));
+      const aud = names.find((n) => /audio|voice|speech|sound|wav/i.test(n));
+      if (img) imageKey = img;
+      if (aud) audioKey = aud;
+    }
+  } catch {
+    /* on garde les clés par défaut */
+  }
+  return runReplicateUrl(model, { [imageKey]: imageUrl, [audioKey]: audioUrl });
+}
+
 export interface AvatarResult {
   videoUrl?: string;
   audioUrl?: string;

@@ -32,10 +32,14 @@ export const VOICE_MODELS: VoiceModel[] = [
   { id: "minimax/speech-02-turbo", label: "MiniMax Speech 02 Turbo — rapide", textKey: "text", voiceKey: "voice_id" },
 ];
 
+// Modèles haut de gamme de la collection Replicate « lipsync » (clés d'entrée
+// auto-détectées côté serveur, donc faceKey/audioKey ne sont qu'indicatifs).
 export const AVATAR_MODELS: AvatarModel[] = [
-  { id: "cjwbw/sadtalker", label: "SadTalker — photo → tête parlante", faceKey: "source_image", audioKey: "driven_audio", extra: { preprocess: "full" }, note: "Idéal à partir d'une simple photo." },
-  { id: "devxpy/cog-wav2lip", label: "Wav2Lip — lip-sync rapide", faceKey: "face", audioKey: "audio", note: "Rapide ; accepte image ou vidéo." },
-  { id: "sync/lipsync", label: "Sync Lipsync — HD", faceKey: "video", audioKey: "audio", note: "Meilleure qualité ; idéalement une vidéo source." },
+  { id: "bytedance/omni-human", label: "OmniHuman (ByteDance) — qualité studio · photo", faceKey: "image", audioKey: "audio", note: "Photo + voix → vidéo professionnelle. Recommandé." },
+  { id: "veed/fabric-1.0", label: "VEED Fabric 1.0 — photo → vidéo parlante", faceKey: "image", audioKey: "audio", note: "Transforme une image en avatar parlant." },
+  { id: "sync/lipsync-2-pro", label: "Sync Lipsync 2 Pro — studio (idéal vidéo source)", faceKey: "video", audioKey: "audio", note: "Top qualité ; idéalement une vidéo source." },
+  { id: "heygen/lipsync-precision", label: "HeyGen Lipsync Precision — doublage vidéo", faceKey: "video", audioKey: "audio", note: "Haute précision ; source vidéo recommandée." },
+  { id: "cjwbw/sadtalker", label: "SadTalker — basique (photo, rapide)", faceKey: "source_image", audioKey: "driven_audio", extra: { preprocess: "full" }, note: "Repli léger." },
 ];
 
 export const DEFAULT_VOICE_MODEL = VOICE_MODELS[0].id;

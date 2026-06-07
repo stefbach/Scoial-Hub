@@ -10,7 +10,7 @@ export const maxDuration = 300;
 import { NextRequest, NextResponse } from "next/server";
 import { requireCompanyAccess } from "@/lib/auth/guard";
 import { callClaudeJSON } from "@/lib/ai/claude-json";
-import { runReplicateUrl, generateImageModel, isReplicateConfigured } from "@/lib/ai/replicate";
+import { runReplicateUrl, generateImageModel, lipsyncAvatar, isReplicateConfigured } from "@/lib/ai/replicate";
 import { getVoiceModel, getAvatarModel } from "@/lib/ai/avatar-models";
 import { isAiConfigured } from "@/lib/env";
 
@@ -105,12 +105,8 @@ Réponds en JSON: { "script": "..." }`,
     });
     if (!audioUrl) throw new Error("Échec de la génération de la voix (TTS).");
 
-    // 2) Lip-sync (visage + audio → vidéo)
-    const videoUrl = await runReplicateUrl(avatarSpec.id, {
-      [avatarSpec.faceKey]: sourceImage,
-      [avatarSpec.audioKey]: audioUrl,
-      ...(avatarSpec.extra ?? {}),
-    });
+    // 2) Lip-sync (visage + audio → vidéo) — clés d'entrée auto-détectées.
+    const videoUrl = await lipsyncAvatar(avatarSpec.id, sourceImage, audioUrl);
     if (!videoUrl) throw new Error("Échec de la génération de la vidéo (lip-sync).");
 
     return NextResponse.json({ videoUrl, audioUrl, sourceImage });

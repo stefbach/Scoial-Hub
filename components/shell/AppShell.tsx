@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
 import { CompanyIndicator } from "./CompanyIndicator";
 import { ReadOnlyBanner } from "./ReadOnlyBanner";
@@ -15,7 +15,6 @@ import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/env";
 
 function UserMenu() {
-  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -44,10 +43,19 @@ function UserMenu() {
 
   async function handleSignOut() {
     setOpen(false);
-    const supabase = createClient();
-    if (supabase) await supabase.auth.signOut();
-    router.push("/login");
-    router.refresh();
+    // 1) Déconnexion client (efface le stockage local du navigateur).
+    try {
+      const supabase = createClient();
+      if (supabase) await supabase.auth.signOut();
+    } catch { /* ignore */ }
+    // 2) Déconnexion SERVEUR (efface les cookies de session de façon fiable).
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } catch { /* ignore */ }
+    // 3) Oublie la société active persistée.
+    try { window.localStorage.removeItem("sh_company_id"); } catch { /* ignore */ }
+    // 4) Rechargement COMPLET vers /login (évite tout rebond dû au cache SSR).
+    window.location.href = "/login";
   }
 
   // Mode démo ou non connecté : avatar statique

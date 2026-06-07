@@ -72,7 +72,16 @@ export default function MesSocietesPage() {
           {companies.filter((c) => c.id).map((c) => {
             const active = c.id === company.id;
             return (
-              <div key={c.id} className={`card p-4 ${active ? "ring-2 ring-page/50" : ""}`}>
+              <div
+                key={c.id}
+                role="button"
+                tabIndex={0}
+                aria-pressed={active}
+                onClick={() => setCompanyId(c.id)}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setCompanyId(c.id); } }}
+                className={`card cursor-pointer p-4 transition-all hover:border-page/50 ${active ? "ring-2 ring-page/60 border-page/50" : ""}`}
+                title={t("Cliquer pour choisir cette société", "Click to select this company")}
+              >
                 <div className="flex items-start gap-3">
                   <span
                     className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-sm font-bold text-white"
@@ -90,18 +99,18 @@ export default function MesSocietesPage() {
                 </div>
 
                 <div className="mt-3 flex flex-wrap items-center gap-2">
-                  <button onClick={() => open(c.id)} className="btn-primary text-2xs">
-                    {t("Ouvrir", "Open")}
+                  <button onClick={(e) => { e.stopPropagation(); open(c.id); }} className="btn-primary text-2xs">
+                    {active ? t("Ouvrir →", "Open →") : t("Choisir & ouvrir", "Select & open")}
                   </button>
-                  <Link href="/accounts" onClick={() => setCompanyId(c.id)} className="btn-secondary text-2xs">
+                  <Link href="/accounts" onClick={(e) => { e.stopPropagation(); setCompanyId(c.id); }} className="btn-secondary text-2xs">
                     {t("Connexions", "Connections")}
                   </Link>
                   {isAdmin && (
                     <>
-                      <button onClick={() => setEditing(c)} className="btn-ghost text-2xs text-muted">
+                      <button onClick={(e) => { e.stopPropagation(); setEditing(c); }} className="btn-ghost text-2xs text-muted">
                         {t("Modifier", "Edit")}
                       </button>
-                      <button onClick={() => remove(c)} className="btn-ghost text-2xs text-danger-600">
+                      <button onClick={(e) => { e.stopPropagation(); remove(c); }} className="btn-ghost text-2xs text-danger-600">
                         {t("Supprimer", "Delete")}
                       </button>
                     </>

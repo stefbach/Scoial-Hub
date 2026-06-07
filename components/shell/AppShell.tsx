@@ -3,10 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
-import { CompanyIndicator } from "./CompanyIndicator";
 import { ReadOnlyBanner } from "./ReadOnlyBanner";
 import { Sidebar } from "./Sidebar";
-import { ScopeBar } from "./ScopeBar";
 import { HelpButton } from "@/components/help/HelpButton";
 import { DemoBanner } from "@/components/ui/DemoBanner";
 import { LanguageSwitcher } from "@/lib/i18n";
@@ -40,15 +38,6 @@ function UserMenu() {
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
   }, [open]);
-
-  function handleSignOut() {
-    setOpen(false);
-    // Oublie la société active persistée…
-    try { window.localStorage.removeItem("sh_company_id"); } catch { /* ignore */ }
-    // …puis NAVIGUE vers la route serveur qui invalide la session, efface les
-    // cookies et redirige vers /login. Pas d'appel JS susceptible de se bloquer.
-    window.location.href = "/api/auth/logout";
-  }
 
   // Mode démo ou non connecté : avatar statique
   if (!isSupabaseConfigured || !email) {
@@ -105,15 +94,16 @@ function UserMenu() {
             <p className="text-sm font-medium text-ink truncate">{email}</p>
           </div>
           <div className="p-1.5">
-            <button
-              onClick={handleSignOut}
+            <a
+              href="/api/auth/logout"
+              onClick={() => { try { window.localStorage.removeItem("sh_company_id"); } catch { /* ignore */ } }}
               className="w-full flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-ink hover:bg-canvas transition-colors text-left"
             >
               <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
                 <path d="M6 2H3a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h3M10 10l3-3-3-3M13 7H5.5" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
               Se déconnecter
-            </button>
+            </a>
           </div>
         </div>
       )}
@@ -191,22 +181,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     pathname.startsWith("/admin");
   if (bare) return <>{children}</>;
 
-  // La barre CONTEXTE (pays + période) ne sert que sur les pages d'ANALYSE :
-  // ailleurs (onboarding, réglages, composition, inbox…) elle n'a aucun effet
-  // et prête à confusion. On l'affiche donc uniquement sur une liste blanche.
-  const SCOPE_ROUTES = [
-    "/veille",
-    "/publicites",
-    "/analytics",
-    "/pilotage",
-    "/ad-performance",
-    "/dashboard",
-    "/pages-meta",
-  ];
-  const showScope = SCOPE_ROUTES.some(
-    (r) => pathname === r || pathname.startsWith(r + "/")
-  );
-
   return (
     <div className="app-shell">
       {/* Décor spatial « Mission Control » — derrière tout le contenu */}
@@ -232,11 +206,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <Link href="/" aria-label="Accueil AXON-AI Social Media" className="shrink-0">
             <Logo size={28} />
           </Link>
-
-          {/* Séparateur vertical */}
-          <span className="hidden h-4 w-px bg-hair sm:block" aria-hidden="true" />
-
-          <CompanyIndicator />
         </div>
 
         {/* Zone droite : langue + avatar */}
@@ -245,9 +214,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <UserMenu />
         </div>
       </header>
-
-      {/* Barre de contexte : pays + période — uniquement sur les pages d'analyse */}
-      {showScope && <ScopeBar />}
 
       {/* Corps : sidebar + contenu */}
       <div className="flex">

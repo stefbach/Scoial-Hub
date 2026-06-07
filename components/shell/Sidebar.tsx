@@ -3,9 +3,11 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useT } from "@/lib/i18n";
+import { CompanyIndicator } from "./CompanyIndicator";
 
 // Traductions des libellés de navigation (FR par défaut → EN).
 const NAV_TR: Record<string, [string, string]> = {
+  "Se déconnecter": ["Se déconnecter", "Sign out"],
   "Aide & tutoriel": ["Aide & tutoriel", "Help & tutorial"],
   "Organisation": ["Organisation", "Organization"],
   "Mes sociétés": ["Mes sociétés", "My companies"],
@@ -387,6 +389,11 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
       aria-label="Navigation principale"
       className="w-[13.5rem] shrink-0 border-r border-hair py-5 pl-3 pr-2"
     >
+      {/* Sélecteur de société — accès & changement de société depuis la barre */}
+      <div className="mb-4 pr-1">
+        <CompanyIndicator />
+      </div>
+
       {/* Colonne vertébrale : la porte d'entrée du produit */}
       <ul className="space-y-px" role="list">
         {SPINE.map((item) => renderItem(item, { entry: item.href === "/demarrage" }))}
@@ -429,6 +436,21 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
           <span className="font-medium">{tr("Aide & tutoriel")}</span>
           <kbd className="ml-auto rounded border border-hair px-1 text-[10px] text-muted">?</kbd>
         </button>
+
+        {/* Déconnexion — lien direct (navigation pure, toujours fiable) */}
+        <a
+          href="/api/auth/logout"
+          onClick={() => { try { window.localStorage.removeItem("sh_company_id"); } catch { /* ignore */ } }}
+          className="group relative mt-1 flex w-full items-center gap-2.5 rounded-lg px-3 py-[0.4rem] text-sm text-muted transition-all duration-[120ms] hover:bg-danger-500/10 hover:text-danger-600"
+          title={tr("Se déconnecter")}
+        >
+          <span className="shrink-0 opacity-45 transition-opacity duration-[120ms] group-hover:opacity-80">
+            <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+              <path d="M6 2H3a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h3M10 10l3-3-3-3M13 7H5.5" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </span>
+          <span className="font-medium">{tr("Se déconnecter")}</span>
+        </a>
       </div>
     </nav>
   );

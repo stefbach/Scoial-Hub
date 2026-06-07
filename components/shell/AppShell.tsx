@@ -6,6 +6,7 @@ import { useState, useRef, useEffect } from "react";
 import { ReadOnlyBanner } from "./ReadOnlyBanner";
 import { Sidebar } from "./Sidebar";
 import { HelpButton } from "@/components/help/HelpButton";
+import { HelpTrigger } from "@/components/help/HelpTrigger";
 import { DemoBanner } from "@/components/ui/DemoBanner";
 import { LanguageSwitcher } from "@/lib/i18n";
 import { Logo } from "@/components/brand/Logo";
@@ -208,8 +209,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </Link>
         </div>
 
-        {/* Zone droite : langue + avatar */}
+        {/* Zone droite : aide + langue + avatar */}
         <div className="flex shrink-0 items-center gap-2">
+          <HelpTrigger />
           <LanguageSwitcher />
           <UserMenu />
         </div>

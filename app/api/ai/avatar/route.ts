@@ -16,7 +16,7 @@ import { isAiConfigured } from "@/lib/env";
 
 interface Body {
   companyId?: string;
-  mode?: "script" | "video" | "subtitle";
+  mode?: "script" | "video" | "subtitle" | "voice-preview";
   videoUrl?: string;
   topic?: string;
   language?: string;
@@ -25,6 +25,8 @@ interface Body {
   script?: string;
   faceUrl?: string;
   gender?: "male" | "female";
+  voiceId?: string;
+  text?: string;
   lipsyncModel?: string;
   environment?: string;
 }
@@ -63,6 +65,28 @@ Réponds en JSON: { "script": "..." }`,
     return NextResponse.json({ script, aiGenerated: true });
   }
 
+  // ── Écoute d'une voix : synthétise un court extrait (synchrone) ─────────────
+  if (body.mode === "voice-preview") {
+    if (!isReplicateConfigured) return NextResponse.json({ simulated: true });
+    const lang = getLang(body.language);
+    const voiceId = body.voiceId || VOICE_BY_GENDER[body.gender === "male" ? "male" : "female"];
+    // Extrait court (≈ 1ʳᵉ phrase) pour un aperçu rapide et peu coûteux.
+    const raw = (body.text ?? "").trim();
+    const sample = (raw ? raw.split(/(?<=[.!?])\s/)[0] : "")
+      .slice(0, 160) || (lang.code === "en" ? "Hello, here is a preview of this voice." : "Bonjour, voici un aperçu de cette voix.");
+    try {
+      const audioUrl = await runReplicateUrl(TTS_MULTILINGUAL_MODEL, {
+        text: sample,
+        voice_id: voiceId,
+        language_boost: lang.boost,
+      });
+      if (!audioUrl) return NextResponse.json({ error: "Aperçu indisponible." }, { status: 502 });
+      return NextResponse.json({ audioUrl });
+    } catch (e) {
+      return NextResponse.json({ error: e instanceof Error ? e.message : "Échec de l'aperçu." }, { status: 502 });
+    }
+  }
+
   // ── Sous-titres : incruste les sous-titres sur une vidéo existante ─────────
   if (body.mode === "subtitle") {
     const videoUrl = (body.videoUrl ?? "").trim();
@@ -88,7 +112,7 @@ Réponds en JSON: { "script": "..." }`,
   if (!isReplicateConfigured) return NextResponse.json({ simulated: true });
 
   const lang = getLang(body.language);
-  const voiceId = VOICE_BY_GENDER[body.gender === "male" ? "male" : "female"];
+  const voiceId = body.voiceId || VOICE_BY_GENDER[body.gender === "male" ? "male" : "female"];
   const avatarSpec = getAvatarModel(body.lipsyncModel);
 
   try {

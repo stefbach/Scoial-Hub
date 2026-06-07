@@ -10,7 +10,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Spinner, BusyHint } from "@/components/ui/Spinner";
 import { useT } from "@/lib/i18n";
 import { createClient } from "@/lib/supabase/client";
-import { AVATAR_MODELS, DEFAULT_AVATAR_MODEL, AVATAR_LANGS } from "@/lib/ai/avatar-models";
+import { AVATAR_MODELS, DEFAULT_AVATAR_MODEL, AVATAR_LANGS, VOICES, DEFAULT_VOICE_ID } from "@/lib/ai/avatar-models";
 import { IMAGE_MODELS, DEFAULT_IMAGE_MODEL_ID } from "@/lib/ai/model-catalog";
 
 /** Convertit n'importe quelle erreur (string | objet plateforme | …) en texte lisible. */
@@ -44,7 +44,8 @@ export default function StudioAvatarPage() {
   const [faceUrl, setFaceUrl] = useState("");
   const [topic, setTopic] = useState("");
   const [language, setLanguage] = useState("fr");
-  const [gender, setGender] = useState<"female" | "male">("female");
+  const [voiceId, setVoiceId] = useState(DEFAULT_VOICE_ID);
+  const [previewing, setPreviewing] = useState(false);
   const [subtitles, setSubtitles] = useState(false);
   const [seconds, setSeconds] = useState(20);
   const [script, setScript] = useState("");
@@ -147,6 +148,23 @@ export default function StudioAvatarPage() {
     } finally { setWriting(false); }
   }
 
+  // Écoute un extrait de la voix sélectionnée (avec le texte du message si présent).
+  async function previewVoice() {
+    setPreviewing(true); setError(null);
+    try {
+      const r = await fetch("/api/ai/avatar", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyId: company.id, mode: "voice-preview", voiceId, language, text: script }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(errText(d.error, t("Aperçu indisponible.", "Preview unavailable.")));
+      if (d.simulated) { setNote(t("Voix non configurée (REPLICATE_API_TOKEN).", "Voice not configured.")); return; }
+      if (d.audioUrl) { const a = new Audio(d.audioUrl); a.play().catch(() => {}); }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t("Aperçu indisponible.", "Preview unavailable."));
+    } finally { setPreviewing(false); }
+  }
+
   async function genVideo() {
     if (!faceUrl.trim()) { setError(t("Ajoutez l'URL d'une image de visage.", "Add a face image URL.")); return; }
     if (!script.trim()) { setError(t("Générez ou écrivez un script.", "Generate or write a script.")); return; }
@@ -154,7 +172,7 @@ export default function StudioAvatarPage() {
     try {
       const r = await fetch("/api/ai/avatar", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyId: company.id, mode: "video", script, faceUrl, language, gender, lipsyncModel }),
+        body: JSON.stringify({ companyId: company.id, mode: "video", script, faceUrl, language, voiceId, lipsyncModel }),
       });
       const d = await r.json();
       if (!r.ok) throw new Error(errText(d.error, t("Échec.", "Failed.")));
@@ -314,16 +332,15 @@ export default function StudioAvatarPage() {
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <div>
                   <label className="text-2xs text-muted">{t("Voix", "Voice")}</label>
-                  <div className="mt-1 flex gap-1">
-                    {([
-                      { id: "female", fr: "Femme", en: "Woman" },
-                      { id: "male", fr: "Homme", en: "Man" },
-                    ] as const).map((g) => (
-                      <button key={g.id} type="button" onClick={() => setGender(g.id)}
-                        className={`flex-1 rounded-lg border px-2 py-1.5 text-xs font-semibold ${gender === g.id ? "border-page bg-page/15 text-ink" : "border-hair text-muted hover:text-ink"}`}>
-                        {t(g.fr, g.en)}
-                      </button>
-                    ))}
+                  <div className="mt-1 flex gap-1.5">
+                    <select value={voiceId} onChange={(e) => setVoiceId(e.target.value)} className="input flex-1">
+                      {VOICES.map((v) => <option key={v.id} value={v.id}>{t(v.fr, v.en)}</option>)}
+                    </select>
+                    <button type="button" onClick={previewVoice} disabled={previewing}
+                      title={t("Écouter cette voix avec votre message", "Listen to this voice with your message")}
+                      className="btn-secondary shrink-0 inline-flex items-center gap-1 text-xs disabled:opacity-50">
+                      {previewing ? <Spinner size={13} className="text-current" /> : "▶"} {t("Écouter", "Listen")}
+                    </button>
                   </div>
                 </div>
                 <div>

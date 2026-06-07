@@ -71,6 +71,30 @@ export const VOICE_BY_GENDER: Record<"female" | "male", string> = {
   male: "Deep_Voice_Man",
 };
 
+/** Catalogue de voix (MiniMax) — écoutables avant choix, toutes multilingues. */
+export interface AvatarVoice {
+  id: string;       // voice_id MiniMax
+  fr: string;       // libellé FR
+  en: string;       // libellé EN
+  g: "female" | "male" | "neutral";
+}
+export const VOICES: AvatarVoice[] = [
+  { id: "Wise_Woman", fr: "Posée — femme", en: "Composed — woman", g: "female" },
+  { id: "Calm_Woman", fr: "Douce — femme", en: "Gentle — woman", g: "female" },
+  { id: "Lovely_Girl", fr: "Chaleureuse — femme", en: "Warm — woman", g: "female" },
+  { id: "Exuberant_Girl", fr: "Dynamique — femme", en: "Energetic — woman", g: "female" },
+  { id: "Inspirational_girl", fr: "Inspirante — femme", en: "Inspiring — woman", g: "female" },
+  { id: "Deep_Voice_Man", fr: "Grave — homme", en: "Deep — man", g: "male" },
+  { id: "Elegant_Man", fr: "Posée — homme", en: "Composed — man", g: "male" },
+  { id: "Casual_Guy", fr: "Décontractée — homme", en: "Casual — man", g: "male" },
+  { id: "Determined_Man", fr: "Assurée — homme", en: "Confident — man", g: "male" },
+  { id: "Friendly_Person", fr: "Amicale — neutre", en: "Friendly — neutral", g: "neutral" },
+];
+export const DEFAULT_VOICE_ID = "Wise_Woman";
+export function getVoice(id?: string): AvatarVoice {
+  return VOICES.find((v) => v.id === id) ?? VOICES[0];
+}
+
 export function getLang(code?: string): AvatarLang {
   return AVATAR_LANGS.find((l) => l.code === code) ?? AVATAR_LANGS[0];
 }

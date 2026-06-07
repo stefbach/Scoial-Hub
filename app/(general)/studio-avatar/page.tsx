@@ -45,6 +45,7 @@ export default function StudioAvatarPage() {
   const [topic, setTopic] = useState("");
   const [language, setLanguage] = useState("fr");
   const [gender, setGender] = useState<"female" | "male">("female");
+  const [subtitles, setSubtitles] = useState(false);
   const [seconds, setSeconds] = useState(20);
   const [script, setScript] = useState("");
   const [environment, setEnvironment] = useState("");
@@ -157,18 +158,37 @@ export default function StudioAvatarPage() {
       });
       const d = await r.json();
       if (!r.ok) throw new Error(errText(d.error, t("Échec.", "Failed.")));
+      let finalUrl: string | null = null;
       if (d.simulated) {
         setNote(t("Génération vidéo non configurée (REPLICATE_API_TOKEN).", "Video generation not configured (REPLICATE_API_TOKEN)."));
       } else if (d.videoUrl) {
-        setVideoUrl(d.videoUrl);
+        finalUrl = d.videoUrl;
       } else if (d.pending && d.predictionId) {
         // Lip-sync long → on interroge le statut jusqu'au résultat (≤ 8 min).
-        const url = await pollAvatar(d.predictionId);
-        if (url) setVideoUrl(url);
-        else setError(t("La génération a échoué ou dépassé le temps imparti.", "Generation failed or timed out."));
+        finalUrl = await pollAvatar(d.predictionId);
+        if (!finalUrl) setError(t("La génération a échoué ou dépassé le temps imparti.", "Generation failed or timed out."));
       } else {
         setError(t("Aucune vidéo renvoyée.", "No video returned."));
       }
+
+      // Sous-titres (optionnels) : incrustation sur la vidéo obtenue.
+      if (finalUrl && subtitles) {
+        setVideoUrl(finalUrl); // affiche déjà la vidéo sans sous-titres
+        setNote(t("Ajout des sous-titres… (1-3 min)", "Adding subtitles… (1-3 min)"));
+        try {
+          const sr = await fetch("/api/ai/avatar", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ companyId: company.id, mode: "subtitle", videoUrl: finalUrl }),
+          });
+          const sd = await sr.json();
+          if (sr.ok) {
+            const subUrl = sd.videoUrl || (sd.pending && sd.predictionId ? await pollAvatar(sd.predictionId) : null);
+            if (subUrl) { finalUrl = subUrl; setNote(t("Sous-titres ajoutés ✓", "Subtitles added ✓")); }
+            else setNote(t("Vidéo prête (sous-titres indisponibles).", "Video ready (subtitles unavailable)."));
+          }
+        } catch { setNote(t("Vidéo prête (sous-titres indisponibles).", "Video ready (subtitles unavailable).")); }
+      }
+      if (finalUrl) setVideoUrl(finalUrl);
     } catch (e) {
       setError(e instanceof Error ? e.message : t("Échec.", "Failed."));
     } finally { setRendering(false); }
@@ -313,6 +333,10 @@ export default function StudioAvatarPage() {
                   </select>
                 </div>
               </div>
+              <label className="flex cursor-pointer items-center gap-2 text-xs text-muted">
+                <input type="checkbox" checked={subtitles} onChange={(e) => setSubtitles(e.target.checked)} className="h-4 w-4 accent-page" />
+                {t("Ajouter des sous-titres incrustés (transcription auto)", "Add burned-in subtitles (auto transcription)")}
+              </label>
             </section>
 
             <button onClick={genVideo} disabled={rendering} className="btn-primary w-full justify-center py-3 text-sm disabled:opacity-50">

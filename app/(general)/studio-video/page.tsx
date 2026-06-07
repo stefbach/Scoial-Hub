@@ -501,9 +501,18 @@ function CutCard({
           const s = await fetch(`/api/video/render/${encodeURIComponent(id)}`).then((r) => r.json());
           if (s.status === "done") {
             if (pollRef.current) clearInterval(pollRef.current);
-            setRUrl(s.url ?? null);
             setRState("done");
-            if (s.url) fetch("/api/media", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ companyId, url: s.url, type: "video", format: cut.aspect, source: "studio-video" }) }).catch(() => {});
+            let finalUrl: string | null = s.url ?? null;
+            if (finalUrl) {
+              // Persiste le rendu (URL Shotstack éphémère) → stockage durable.
+              try {
+                const pr = await fetch("/api/media/persist", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ companyId, url: finalUrl, kind: "video" }) });
+                const pd = await pr.json();
+                if (pr.ok && pd.url) finalUrl = pd.url;
+              } catch { /* garde l'URL d'origine */ }
+              setRUrl(finalUrl);
+              fetch("/api/media", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ companyId, url: finalUrl, type: "video", format: cut.aspect, source: "studio-video" }) }).catch(() => {});
+            }
           } else if (s.status === "failed") {
             if (pollRef.current) clearInterval(pollRef.current);
             setRErr(s.error ?? t("Échec du rendu", "Render failed"));
@@ -652,12 +661,16 @@ function CutCard({
           )}
           {rState === "done" && rUrl && (
             <div className="space-y-2">
-              <video src={rUrl} controls className="w-full rounded-lg border border-hair" />
+              <video src={rUrl} controls preload="metadata" className="w-full rounded-lg border border-hair" />
+              <p className="text-2xs text-success-600">{t("✓ Enregistrée dans la Médiathèque", "✓ Saved to the Media library")}</p>
               <div className="flex gap-2">
-                <a href={rUrl} target="_blank" rel="noopener noreferrer" download className="btn-primary flex-1 justify-center text-2xs">
+                <a href={rUrl} target="_blank" rel="noopener noreferrer" download className="btn-secondary flex-1 justify-center text-2xs">
                   ⬇ {t("Télécharger", "Download")}
                 </a>
-                <button className="btn-secondary shrink-0 text-2xs" onClick={startRender}>
+                <a href="/compose" className="btn-primary flex-1 justify-center text-2xs">
+                  {t("Publier / Programmer →", "Publish / Schedule →")}
+                </a>
+                <button className="btn-ghost shrink-0 text-2xs" onClick={startRender}>
                   ↻ {t("Régénérer", "Re-render")}
                 </button>
               </div>

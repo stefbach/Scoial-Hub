@@ -6,6 +6,9 @@ import { useT } from "@/lib/i18n";
 
 // Traductions des libellés de navigation (FR par défaut → EN).
 const NAV_TR: Record<string, [string, string]> = {
+  "Organisation": ["Organisation", "Organization"],
+  "Mes sociétés": ["Mes sociétés", "My companies"],
+  "Mon équipe": ["Mon équipe", "My team"],
   "Identité de marque": ["Identité de marque", "Brand identity"],
   "Dashboard": ["Tableau de bord", "Dashboard"],
   "Médiathèque": ["Médiathèque", "Media library"],
@@ -45,6 +48,21 @@ const NAV_TR: Record<string, [string, string]> = {
 
 /* ── Icônes SVG inline ─────────────────────────────────────────────── */
 const ICONS: Record<string, React.ReactNode> = {
+  "/mes-societes": (
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+      <rect x="2" y="5" width="5.5" height="8" rx="1" stroke="currentColor" strokeWidth="1.2" fill="none"/>
+      <rect x="8" y="2" width="5" height="11" rx="1" stroke="currentColor" strokeWidth="1.2" fill="none"/>
+      <path d="M9.5 4.5h2M9.5 6.5h2M9.5 8.5h2M4 7.5h1.5M4 9.5h1.5" stroke="currentColor" strokeWidth="1" strokeLinecap="round"/>
+    </svg>
+  ),
+  "/mon-equipe": (
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+      <circle cx="5.5" cy="5" r="2" stroke="currentColor" strokeWidth="1.2" fill="none"/>
+      <circle cx="10.5" cy="5.5" r="1.6" stroke="currentColor" strokeWidth="1.1" fill="none" opacity="0.7"/>
+      <path d="M1.5 12.5c0-2.2 1.8-3.6 4-3.6s4 1.4 4 3.6" stroke="currentColor" strokeWidth="1.2" fill="none" strokeLinecap="round"/>
+      <path d="M10.5 9c1.6.2 3 1.4 3 3.5" stroke="currentColor" strokeWidth="1.1" fill="none" strokeLinecap="round" opacity="0.7"/>
+    </svg>
+  ),
   "/identite": (
     <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
       <path d="M7.5 1.5l1.4 3.1 3.1 1.4-3.1 1.4-1.4 3.1-1.4-3.1L2.5 6l3.1-1.4L7.5 1.5Z"
@@ -254,6 +272,13 @@ const SPINE: NavItem[] = [
 
 /* ── Modules (secondaires) ─────────────────────────────────────────── */
 const GROUPS: { label?: string; items: NavItem[] }[] = [
+  {
+    label: "Organisation",
+    items: [
+      { href: "/mes-societes", label: "Mes sociétés" },
+      { href: "/mon-equipe", label: "Mon équipe" },
+    ],
+  },
   {
     label: "Pilotage IA",
     items: [

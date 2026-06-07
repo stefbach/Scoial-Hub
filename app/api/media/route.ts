@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as { companyId?: string; url?: string; type?: "image" | "video"; format?: string; source?: string; prompt?: string };
     if (!body.companyId || !body.url) return NextResponse.json({ error: "companyId et url requis" }, { status: 400 });
-    const guard = await requireCompanyAccess(body.companyId);
+    const guard = await requireCompanyAccess(body.companyId, { mode: "edit" });
     if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
     await saveMediaAsset(body.companyId, { url: body.url, type: body.type, format: body.format, source: body.source, prompt: body.prompt });
     return NextResponse.json({ ok: true });

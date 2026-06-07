@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
-import { CompanySwitcher } from "./CompanySwitcher";
+import { CompanyIndicator } from "./CompanyIndicator";
 import { Sidebar } from "./Sidebar";
 import { ScopeBar } from "./ScopeBar";
 import { HelpButton } from "@/components/help/HelpButton";
@@ -235,7 +235,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {/* Séparateur vertical */}
           <span className="hidden h-4 w-px bg-hair sm:block" aria-hidden="true" />
 
-          <CompanySwitcher />
+          <CompanyIndicator />
         </div>
 
         {/* Zone droite : langue + avatar */}

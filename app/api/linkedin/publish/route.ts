@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
     if (!companyId) return NextResponse.json({ error: "companyId requis" }, { status: 400 });
     if (!text?.trim()) return NextResponse.json({ error: "Texte requis" }, { status: 400 });
 
-    const guard = await requireCompanyAccess(companyId);
+    const guard = await requireCompanyAccess(companyId, { mode: "edit" });
     if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
 
     const uuid = await resolveCompanyUuid(companyId);

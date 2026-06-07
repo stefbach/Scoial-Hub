@@ -49,6 +49,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const guard = await requireCompanyAccess(companyId, { mode: "edit" });
+    if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
+
     const post = await createScheduledPost(companyId, {
       platform: input.platform as Platform,
       title: input.title,

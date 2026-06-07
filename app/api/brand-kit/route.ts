@@ -23,7 +23,7 @@ export async function PUT(req: NextRequest) {
     const body = (await req.json()) as { companyId?: string; kit?: Partial<BrandKit> };
     const companyId = body.companyId ?? "";
     if (!companyId) return NextResponse.json({ error: "companyId requis" }, { status: 400 });
-    const guard = await requireCompanyAccess(companyId);
+    const guard = await requireCompanyAccess(companyId, { mode: "edit" });
     if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
 
     // On ne persiste que les champs connus (évite l'injection de colonnes).
@@ -53,7 +53,7 @@ export async function PUT(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   const companyId = req.nextUrl.searchParams.get("companyId") ?? "";
   if (!companyId) return NextResponse.json({ error: "companyId requis" }, { status: 400 });
-  const guard = await requireCompanyAccess(companyId);
+  const guard = await requireCompanyAccess(companyId, { mode: "edit" });
   if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
 
   const kit = await saveBrandKit(companyId, {

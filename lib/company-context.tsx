@@ -12,6 +12,13 @@ import { COMPANIES, COMPANY_DATA, registerCompany, makeEmptyCompanyData } from "
 import type { Company, CompanyData } from "./types";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/env";
+import type { MyAccess } from "@/lib/rbac/types";
+
+const COMPANY_LS_KEY = "sh_company_id";
+
+// Accès permissif par défaut (mode démo / pendant le chargement) : on n'enferme
+// pas l'UI avant d'avoir la réponse réelle de /api/me/access.
+const DEFAULT_ACCESS: MyAccess = { role: "owner", mode: "edit", isAccountAdmin: true, canEdit: true };
 
 interface CompanyContextValue {
   companies: Company[];
@@ -20,12 +27,30 @@ interface CompanyContextValue {
   setCompanyId: (id: string) => void;
   addCompany: (company: Company) => void;
   updateCompany: (id: string, patch: Partial<Company>) => void;
+  /** Droits de l'utilisateur courant sur la société active (édition/lecture). */
+  access: MyAccess;
 }
 
 const CompanyContext = createContext<CompanyContextValue | null>(null);
 
 export function CompanyProvider({ children }: { children: React.ReactNode }) {
-  const [companyId, setCompanyId] = useState(COMPANIES[0].id);
+  const [companyId, setCompanyIdState] = useState(COMPANIES[0].id);
+  const [access, setAccess] = useState<MyAccess>(DEFAULT_ACCESS);
+
+  // Sélection de société PERSISTÉE (localStorage) : remplace l'ancien menu
+  // déroulant volatil. La société active survit au rechargement.
+  const setCompanyId = useCallback((id: string) => {
+    setCompanyIdState(id);
+    try { window.localStorage.setItem(COMPANY_LS_KEY, id); } catch { /* ignore */ }
+  }, []);
+
+  // Restaure la dernière société choisie au montage.
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(COMPANY_LS_KEY);
+      if (saved) setCompanyIdState(saved);
+    } catch { /* ignore */ }
+  }, []);
   // Snapshot of the shared COMPANIES list; bumping this triggers re-renders
   // for the switcher and any consumer when companies are added/edited.
   const [companies, setCompanies] = useState<Company[]>([...COMPANIES]);
@@ -86,7 +111,7 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
           }
           COMPANIES.splice(0, COMPANIES.length, ...fetched);
           setCompanies([...COMPANIES]);
-          setCompanyId((prev) =>
+          setCompanyIdState((prev) =>
             COMPANIES.some((c) => c.id === prev) ? prev : (COMPANIES[0]?.id ?? "")
           );
           return;
@@ -112,7 +137,7 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
         setCompanies([...COMPANIES]);
         // If the previously-selected companyId no longer exists in the
         // refreshed list, fall back to the first entry.
-        setCompanyId((prev) => {
+        setCompanyIdState((prev) => {
           const stillExists = COMPANIES.some((c) => c.id === prev);
           return stillExists ? prev : (COMPANIES[0]?.id ?? prev);
         });
@@ -147,6 +172,25 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
     };
   }, [companyId]);
 
+  // Droits effectifs de l'utilisateur sur la société active (édition/lecture).
+  useEffect(() => {
+    let cancelled = false;
+    if (!companyId) { setAccess(DEFAULT_ACCESS); return; }
+    fetch(`/api/me/access?companyId=${encodeURIComponent(companyId)}`)
+      .then((r) => (r.ok ? (r.json() as Promise<MyAccess>) : null))
+      .then((a) => {
+        if (cancelled || !a) return;
+        setAccess({
+          role: a.role ?? null,
+          mode: a.mode ?? null,
+          isAccountAdmin: Boolean(a.isAccountAdmin),
+          canEdit: Boolean(a.canEdit),
+        });
+      })
+      .catch(() => { /* garde l'accès permissif par défaut */ });
+    return () => { cancelled = true; };
+  }, [companyId]);
+
   const addCompany = useCallback((company: Company) => {
     registerCompany(company);
     setCompanies([...COMPANIES]);
@@ -174,8 +218,9 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
       setCompanyId,
       addCompany,
       updateCompany,
+      access,
     };
-  }, [companyId, companies, companyData, addCompany, updateCompany]);
+  }, [companyId, companies, companyData, addCompany, updateCompany, setCompanyId, access]);
 
   return (
     <CompanyContext.Provider value={value}>{children}</CompanyContext.Provider>

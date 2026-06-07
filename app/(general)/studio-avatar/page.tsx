@@ -13,6 +13,18 @@ import { createClient } from "@/lib/supabase/client";
 import { VOICE_MODELS, AVATAR_MODELS, DEFAULT_VOICE_MODEL, DEFAULT_AVATAR_MODEL } from "@/lib/ai/avatar-models";
 import { IMAGE_MODELS, DEFAULT_IMAGE_MODEL_ID } from "@/lib/ai/model-catalog";
 
+/** Convertit n'importe quelle erreur (string | objet plateforme | …) en texte lisible. */
+function errText(e: unknown, fallback: string): string {
+  if (typeof e === "string") return e;
+  if (e && typeof e === "object") {
+    const o = e as { message?: unknown; error?: unknown };
+    if (typeof o.message === "string") return o.message;
+    if (typeof o.error === "string") return o.error;
+    try { return JSON.stringify(e); } catch { /* ignore */ }
+  }
+  return fallback;
+}
+
 /** Première URL d'image d'une réponse /api/ai/generate-image. */
 function firstImage(d: unknown): string | null {
   const imgs = (d as { images?: Array<string | { url?: string }> })?.images;
@@ -83,7 +95,7 @@ export default function StudioAvatarPage() {
         }),
       });
       const d = await r.json();
-      if (!r.ok) throw new Error(d.error || t("Échec.", "Failed."));
+      if (!r.ok) throw new Error(errText(d.error, t("Échec.", "Failed.")));
       const url = firstImage(d);
       if (url) setFaceUrl(url);
       else setNote(d.simulated ? t("Génération d'images non configurée (REPLICATE_API_TOKEN).", "Image generation not configured (REPLICATE_API_TOKEN).") : t("Aucune image renvoyée.", "No image returned."));
@@ -108,7 +120,7 @@ export default function StudioAvatarPage() {
         }),
       });
       const d = await r.json();
-      if (!r.ok) throw new Error(d.error || t("Échec.", "Failed."));
+      if (!r.ok) throw new Error(errText(d.error, t("Échec.", "Failed.")));
       const url = firstImage(d);
       if (url) { setFaceUrl(url); setNote(t("Décor appliqué ✓", "Environment applied ✓")); }
       else setNote(d.simulated ? t("Génération d'images non configurée.", "Image generation not configured.") : t("Aucune image renvoyée.", "No image returned."));
@@ -126,7 +138,7 @@ export default function StudioAvatarPage() {
         body: JSON.stringify({ companyId: company.id, mode: "script", topic, language, seconds }),
       });
       const d = await r.json();
-      if (!r.ok) throw new Error(d.error || t("Échec.", "Failed."));
+      if (!r.ok) throw new Error(errText(d.error, t("Échec.", "Failed.")));
       setScript(d.script ?? "");
       if (d.aiGenerated === false) setNote(t("Démo — IA texte non configurée (ANTHROPIC_API_KEY).", "Demo — text AI not configured (ANTHROPIC_API_KEY)."));
     } catch (e) {
@@ -144,7 +156,7 @@ export default function StudioAvatarPage() {
         body: JSON.stringify({ companyId: company.id, mode: "video", script, faceUrl, ttsModel, lipsyncModel }),
       });
       const d = await r.json();
-      if (!r.ok) throw new Error(d.error || t("Échec.", "Failed."));
+      if (!r.ok) throw new Error(errText(d.error, t("Échec.", "Failed.")));
       if (d.simulated) {
         setNote(t("Génération vidéo non configurée (REPLICATE_API_TOKEN).", "Video generation not configured (REPLICATE_API_TOKEN)."));
       } else if (d.videoUrl) {

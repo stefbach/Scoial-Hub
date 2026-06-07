@@ -72,13 +72,18 @@ interface ReplicatePrediction {
 
 // --------------- Utilitaires réseau ---------------
 
-/** Retourne les headers HTTP communs à toutes les requêtes Replicate. */
-function replicateHeaders(): Record<string, string> {
-  return {
+/**
+ * Retourne les headers HTTP communs à toutes les requêtes Replicate.
+ * `wait=true` ajoute `Prefer: wait` (réponse synchrone, bloque jusqu'à ~60s) —
+ * à éviter pour les modèles lents qu'on veut démarrer en asynchrone.
+ */
+function replicateHeaders(wait = true): Record<string, string> {
+  const h: Record<string, string> = {
     Authorization: `Bearer ${process.env.REPLICATE_API_TOKEN ?? ""}`,
     "Content-Type": "application/json",
-    Prefer: "wait",
   };
+  if (wait) h.Prefer = "wait";
+  return h;
 }
 
 /**
@@ -102,14 +107,15 @@ async function resolveLatestVersion(model: string): Promise<string | null> {
 
 async function createPrediction(
   model: string,
-  input: Record<string, unknown>
+  input: Record<string, unknown>,
+  wait = true
 ): Promise<ReplicatePrediction> {
   const [owner, name] = model.split("/");
 
   // 1) Endpoint « modèle officiel » (cible la dernière version sans la spécifier).
   let res = await replicateFetch(`${REPLICATE_API_BASE}/models/${owner}/${name}/predictions`, {
     method: "POST",
-    headers: replicateHeaders(),
+    headers: replicateHeaders(wait),
     body: JSON.stringify({ input }),
   });
 
@@ -119,7 +125,7 @@ async function createPrediction(
     if (version) {
       res = await replicateFetch(`${REPLICATE_API_BASE}/predictions`, {
         method: "POST",
-        headers: replicateHeaders(),
+        headers: replicateHeaders(wait),
         body: JSON.stringify({ version, input }),
       });
     }
@@ -552,7 +558,8 @@ export async function startAvatarLipsync(
 ): Promise<{ id?: string; status?: string; videoUrl?: string; error?: string }> {
   if (!isReplicateConfigured) return { error: "not-configured" };
   const { imageKey, audioKey } = await detectAvatarKeys(model);
-  const pred = await createPrediction(model, { [imageKey]: imageUrl, [audioKey]: audioUrl });
+  // wait=false : démarrage immédiat (pas de blocage ~60s → pas de timeout fonction).
+  const pred = await createPrediction(model, { [imageKey]: imageUrl, [audioKey]: audioUrl }, false);
   if (pred.status === "succeeded") return { id: pred.id, status: "succeeded", videoUrl: firstUrl(pred.output) ?? undefined };
   if (pred.status === "failed" || pred.status === "canceled") return { id: pred.id, status: "failed", error: pred.error ?? "failed" };
   return { id: pred.id, status: pred.status };

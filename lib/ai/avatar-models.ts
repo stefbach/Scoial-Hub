@@ -53,15 +53,11 @@ export interface AvatarLang {
   claude: string;   // nom de langue pour le prompt Claude
 }
 
+// Limité aux langues réellement bien prononcées par les voix MiniMax.
+// (D'autres langues seront réactivées avec un modèle qui les gère correctement.)
 export const AVATAR_LANGS: AvatarLang[] = [
   { code: "fr", label: "Français", boost: "French", claude: "français" },
   { code: "en", label: "English", boost: "English", claude: "anglais" },
-  { code: "es", label: "Español", boost: "Spanish", claude: "espagnol" },
-  { code: "de", label: "Deutsch", boost: "German", claude: "allemand" },
-  { code: "it", label: "Italiano", boost: "Italian", claude: "italien" },
-  { code: "pt", label: "Português", boost: "Portuguese", claude: "portugais" },
-  { code: "nl", label: "Nederlands", boost: "Dutch", claude: "néerlandais" },
-  { code: "ar", label: "العربية", boost: "Arabic", claude: "arabe" },
 ];
 
 /** Modèle TTS multilingue de référence + voix par genre. */

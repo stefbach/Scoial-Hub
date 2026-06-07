@@ -29,6 +29,26 @@ export default function MonEquipePage() {
   const [denied, setDenied] = useState(false);
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<TeamMember | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+
+  // Aucun email n'est envoyé automatiquement : on fournit un texte d'invitation
+  // copiable (lien d'inscription + email) que l'admin partage lui-même.
+  const inviteText = useCallback((email: string) => {
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    return t(
+      `Bonjour,\n\nVous êtes invité(e) à rejoindre notre espace AXON-AI Social Hub.\nCréez votre compte avec cette adresse e-mail : ${email}\n👉 ${origin}/signup\n\nVos accès seront actifs dès votre première connexion.`,
+      `Hello,\n\nYou've been invited to join our AXON-AI Social Hub workspace.\nCreate your account using this email: ${email}\n👉 ${origin}/signup\n\nYour access will be active on your first sign-in.`
+    );
+  }, [t]);
+
+  const copyInvite = useCallback(async (email: string) => {
+    try {
+      await navigator.clipboard.writeText(inviteText(email));
+      setNote(t("Invitation copiée — collez-la dans un e-mail ou un message.", "Invitation copied — paste it into an email or message."));
+    } catch {
+      setNote(t("Copie impossible. Sélectionnez le texte manuellement.", "Copy failed. Select the text manually."));
+    }
+  }, [inviteText, t]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -83,7 +103,16 @@ export default function MonEquipePage() {
           "Ajoutez des utilisateurs et donnez-leur accès à une ou plusieurs sociétés, en édition ou en lecture. Les administrateurs ont accès à tout.",
           "Add users and grant them access to one or several companies, in edit or view mode. Admins have full access."
         )}
+        <br />
+        {t(
+          "Un utilisateur qui a déjà un compte est ajouté immédiatement. Sinon, une invitation est créée : copiez-la et envoyez-la-lui — ses accès s'activeront à sa première connexion.",
+          "A user who already has an account is added immediately. Otherwise an invitation is created: copy it and send it to them — their access activates on first sign-in."
+        )}
       </p>
+
+      {note && (
+        <p className="rounded-lg bg-canvas px-3 py-2 text-xs text-ink ring-1 ring-hair">{note}</p>
+      )}
 
       {loading ? (
         <div className="card p-8 text-center text-sm text-muted">{t("Chargement…", "Loading…")}</div>
@@ -135,7 +164,10 @@ export default function MonEquipePage() {
                       <p className="truncate text-sm text-ink">{inv.email}</p>
                       <p className="text-2xs text-muted">{t("Rejoindra à la première connexion", "Will join on first sign-in")} · {inv.access.length} {t("société(s)", "company(ies)")}</p>
                     </div>
-                    <button onClick={() => revokeInvite(inv.id)} className="btn-ghost text-2xs text-danger-600">{t("Annuler", "Cancel")}</button>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <button onClick={() => copyInvite(inv.email)} className="btn-secondary text-2xs">{t("📋 Copier l'invitation", "📋 Copy invitation")}</button>
+                      <button onClick={() => revokeInvite(inv.id)} className="btn-ghost text-2xs text-danger-600">{t("Annuler", "Cancel")}</button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -148,7 +180,19 @@ export default function MonEquipePage() {
         <MemberEditor
           companies={companies}
           onClose={() => setAdding(false)}
-          onSaved={() => { setAdding(false); load(); }}
+          onSaved={(res) => {
+            setAdding(false);
+            load();
+            if (res?.invited && res.email) {
+              copyInvite(res.email);
+              setNote(t(
+                `Invitation créée pour ${res.email} et copiée — envoyez-la-lui pour finaliser la création de son compte.`,
+                `Invitation created for ${res.email} and copied — send it so they can finish creating their account.`
+              ));
+            } else if (res?.added) {
+              setNote(t("Utilisateur ajouté à l'équipe ✓", "User added to the team ✓"));
+            }
+          }}
         />
       )}
       {editing && (
@@ -173,7 +217,7 @@ function MemberEditor({
   companies: TeamCompany[];
   member?: TeamMember;
   onClose: () => void;
-  onSaved: () => void;
+  onSaved: (res?: { added?: boolean; invited?: boolean; email?: string }) => void;
 }) {
   const t = useT();
   const isEdit = Boolean(member);
@@ -200,8 +244,9 @@ function MemberEditor({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(isEdit ? { userId: member!.userId, role, access } : { email: email.trim(), role, access }),
       });
-      if (!res.ok) throw new Error((await res.json()).error || "fail");
-      onSaved();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "fail");
+      onSaved({ added: data.added, invited: data.invited, email: email.trim() });
     } catch (e) {
       setError(e instanceof Error ? e.message : t("Échec.", "Failed."));
     } finally {

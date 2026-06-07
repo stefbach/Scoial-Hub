@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useT } from "@/lib/i18n";
+import { useCompany } from "@/lib/company-context";
 import { CompanyIndicator } from "./CompanyIndicator";
 
 // Traductions des libellés de navigation (FR par défaut → EN).
@@ -268,7 +269,7 @@ const ICONS: Record<string, React.ReactNode> = {
   ),
 };
 
-type NavItem = { href: string; label: string };
+type NavItem = { href: string; label: string; adminOnly?: boolean };
 
 /* ── Colonne vertébrale ────────────────────────────────────────────────
    La porte d'entrée du produit : on démarre par le parcours assisté, on
@@ -287,7 +288,7 @@ const GROUPS: { label?: string; items: NavItem[] }[] = [
     label: "Organisation",
     items: [
       { href: "/mes-societes", label: "Mes sociétés" },
-      { href: "/mon-equipe", label: "Mon équipe" },
+      { href: "/mon-equipe", label: "Mon équipe", adminOnly: true },
     ],
   },
   {
@@ -344,7 +345,10 @@ const GROUPS: { label?: string; items: NavItem[] }[] = [
 export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
   const pathname = usePathname();
   const t = useT();
+  const { access } = useCompany();
   const tr = (s: string) => { const e = NAV_TR[s]; return e ? t(e[0], e[1]) : s; };
+  // Masque les entrées réservées à l'admin du compte (ex. « Mon équipe »).
+  const canSee = (item: NavItem) => !item.adminOnly || access.isAccountAdmin;
 
   const isActive = (href: string) => pathname.startsWith(href);
 
@@ -418,7 +422,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
             <div className="mb-1.5 px-3 section-label">{tr(group.label)}</div>
           )}
           <ul className="space-y-px" role="list">
-            {group.items.map((item) => renderItem(item))}
+            {group.items.filter(canSee).map((item) => renderItem(item))}
           </ul>
         </div>
       ))}

@@ -45,6 +45,8 @@ export interface OnboardingCtx {
     handles: BrandHandles,
     description?: string
   ) => Promise<BrandProfile | null>;
+  /** Applique un profil déjà construit (ex. verrouillé par le consultant IA). */
+  applyProfile: (profile: BrandProfile) => void;
   goTo: (step: number) => void;
   next: () => void;
   back: () => void;
@@ -197,6 +199,10 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
     [companyId, companyName]
   );
 
+  const applyProfile = useCallback((next: BrandProfile) => {
+    setProfile(next);
+  }, []);
+
   const complete = useCallback(async () => {
     patchState({ completed: true, step: TOTAL_STEPS });
   }, [patchState]);
@@ -244,6 +250,7 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
     hasProfile: Boolean(profile.analyzedAt),
     patchState,
     analyzeIdentity,
+    applyProfile,
     goTo,
     next,
     back,

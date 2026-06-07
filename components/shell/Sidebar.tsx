@@ -6,6 +6,7 @@ import { useT } from "@/lib/i18n";
 
 // Traductions des libellés de navigation (FR par défaut → EN).
 const NAV_TR: Record<string, [string, string]> = {
+  "Identité de marque": ["Identité de marque", "Brand identity"],
   "Dashboard": ["Tableau de bord", "Dashboard"],
   "Médiathèque": ["Médiathèque", "Media library"],
   "Modèles": ["Modèles", "Templates"],
@@ -44,6 +45,13 @@ const NAV_TR: Record<string, [string, string]> = {
 
 /* ── Icônes SVG inline ─────────────────────────────────────────────── */
 const ICONS: Record<string, React.ReactNode> = {
+  "/identite": (
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+      <path d="M7.5 1.5l1.4 3.1 3.1 1.4-3.1 1.4-1.4 3.1-1.4-3.1L2.5 6l3.1-1.4L7.5 1.5Z"
+            stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round" fill="none"/>
+      <circle cx="11.5" cy="11.5" r="1.6" stroke="currentColor" strokeWidth="1.1" fill="none"/>
+    </svg>
+  ),
   "/dashboard": (
     <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
       <path d="M7.5 1.5L1.5 7H3v6h3.5v-4h2v4H12V7h1.5L7.5 1.5Z" fill="currentColor"/>
@@ -238,6 +246,7 @@ type NavItem = { href: string; label: string };
    pilote depuis le tableau de bord et le centre de pilotage. Le reste
    (ci-dessous) ce sont des « Modules » où l'on plonge pour approfondir. */
 const SPINE: NavItem[] = [
+  { href: "/identite",  label: "Identité de marque" },
   { href: "/demarrage", label: "Get started" },
   { href: "/dashboard", label: "Dashboard" },
   { href: "/pilotage",  label: "Centre de pilotage" },

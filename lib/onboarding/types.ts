@@ -40,6 +40,19 @@ export interface BrandProfile {
   audience: string;
   themes: string[];
   strengths: string[];
+  /** ── ADN de marque (Consultant IA) — la « philosophie » verrouillée ──── */
+  /** Raison d'être de la marque (1-2 phrases). */
+  mission: string;
+  /** Valeurs fondatrices (3-5). */
+  values: string[];
+  /** LE message clé que le client veut faire passer. */
+  keyMessage: string;
+  /** Traits de personnalité de marque (ex. audacieuse, chaleureuse…). */
+  personality: string[];
+  /** Direction artistique : mots-clés visuels (style, lumière, matières…). */
+  visualDirection: string;
+  /** Vrai quand l'identité/philosophie a été validée par le client. */
+  philosophyLocked: boolean;
   /** mots-clés pour alimenter la veille (étape 3). */
   keywords: string[];
   /** réseaux recommandés par l'IA pour cette marque. */
@@ -124,6 +137,12 @@ export function makeEmptyBrandProfile(companyId: string): BrandProfile {
     audience: "",
     themes: [],
     strengths: [],
+    mission: "",
+    values: [],
+    keyMessage: "",
+    personality: [],
+    visualDirection: "",
+    philosophyLocked: false,
     keywords: [],
     recommendedNetworks: [],
     competitorAngles: [],

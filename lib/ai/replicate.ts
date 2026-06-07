@@ -440,3 +440,77 @@ export async function getVideoPrediction(id: string): Promise<VideoPredictionSta
   }
   return mapVideoPrediction((await res.json()) as ReplicatePrediction);
 }
+
+// --------------- API publique — Avatar parlant (TTS + lip-sync) ---------------
+
+/** Modèles par défaut (surchargeables). TTS texte→audio, puis image+audio→vidéo. */
+export const AVATAR_TTS_MODEL = "jaaari/kokoro-82m";
+export const AVATAR_LIPSYNC_MODEL = "cjwbw/sadtalker";
+
+/** Extrait la 1ère URL exploitable d'un output Replicate (string | string[] | objet). */
+function firstUrl(output: unknown): string | null {
+  if (!output) return null;
+  if (typeof output === "string") return output.startsWith("http") ? output : null;
+  if (Array.isArray(output)) {
+    for (const o of output) {
+      const u = firstUrl(o);
+      if (u) return u;
+    }
+    return null;
+  }
+  if (typeof output === "object") {
+    const o = output as Record<string, unknown>;
+    for (const k of ["video", "audio", "output", "url"]) {
+      const u = firstUrl(o[k]);
+      if (u) return u;
+    }
+  }
+  return null;
+}
+
+/** Exécute un modèle Replicate arbitraire et renvoie la 1ère URL de l'output. */
+export async function runReplicateUrl(
+  model: string,
+  input: Record<string, unknown>
+): Promise<string | null> {
+  if (!isReplicateConfigured) return null;
+  const prediction = await runPrediction(model, input);
+  return firstUrl(prediction.output);
+}
+
+export interface AvatarResult {
+  videoUrl?: string;
+  audioUrl?: string;
+  simulated?: boolean;
+}
+
+/**
+ * Génère une vidéo d'avatar parlant : texte → voix (TTS) → lip-sync sur un visage.
+ * Dégradation : si Replicate n'est pas configuré, retourne { simulated: true }.
+ */
+export async function generateAvatarVideo(opts: {
+  text: string;
+  faceUrl: string;
+  voice?: string;
+  ttsModel?: string;
+  lipsyncModel?: string;
+}): Promise<AvatarResult> {
+  if (!isReplicateConfigured) return { simulated: true };
+
+  // 1) Voix (TTS)
+  const audioUrl = await runReplicateUrl(opts.ttsModel ?? AVATAR_TTS_MODEL, {
+    text: opts.text,
+    ...(opts.voice ? { voice: opts.voice } : {}),
+  });
+  if (!audioUrl) throw new Error("Échec de la génération de la voix (TTS).");
+
+  // 2) Lip-sync (visage + audio → vidéo)
+  const videoUrl = await runReplicateUrl(opts.lipsyncModel ?? AVATAR_LIPSYNC_MODEL, {
+    source_image: opts.faceUrl,
+    driven_audio: audioUrl,
+    preprocess: "full",
+  });
+  if (!videoUrl) throw new Error("Échec de la génération de la vidéo (lip-sync).");
+
+  return { videoUrl, audioUrl };
+}

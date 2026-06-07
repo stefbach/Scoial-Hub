@@ -8,6 +8,7 @@ import { CompanyIndicator } from "./CompanyIndicator";
 // Traductions des libellés de navigation (FR par défaut → EN).
 const NAV_TR: Record<string, [string, string]> = {
   "Se déconnecter": ["Se déconnecter", "Sign out"],
+  "Studio Avatar": ["Studio Avatar", "Avatar Studio"],
   "Aide & tutoriel": ["Aide & tutoriel", "Help & tutorial"],
   "Organisation": ["Organisation", "Organization"],
   "Mes sociétés": ["Mes sociétés", "My companies"],
@@ -258,6 +259,13 @@ const ICONS: Record<string, React.ReactNode> = {
       <path d="M4.5 6.5 7 7.5 4.5 8.5V6.5Z" fill="currentColor"/>
     </svg>
   ),
+  "/studio-avatar": (
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+      <circle cx="7.5" cy="5" r="2.4" stroke="currentColor" strokeWidth="1.2" fill="none"/>
+      <path d="M3 12.5c0-2.2 2-3.6 4.5-3.6s4.5 1.4 4.5 3.6" stroke="currentColor" strokeWidth="1.2" fill="none" strokeLinecap="round"/>
+      <path d="M12.2 3.2c.8.8.8 2.1 0 2.9M13.6 1.9c1.5 1.5 1.5 3.9 0 5.4" stroke="currentColor" strokeWidth="1" strokeLinecap="round" opacity="0.6"/>
+    </svg>
+  ),
 };
 
 type NavItem = { href: string; label: string };
@@ -299,6 +307,7 @@ const GROUPS: { label?: string; items: NavItem[] }[] = [
     items: [
       { href: "/compose",      label: "Compose" },
       { href: "/studio-video", label: "Video Studio" },
+      { href: "/studio-avatar", label: "Studio Avatar" },
       { href: "/studio-affiche", label: "Studio Affiches" },
       { href: "/media",       label: "Médiathèque" },
       { href: "/scheduled",   label: "Scheduled" },

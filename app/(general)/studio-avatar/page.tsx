@@ -10,7 +10,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Spinner, BusyHint } from "@/components/ui/Spinner";
 import { useT } from "@/lib/i18n";
 import { createClient } from "@/lib/supabase/client";
-import { VOICE_MODELS, AVATAR_MODELS, DEFAULT_VOICE_MODEL, DEFAULT_AVATAR_MODEL } from "@/lib/ai/avatar-models";
+import { AVATAR_MODELS, DEFAULT_AVATAR_MODEL, AVATAR_LANGS } from "@/lib/ai/avatar-models";
 import { IMAGE_MODELS, DEFAULT_IMAGE_MODEL_ID } from "@/lib/ai/model-catalog";
 
 /** Convertit n'importe quelle erreur (string | objet plateforme | …) en texte lisible. */
@@ -43,11 +43,11 @@ export default function StudioAvatarPage() {
 
   const [faceUrl, setFaceUrl] = useState("");
   const [topic, setTopic] = useState("");
-  const [language, setLanguage] = useState<"fr" | "en">("fr");
+  const [language, setLanguage] = useState("fr");
+  const [gender, setGender] = useState<"female" | "male">("female");
   const [seconds, setSeconds] = useState(20);
   const [script, setScript] = useState("");
   const [environment, setEnvironment] = useState("");
-  const [ttsModel, setTtsModel] = useState(DEFAULT_VOICE_MODEL);
   const [lipsyncModel, setLipsyncModel] = useState(DEFAULT_AVATAR_MODEL);
   const [personMode, setPersonMode] = useState<"upload" | "generate">("upload");
   const [personPrompt, setPersonPrompt] = useState("");
@@ -153,7 +153,7 @@ export default function StudioAvatarPage() {
     try {
       const r = await fetch("/api/ai/avatar", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyId: company.id, mode: "video", script, faceUrl, ttsModel, lipsyncModel }),
+        body: JSON.stringify({ companyId: company.id, mode: "video", script, faceUrl, language, gender, lipsyncModel }),
       });
       const d = await r.json();
       if (!r.ok) throw new Error(errText(d.error, t("Échec.", "Failed.")));
@@ -274,9 +274,8 @@ export default function StudioAvatarPage() {
               <p className="section-label">{t("2 · Script", "2 · Script")}</p>
               <input value={topic} onChange={(e) => setTopic(e.target.value)} placeholder={t("Sujet (ex. « Notre nouvelle offre minceur »)", "Topic (e.g. \"Our new weight-loss offer\")")} className="input" />
               <div className="flex flex-wrap items-center gap-2">
-                <select value={language} onChange={(e) => setLanguage(e.target.value as "fr" | "en")} className="input w-auto">
-                  <option value="fr">Français</option>
-                  <option value="en">English</option>
+                <select value={language} onChange={(e) => setLanguage(e.target.value)} className="input w-auto">
+                  {AVATAR_LANGS.map((l) => <option key={l.code} value={l.code}>{l.label}</option>)}
                 </select>
                 <label className="inline-flex items-center gap-1.5 text-2xs text-muted">
                   {t("Durée", "Duration")}
@@ -294,10 +293,18 @@ export default function StudioAvatarPage() {
               <p className="section-label">{t("3 · Voix & rendu", "3 · Voice & render")}</p>
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <div>
-                  <label className="text-2xs text-muted">{t("Voix (modèle)", "Voice (model)")}</label>
-                  <select value={ttsModel} onChange={(e) => setTtsModel(e.target.value)} className="input mt-1">
-                    {VOICE_MODELS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
-                  </select>
+                  <label className="text-2xs text-muted">{t("Voix", "Voice")}</label>
+                  <div className="mt-1 flex gap-1">
+                    {([
+                      { id: "female", fr: "Femme", en: "Woman" },
+                      { id: "male", fr: "Homme", en: "Man" },
+                    ] as const).map((g) => (
+                      <button key={g.id} type="button" onClick={() => setGender(g.id)}
+                        className={`flex-1 rounded-lg border px-2 py-1.5 text-xs font-semibold ${gender === g.id ? "border-page bg-page/15 text-ink" : "border-hair text-muted hover:text-ink"}`}>
+                        {t(g.fr, g.en)}
+                      </button>
+                    ))}
+                  </div>
                 </div>
                 <div>
                   <label className="text-2xs text-muted">{t("Avatar (modèle)", "Avatar (model)")}</label>

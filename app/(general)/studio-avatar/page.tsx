@@ -64,6 +64,7 @@ export default function StudioAvatarPage() {
   const [writing, setWriting] = useState(false);
   const [rendering, setRendering] = useState(false);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [savedToLibrary, setSavedToLibrary] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -208,7 +209,7 @@ export default function StudioAvatarPage() {
   async function genVideo() {
     if (!faceUrl.trim()) { setError(t("Ajoutez l'URL d'une image de visage.", "Add a face image URL.")); return; }
     if (!script.trim()) { setError(t("Générez ou écrivez un script.", "Generate or write a script.")); return; }
-    setRendering(true); setError(null); setNote(null); setVideoUrl(null);
+    setRendering(true); setError(null); setNote(null); setVideoUrl(null); setSavedToLibrary(false);
     try {
       const speakerUrl = clonedVoices.find((v) => v.id === voiceId)?.speakerUrl;
       const r = await fetch("/api/ai/avatar", {
@@ -247,10 +248,41 @@ export default function StudioAvatarPage() {
           }
         } catch { setNote(t("Vidéo prête (sous-titres indisponibles).", "Video ready (subtitles unavailable).")); }
       }
-      if (finalUrl) setVideoUrl(finalUrl);
+      if (finalUrl) {
+        setVideoUrl(finalUrl);
+        // Persiste la vidéo (URL Replicate éphémère) sur le stockage durable.
+        const permanent = await persistVideo(finalUrl);
+        const keep = permanent || finalUrl;
+        setVideoUrl(keep);
+        await saveToLibrary(keep);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : t("Échec.", "Failed."));
     } finally { setRendering(false); }
+  }
+
+  // Télécharge la vidéo Replicate (URL éphémère) et la stocke durablement.
+  async function persistVideo(url: string): Promise<string | null> {
+    try {
+      const r = await fetch("/api/ai/avatar", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyId: company.id, mode: "persist", videoUrl: url }),
+      });
+      const d = await r.json();
+      return r.ok && d.url ? d.url : null;
+    } catch { return null; }
+  }
+
+  // Enregistre la vidéo avatar dans la Médiathèque (réutilisable dans Composer).
+  async function saveToLibrary(url: string) {
+    if (!company.id) return;
+    try {
+      const r = await fetch("/api/media", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyId: company.id, url, type: "video", format: "9:16", source: "studio-avatar" }),
+      });
+      if (r.ok) setSavedToLibrary(true);
+    } catch { /* non bloquant */ }
   }
 
   // Interroge GET /api/ai/avatar?id=… jusqu'à succès/échec (poll 5s, max ~8 min).
@@ -446,9 +478,25 @@ export default function StudioAvatarPage() {
               )}
             </div>
             {videoUrl && (
-              <a href={videoUrl} target="_blank" rel="noopener noreferrer" download className="btn-secondary inline-flex w-full justify-center text-sm">
-                {t("⬇︎ Télécharger la vidéo", "⬇︎ Download video")}
-              </a>
+              <div className="space-y-2">
+                {savedToLibrary && (
+                  <p className="rounded-lg bg-success-50 px-3 py-1.5 text-2xs font-medium text-success-700">
+                    {t("✓ Enregistrée dans la Médiathèque", "✓ Saved to the Media library")}
+                  </p>
+                )}
+                <a href={videoUrl} target="_blank" rel="noopener noreferrer" download className="btn-secondary inline-flex w-full justify-center text-sm">
+                  {t("⬇︎ Télécharger la vidéo", "⬇︎ Download video")}
+                </a>
+                <div className="flex gap-2">
+                  <a href="/media" className="btn-ghost flex-1 justify-center text-xs">{t("📚 Médiathèque", "📚 Media library")}</a>
+                  <a href="/compose" className="btn-primary flex-1 justify-center text-xs">{t("Publier / Programmer →", "Publish / Schedule →")}</a>
+                </div>
+                {!savedToLibrary && (
+                  <button onClick={() => videoUrl && saveToLibrary(videoUrl)} className="btn-ghost w-full justify-center text-2xs text-muted">
+                    {t("Réessayer l'enregistrement en médiathèque", "Retry saving to library")}
+                  </button>
+                )}
+              </div>
             )}
           </div>
         </div>

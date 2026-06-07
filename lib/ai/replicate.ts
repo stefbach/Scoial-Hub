@@ -86,18 +86,44 @@ function replicateHeaders(): Record<string, string> {
  * Utilise l'endpoint `/v1/models/{owner}/{name}/predictions` pour les modèles
  * hébergés, ce qui permet de cibler la dernière version sans la spécifier.
  */
+/** Récupère l'id de la dernière version d'un modèle (pour les modèles non officiels). */
+async function resolveLatestVersion(model: string): Promise<string | null> {
+  try {
+    const res = await replicateFetch(`${REPLICATE_API_BASE}/models/${model}`, {
+      headers: replicateHeaders(),
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { latest_version?: { id?: string } };
+    return data.latest_version?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
 async function createPrediction(
   model: string,
   input: Record<string, unknown>
 ): Promise<ReplicatePrediction> {
   const [owner, name] = model.split("/");
-  const url = `${REPLICATE_API_BASE}/models/${owner}/${name}/predictions`;
 
-  const res = await replicateFetch(url, {
+  // 1) Endpoint « modèle officiel » (cible la dernière version sans la spécifier).
+  let res = await replicateFetch(`${REPLICATE_API_BASE}/models/${owner}/${name}/predictions`, {
     method: "POST",
     headers: replicateHeaders(),
     body: JSON.stringify({ input }),
   });
+
+  // 2) 404 → modèle communautaire : on résout la version et on relance via /predictions.
+  if (res.status === 404) {
+    const version = await resolveLatestVersion(model);
+    if (version) {
+      res = await replicateFetch(`${REPLICATE_API_BASE}/predictions`, {
+        method: "POST",
+        headers: replicateHeaders(),
+        body: JSON.stringify({ version, input }),
+      });
+    }
+  }
 
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText);

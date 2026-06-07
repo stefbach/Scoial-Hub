@@ -249,14 +249,6 @@ export default function Home() {
         {/* Scène WebGL (Three.js) — téléphone + dashboard verre + logos en orbite */}
         <div className="mc-scene">
           <Hero3D />
-          {/* Médaillon humain chaleureux (déposez /public/hero/human-hero.webp) */}
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/hero/femme%20.png"
-            alt=""
-            className="mc-hero-human"
-            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-          />
         </div>
       </section>
 
@@ -310,11 +302,20 @@ export default function Home() {
 
       {/* ── Fonctionnalités (toutes) ── */}
       <section id="capabilities" className="mc-section">
-        <header className="mc-sec-head reveal">
-          <span className="mc-kicker">{t("Ce qu'on fait pour vous", "What we handle for you")}</span>
-          <h2 className="mc-h2">{t("Tout votre social, au même endroit.", "Your whole social presence, in one place.")}</h2>
-          <p className="mc-sec-sub">{t("De l'idée au message publié — vos assistants s'occupent de la création, la publication, les réponses et la veille. Cliquez sur une carte pour voir.", "From idea to published post — your assistants handle creation, publishing, replies and watch. Click a card to take a look.")}</p>
-        </header>
+        <div className="mc-cap-head reveal">
+          <header className="mc-sec-head mc-sec-head--left">
+            <span className="mc-kicker">{t("Ce qu'on fait pour vous", "What we handle for you")}</span>
+            <h2 className="mc-h2">{t("Tout votre social, au même endroit.", "Your whole social presence, in one place.")}</h2>
+            <p className="mc-sec-sub">{t("De l'idée au message publié — vos assistants s'occupent de la création, la publication, les réponses et la veille. Cliquez sur une carte pour voir.", "From idea to published post — your assistants handle creation, publishing, replies and watch. Click a card to take a look.")}</p>
+          </header>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/hero/iphone.png"
+            alt={t("L'app AXON-AI sur mobile", "The AXON-AI app on mobile")}
+            className="mc-cap-phone"
+            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+          />
+        </div>
         <div className="mc-grid">
           {CAPABILITIES.map((c, i) => (
             <Link key={c.fr} href={c.href} className="mc-card tilt reveal" style={{ ["--c" as string]: c.c, transitionDelay: `${(i % 3) * 70 + Math.floor(i / 3) * 40}ms` }}>

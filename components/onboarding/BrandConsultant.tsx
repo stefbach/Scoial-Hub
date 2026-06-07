@@ -82,6 +82,7 @@ export function BrandConsultant({
 
   const [locking, setLocking] = useState(false);
   const [locked, setLocked] = useState(false);
+  const [resetting, setResetting] = useState(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const kicked = useRef(false);
@@ -119,13 +120,6 @@ export function BrandConsultant({
     },
     [companyId]
   );
-
-  // Démarrage : le consultant ouvre la conversation.
-  useEffect(() => {
-    if (kicked.current) return;
-    kicked.current = true;
-    turn([]);
-  }, [turn]);
 
   const send = useCallback(() => {
     const content = input.trim();
@@ -212,6 +206,40 @@ export function BrandConsultant({
     }
   }, [locking, visuals, dna, companyId, onLocked]);
 
+  // ── Remise à zéro : on repart d'une page blanche (rien n'est figé) ─────────
+  const reset = useCallback(async () => {
+    if (resetting) return;
+    if (typeof window !== "undefined" && !window.confirm(
+      t("Recommencer l'identité de marque à zéro ? L'ADN actuel sera effacé.",
+        "Restart the brand identity from scratch? The current DNA will be erased.")
+    )) return;
+    setResetting(true);
+    setError(null);
+    try {
+      await fetch("/api/ai/consultant", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyId, reset: true }),
+      });
+    } catch { /* non bloquant */ }
+    setMessages([]);
+    setDna({});
+    setReadyToLock(false);
+    setVisualPrompts([]);
+    setVisuals([]);
+    setLocked(false);
+    setResetting(false);
+    kicked.current = false; // relance l'ouverture de la conversation
+  }, [resetting, companyId, t]);
+
+  // Relance la conversation après une remise à zéro.
+  useEffect(() => {
+    if (!kicked.current && messages.length === 0 && !locked) {
+      kicked.current = true;
+      turn([]);
+    }
+  }, [messages.length, locked, turn]);
+
   const hasDna =
     Boolean(dna.positioning || dna.mission || dna.keyMessage || dna.audience || dna.tone);
 
@@ -221,7 +249,7 @@ export function BrandConsultant({
       <div className="card flex h-[68vh] min-h-[480px] flex-col overflow-hidden">
         <div className="flex items-center gap-2.5 border-b border-hair px-4 py-3">
           <span className="flex h-8 w-8 items-center justify-center rounded-full bg-page/20 text-sm">🧠</span>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold text-ink">
               {t("Consultant de marque IA", "AI Brand Consultant")}
             </p>
@@ -229,6 +257,16 @@ export function BrandConsultant({
               {t("Construisons l'ADN de", "Let's build the DNA of")} {companyName}
             </p>
           </div>
+          {(messages.length > 0 || hasDna) && (
+            <button
+              onClick={reset}
+              disabled={resetting}
+              className="btn-ghost shrink-0 text-2xs text-muted"
+              title={t("Tout recommencer", "Start over")}
+            >
+              {resetting ? t("…", "…") : t("↺ Recommencer", "↺ Restart")}
+            </button>
+          )}
         </div>
 
         <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
@@ -402,6 +440,9 @@ export function BrandConsultant({
                   {continueLabel || t("Continuer", "Continue")}
                 </button>
               )}
+              <button onClick={reset} disabled={resetting} className="btn-ghost mt-2 w-full text-2xs text-muted">
+                {t("↺ Refaire l'identité à zéro", "↺ Redo the identity from scratch")}
+              </button>
             </div>
           )}
         </div>

@@ -86,14 +86,36 @@ export default function BrandKitPanel({
   onKit,
 }: BrandKitPanelProps) {
   const t = useT();
-  const { kit, save, uploadAsset } = useBrandKit(companyId);
+  const { kit, save, reset, uploadAsset } = useBrandKit(companyId);
 
   const [logoDataUrl, setLogoDataUrl] = useState("");
   const [charteDataUrl, setCharteDataUrl] = useState("");
   const [analyzing, setAnalyzing] = useState(false);
   const [generatingChart, setGeneratingChart] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const hydrated = useRef(false);
+
+  // Remise à zéro complète du brand kit (rien n'est figé).
+  async function resetKit() {
+    if (resetting) return;
+    if (typeof window !== "undefined" && !window.confirm(
+      t("Réinitialiser le brand kit ? Logo, charte et analyse seront effacés.",
+        "Reset the brand kit? Logo, chart and analysis will be cleared.")
+    )) return;
+    setResetting(true);
+    setNote(null);
+    try {
+      const updated = await reset();
+      setLogoDataUrl("");
+      setCharteDataUrl("");
+      onLogo?.("");
+      onPromptHints?.("");
+      if (updated) onKit?.(updated);
+    } finally {
+      setResetting(false);
+    }
+  }
 
   // Hydrate depuis le kit persistant (une seule fois) → prévient le parent.
   useEffect(() => {
@@ -222,9 +244,16 @@ export default function BrandKitPanel({
 
   return (
     <section className="card p-4 space-y-3">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <div className="section-label">{t("Brand kit (IA)", "Brand kit (AI)")}</div>
-        {k?.updatedAt && <span className="text-2xs text-success-600">{t("✓ enregistré", "✓ saved")}</span>}
+        <div className="flex items-center gap-2">
+          {k?.updatedAt && <span className="text-2xs text-success-600">{t("✓ enregistré", "✓ saved")}</span>}
+          {(k?.logoUrl || k?.charteUrl || hasAnalysis || k?.chart) && (
+            <button onClick={resetKit} disabled={resetting} className="btn-ghost text-2xs text-muted" title={t("Tout remettre à zéro", "Reset everything")}>
+              {resetting ? t("…", "…") : t("↺ Réinitialiser", "↺ Reset")}
+            </button>
+          )}
+        </div>
       </div>
       <p className="text-2xs text-muted">
         {t("Importez le logo et la charte graphique : l'IA en extrait la palette, le style et le ton — mémorisés pour cette marque et réutilisés partout.", "Upload the logo and brand chart: the AI extracts the palette, style and tone — saved for this brand and reused everywhere.")}

@@ -174,6 +174,35 @@ async function saveBrief(companyId: string, brief: StrategyBrief): Promise<void>
   }
 }
 
+/**
+ * Remet à zéro la mémoire stratégique (RAG) d'une société : supprime toutes les
+ * entrées de mémoire ET le brief synthétisé. Rien n'est figé — on peut repartir
+ * d'une page blanche. Ne throw jamais ; retourne le nombre d'entrées supprimées
+ * (best-effort).
+ */
+export async function clearMemory(companyId: string): Promise<{ ok: boolean }> {
+  // Fallback mémoire
+  if (!isSupabaseConfigured) {
+    MEM_STORE.delete(companyId);
+    return { ok: true };
+  }
+  try {
+    const supabase = createClient();
+    if (!supabase) {
+      MEM_STORE.delete(companyId);
+      return { ok: true };
+    }
+    const uuid = await resolveCompanyUuid(companyId);
+    await supabase.from("sh_strategy_memory").delete().eq("company_id", uuid);
+    await supabase.from("sh_strategy_brief").delete().eq("company_id", uuid);
+    MEM_STORE.delete(companyId);
+    return { ok: true };
+  } catch (err) {
+    console.error("[memory] clearMemory exception:", err);
+    return { ok: false };
+  }
+}
+
 /** Régénère le brief stratégique à partir de toute la mémoire (analyse continue). */
 export async function synthesizeBrief(companyId: string, companyName = "la marque"): Promise<StrategyBrief> {
   const mem = await listMemory(companyId, { limit: 80 });

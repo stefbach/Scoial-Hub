@@ -147,6 +147,19 @@ export default function StudioPage() {
   const imageCount = assets.filter((a) => a.kind === "image").length;
   const videoCount = assets.filter((a) => a.kind === "video").length;
 
+  // Repart d'un projet vierge (rien n'est figé) : vide les médias, l'objectif et
+  // le montage généré. Conserve le brand kit (logo/charte) de la marque.
+  function resetStudio() {
+    if (typeof window !== "undefined" && !window.confirm(
+      t("Réinitialiser le projet ? Médias importés, objectif et montage généré seront effacés.",
+        "Reset the project? Imported media, objective and generated edit will be cleared.")
+    )) return;
+    setAssets([]);
+    setUrlInput("");
+    setObjective("");
+    setPkg(null);
+  }
+
   return (
     <div className="animate-fade-in space-y-5">
       {/* En-tête */}
@@ -166,6 +179,9 @@ export default function StudioPage() {
             {t("→ Créer une pub Meta avec votre média", "→ Create a Meta ad with your media")}
           </a>
         </div>
+        <button onClick={resetStudio} className="btn-ghost ml-auto shrink-0 text-xs text-muted" title={t("Repartir d'un projet vierge", "Start a blank project")}>
+          {t("↺ Réinitialiser", "↺ Reset")}
+        </button>
       </div>
 
       {/* Brand kit persistant — logo / charte / palette, réutilisés partout */}

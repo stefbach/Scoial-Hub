@@ -76,6 +76,7 @@ export async function POST(req: NextRequest) {
       companyId?: string;
       messages?: ChatMsg[];
       lock?: boolean;
+      reset?: boolean;
       dna?: BrandDna;
     };
     const companyId = body.companyId;
@@ -85,6 +86,27 @@ export async function POST(req: NextRequest) {
     if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
 
     const existing = (await getBrandProfile(companyId)) ?? makeEmptyBrandProfile(companyId);
+
+    // ── Remise à zéro : on efface l'ADN/philosophie (rien n'est figé) ────────
+    if (body.reset) {
+      const profile: BrandProfile = {
+        ...existing,
+        summary: "",
+        positioning: "",
+        mission: "",
+        keyMessage: "",
+        tone: "",
+        audience: "",
+        visualDirection: "",
+        values: [],
+        personality: [],
+        themes: [],
+        philosophyLocked: false,
+        analyzedAt: null,
+      };
+      await saveBrandProfile(profile);
+      return NextResponse.json({ reset: true, profile });
+    }
 
     // ── Verrouillage : on persiste l'ADN comme socle de marque ───────────────
     if (body.lock) {

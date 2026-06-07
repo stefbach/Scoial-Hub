@@ -45,6 +45,36 @@ export const AVATAR_MODELS: AvatarModel[] = [
 export const DEFAULT_VOICE_MODEL = VOICE_MODELS[0].id;
 export const DEFAULT_AVATAR_MODEL = AVATAR_MODELS[0].id;
 
+// ── Voix qualitative : Langue × Genre (via MiniMax Speech-02-HD, multilingue) ──
+export interface AvatarLang {
+  code: string;     // code court (script + UI)
+  label: string;    // libellé affiché
+  boost: string;    // valeur language_boost MiniMax
+  claude: string;   // nom de langue pour le prompt Claude
+}
+
+export const AVATAR_LANGS: AvatarLang[] = [
+  { code: "fr", label: "Français", boost: "French", claude: "français" },
+  { code: "en", label: "English", boost: "English", claude: "anglais" },
+  { code: "es", label: "Español", boost: "Spanish", claude: "espagnol" },
+  { code: "de", label: "Deutsch", boost: "German", claude: "allemand" },
+  { code: "it", label: "Italiano", boost: "Italian", claude: "italien" },
+  { code: "pt", label: "Português", boost: "Portuguese", claude: "portugais" },
+  { code: "nl", label: "Nederlands", boost: "Dutch", claude: "néerlandais" },
+  { code: "ar", label: "العربية", boost: "Arabic", claude: "arabe" },
+];
+
+/** Modèle TTS multilingue de référence + voix par genre. */
+export const TTS_MULTILINGUAL_MODEL = "minimax/speech-02-hd";
+export const VOICE_BY_GENDER: Record<"female" | "male", string> = {
+  female: "Wise_Woman",
+  male: "Deep_Voice_Man",
+};
+
+export function getLang(code?: string): AvatarLang {
+  return AVATAR_LANGS.find((l) => l.code === code) ?? AVATAR_LANGS[0];
+}
+
 export function getVoiceModel(id?: string): VoiceModel {
   return VOICE_MODELS.find((m) => m.id === id) ?? VOICE_MODELS[0];
 }

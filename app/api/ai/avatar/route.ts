@@ -11,7 +11,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireCompanyAccess } from "@/lib/auth/guard";
 import { callClaudeJSON } from "@/lib/ai/claude-json";
 import { runReplicateUrl, generateImageModel, startAvatarLipsync, getReplicatePrediction, isReplicateConfigured } from "@/lib/ai/replicate";
-import { getVoiceModel, getAvatarModel } from "@/lib/ai/avatar-models";
+import { getAvatarModel, getLang, TTS_MULTILINGUAL_MODEL, VOICE_BY_GENDER } from "@/lib/ai/avatar-models";
 import { isAiConfigured } from "@/lib/env";
 
 interface Body {
@@ -23,8 +23,7 @@ interface Body {
   seconds?: number;
   script?: string;
   faceUrl?: string;
-  voice?: string;
-  ttsModel?: string;
+  gender?: "male" | "female";
   lipsyncModel?: string;
   environment?: string;
 }
@@ -38,7 +37,7 @@ export async function POST(req: NextRequest) {
   if (body.mode === "script") {
     const topic = (body.topic ?? "").trim();
     if (!topic) return NextResponse.json({ error: "Sujet requis" }, { status: 400 });
-    const lang = body.language === "en" ? "anglais" : "français";
+    const lang = getLang(body.language).claude;
     const seconds = Math.min(Math.max(body.seconds ?? 20, 8), 90);
     // ~2,5 mots/seconde de parole → borne la longueur.
     const words = Math.round(seconds * 2.5);
@@ -70,7 +69,8 @@ Réponds en JSON: { "script": "..." }`,
   if (!faceUrl) return NextResponse.json({ error: "Image de visage (URL) requise" }, { status: 400 });
   if (!isReplicateConfigured) return NextResponse.json({ simulated: true });
 
-  const voiceSpec = getVoiceModel(body.ttsModel);
+  const lang = getLang(body.language);
+  const voiceId = VOICE_BY_GENDER[body.gender === "male" ? "male" : "female"];
   const avatarSpec = getAvatarModel(body.lipsyncModel);
 
   try {
@@ -97,11 +97,11 @@ Réponds en JSON: { "script": "..." }`,
       }
     }
 
-    // 1) Voix (TTS) — rapide, synchrone.
-    const audioUrl = await runReplicateUrl(voiceSpec.id, {
-      [voiceSpec.textKey]: script,
-      ...(body.voice && voiceSpec.voiceKey ? { [voiceSpec.voiceKey]: body.voice } : {}),
-      ...(voiceSpec.extra ?? {}),
+    // 1) Voix (TTS multilingue MiniMax) — langue + genre, synchrone (rapide).
+    const audioUrl = await runReplicateUrl(TTS_MULTILINGUAL_MODEL, {
+      text: script,
+      voice_id: voiceId,
+      language_boost: lang.boost,
     });
     if (!audioUrl) throw new Error("Échec de la génération de la voix (TTS).");
 

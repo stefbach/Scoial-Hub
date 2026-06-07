@@ -49,16 +49,34 @@ export const DEFAULT_AVATAR_MODEL = AVATAR_MODELS[0].id;
 export interface AvatarLang {
   code: string;     // code court (script + UI)
   label: string;    // libellé affiché
-  boost: string;    // valeur language_boost MiniMax
   claude: string;   // nom de langue pour le prompt Claude
+  xtts: string;     // code langue XTTS-v2 (multilingue)
+  boost?: string;   // language_boost MiniMax (FR/EN seulement)
+  native?: boolean; // true = voix preset MiniMax dispo (FR/EN)
 }
 
-// Limité aux langues réellement bien prononcées par les voix MiniMax.
-// (D'autres langues seront réactivées avec un modèle qui les gère correctement.)
+// FR/EN via MiniMax (voix preset). Les autres via XTTS-v2 (nécessite un
+// échantillon de voix = voix clonée) pour une vraie prononciation native.
 export const AVATAR_LANGS: AvatarLang[] = [
-  { code: "fr", label: "Français", boost: "French", claude: "français" },
-  { code: "en", label: "English", boost: "English", claude: "anglais" },
+  { code: "fr", label: "Français", claude: "français", xtts: "fr", boost: "French", native: true },
+  { code: "en", label: "English", claude: "anglais", xtts: "en", boost: "English", native: true },
+  { code: "es", label: "Español", claude: "espagnol", xtts: "es" },
+  { code: "de", label: "Deutsch", claude: "allemand", xtts: "de" },
+  { code: "it", label: "Italiano", claude: "italien", xtts: "it" },
+  { code: "pt", label: "Português", claude: "portugais", xtts: "pt" },
+  { code: "nl", label: "Nederlands", claude: "néerlandais", xtts: "nl" },
+  { code: "pl", label: "Polski", claude: "polonais", xtts: "pl" },
+  { code: "ru", label: "Русский", claude: "russe", xtts: "ru" },
+  { code: "ar", label: "العربية", claude: "arabe", xtts: "ar" },
+  { code: "tr", label: "Türkçe", claude: "turc", xtts: "tr" },
+  { code: "zh-cn", label: "中文", claude: "chinois", xtts: "zh-cn" },
+  { code: "ja", label: "日本語", claude: "japonais", xtts: "ja" },
+  { code: "ko", label: "한국어", claude: "coréen", xtts: "ko" },
+  { code: "hi", label: "हिन्दी", claude: "hindi", xtts: "hi" },
 ];
+
+/** Modèle XTTS-v2 (multilingue + clonage à partir d'un échantillon). */
+export const XTTS_MODEL = "lucataco/xtts-v2";
 
 /** Modèle TTS multilingue de référence + voix par genre. */
 export const TTS_MULTILINGUAL_MODEL = "minimax/speech-02-hd";

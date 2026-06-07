@@ -46,7 +46,7 @@ export default function StudioAvatarPage() {
   const [language, setLanguage] = useState("fr");
   const [voiceId, setVoiceId] = useState(DEFAULT_VOICE_ID);
   const [previewing, setPreviewing] = useState(false);
-  const [clonedVoices, setClonedVoices] = useState<{ id: string; label: string }[]>([]);
+  const [clonedVoices, setClonedVoices] = useState<{ id: string; label: string; speakerUrl: string }[]>([]);
   const [cloning, setCloning] = useState(false);
   const [consent, setConsent] = useState(false);
   const cloneRef = useRef<HTMLInputElement>(null);
@@ -156,9 +156,10 @@ export default function StudioAvatarPage() {
   async function previewVoice() {
     setPreviewing(true); setError(null);
     try {
+      const speakerUrl = clonedVoices.find((v) => v.id === voiceId)?.speakerUrl;
       const r = await fetch("/api/ai/avatar", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyId: company.id, mode: "voice-preview", voiceId, language, text: script }),
+        body: JSON.stringify({ companyId: company.id, mode: "voice-preview", voiceId, language, text: script, speakerUrl }),
       });
       const d = await r.json();
       if (!r.ok) throw new Error(errText(d.error, t("Aperçu indisponible.", "Preview unavailable.")));
@@ -195,7 +196,7 @@ export default function StudioAvatarPage() {
       if (d.simulated) { setNote(t("Clonage non configuré (REPLICATE_API_TOKEN).", "Cloning not configured.")); return; }
       if (d.voiceId) {
         const label = t("Ma voix clonée", "My cloned voice");
-        setClonedVoices((prev) => [...prev, { id: d.voiceId, label }]);
+        setClonedVoices((prev) => [...prev, { id: d.voiceId, label, speakerUrl: audioUrl }]);
         setVoiceId(d.voiceId);
         setNote(t("Voix clonée ✓ — sélectionnée. Cliquez « Écouter » pour la tester.", "Voice cloned ✓ — selected. Click 'Listen' to test it."));
       }
@@ -209,9 +210,10 @@ export default function StudioAvatarPage() {
     if (!script.trim()) { setError(t("Générez ou écrivez un script.", "Generate or write a script.")); return; }
     setRendering(true); setError(null); setNote(null); setVideoUrl(null);
     try {
+      const speakerUrl = clonedVoices.find((v) => v.id === voiceId)?.speakerUrl;
       const r = await fetch("/api/ai/avatar", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyId: company.id, mode: "video", script, faceUrl, language, voiceId, lipsyncModel }),
+        body: JSON.stringify({ companyId: company.id, mode: "video", script, faceUrl, language, voiceId, speakerUrl, lipsyncModel }),
       });
       const d = await r.json();
       if (!r.ok) throw new Error(errText(d.error, t("Échec.", "Failed.")));
@@ -403,6 +405,11 @@ export default function StudioAvatarPage() {
                       </button>
                     </div>
                   </details>
+                  {!AVATAR_LANGS.find((l) => l.code === language)?.native && !clonedVoices.some((v) => v.id === voiceId) && (
+                    <p className="mt-1.5 text-2xs text-warning-700">
+                      {t("Pour cette langue, clonez d'abord une voix (échantillon) : elle servira de référence à la prononciation.", "For this language, first clone a voice (sample): it's used as the pronunciation reference.")}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className="text-2xs text-muted">{t("Avatar (modèle)", "Avatar (model)")}</label>

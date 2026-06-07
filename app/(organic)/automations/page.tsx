@@ -24,7 +24,8 @@ type Confirm =
   | null;
 
 export default function AutomationsPage() {
-  const { company, data } = useCompany();
+  const { company, data, access } = useCompany();
+  const canEdit = access.canEdit;
   const router = useRouter();
   const t = useT();
   const a = data.automations;
@@ -58,7 +59,7 @@ export default function AutomationsPage() {
       <PageHeader
         title={t("Automatisations", "Automations")}
         actions={
-          <Button variant="primary" onClick={() => setModal({ open: true })}>
+          <Button variant="primary" onClick={() => setModal({ open: true })} disabled={!canEdit} title={!canEdit ? t("Lecture seule", "View only") : undefined}>
             {t("Nouvelle automatisation", "New automation")}
           </Button>
         }
@@ -87,6 +88,7 @@ export default function AutomationsPage() {
             key={rule.id}
             rule={rule}
             status={STATUS[rule.status]}
+            canEdit={canEdit}
             onOpenEdit={() => setModal({ open: true, automation: rule })}
             onToggle={() => {
               toggleAutomation(company.id, rule.id);
@@ -108,7 +110,7 @@ export default function AutomationsPage() {
                 {t("Créez une automatisation pour publier selon un calendrier récurrent sans effort manuel.", "Create an automation to post on a recurring schedule without manual effort.")}
               </p>
             </div>
-            <Button variant="secondary" onClick={() => setModal({ open: true })}>
+            <Button variant="secondary" onClick={() => setModal({ open: true })} disabled={!canEdit}>
               {t("Créer une automatisation", "Create automation")}
             </Button>
           </div>
@@ -160,6 +162,7 @@ export default function AutomationsPage() {
 function AutomationRow({
   rule,
   status,
+  canEdit,
   onOpenEdit,
   onToggle,
   onRun,
@@ -168,6 +171,7 @@ function AutomationRow({
 }: {
   rule: Automation;
   status: { label: string; tone: "green" | "amber" | "gray" };
+  canEdit: boolean;
   onOpenEdit: () => void;
   onToggle: () => void;
   onRun: () => void;
@@ -209,17 +213,17 @@ function AutomationRow({
           className="flex shrink-0 items-center gap-1"
           onClick={(e) => e.stopPropagation()}
         >
-          <IconButton title={t("Lancer maintenant", "Run now")} onClick={onRun} ariaLabel={t("Lancer maintenant", "Run now")}>
+          <IconButton title={t("Lancer maintenant", "Run now")} onClick={onRun} ariaLabel={t("Lancer maintenant", "Run now")} disabled={!canEdit}>
             <PlayIcon />
           </IconButton>
           <IconButton title={t("Modifier", "Edit")} onClick={onOpenEdit} ariaLabel={t("Modifier l'automatisation", "Edit automation")}>
             <PencilIcon />
           </IconButton>
-          <IconButton title={t("Supprimer", "Delete")} onClick={onDelete} ariaLabel={t("Supprimer l'automatisation", "Delete automation")} danger>
+          <IconButton title={t("Supprimer", "Delete")} onClick={onDelete} ariaLabel={t("Supprimer l'automatisation", "Delete automation")} danger disabled={!canEdit}>
             <TrashIcon />
           </IconButton>
           <span className="ml-2">
-            <Toggle key={String(rule.enabled)} defaultOn={rule.enabled} onChange={onToggle} />
+            <Toggle key={String(rule.enabled)} defaultOn={rule.enabled} onChange={onToggle} disabled={!canEdit} />
           </span>
         </div>
       </div>
@@ -244,12 +248,14 @@ function IconButton({
   danger,
   onClick,
   children,
+  disabled = false,
 }: {
   title: string;
   ariaLabel: string;
   danger?: boolean;
   onClick: () => void;
   children: React.ReactNode;
+  disabled?: boolean;
 }) {
   return (
     <button
@@ -257,7 +263,8 @@ function IconButton({
       title={title}
       aria-label={ariaLabel}
       onClick={onClick}
-      className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors hover:bg-canvas ${
+      disabled={disabled}
+      className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors hover:bg-canvas disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent ${
         danger ? "text-danger-600 hover:bg-danger-50 hover:text-danger-700" : "text-muted hover:text-ink"
       }`}
     >

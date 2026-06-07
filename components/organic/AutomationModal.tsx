@@ -46,7 +46,8 @@ export function AutomationModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
-  const { company, data } = useCompany();
+  const { company, data, access } = useCompany();
+  const canEdit = access.canEdit;
   const t = useT();
   const editing = !!automation;
 
@@ -298,7 +299,7 @@ export function AutomationModal({
 
       <div className="flex justify-end gap-2 border-t-hair border-hair px-4 py-3">
         <Button variant="secondary" onClick={onClose}>{t("Annuler", "Cancel")}</Button>
-        <Button variant="primary" disabled={!canSubmit} onClick={handleSubmit}>
+        <Button variant="primary" disabled={!canSubmit || !canEdit} title={!canEdit ? t("Lecture seule", "View only") : undefined} onClick={handleSubmit}>
           {editing ? t("Enregistrer les modifications", "Save changes") : t("Créer l'automatisation", "Create automation")}
         </Button>
       </div>

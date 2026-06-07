@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { useT } from "@/lib/i18n";
+import { useCanEdit } from "@/lib/company-context";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -130,6 +131,7 @@ export function ConnectorAccessCard({
   oauthUrl,
 }: ConnectorAccessCardProps) {
   const t = useT();
+  const canEdit = useCanEdit();
   const [open, setOpen] = useState(false);
   const [showWhere, setShowWhere] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -225,9 +227,15 @@ export function ConnectorAccessCard({
         {/* Boutons : Connexion automatique (OAuth) + Configurer */}
         <div className="flex shrink-0 flex-col gap-1.5">
           {!comingSoon && oauthUrl && (
-            <a href={oauthUrl} className="btn-primary whitespace-nowrap text-xs">
-              ⚡ {t("Connexion auto", "Auto connect")}
-            </a>
+            canEdit ? (
+              <a href={oauthUrl} className="btn-primary whitespace-nowrap text-xs">
+                ⚡ {t("Connexion auto", "Auto connect")}
+              </a>
+            ) : (
+              <button type="button" disabled title={t("Lecture seule", "View only")} className="btn-primary whitespace-nowrap text-xs opacity-50">
+                ⚡ {t("Connexion auto", "Auto connect")}
+              </button>
+            )
           )}
           {!comingSoon && (fields.length > 0 || envHint) && (
             <button
@@ -344,7 +352,8 @@ export function ConnectorAccessCard({
               <div className="flex justify-end pt-1">
                 <button
                   type="submit"
-                  disabled={saving}
+                  disabled={saving || !canEdit}
+                  title={!canEdit ? t("Lecture seule", "View only") : undefined}
                   className="btn-primary disabled:opacity-60 text-xs"
                 >
                   {saving ? t("Enregistrement…", "Saving…") : t("Enregistrer", "Save")}

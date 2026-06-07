@@ -580,6 +580,36 @@ export async function getReplicatePrediction(
   return { status: p.status };
 }
 
+/** Modèle d'auto-sous-titrage (transcription + incrustation) sur une vidéo. */
+export const SUBTITLE_MODEL = "fictions-ai/autocaption";
+
+/** Démarre l'incrustation de sous-titres sur une vidéo (asynchrone). */
+export async function startSubtitles(
+  videoUrl: string,
+  model = SUBTITLE_MODEL
+): Promise<{ id?: string; status?: string; videoUrl?: string; error?: string }> {
+  if (!isReplicateConfigured) return { error: "not-configured" };
+  // Auto-détecte la clé d'entrée vidéo du modèle.
+  let videoKey = "video_file_input";
+  try {
+    const res = await replicateFetch(`${REPLICATE_API_BASE}/models/${model}`, { headers: replicateHeaders() });
+    if (res.ok) {
+      const data = (await res.json()) as {
+        latest_version?: { openapi_schema?: { components?: { schemas?: { Input?: { properties?: Record<string, unknown> } } } } };
+      };
+      const props = data.latest_version?.openapi_schema?.components?.schemas?.Input?.properties ?? {};
+      const names = Object.keys(props);
+      const v = names.find((n) => /video.*file|file.*video|video_input|video_url|input_video|^video$/i.test(n))
+        ?? names.find((n) => /video/i.test(n));
+      if (v) videoKey = v;
+    }
+  } catch { /* clé par défaut */ }
+  const pred = await createPrediction(model, { [videoKey]: videoUrl }, false);
+  if (pred.status === "succeeded") return { id: pred.id, status: "succeeded", videoUrl: firstUrl(pred.output) ?? undefined };
+  if (pred.status === "failed" || pred.status === "canceled") return { id: pred.id, status: "failed", error: pred.error ?? "failed" };
+  return { id: pred.id, status: pred.status };
+}
+
 export interface AvatarResult {
   videoUrl?: string;
   audioUrl?: string;

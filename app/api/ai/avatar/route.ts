@@ -10,13 +10,14 @@ export const maxDuration = 120;
 import { NextRequest, NextResponse } from "next/server";
 import { requireCompanyAccess } from "@/lib/auth/guard";
 import { callClaudeJSON } from "@/lib/ai/claude-json";
-import { runReplicateUrl, generateImageModel, startAvatarLipsync, getReplicatePrediction, isReplicateConfigured } from "@/lib/ai/replicate";
+import { runReplicateUrl, generateImageModel, startAvatarLipsync, startSubtitles, getReplicatePrediction, isReplicateConfigured } from "@/lib/ai/replicate";
 import { getAvatarModel, getLang, TTS_MULTILINGUAL_MODEL, VOICE_BY_GENDER } from "@/lib/ai/avatar-models";
 import { isAiConfigured } from "@/lib/env";
 
 interface Body {
   companyId?: string;
-  mode?: "script" | "video";
+  mode?: "script" | "video" | "subtitle";
+  videoUrl?: string;
   topic?: string;
   language?: string;
   tone?: string;
@@ -60,6 +61,23 @@ Réponds en JSON: { "script": "..." }`,
     const script = data?.script?.trim();
     if (!script) return NextResponse.json({ error: "Échec de génération du script." }, { status: 502 });
     return NextResponse.json({ script, aiGenerated: true });
+  }
+
+  // ── Sous-titres : incruste les sous-titres sur une vidéo existante ─────────
+  if (body.mode === "subtitle") {
+    const videoUrl = (body.videoUrl ?? "").trim();
+    if (!videoUrl) return NextResponse.json({ error: "videoUrl requis" }, { status: 400 });
+    if (!isReplicateConfigured) return NextResponse.json({ simulated: true });
+    try {
+      const started = await startSubtitles(videoUrl);
+      if (started.error) throw new Error(started.error);
+      if (started.videoUrl) return NextResponse.json({ videoUrl: started.videoUrl });
+      if (!started.id) throw new Error("Démarrage des sous-titres impossible.");
+      return NextResponse.json({ pending: true, predictionId: started.id });
+    } catch (e) {
+      console.error("[avatar subtitle]", e);
+      return NextResponse.json({ error: e instanceof Error ? e.message : "Échec des sous-titres." }, { status: 502 });
+    }
   }
 
   // ── Génération de la vidéo d'avatar (environnement → TTS → lip-sync) ───────

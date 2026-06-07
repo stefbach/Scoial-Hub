@@ -10,14 +10,15 @@ export const maxDuration = 120;
 import { NextRequest, NextResponse } from "next/server";
 import { requireCompanyAccess } from "@/lib/auth/guard";
 import { callClaudeJSON } from "@/lib/ai/claude-json";
-import { runReplicateUrl, generateImageModel, startAvatarLipsync, startSubtitles, getReplicatePrediction, isReplicateConfigured } from "@/lib/ai/replicate";
+import { runReplicateUrl, generateImageModel, startAvatarLipsync, startSubtitles, cloneVoiceMiniMax, getReplicatePrediction, isReplicateConfigured } from "@/lib/ai/replicate";
 import { getAvatarModel, getLang, TTS_MULTILINGUAL_MODEL, VOICE_BY_GENDER } from "@/lib/ai/avatar-models";
 import { isAiConfigured } from "@/lib/env";
 
 interface Body {
   companyId?: string;
-  mode?: "script" | "video" | "subtitle" | "voice-preview";
+  mode?: "script" | "video" | "subtitle" | "voice-preview" | "clone-voice";
   videoUrl?: string;
+  audioUrl?: string;
   topic?: string;
   language?: string;
   tone?: string;
@@ -63,6 +64,16 @@ Réponds en JSON: { "script": "..." }`,
     const script = data?.script?.trim();
     if (!script) return NextResponse.json({ error: "Échec de génération du script." }, { status: 502 });
     return NextResponse.json({ script, aiGenerated: true });
+  }
+
+  // ── Clonage de voix : échantillon audio → voice_id réutilisable ────────────
+  if (body.mode === "clone-voice") {
+    const audioUrl = (body.audioUrl ?? "").trim();
+    if (!audioUrl) return NextResponse.json({ error: "Échantillon audio requis" }, { status: 400 });
+    if (!isReplicateConfigured) return NextResponse.json({ simulated: true });
+    const res = await cloneVoiceMiniMax(audioUrl);
+    if (res.error) return NextResponse.json({ error: res.error }, { status: 502 });
+    return NextResponse.json({ voiceId: res.voiceId });
   }
 
   // ── Écoute d'une voix : synthétise un court extrait (synchrone) ─────────────

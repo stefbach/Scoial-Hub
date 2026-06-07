@@ -46,6 +46,10 @@ export default function StudioAvatarPage() {
   const [language, setLanguage] = useState("fr");
   const [voiceId, setVoiceId] = useState(DEFAULT_VOICE_ID);
   const [previewing, setPreviewing] = useState(false);
+  const [clonedVoices, setClonedVoices] = useState<{ id: string; label: string }[]>([]);
+  const [cloning, setCloning] = useState(false);
+  const [consent, setConsent] = useState(false);
+  const cloneRef = useRef<HTMLInputElement>(null);
   const [subtitles, setSubtitles] = useState(false);
   const [seconds, setSeconds] = useState(20);
   const [script, setScript] = useState("");
@@ -163,6 +167,41 @@ export default function StudioAvatarPage() {
     } catch (e) {
       setError(e instanceof Error ? e.message : t("Aperçu indisponible.", "Preview unavailable."));
     } finally { setPreviewing(false); }
+  }
+
+  // Clone une voix à partir d'un échantillon audio téléversé.
+  async function cloneVoiceFile(files: FileList | null) {
+    if (!files || files.length === 0) return;
+    if (!consent) { setError(t("Cochez la case de consentement pour cloner une voix.", "Tick the consent box to clone a voice.")); return; }
+    const sb = createClient();
+    if (!sb) { setError(t("Stockage indisponible.", "Storage unavailable.")); return; }
+    setCloning(true); setError(null); setNote(null);
+    try {
+      const file = files[0];
+      const safe = file.name.replace(/[^a-zA-Z0-9.\-_]/g, "_");
+      const path = `${company.id}/voice/${Date.now()}-${safe}`;
+      const { error: upErr } = await sb.storage.from("sh-videos").upload(path, file, { upsert: true, contentType: file.type });
+      if (upErr) { setError(t("Échec de l'envoi de l'audio.", "Audio upload failed.")); return; }
+      const { data } = sb.storage.from("sh-videos").getPublicUrl(path);
+      const audioUrl = data?.publicUrl;
+      if (!audioUrl) { setError(t("URL audio indisponible.", "Audio URL unavailable.")); return; }
+      setNote(t("Clonage en cours… (~1 min)", "Cloning… (~1 min)"));
+      const r = await fetch("/api/ai/avatar", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyId: company.id, mode: "clone-voice", audioUrl }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(errText(d.error, t("Échec du clonage.", "Cloning failed.")));
+      if (d.simulated) { setNote(t("Clonage non configuré (REPLICATE_API_TOKEN).", "Cloning not configured.")); return; }
+      if (d.voiceId) {
+        const label = t("Ma voix clonée", "My cloned voice");
+        setClonedVoices((prev) => [...prev, { id: d.voiceId, label }]);
+        setVoiceId(d.voiceId);
+        setNote(t("Voix clonée ✓ — sélectionnée. Cliquez « Écouter » pour la tester.", "Voice cloned ✓ — selected. Click 'Listen' to test it."));
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t("Échec du clonage.", "Cloning failed."));
+    } finally { setCloning(false); }
   }
 
   async function genVideo() {
@@ -335,6 +374,11 @@ export default function StudioAvatarPage() {
                   <div className="mt-1 flex gap-1.5">
                     <select value={voiceId} onChange={(e) => setVoiceId(e.target.value)} className="input flex-1">
                       {VOICES.map((v) => <option key={v.id} value={v.id}>{t(v.fr, v.en)}</option>)}
+                      {clonedVoices.length > 0 && (
+                        <optgroup label={t("Voix clonées", "Cloned voices")}>
+                          {clonedVoices.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}
+                        </optgroup>
+                      )}
                     </select>
                     <button type="button" onClick={previewVoice} disabled={previewing}
                       title={t("Écouter cette voix avec votre message", "Listen to this voice with your message")}
@@ -342,6 +386,23 @@ export default function StudioAvatarPage() {
                       {previewing ? <Spinner size={13} className="text-current" /> : "▶"} {t("Écouter", "Listen")}
                     </button>
                   </div>
+                  {/* Clonage de voix */}
+                  <details className="mt-2 rounded-lg border border-hair bg-white/[0.02] px-3 py-2">
+                    <summary className="cursor-pointer text-2xs font-medium text-muted">{t("🎙️ Cloner une voix", "🎙️ Clone a voice")}</summary>
+                    <div className="mt-2 space-y-2">
+                      <p className="text-2xs text-muted">{t("Téléversez un échantillon clair (10s–5min, MP3/WAV). La voix clonée s'ajoutera à la liste.", "Upload a clear sample (10s–5min, MP3/WAV). The cloned voice is added to the list.")}</p>
+                      <label className="flex items-start gap-2 text-2xs text-muted">
+                        <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-0.5 h-3.5 w-3.5 accent-page" />
+                        {t("Je certifie avoir le droit d'utiliser et de cloner cette voix.", "I certify I have the right to use and clone this voice.")}
+                      </label>
+                      <input ref={cloneRef} type="file" accept="audio/*" className="hidden" onChange={(e) => cloneVoiceFile(e.target.files)} />
+                      <button type="button" onClick={() => cloneRef.current?.click()} disabled={cloning || !consent}
+                        className="btn-secondary inline-flex items-center gap-1.5 text-2xs disabled:opacity-50">
+                        {cloning && <Spinner size={12} className="text-current" />}
+                        {cloning ? t("Clonage…", "Cloning…") : t("⬆︎ Téléverser un échantillon", "⬆︎ Upload a sample")}
+                      </button>
+                    </div>
+                  </details>
                 </div>
                 <div>
                   <label className="text-2xs text-muted">{t("Avatar (modèle)", "Avatar (model)")}</label>

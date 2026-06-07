@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useT } from "@/lib/i18n";
+import { CompanyIndicator } from "./CompanyIndicator";
 
 // Traductions des libellés de navigation (FR par défaut → EN).
 const NAV_TR: Record<string, [string, string]> = {
@@ -388,6 +389,11 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
       aria-label="Navigation principale"
       className="w-[13.5rem] shrink-0 border-r border-hair py-5 pl-3 pr-2"
     >
+      {/* Sélecteur de société — accès & changement de société depuis la barre */}
+      <div className="mb-4 pr-1">
+        <CompanyIndicator />
+      </div>
+
       {/* Colonne vertébrale : la porte d'entrée du produit */}
       <ul className="space-y-px" role="list">
         {SPINE.map((item) => renderItem(item, { entry: item.href === "/demarrage" }))}

@@ -3,10 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
-import { CompanyIndicator } from "./CompanyIndicator";
 import { ReadOnlyBanner } from "./ReadOnlyBanner";
 import { Sidebar } from "./Sidebar";
-import { ScopeBar } from "./ScopeBar";
 import { HelpButton } from "@/components/help/HelpButton";
 import { DemoBanner } from "@/components/ui/DemoBanner";
 import { LanguageSwitcher } from "@/lib/i18n";
@@ -183,22 +181,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     pathname.startsWith("/admin");
   if (bare) return <>{children}</>;
 
-  // La barre CONTEXTE (pays + période) ne sert que sur les pages d'ANALYSE :
-  // ailleurs (onboarding, réglages, composition, inbox…) elle n'a aucun effet
-  // et prête à confusion. On l'affiche donc uniquement sur une liste blanche.
-  const SCOPE_ROUTES = [
-    "/veille",
-    "/publicites",
-    "/analytics",
-    "/pilotage",
-    "/ad-performance",
-    "/dashboard",
-    "/pages-meta",
-  ];
-  const showScope = SCOPE_ROUTES.some(
-    (r) => pathname === r || pathname.startsWith(r + "/")
-  );
-
   return (
     <div className="app-shell">
       {/* Décor spatial « Mission Control » — derrière tout le contenu */}
@@ -224,11 +206,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <Link href="/" aria-label="Accueil AXON-AI Social Media" className="shrink-0">
             <Logo size={28} />
           </Link>
-
-          {/* Séparateur vertical */}
-          <span className="hidden h-4 w-px bg-hair sm:block" aria-hidden="true" />
-
-          <CompanyIndicator />
         </div>
 
         {/* Zone droite : langue + avatar */}
@@ -237,9 +214,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <UserMenu />
         </div>
       </header>
-
-      {/* Barre de contexte : pays + période — uniquement sur les pages d'analyse */}
-      {showScope && <ScopeBar />}
 
       {/* Corps : sidebar + contenu */}
       <div className="flex">

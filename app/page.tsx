@@ -61,10 +61,10 @@ const NETWORKS = [FacebookLogo, InstagramLogo, LinkedInLogo, XLogo];
 
 /* ───────────────────────── Données réelles (README) ─────────────────────── */
 const STATS = [
-  { v: "8", fr: "agents IA", en: "AI agents" },
-  { v: "4+", fr: "réseaux", en: "networks" },
-  { v: "100%", fr: "en pause d'abord", en: "paused-first" },
-  { v: "∞", fr: "marques", en: "brands" },
+  { v: "8", fr: "assistants à vos côtés", en: "assistants by your side" },
+  { v: "4+", fr: "réseaux réunis", en: "networks in one place" },
+  { v: "0", fr: "post publié sans vous", en: "posts sent without you" },
+  { v: "∞", fr: "marques, sans limite", en: "brands, no limit" },
 ];
 
 const CAPABILITIES = [
@@ -92,9 +92,9 @@ const LOOP = [
 ];
 
 const TESTIMONIALS = [
-  { q: "On a relancé nos pubs Meta en 10 minutes, sans ouvrir le Business Manager.", a: "Dir. Marketing · clinique", net: 0 },
-  { q: "L'assistant rédige et cible mieux que notre ancienne agence — et reste sous contrôle.", a: "Fondateur · SaaS B2B", net: 2 },
-  { q: "Les visuels multi-formats partent direct en Reels et en fil. Gain de temps énorme.", a: "Social Media Manager", net: 1 },
+  { q: "Avant, je publiais à minuit, épuisée. Aujourd'hui je valide trois posts depuis mon téléphone le matin — et c'est réglé.", a: "Sophie · gérante de clinique", m: "−65 % de temps", net: 0 },
+  { q: "L'assistant rédige et cible mieux que notre ancienne agence — et je garde la main sur tout.", a: "Thomas · fondateur, SaaS B2B", m: "×2,4 de clics LinkedIn", net: 2 },
+  { q: "Je gère 6 marques depuis un seul espace, et les visuels s'adaptent tout seuls à chaque réseau.", a: "Léa · social media manager", m: "6 marques, 1 outil", net: 1 },
 ];
 
 /* ───────────────────────── Réseau humain (SVG animé) ────────────────────── */
@@ -197,21 +197,21 @@ export default function Home() {
       {/* ── Hero ── */}
       <section className="mc-hero">
         <div className="mc-hero-copy">
-          <span className="mc-eyebrow">{t("SaaS social media · piloté par agents IA", "AI-agent social media SaaS")}</span>
+          <span className="mc-eyebrow">{t("Le hub social des PME", "The social hub for small teams")}</span>
           <h1 className="mc-h1">
-            {t("Tout votre", "Your entire")}<br />
-            <span className="mc-grad">{t("social media", "social media")}</span><br />
-            {t("piloté par l'IA.", "run by AI.")}
+            {t("Reprenez du temps", "Win back your time")}<br />
+            <span className="mc-grad">{t("pour ce qui compte :", "for what matters:")}</span><br />
+            {t("vos clients.", "your people.")}
           </h1>
           <p className="mc-sub">
             {t(
-              "Créez, publiez et optimisez sur Facebook, Instagram, LinkedIn et X. Des agents analysent, créent les visuels, vérifient la conformité et lancent vos pubs Meta — sous votre contrôle.",
-              "Create, publish and optimise on Facebook, Instagram, LinkedIn and X. Agents analyse, build visuals, check compliance and launch your Meta ads — under your control."
+              "Une équipe d'assistants IA s'occupe de vos posts, vos visuels et vos pubs sur Facebook, Instagram, LinkedIn et X. Vous gardez la main : rien ne se publie sans votre feu vert.",
+              "A team of AI assistants takes care of your posts, visuals and ads on Facebook, Instagram, LinkedIn and X. You stay in charge — nothing goes live without your green light."
             )}
           </p>
           <div className="mc-cta-row">
-            <Link href="/demarrage" className="mc-btn mc-btn-glow mc-btn-lg">{t("Démarrage assisté →", "Get started →")}</Link>
-            <Link href="/campaigns/new" className="mc-btn mc-btn-outline mc-btn-lg">{t("Créer une pub Meta", "Create a Meta ad")}</Link>
+            <Link href="/demarrage" className="mc-btn mc-btn-glow mc-btn-lg">{t("Essayer gratuitement →", "Try it free →")}</Link>
+            <Link href="/campaigns/new" className="mc-btn mc-btn-outline mc-btn-lg">{t("Voir une démo", "See a quick demo")}</Link>
           </div>
           <div className="mc-stats">
             {STATS.map((s) => (
@@ -261,9 +261,9 @@ export default function Home() {
       {/* ── Fonctionnalités (toutes) ── */}
       <section id="capabilities" className="mc-section">
         <header className="mc-sec-head reveal">
-          <span className="mc-kicker">{t("Tout ce que vous pouvez faire", "Everything you can do")}</span>
-          <h2 className="mc-h2">{t("Une plateforme, toutes les fonctions.", "One platform, every function.")}</h2>
-          <p className="mc-sec-sub">{t("De la création à l'optimisation, en passant par la publication, la messagerie et la veille — chaque carte est une vraie page de l'app.", "From creation to optimisation, publishing, inbox and watch — each card is a real page of the app.")}</p>
+          <span className="mc-kicker">{t("Ce qu'on fait pour vous", "What we handle for you")}</span>
+          <h2 className="mc-h2">{t("Tout votre social, au même endroit.", "Your whole social presence, in one place.")}</h2>
+          <p className="mc-sec-sub">{t("De l'idée au message publié — vos assistants s'occupent de la création, la publication, les réponses et la veille. Cliquez sur une carte pour voir.", "From idea to published post — your assistants handle creation, publishing, replies and watch. Click a card to take a look.")}</p>
         </header>
         <div className="mc-grid">
           {CAPABILITIES.map((c, i) => (
@@ -346,7 +346,7 @@ export default function Home() {
       {/* ── Témoignages ── */}
       <section className="mc-section">
         <header className="mc-sec-head reveal">
-          <span className="mc-kicker">{t("Ils pilotent avec AXON", "They steer with AXON")}</span>
+          <span className="mc-kicker">{t("Ils nous font confiance", "Trusted by teams like yours")}</span>
           <h2 className="mc-h2">{t("Moins d'outils. Plus de résultats.", "Fewer tools. More results.")}</h2>
         </header>
         <div className="mc-grid">
@@ -356,7 +356,10 @@ export default function Home() {
               <figure key={i} className="mc-quote reveal" style={{ transitionDelay: `${i * 90}ms` }}>
                 <L s={26} />
                 <blockquote>“{tm.q}”</blockquote>
-                <figcaption>{tm.a}</figcaption>
+                <figcaption>
+                  {tm.a}
+                  {tm.m && <span className="mc-quote-metric">{tm.m}</span>}
+                </figcaption>
               </figure>
             );
           })}
@@ -366,12 +369,13 @@ export default function Home() {
       {/* ── CTA final ── */}
       <section className="mc-final">
         <div className="mc-final-glow" aria-hidden />
-        <h2 className="mc-h2">{t("Prêt à reprendre la main ?", "Ready to take control?")}</h2>
-        <p>{t("Connectez vos réseaux et laissez les agents travailler — en pause d'abord, toujours.", "Connect your networks and let the agents work — paused first, always.")}</p>
+        <h2 className="mc-h2">{t("Votre équipe marketing vient de s'agrandir — sans recruter.", "Your marketing team just grew — without hiring.")}</h2>
+        <p>{t("Connectez vos comptes en 5 minutes. Vos assistants s'occupent du reste — et rien ne se publie sans votre accord.", "Connect your accounts in 5 minutes. Your assistants do the rest — and nothing posts without your say-so.")}</p>
         <div className="mc-cta-row mc-center">
-          <Link href="/demarrage" className="mc-btn mc-btn-glow mc-btn-lg">{t("Commencer maintenant", "Start now")}</Link>
-          <Link href="/dashboard" className="mc-btn mc-btn-outline mc-btn-lg">{t("Voir le tableau de bord", "See the dashboard")}</Link>
+          <Link href="/demarrage" className="mc-btn mc-btn-glow mc-btn-lg">{t("Essayer gratuitement", "Try it free")}</Link>
+          <Link href="/dashboard" className="mc-btn mc-btn-outline mc-btn-lg">{t("Réserver une démo", "Book a demo")}</Link>
         </div>
+        <p className="mc-reassure">{t("✓ Sans carte bancaire   ✓ Sans engagement   ✓ Support humain en français", "✓ No credit card   ✓ No commitment   ✓ Human support")}</p>
       </section>
 
       <footer className="mc-foot">

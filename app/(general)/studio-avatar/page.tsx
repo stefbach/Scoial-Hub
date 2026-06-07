@@ -11,6 +11,18 @@ import { Spinner, BusyHint } from "@/components/ui/Spinner";
 import { useT } from "@/lib/i18n";
 import { createClient } from "@/lib/supabase/client";
 import { VOICE_MODELS, AVATAR_MODELS, DEFAULT_VOICE_MODEL, DEFAULT_AVATAR_MODEL } from "@/lib/ai/avatar-models";
+import { IMAGE_MODELS, DEFAULT_IMAGE_MODEL_ID } from "@/lib/ai/model-catalog";
+
+/** Première URL d'image d'une réponse /api/ai/generate-image. */
+function firstImage(d: unknown): string | null {
+  const imgs = (d as { images?: Array<string | { url?: string }> })?.images;
+  if (!Array.isArray(imgs)) return null;
+  for (const i of imgs) {
+    const u = typeof i === "string" ? i : i?.url;
+    if (u) return u;
+  }
+  return null;
+}
 
 export default function StudioAvatarPage() {
   const { company, access } = useCompany();
@@ -25,7 +37,11 @@ export default function StudioAvatarPage() {
   const [environment, setEnvironment] = useState("");
   const [ttsModel, setTtsModel] = useState(DEFAULT_VOICE_MODEL);
   const [lipsyncModel, setLipsyncModel] = useState(DEFAULT_AVATAR_MODEL);
+  const [personMode, setPersonMode] = useState<"upload" | "generate">("upload");
+  const [personPrompt, setPersonPrompt] = useState("");
+  const [imageModel, setImageModel] = useState(DEFAULT_IMAGE_MODEL_ID);
 
+  const [composing, setComposing] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [writing, setWriting] = useState(false);
   const [rendering, setRendering] = useState(false);
@@ -52,6 +68,55 @@ export default function StudioAvatarPage() {
     } finally { setUploading(false); }
   }
 
+  // Génère une personne (portrait) depuis un prompt → devient l'avatar.
+  async function genPerson() {
+    if (!personPrompt.trim()) { setError(t("Décrivez la personne à générer.", "Describe the person to generate.")); return; }
+    setComposing(true); setError(null); setNote(null);
+    try {
+      const r = await fetch("/api/ai/generate-image", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          companyId: company.id,
+          model: imageModel,
+          format: "portrait",
+          prompt: `${personPrompt}. Portrait photoréaliste, regard caméra, cadrage buste, lumière studio, haute qualité, détails nets.`,
+        }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || t("Échec.", "Failed."));
+      const url = firstImage(d);
+      if (url) setFaceUrl(url);
+      else setNote(d.simulated ? t("Génération d'images non configurée (REPLICATE_API_TOKEN).", "Image generation not configured (REPLICATE_API_TOKEN).") : t("Aucune image renvoyée.", "No image returned."));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t("Échec.", "Failed."));
+    } finally { setComposing(false); }
+  }
+
+  // Applique un décor : remplace le fond du portrait courant (Flux Kontext).
+  async function applyEnvironment() {
+    if (!faceUrl.trim()) { setError(t("Ajoutez ou générez d'abord une personne.", "Add or generate a person first.")); return; }
+    if (!environment.trim()) { setError(t("Décrivez l'environnement.", "Describe the environment.")); return; }
+    setComposing(true); setError(null); setNote(null);
+    try {
+      const r = await fetch("/api/ai/generate-image", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          companyId: company.id,
+          imageUrl: faceUrl,
+          format: "portrait",
+          prompt: `Garde EXACTEMENT la même personne et le même visage. Remplace uniquement l'arrière-plan par : ${environment}. Rendu photoréaliste, éclairage cohérent et professionnel, haute qualité.`,
+        }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || t("Échec.", "Failed."));
+      const url = firstImage(d);
+      if (url) { setFaceUrl(url); setNote(t("Décor appliqué ✓", "Environment applied ✓")); }
+      else setNote(d.simulated ? t("Génération d'images non configurée.", "Image generation not configured.") : t("Aucune image renvoyée.", "No image returned."));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t("Échec.", "Failed."));
+    } finally { setComposing(false); }
+  }
+
   async function genScript() {
     if (!topic.trim()) { setError(t("Indiquez un sujet.", "Enter a topic.")); return; }
     setWriting(true); setError(null); setNote(null);
@@ -76,7 +141,7 @@ export default function StudioAvatarPage() {
     try {
       const r = await fetch("/api/ai/avatar", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyId: company.id, mode: "video", script, faceUrl, environment, ttsModel, lipsyncModel }),
+        body: JSON.stringify({ companyId: company.id, mode: "video", script, faceUrl, ttsModel, lipsyncModel }),
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || t("Échec.", "Failed."));
@@ -113,18 +178,63 @@ export default function StudioAvatarPage() {
           {/* Colonne réglages */}
           <div className="space-y-4">
             <section className="card p-5 space-y-3">
-              <p className="section-label">{t("1 · Visage de l'avatar", "1 · Avatar face")}</p>
-              <div className="flex gap-2">
-                <input value={faceUrl} onChange={(e) => setFaceUrl(e.target.value)} placeholder={t("URL d'un portrait (https://…)", "Portrait URL (https://…)")} className="input flex-1" />
-                <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => uploadFace(e.target.files)} />
-                <button onClick={() => fileRef.current?.click()} disabled={uploading} className="btn-secondary shrink-0 text-xs disabled:opacity-50">
-                  {uploading ? t("Envoi…", "Uploading…") : t("⬆︎ Téléverser une photo", "⬆︎ Upload a photo")}
-                </button>
+              <p className="section-label">{t("1 · Scène — personne + décor", "1 · Scene — person + background")}</p>
+
+              {/* Source de la personne : téléverser ou générer */}
+              <div className="flex gap-1 rounded-lg border border-hair p-1">
+                {([
+                  { id: "upload", label: t("Téléverser / URL", "Upload / URL") },
+                  { id: "generate", label: t("Générer la personne", "Generate person") },
+                ] as const).map((m) => (
+                  <button key={m.id} onClick={() => setPersonMode(m.id)}
+                    className={`flex-1 rounded-md px-2 py-1.5 text-xs font-semibold transition-colors ${personMode === m.id ? "bg-page text-white" : "text-muted hover:text-ink"}`}>
+                    {m.label}
+                  </button>
+                ))}
               </div>
-              <p className="text-2xs text-muted">{t("Téléversez ou collez l'URL d'un portrait net, de face. C'est cette personne qui deviendra l'avatar.", "Upload or paste a clear front-facing portrait. This person becomes the avatar.")}</p>
+
+              {personMode === "upload" ? (
+                <div className="flex gap-2">
+                  <input value={faceUrl} onChange={(e) => setFaceUrl(e.target.value)} placeholder={t("URL d'un portrait (https://…)", "Portrait URL (https://…)")} className="input flex-1" />
+                  <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => uploadFace(e.target.files)} />
+                  <button onClick={() => fileRef.current?.click()} disabled={uploading} className="btn-secondary shrink-0 text-xs disabled:opacity-50">
+                    {uploading ? t("Envoi…", "Uploading…") : t("⬆︎ Photo", "⬆︎ Photo")}
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <input value={personPrompt} onChange={(e) => setPersonPrompt(e.target.value)} placeholder={t("Décrivez la personne (ex. « femme médecin, 40 ans, blouse blanche, souriante »)", "Describe the person (e.g. \"female doctor, 40s, white coat, smiling\")")} className="input" />
+                  <div className="flex gap-2">
+                    <select value={imageModel} onChange={(e) => setImageModel(e.target.value)} className="input flex-1">
+                      {IMAGE_MODELS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+                    </select>
+                    <button onClick={genPerson} disabled={composing} className="btn-secondary shrink-0 inline-flex items-center gap-1.5 text-xs disabled:opacity-50">
+                      {composing && <Spinner size={14} className="text-current" />}
+                      {t("✨ Générer", "✨ Generate")}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Décor / environnement appliqué au portrait courant */}
+              <div className="border-t border-hair pt-3">
+                <label className="text-2xs text-muted">{t("Décor / environnement (optionnel)", "Background / environment (optional)")}</label>
+                <div className="mt-1 flex gap-2">
+                  <input value={environment} onChange={(e) => setEnvironment(e.target.value)} placeholder={t("Ex. « bureau moderne », « clinique épurée », « studio dégradé violet »", "E.g. \"modern office\", \"clean clinic\", \"purple gradient studio\"")} className="input flex-1" />
+                  <button onClick={applyEnvironment} disabled={composing} className="btn-secondary shrink-0 inline-flex items-center gap-1.5 text-xs disabled:opacity-50">
+                    {composing && <Spinner size={14} className="text-current" />}
+                    {t("Appliquer le décor", "Apply background")}
+                  </button>
+                </div>
+                <p className="mt-1 text-2xs text-muted">{t("Remplace l'arrière-plan de la personne en gardant son visage (Flux Kontext).", "Replaces the person's background while keeping their face (Flux Kontext).")}</p>
+              </div>
+
               {faceUrl.trim() && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={faceUrl} alt="" className="h-32 w-32 rounded-xl object-cover ring-1 ring-hair" onError={(e) => { e.currentTarget.style.display = "none"; }} />
+                <div className="pt-1">
+                  <p className="mb-1 text-2xs text-muted">{t("Aperçu de la scène", "Scene preview")}</p>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={faceUrl} alt="" className="max-h-48 rounded-xl object-contain ring-1 ring-hair" onError={(e) => { e.currentTarget.style.display = "none"; }} />
+                </div>
               )}
             </section>
 
@@ -149,12 +259,7 @@ export default function StudioAvatarPage() {
             </section>
 
             <section className="card p-5 space-y-3">
-              <p className="section-label">{t("3 · Environnement, voix & rendu", "3 · Environment, voice & render")}</p>
-              <div>
-                <label className="text-2xs text-muted">{t("Environnement / décor (optionnel)", "Environment / background (optional)")}</label>
-                <input value={environment} onChange={(e) => setEnvironment(e.target.value)} placeholder={t("Ex. « bureau moderne lumineux », « clinique épurée », « studio fond dégradé violet »", "E.g. \"bright modern office\", \"clean clinic\", \"purple gradient studio\"")} className="input mt-1" />
-                <p className="mt-1 text-2xs text-muted">{t("Décrivez le décor : l'arrière-plan du portrait sera remplacé par l'IA (Flux Kontext), la personne conservée.", "Describe the scene: the portrait background is replaced by AI (Flux Kontext), the person preserved.")}</p>
-              </div>
+              <p className="section-label">{t("3 · Voix & rendu", "3 · Voice & render")}</p>
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <div>
                   <label className="text-2xs text-muted">{t("Voix (modèle)", "Voice (model)")}</label>

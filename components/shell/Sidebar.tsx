@@ -415,29 +415,8 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
         </div>
       ))}
 
-      {/* Aide contextuelle : ouvre le panneau d'aide sur le côté droit */}
+      {/* Déconnexion — lien direct (navigation pure, toujours fiable) */}
       <div className="mt-5 border-t border-hair pt-4">
-        <button
-          type="button"
-          onClick={() => {
-            onNavigate?.();
-            window.dispatchEvent(new Event("axon:help"));
-          }}
-          className="group relative flex w-full items-center gap-2.5 rounded-lg px-3 py-[0.4rem] text-sm text-muted transition-all duration-[120ms] hover:bg-white/[0.06] hover:text-ink"
-          title={tr("Aide & tutoriel") + " (?)"}
-        >
-          <span className="shrink-0 opacity-45 transition-opacity duration-[120ms] group-hover:opacity-65">
-            <svg width="15" height="15" viewBox="0 0 18 18" fill="none" aria-hidden="true">
-              <circle cx="9" cy="9" r="7.2" stroke="currentColor" strokeWidth="1.3" fill="none" />
-              <path d="M6.8 6.8A2.2 2.2 0 0 1 9 4.7c1.2 0 2.2.9 2.2 2.1 0 1.1-.8 1.6-1.4 2-.5.3-.8.6-.8 1.3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" fill="none" />
-              <circle cx="9" cy="12.6" r="0.85" fill="currentColor" />
-            </svg>
-          </span>
-          <span className="font-medium">{tr("Aide & tutoriel")}</span>
-          <kbd className="ml-auto rounded border border-hair px-1 text-[10px] text-muted">?</kbd>
-        </button>
-
-        {/* Déconnexion — lien direct (navigation pure, toujours fiable) */}
         <a
           href="/api/auth/logout"
           onClick={() => { try { window.localStorage.removeItem("sh_company_id"); } catch { /* ignore */ } }}

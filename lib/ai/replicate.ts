@@ -580,6 +580,25 @@ export async function getReplicatePrediction(
   return { status: p.status };
 }
 
+/**
+ * Clone une voix (MiniMax) à partir d'un échantillon audio → renvoie un voice_id
+ * réutilisable avec speech-02-hd. Échantillon : 10s–5min, MP3/M4A/WAV, < 20 Mo.
+ */
+export async function cloneVoiceMiniMax(audioUrl: string): Promise<{ voiceId?: string; error?: string }> {
+  if (!isReplicateConfigured) return { error: "not-configured" };
+  try {
+    const pred = await runPrediction("minimax/voice-cloning", { voice_file: audioUrl, model: "speech-02-hd" });
+    const out = pred.output as unknown;
+    let vid: string | undefined;
+    if (typeof out === "string") vid = out;
+    else if (out && typeof out === "object") vid = (out as { voice_id?: string }).voice_id;
+    if (!vid) return { error: "Aucun identifiant de voix renvoyé." };
+    return { voiceId: vid };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Échec du clonage." };
+  }
+}
+
 /** Modèle d'auto-sous-titrage (transcription + incrustation) sur une vidéo. */
 export const SUBTITLE_MODEL = "fictions-ai/autocaption";
 

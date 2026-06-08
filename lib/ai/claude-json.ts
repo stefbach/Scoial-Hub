@@ -69,18 +69,60 @@ export async function callClaudeJSON<T>(
       messages: [{ role: "user", content: prompt }],
     });
 
-    // Concatène les blocs texte de la réponse.
+    // Concatène les blocs texte de la réponse, en retirant les éventuelles
+    // clôtures Markdown (```json … ```).
     const rawText = message.content
       .filter((b) => b.type === "text")
       .map((b) => (b as { type: "text"; text: string }).text)
-      .join("");
+      .join("")
+      .replace(/```json\s*/gi, "")
+      .replace(/```/g, "")
+      .trim();
 
     // Extrait le premier objet JSON présent dans la réponse.
     const jsonMatch = rawText.match(/\{[\s\S]*\}/);
     if (!jsonMatch) return null;
 
-    return JSON.parse(jsonMatch[0]) as T;
+    try {
+      return JSON.parse(jsonMatch[0]) as T;
+    } catch {
+      // Réponse probablement tronquée (max_tokens) → tente une réparation simple
+      // en fermant les structures ouvertes après le dernier élément complet.
+      const repaired = repairTruncatedJson(jsonMatch[0]);
+      if (repaired) {
+        try { return JSON.parse(repaired) as T; } catch { /* abandon */ }
+      }
+      return null;
+    }
   } catch {
     return null;
   }
+}
+
+/**
+ * Répare grossièrement un JSON tronqué : coupe après la dernière virgule/valeur
+ * complète puis referme les `]` et `}` ouverts. Suffisant pour récupérer une
+ * analyse partielle plutôt que de tout perdre quand la sortie dépasse max_tokens.
+ */
+function repairTruncatedJson(s: string): string | null {
+  let str = s.trim();
+  // Retire une fin partielle (après la dernière " ou } ou ] suivie d'éventuels caractères incomplets).
+  const lastComplete = Math.max(str.lastIndexOf("}"), str.lastIndexOf("]"), str.lastIndexOf('"'));
+  if (lastComplete > 0) str = str.slice(0, lastComplete + 1);
+  // Compte les ouvertures non refermées et les referme dans l'ordre.
+  const stack: string[] = [];
+  let inStr = false, esc = false;
+  for (const ch of str) {
+    if (esc) { esc = false; continue; }
+    if (ch === "\\") { esc = true; continue; }
+    if (ch === '"') inStr = !inStr;
+    if (inStr) continue;
+    if (ch === "{" || ch === "[") stack.push(ch);
+    else if (ch === "}" || ch === "]") stack.pop();
+  }
+  if (inStr) str += '"';
+  // Retire une virgule traînante éventuelle.
+  str = str.replace(/,\s*$/, "");
+  for (let i = stack.length - 1; i >= 0; i--) str += stack[i] === "{" ? "}" : "]";
+  return stack.length || inStr ? str : null;
 }

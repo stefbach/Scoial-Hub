@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useCompany } from "@/lib/company-context";
+import { AgentLauncher } from "@/components/agents/AgentLauncher";
 import { useScope } from "@/lib/scope";
 import { useT } from "@/lib/i18n";
 import {
@@ -125,6 +127,50 @@ export default function PilotagePage() {
     return () => { alive = false; };
   }, [company.id]);
 
+  // Performance publicitaire RÉELLE (Meta, 30 j) — données concrètes et utiles.
+  const [ads, setAds] = useState<{ spend: number; impressions: number; clicks: number; conversions: number; currency: string; count: number } | null>(null);
+  useEffect(() => {
+    let alive = true;
+    fetch(`/api/meta/adaccounts?companyId=${encodeURIComponent(company.id)}&datePreset=last_30d`)
+      .then((r) => r.json())
+      .then((d) => {
+        const camps = d?.data?.campaigns as Array<{ spend: number; impressions: number; clicks: number; conversions: number; currency?: string }> | undefined;
+        if (!alive || !Array.isArray(camps) || camps.length === 0) return;
+        const sum = camps.reduce((a, c) => ({ spend: a.spend + (c.spend || 0), impressions: a.impressions + (c.impressions || 0), clicks: a.clicks + (c.clicks || 0), conversions: a.conversions + (c.conversions || 0) }), { spend: 0, impressions: 0, clicks: 0, conversions: 0 });
+        setAds({ ...sum, currency: camps[0]?.currency || "EUR", count: camps.length });
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [company.id]);
+
+  // KPIs organiques RÉELS (Facebook + Instagram) via /api/meta/insights.
+  const [realKpi, setRealKpi] = useState<{ followers: number; likes: number; comments: number; engagementRate: number; reach?: number; views?: number; perNet: { net: string; followers: number; engagementRate: number }[] } | null>(null);
+  useEffect(() => {
+    let alive = true;
+    fetch(`/api/meta/insights?companyId=${encodeURIComponent(company.id)}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (!alive || !d?.connected) return;
+        const fbF = Number(d.facebook?.followers ?? d.facebook?.fanCount ?? 0);
+        const igF = Number(d.instagram?.followers ?? 0);
+        const fbPosts = (d.facebookPosts ?? []) as Array<{ likes?: number; comments?: number; shares?: number }>;
+        const igPosts = (d.instagramPosts ?? []) as Array<{ likes?: number; comments?: number; shares?: number }>;
+        const sumEng = (ps: typeof fbPosts) => ps.reduce((a, p) => a + (p.likes ?? 0) + (p.comments ?? 0) + (p.shares ?? 0), 0);
+        const likes = [...fbPosts, ...igPosts].reduce((a, p) => a + (p.likes ?? 0), 0);
+        const comments = [...fbPosts, ...igPosts].reduce((a, p) => a + (p.comments ?? 0), 0);
+        const rate = (f: number, ps: typeof fbPosts) => (f && ps.length ? +((sumEng(ps) / ps.length / f) * 100).toFixed(2) : 0);
+        const perNet = [
+          ...(d.facebook ? [{ net: "Facebook", followers: fbF, engagementRate: rate(fbF, fbPosts) }] : []),
+          ...(d.instagram ? [{ net: "Instagram", followers: igF, engagementRate: rate(igF, igPosts) }] : []),
+        ];
+        const totFollowers = fbF + igF;
+        const totRate = perNet.length ? +(perNet.reduce((a, n) => a + n.engagementRate, 0) / perNet.length).toFixed(2) : 0;
+        if (totFollowers > 0 || likes > 0) setRealKpi({ followers: totFollowers, likes, comments, engagementRate: totRate, reach: Number(d.reach ?? 0) || undefined, views: Number(d.views ?? 0) || undefined, perNet });
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [company.id]);
+
   const setStatus = (id: string, status: Decision["status"]) =>
     setDecisions((ds) => ds.map((d) => (d.id === id ? { ...d, status } : d)));
 
@@ -173,6 +219,43 @@ export default function PilotagePage() {
 
   return (
     <div className="animate-fade-in space-y-6">
+      {/* ── Liens rapides : le pilotage relie tous les outils ──────────── */}
+      <div className="flex flex-wrap items-center gap-2">
+        {([
+          ["/veille", t("Veille", "Watch")],
+          ["/agents", t("Agents", "Agents")],
+          ["/campaigns", t("Campagnes", "Campaigns")],
+          ["/ad-performance", t("Performance Ads", "Ad Performance")],
+          ["/inbox", t("Messagerie", "Inbox")],
+          ["/media", t("Médiathèque", "Media")],
+          ["/compose", "Compose"],
+        ] as [string, string][]).map(([href, label]) => (
+          <Link key={href} href={href} className="rounded-full border border-hair bg-card px-3 py-1 text-xs text-ink hover:border-primary-300 hover:text-primary-700">
+            {label} →
+          </Link>
+        ))}
+      </div>
+
+      {/* Agent IA lançable directement depuis le centre de pilotage */}
+      <AgentLauncher context={t("Centre de pilotage", "Steering center")} defaultObjective={t("Définir et lancer la stratégie social media", "Define and launch the social media strategy")} />
+
+      {/* Performance publicitaire réelle (Meta, 30 j) — données concrètes */}
+      {ads && (
+        <div className="card p-4">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="section-label">{t("Performance pub · Meta (30 j)", "Ad performance · Meta (30d)")}</span>
+            <Link href="/ad-performance" className="text-2xs text-primary-600 hover:underline">{t("Détail →", "Details →")}</Link>
+          </div>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div><div className="text-2xs text-muted">{t("Dépense", "Spend")}</div><div className="text-lg font-bold text-ink">{ads.spend >= 1000 ? Math.round(ads.spend).toLocaleString("fr-FR") : ads.spend.toFixed(2)} {ads.currency}</div></div>
+            <div><div className="text-2xs text-muted">Impressions</div><div className="text-lg font-bold text-ink">{ads.impressions.toLocaleString("fr-FR")}</div></div>
+            <div><div className="text-2xs text-muted">{t("Clics", "Clicks")}</div><div className="text-lg font-bold text-ink">{ads.clicks.toLocaleString("fr-FR")}</div></div>
+            <div><div className="text-2xs text-muted">{t("Conversions", "Conversions")}</div><div className="text-lg font-bold text-ink">{ads.conversions.toLocaleString("fr-FR")}</div></div>
+          </div>
+          <p className="mt-1.5 text-2xs text-muted">{ads.count} {t("campagne(s) · données réelles", "campaign(s) · real data")}</p>
+        </div>
+      )}
+
       {/* ── Bandeau stratégie ──────────────────────────── */}
       <div className="card overflow-hidden">
         <div className="border-b border-hair bg-canvas/60 px-4 py-3 sm:px-5">
@@ -206,7 +289,7 @@ export default function PilotagePage() {
                     className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-2xs font-medium transition-colors ${
                       selected
                         ? "border-page bg-page text-white hover:bg-page hover:border-page"
-                        : "border-hair bg-canvas text-ink hover:bg-white hover:border-[#bb9fff]"
+                        : "border-hair bg-canvas text-ink hover:bg-white/[0.06] hover:border-page/50"
                     }`}
                   >
                     {t("Niv.", "Lvl.")} {lvl} {lvl === 1 ? t("· Reco", "· Reco") : lvl === 2 ? t("· Semi", "· Semi") : t("· Auto", "· Auto")}
@@ -228,7 +311,26 @@ export default function PilotagePage() {
       {/* ── KPIs agrégés ───────────────────────────────── */}
       <section>
         <div className="section-label mb-2.5">{t("Indicateurs clés · tous réseaux", "Key metrics · all networks")}</div>
-        {hasKpiData ? (
+        {realKpi ? (
+          <>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+              <Kpi label={t("Abonnés", "Followers")} value={fmt(realKpi.followers)} />
+              <Kpi label={t("Engagement moyen", "Avg. engagement")} value={`${realKpi.engagementRate}%`} accent />
+              <Kpi label={t("Likes (récents)", "Likes (recent)")} value={fmt(realKpi.likes)} />
+              <Kpi label={t("Commentaires (récents)", "Comments (recent)")} value={fmt(realKpi.comments)} />
+              {typeof realKpi.reach === "number" && <Kpi label={t("Portée (28 j)", "Reach (28d)")} value={fmt(realKpi.reach)} />}
+              {typeof realKpi.views === "number" && <Kpi label={t("Vues (28 j)", "Views (28d)")} value={fmt(realKpi.views)} />}
+            </div>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {realKpi.perNet.map((n) => (
+                <span key={n.net} className="rounded-full border border-hair bg-card px-3 py-1 text-2xs text-ink">
+                  {n.net} · {fmt(n.followers)} {t("abonnés", "followers")} · {n.engagementRate}% {t("eng.", "eng.")}
+                </span>
+              ))}
+              <span className="self-center text-2xs text-muted">{t("Données réelles · posts récents", "Real data · recent posts")}</span>
+            </div>
+          </>
+        ) : hasKpiData ? (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
             <Kpi label={t("Abonnés", "Followers")} value={fmt(agg.followers)} />
             <Kpi label={t("Engagement", "Engagement")} value={`${agg.engagementRate}%`} accent />

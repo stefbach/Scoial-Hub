@@ -27,7 +27,9 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { env, isAiConfigured } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/server";
-import { isReplicateConfigured } from "@/lib/ai/replicate";
+import { isReplicateConfigured, generateImageModel } from "@/lib/ai/replicate";
+import { getImageModel } from "@/lib/ai/model-catalog";
+import { saveMediaAsset, persistRemoteMedia } from "@/lib/repositories/media";
 import type {
   AgentId,
   AgentRunResult,
@@ -644,10 +646,34 @@ async function runCreative(
     ? `${imagePrompt}. Clip vidéo vertical 9:16 de 5 secondes, rythmé, pour réseaux sociaux.`
     : undefined;
 
-  const lines: string[] = [briefBase, `\n🎨 Prompt image (à générer) :\n  ${imagePrompt}`];
+  // Génération RÉELLE d'une image (modèle rapide), avec garde-fou de temps pour
+  // ne jamais dépasser la limite serverless. Repli élégant en prompt-only si
+  // Replicate n'est pas configuré, échoue, ou prend trop de temps.
+  let generatedImages: { url: string }[] | undefined;
+  if (isReplicateConfigured) {
+    try {
+      const gm = getImageModel("black-forest-labs/flux-schnell"); // rapide (~8 s)
+      const input2 = gm.buildInput(imagePrompt, { aspect: "1:1" });
+      const res = await Promise.race([
+        generateImageModel(gm.id, input2, 1),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 35_000)),
+      ]);
+      const rawUrl = res && "images" in res ? res.images[0]?.url : undefined;
+      if (rawUrl) {
+        // Persiste (URL Replicate éphémère → Supabase) avant enregistrement durable.
+        const url = await persistRemoteMedia(input.companyId, rawUrl, "image").catch(() => rawUrl);
+        generatedImages = [{ url }];
+        await saveMediaAsset(input.companyId, { url, type: "image", format: "1:1", source: "agent-creative", prompt: imagePrompt }).catch(() => {});
+      }
+    } catch { /* repli prompt-only */ }
+  }
+
+  const lines: string[] = [briefBase, `\n🎨 Prompt image :\n  ${imagePrompt}`];
   if (videoPrompt) lines.push(`\n🎬 Prompt vidéo (à générer) :\n  ${videoPrompt}`);
   lines.push(
-    isReplicateConfigured
+    generatedImages
+      ? `\n✓ Visuel généré et enregistré dans la Médiathèque (réutilisable en pub).`
+      : isReplicateConfigured
       ? `\n→ Cliquez sur « Générer l'image » / « Générer la vidéo » ci-dessous pour produire les visuels (Replicate).`
       : `\n→ Configurez REPLICATE_API_TOKEN, puis générez les visuels en 1 clic.`
   );
@@ -655,11 +681,12 @@ async function runCreative(
   return {
     step: {
       agent: "creative",
-      title: "Brief créatif & prompts visuels",
+      title: "Brief créatif & visuel",
       status: "done",
       output: lines.join("\n"),
       finishedAt: ts(),
     },
+    generatedImages,
     imagePrompt,
     videoPrompt,
   };
@@ -781,7 +808,9 @@ async function runMediaBuyer(
   profile: ProProfile,
   cadence: Required<Cadence>,
   autonomy: AutonomyLevel,
-  blocked: boolean
+  blocked: boolean,
+  copyText?: string,
+  imageUrl?: string
 ): Promise<AgentStep> {
   const budgetMatch = input.objective.match(/(\d+)\s*€\s*\/?\s*j/i);
   const dailyBudget = budgetMatch ? parseInt(budgetMatch[1], 10) : 50;
@@ -834,12 +863,20 @@ ${
     : "\n✅ Autonomie 3 — Campagne transmise à Meta Ads API (connecteur requis pour exécution réelle)."
 }`;
 
+  // Lien prêt-à-créer : ouvre /campaigns/new pré-rempli (visuel + texte) pour
+  // créer la VRAIE campagne en PAUSE en un clic (sans dépense aveugle).
+  const params = new URLSearchParams();
+  if (imageUrl) params.set("image", imageUrl);
+  if (copyText) params.set("text", copyText.slice(0, 600));
+  params.set("name", `Campagne IA ${new Date().toISOString().slice(0, 10)}`);
+  const handoff = `\n\n🔗 Créer cette campagne (pré-remplie, EN PAUSE) : /campaigns/new?${params.toString()}`;
+
   return {
     agent: "media_buyer",
     title: `Configuration campagne Meta Ads (${actionVerb.toLowerCase()})`,
     status: "simulated",
-    output,
-    detail: "Connecteurs requis : Meta Ads API + Meta Business Manager — campagne non créée en l'absence de ces connecteurs.",
+    output: output + handoff,
+    detail: "Cliquez le lien pour créer la vraie campagne EN PAUSE (visuel + texte pré-remplis) puis activez-la quand vous voulez.",
     finishedAt: ts(),
   };
 }
@@ -1194,7 +1231,7 @@ export async function runOrchestration(
   const isBlocked = verdict === "block";
 
   // ── 6. Media Buyer ──────────────────────────────────────────────────────────
-  steps.push(await runMediaBuyer(input, profile, cadence, input.autonomy, isBlocked));
+  steps.push(await runMediaBuyer(input, profile, cadence, input.autonomy, isBlocked, copyText, generatedImages?.[0]?.url));
 
   // ── 7. Analyste ─────────────────────────────────────────────────────────────
   const { step: analystStep, benchmark } = await runAnalyst(input, profile, cadence, isBlocked);

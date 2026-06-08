@@ -4,9 +4,11 @@
 // LinkedIn connecté de la société → publier → analyser la stratégie.
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
 import { useCompany } from "@/lib/company-context";
 import { useT } from "@/lib/i18n";
+import { Spinner, BusyHint } from "@/components/ui/Spinner";
+import { ArticleStudio } from "@/components/linkedin/ArticleStudio";
+import { ConnectGuide } from "@/components/connect/ConnectGuide";
 
 interface Account {
   connected: boolean;
@@ -34,7 +36,8 @@ interface Strategy {
 
 export default function LinkedInPage() {
   const t = useT();
-  const { company } = useCompany();
+  const { company, access } = useCompany();
+  const canEdit = access.canEdit;
   const companyId = company.id;
 
   const [account, setAccount] = useState<Account | null>(null);
@@ -45,12 +48,23 @@ export default function LinkedInPage() {
 
   const [text, setText] = useState("");
   const [link, setLink] = useState("");
+  const [useMemory, setUseMemory] = useState(false);
   const [writing, setWriting] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [pubMsg, setPubMsg] = useState<string | null>(null);
 
   const [strategy, setStrategy] = useState<Strategy | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
+
+  const [guide, setGuide] = useState(false);
+  const [tab, setTab] = useState<"publish" | "article">("publish");
+
+  // Onglet initial depuis l'URL (?tab=article) — ex. lien/redirection.
+  useEffect(() => {
+    try {
+      if (new URLSearchParams(window.location.search).get("tab") === "article") setTab("article");
+    } catch { /* ignore */ }
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -91,7 +105,7 @@ export default function LinkedInPage() {
     try {
       const r = await fetch("/api/ai/generate-post", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: text || t("Rédige un post LinkedIn professionnel et engageant.", "Write a professional, engaging LinkedIn post."), platform: "linkedin", brandVoice: company.brandVoice ?? "", action: text ? "rewrite" : "generate", companyId }),
+        body: JSON.stringify({ prompt: text || t("Rédige un post LinkedIn professionnel et engageant.", "Write a professional, engaging LinkedIn post."), platform: "linkedin", brandVoice: company.brandVoice ?? "", action: text ? "rewrite" : "generate", companyId, useMemory }),
       });
       const d = await r.json();
       if (d.text) setText(d.text);
@@ -138,7 +152,7 @@ export default function LinkedInPage() {
         <p className="section-label text-primary-500">LinkedIn</p>
         <h1 className="mt-1 text-2xl font-bold tracking-tight text-ink">{t("Votre espace LinkedIn", "Your LinkedIn space")}</h1>
         <p className="mt-1 max-w-2xl text-sm text-muted">
-          {t("Compte connecté, publication, et stratégie de contenu LinkedIn.", "Connected account, publishing, and LinkedIn content strategy.")}
+          {t("Compte connecté, publication, stratégie, et studio d'articles & visuels LinkedIn.", "Connected account, publishing, strategy, and LinkedIn article & visuals studio.")}
         </p>
       </header>
 
@@ -171,12 +185,49 @@ export default function LinkedInPage() {
         </div>
       )}
 
+      {/* Onglets : Publication & stratégie | Article & visuels */}
+      <div className="flex gap-1 rounded-xl border border-hair bg-card p-1">
+        {([
+          { id: "publish", label: t("Publication & stratégie", "Publishing & strategy") },
+          { id: "article", label: t("Article & visuels", "Article & visuals") },
+        ] as const).map((tb) => (
+          <button
+            key={tb.id}
+            onClick={() => setTab(tb.id)}
+            className={`flex-1 rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
+              tab === tb.id ? "bg-page text-white" : "text-muted hover:text-ink"
+            }`}
+          >
+            {tb.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "article" && <ArticleStudio />}
+
+      {tab === "publish" && (
+      <>
       {/* Publication */}
       <section className="card p-5 space-y-3">
         <div className="flex items-center justify-between">
           <span className="section-label">{t("Publier sur LinkedIn", "Publish to LinkedIn")}</span>
-          <Link href="/article-linkedin" className="text-xs text-primary-600 hover:underline">{t("Studio Article →", "Article Studio →")}</Link>
         </div>
+
+        {/* CONNECT-FIRST : si non connecté, message clair + CTA avant toute saisie */}
+        {!loading && !account?.connected && (
+          <div className="rounded-xl border border-dashed border-hair bg-canvas px-4 py-3 text-center">
+            <p className="text-sm font-semibold text-ink">{t("Connectez LinkedIn pour publier", "Connect LinkedIn to publish")}</p>
+            <p className="mx-auto mt-1 max-w-md text-xs text-muted">
+              {t("Reliez votre compte avant d'écrire — vous éviterez de rédiger pour rien.", "Connect your account before writing — so you don't draft for nothing.")}
+            </p>
+            <button onClick={() => setGuide(true)} className="btn-primary mt-3 inline-flex text-sm">
+              {t("Connecter LinkedIn", "Connect LinkedIn")}
+            </button>
+          </div>
+        )}
+
+        {/* Bloc de rédaction — grisé/désactivé tant que LinkedIn n'est pas connecté */}
+        <div className={!loading && !account?.connected ? "pointer-events-none select-none opacity-50" : ""} aria-disabled={!account?.connected}>
 
         {/* Cible : profil ou Page entreprise */}
         {targets?.connected && (
@@ -218,14 +269,22 @@ export default function LinkedInPage() {
         <textarea value={text} onChange={(e) => setText(e.target.value)} rows={5} placeholder={t("Votre publication LinkedIn… (ou laissez l'IA écrire)", "Your LinkedIn post… (or let the AI write it)")} className={inputCls} />
         <input value={link} onChange={(e) => setLink(e.target.value)} placeholder={t("Lien à partager (optionnel)", "Link to share (optional)")} className={inputCls} />
         <div className="flex flex-wrap items-center gap-2">
-          <button onClick={writeWithAI} disabled={writing} className="btn-secondary text-xs disabled:opacity-50">
+          <button onClick={writeWithAI} disabled={writing} className="btn-secondary inline-flex items-center gap-1.5 text-xs disabled:opacity-50">
+            {writing && <Spinner size={14} className="text-current" />}
             {writing ? t("Rédaction…", "Writing…") : t("✨ Rédiger avec l'IA", "✨ Write with AI")}
           </button>
-          <button onClick={publish} disabled={publishing} className="btn-primary ml-auto text-sm disabled:opacity-50">
+          <label className="inline-flex cursor-pointer items-center gap-1.5 text-2xs text-muted" title={t("S'appuyer sur votre marque et votre veille (RAG). Décoché : rédaction libre.", "Ground in your brand & insights (RAG). Unchecked: free writing.")}>
+            <input type="checkbox" checked={useMemory} onChange={(e) => setUseMemory(e.target.checked)} className="h-3.5 w-3.5 accent-primary-600" />
+            {t("S'appuyer sur la marque (RAG)", "Ground in brand (RAG)")}
+          </label>
+          <button onClick={publish} disabled={publishing || !canEdit} title={!canEdit ? t("Lecture seule", "View only") : undefined} className="btn-primary ml-auto inline-flex items-center gap-1.5 text-sm disabled:opacity-50">
+            {publishing && <Spinner size={16} className="text-white" />}
             {publishing ? t("Publication…", "Publishing…") : t("Publier maintenant", "Publish now")}
           </button>
         </div>
+        {publishing && <BusyHint label={t("Publication sur LinkedIn…", "Publishing to LinkedIn…")} eta="~5 s" />}
         {pubMsg && <p className="rounded-lg bg-canvas px-3 py-2 text-xs text-ink">{pubMsg}</p>}
+        </div>
       </section>
 
       {/* Stratégie */}
@@ -235,10 +294,15 @@ export default function LinkedInPage() {
             <div className="section-label text-ai-text">{t("Stratégie LinkedIn", "LinkedIn strategy")}</div>
             <p className="mt-0.5 text-xs text-muted">{t("L'IA bâtit une stratégie de contenu à partir de votre profil de marque.", "The AI builds a content strategy from your brand profile.")}</p>
           </div>
-          <button onClick={analyze} disabled={analyzing} className="btn-primary text-sm disabled:opacity-50">
+          <button onClick={analyze} disabled={analyzing} className="btn-primary inline-flex items-center gap-1.5 text-sm disabled:opacity-50">
+            {analyzing && <Spinner size={16} className="text-white" />}
             {analyzing ? t("Analyse…", "Analyzing…") : strategy ? t("Ré-analyser", "Re-analyze") : t("Analyser ma stratégie", "Analyze my strategy")}
           </button>
         </div>
+
+        {analyzing && (
+          <BusyHint label={t("L'IA construit votre stratégie LinkedIn…", "The AI is building your LinkedIn strategy…")} eta={t("~30–60 s", "~30–60 s")} />
+        )}
 
         {strategy && (
           <div className="space-y-4">
@@ -303,6 +367,16 @@ export default function LinkedInPage() {
           </div>
         )}
       </section>
+      </>
+      )}
+
+      <ConnectGuide
+        open={guide}
+        onClose={() => setGuide(false)}
+        platform="linkedin"
+        companyId={companyId}
+        returnTo="/linkedin"
+      />
     </div>
   );
 }

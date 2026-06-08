@@ -6,49 +6,65 @@ import { useCompany } from "@/lib/company-context";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Toast } from "@/components/ui/Toast";
+import { Spinner } from "@/components/ui/Spinner";
+import { ConnectGuide } from "@/components/connect/ConnectGuide";
 import type { ConnectorStatus } from "@/lib/connectors/types";
 import { useT } from "@/lib/i18n";
 
 // ---------------------------------------------------------------------------
-// Vue fusionnée par plateforme — dérivée UNIQUEMENT du statut réel renvoyé par
-// GET /api/connectors (branché sur sh_channel_connections). Plus aucune source
-// mock locale : le statut « connecté » a désormais une seule source de vérité.
+// /accounts — HUB DE CONNEXION SIMPLE ET UNIQUE.
+//
+// Objectif UX : supprimer la confusion « je connecte où ? ». Cette page est LE
+// point d'entrée pour connecter Facebook, Instagram et LinkedIn en UN clic via
+// l'assistant guidé `ConnectGuide` (aucun token à coller). La page
+// /parametres-connecteurs reste accessible, présentée comme l'option AVANCÉE.
+//
+// Le statut « Connecté ✓ / Non connecté » a une seule source de vérité :
+// GET /api/connectors?companyId=… (branché sur sh_channel_connections).
 // ---------------------------------------------------------------------------
 
+type PlatformId = "facebook" | "instagram" | "linkedin";
+
 interface PlatformView {
-  platform: "facebook" | "instagram" | "linkedin";
-  /** Clés d'env présentes côté serveur. */
-  configured: boolean;
-  /** Nombre de comptes actifs en base. */
-  connectedAccounts: number;
+  platform: PlatformId;
+  /** Vrai si au moins un compte actif est présent. */
+  connected: boolean;
   /** Détail des comptes enregistrés. */
   accounts: ConnectorStatus["accounts"];
-  /** Vrai si au moins un compte actif est présent. */
-  hasActiveAccount: boolean;
 }
 
 function toPlatformViews(statuses: ConnectorStatus[] | null): PlatformView[] | null {
   if (!statuses) return null;
   return statuses.map((s) => ({
-    platform: s.platform,
-    configured: s.configured,
-    connectedAccounts: s.connectedAccounts,
+    platform: s.platform as PlatformId,
+    connected: s.connectedAccounts > 0,
     accounts: s.accounts,
-    hasActiveAccount: s.connectedAccounts > 0,
   }));
 }
 
 // ---------------------------------------------------------------------------
-// Platform colours / labels
+// Métadonnées plateformes. `connectVia` = plateforme passée à ConnectGuide :
+// FB et IG partagent le flux Meta, LinkedIn est séparé.
 // ---------------------------------------------------------------------------
 
-const PLATFORM_META = {
+const PLATFORM_META: Record<
+  PlatformId,
+  {
+    label: string;
+    color: string;
+    bg: string;
+    ring: string;
+    dot: string;
+    connectVia: "meta" | "linkedin";
+  }
+> = {
   facebook: {
     label: "Facebook",
     color: "text-[#1877F2]",
     bg: "bg-[#1877F2]/10",
     ring: "ring-[#1877F2]/20",
     dot: "bg-[#1877F2]",
+    connectVia: "meta",
   },
   instagram: {
     label: "Instagram",
@@ -56,6 +72,7 @@ const PLATFORM_META = {
     bg: "bg-[#E1306C]/10",
     ring: "ring-[#E1306C]/20",
     dot: "bg-[#E1306C]",
+    connectVia: "meta",
   },
   linkedin: {
     label: "LinkedIn",
@@ -63,8 +80,11 @@ const PLATFORM_META = {
     bg: "bg-[#0A66C2]/10",
     ring: "ring-[#0A66C2]/20",
     dot: "bg-[#0A66C2]",
+    connectVia: "linkedin",
   },
-} as const;
+};
+
+const PLATFORMS: PlatformId[] = ["facebook", "instagram", "linkedin"];
 
 // ---------------------------------------------------------------------------
 // Main page
@@ -84,6 +104,9 @@ function AccountsPageInner() {
   const searchParams = useSearchParams();
 
   const [toast, setToast] = useState<string | null>(null);
+
+  // Assistant guidé : on mémorise quelle plateforme (meta | linkedin) ouvrir.
+  const [guidePlatform, setGuidePlatform] = useState<"meta" | "linkedin" | null>(null);
 
   // Statut connecteurs — SEULE source de vérité (GET /api/connectors).
   const [connectorStatuses, setConnectorStatuses] = useState<ConnectorStatus[] | null>(null);
@@ -131,11 +154,16 @@ function AccountsPageInner() {
     const error = searchParams.get("error");
 
     if (simulated === "true" && connected === "true") {
-      const label = platform ? PLATFORM_META[platform as keyof typeof PLATFORM_META]?.label ?? platform : "plateforme";
+      const label = platform ? PLATFORM_META[platform as PlatformId]?.label ?? platform : "plateforme";
       const name = account ? ` (${account})` : "";
-      setToast(`${t("Connexion simulée —", "Simulated connection —")} ${label}${name} — ${t("clés API requises pour une vraie connexion.", "API keys required for a real connection.")}`);
+      setToast(
+        `${t("Connexion simulée —", "Simulated connection —")} ${label}${name} — ${t(
+          "clés API requises pour une vraie connexion.",
+          "API keys required for a real connection."
+        )}`
+      );
     } else if (connected && platform) {
-      const label = PLATFORM_META[platform as keyof typeof PLATFORM_META]?.label ?? platform;
+      const label = PLATFORM_META[platform as PlatformId]?.label ?? platform;
       const name = account ? ` : ${account}` : "";
       setToast(`${label} ${t("connecté", "connected")}${name}.`);
       // Refresh connector status after a successful connection.
@@ -156,57 +184,125 @@ function AccountsPageInner() {
 
   const platformViews = useMemo(() => toPlatformViews(connectorStatuses), [connectorStatuses]);
 
-  // Helper: find PlatformView for a given platform.
-  const viewFor = (platform: "facebook" | "instagram" | "linkedin"): PlatformView | undefined =>
+  const viewFor = (platform: PlatformId): PlatformView | undefined =>
     platformViews?.find((v) => v.platform === platform);
+
+  // État vide : aucune plateforme connectée (et chargement terminé sans erreur).
+  const noneConnected =
+    !!platformViews && platformViews.every((v) => !v.connected);
 
   return (
     <div className="animate-fade-in">
-      <PageHeader title={t("Comptes connectés", "Connected accounts")} />
+      <PageHeader title={t("Comptes & connexions", "Accounts & connections")} />
 
-      {/* Info banner */}
+      {/* Bandeau d'intro — explique le « quoi » en une phrase simple */}
       <div className="mb-5 flex items-start gap-2.5 rounded-xl border border-ai-text/20 bg-ai-textbg px-4 py-3 text-xs text-ai-text shadow-xs">
         <InfoIcon className="mt-0.5 shrink-0" />
         <span>
           {t(
-            "Connectez chaque plateforme une fois par entreprise. La connexion Meta couvre Facebook et Instagram (organique + publicités) ensemble. LinkedIn est séparé.",
-            "Connect each platform once per company. Meta's connection covers Facebook and Instagram (organic + ads) together. LinkedIn is separate."
+            "Connectez vos réseaux en un clic. La connexion Meta couvre Facebook et Instagram ensemble ; LinkedIn est séparé. Aucun token à copier.",
+            "Connect your networks in one click. The Meta connection covers Facebook and Instagram together; LinkedIn is separate. No token to copy."
           )}
         </span>
       </div>
 
       {/* ------------------------------------------------------------------ */}
-      {/* Connecteurs — statut réel (GET /api/connectors)                     */}
+      {/* Plateformes — statut réel (GET /api/connectors)                     */}
       {/* ------------------------------------------------------------------ */}
       <div className="mb-2 flex items-center gap-2">
-        <div className="section-label">{t("Plateformes", "Platforms")}</div>
+        <div className="section-label">{t("Vos réseaux", "Your networks")}</div>
       </div>
 
+      {/* Chargement — Spinner */}
       {connectorLoading && (
-        <div className="card p-4 text-2xs text-muted">{t("Chargement du statut des connecteurs…", "Loading connector status…")}</div>
+        <div className="card flex items-center gap-2.5 p-4 text-2xs text-muted">
+          <Spinner size={16} className="text-primary-600" />
+          <span>{t("Chargement du statut des connexions…", "Loading connection status…")}</span>
+        </div>
       )}
 
+      {/* Erreur de chargement */}
       {connectorError && !connectorLoading && (
-        <div className="card p-4 text-2xs text-warning-700">
-          {t(
-            "Impossible de récupérer le statut des connecteurs. Vérifiez votre connexion et rechargez la page.",
-            "Unable to fetch connector status. Check your connection and reload the page."
-          )}
+        <div className="card flex flex-wrap items-center justify-between gap-3 p-4 text-2xs text-warning-700">
+          <span>
+            {t(
+              "Impossible de récupérer le statut des connexions.",
+              "Unable to fetch connection status."
+            )}
+          </span>
+          <button
+            onClick={() => fetchStatuses()}
+            className="btn-secondary rounded-lg px-3 py-1.5 text-xs font-semibold"
+          >
+            {t("Réessayer", "Retry")}
+          </button>
         </div>
       )}
 
       {!connectorLoading && !connectorError && platformViews && (
-        <div className="space-y-3">
-          {(["facebook", "instagram", "linkedin"] as const).map((platform) => (
-            <NativeConnectorCard
-              key={platform}
-              platform={platform}
-              view={viewFor(platform)}
-              companyId={company.id}
-            />
-          ))}
-        </div>
+        <>
+          {/* État vide encourageant */}
+          {noneConnected && (
+            <div className="card mb-3 flex flex-col items-center gap-2 p-6 text-center">
+              <span className="text-sm font-semibold text-ink">
+                {t("Aucun réseau connecté", "No network connected")}
+              </span>
+              <p className="max-w-md text-xs text-muted">
+                {t(
+                  "Connectez votre premier réseau pour démarrer : publication, planification et statistiques.",
+                  "Connect your first network to get started: publishing, scheduling and analytics."
+                )}
+              </p>
+            </div>
+          )}
+
+          <div className="space-y-3">
+            {PLATFORMS.map((platform) => (
+              <ConnectorCard
+                key={platform}
+                platform={platform}
+                view={viewFor(platform)}
+                onConnect={(via) => setGuidePlatform(via)}
+              />
+            ))}
+          </div>
+        </>
       )}
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Configuration avancée → /parametres-connecteurs                     */}
+      {/* ------------------------------------------------------------------ */}
+      <a
+        href="/parametres-connecteurs"
+        className="card mt-5 flex items-center gap-3 p-4 transition-colors hover:border-primary-300 hover:bg-canvas"
+      >
+        <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-canvas ring-1 ring-hair">
+          <SlidersIcon />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="text-sm font-semibold text-ink">
+            {t("Configuration avancée", "Advanced configuration")}
+          </div>
+          <p className="mt-0.5 text-2xs text-muted">
+            {t(
+              "Tokens manuels, autres connecteurs et réglages techniques.",
+              "Manual tokens, other connectors and technical settings."
+            )}
+          </p>
+        </div>
+        <span aria-hidden="true" className="shrink-0 text-muted">
+          →
+        </span>
+      </a>
+
+      {/* Assistant guidé (Meta ou LinkedIn) — un clic, returnTo=/accounts */}
+      <ConnectGuide
+        open={guidePlatform !== null}
+        onClose={() => setGuidePlatform(null)}
+        platform={guidePlatform ?? "meta"}
+        companyId={company.id}
+        returnTo="/accounts"
+      />
 
       {toast && <Toast message={toast} onDismiss={() => setToast(null)} />}
     </div>
@@ -214,28 +310,22 @@ function AccountsPageInner() {
 }
 
 // ---------------------------------------------------------------------------
-// NativeConnectorCard
+// ConnectorCard — statut + bouton « Connecter » (ouvre l'assistant guidé)
 // ---------------------------------------------------------------------------
 
-function NativeConnectorCard({
+function ConnectorCard({
   platform,
   view,
-  companyId,
+  onConnect,
 }: {
-  platform: "facebook" | "instagram" | "linkedin";
+  platform: PlatformId;
   view: PlatformView | undefined;
-  companyId: string;
+  onConnect: (via: "meta" | "linkedin") => void;
 }) {
   const t = useT();
   const meta = PLATFORM_META[platform];
-  const configured = view?.configured ?? false;
-  const hasActive = view?.hasActiveAccount ?? false;
+  const connected = view?.connected ?? false;
   const accounts = view?.accounts ?? [];
-
-  // CTA unique « Connecter Meta » : on démarre toujours le flux OAuth interne et
-  // on revient sur cette page une fois connecté. (En mode simulé, le callback
-  // renvoie un statut `simulated` géré par le toast.)
-  const authUrl = `/api/connectors/${platform}/auth?companyId=${encodeURIComponent(companyId)}&return=/accounts`;
 
   return (
     <div className="card p-4">
@@ -252,93 +342,96 @@ function NativeConnectorCard({
             </span>
             <span className="text-sm font-semibold text-ink">{meta.label}</span>
 
-            {/* Status badge */}
-            {!configured ? (
-              <StatusBadge tone="gray">{t("Mode simulé", "Simulated mode")}</StatusBadge>
-            ) : hasActive ? (
-              <StatusBadge tone="green" dot>{t("Connecté", "Connected")}</StatusBadge>
+            {/* Statut visuel : Connecté ✓ / Non connecté */}
+            {connected ? (
+              <StatusBadge tone="green" dot>
+                {t("Connecté", "Connected")} ✓
+              </StatusBadge>
             ) : (
               <StatusBadge tone="gray">{t("Non connecté", "Not connected")}</StatusBadge>
             )}
           </div>
 
-          {/* Simulated mode notice */}
-          {!configured && (
-            <p className="mt-1 text-2xs text-muted">
-              {t("Mode simulé — clés API requises pour une connexion réelle.", "Simulated mode — API keys required for a real connection.")}{" "}
-              <a
-                href="/parametres-connecteurs"
-                className="underline hover:text-ink"
-              >
-                {t("Configurer les connecteurs", "Configure connectors")}
-              </a>
-              .
-            </p>
-          )}
-
-          {/* Connected accounts list */}
-          {configured && accounts.length > 0 && (
+          {/* Comptes connectés */}
+          {connected && accounts.length > 0 && (
             <ul className="mt-2 space-y-1">
               {accounts.map((acc) => (
-                <li key={acc.id} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-2xs text-muted">
+                <li
+                  key={acc.id}
+                  className="flex flex-wrap items-center gap-x-2 gap-y-1 text-2xs text-muted"
+                >
                   <span
                     className={`h-1.5 w-1.5 shrink-0 rounded-full ${
-                      acc.status === "active"
-                        ? meta.dot
-                        : "bg-warning-400"
+                      acc.status === "active" ? meta.dot : "bg-warning-400"
                     }`}
                     aria-hidden="true"
                   />
                   <span className="min-w-0 break-words font-medium text-ink">{acc.accountName}</span>
-                  {acc.externalId && <span className="min-w-0 break-all opacity-60">· {acc.externalId}</span>}
-                  {acc.status !== "active" && (
-                    <StatusBadge tone="amber">{acc.status}</StatusBadge>
+                  {acc.externalId && (
+                    <span className="min-w-0 break-all opacity-60">· {acc.externalId}</span>
                   )}
+                  {acc.status !== "active" && <StatusBadge tone="amber">{acc.status}</StatusBadge>}
                 </li>
               ))}
             </ul>
           )}
 
-          {/* No accounts but configured */}
-          {configured && accounts.length === 0 && (
+          {/* Non connecté — invitation */}
+          {!connected && (
             <p className="mt-1 text-2xs text-muted">
-              {t(
-                "Aucun compte connecté. Cliquez sur « Connecter » pour démarrer le flux OAuth.",
-                "No accounts connected. Click \"Connect\" to start the OAuth flow."
-              )}
+              {platform === "instagram" || platform === "facebook"
+                ? t(
+                    "Connexion Meta : Facebook et Instagram d'un seul clic.",
+                    "Meta connection: Facebook and Instagram in one click."
+                  )
+                : t(
+                    "Connectez LinkedIn pour publier sur votre profil ou Page.",
+                    "Connect LinkedIn to publish on your profile or Page."
+                  )}
             </p>
           )}
         </div>
 
-        {/* Right: connect button */}
+        {/* Right: bouton « Connecter » — ouvre l'assistant guidé en UN clic */}
         <div className="shrink-0">
-          {configured ? (
-            <a
-              href={authUrl}
-              className="btn-primary inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold"
-            >
-              {hasActive ? t("Reconnecter", "Reconnect") : t("Connecter", "Connect")}
-            </a>
-          ) : (
-            <a
-              href={authUrl}
-              className="btn-secondary inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold"
-              title={t("En mode simulé — aucune vraie connexion ne sera effectuée", "Simulated mode — no real connection will be made")}
-            >
-              {t("Simuler", "Simulate")}
-            </a>
-          )}
+          <button
+            onClick={() => onConnect(meta.connectVia)}
+            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold ${
+              connected ? "btn-secondary" : "btn-primary"
+            }`}
+          >
+            {connected ? t("Reconnecter", "Reconnect") : t("Connecter", "Connect")}
+          </button>
         </div>
       </div>
     </div>
   );
 }
 
+// ---------------------------------------------------------------------------
+// Icônes
+// ---------------------------------------------------------------------------
+
 function InfoIcon({ className }: { className?: string }) {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className={className}>
       <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.5" />
       <path d="M12 8h.01M11 12h1v5h1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function SlidersIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" className="text-muted">
+      <path
+        d="M4 8h10M18 8h2M4 16h2M10 16h10"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+      <circle cx="16" cy="8" r="2" stroke="currentColor" strokeWidth="1.5" />
+      <circle cx="8" cy="16" r="2" stroke="currentColor" strokeWidth="1.5" />
     </svg>
   );
 }

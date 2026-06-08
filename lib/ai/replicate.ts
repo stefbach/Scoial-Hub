@@ -29,6 +29,37 @@ const PREDICTION_TIMEOUT_MS = 120_000; // 2 minutes
 /** Intervalle entre deux vérifications de statut (ms). */
 const POLLING_INTERVAL_MS = 2_000;
 
+/** Petite pause utilitaire. */
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * fetch Replicate avec gestion du throttling (429). Replicate réduit fortement
+ * le débit quand le crédit est faible (< 5 $ : burst de 1 requête, 6/min). On
+ * respecte alors l'en-tête/`retry_after` et on retente quelques fois.
+ */
+async function replicateFetch(
+  url: string,
+  init: RequestInit,
+  attempt = 0
+): Promise<Response> {
+  const res = await fetch(url, init);
+  if (res.status !== 429 || attempt >= 4) return res;
+
+  // Détermine le délai d'attente : corps JSON `retry_after` ou en-tête, défaut 10 s.
+  let waitSec = 10;
+  try {
+    const body = (await res.clone().json()) as { retry_after?: number };
+    if (typeof body.retry_after === "number") waitSec = body.retry_after;
+  } catch {
+    const hdr = Number(res.headers.get("retry-after"));
+    if (Number.isFinite(hdr) && hdr > 0) waitSec = hdr;
+  }
+  await sleep(Math.min(Math.max(waitSec, 1), 30) * 1000 + 500);
+  return replicateFetch(url, init, attempt + 1);
+}
+
 // --------------- Types internes ---------------
 
 interface ReplicatePrediction {
@@ -41,13 +72,18 @@ interface ReplicatePrediction {
 
 // --------------- Utilitaires réseau ---------------
 
-/** Retourne les headers HTTP communs à toutes les requêtes Replicate. */
-function replicateHeaders(): Record<string, string> {
-  return {
+/**
+ * Retourne les headers HTTP communs à toutes les requêtes Replicate.
+ * `wait=true` ajoute `Prefer: wait` (réponse synchrone, bloque jusqu'à ~60s) —
+ * à éviter pour les modèles lents qu'on veut démarrer en asynchrone.
+ */
+function replicateHeaders(wait = true): Record<string, string> {
+  const h: Record<string, string> = {
     Authorization: `Bearer ${process.env.REPLICATE_API_TOKEN ?? ""}`,
     "Content-Type": "application/json",
-    Prefer: "wait",
   };
+  if (wait) h.Prefer = "wait";
+  return h;
 }
 
 /**
@@ -55,21 +91,53 @@ function replicateHeaders(): Record<string, string> {
  * Utilise l'endpoint `/v1/models/{owner}/{name}/predictions` pour les modèles
  * hébergés, ce qui permet de cibler la dernière version sans la spécifier.
  */
+/** Récupère l'id de la dernière version d'un modèle (pour les modèles non officiels). */
+async function resolveLatestVersion(model: string): Promise<string | null> {
+  try {
+    const res = await replicateFetch(`${REPLICATE_API_BASE}/models/${model}`, {
+      headers: replicateHeaders(),
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { latest_version?: { id?: string } };
+    return data.latest_version?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
 async function createPrediction(
   model: string,
-  input: Record<string, unknown>
+  input: Record<string, unknown>,
+  wait = true
 ): Promise<ReplicatePrediction> {
   const [owner, name] = model.split("/");
-  const url = `${REPLICATE_API_BASE}/models/${owner}/${name}/predictions`;
 
-  const res = await fetch(url, {
+  // 1) Endpoint « modèle officiel » (cible la dernière version sans la spécifier).
+  let res = await replicateFetch(`${REPLICATE_API_BASE}/models/${owner}/${name}/predictions`, {
     method: "POST",
-    headers: replicateHeaders(),
+    headers: replicateHeaders(wait),
     body: JSON.stringify({ input }),
   });
 
+  // 2) 404 → modèle communautaire : on résout la version et on relance via /predictions.
+  if (res.status === 404) {
+    const version = await resolveLatestVersion(model);
+    if (version) {
+      res = await replicateFetch(`${REPLICATE_API_BASE}/predictions`, {
+        method: "POST",
+        headers: replicateHeaders(wait),
+        body: JSON.stringify({ version, input }),
+      });
+    }
+  }
+
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText);
+    if (res.status === 429) {
+      throw new Error(
+        "Limite de débit Replicate atteinte (crédit faible : 1 image à la fois, ~6/min). Réessayez dans ~10 s, ou ajoutez du crédit Replicate pour lever la limite."
+      );
+    }
     throw new Error(
       `Replicate — création de prédiction échouée (${res.status}) : ${text}`
     );
@@ -90,7 +158,7 @@ async function pollPrediction(
   while (Date.now() < deadline) {
     await new Promise((resolve) => setTimeout(resolve, POLLING_INTERVAL_MS));
 
-    const res = await fetch(
+    const res = await replicateFetch(
       `${REPLICATE_API_BASE}/predictions/${predictionId}`,
       { headers: replicateHeaders() }
     );
@@ -231,6 +299,10 @@ export async function generateImage(
 /**
  * Génère des images avec un modèle Replicate arbitraire (catalogue) et un input
  * déjà construit pour son schéma. Parallélise si plusieurs images sont demandées.
+ *
+ * Robustesse : on utilise allSettled — si UNE prédiction échoue (sécurité,
+ * rate-limit, transitoire), on garde quand même les images réussies. On ne lève
+ * que si AUCUNE image n'a été produite (en remontant la vraie erreur Replicate).
  */
 export async function generateImageModel(
   modelId: string,
@@ -250,8 +322,26 @@ export async function generateImageModel(
       ? [raw]
       : [];
   };
-  const batches = await Promise.all(Array.from({ length: numOutputs }, runOne));
-  return { images: batches.flat().map((url) => ({ url })), model: modelId };
+
+  // SÉQUENTIEL (pas Promise.all) : Replicate limite à 1 requête simultanée quand
+  // le crédit est faible. On garde les images réussies, on ne lève que si zéro.
+  const urls: string[] = [];
+  let lastError: unknown;
+  for (let i = 0; i < numOutputs; i++) {
+    try {
+      urls.push(...(await runOne()));
+    } catch (e) {
+      lastError = e;
+    }
+  }
+
+  if (urls.length === 0) {
+    throw lastError instanceof Error
+      ? lastError
+      : new Error("Replicate — aucune image générée.");
+  }
+
+  return { images: urls.map((url) => ({ url })), model: modelId };
 }
 
 // --------------- API publique — Vidéos ---------------
@@ -381,6 +471,199 @@ export async function getVideoPrediction(id: string): Promise<VideoPredictionSta
     throw new Error(`Replicate — statut échoué (${res.status}) : ${text}`);
   }
   return mapVideoPrediction((await res.json()) as ReplicatePrediction);
+}
+
+// --------------- API publique — Avatar parlant (TTS + lip-sync) ---------------
+
+/** Modèles par défaut (surchargeables). TTS texte→audio, puis image+audio→vidéo. */
+export const AVATAR_TTS_MODEL = "jaaari/kokoro-82m";
+export const AVATAR_LIPSYNC_MODEL = "cjwbw/sadtalker";
+
+/** Extrait la 1ère URL exploitable d'un output Replicate (string | string[] | objet). */
+function firstUrl(output: unknown): string | null {
+  if (!output) return null;
+  if (typeof output === "string") return output.startsWith("http") ? output : null;
+  if (Array.isArray(output)) {
+    for (const o of output) {
+      const u = firstUrl(o);
+      if (u) return u;
+    }
+    return null;
+  }
+  if (typeof output === "object") {
+    const o = output as Record<string, unknown>;
+    for (const k of ["video", "audio", "output", "url"]) {
+      const u = firstUrl(o[k]);
+      if (u) return u;
+    }
+  }
+  return null;
+}
+
+/** Exécute un modèle Replicate arbitraire et renvoie la 1ère URL de l'output. */
+export async function runReplicateUrl(
+  model: string,
+  input: Record<string, unknown>
+): Promise<string | null> {
+  if (!isReplicateConfigured) return null;
+  const prediction = await runPrediction(model, input);
+  return firstUrl(prediction.output);
+}
+
+/** Auto-détecte les clés d'entrée image & audio d'un modèle (schéma OpenAPI). */
+async function detectAvatarKeys(model: string): Promise<{ imageKey: string; audioKey: string }> {
+  let imageKey = "image";
+  let audioKey = "audio";
+  try {
+    const res = await replicateFetch(`${REPLICATE_API_BASE}/models/${model}`, {
+      headers: replicateHeaders(),
+    });
+    if (res.ok) {
+      const data = (await res.json()) as {
+        latest_version?: { openapi_schema?: { components?: { schemas?: { Input?: { properties?: Record<string, unknown> } } } } };
+      };
+      const props = data.latest_version?.openapi_schema?.components?.schemas?.Input?.properties ?? {};
+      const names = Object.keys(props);
+      const img = names.find((n) => /image|img|source|face|portrait|photo|video|input/i.test(n));
+      const aud = names.find((n) => /audio|voice|speech|sound|wav/i.test(n));
+      if (img) imageKey = img;
+      if (aud) audioKey = aud;
+    }
+  } catch {
+    /* clés par défaut */
+  }
+  return { imageKey, audioKey };
+}
+
+/**
+ * Lip-sync ROBUSTE (synchrone) : auto-détecte les clés puis attend le résultat.
+ * Réservé aux modèles rapides ; pour les modèles lents (OmniHuman…) préférer
+ * startAvatarLipsync + getReplicatePrediction (asynchrone, évite les timeouts).
+ */
+export async function lipsyncAvatar(
+  model: string,
+  imageUrl: string,
+  audioUrl: string
+): Promise<string | null> {
+  if (!isReplicateConfigured) return null;
+  const { imageKey, audioKey } = await detectAvatarKeys(model);
+  return runReplicateUrl(model, { [imageKey]: imageUrl, [audioKey]: audioUrl });
+}
+
+/** Démarre un lip-sync SANS attendre (asynchrone). Renvoie l'id de prédiction. */
+export async function startAvatarLipsync(
+  model: string,
+  imageUrl: string,
+  audioUrl: string
+): Promise<{ id?: string; status?: string; videoUrl?: string; error?: string }> {
+  if (!isReplicateConfigured) return { error: "not-configured" };
+  const { imageKey, audioKey } = await detectAvatarKeys(model);
+  // wait=false : démarrage immédiat (pas de blocage ~60s → pas de timeout fonction).
+  const pred = await createPrediction(model, { [imageKey]: imageUrl, [audioKey]: audioUrl }, false);
+  if (pred.status === "succeeded") return { id: pred.id, status: "succeeded", videoUrl: firstUrl(pred.output) ?? undefined };
+  if (pred.status === "failed" || pred.status === "canceled") return { id: pred.id, status: "failed", error: pred.error ?? "failed" };
+  return { id: pred.id, status: pred.status };
+}
+
+/** Interroge une prédiction Replicate (générique) et renvoie l'URL de sortie. */
+export async function getReplicatePrediction(
+  id: string
+): Promise<{ status: string; videoUrl?: string; error?: string }> {
+  if (!isReplicateConfigured) return { status: "failed", error: "not-configured" };
+  const res = await replicateFetch(`${REPLICATE_API_BASE}/predictions/${id}`, {
+    headers: replicateHeaders(),
+  });
+  if (!res.ok) return { status: "failed", error: `HTTP ${res.status}` };
+  const p = (await res.json()) as ReplicatePrediction;
+  if (p.status === "succeeded") return { status: "succeeded", videoUrl: firstUrl(p.output) ?? undefined };
+  if (p.status === "failed" || p.status === "canceled") return { status: "failed", error: p.error ?? "failed" };
+  return { status: p.status };
+}
+
+/**
+ * Clone une voix (MiniMax) à partir d'un échantillon audio → renvoie un voice_id
+ * réutilisable avec speech-02-hd. Échantillon : 10s–5min, MP3/M4A/WAV, < 20 Mo.
+ */
+export async function cloneVoiceMiniMax(audioUrl: string): Promise<{ voiceId?: string; error?: string }> {
+  if (!isReplicateConfigured) return { error: "not-configured" };
+  try {
+    const pred = await runPrediction("minimax/voice-cloning", { voice_file: audioUrl, model: "speech-02-hd" });
+    const out = pred.output as unknown;
+    let vid: string | undefined;
+    if (typeof out === "string") vid = out;
+    else if (out && typeof out === "object") vid = (out as { voice_id?: string }).voice_id;
+    if (!vid) return { error: "Aucun identifiant de voix renvoyé." };
+    return { voiceId: vid };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Échec du clonage." };
+  }
+}
+
+/** Modèle d'auto-sous-titrage (transcription + incrustation) sur une vidéo. */
+export const SUBTITLE_MODEL = "fictions-ai/autocaption";
+
+/** Démarre l'incrustation de sous-titres sur une vidéo (asynchrone). */
+export async function startSubtitles(
+  videoUrl: string,
+  model = SUBTITLE_MODEL
+): Promise<{ id?: string; status?: string; videoUrl?: string; error?: string }> {
+  if (!isReplicateConfigured) return { error: "not-configured" };
+  // Auto-détecte la clé d'entrée vidéo du modèle.
+  let videoKey = "video_file_input";
+  try {
+    const res = await replicateFetch(`${REPLICATE_API_BASE}/models/${model}`, { headers: replicateHeaders() });
+    if (res.ok) {
+      const data = (await res.json()) as {
+        latest_version?: { openapi_schema?: { components?: { schemas?: { Input?: { properties?: Record<string, unknown> } } } } };
+      };
+      const props = data.latest_version?.openapi_schema?.components?.schemas?.Input?.properties ?? {};
+      const names = Object.keys(props);
+      const v = names.find((n) => /video.*file|file.*video|video_input|video_url|input_video|^video$/i.test(n))
+        ?? names.find((n) => /video/i.test(n));
+      if (v) videoKey = v;
+    }
+  } catch { /* clé par défaut */ }
+  const pred = await createPrediction(model, { [videoKey]: videoUrl }, false);
+  if (pred.status === "succeeded") return { id: pred.id, status: "succeeded", videoUrl: firstUrl(pred.output) ?? undefined };
+  if (pred.status === "failed" || pred.status === "canceled") return { id: pred.id, status: "failed", error: pred.error ?? "failed" };
+  return { id: pred.id, status: pred.status };
+}
+
+export interface AvatarResult {
+  videoUrl?: string;
+  audioUrl?: string;
+  simulated?: boolean;
+}
+
+/**
+ * Génère une vidéo d'avatar parlant : texte → voix (TTS) → lip-sync sur un visage.
+ * Dégradation : si Replicate n'est pas configuré, retourne { simulated: true }.
+ */
+export async function generateAvatarVideo(opts: {
+  text: string;
+  faceUrl: string;
+  voice?: string;
+  ttsModel?: string;
+  lipsyncModel?: string;
+}): Promise<AvatarResult> {
+  if (!isReplicateConfigured) return { simulated: true };
+
+  // 1) Voix (TTS)
+  const audioUrl = await runReplicateUrl(opts.ttsModel ?? AVATAR_TTS_MODEL, {
+    text: opts.text,
+    ...(opts.voice ? { voice: opts.voice } : {}),
+  });
+  if (!audioUrl) throw new Error("Échec de la génération de la voix (TTS).");
+
+  // 2) Lip-sync (visage + audio → vidéo)
+  const videoUrl = await runReplicateUrl(opts.lipsyncModel ?? AVATAR_LIPSYNC_MODEL, {
+    source_image: opts.faceUrl,
+    driven_audio: audioUrl,
+    preprocess: "full",
+  });
+  if (!videoUrl) throw new Error("Échec de la génération de la vidéo (lip-sync).");
+
+  return { videoUrl, audioUrl };
 }
 
 // --------------- API publique — Voix (TTS) ---------------

@@ -48,7 +48,7 @@ const NETWORK_LABELS: Record<NetworkId, string> = {
 
 const ACCENT_PRESETS = [
   "#1e3a5f",
-  "#2563eb",
+  "#60a5fa",
   "#16a34a",
   "#d97706",
   "#dc2626",

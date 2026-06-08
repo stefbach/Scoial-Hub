@@ -12,6 +12,13 @@ import { COMPANIES, COMPANY_DATA, registerCompany, makeEmptyCompanyData } from "
 import type { Company, CompanyData } from "./types";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/env";
+import type { MyAccess } from "@/lib/rbac/types";
+
+const COMPANY_LS_KEY = "sh_company_id";
+
+// Accès permissif par défaut (mode démo / pendant le chargement) : on n'enferme
+// pas l'UI avant d'avoir la réponse réelle de /api/me/access.
+const DEFAULT_ACCESS: MyAccess = { role: "owner", mode: "edit", isAccountAdmin: true, canEdit: true };
 
 interface CompanyContextValue {
   companies: Company[];
@@ -20,12 +27,30 @@ interface CompanyContextValue {
   setCompanyId: (id: string) => void;
   addCompany: (company: Company) => void;
   updateCompany: (id: string, patch: Partial<Company>) => void;
+  /** Droits de l'utilisateur courant sur la société active (édition/lecture). */
+  access: MyAccess;
 }
 
 const CompanyContext = createContext<CompanyContextValue | null>(null);
 
 export function CompanyProvider({ children }: { children: React.ReactNode }) {
-  const [companyId, setCompanyId] = useState(COMPANIES[0].id);
+  const [companyId, setCompanyIdState] = useState(COMPANIES[0].id);
+  const [access, setAccess] = useState<MyAccess>(DEFAULT_ACCESS);
+
+  // Sélection de société PERSISTÉE (localStorage) : remplace l'ancien menu
+  // déroulant volatil. La société active survit au rechargement.
+  const setCompanyId = useCallback((id: string) => {
+    setCompanyIdState(id);
+    try { window.localStorage.setItem(COMPANY_LS_KEY, id); } catch { /* ignore */ }
+  }, []);
+
+  // Restaure la dernière société choisie au montage.
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(COMPANY_LS_KEY);
+      if (saved) setCompanyIdState(saved);
+    } catch { /* ignore */ }
+  }, []);
   // Snapshot of the shared COMPANIES list; bumping this triggers re-renders
   // for the switcher and any consumer when companies are added/edited.
   const [companies, setCompanies] = useState<Company[]>([...COMPANIES]);
@@ -77,15 +102,17 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
 
         // ── Compte RÉEL (utilisateur connecté avec organisation) ──────────
         // On affiche EXACTEMENT ses sociétés (jamais les marques de démo).
+        // Espace vierge (aucune société) → liste VIDE — surtout PAS les marques
+        // de démonstration, sinon toute action par société (connecteurs, etc.)
+        // renverrait 403 sur une société qui ne lui appartient pas.
         if (isAuthed) {
-          if (fetched.length === 0) return; // espace vierge → on garde le placeholder
           for (const c of fetched) {
             if (!COMPANY_DATA[c.id]) COMPANY_DATA[c.id] = makeEmptyCompanyData();
           }
           COMPANIES.splice(0, COMPANIES.length, ...fetched);
           setCompanies([...COMPANIES]);
-          setCompanyId((prev) =>
-            COMPANIES.some((c) => c.id === prev) ? prev : (COMPANIES[0]?.id ?? prev)
+          setCompanyIdState((prev) =>
+            COMPANIES.some((c) => c.id === prev) ? prev : (COMPANIES[0]?.id ?? "")
           );
           return;
         }
@@ -110,7 +137,7 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
         setCompanies([...COMPANIES]);
         // If the previously-selected companyId no longer exists in the
         // refreshed list, fall back to the first entry.
-        setCompanyId((prev) => {
+        setCompanyIdState((prev) => {
           const stillExists = COMPANIES.some((c) => c.id === prev);
           return stillExists ? prev : (COMPANIES[0]?.id ?? prev);
         });
@@ -145,6 +172,25 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
     };
   }, [companyId]);
 
+  // Droits effectifs de l'utilisateur sur la société active (édition/lecture).
+  useEffect(() => {
+    let cancelled = false;
+    if (!companyId) { setAccess(DEFAULT_ACCESS); return; }
+    fetch(`/api/me/access?companyId=${encodeURIComponent(companyId)}`)
+      .then((r) => (r.ok ? (r.json() as Promise<MyAccess>) : null))
+      .then((a) => {
+        if (cancelled || !a) return;
+        setAccess({
+          role: a.role ?? null,
+          mode: a.mode ?? null,
+          isAccountAdmin: Boolean(a.isAccountAdmin),
+          canEdit: Boolean(a.canEdit),
+        });
+      })
+      .catch(() => { /* garde l'accès permissif par défaut */ });
+    return () => { cancelled = true; };
+  }, [companyId]);
+
   const addCompany = useCallback((company: Company) => {
     registerCompany(company);
     setCompanies([...COMPANIES]);
@@ -157,7 +203,13 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const value = useMemo<CompanyContextValue>(() => {
-    const company = companies.find((c) => c.id === companyId) ?? companies[0];
+    // Sentinelle « aucune société » : évite tout crash quand un compte réel n'a
+    // pas encore créé de société (company.id = "" → les routes par-société
+    // renvoient 400/empty proprement, et l'UI invite à créer une société).
+    const company =
+      companies.find((c) => c.id === companyId) ??
+      companies[0] ??
+      ({ id: "", code: "—", name: "—", brandVoice: "", accent: "#9ca3af", defaultPlatforms: [] } as Company);
     return {
       companies,
       company,
@@ -166,8 +218,9 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
       setCompanyId,
       addCompany,
       updateCompany,
+      access,
     };
-  }, [companyId, companies, companyData, addCompany, updateCompany]);
+  }, [companyId, companies, companyData, addCompany, updateCompany, setCompanyId, access]);
 
   return (
     <CompanyContext.Provider value={value}>{children}</CompanyContext.Provider>
@@ -178,4 +231,9 @@ export function useCompany() {
   const ctx = useContext(CompanyContext);
   if (!ctx) throw new Error("useCompany must be used within CompanyProvider");
   return ctx;
+}
+
+/** Raccourci : l'utilisateur peut-il MODIFIER la société active ? */
+export function useCanEdit(): boolean {
+  return useCompany().access.canEdit;
 }

@@ -224,12 +224,28 @@ function extractImageUrls(images: unknown): string[] {
     .filter((u): u is string => Boolean(u));
 }
 
+// Formats attendus par les réseaux (Meta, TikTok, LinkedIn) — photo & vidéo.
+const IMG_FMTS: { id: string; fr: string; en: string }[] = [
+  { id: "1:1", fr: "Carré 1:1 (fil)", en: "Square 1:1 (feed)" },
+  { id: "4:5", fr: "Portrait 4:5 (fil IG/FB)", en: "Portrait 4:5 (IG/FB feed)" },
+  { id: "9:16", fr: "Story/Reel 9:16", en: "Story/Reel 9:16" },
+  { id: "1.91:1", fr: "Paysage 1.91:1 (LinkedIn/FB)", en: "Landscape 1.91:1 (LinkedIn/FB)" },
+];
+const VID_FMTS: { id: string; fr: string; en: string }[] = [
+  { id: "9:16", fr: "Vertical 9:16 (TikTok/Reels/Stories)", en: "Vertical 9:16 (TikTok/Reels/Stories)" },
+  { id: "1:1", fr: "Carré 1:1 (fil)", en: "Square 1:1 (feed)" },
+  { id: "4:5", fr: "Portrait 4:5", en: "Portrait 4:5" },
+  { id: "16:9", fr: "Paysage 16:9 (LinkedIn/FB)", en: "Landscape 16:9 (LinkedIn/FB)" },
+];
+
 export function AiVisualsPanel({
   used,
   cap,
   platform = "facebook",
   imageModel,
   videoModel,
+  brandHints,
+  companyId,
 }: {
   used: number;
   cap: number;
@@ -239,10 +255,16 @@ export function AiVisualsPanel({
   imageModel?: string;
   /** Modèle de génération vidéo (catalogue Replicate). */
   videoModel?: string;
+  /** Indications de style issues du brand kit (injectées dans le prompt). */
+  brandHints?: string;
+  /** Société — enregistre les visuels générés dans la bibliothèque média. */
+  companyId?: string;
 }) {
   const t = useT();
   const [mode, setMode] = useState<"image" | "video">("image");
   const [style, setStyle] = useState("photo");
+  // Format/ratio choisi (par défaut selon le mode). Couvre tous les réseaux.
+  const [fmt, setFmt] = useState("1:1");
   const [prompt, setPrompt] = useState("");
   const [loading, setLoading] = useState(false);
   const [mockMessage, setMockMessage] = useState<string | null>(null);
@@ -251,8 +273,10 @@ export function AiVisualsPanel({
   const isVideo = mode === "video";
 
   const handleGenerate = async () => {
-    const text = prompt.trim();
-    if (!text) return;
+    const base = prompt.trim();
+    if (!base) return;
+    // Enrichit le prompt avec le style de marque (brand kit) pour rester cohérent.
+    const text = [base, brandHints?.trim()].filter(Boolean).join(". ");
     setLoading(true);
     setError(null);
     setMockMessage(null);
@@ -260,7 +284,7 @@ export function AiVisualsPanel({
     try {
       if (isVideo) {
         // Génération vidéo asynchrone (Veo 3 / Kling / Seedance… selon le modèle).
-        const r = await generateVideoPolling({ prompt: text, platform, model: videoModel, seconds: 10 });
+        const r = await generateVideoPolling({ prompt: text, platform, aspect: fmt, model: videoModel, seconds: 10 });
         if (r.simulated || !r.url) {
           setMockMessage(
             r.error === "timeout"
@@ -273,6 +297,7 @@ export function AiVisualsPanel({
           return;
         }
         setResults([r.url]);
+        if (companyId) fetch("/api/media", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ companyId, url: r.url, type: "video", format: fmt, source: "compose" }) }).catch(() => {});
         return;
       }
       const res = await fetch("/api/ai/generate-image", {
@@ -280,12 +305,14 @@ export function AiVisualsPanel({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           prompt: text,
-          // Envoie le réseau cible : la route en déduit un vrai ratio
-          // (resolveImageAspect) au lieu d'un "format" invalide ("image").
+          // Format explicite choisi (ratio attendu par le réseau) ; companyId →
+          // enregistrement automatique dans la bibliothèque média.
+          format: fmt,
           platform,
           style,
           n: 4,
           model: imageModel,
+          companyId,
         }),
       });
       if (!res.ok) {
@@ -326,17 +353,31 @@ export function AiVisualsPanel({
       {/* Mode toggle */}
       <div className="mb-2 flex gap-3 text-2xs">
         <button
-          onClick={() => setMode("image")}
+          onClick={() => { setMode("image"); setFmt("1:1"); }}
           className={mode === "image" ? "font-medium text-ai-visual underline" : "text-muted"}
         >
           {t("Image", "Image")}
         </button>
         <button
-          onClick={() => setMode("video")}
+          onClick={() => { setMode("video"); setFmt("9:16"); }}
           className={mode === "video" ? "font-medium text-ai-visual underline" : "text-muted"}
         >
           {t("Vidéo", "Video")}
         </button>
+      </div>
+
+      {/* Format / ratio — couvre Meta (fil/story/reel), TikTok, LinkedIn */}
+      <div className="mb-2 flex flex-wrap gap-1">
+        {(isVideo ? VID_FMTS : IMG_FMTS).map((f) => (
+          <button
+            key={f.id}
+            onClick={() => setFmt(f.id)}
+            title={t(f.fr, f.en)}
+            className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${fmt === f.id ? "bg-ai-visual text-white" : "bg-card text-muted ring-1 ring-hair hover:text-ink"}`}
+          >
+            {f.id}
+          </button>
+        ))}
       </div>
 
       {/* Prompt */}

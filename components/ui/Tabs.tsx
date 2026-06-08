@@ -20,7 +20,7 @@ export function Tabs({
       {/* Barre d'onglets */}
       <div
         role="tablist"
-        className="flex gap-1 border-b border-hair"
+        className="flex gap-1 overflow-x-auto border-b border-hair"
       >
         {tabs.map((t) => {
           const isActive = t.id === active;
@@ -32,7 +32,7 @@ export function Tabs({
               aria-controls={`tabpanel-${t.id}`}
               onClick={() => setActive(t.id)}
               className={[
-                "relative -mb-px px-3 pb-2.5 pt-1 text-sm font-medium",
+                "relative -mb-px shrink-0 px-2 pb-2.5 pt-1 text-sm font-medium sm:px-3",
                 "transition-colors duration-[120ms]",
                 // Anneau focus améthyste
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/40 focus-visible:ring-offset-1 rounded-t",

@@ -23,6 +23,26 @@ export interface SuggestedObjective {
 }
 
 /**
+ * Stratégie SPÉCIFIQUE à un réseau social. Chaque plateforme a ses codes :
+ * le consultant adapte angle, formats, ton, piliers de contenu et rythme.
+ */
+export interface NetworkStrategy {
+  network: SocialNetwork;
+  /** angle/positionnement propre à ce réseau (1-2 phrases). */
+  angle: string;
+  /** formats recommandés (ex. Reels, carrousel, stories, vidéo native…). */
+  formats: string[];
+  /** ton adapté au réseau (ex. spontané/vertical vs expert/posé). */
+  tone: string;
+  /** 3-5 piliers de contenu propres au réseau. */
+  contentPillars: string[];
+  /** rythme de publication recommandé (ex. « 4-5×/sem »). */
+  cadence: string;
+  /** type d'appel à l'action privilégié sur ce réseau. */
+  cta: string;
+}
+
+/**
  * Profil de marque produit par l'IA à partir du site + des comptes sociaux.
  * Persisté dans public.sh_brand_profiles (le profil complet est aussi stocké
  * dans la colonne `raw`, qui fait foi à la relecture).
@@ -40,6 +60,21 @@ export interface BrandProfile {
   audience: string;
   themes: string[];
   strengths: string[];
+  /** ── ADN de marque (Consultant IA) — la « philosophie » verrouillée ──── */
+  /** Raison d'être de la marque (1-2 phrases). */
+  mission: string;
+  /** Valeurs fondatrices (3-5). */
+  values: string[];
+  /** LE message clé que le client veut faire passer. */
+  keyMessage: string;
+  /** Traits de personnalité de marque (ex. audacieuse, chaleureuse…). */
+  personality: string[];
+  /** Direction artistique : mots-clés visuels (style, lumière, matières…). */
+  visualDirection: string;
+  /** Stratégie distincte par réseau (Instagram/Facebook/TikTok/LinkedIn). */
+  networkStrategies: NetworkStrategy[];
+  /** Vrai quand l'identité/philosophie a été validée par le client. */
+  philosophyLocked: boolean;
   /** mots-clés pour alimenter la veille (étape 3). */
   keywords: string[];
   /** réseaux recommandés par l'IA pour cette marque. */
@@ -124,6 +159,13 @@ export function makeEmptyBrandProfile(companyId: string): BrandProfile {
     audience: "",
     themes: [],
     strengths: [],
+    mission: "",
+    values: [],
+    keyMessage: "",
+    personality: [],
+    visualDirection: "",
+    networkStrategies: [],
+    philosophyLocked: false,
     keywords: [],
     recommendedNetworks: [],
     competitorAngles: [],

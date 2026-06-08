@@ -1979,6 +1979,141 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
       { label: { fr: "Programmés", en: "Scheduled" }, href: "/scheduled" },
     ],
   },
+
+  // ── /pages-meta ───────────────────────────────────────────────────────────
+  "/pages-meta": {
+    title: { fr: "Mes Pages & données", en: "My Pages & data" },
+    tagline: { fr: "Vos Pages Meta connectées, leurs données et la publication", en: "Your connected Meta Pages, their data and publishing" },
+    whatFor: {
+      fr: "Le hub de chaque Page Facebook/Instagram connectée : choisir la Page à piloter, voir ses vraies données (abonnés, publications, engagement), publier (post normal ou publicité) et faire analyser sa stratégie par l'IA.",
+      en: "The hub for each connected Facebook/Instagram Page: pick the Page to manage, see its real data (followers, posts, engagement), publish (normal post or ad) and get its strategy analysed by AI.",
+    },
+    actions: [
+      { label: { fr: "Choisir la Page", en: "Pick the Page" }, detail: { fr: "Si votre compte gère plusieurs Pages, sélectionnez celle de cette société.", en: "If your account manages several Pages, select the one for this company." } },
+      { label: { fr: "Publier (normal ou Ads)", en: "Publish (normal or Ads)" }, detail: { fr: "Onglet « Publication normale » pour un post gratuit à vos abonnés, « Publication via Ads » pour une publicité ciblée.", en: "“Normal post” tab for a free post to your followers, “Publish via Ads” for a targeted ad." } },
+      { label: { fr: "Analyser la Page avec l'IA", en: "Analyze the Page with AI" }, detail: { fr: "L'IA lit vos contenus et leur engagement et recommande la suite (formats, cadence, idées, actions).", en: "The AI reads your content and engagement and recommends what's next (formats, cadence, ideas, actions)." } },
+    ],
+    tips: [
+      { fr: "Connectez Meta depuis le Démarrage : un seul OAuth connecte Facebook ET Instagram.", en: "Connect Meta from the onboarding: a single OAuth connects both Facebook and Instagram." },
+      { fr: "Pour publier sur Instagram, une image est obligatoire (le bouton « Générer un visuel » la fournit).", en: "To publish on Instagram an image is required (the “Generate a visual” button provides one)." },
+    ],
+    faq: [
+      { q: { fr: "Mes publications partent-elles vraiment ?", en: "Are my posts really sent?" }, a: { fr: "Oui si la Page est connectée. Chaque publication réussie apparaît dans l'Historique. Sinon, l'app vous le dit clairement.", en: "Yes if the Page is connected. Each successful publish appears in History. Otherwise the app tells you clearly." } },
+    ],
+    related: [
+      { label: { fr: "Espace LinkedIn", en: "LinkedIn space" }, href: "/linkedin" },
+      { label: { fr: "Connecteurs", en: "Connectors" }, href: "/parametres-connecteurs" },
+      { label: { fr: "Campagnes", en: "Campaigns" }, href: "/campaigns" },
+    ],
+  },
+
+  // ── /linkedin ─────────────────────────────────────────────────────────────
+  "/linkedin": {
+    title: { fr: "Espace LinkedIn", en: "LinkedIn space" },
+    tagline: { fr: "Votre compte LinkedIn : publier et affiner la stratégie", en: "Your LinkedIn account: publish and refine strategy" },
+    whatFor: {
+      fr: "L'espace dédié à LinkedIn : voir le compte connecté, choisir où publier (votre profil ou une Page entreprise), publier un post (rédigé par l'IA si besoin) et générer une stratégie de contenu LinkedIn.",
+      en: "The dedicated LinkedIn space: see the connected account, choose where to publish (your profile or a company Page), publish a post (AI-written if needed) and generate a LinkedIn content strategy.",
+    },
+    actions: [
+      { label: { fr: "Connecter / reconnecter LinkedIn", en: "Connect / reconnect LinkedIn" }, detail: { fr: "Un clic lance l'OAuth LinkedIn ; la connexion est enregistrée pour cette société.", en: "One click starts the LinkedIn OAuth; the connection is saved for this company." } },
+      { label: { fr: "Publier en tant que…", en: "Publish as…" }, detail: { fr: "Choisissez votre profil ou une Page entreprise (les Pages nécessitent l'accès « Community Management » de LinkedIn).", en: "Choose your profile or a company Page (Pages require LinkedIn's “Community Management” access)." } },
+      { label: { fr: "Analyser ma stratégie", en: "Analyze my strategy" }, detail: { fr: "L'IA bâtit positionnement, cadence, piliers éditoriaux et idées de posts à partir de votre profil de marque.", en: "The AI builds positioning, cadence, content pillars and post ideas from your brand profile." } },
+    ],
+    tips: [
+      { fr: "Pour des articles longs et professionnels, utilisez le Studio Article LinkedIn.", en: "For long, professional articles, use the LinkedIn Article Studio." },
+      { fr: "Publier sur une Page entreprise demande l'activation du produit « Community Management » côté LinkedIn.", en: "Publishing on a company Page requires enabling the “Community Management” product on LinkedIn's side." },
+    ],
+    faq: [
+      { q: { fr: "Pourquoi je ne vois que mon profil et pas mes Pages ?", en: "Why do I only see my profile and not my Pages?" }, a: { fr: "L'accès aux Pages entreprise est protégé par LinkedIn (produit Community Management, soumis à validation). Tant qu'il n'est pas accordé, seul le profil est disponible.", en: "Access to company Pages is gated by LinkedIn (Community Management product, review required). Until granted, only the profile is available." } },
+    ],
+    related: [
+      { label: { fr: "Studio Article LinkedIn", en: "LinkedIn Article Studio" }, href: "/article-linkedin" },
+      { label: { fr: "Mes Pages", en: "My Pages" }, href: "/pages-meta" },
+      { label: { fr: "Connecteurs", en: "Connectors" }, href: "/parametres-connecteurs" },
+    ],
+  },
+
+  // ── /article-linkedin ─────────────────────────────────────────────────────
+  "/article-linkedin": {
+    title: { fr: "Studio Article LinkedIn", en: "LinkedIn Article Studio" },
+    tagline: { fr: "Des mots-clés à un article professionnel, avec visuels", en: "From keywords to a professional article, with visuals" },
+    whatFor: {
+      fr: "Produire un article LinkedIn de niveau professionnel à partir de mots-clés OU d'un texte : l'app génère d'abord un prompt personnalisé (éditable), puis l'article complet, plus des visuels haute qualité associés. Vous publiez ensuite directement.",
+      en: "Produce a professional-grade LinkedIn article from keywords OR text: the app first generates a custom (editable) prompt, then the full article, plus associated high-quality visuals. You then publish directly.",
+    },
+    actions: [
+      { label: { fr: "① Générer le prompt", en: "① Generate the prompt" }, detail: { fr: "À partir de votre saisie + profil de marque, l'IA rédige un brief éditorial que vous pouvez ajuster.", en: "From your input + brand profile, the AI writes an editorial brief you can adjust." } },
+      { label: { fr: "② Générer l'article", en: "② Generate the article" }, detail: { fr: "Titre, accroche, corps structuré, points clés, hashtags et CTA — fidèle à votre voix de marque.", en: "Title, hook, structured body, key takeaways, hashtags and CTA — true to your brand voice." } },
+      { label: { fr: "Générer les visuels", en: "Generate the visuals" }, detail: { fr: "L'IA propose des prompts d'image ; un clic produit des visuels HD téléchargeables.", en: "The AI suggests image prompts; one click produces downloadable HD visuals." } },
+      { label: { fr: "Publier sur LinkedIn", en: "Publish to LinkedIn" }, detail: { fr: "Envoi direct sur la cible choisie (profil ou Page) ; trace dans l'Historique.", en: "Direct send to the chosen target (profile or Page); logged in History." } },
+    ],
+    tips: [
+      { fr: "Éditez le prompt avant l'article : c'est là que vous imposez l'angle et le ton exacts.", en: "Edit the prompt before the article: that's where you set the exact angle and tone." },
+      { fr: "La génération de visuels nécessite la clé Replicate (REPLICATE_API_TOKEN).", en: "Visual generation requires the Replicate key (REPLICATE_API_TOKEN)." },
+    ],
+    faq: [
+      { q: { fr: "Faut-il LinkedIn connecté pour générer l'article ?", en: "Do I need LinkedIn connected to generate the article?" }, a: { fr: "Non, la génération marche sans connexion. La connexion n'est requise que pour publier.", en: "No, generation works without a connection. A connection is only required to publish." } },
+    ],
+    related: [
+      { label: { fr: "Espace LinkedIn", en: "LinkedIn space" }, href: "/linkedin" },
+      { label: { fr: "Studio Créatif", en: "Creative Studio" }, href: "/studio-video" },
+      { label: { fr: "Composer", en: "Compose" }, href: "/compose" },
+    ],
+  },
+
+  // ── /inbox ────────────────────────────────────────────────────────────────
+  "/inbox": {
+    title: { fr: "Messagerie & agents", en: "Inbox & agents" },
+    tagline: { fr: "Des agents qui répondent aux messages — et escaladent à un humain", en: "Agents that reply to messages — and escalate to a human" },
+    whatFor: {
+      fr: "Centralise les commentaires et messages privés de vos réseaux. Vous configurez des agents (un pour tout, ou un par canal) qui répondent dans la voix de la marque, en automatique ou en suggestion, et qui passent la main à un humain quand le sujet est sensible ou la confiance trop faible.",
+      en: "Centralizes your social comments and private messages. You configure agents (one for everything, or one per channel) that reply in the brand voice, automatically or as a suggestion, and hand off to a human when a topic is sensitive or confidence is too low.",
+    },
+    actions: [
+      { label: { fr: "Créer un agent", en: "Create an agent" }, detail: { fr: "Donnez-lui sa voix (persona), son périmètre, son autonomie et ses mots-clés d'escalade.", en: "Give it a voice (persona), scope, autonomy and escalation keywords." } },
+      { label: { fr: "Synchroniser Meta", en: "Sync Meta" }, detail: { fr: "Importe les commentaires Facebook/Instagram et les messages privés récents.", en: "Imports recent Facebook/Instagram comments and private messages." } },
+      { label: { fr: "Répondre ou valider", en: "Reply or approve" }, detail: { fr: "Générez une réponse IA, éditez-la, envoyez ; ou laissez l'agent autonome envoyer s'il est confiant.", en: "Generate an AI reply, edit it, send; or let the autonomous agent send when confident." } },
+    ],
+    tips: [
+      { fr: "« Suggérer » = vous validez chaque réponse. « Auto » = l'agent envoie seul s'il est confiant et qu'aucun sujet sensible n'est détecté.", en: "“Suggest” = you approve every reply. “Auto” = the agent sends on its own when confident and no sensitive topic is detected." },
+      { fr: "Les sujets sensibles (remboursement, juridique, santé…) sont toujours escaladés à un humain.", en: "Sensitive topics (refunds, legal, health…) are always escalated to a human." },
+    ],
+    faq: [
+      { q: { fr: "L'agent peut-il publier une bêtise tout seul ?", en: "Can the agent post something wrong on its own?" }, a: { fr: "En mode « Suggérer », jamais : vous validez. En mode « Auto », il n'envoie que s'il dépasse votre seuil de confiance et qu'aucun mot-clé d'escalade n'est présent.", en: "In “Suggest” mode, never: you approve. In “Auto” mode, it only sends above your confidence threshold and with no escalation keyword present." } },
+    ],
+    related: [
+      { label: { fr: "Mes Pages", en: "My Pages" }, href: "/pages-meta" },
+      { label: { fr: "Agents IA", en: "AI Agents" }, href: "/agents" },
+      { label: { fr: "Connecteurs", en: "Connectors" }, href: "/parametres-connecteurs" },
+    ],
+  },
+
+  // ── /publicites ───────────────────────────────────────────────────────────
+  "/publicites": {
+    title: { fr: "Pubs concurrentes", en: "Competitor Ads" },
+    tagline: { fr: "Les publicités de vos concurrents, analysées", en: "Your competitors' ads, analysed" },
+    whatFor: {
+      fr: "Collecte et analyse les publicités de vos concurrents (Ad Library Meta). Identifiez les formats et angles qui tournent, et nourrissez votre stratégie : les enseignements alimentent la mémoire stratégique (RAG) utilisée par la génération de contenu et le Cerveau Pub.",
+      en: "Collects and analyses your competitors' ads (Meta Ad Library). Spot the formats and angles that are running, and feed your strategy: the insights feed the strategic memory (RAG) used by content generation and the Ad Brain.",
+    },
+    actions: [
+      { label: { fr: "Rechercher des pubs", en: "Search ads" }, detail: { fr: "Par marque ou mot-clé ; les pubs actives remontent avec leurs visuels.", en: "By brand or keyword; active ads appear with their creatives." } },
+      { label: { fr: "Analyser avec l'IA", en: "Analyze with AI" }, detail: { fr: "L'IA dégage les angles gagnants, formats et messages, et les conserve dans la mémoire stratégique.", en: "The AI extracts winning angles, formats and messaging, and stores them in strategic memory." } },
+    ],
+    tips: [
+      { fr: "Les impressions/dépenses ne sont publiques que pour les pubs politiques ; ailleurs, on analyse les créatifs et messages.", en: "Impressions/spend are only public for political ads; elsewhere we analyse creatives and messaging." },
+      { fr: "Ces analyses remontent automatiquement dans le Cerveau Pub (Performance Ads) pour affiner la stratégie.", en: "These analyses automatically feed the Ad Brain (Ad Performance) to refine strategy." },
+    ],
+    faq: [
+      { q: { fr: "D'où viennent les données ?", en: "Where does the data come from?" }, a: { fr: "De la bibliothèque publicitaire Meta (Ad Library), via votre connexion Meta ou un collecteur dédié.", en: "From Meta's public Ad Library, via your Meta connection or a dedicated collector." } },
+    ],
+    related: [
+      { label: { fr: "Veille & Marché", en: "Market Watch" }, href: "/veille" },
+      { label: { fr: "Performance Ads", en: "Ad Performance" }, href: "/ad-performance" },
+      { label: { fr: "Campagnes", en: "Campaigns" }, href: "/campaigns" },
+    ],
+  },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2077,8 +2212,13 @@ function resolve(entry: BilingualEntry, lang: Lang): HelpEntry {
  * Si aucune route ne correspond, retourne le fallback générique bilingue.
  */
 export function getHelp(pathname: string, lang: Lang = "fr"): HelpEntry {
+  const path = (pathname || "/").split("?")[0].replace(/\/+$/, "") || "/";
+  // 1) Correspondance EXACTE (priorité absolue → bon contenu par page).
+  if (HELP_BILINGUAL[path]) return resolve(HELP_BILINGUAL[path], lang);
+  // 2) Sinon, préfixe par SEGMENT (ex. /campaigns/123 → /campaigns), du plus
+  //    long au plus court — jamais de collision partielle (ex. /ad ≠ /ad-x).
   const keys = Object.keys(HELP_BILINGUAL).sort((a, b) => b.length - a.length);
-  const match = keys.find((key) => pathname.startsWith(key));
+  const match = keys.find((key) => path === key || path.startsWith(key + "/"));
   const bilingual = match ? HELP_BILINGUAL[match] : FALLBACK_BILINGUAL;
   return resolve(bilingual, lang);
 }

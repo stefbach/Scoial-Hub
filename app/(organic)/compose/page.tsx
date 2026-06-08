@@ -10,6 +10,9 @@ import { Tabs } from "@/components/ui/Tabs";
 import { AiTextPanel, AiVisualsPanel } from "@/components/ui/AiPanel";
 import { CreativeInspiration } from "@/components/compose/CreativeInspiration";
 import { MediaEditor } from "@/components/compose/MediaEditor";
+import { PostPreview, type PreviewPlatform } from "@/components/compose/PostPreview";
+import BrandKitPanel from "@/components/studio/BrandKitPanel";
+import { AgentLauncher } from "@/components/agents/AgentLauncher";
 import { IMAGE_MODELS, VIDEO_MODELS, DEFAULT_IMAGE_MODEL_ID, DEFAULT_VIDEO_MODEL_ID } from "@/lib/ai/model-catalog";
 import { MediaUpload, type UploadedMedia } from "@/components/ui/MediaUpload";
 import { DatePicker, TimePicker } from "@/components/ui/DateTimePicker";
@@ -37,6 +40,13 @@ const DIFFUSION_LANGUAGES = [
 const platformLabel = (p: string) =>
   p === "facebook" ? "Facebook" : p === "instagram" ? "Instagram" : "LinkedIn";
 
+/** Couleur de marque officielle par réseau (alignée sur les tokens Tailwind). */
+const PLATFORM_DOT: Record<string, string> = {
+  facebook: "#1877f2",
+  instagram: "#e1306c",
+  linkedin: "#0a66c2",
+};
+
 export default function ComposePage() {
   return (
     <Suspense fallback={null}>
@@ -46,7 +56,8 @@ export default function ComposePage() {
 }
 
 function ComposeContent() {
-  const { company, data } = useCompany();
+  const { company, data, access } = useCompany();
+  const canEdit = access.canEdit;
   const router = useRouter();
   const params = useSearchParams();
   const t = useT();
@@ -80,12 +91,26 @@ function ComposeContent() {
     new Date(`${scheduleSource?.date ?? "2026-05-27"}T00:00:00`)
   );
   const [time, setTime] = useState(scheduleSource?.time ?? "09:00");
-  const [upload, setUpload] = useState<UploadedMedia | null>(null);
+  // Média pré-rempli depuis un studio (Avatar/Vidéo) ou la Médiathèque :
+  //   /compose?media=<url>&kind=video   (ou ?video=<url> / ?image=<url>)
+  const mediaParam = params.get("media") || params.get("video") || params.get("image");
+  const mediaKind: "image" | "video" =
+    params.get("video") ? "video"
+    : params.get("image") ? "image"
+    : params.get("kind") === "video" ? "video"
+    : /\.(mp4|mov|webm|m4v)(\?|$)/i.test(mediaParam ?? "") ? "video"
+    : "image";
+  const [upload, setUpload] = useState<UploadedMedia | null>(
+    mediaParam && /^https?:\/\//i.test(mediaParam)
+      ? { url: mediaParam, name: mediaKind === "video" ? "Vidéo" : "Image", size: 0, kind: mediaKind }
+      : null
+  );
   const [editing, setEditing] = useState(false);
   const [language, setLanguage] = useState("Français");
   const [imageModel, setImageModel] = useState(DEFAULT_IMAGE_MODEL_ID);
   const [videoModel, setVideoModel] = useState(DEFAULT_VIDEO_MODEL_ID);
-  const [previewPlatform, setPreviewPlatform] = useState<"facebook" | "instagram">("facebook");
+  const [brandHints, setBrandHints] = useState("");
+  const [previewPlatform, setPreviewPlatform] = useState<PreviewPlatform>("facebook");
   const [submitting, setSubmitting] = useState(false);
   const [savingLibrary, setSavingLibrary] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
@@ -106,10 +131,26 @@ function ComposeContent() {
 
   // Keep the preview platform in sync with what's actually selected.
   const previewAccounts = data.accounts.filter((a) => selected.includes(a.id));
-  const effectivePreview =
+  const effectivePreview: PreviewPlatform =
     previewAccounts.some((a) => a.platform === previewPlatform)
       ? previewPlatform
       : previewAccounts[0]?.platform ?? "facebook";
+
+  // Réseaux distincts réellement ciblés (onglets d'aperçu et bascule).
+  // On ne propose en aperçu que ce qui est sélectionné, dans l'ordre canonique.
+  const previewPlatforms = useMemo(() => {
+    const order: PreviewPlatform[] = ["facebook", "instagram", "linkedin"];
+    const present = new Set(previewAccounts.map((a) => a.platform));
+    const list = order.filter((p) => present.has(p));
+    return list.length ? list : (["facebook"] as PreviewPlatform[]);
+  }, [previewAccounts]);
+
+  // Nom de la Page sélectionnée pour le réseau actuellement prévisualisé.
+  // Si plusieurs Pages d'un même réseau sont cochées, on les liste toutes.
+  const previewAccountNames = previewAccounts
+    .filter((a) => a.platform === effectivePreview)
+    .map((a) => a.accountName);
+  const previewBrandName = previewAccountNames[0] ?? company.name;
 
   // Réseau actif transmis aux panneaux IA (texte ton + ratio image).
   const activePlatform: "facebook" | "instagram" | "linkedin" =
@@ -260,10 +301,10 @@ function ComposeContent() {
           <p className="mt-0.5 w-full text-2xs text-muted">{modeSub}</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="secondary" onClick={handleSaveDraft} disabled={noneSelected || submitting}>
+          <Button variant="secondary" onClick={handleSaveDraft} disabled={noneSelected || submitting || !canEdit}>
             {t("Enregistrer comme brouillon", "Save as draft")}
           </Button>
-          <Button variant="secondary" onClick={handleSaveToLibrary} disabled={savingLibrary}>
+          <Button variant="secondary" onClick={handleSaveToLibrary} disabled={savingLibrary || !canEdit}>
             {savingLibrary
               ? t("Enregistrement…", "Saving…")
               : t("Enregistrer dans la bibliothèque", "Save to library")}
@@ -271,12 +312,21 @@ function ComposeContent() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_320px]">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_360px]">
         {/* Editor card */}
-        <div className="card space-y-5 p-5">
-          {/* Platform selector */}
+        <div className="card space-y-7 p-6">
+          {/* Platform selector — cible de publication explicite */}
           <div>
-            <div className="section-label mb-2.5">{t("Publier sur", "Post to")}</div>
+            <div className="mb-2.5 flex items-baseline justify-between gap-2">
+              <div className="section-label">{t("Où publier ?", "Where to publish?")}</div>
+              <span className="text-2xs text-muted">
+                {noneSelected
+                  ? t("Aucun compte sélectionné", "No account selected")
+                  : count === 1
+                  ? t("1 compte sélectionné", "1 account selected")
+                  : t(`${count} comptes sélectionnés`, `${count} accounts selected`)}
+              </span>
+            </div>
             <div className="flex flex-wrap gap-2">
               {data.accounts.map((a) => {
                 const on = selected.includes(a.id);
@@ -284,17 +334,30 @@ function ComposeContent() {
                   <button
                     key={a.id}
                     onClick={() => toggle(a.id)}
-                    className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
+                    aria-pressed={on}
+                    title={a.accountName}
+                    className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
                       on
                         ? "bg-ai-textbg text-ai-text ring-1 ring-ai-text/30 shadow-xs"
                         : "border border-hair bg-card text-muted hover:bg-canvas hover:text-ink"
                     }`}
                   >
-                    {company.code} {platformLabel(a.platform)}
+                    <span
+                      aria-hidden="true"
+                      className="h-1.5 w-1.5 shrink-0 rounded-full"
+                      style={{ backgroundColor: PLATFORM_DOT[a.platform] ?? "currentColor" }}
+                    />
+                    <span className="font-semibold">{platformLabel(a.platform)}</span>
+                    <span className="max-w-[10rem] truncate text-2xs opacity-80">{a.accountName}</span>
                   </button>
                 );
               })}
             </div>
+            {noneSelected && (
+              <p className="mt-2 text-2xs text-danger-600">
+                {t("Sélectionnez au moins un compte pour publier.", "Select at least one account to publish.")}
+              </p>
+            )}
           </div>
 
           {/* Post content */}
@@ -346,6 +409,9 @@ function ComposeContent() {
             </label>
           </div>
 
+          {/* Brand kit persistant — logo / charte / palette réutilisés partout */}
+          <BrandKitPanel companyId={company.id} brandName={company.name} onPromptHints={setBrandHints} />
+
           {/* Inspiration depuis une créa existante (vos pubs / concurrents / veille) */}
           <CreativeInspiration
             companyId={company.id}
@@ -358,9 +424,11 @@ function ComposeContent() {
             onApplyMedia={setUpload}
           />
 
+          {/* Agent IA — rédige/planifie depuis la page Compose */}
+          <AgentLauncher context={t("page Compose", "Compose page")} defaultObjective={t("Rédiger une série de posts pour les réseaux", "Draft a series of posts for the networks")} />
           {/* AI panels — réseau dérivé du 1er compte sélectionné (respecte le réseau). */}
           <AiTextPanel brandVoiceLabel={company.code} platform={activePlatform} language={language} />
-          <AiVisualsPanel used={data.library.aiBudgetUsed} cap={data.library.aiBudgetCap} platform={activePlatform} imageModel={imageModel} videoModel={videoModel} />
+          <AiVisualsPanel used={data.library.aiBudgetUsed} cap={data.library.aiBudgetCap} platform={activePlatform} imageModel={imageModel} videoModel={videoModel} brandHints={brandHints} companyId={company.id} />
 
           {/* Media upload */}
           <MediaUpload media={upload} onChange={setUpload} />
@@ -403,10 +471,16 @@ function ComposeContent() {
               </button>
             </div>
             {when === "schedule" && (
-              <div className="mt-2.5 grid grid-cols-2 gap-2">
-                <DatePicker value={date} onChange={setDate} />
-                <TimePicker value={time} onChange={setTime} />
-              </div>
+              <>
+                <div className="mt-2.5 grid grid-cols-2 gap-2">
+                  <DatePicker value={date} onChange={setDate} />
+                  <TimePicker value={time} onChange={setTime} />
+                </div>
+                {/* Lève l'ambiguïté du fuseau : on planifie en heure locale. */}
+                <p className="mt-1.5 text-2xs text-muted">
+                  {t("Heure locale", "Local time")} : {Intl.DateTimeFormat().resolvedOptions().timeZone}
+                </p>
+              </>
             )}
           </div>
 
@@ -418,8 +492,8 @@ function ComposeContent() {
             <Button
               variant="primary"
               onClick={handleSubmit}
-              disabled={noneSelected || submitting}
-              title={noneSelected ? t("Sélectionnez au moins une plateforme", "Select at least one platform") : undefined}
+              disabled={noneSelected || submitting || !canEdit}
+              title={!canEdit ? t("Lecture seule", "View only") : noneSelected ? t("Sélectionnez au moins une plateforme", "Select at least one platform") : undefined}
             >
               {submitting && (
                 <span
@@ -434,15 +508,19 @@ function ComposeContent() {
           </div>
         </div>
 
-        {/* Preview panel */}
-        <div className="panel p-4">
-          <div className="section-label mb-3">{t("Aperçu", "Preview")}</div>
-          <div className="mb-3 flex gap-1.5">
-            {(["facebook", "instagram"] as const).map((p) => (
+        {/* Preview panel — aperçu fidèle par réseau, en temps réel */}
+        <div className="panel p-4 lg:sticky lg:top-4 lg:self-start">
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <div className="section-label">{t("Aperçu", "Preview")}</div>
+            <span className="text-2xs text-muted">{platformLabel(effectivePreview)}</span>
+          </div>
+          <div className="mb-3 inline-flex w-full gap-1 rounded-lg bg-canvas p-1">
+            {previewPlatforms.map((p) => (
               <button
                 key={p}
                 onClick={() => setPreviewPlatform(p)}
-                className={`rounded-lg px-3 py-1.5 text-2xs font-medium transition-all ${
+                aria-pressed={effectivePreview === p}
+                className={`flex-1 rounded-md px-2.5 py-1.5 text-2xs font-medium transition-all ${
                   effectivePreview === p
                     ? "bg-card text-ink shadow-xs ring-1 ring-hair"
                     : "text-muted hover:text-ink"
@@ -453,97 +531,24 @@ function ComposeContent() {
             ))}
           </div>
 
-          {effectivePreview === "facebook" ? (
-            <FacebookPreview company={company} body={body} upload={upload} />
-          ) : (
-            <InstagramPreview company={company} body={body} upload={upload} />
+          {/* Cible affichée : nom de la/les Page(s) du réseau prévisualisé. */}
+          {previewAccountNames.length > 0 && (
+            <p className="mb-2.5 truncate text-2xs text-muted">
+              {t("Publie sur", "Publishing to")}{" "}
+              <span className="font-semibold text-ink">{previewAccountNames.join(", ")}</span>
+            </p>
           )}
+
+          <PostPreview
+            platform={effectivePreview}
+            brandName={previewBrandName}
+            brandAccent={company.accent}
+            text={body}
+            imageUrl={upload?.url}
+            imageKind={upload?.kind === "video" ? "video" : "image"}
+          />
         </div>
       </div>
-    </div>
-  );
-}
-
-function MediaSlot({
-  upload,
-  aspect,
-}: {
-  upload: UploadedMedia | null;
-  aspect: string;
-}) {
-  if (upload) {
-    return (
-      <div className={`mt-2 overflow-hidden rounded-lg border border-hair bg-canvas ${aspect}`}>
-        {upload.kind === "video" ? (
-          <video src={upload.url} className="h-full w-full object-cover" muted />
-        ) : (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={upload.url} alt={upload.name} className="h-full w-full object-cover" />
-        )}
-      </div>
-    );
-  }
-  return (
-    <div className={`mt-2 flex items-center justify-center rounded-lg border border-dashed border-hair bg-canvas ${aspect}`}>
-      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-ai-visual text-2xs font-bold text-white shadow-sm">
-        AI
-      </span>
-    </div>
-  );
-}
-
-function FacebookPreview({
-  company,
-  body,
-  upload,
-}: {
-  company: { name: string; accent: string; code: string };
-  body: string;
-  upload: UploadedMedia | null;
-}) {
-  const t = useT();
-  return (
-    <div className="card overflow-hidden p-3">
-      <div className="mb-2.5 flex items-center gap-2">
-        <span
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-2xs font-bold text-white shadow-sm"
-          style={{ backgroundColor: company.accent }}
-        >
-          {company.code}
-        </span>
-        <div>
-          <div className="text-xs font-semibold text-ink">{company.name}</div>
-          <div className="text-2xs text-muted">{t("Planifié · Mer à 09:00", "Scheduled · Wed at 09:00")}</div>
-        </div>
-      </div>
-      <p className="text-xs leading-relaxed text-ink">{body}</p>
-      <MediaSlot upload={upload} aspect="aspect-video" />
-    </div>
-  );
-}
-
-function InstagramPreview({
-  company,
-  body,
-  upload,
-}: {
-  company: { name: string; accent: string; code: string };
-  body: string;
-  upload: UploadedMedia | null;
-}) {
-  return (
-    <div className="overflow-hidden rounded-xl border border-hair bg-card">
-      <div className="flex items-center gap-2 px-3 py-2.5">
-        <span
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-2xs font-bold text-white ring-2 ring-platform-instagram/40 shadow-sm"
-          style={{ backgroundColor: company.accent }}
-        >
-          {company.code}
-        </span>
-        <div className="text-xs font-semibold text-ink">{company.name}</div>
-      </div>
-      <MediaSlot upload={upload} aspect="aspect-square" />
-      <p className="px-3 py-2.5 text-xs leading-relaxed text-ink">{body}</p>
     </div>
   );
 }

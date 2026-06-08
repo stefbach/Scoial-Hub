@@ -139,12 +139,19 @@ export async function storeMetaAds(companyId: string, account: AdAccount, userTo
 }
 
 export interface AdCampaignRow {
+  id: string;
   name: string;
   status: string;
   objective: string;
   spend: number;
   impressions: number;
+  reach: number;
   clicks: number;
+  ctr: number;
+  cpc: number;
+  cpm: number;
+  frequency: number;
+  conversions: number;
   currency: string;
 }
 export interface AdAccountData {
@@ -152,40 +159,83 @@ export interface AdAccountData {
   campaigns: AdCampaignRow[];
 }
 
-/** Lecture réelle : compte + campagnes (liste + dépense 90 j) via Marketing API. */
-export async function fetchAdAccountData(userToken: string, adAccountId: string): Promise<AdAccountData> {
+/** Somme des actions de conversion (achats, leads, inscriptions) renvoyées par Meta. */
+function sumConversions(actions: unknown): number {
+  if (!Array.isArray(actions)) return 0;
+  const CONV = /purchase|lead|complete_registration|add_to_cart|initiate_checkout|subscribe|contact|submit_application/i;
+  let total = 0;
+  for (const a of actions as Array<Record<string, unknown>>) {
+    if (CONV.test(String(a.action_type ?? ""))) total += Number(a.value ?? 0);
+  }
+  return total;
+}
+
+/** Presets de période Meta acceptés (sécurise l'entrée). */
+const VALID_DATE_PRESETS = new Set([
+  "today", "yesterday", "this_month", "last_month", "this_quarter", "last_quarter",
+  "this_year", "last_year", "last_7d", "last_14d", "last_30d", "last_90d", "maximum",
+]);
+
+/**
+ * Lecture réelle : compte + campagnes (liste + métriques) via Marketing API.
+ * `datePreset` contrôle la fenêtre des métriques (défaut "maximum" = durée de
+ * vie du compte, pour ne jamais afficher 0 alors qu'il existe de la data).
+ */
+export async function fetchAdAccountData(
+  userToken: string,
+  adAccountId: string,
+  datePreset = "maximum"
+): Promise<AdAccountData> {
+  const preset = VALID_DATE_PRESETS.has(datePreset) ? datePreset : "maximum";
   const out: AdAccountData = { campaigns: [] };
   const act = adAccountId.startsWith("act_") ? adAccountId : `act_${adAccountId}`;
-  const currency = await (async () => {
-    const acc = await gget(`${act}?fields=name,currency,amount_spent`, userToken);
-    if (acc) {
-      out.account = { id: act, name: String(acc.name ?? ""), currency: String(acc.currency ?? "EUR"), amountSpent: Number(acc.amount_spent ?? 0) };
-      return String(acc.currency ?? "EUR");
-    }
-    return "EUR";
-  })();
 
-  // Liste des campagnes (même sans dépense récente).
-  const list = await gget(`${act}/campaigns?fields=name,objective,effective_status&limit=40`, userToken);
+  // Appels Graph indépendants en parallèle (compte, liste campagnes, métriques).
+  const [acc, list, ins] = await Promise.all([
+    gget(`${act}?fields=name,currency,amount_spent`, userToken),
+    gget(`${act}/campaigns?fields=id,name,objective,effective_status&limit=40`, userToken),
+    gget(`${act}/insights?level=campaign&fields=campaign_id,campaign_name,spend,impressions,reach,clicks,ctr,cpc,cpm,frequency,actions&date_preset=${preset}&limit=200`, userToken),
+  ]);
+
+  const currency = String(acc?.currency ?? "EUR");
+  if (acc) {
+    out.account = { id: act, name: String(acc.name ?? ""), currency, amountSpent: Number(acc.amount_spent ?? 0) };
+  }
   const camps = (list?.data as Array<Record<string, unknown>>) ?? [];
-
-  // Dépense 90 j par campagne (fusionnée par nom).
-  const ins = await gget(`${act}/insights?level=campaign&fields=campaign_name,spend,impressions,clicks&date_preset=last_90d&limit=100`, userToken);
-  const spendByName = new Map<string, { spend: number; impressions: number; clicks: number }>();
+  type Metrics = { spend: number; impressions: number; reach: number; clicks: number; ctr: number; cpc: number; cpm: number; frequency: number; conversions: number };
+  const byId = new Map<string, Metrics>();
   for (const r of (ins?.data as Array<Record<string, unknown>>) ?? []) {
-    spendByName.set(String(r.campaign_name ?? ""), {
-      spend: Number(r.spend ?? 0), impressions: Number(r.impressions ?? 0), clicks: Number(r.clicks ?? 0),
+    byId.set(String(r.campaign_id ?? ""), {
+      spend: Number(r.spend ?? 0),
+      impressions: Number(r.impressions ?? 0),
+      reach: Number(r.reach ?? 0),
+      clicks: Number(r.clicks ?? 0),
+      ctr: Number(r.ctr ?? 0),
+      cpc: Number(r.cpc ?? 0),
+      cpm: Number(r.cpm ?? 0),
+      frequency: Number(r.frequency ?? 0),
+      conversions: sumConversions(r.actions),
     });
   }
 
   out.campaigns = camps.map((c) => {
-    const name = String(c.name ?? "");
-    const m = spendByName.get(name) ?? { spend: 0, impressions: 0, clicks: 0 };
+    const id = String(c.id ?? "");
+    const m = byId.get(id) ?? { spend: 0, impressions: 0, reach: 0, clicks: 0, ctr: 0, cpc: 0, cpm: 0, frequency: 0, conversions: 0 };
     return {
-      name,
+      id,
+      name: String(c.name ?? ""),
       status: String(c.effective_status ?? ""),
       objective: String(c.objective ?? ""),
-      spend: m.spend, impressions: m.impressions, clicks: m.clicks,
+      spend: m.spend,
+      impressions: m.impressions,
+      reach: m.reach,
+      clicks: m.clicks,
+      // CTR/CPC : valeurs Meta si présentes, sinon recalculées.
+      ctr: m.ctr || (m.impressions ? +(m.clicks / m.impressions * 100).toFixed(2) : 0),
+      cpc: m.cpc || (m.clicks ? +(m.spend / m.clicks).toFixed(2) : 0),
+      cpm: m.cpm,
+      frequency: m.frequency,
+      conversions: m.conversions,
       currency,
     };
   }).sort((a, b) => b.spend - a.spend).slice(0, 25);
@@ -193,7 +243,115 @@ export async function fetchAdAccountData(userToken: string, adAccountId: string)
   return out;
 }
 
-// ── Insights / données réelles d'une Page + compte Instagram ─────────────────
+// ── Performance détaillée (séries quotidiennes + lignes par publicité) ────────
+
+export interface AdDaySeries {
+  spend: number[]; impressions: number[]; clicks: number[]; conversions: number[]; ctr: number[]; cpc: number[];
+}
+export interface AdPerfRow {
+  id: string; name: string; campaignName: string; adSetName: string;
+  status: string; platform: "facebook" | "instagram";
+  spend: number; impressions: number; clicks: number; ctr: number; cpc: number; conversions: number; cpa: number;
+  currency: string;
+}
+export interface AdPerformance {
+  account?: { id: string; name: string; currency: string };
+  totals: { spend: number; impressions: number; reach: number; clicks: number; conversions: number; ctr: number; cpc: number; currency: string; count: number };
+  series: AdDaySeries;
+  ads: AdPerfRow[];
+}
+
+/** Construit le paramètre de période Meta : time_range (since/until) ou date_preset. */
+function dateParam(opts: { datePreset?: string; since?: string; until?: string }): string {
+  if (opts.since && opts.until) {
+    return `time_range=${encodeURIComponent(JSON.stringify({ since: opts.since, until: opts.until }))}`;
+  }
+  const p = opts.datePreset && VALID_DATE_PRESETS.has(opts.datePreset) ? opts.datePreset : "maximum";
+  return `date_preset=${p}`;
+}
+
+/** Devine la plateforme à partir des noms (heuristique, sans breakdown). */
+function guessPlatform(...names: string[]): "facebook" | "instagram" {
+  return /insta|instagram|\big\b|reel|story/i.test(names.join(" ")) ? "instagram" : "facebook";
+}
+
+/**
+ * Performance réelle pour la page Performance Ads : séries jour par jour (graphe),
+ * totaux agrégés (KPI) et lignes par publicité (tableau), sur la période choisie.
+ */
+export async function fetchAdPerformance(
+  userToken: string,
+  adAccountId: string,
+  opts: { datePreset?: string; since?: string; until?: string } = {}
+): Promise<AdPerformance> {
+  const act = adAccountId.startsWith("act_") ? adAccountId : `act_${adAccountId}`;
+  const dp = dateParam(opts);
+
+  // Appels Graph indépendants lancés EN PARALLÈLE (latence ÷ ~5).
+  const [acc, ser, totIns, adIns, adsMeta] = await Promise.all([
+    gget(`${act}?fields=name,currency`, userToken),
+    gget(`${act}/insights?fields=spend,impressions,clicks,actions&time_increment=1&${dp}&limit=500`, userToken),
+    gget(`${act}/insights?fields=spend,impressions,reach,clicks,actions&${dp}&limit=1`, userToken),
+    gget(`${act}/insights?level=ad&fields=ad_id,ad_name,campaign_name,adset_name,spend,impressions,clicks,ctr,cpc,actions&${dp}&limit=300`, userToken),
+    gget(`${act}/ads?fields=id,effective_status&limit=500`, userToken),
+  ]);
+
+  const currency = String(acc?.currency ?? "EUR");
+  const account = acc ? { id: act, name: String(acc.name ?? ""), currency } : undefined;
+
+  // 1) Série quotidienne (time_increment=1) au niveau compte.
+  const days = ((ser?.data as Array<Record<string, unknown>>) ?? [])
+    .slice()
+    .sort((a, b) => String(a.date_start ?? "").localeCompare(String(b.date_start ?? "")));
+  const series: AdDaySeries = { spend: [], impressions: [], clicks: [], conversions: [], ctr: [], cpc: [] };
+  for (const r of days) {
+    const sp = Number(r.spend ?? 0), im = Number(r.impressions ?? 0), cl = Number(r.clicks ?? 0), cv = sumConversions(r.actions);
+    series.spend.push(sp); series.impressions.push(im); series.clicks.push(cl); series.conversions.push(cv);
+    series.ctr.push(im ? +(cl / im * 100).toFixed(2) : 0);
+    series.cpc.push(cl ? +(sp / cl).toFixed(2) : 0);
+  }
+
+  // 2) Totaux agrégés (une ligne au niveau compte).
+  const tr = ((totIns?.data as Array<Record<string, unknown>>) ?? [])[0] ?? {};
+  const tSpend = Number(tr.spend ?? 0), tImpr = Number(tr.impressions ?? 0), tClicks = Number(tr.clicks ?? 0);
+
+  // 3) Lignes par publicité + statut réel.
+  const statusById = new Map<string, string>();
+  for (const a of (adsMeta?.data as Array<Record<string, unknown>>) ?? []) {
+    statusById.set(String(a.id ?? ""), String(a.effective_status ?? ""));
+  }
+
+  const ads: AdPerfRow[] = ((adIns?.data as Array<Record<string, unknown>>) ?? []).map((r) => {
+    const id = String(r.ad_id ?? "");
+    const spend = Number(r.spend ?? 0), impressions = Number(r.impressions ?? 0), clicks = Number(r.clicks ?? 0);
+    const conversions = sumConversions(r.actions);
+    const campaignName = String(r.campaign_name ?? ""), adSetName = String(r.adset_name ?? ""), name = String(r.ad_name ?? "");
+    return {
+      id, name, campaignName, adSetName,
+      status: statusById.get(id) ?? "",
+      platform: guessPlatform(name, adSetName, campaignName),
+      spend, impressions, clicks,
+      ctr: Number(r.ctr ?? 0) || (impressions ? +(clicks / impressions * 100).toFixed(2) : 0),
+      cpc: Number(r.cpc ?? 0) || (clicks ? +(spend / clicks).toFixed(2) : 0),
+      conversions,
+      cpa: conversions ? +(spend / conversions).toFixed(2) : 0,
+      currency,
+    };
+  }).sort((a, b) => b.spend - a.spend).slice(0, 50);
+
+  return {
+    account,
+    totals: {
+      spend: tSpend, impressions: tImpr, reach: Number(tr.reach ?? 0), clicks: tClicks,
+      conversions: sumConversions(tr.actions),
+      ctr: tImpr ? +(tClicks / tImpr * 100).toFixed(2) : 0,
+      cpc: tClicks ? +(tSpend / tClicks).toFixed(2) : 0,
+      currency, count: ads.length,
+    },
+    series,
+    ads,
+  };
+}
 
 export interface MetaPost {
   id: string;
@@ -211,6 +369,9 @@ export interface MetaInsights {
   instagram?: { id: string; username: string; followers: number; mediaCount: number; picture?: string };
   facebookPosts: MetaPost[];
   instagramPosts: MetaPost[];
+  /** Portée & vues organiques cumulées sur 28 j (best-effort, selon permissions). */
+  reach?: number;
+  views?: number;
 }
 
 async function gget(path: string, token: string): Promise<Record<string, unknown> | null> {
@@ -285,6 +446,27 @@ export async function fetchMetaInsights(ctx: MetaContext): Promise<MetaInsights>
       comments: typeof m.comments_count === "number" ? m.comments_count : undefined,
     }));
   }
+
+  // Portée & vues organiques sur 28 j (best-effort — nécessite read_insights).
+  let reach = 0, views = 0;
+  if (ctx.pageId) {
+    const pi = await gget(`${ctx.pageId}/insights?metric=page_impressions_unique,page_impressions&period=days_28`, token);
+    for (const m of (pi?.data as Array<Record<string, unknown>>) ?? []) {
+      const vals = (m.values as Array<{ value?: number }>) ?? [];
+      const v = Number(vals[vals.length - 1]?.value ?? 0);
+      if (m.name === "page_impressions_unique") reach += v;
+      else if (m.name === "page_impressions") views += v;
+    }
+  }
+  if (ctx.igId) {
+    const igi = await gget(`${ctx.igId}/insights?metric=reach&period=days_28`, token);
+    for (const m of (igi?.data as Array<Record<string, unknown>>) ?? []) {
+      const vals = (m.values as Array<{ value?: number }>) ?? [];
+      if (m.name === "reach") reach += Number(vals[vals.length - 1]?.value ?? 0);
+    }
+  }
+  if (reach > 0) out.reach = reach;
+  if (views > 0) out.views = views;
 
   return out;
 }

@@ -1,19 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
-import { CompanySwitcher } from "./CompanySwitcher";
+import { ReadOnlyBanner } from "./ReadOnlyBanner";
 import { Sidebar } from "./Sidebar";
-import { ScopeBar } from "./ScopeBar";
 import { HelpButton } from "@/components/help/HelpButton";
+import { HelpTrigger } from "@/components/help/HelpTrigger";
+import { DemoBanner } from "@/components/ui/DemoBanner";
 import { LanguageSwitcher } from "@/lib/i18n";
 import { Logo } from "@/components/brand/Logo";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/env";
 
 function UserMenu() {
-  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -40,21 +40,13 @@ function UserMenu() {
     return () => document.removeEventListener("mousedown", handleClick);
   }, [open]);
 
-  async function handleSignOut() {
-    setOpen(false);
-    const supabase = createClient();
-    if (supabase) await supabase.auth.signOut();
-    router.push("/login");
-    router.refresh();
-  }
-
   // Mode démo ou non connecté : avatar statique
   if (!isSupabaseConfigured || !email) {
     return (
       <button
         aria-label="Profil utilisateur"
         className="
-          group relative flex h-8 w-8 items-center justify-center rounded-full
+          group relative flex h-9 w-9 items-center justify-center rounded-full
           bg-page text-2xs font-bold text-white
           shadow-sm ring-2 ring-transparent
           transition-all duration-[150ms]
@@ -81,7 +73,7 @@ function UserMenu() {
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
         className="
-          group relative flex h-8 w-8 items-center justify-center rounded-full
+          group relative flex h-9 w-9 items-center justify-center rounded-full
           bg-page text-2xs font-bold text-white
           shadow-sm ring-2 ring-transparent
           transition-all duration-[150ms]
@@ -98,20 +90,10 @@ function UserMenu() {
 
       {open && (
         <div className="absolute right-0 top-10 z-50 w-56 rounded-xl border border-hair bg-card shadow-lg animate-fade-in">
-          <div className="px-4 py-3 border-b border-hair">
+          <div className="px-4 py-3">
             <p className="text-2xs text-muted section-label mb-0.5">Connecté en tant que</p>
             <p className="text-sm font-medium text-ink truncate">{email}</p>
-          </div>
-          <div className="p-1.5">
-            <button
-              onClick={handleSignOut}
-              className="w-full flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-ink hover:bg-canvas transition-colors text-left"
-            >
-              <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
-                <path d="M6 2H3a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h3M10 10l3-3-3-3M13 7H5.5" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-              Se déconnecter
-            </button>
+            <p className="mt-1.5 text-2xs text-muted">↙ {"Se déconnecter via le menu de gauche"}</p>
           </div>
         </div>
       )}
@@ -189,33 +171,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     pathname.startsWith("/admin");
   if (bare) return <>{children}</>;
 
-  // La barre CONTEXTE (pays + période) ne sert que sur les pages d'ANALYSE :
-  // ailleurs (onboarding, réglages, composition, inbox…) elle n'a aucun effet
-  // et prête à confusion. On l'affiche donc uniquement sur une liste blanche.
-  const SCOPE_ROUTES = [
-    "/veille",
-    "/publicites",
-    "/analytics",
-    "/pilotage",
-    "/ad-performance",
-    "/dashboard",
-    "/pages-meta",
-  ];
-  const showScope = SCOPE_ROUTES.some(
-    (r) => pathname === r || pathname.startsWith(r + "/")
-  );
-
   return (
-    <div className="min-h-screen bg-canvas">
+    <div className="app-shell">
+      {/* Décor spatial « Mission Control » — derrière tout le contenu */}
+      <div className="app-mesh" aria-hidden="true" />
+      <div className="app-grain" aria-hidden="true" />
+
       {/* Header sticky — blur + ombre au scroll via CSS */}
-      <header className="app-header sticky top-0 z-30 flex items-center justify-between border-b border-hair bg-card/90 px-3 py-2.5 backdrop-blur-md sm:px-5">
+      <header className="app-header sticky top-0 z-30 flex items-center justify-between border-b border-hair bg-canvas/70 px-3 py-2.5 backdrop-blur-xl sm:px-5">
         <div className="flex min-w-0 items-center gap-2 sm:gap-3">
           {/* Hamburger (mobile only) */}
           <button
             type="button"
             onClick={() => setNavOpen(true)}
             aria-label="Ouvrir le menu"
-            className="-ml-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-ink hover:bg-canvas lg:hidden"
+            className="-ml-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-ink hover:bg-canvas lg:hidden"
           >
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
               <path d="M3 5.5h14M3 10h14M3 14.5h14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
@@ -226,22 +196,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <Link href="/" aria-label="Accueil AXON-AI Social Media" className="shrink-0">
             <Logo size={28} />
           </Link>
-
-          {/* Séparateur vertical */}
-          <span className="hidden h-4 w-px bg-hair sm:block" aria-hidden="true" />
-
-          <CompanySwitcher />
         </div>
 
-        {/* Zone droite : langue + avatar (l'aide est un bouton flottant) */}
+        {/* Zone droite : aide + langue + avatar */}
         <div className="flex shrink-0 items-center gap-2">
+          <HelpTrigger />
           <LanguageSwitcher />
           <UserMenu />
         </div>
       </header>
-
-      {/* Barre de contexte : pays + période — uniquement sur les pages d'analyse */}
-      {showScope && <ScopeBar />}
 
       {/* Corps : sidebar + contenu */}
       <div className="flex">
@@ -257,7 +220,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <div
               ref={drawerRef}
               tabIndex={-1}
-              className="absolute left-0 top-0 h-full w-[15rem] overflow-y-auto bg-card shadow-xl outline-none animate-slide-up"
+              className="absolute left-0 top-0 h-full w-[min(15rem,82vw)] overflow-y-auto bg-card shadow-xl outline-none animate-slide-up"
             >
               <Sidebar onNavigate={() => setNavOpen(false)} />
             </div>
@@ -265,11 +228,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         )}
 
         <main className="min-w-0 flex-1 px-4 py-5 sm:px-6 sm:py-6 lg:px-7">
+          <DemoBanner />
+          <ReadOnlyBanner />
           {children}
         </main>
       </div>
 
-      {/* Bouton d'aide flottant (hors header pour un positionnement viewport) */}
+      {/* Bouton d'aide : pastille violette fixe, en haut à droite sous l'avatar */}
       <HelpButton />
     </div>
   );

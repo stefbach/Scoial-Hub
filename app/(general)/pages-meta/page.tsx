@@ -10,6 +10,8 @@ import { useCompany } from "@/lib/company-context";
 import { useT } from "@/lib/i18n";
 import MetaAdsPublisher from "@/components/ads/MetaAdsPublisher";
 import { OrganicPublisher } from "@/components/meta/OrganicPublisher";
+import { Spinner, BusyHint } from "@/components/ui/Spinner";
+import { ConnectGuide } from "@/components/connect/ConnectGuide";
 
 interface PageItem {
   id: string;
@@ -66,6 +68,7 @@ export default function PagesMetaPage() {
   const [analyzing, setAnalyzing] = useState(false);
   const [pageError, setPageError] = useState<string | null>(null);
   const [pubTab, setPubTab] = useState<"organic" | "ads">("organic");
+  const [guide, setGuide] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -204,7 +207,9 @@ export default function PagesMetaPage() {
               "Connect Facebook/Instagram to see your Pages and their data."
             )}
           </p>
-          <Link href="/demarrage" className="btn-primary mt-4 inline-flex">{t("Connecter mes comptes", "Connect my accounts")}</Link>
+          <button type="button" onClick={() => setGuide(true)} className="btn-primary mt-4 inline-flex">
+            {t("Connecter Facebook & Instagram", "Connect Facebook & Instagram")}
+          </button>
         </div>
       ) : (
         <>
@@ -259,7 +264,7 @@ export default function PagesMetaPage() {
                 >
                   {analyzing ? (
                     <>
-                      <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                      <Spinner size={16} className="text-white" />
                       {t("Analyse en cours…", "Analyzing…")}
                     </>
                   ) : (
@@ -270,6 +275,9 @@ export default function PagesMetaPage() {
                   )}
                 </button>
               </div>
+              {analyzing && (
+                <BusyHint label={t("Analyse de votre Page en cours…", "Analyzing your Page…")} eta={t("~20–30 s", "~20–30 s")} />
+              )}
               {analysis && <AnalysisReport a={analysis} t={t} />}
             </section>
           )}
@@ -363,6 +371,8 @@ export default function PagesMetaPage() {
           <MetaAdsPublisher />
         )}
       </section>
+
+      <ConnectGuide open={guide} onClose={() => setGuide(false)} platform="meta" companyId={companyId} returnTo="/pages-meta" />
     </div>
   );
 }

@@ -23,11 +23,11 @@ export function LineChart({
   return (
     <div>
       <svg viewBox={`0 0 ${w} ${h}`} className="w-full" preserveAspectRatio="none">
-        <path d={toPath(spend)} fill="none" stroke="#2563eb" strokeWidth="2" />
+        <path d={toPath(spend)} fill="none" stroke="#60a5fa" strokeWidth="2" />
         <path
           d={toPath(conversions)}
           fill="none"
-          stroke="#166534"
+          stroke="#4ade80"
           strokeWidth="1.5"
           strokeDasharray="4 3"
         />
@@ -37,7 +37,7 @@ export function LineChart({
           <span className="inline-block h-0.5 w-4 bg-ai-text" /> Spend (EUR)
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="inline-block h-0.5 w-4 border-t border-dashed border-green-700" />{" "}
+          <span className="inline-block h-0.5 w-4 border-t border-dashed border-green-400" />{" "}
           Conversions
         </span>
       </div>

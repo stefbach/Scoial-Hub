@@ -5,8 +5,11 @@
 // Coque : header + rail de progression + étape courante + navigation.
 // L'état est persisté (reprise possible à tout moment, sur tout appareil).
 
+import { Suspense, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { OnboardingProvider, useOnboardingCtx } from "@/components/onboarding/context";
 import { Stepper, type StepMeta } from "@/components/onboarding/Stepper";
+import { BrandConsultant } from "@/components/onboarding/BrandConsultant";
 import { useT } from "@/lib/i18n";
 
 import Step1Identity from "@/components/onboarding/Step1Identity";
@@ -38,16 +41,83 @@ function StepBody() {
   }
 }
 
-function Shell() {
-  const { state, loading, saving, back, skip, next, totalSteps } = useOnboardingCtx();
+// Bandeau de confirmation après la création d'une société (?new=1).
+// Compense l'absence de toast de création signalée par l'audit.
+function WelcomeBanner() {
   const t = useT();
+  const params = useSearchParams();
+  const [dismissed, setDismissed] = useState(false);
+  if (dismissed || params.get("new") !== "1") return null;
+  return (
+    <div className="flex items-start gap-3 rounded-xl border border-success-200 bg-success-50 p-3" role="status">
+      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-success-100 text-sm font-bold text-success-600">
+        ✓
+      </span>
+      <p className="flex-1 text-sm font-medium text-success-700">
+        {t("Société créée ✓ — construisons son profil", "Company created ✓ — let's build its profile")}
+      </p>
+      <button
+        type="button"
+        onClick={() => setDismissed(true)}
+        aria-label={t("Fermer", "Dismiss")}
+        className="shrink-0 rounded-md px-1.5 text-success-600 hover:bg-success-100"
+      >
+        ✕
+      </button>
+    </div>
+  );
+}
+
+function Shell() {
+  const { state, loading, saving, back, skip, next, totalSteps, profile, applyProfile, companyId, companyName } = useOnboardingCtx();
+  const t = useT();
+  const [skipConsult, setSkipConsult] = useState(false);
   const meta = STEPS.find((s) => s.n === state.step) ?? STEPS[0];
   const isFirst = state.step <= 1;
   const isLast = state.step >= totalSteps;
   const pct = Math.round(((state.step - 1) / (totalSteps - 1)) * 100);
 
+  // ── Étape 0 — Consultant de marque ────────────────────────────────────────
+  // Pour une marque qui démarre (jamais analysée et philosophie non verrouillée),
+  // on commence par construire et verrouiller l'ADN avec le consultant IA, comme
+  // un vrai entretien. Les marques déjà profilées passent directement au parcours.
+  if (!loading && !profile.philosophyLocked && !profile.analyzedAt && !skipConsult) {
+    return (
+      <div className="animate-fade-in space-y-6">
+        <Suspense fallback={null}>
+          <WelcomeBanner />
+        </Suspense>
+        <header className="space-y-1">
+          <p className="section-label text-primary-500">{t("Démarrage assisté · Étape 0", "Assisted onboarding · Step 0")}</p>
+          <h1 className="text-2xl font-bold tracking-tight text-ink">{t("Construisons l'identité de votre marque", "Let's build your brand identity")}</h1>
+          <p className="max-w-2xl text-sm leading-relaxed text-muted">
+            {t(
+              "Avant de lancer la moindre campagne, on verrouille la philosophie : qui vous êtes, ce que vous voulez dire, et l'univers visuel. Discutez avec le consultant comme avec un vrai directeur de marque.",
+              "Before launching any campaign, we lock the philosophy: who you are, what you want to say, and the visual world. Chat with the consultant like a real brand director."
+            )}
+          </p>
+        </header>
+        <BrandConsultant
+          companyId={companyId}
+          companyName={companyName}
+          onLocked={(p) => applyProfile(p)}
+        />
+        <div className="flex justify-center border-t border-hair pt-4">
+          <button type="button" onClick={() => setSkipConsult(true)} className="btn-ghost text-sm text-muted">
+            {t("Construire l'identité plus tard →", "Build the identity later →")}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="animate-fade-in space-y-6">
+      {/* Confirmation de création de société */}
+      <Suspense fallback={null}>
+        <WelcomeBanner />
+      </Suspense>
+
       {/* En-tête */}
       <header className="space-y-1">
         <div className="flex items-center justify-between gap-3">

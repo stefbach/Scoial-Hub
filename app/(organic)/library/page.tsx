@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useMemo, useState } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useCompany } from "@/lib/company-context";
 import { useT } from "@/lib/i18n";
@@ -104,7 +105,7 @@ function LibraryContent() {
   return (
     <div className={`animate-fade-in ${selectMode ? "pb-16" : ""}`}>
       <PageHeader
-        title={t("Bibliothèque", "Library")}
+        title={t("Modèles de posts", "Post templates")}
         actions={
           <>
             <Button
@@ -120,6 +121,11 @@ function LibraryContent() {
           </>
         }
       />
+
+      <p className="mb-4 text-2xs text-muted">
+        {t("Ici : vos modèles de contenu (texte). Pour vos visuels & vidéos :", "Here: your content templates (text). For your visuals & videos:")}{" "}
+        <Link href="/media" className="text-primary-600 hover:underline">{t("→ Médiathèque", "→ Media library")}</Link>
+      </p>
 
       {/* Metric strips */}
       <div className="mb-5 grid grid-cols-3 gap-4">
@@ -333,6 +339,7 @@ function TemplateCard({
   onGenerate: () => void;
 }) {
   const translate = useT();
+  const [imgError, setImgError] = useState(false);
   const tint =
     tpl.platform === "facebook" ? "bg-[#eef4fe]" : tpl.platform === "instagram" ? "bg-[#fdeef5]" : "bg-canvas";
 
@@ -363,9 +370,30 @@ function TemplateCard({
           </span>
         )}
         {tpl.media.ready ? (
-          tpl.media.url ? (
+          tpl.media.url && !imgError ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={tpl.media.url} alt="" className="h-full w-full object-cover" />
+            <img
+              src={tpl.media.url}
+              alt=""
+              onError={() => setImgError(true)}
+              className="h-full w-full object-cover"
+            />
+          ) : tpl.media.url && imgError ? (
+            // Image indisponible (URL expirée/invalide) → repli propre, pas d'icône cassée
+            <div className="flex h-full w-full flex-col items-center justify-center gap-1.5 bg-canvas text-muted">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <rect x="3" y="4" width="18" height="16" rx="2" stroke="currentColor" strokeWidth="1.4" />
+                <circle cx="8.5" cy="9.5" r="1.5" fill="currentColor" />
+                <path d="M21 16l-5-5L5 20" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              <span className="text-2xs">{translate("Aperçu indisponible", "Preview unavailable")}</span>
+              <button
+                onClick={(e) => { e.stopPropagation(); onGenerate(); }}
+                className="mt-0.5 rounded-md border border-hair bg-card px-2 py-0.5 text-2xs font-medium text-ink hover:bg-canvas"
+              >
+                {translate("Régénérer", "Regenerate")}
+              </button>
+            </div>
           ) : (
             <span className="absolute right-2 top-2 rounded-full bg-ai-visual px-2.5 py-0.5 text-2xs font-semibold text-white shadow-sm">
               {tpl.media.kind === "video" ? `${translate("Vidéo IA", "AI video")} · ${tpl.media.seconds}s` : translate("Image IA", "AI image")}

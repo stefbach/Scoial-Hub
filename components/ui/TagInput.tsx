@@ -1,16 +1,19 @@
 "use client";
 
 import { useState } from "react";
+import { useT } from "@/lib/i18n";
 
 export function TagInput({
   tags,
   onChange,
-  placeholder = "Add a tag…",
+  placeholder,
 }: {
   tags: string[];
   onChange: (tags: string[]) => void;
   placeholder?: string;
 }) {
+  const tr = useT();
+  const ph = placeholder ?? tr("Ajouter un tag…", "Add a tag…");
   const [draft, setDraft] = useState("");
 
   const add = () => {
@@ -49,7 +52,7 @@ export function TagInput({
           }
         }}
         onBlur={add}
-        placeholder={tags.length ? "" : placeholder}
+        placeholder={tags.length ? "" : ph}
         className="min-w-[80px] flex-1 bg-transparent text-xs text-ink placeholder:text-muted focus:outline-none"
       />
     </div>

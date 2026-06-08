@@ -31,7 +31,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
     const accounts = await fetchAdAccounts(ctx.userToken);
     const selectedId = ctx.adAccountId ?? null;
-    const data = selectedId ? await fetchAdAccountData(ctx.userToken, selectedId) : null;
+    const datePreset = req.nextUrl.searchParams.get("datePreset") ?? "maximum";
+    const data = selectedId ? await fetchAdAccountData(ctx.userToken, selectedId, datePreset) : null;
 
     return NextResponse.json({
       accounts: accounts.map((a) => ({

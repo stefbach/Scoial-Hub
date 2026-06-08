@@ -109,6 +109,47 @@ async function linkedinFetch<T = Record<string, unknown>>(
   return (await res.json()) as T;
 }
 
+/**
+ * Upload d'une image vers LinkedIn (Images API) et renvoi de son URN
+ * (`urn:li:image:...`) à référencer dans le post. Flux officiel en 3 temps :
+ *   1) initializeUpload → { uploadUrl, image }
+ *   2) PUT binaire de l'image vers uploadUrl
+ *   3) on référence l'URN renvoyé dans content.media du post.
+ */
+async function uploadLinkedInImage(author: string, imageUrl: string, token: string): Promise<string> {
+  const init = await fetch(`${LI_API_REST}/images?action=initializeUpload`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+      "LinkedIn-Version": LINKEDIN_VERSION,
+      "X-Restli-Protocol-Version": "2.0.0",
+    },
+    body: JSON.stringify({ initializeUploadRequest: { owner: author } }),
+  });
+  if (!init.ok) throw new Error(`LinkedIn images initializeUpload → HTTP ${init.status}`);
+  const initJson = (await init.json()) as { value?: { uploadUrl?: string; image?: string } };
+  const uploadUrl = initJson.value?.uploadUrl;
+  const imageUrn = initJson.value?.image;
+  if (!uploadUrl || !imageUrn) throw new Error("LinkedIn images: réponse initializeUpload incomplète.");
+
+  // Récupère les octets du visuel source (doit être une URL publique).
+  const imgRes = await fetch(imageUrl);
+  if (!imgRes.ok) throw new Error(`Téléchargement du visuel échoué (HTTP ${imgRes.status}).`);
+  const bytes = Buffer.from(await imgRes.arrayBuffer());
+
+  const up = await fetch(uploadUrl, {
+    method: "PUT",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": imgRes.headers.get("content-type") || "application/octet-stream",
+    },
+    body: bytes,
+  });
+  if (!up.ok) throw new Error(`LinkedIn image upload → HTTP ${up.status}`);
+  return imageUrn;
+}
+
 // ---------------------------------------------------------------------------
 // Valeurs simulées
 // ---------------------------------------------------------------------------
@@ -258,20 +299,21 @@ class LinkedInConnector implements SocialConnector {
       isReshareDisabledByAuthor: false,
     };
 
-    // Ajout d'un média image si fourni.
+    // Ajout d'un média image (upload réel via Images API), sinon partage de lien.
+    let mediaAttached = false;
     if (input.media?.url) {
-      // Pour un média, il faut d'abord enregistrer l'image via l'API Assets,
-      // puis référencer l'asset URN. Ici on passe par un article (link) comme
-      // alternative simplifiée si c'est une image externe.
-      postBody.content = {
-        article: {
-          source: input.media.url,
-          title: input.linkTitle ?? input.text.slice(0, 70),
-          description: input.linkDescription ?? "",
-          thumbnail: input.media.url,
-        },
-      };
-    } else if (input.link) {
+      try {
+        const imageUrn = await uploadLinkedInImage(author, input.media.url, input.accessToken);
+        postBody.content = {
+          media: { id: imageUrn, ...(input.linkTitle ? { title: input.linkTitle } : {}) },
+        };
+        mediaAttached = true;
+      } catch (e) {
+        // Repli : si l'upload de l'image échoue, on publie au moins le texte.
+        console.warn("[linkedin] upload image échoué, publication en texte seul :", (e as Error).message);
+      }
+    }
+    if (!mediaAttached && input.link) {
       postBody.content = {
         article: {
           source: input.link,

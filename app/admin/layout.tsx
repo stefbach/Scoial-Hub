@@ -15,6 +15,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const NAV = [
     { href: "/admin", label: t("Vue d'ensemble", "Overview"), exact: true },
+    { href: "/admin/validation", label: t("Validation des comptes", "Account validation") },
     { href: "/admin/comptes", label: t("Comptes & entités", "Accounts & entities") },
     { href: "/admin/comptes/nouveau", label: t("Créer un compte", "Create account") },
     { href: "/admin/utilisateurs", label: t("Utilisateurs", "Users") },
@@ -54,7 +55,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                     aria-current={active ? "page" : undefined}
                     className={[
                       "block rounded-lg px-3 py-[0.45rem] text-sm transition-all duration-[120ms]",
-                      active ? "bg-[#efe7d9] font-semibold text-ink" : "text-muted hover:bg-[#f1eadd] hover:text-ink",
+                      active ? "bg-page/20 font-semibold text-ink" : "text-muted hover:bg-white/[0.06] hover:text-ink",
                     ].join(" ")}
                   >
                     {item.label}

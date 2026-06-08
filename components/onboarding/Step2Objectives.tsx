@@ -459,7 +459,7 @@ export default function Step2Objectives() {
                   "hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-400 focus:ring-offset-1",
                   selected
                     ? `${cfg.bgSelected} ${cfg.borderSelected} shadow-sm`
-                    : "border-hair bg-white text-muted hover:border-primary-200 hover:text-ink",
+                    : "border-hair bg-white/[0.04] text-muted hover:border-primary-400 hover:text-ink",
                 ].join(" ")}
               >
                 <span className={selected ? cfg.colorClass : "text-muted"}>
@@ -517,8 +517,8 @@ export default function Step2Objectives() {
                 className={[
                   "px-5 py-2 text-sm font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary-400",
                   isSelected
-                    ? "bg-primary-600 text-white shadow-sm"
-                    : "text-muted hover:bg-white hover:text-ink",
+                    ? "bg-page text-white shadow-sm"
+                    : "text-muted hover:bg-white/[0.06] hover:text-ink",
                 ].join(" ")}
               >
                 {opt.label}
@@ -734,15 +734,15 @@ function ObjectiveCard({
         "group relative w-full rounded-xl border p-4 text-left transition-all",
         "hover:shadow-md focus:outline-none focus:ring-2 focus:ring-primary-400 focus:ring-offset-1",
         selected
-          ? "border-primary-400 bg-primary-50 shadow-sm ring-2 ring-primary-300 ring-offset-1"
-          : "border-hair bg-white hover:border-primary-200",
+          ? "border-primary-400 bg-page/15 shadow-sm ring-2 ring-primary-500/40 ring-offset-1"
+          : "border-hair bg-white/[0.04] hover:border-primary-400",
       ].join(" ")}
     >
       {/* Badge sélectionné */}
       <span
         className={[
           "absolute right-3 top-3 flex h-5 w-5 items-center justify-center rounded-full text-white transition-all",
-          selected ? "bg-primary-600 opacity-100 scale-100" : "bg-canvas border border-hair opacity-60 scale-90",
+          selected ? "bg-page opacity-100 scale-100" : "bg-canvas border border-hair opacity-60 scale-90",
         ].join(" ")}
         aria-hidden="true"
       >
@@ -764,7 +764,7 @@ function ObjectiveCard({
       <p
         className={[
           "text-sm font-semibold leading-snug",
-          selected ? "text-primary-800" : "text-ink",
+          selected ? "text-primary-700" : "text-ink",
         ].join(" ")}
       >
         {label}

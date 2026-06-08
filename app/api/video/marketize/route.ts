@@ -14,6 +14,7 @@ export const maxDuration = 60;
 
 import { NextRequest, NextResponse } from "next/server";
 import { marketizeVideo } from "@/lib/video/marketer";
+import { requireCompanyAccess } from "@/lib/auth/guard";
 import type { AssemblyMode, MediaAsset, VideoPlatform } from "@/lib/video/types";
 
 export async function POST(req: NextRequest) {
@@ -29,6 +30,8 @@ export async function POST(req: NextRequest) {
       durationHintSec?: number;
       companyId?: string;
     };
+    const guard = await requireCompanyAccess(body.companyId, { mode: "edit" });
+    if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
 
     // Normalise les médias : assets[] prioritaires, sinon sourceUrl (vidéo).
     let assets: MediaAsset[] = Array.isArray(body.assets) ? body.assets.filter((a) => a?.url) : [];

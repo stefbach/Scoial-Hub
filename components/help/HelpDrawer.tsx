@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { useLang } from "@/lib/i18n";
@@ -74,6 +75,8 @@ export function HelpDrawer({ open, onClose }: HelpDrawerProps) {
   const entry = getHelp(pathname, lang);
   const panelRef = useRef<HTMLDivElement>(null);
   const closeBtnRef = useRef<HTMLButtonElement>(null);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   // Labels d'interface selon la langue
   const ui = {
@@ -119,7 +122,12 @@ export function HelpDrawer({ open, onClose }: HelpDrawerProps) {
     };
   }, [open]);
 
-  return (
+  // Rendu via portal sur <body> : garantit un positionnement plein écran à
+  // droite, indépendant de tout conteneur transformé (sinon le panneau se
+  // retrouvait mal placé, vers le bas).
+  if (!mounted) return null;
+
+  return createPortal(
     <>
       {/* ── Overlay ──────────────────────────────────────────────────────── */}
       <div
@@ -140,7 +148,7 @@ export function HelpDrawer({ open, onClose }: HelpDrawerProps) {
         aria-label={ui.aria}
         className={[
           "fixed right-0 top-0 z-50 h-full w-full max-w-[480px]",
-          "flex flex-col bg-white shadow-2xl",
+          "flex flex-col bg-card shadow-2xl",
           "border-l border-hair",
           "transition-transform duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]",
           open ? "translate-x-0" : "translate-x-full",
@@ -203,7 +211,7 @@ export function HelpDrawer({ open, onClose }: HelpDrawerProps) {
                   {entry.actions.map((action, i) => (
                     <li
                       key={i}
-                      className="flex gap-3 rounded-lg border border-hair bg-white px-4 py-3 text-sm leading-relaxed shadow-xs"
+                      className="flex gap-3 rounded-lg border border-hair bg-white/[0.04] px-4 py-3 text-sm leading-relaxed shadow-xs"
                     >
                       <span
                         aria-hidden="true"
@@ -337,6 +345,7 @@ export function HelpDrawer({ open, onClose }: HelpDrawerProps) {
           <p className="text-center text-xs text-muted">{ui.footer}</p>
         </div>
       </div>
-    </>
+    </>,
+    document.body
   );
 }

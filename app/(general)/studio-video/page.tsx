@@ -19,6 +19,7 @@ import {
 } from "@/lib/video/types";
 import { captionsToSrt } from "@/lib/video/srt";
 import PromptStudio from "@/components/studio/PromptStudio";
+import BrandKitPanel from "@/components/studio/BrandKitPanel";
 
 // ── Studio Créatif : images + vidéos → assemblage & marketing pro ────────────────
 
@@ -30,7 +31,8 @@ function kindFromUrl(url: string): MediaKind {
 }
 
 export default function StudioPage() {
-  const { company } = useCompany();
+  const { company, access } = useCompany();
+  const canEdit = access.canEdit;
   const t = useT();
   const { lang } = useLang();
 
@@ -42,11 +44,25 @@ export default function StudioPage() {
   const [platforms, setPlatforms] = useState<VideoPlatform[]>(["tiktok", "instagram_reels", "linkedin"]);
   const [uploading, setUploading] = useState(false);
   const [working, setWorking] = useState(false);
+  const [brandHints, setBrandHints] = useState("");
+  // URL publique du logo de marque (https) — incrustée dans le rendu vidéo.
+  const [brandLogoUrl, setBrandLogoUrl] = useState("");
+  // Couleurs de marque appliquées aux textes/CTA incrustés.
+  const [brandColors, setBrandColors] = useState<{ text?: string; accent?: string }>({});
   const [pkg, setPkg] = useState<VideoMarketingPackage | null>(null);
   const [toast, setToast] = useState<{ message: string; key: number } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const notify = (m: string) => setToast({ message: m, key: Date.now() });
+
+  // Réinitialise le studio au changement de société (évite que des médias ou un
+  // package générés pour une société restent affichés/enregistrés sous une autre).
+  useEffect(() => {
+    setAssets([]);
+    setUrlInput("");
+    setObjective("");
+    setPkg(null);
+  }, [company.id]);
 
   function togglePlatform(p: VideoPlatform) {
     setPlatforms((prev) => (prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p]));
@@ -141,6 +157,19 @@ export default function StudioPage() {
   const imageCount = assets.filter((a) => a.kind === "image").length;
   const videoCount = assets.filter((a) => a.kind === "video").length;
 
+  // Repart d'un projet vierge (rien n'est figé) : vide les médias, l'objectif et
+  // le montage généré. Conserve le brand kit (logo/charte) de la marque.
+  function resetStudio() {
+    if (typeof window !== "undefined" && !window.confirm(
+      t("Réinitialiser le projet ? Médias importés, objectif et montage généré seront effacés.",
+        "Reset the project? Imported media, objective and generated edit will be cleared.")
+    )) return;
+    setAssets([]);
+    setUrlInput("");
+    setObjective("");
+    setPkg(null);
+  }
+
   return (
     <div className="animate-fade-in space-y-5">
       {/* En-tête */}
@@ -156,11 +185,28 @@ export default function StudioPage() {
               "Upload photos and/or videos — we assemble and market them automatically, network by network."
             )}
           </p>
+          <a href="/campaigns/new" className="mt-1 inline-flex items-center gap-1.5 text-sm font-medium text-primary-600 hover:underline">
+            {t("→ Créer une pub Meta avec votre média", "→ Create a Meta ad with your media")}
+          </a>
         </div>
+        <button onClick={resetStudio} className="btn-ghost ml-auto shrink-0 text-xs text-muted" title={t("Repartir d'un projet vierge", "Start a blank project")}>
+          {t("↺ Réinitialiser", "↺ Reset")}
+        </button>
       </div>
 
+      {/* Brand kit persistant — logo / charte / palette, réutilisés partout */}
+      <BrandKitPanel
+        companyId={company.id}
+        brandName={company.name}
+        onPromptHints={setBrandHints}
+        onKit={(k) => {
+          setBrandLogoUrl(/^https?:\/\//.test(k.logoUrl) ? k.logoUrl : "");
+          setBrandColors({ text: k.recommendedTextColor, accent: k.palette[0] });
+        }}
+      />
+
       {/* Génération par prompt (IA) — image ou vidéo, tous formats publiables */}
-      <PromptStudio onGenerated={(a) => setAssets((prev) => [...prev, a])} />
+      <PromptStudio onGenerated={(a) => setAssets((prev) => [...prev, a])} brandHints={brandHints} />
 
       {/* Étape 1 : médias */}
       <section className="card p-5">
@@ -268,9 +314,21 @@ export default function StudioPage() {
         </div>
       </section>
 
-      <button className="btn-primary w-full justify-center py-3 text-sm" onClick={marketize} disabled={working || uploading}>
+      <button
+        className="btn-primary w-full justify-center py-3 text-sm disabled:opacity-50"
+        onClick={marketize}
+        disabled={working || uploading || !canEdit || assets.length === 0 || platforms.length === 0}
+        title={!canEdit ? t("Lecture seule", "View only") : undefined}
+      >
         {working ? t("Le studio travaille…", "The studio is working…") : t("✨ Assembler & marketer", "✨ Assemble & market")}
       </button>
+      {canEdit && (assets.length === 0 || platforms.length === 0) && (
+        <p className="-mt-2 text-center text-2xs text-muted">
+          {assets.length === 0
+            ? t("Ajoutez au moins un média (import ou génération IA).", "Add at least one media item (import or AI generation).")
+            : t("Choisissez au moins un réseau.", "Choose at least one network.")}
+        </p>
+      )}
 
       {/* Résultat */}
       {pkg && (
@@ -294,7 +352,7 @@ export default function StudioPage() {
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             {pkg.cuts.map((c) => (
-              <CutCard key={c.platform} cut={c} assets={pkg.assets} captions={pkg.captions} onCopy={copy} t={t} />
+              <CutCard key={c.platform} cut={c} assets={pkg.assets} captions={pkg.captions} brandLogoUrl={brandLogoUrl} brandColors={brandColors} companyId={company.id} onCopy={copy} t={t} />
             ))}
           </div>
         </section>
@@ -323,12 +381,18 @@ function CutCard({
   cut,
   assets,
   captions,
+  brandLogoUrl,
+  brandColors,
+  companyId,
   onCopy,
   t,
 }: {
   cut: PlatformCut;
   assets: MediaAsset[];
   captions: CaptionSegment[];
+  brandLogoUrl?: string;
+  brandColors?: { text?: string; accent?: string };
+  companyId: string;
   onCopy: (text: string, label: string) => void;
   t: (fr: string, en: string) => string;
 }) {
@@ -342,6 +406,7 @@ function CutCard({
   const [caps, setCaps] = useState<CaptionSegment[]>(captions);
   const [musicId, setMusicId] = useState("none");
   const [customMusic, setCustomMusic] = useState("");
+  const [withLogo, setWithLogo] = useState(true);
   const [slides, setSlides] = useState(cut.slides);
 
   // Génération d'images (Cloudinary) pour les formats statiques.
@@ -359,7 +424,7 @@ function CutCard({
       const res = await fetch("/api/video/image", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cut: editedCut, assets }),
+        body: JSON.stringify({ cut: editedCut, assets, companyId }),
       });
       const data = await res.json();
       if (!res.ok || !data.images) {
@@ -367,8 +432,11 @@ function CutCard({
         setImgErr(data.error ?? `Erreur ${res.status}`);
         return;
       }
-      setImages(data.images as string[]);
+      const imgs = data.images as string[];
+      setImages(imgs);
       setImgState("done");
+      // → bibliothèque média (réutilisable en pub)
+      imgs.forEach((u) => fetch("/api/media", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ companyId, url: u, type: "image", format: cut.aspect, source: "studio-video" }) }).catch(() => {}));
     } catch {
       setImgState("failed");
       setImgErr("Erreur réseau");
@@ -399,6 +467,8 @@ function CutCard({
   useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
 
   async function startRender() {
+    // Évite un double polling si un rendu précédent tourne encore (coût/réseau).
+    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
     setRErr(null);
     setRUrl(null);
     setRState("queued");
@@ -407,7 +477,7 @@ function CutCard({
       const res = await fetch("/api/video/render", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cut: editedCut, assets, captions: caps }),
+        body: JSON.stringify({ cut: editedCut, assets, captions: caps, logoUrl: withLogo ? brandLogoUrl : undefined, brandColors, companyId }),
       });
       const data = await res.json();
       if (!res.ok || !data.id) {
@@ -431,8 +501,18 @@ function CutCard({
           const s = await fetch(`/api/video/render/${encodeURIComponent(id)}`).then((r) => r.json());
           if (s.status === "done") {
             if (pollRef.current) clearInterval(pollRef.current);
-            setRUrl(s.url ?? null);
             setRState("done");
+            let finalUrl: string | null = s.url ?? null;
+            if (finalUrl) {
+              // Persiste le rendu (URL Shotstack éphémère) → stockage durable.
+              try {
+                const pr = await fetch("/api/media/persist", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ companyId, url: finalUrl, kind: "video" }) });
+                const pd = await pr.json();
+                if (pr.ok && pd.url) finalUrl = pd.url;
+              } catch { /* garde l'URL d'origine */ }
+              setRUrl(finalUrl);
+              fetch("/api/media", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ companyId, url: finalUrl, type: "video", format: cut.aspect, source: "studio-video" }) }).catch(() => {});
+            }
           } else if (s.status === "failed") {
             if (pollRef.current) clearInterval(pollRef.current);
             setRErr(s.error ?? t("Échec du rendu", "Render failed"));
@@ -527,6 +607,19 @@ function CutCard({
         </Field>
       )}
 
+      {renderable && (
+        <Field label={t("🏷️ Logo de la marque", "🏷️ Brand logo")}>
+          {brandLogoUrl ? (
+            <label className="flex items-center gap-2 text-xs text-ink">
+              <input type="checkbox" checked={withLogo} onChange={(e) => setWithLogo(e.target.checked)} className="accent-primary-600" />
+              {t("Incruster le logo (haut droite)", "Burn in the logo (top right)")}
+            </label>
+          ) : (
+            <p className="text-2xs text-muted">{t("Importez un logo dans le brand kit pour l'incruster dans la vidéo.", "Upload a logo in the brand kit to burn it into the video.")}</p>
+          )}
+        </Field>
+      )}
+
       {renderable && caps.length > 0 && (
         <Field label={t("Sous-titres incrustés (modifiables)", "Burned-in subtitles (editable)")}>
           <div className="space-y-1.5">
@@ -568,12 +661,16 @@ function CutCard({
           )}
           {rState === "done" && rUrl && (
             <div className="space-y-2">
-              <video src={rUrl} controls className="w-full rounded-lg border border-hair" />
+              <video src={rUrl} controls preload="metadata" className="w-full rounded-lg border border-hair" />
+              <p className="text-2xs text-success-600">{t("✓ Enregistrée dans la Médiathèque", "✓ Saved to the Media library")}</p>
               <div className="flex gap-2">
-                <a href={rUrl} target="_blank" rel="noopener noreferrer" download className="btn-primary flex-1 justify-center text-2xs">
+                <a href={rUrl} target="_blank" rel="noopener noreferrer" download className="btn-secondary flex-1 justify-center text-2xs">
                   ⬇ {t("Télécharger", "Download")}
                 </a>
-                <button className="btn-secondary shrink-0 text-2xs" onClick={startRender}>
+                <a href={`/compose?media=${encodeURIComponent(rUrl)}&kind=video`} className="btn-primary flex-1 justify-center text-2xs">
+                  {t("Publier / Programmer →", "Publish / Schedule →")}
+                </a>
+                <button className="btn-ghost shrink-0 text-2xs" onClick={startRender}>
                   ↻ {t("Régénérer", "Re-render")}
                 </button>
               </div>

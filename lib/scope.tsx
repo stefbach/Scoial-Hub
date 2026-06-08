@@ -6,30 +6,48 @@ import { createContext, useContext, useMemo, useState } from "react";
 
 export type Country = { id: string; label: string; flag: string };
 
-export const COUNTRIES: Country[] = [
-  { id: "fr", label: "France", flag: "🇫🇷" },
-  { id: "be", label: "Belgique", flag: "🇧🇪" },
-  { id: "ch", label: "Suisse", flag: "🇨🇭" },
-  { id: "lu", label: "Luxembourg", flag: "🇱🇺" },
-  { id: "pt", label: "Portugal", flag: "🇵🇹" },
-  { id: "es", label: "Espagne", flag: "🇪🇸" },
-  { id: "it", label: "Italie", flag: "🇮🇹" },
-  { id: "de", label: "Allemagne", flag: "🇩🇪" },
-  { id: "gb", label: "Royaume-Uni", flag: "🇬🇧" },
-  { id: "nl", label: "Pays-Bas", flag: "🇳🇱" },
-  { id: "ma", label: "Maroc", flag: "🇲🇦" },
-  { id: "dz", label: "Algérie", flag: "🇩🇿" },
-  { id: "tn", label: "Tunisie", flag: "🇹🇳" },
-  { id: "sn", label: "Sénégal", flag: "🇸🇳" },
-  { id: "ci", label: "Côte d'Ivoire", flag: "🇨🇮" },
-  { id: "cm", label: "Cameroun", flag: "🇨🇲" },
-  { id: "ml", label: "Mali", flag: "🇲🇱" },
-  { id: "cv", label: "Cap-Vert", flag: "🇨🇻" },
-  { id: "ca", label: "Canada", flag: "🇨🇦" },
-  { id: "us", label: "États-Unis", flag: "🇺🇸" },
-  { id: "ae", label: "Émirats arabes unis", flag: "🇦🇪" },
-  { id: "mu", label: "Maurice", flag: "🇲🇺" },
+// Couverture COMPLÈTE du marché Meta : tous les pays (ISO 3166-1 alpha-2).
+// Le drapeau est calculé depuis le code, le libellé est localisé (FR) via Intl.
+const ISO2_CODES = [
+  "AF","AL","DZ","AD","AO","AI","AG","AR","AM","AW","AU","AT","AZ","BS","BH","BD",
+  "BB","BY","BE","BZ","BJ","BM","BT","BO","BA","BW","BR","BN","BG","BF","BI","KH",
+  "CM","CA","CV","KY","CF","TD","CL","CN","CO","KM","CG","CD","CR","CI","HR","CU",
+  "CY","CZ","DK","DJ","DM","DO","EC","EG","SV","GQ","ER","EE","SZ","ET","FJ","FI",
+  "FR","GF","PF","GA","GM","GE","DE","GH","GI","GR","GL","GD","GP","GU","GT","GG",
+  "GN","GW","GY","HT","HN","HK","HU","IS","IN","ID","IQ","IE","IM","IL","IT","JM",
+  "JP","JE","JO","KZ","KE","KI","KW","KG","LA","LV","LB","LS","LR","LY","LI","LT",
+  "LU","MO","MG","MW","MY","MV","ML","MT","MH","MQ","MR","MU","YT","MX","FM","MD",
+  "MC","MN","ME","MS","MA","MZ","MM","NA","NR","NP","NL","NC","NZ","NI","NE","NG",
+  "MK","NO","OM","PK","PW","PS","PA","PG","PY","PE","PH","PL","PT","PR","QA","RE",
+  "RO","RU","RW","BL","KN","LC","MF","VC","WS","SM","ST","SA","SN","RS","SC","SL",
+  "SG","SK","SI","SB","SO","ZA","KR","SS","ES","LK","SD","SR","SE","CH","SY","TW",
+  "TJ","TZ","TH","TL","TG","TO","TT","TN","TR","TM","TC","TV","UG","UA","AE","GB",
+  "US","UY","UZ","VU","VA","VE","VN","VG","VI","YE","ZM","ZW",
 ];
+
+function flagFromCode(code: string): string {
+  try {
+    return String.fromCodePoint(
+      ...code.toUpperCase().split("").map((c) => 0x1f1e6 + c.charCodeAt(0) - 65)
+    );
+  } catch {
+    return "🏳️";
+  }
+}
+
+const regionNames: { of: (c: string) => string | undefined } | null = (() => {
+  try {
+    return new Intl.DisplayNames(["fr"], { type: "region" });
+  } catch {
+    return null;
+  }
+})();
+
+export const COUNTRIES: Country[] = ISO2_CODES.map((code) => ({
+  id: code.toLowerCase(),
+  label: regionNames?.of(code) ?? code,
+  flag: flagFromCode(code),
+})).sort((a, b) => a.label.localeCompare(b.label, "fr"));
 
 export type DateRange = { from: Date; to: Date };
 

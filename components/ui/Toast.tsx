@@ -17,8 +17,8 @@ export function Toast({
   }, [onDismiss, durationMs]);
 
   return (
-    <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2">
-      <div className="rounded-md border-hair border-hair bg-ink px-4 py-2 text-sm text-white shadow-lg">
+    <div className="fixed bottom-6 left-1/2 z-50 w-[min(22rem,calc(100vw-1.5rem))] -translate-x-1/2 px-2">
+      <div role="status" aria-live="polite" className="rounded-md border-hair bg-ink px-4 py-2 text-center text-sm text-white shadow-lg">
         {message}
       </div>
     </div>

@@ -13,14 +13,19 @@ import { requireCompanyAccess } from "@/lib/auth/guard";
 export async function POST(req: NextRequest): Promise<NextResponse> {
   try {
     const body = (await req.json()) as Partial<PublishAdInput>;
-    if (!body.companyId || !body.imageUrl || !body.link || !body.primaryText || !body.name) {
+    // En mode formulaire de prospects, le lien peut être l'URL de confidentialité.
+    const effectiveLink = body.link || body.leadForm?.privacyUrl;
+    if (!body.companyId || (!body.imageUrl && !body.videoUrl) || !effectiveLink || !body.primaryText || !body.name) {
       return NextResponse.json(
-        { error: "Champs requis : companyId, name, imageUrl, link, primaryText." },
+        { error: "Champs requis : companyId, name, un visuel (image ou vidéo), primaryText, et un lien (ou l'URL de confidentialité en mode formulaire)." },
         { status: 400 }
       );
     }
+    if (body.leadForm && !body.leadForm.privacyUrl?.trim()) {
+      return NextResponse.json({ error: "Le formulaire de prospects exige une URL de politique de confidentialité." }, { status: 400 });
+    }
 
-    const guard = await requireCompanyAccess(body.companyId);
+    const guard = await requireCompanyAccess(body.companyId, { mode: "edit" });
     if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
 
     const result = await publishAd({
@@ -28,14 +33,32 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       name: body.name,
       objective: body.objective ?? "trafic",
       dailyBudgetCents: Number(body.dailyBudgetCents ?? 0),
+      budgetType: body.budgetType,
+      lifetimeBudgetCents: body.lifetimeBudgetCents ? Number(body.lifetimeBudgetCents) : undefined,
+      startTime: body.startTime,
+      endTime: body.endTime,
       countries: Array.isArray(body.countries) ? body.countries : [],
       ageMin: body.ageMin,
       ageMax: body.ageMax,
-      imageUrl: body.imageUrl,
+      gender: body.gender,
+      interests: Array.isArray(body.interests) ? body.interests : undefined,
+      placement: body.placement,
+      publisherPlatforms: body.publisherPlatforms,
+      facebookPositions: body.facebookPositions,
+      instagramPositions: body.instagramPositions,
+      imageUrl: body.imageUrl ?? "",
+      images: Array.isArray(body.images) ? body.images : undefined,
+      videoUrl: body.videoUrl,
+      videoThumbUrl: body.videoThumbUrl,
       primaryText: body.primaryText,
       headline: body.headline,
-      link: body.link,
+      link: effectiveLink as string,
       cta: body.cta,
+      leadForm: body.leadForm,
+      pixelId: body.pixelId,
+      conversionEvent: body.conversionEvent,
+      customAudiences: Array.isArray(body.customAudiences) ? body.customAudiences : undefined,
+      variants: Array.isArray(body.variants) ? body.variants : undefined,
     });
     return NextResponse.json({ ok: true, ...result });
   } catch (err) {

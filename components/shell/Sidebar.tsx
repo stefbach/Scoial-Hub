@@ -3,10 +3,21 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useT } from "@/lib/i18n";
+import { useCompany } from "@/lib/company-context";
+import { CompanyIndicator } from "./CompanyIndicator";
 
 // Traductions des libellés de navigation (FR par défaut → EN).
 const NAV_TR: Record<string, [string, string]> = {
+  "Se déconnecter": ["Se déconnecter", "Sign out"],
+  "Studio Avatar": ["Studio Avatar", "Avatar Studio"],
+  "Aide & tutoriel": ["Aide & tutoriel", "Help & tutorial"],
+  "Organisation": ["Organisation", "Organization"],
+  "Mes sociétés": ["Mes sociétés", "My companies"],
+  "Mon équipe": ["Mon équipe", "My team"],
+  "Identité de marque": ["Identité de marque", "Brand identity"],
   "Dashboard": ["Tableau de bord", "Dashboard"],
+  "Médiathèque": ["Médiathèque", "Media library"],
+  "Modèles": ["Modèles", "Templates"],
   "Get started": ["Démarrage assisté", "Assisted onboarding"],
   "Modules": ["Modules", "Modules"],
   "Mes Pages": ["Mes Pages & données", "My Pages & data"],
@@ -22,6 +33,7 @@ const NAV_TR: Record<string, [string, string]> = {
   "Compose": ["Composer", "Compose"],
   "Article LinkedIn": ["Article LinkedIn", "LinkedIn Article"],
   "Video Studio": ["Studio Créatif", "Creative Studio"],
+  "Studio Affiches": ["Studio Affiches", "Poster Studio"],
   "Scheduled": ["Programmés", "Scheduled"],
   "Library": ["Bibliothèque", "Library"],
   "Automations": ["Automatisations", "Automations"],
@@ -46,6 +58,28 @@ const ICONS: Record<string, React.ReactNode> = {
     <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
       <circle cx="7.5" cy="5.5" r="3" stroke="currentColor" strokeWidth="1.2" fill="none"/>
       <path d="M2.5 13c0-2.8 2.2-4.5 5-4.5s5 1.7 5 4.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" fill="none"/>
+    </svg>
+  ),
+  "/mes-societes": (
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+      <rect x="2" y="5" width="5.5" height="8" rx="1" stroke="currentColor" strokeWidth="1.2" fill="none"/>
+      <rect x="8" y="2" width="5" height="11" rx="1" stroke="currentColor" strokeWidth="1.2" fill="none"/>
+      <path d="M9.5 4.5h2M9.5 6.5h2M9.5 8.5h2M4 7.5h1.5M4 9.5h1.5" stroke="currentColor" strokeWidth="1" strokeLinecap="round"/>
+    </svg>
+  ),
+  "/mon-equipe": (
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+      <circle cx="5.5" cy="5" r="2" stroke="currentColor" strokeWidth="1.2" fill="none"/>
+      <circle cx="10.5" cy="5.5" r="1.6" stroke="currentColor" strokeWidth="1.1" fill="none" opacity="0.7"/>
+      <path d="M1.5 12.5c0-2.2 1.8-3.6 4-3.6s4 1.4 4 3.6" stroke="currentColor" strokeWidth="1.2" fill="none" strokeLinecap="round"/>
+      <path d="M10.5 9c1.6.2 3 1.4 3 3.5" stroke="currentColor" strokeWidth="1.1" fill="none" strokeLinecap="round" opacity="0.7"/>
+    </svg>
+  ),
+  "/identite": (
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+      <path d="M7.5 1.5l1.4 3.1 3.1 1.4-3.1 1.4-1.4 3.1-1.4-3.1L2.5 6l3.1-1.4L7.5 1.5Z"
+            stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round" fill="none"/>
+      <circle cx="11.5" cy="11.5" r="1.6" stroke="currentColor" strokeWidth="1.1" fill="none"/>
     </svg>
   ),
   "/dashboard": (
@@ -79,6 +113,12 @@ const ICONS: Record<string, React.ReactNode> = {
     <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
       <rect x="2" y="2" width="8" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.2" fill="none"/>
       <path d="M10.5 4.5l2 2-3.5 3.5H7V8.5l3.5-4Z" fill="currentColor" opacity="0.9"/>
+    </svg>
+  ),
+  "/studio-affiche": (
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+      <rect x="3" y="1.5" width="9" height="12" rx="1.2" stroke="currentColor" strokeWidth="1.2" fill="none"/>
+      <path d="M5 4.5h5M5 6.5h5M5 8.5h3" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round"/>
     </svg>
   ),
   "/article-linkedin": (
@@ -220,6 +260,15 @@ const ICONS: Record<string, React.ReactNode> = {
       <path d="M5.5 5.5l3 1.5-3 1.5v-3Z" fill="currentColor"/>
     </svg>
   ),
+  "/benchmark": (
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+      <path d="M2 13V2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+      <path d="M2 13h11" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+      <rect x="4" y="8" width="2.2" height="3.5" fill="currentColor"/>
+      <rect x="7.4" y="5.5" width="2.2" height="6" fill="currentColor"/>
+      <rect x="10.8" y="3" width="2.2" height="8.5" fill="currentColor"/>
+    </svg>
+  ),
   "/studio-video": (
     <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
       <rect x="1.5" y="3.5" width="9" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.2" fill="none"/>
@@ -227,15 +276,23 @@ const ICONS: Record<string, React.ReactNode> = {
       <path d="M4.5 6.5 7 7.5 4.5 8.5V6.5Z" fill="currentColor"/>
     </svg>
   ),
+  "/studio-avatar": (
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+      <circle cx="7.5" cy="5" r="2.4" stroke="currentColor" strokeWidth="1.2" fill="none"/>
+      <path d="M3 12.5c0-2.2 2-3.6 4.5-3.6s4.5 1.4 4.5 3.6" stroke="currentColor" strokeWidth="1.2" fill="none" strokeLinecap="round"/>
+      <path d="M12.2 3.2c.8.8.8 2.1 0 2.9M13.6 1.9c1.5 1.5 1.5 3.9 0 5.4" stroke="currentColor" strokeWidth="1" strokeLinecap="round" opacity="0.6"/>
+    </svg>
+  ),
 };
 
-type NavItem = { href: string; label: string };
+type NavItem = { href: string; label: string; adminOnly?: boolean };
 
 /* ── Colonne vertébrale ────────────────────────────────────────────────
    La porte d'entrée du produit : on démarre par le parcours assisté, on
    pilote depuis le tableau de bord et le centre de pilotage. Le reste
    (ci-dessous) ce sont des « Modules » où l'on plonge pour approfondir. */
 const SPINE: NavItem[] = [
+  { href: "/identite",  label: "Identité de marque" },
   { href: "/demarrage", label: "Get started" },
   { href: "/dashboard", label: "Dashboard" },
   { href: "/pilotage",  label: "Centre de pilotage" },
@@ -243,6 +300,13 @@ const SPINE: NavItem[] = [
 
 /* ── Modules (secondaires) ─────────────────────────────────────────── */
 const GROUPS: { label?: string; items: NavItem[] }[] = [
+  {
+    label: "Organisation",
+    items: [
+      { href: "/mes-societes", label: "Mes sociétés" },
+      { href: "/mon-equipe", label: "Mon équipe", adminOnly: true },
+    ],
+  },
   {
     label: "Pilotage IA",
     items: [
@@ -252,6 +316,7 @@ const GROUPS: { label?: string; items: NavItem[] }[] = [
       { href: "/inbox",       label: "Inbox" },
       { href: "/veille",      label: "Veille & Marché" },
       { href: "/publicites",  label: "Competitor Ads" },
+      { href: "/benchmark",   label: "Benchmark" },
       { href: "/parametres-connecteurs", label: "Connecteurs" },
     ],
   },
@@ -259,10 +324,12 @@ const GROUPS: { label?: string; items: NavItem[] }[] = [
     label: "Organic",
     items: [
       { href: "/compose",      label: "Compose" },
-      { href: "/article-linkedin", label: "Article LinkedIn" },
       { href: "/studio-video", label: "Video Studio" },
+      { href: "/studio-avatar", label: "Studio Avatar" },
+      { href: "/studio-affiche", label: "Studio Affiches" },
+      { href: "/media",       label: "Médiathèque" },
       { href: "/scheduled",   label: "Scheduled" },
-      { href: "/library",     label: "Library" },
+      { href: "/library",     label: "Modèles" },
       { href: "/automations", label: "Automations" },
       { href: "/history",     label: "History" },
     ],
@@ -296,7 +363,10 @@ const GROUPS: { label?: string; items: NavItem[] }[] = [
 export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
   const pathname = usePathname();
   const t = useT();
+  const { access } = useCompany();
   const tr = (s: string) => { const e = NAV_TR[s]; return e ? t(e[0], e[1]) : s; };
+  // Masque les entrées réservées à l'admin du compte (ex. « Mon équipe »).
+  const canSee = (item: NavItem) => !item.adminOnly || access.isAccountAdmin;
 
   const isActive = (href: string) => pathname.startsWith(href);
 
@@ -316,10 +386,10 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
             "group relative flex items-center gap-2.5 rounded-lg px-3 py-[0.4rem] text-sm",
             "transition-all duration-[120ms]",
             active
-              ? "bg-[#efe7d9] text-ink font-semibold"
+              ? "bg-page/20 text-ink font-semibold"
               : entry
-              ? "bg-primary-50 text-primary-700 font-semibold hover:bg-primary-100"
-              : "text-muted hover:bg-[#f1eadd] hover:text-ink",
+              ? "bg-page/15 text-ink font-semibold hover:bg-page/25"
+              : "text-muted hover:bg-white/[0.06] hover:text-ink",
           ].join(" ")}
         >
           {active && (
@@ -349,6 +419,11 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
       aria-label="Navigation principale"
       className="w-[13.5rem] shrink-0 border-r border-hair py-5 pl-3 pr-2"
     >
+      {/* Sélecteur de société — accès & changement de société depuis la barre */}
+      <div className="mb-4 pr-1">
+        <CompanyIndicator />
+      </div>
+
       {/* Colonne vertébrale : la porte d'entrée du produit */}
       <ul className="space-y-px" role="list">
         {SPINE.map((item) => renderItem(item, { entry: item.href === "/demarrage" }))}
@@ -365,10 +440,27 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
             <div className="mb-1.5 px-3 section-label">{tr(group.label)}</div>
           )}
           <ul className="space-y-px" role="list">
-            {group.items.map((item) => renderItem(item))}
+            {group.items.filter(canSee).map((item) => renderItem(item))}
           </ul>
         </div>
       ))}
+
+      {/* Déconnexion — lien direct (navigation pure, toujours fiable) */}
+      <div className="mt-5 border-t border-hair pt-4">
+        <a
+          href="/api/auth/logout"
+          onClick={() => { try { window.localStorage.removeItem("sh_company_id"); } catch { /* ignore */ } }}
+          className="group relative mt-1 flex w-full items-center gap-2.5 rounded-lg px-3 py-[0.4rem] text-sm text-muted transition-all duration-[120ms] hover:bg-danger-500/10 hover:text-danger-600"
+          title={tr("Se déconnecter")}
+        >
+          <span className="shrink-0 opacity-45 transition-opacity duration-[120ms] group-hover:opacity-80">
+            <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+              <path d="M6 2H3a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h3M10 10l3-3-3-3M13 7H5.5" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </span>
+          <span className="font-medium">{tr("Se déconnecter")}</span>
+        </a>
+      </div>
     </nav>
   );
 }

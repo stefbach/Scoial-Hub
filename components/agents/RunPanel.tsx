@@ -322,7 +322,7 @@ export function RunPanel({ loading, onRun }: RunPanelProps) {
                         disabled={loading}
                         className={`rounded-md px-2.5 py-1 text-xs font-semibold transition-all ${
                           active
-                            ? "bg-primary-600 text-white ring-2 ring-primary-300"
+                            ? "bg-page text-white ring-2 ring-primary-300"
                             : "border border-hair bg-card text-muted hover:border-primary-200 hover:text-ink"
                         }`}
                       >

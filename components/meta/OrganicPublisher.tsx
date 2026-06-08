@@ -6,6 +6,7 @@
 import { useState } from "react";
 import { useCompany } from "@/lib/company-context";
 import { useT } from "@/lib/i18n";
+import { Spinner, BusyHint } from "@/components/ui/Spinner";
 
 function extractImageUrls(data: unknown): string[] {
   const d = data as { images?: Array<string | { url?: string }> };
@@ -90,13 +91,15 @@ export function OrganicPublisher() {
         placeholder={t("Rédigez votre publication… (ou laissez l'IA écrire)", "Write your post… (or let the AI write it)")} className={inputCls} />
 
       <div className="flex flex-wrap items-center gap-2">
-        <button onClick={writeWithAI} disabled={writing} className="btn-secondary text-xs disabled:opacity-50">
-          {writing ? t("Rédaction…", "Writing…") : t("✨ Rédiger avec l'IA", "✨ Write with AI")}
+        <button onClick={writeWithAI} disabled={writing} className="btn-secondary inline-flex items-center gap-1.5 text-xs disabled:opacity-50">
+          {writing ? <><Spinner size={14} className="text-primary-600" /> {t("Rédaction…", "Writing…")}</> : t("✨ Rédiger avec l'IA", "✨ Write with AI")}
         </button>
-        <button onClick={imageWithAI} disabled={imaging} className="btn-secondary text-xs disabled:opacity-50">
-          {imaging ? t("Visuel…", "Visual…") : t("🖼 Générer un visuel", "🖼 Generate a visual")}
+        <button onClick={imageWithAI} disabled={imaging} className="btn-secondary inline-flex items-center gap-1.5 text-xs disabled:opacity-50">
+          {imaging ? <><Spinner size={14} className="text-primary-600" /> {t("Visuel…", "Visual…")}</> : t("🖼 Générer un visuel", "🖼 Generate a visual")}
         </button>
       </div>
+
+      {imaging && <BusyHint label={t("Génération de votre visuel…", "Generating your visual…")} eta={t("~15–30 s", "~15–30 s")} />}
 
       <input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder={t("URL d'image (optionnel — requis pour Instagram)", "Image URL (optional — required for Instagram)")} className={inputCls} />
       {imageUrl && (
@@ -112,10 +115,12 @@ export function OrganicPublisher() {
           <input type="checkbox" checked={toIg} onChange={(e) => setToIg(e.target.checked)} className="accent-primary-600" /> Instagram
           <span className="text-2xs text-muted">{t("(image requise)", "(image required)")}</span>
         </label>
-        <button onClick={publish} disabled={publishing} className="btn-primary ml-auto text-sm disabled:opacity-50">
-          {publishing ? t("Publication…", "Publishing…") : t("Publier maintenant", "Publish now")}
+        <button onClick={publish} disabled={publishing} className="btn-primary ml-auto inline-flex items-center gap-1.5 text-sm disabled:opacity-50">
+          {publishing ? <><Spinner size={14} className="text-white" /> {t("Publication…", "Publishing…")}</> : t("Publier maintenant", "Publish now")}
         </button>
       </div>
+
+      {publishing && <BusyHint label={t("Publication en cours…", "Publishing…")} eta={t("~5 s", "~5 s")} />}
 
       {result && <p className="rounded-lg bg-success-50 px-3 py-2 text-xs text-success-700">{result}</p>}
       {error && <p className="rounded-lg bg-danger-50 px-3 py-2 text-xs text-danger-700">{error}</p>}

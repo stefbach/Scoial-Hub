@@ -16,6 +16,11 @@ interface RequestBody {
   objective?: string;
   /** Société courante — permet d'injecter la mémoire stratégique (RAG). */
   companyId?: string;
+  /**
+   * RAG opt-in : la mémoire stratégique (veille/pubs/Page) n'est injectée que
+   * si vrai. Par défaut on rédige librement à partir du brief de l'utilisateur.
+   */
+  useMemory?: boolean;
   /** Langue de diffusion imposée pour la rédaction (ex : "English", "Español"). */
   language?: string;
 }
@@ -81,7 +86,7 @@ Return ONLY the post text — no commentary, no "Here is your post:", no quotes 
 export async function POST(req: NextRequest) {
   try {
     const body: RequestBody = await req.json();
-    const { prompt, platform, brandVoice, action, objective, companyId, language } = body;
+    const { prompt, platform, brandVoice, action, objective, companyId, language, useMemory } = body;
 
     if (!prompt || !platform || !action) {
       return NextResponse.json(
@@ -100,11 +105,12 @@ export async function POST(req: NextRequest) {
 
     const client = new Anthropic({ apiKey: env.anthropicKey });
 
-    // RAG : injecte la mémoire stratégique (veille, pubs, Page) pour fonder le
-    // contenu sur les insights accumulés. Pertinent surtout pour generate/rewrite ;
-    // inutile (et bruyant) pour shorten/hashtags. Non bloquant.
+    // RAG opt-in : injecte la mémoire stratégique (veille, pubs, Page) pour
+    // fonder le contenu sur les insights accumulés, UNIQUEMENT si l'utilisateur
+    // le demande (useMemory). Sinon on rédige librement à partir du brief.
+    // Pertinent surtout pour generate/rewrite ; inutile pour shorten/hashtags.
     let memoryContext = "";
-    if (companyId && (action === "generate" || action === "rewrite")) {
+    if (useMemory && companyId && (action === "generate" || action === "rewrite")) {
       try {
         const { getMemoryContext } = await import("@/lib/memory");
         memoryContext = await getMemoryContext(companyId, 20);

@@ -40,6 +40,8 @@ type ConnectorMeta = {
   group: "social" | "ads" | "measure" | "ai" | "scraping";
   envHint?: string;
   comingSoon?: boolean;
+  /** Connecté AUTOMATIQUEMENT dès que ce connecteur (ex. facebook) est relié. */
+  nativeVia?: string;
 };
 
 const CONNECTOR_CATALOG: ConnectorMeta[] = [
@@ -139,19 +141,16 @@ const CONNECTOR_CATALOG: ConnectorMeta[] = [
     label: "Meta Ads",
     color: "#1877F2",
     icon: "◈",
-    description: "Campagnes publicitaires Facebook & Instagram via Marketing API.",
-    where: "Meta Business Suite → Compte publicitaire → Marketing API",
+    description: "Campagnes Facebook & Instagram via Marketing API — activé automatiquement avec votre connexion Meta. Rien à configurer.",
     group: "ads",
+    nativeVia: "facebook",
     capabilities: [
       { type: "read", label: "Lecture campagnes" },
       { type: "read", label: "Lecture performances" },
       { type: "write", label: "Création campagnes" },
       { type: "write", label: "Optimisation budgets" },
     ],
-    fields: [
-      { key: "ad_account_id", label: "Ad Account ID", placeholder: "act_XXXXXXXXX" },
-      { key: "access_token", label: "Access Token", secret: true },
-    ],
+    fields: [],
   },
 
   // ── Mesure & conversions ────────────────────────────────────────────────────
@@ -160,18 +159,15 @@ const CONNECTOR_CATALOG: ConnectorMeta[] = [
     label: "Meta Pixel + CAPI",
     color: "#1877F2",
     icon: "px",
-    description: "Suivi des conversions navigateur (Pixel) + serveur (Conversions API).",
-    where: "Meta Events Manager → Pixel → Conversions API",
+    description: "Conversions navigateur (Pixel) + serveur (CAPI) — activé automatiquement avec votre connexion Meta. Rien à configurer.",
     group: "measure",
+    nativeVia: "facebook",
     capabilities: [
       { type: "read", label: "Lecture événements" },
       { type: "write", label: "Envoi événements conversion" },
       { type: "write", label: "Match audiences Custom" },
     ],
-    fields: [
-      { key: "pixel_id", label: "Pixel ID", placeholder: "987654321" },
-      { key: "capi_token", label: "CAPI Access Token", secret: true },
-    ],
+    fields: [],
   },
   {
     id: "ga4",
@@ -197,60 +193,8 @@ const CONNECTOR_CATALOG: ConnectorMeta[] = [
     ],
   },
 
-  // ── IA & génération ──────────────────────────────────────────────────────────
-  {
-    id: "anthropic",
-    label: "Anthropic Claude",
-    color: "#D4763B",
-    icon: "Cl",
-    description: "Génération de texte (copies, posts, analyses) via Claude Sonnet / Haiku.",
-    where: "console.anthropic.com → API Keys",
-    group: "ai",
-    capabilities: [
-      { type: "write", label: "Génération de contenu" },
-      { type: "write", label: "Analyse & synthèse" },
-      { type: "write", label: "Suggestions stratégiques" },
-    ],
-    fields: [],
-    envHint:
-      "Renseignez ANTHROPIC_API_KEY dans vos variables d'environnement (Vercel → Settings → Environment Variables ou fichier .env.local).",
-  },
-  {
-    id: "replicate",
-    label: "Replicate",
-    color: "#6B00F5",
-    icon: "Re",
-    description: "Génération d'images, vidéos et audio via les modèles open-source hébergés.",
-    where: "replicate.com → Account → API tokens",
-    group: "ai",
-    capabilities: [
-      { type: "write", label: "Génération d'images" },
-      { type: "write", label: "Génération vidéo" },
-      { type: "write", label: "Synthèse audio" },
-    ],
-    fields: [],
-    envHint:
-      "Renseignez REPLICATE_API_TOKEN dans vos variables d'environnement (Vercel → Settings → Environment Variables ou fichier .env.local).",
-  },
-
-  // ── Veille / Scraping ────────────────────────────────────────────────────────
-  {
-    id: "youtube",
-    label: "YouTube Data API",
-    color: "#FF0000",
-    icon: "▶",
-    description: "Veille vidéo : recherche, métriques et tendances sur YouTube.",
-    where: "console.cloud.google.com → APIs & Services → YouTube Data API v3",
-    group: "scraping",
-    capabilities: [
-      { type: "read", label: "Recherche vidéos" },
-      { type: "read", label: "Métriques chaîne" },
-      { type: "read", label: "Tendances & mots-clés" },
-    ],
-    fields: [],
-    envHint:
-      "Renseignez YOUTUBE_API_KEY dans vos variables d'environnement (Vercel → Settings → Environment Variables ou fichier .env.local).",
-  },
+  // Note : IA (Anthropic Claude), génération (Replicate) et veille (YouTube) sont
+  // INTÉGRÉES à l'application (clés gérées côté plateforme / MCP) → pas affichées.
 ];
 
 // Identifiants gérés par /api/channel-connections (ceux de CHANNELS)
@@ -386,8 +330,12 @@ export default function ParametresConnecteursPage() {
 
   // ── Résolution statut connecteur ─────────────────────────────────────────────
   function resolveStatus(meta: ConnectorMeta): ConnectorStatus {
+    // Connecteur natif (Meta Ads / Pixel) : suit la connexion Meta (facebook).
+    if (meta.nativeVia) {
+      return connections[meta.nativeVia]?.status === "connected" ? "connected" : "disconnected";
+    }
     if (!CHANNEL_IDS.has(meta.id)) {
-      // Connecteurs AI/Scraping : statut simulé (géré via env)
+      // Connecteurs externes sans API de sauvegarde (ex. GA4) : statut simulé.
       return "simulated";
     }
     const conn = connections[meta.id];

@@ -11,7 +11,7 @@ import { useCompany } from "@/lib/company-context";
 import type { Company } from "@/lib/types";
 import { useT } from "@/lib/i18n";
 
-const ACCENTS = ["#2563eb", "#d62976", "#16a34a", "#7c3aed", "#ea580c", "#0a66c2"];
+const ACCENTS = ["#60a5fa", "#d62976", "#16a34a", "#7c3aed", "#ea580c", "#0a66c2"];
 
 function deriveCode(name: string): string {
   const words = name.trim().split(/\s+/).filter(Boolean);

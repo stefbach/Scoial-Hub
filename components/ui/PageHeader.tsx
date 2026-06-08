@@ -15,7 +15,7 @@ export function PageHeader({
   const { company } = useCompany();
 
   return (
-    <div className="mb-6 flex items-center justify-between gap-4">
+    <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
       {/* Titre + scope */}
       <div className="flex min-w-0 items-center gap-3">
         {/* h1 hérite de font-display (Fraunces) via globals.css @layer base */}
@@ -44,7 +44,7 @@ export function PageHeader({
 
       {/* Actions */}
       {actions && (
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
           {actions}
         </div>
       )}

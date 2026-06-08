@@ -26,7 +26,7 @@ export interface PlatformMeta {
 
 // Tous les formats publiables (couvre tous les ratios + réseaux).
 export const VIDEO_PLATFORMS: PlatformMeta[] = [
-  { id: "tiktok", label: "TikTok · 9:16", aspect: "9:16", maxSeconds: 60 },
+  { id: "tiktok", label: "TikTok · 9:16", aspect: "9:16", maxSeconds: 600 },
   { id: "instagram_reels", label: "Instagram Reels · 9:16", aspect: "9:16", maxSeconds: 90 },
   { id: "instagram_story", label: "Instagram Story · 9:16", aspect: "9:16", maxSeconds: 60 },
   { id: "instagram_feed", label: "Instagram Feed · 1:1", aspect: "1:1", maxSeconds: 60 },

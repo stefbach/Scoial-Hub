@@ -6,12 +6,12 @@
 // ============================================================
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 import { NextRequest, NextResponse } from "next/server";
 import { generateImageModel } from "@/lib/ai/replicate";
 import { resolveImageAspect } from "@/lib/social-formats";
-import { getImageModel } from "@/lib/ai/model-catalog";
+import { getImageModel, DEFAULT_IMAGE_MODEL_ID } from "@/lib/ai/model-catalog";
 
 interface RequestBody {
   prompt?: string;
@@ -25,20 +25,88 @@ interface RequestBody {
   n?: number;
   /** Identifiant de modèle Replicate (catalogue). Défaut : Flux 1.1 Pro. */
   model?: string;
+  /** Si fourni : enregistre les images générées dans la bibliothèque média. */
+  companyId?: string;
+  /** Image source (URL) → mode édition / déclinaison (img2img). */
+  imageUrl?: string;
 }
+
+/** Ratio pour Flux Kontext (édition) : ratios connus, sinon on garde l'original. */
+function kontextAspect(fmt?: string): string {
+  const map: Record<string, string> = {
+    square: "1:1", portrait: "4:5", landscape: "16:9", story: "9:16",
+    "1:1": "1:1", "4:5": "4:5", "16:9": "16:9", "9:16": "9:16", "1.91:1": "16:9",
+  };
+  return map[fmt ?? ""] ?? "match_input_image";
+}
+
+// Modèles de repli si le modèle demandé échoue (crédits, sécurité, rate-limit,
+// indisponibilité). On tente le modèle choisi puis ces alternatives fiables
+// jusqu'à obtenir au moins une image.
+const FALLBACK_IMAGE_MODELS = [
+  DEFAULT_IMAGE_MODEL_ID,
+  "black-forest-labs/flux-schnell",
+  "google/imagen-4",
+  "stability-ai/stable-diffusion-3.5-large",
+];
 
 export async function POST(req: NextRequest) {
   try {
     const body: RequestBody = await req.json().catch(() => ({}));
-    const { prompt = "", platform, placement, format, n, model } = body;
+    const { prompt = "", platform, placement, format, n, model, companyId, imageUrl } = body;
+
+    if (!prompt.trim()) {
+      return NextResponse.json({ error: "Prompt requis pour générer une image." }, { status: 400 });
+    }
 
     // Le format suit le réceptacle si non explicite (bons ratios par réseau).
     const resolvedFormat = format ?? resolveImageAspect(platform, placement);
 
-    const gm = getImageModel(model);
-    const input = gm.buildInput(prompt, { aspect: resolvedFormat });
-    const result = await generateImageModel(gm.id, input, n ?? 1);
-    return NextResponse.json({ ...result, format: resolvedFormat, platform: platform ?? null });
+    // Mode édition / déclinaison (img2img) : on part d'un visuel source via Flux Kontext.
+    const editMode = Boolean(imageUrl && /^https?:\/\//i.test(imageUrl));
+    const order = editMode
+      ? ["black-forest-labs/flux-kontext-pro"]
+      : (Array.from(new Set([model, ...FALLBACK_IMAGE_MODELS].filter(Boolean))) as string[]);
+
+    let lastError: unknown;
+    for (const id of order) {
+      const gm = getImageModel(id);
+      try {
+        const input = editMode
+          ? { prompt, input_image: imageUrl, aspect_ratio: kontextAspect(resolvedFormat), output_format: "jpg", safety_tolerance: 2 }
+          : gm.buildInput(prompt, { aspect: resolvedFormat });
+        const result = await generateImageModel(editMode ? "black-forest-labs/flux-kontext-pro" : gm.id, input, n ?? 1);
+        if (result.images.length > 0 || result.simulated) {
+          // Persiste (URL Replicate éphémère → Supabase) puis enregistre dans la
+          // bibliothèque média (si société fournie). Non bloquant.
+          if (companyId && result.images.length > 0) {
+            try {
+              const { saveMediaAsset, persistRemoteMedia } = await import("@/lib/repositories/media");
+              result.images = await Promise.all(
+                result.images.map(async (im) => ({ ...im, url: await persistRemoteMedia(companyId, im.url, "image") }))
+              );
+              await Promise.all(result.images.map((im) => saveMediaAsset(companyId, { url: im.url, type: "image", format: resolvedFormat, source: "generate-image", prompt })));
+            } catch { /* non bloquant */ }
+          }
+          return NextResponse.json({
+            ...result,
+            format: resolvedFormat,
+            platform: platform ?? null,
+            // Indique si on a dû basculer sur un modèle de repli.
+            fallbackUsed: gm.id !== (model ?? DEFAULT_IMAGE_MODEL_ID) ? gm.id : undefined,
+          });
+        }
+      } catch (e) {
+        lastError = e;
+        // Throttling (429) : limite globale du compte Replicate → changer de
+        // modèle n'aide pas et aggrave le throttle. On arrête et on remonte.
+        const msg = e instanceof Error ? e.message : String(e);
+        if (/débit Replicate|429|throttl/i.test(msg)) break;
+        console.warn(`[api/ai/generate-image] modèle ${gm.id} a échoué, repli…`, msg);
+      }
+    }
+
+    throw lastError instanceof Error ? lastError : new Error("Aucun modèle n'a pu générer d'image.");
   } catch (err) {
     console.error("[api/ai/generate-image] Erreur :", err);
     return NextResponse.json(

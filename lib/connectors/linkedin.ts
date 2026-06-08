@@ -42,6 +42,14 @@ const LI_API_REST = "https://api.linkedin.com/rest";
 const LI_OAUTH_BASE = "https://www.linkedin.com/oauth/v2";
 
 /**
+ * Version de l'API LinkedIn (en-tête `LinkedIn-Version`, format AAAAMM).
+ * LinkedIn n'accepte que des versions récentes (~12 mois glissants) : une valeur
+ * trop ancienne fait échouer toutes les requêtes. Surchargeable via
+ * LINKEDIN_API_VERSION si LinkedIn impose une version précise.
+ */
+const LINKEDIN_VERSION = process.env.LINKEDIN_API_VERSION || "202606";
+
+/**
  * Scopes OAuth LinkedIn.
  *
  * - w_member_social         : publier des posts au nom d'un membre
@@ -82,7 +90,7 @@ async function linkedinFetch<T = Record<string, unknown>>(
     ...options,
     headers: {
       "Content-Type": "application/json",
-      "LinkedIn-Version": "202405", // version stable pour les nouveaux endpoints
+      "LinkedIn-Version": LINKEDIN_VERSION,
       ...(options?.headers ?? {}),
     },
   });
@@ -279,7 +287,7 @@ class LinkedInConnector implements SocialConnector {
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${input.accessToken}`,
-        "LinkedIn-Version": "202405",
+        "LinkedIn-Version": LINKEDIN_VERSION,
         "X-Restli-Protocol-Version": "2.0.0",
       },
       body: JSON.stringify(postBody),

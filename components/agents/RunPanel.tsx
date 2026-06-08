@@ -20,6 +20,8 @@ export interface RunPayload {
   profileId: string;
   cadence: Cadence;
   benchmarkTarget?: string;
+  /** Option client : activer le contrôle de conformité santé (ANSM). Défaut: non. */
+  healthcareCompliance: boolean;
 }
 
 interface RunPanelProps {
@@ -106,6 +108,7 @@ export function RunPanel({ loading, onRun }: RunPanelProps) {
   const [postingHour2, setPostingHour2] = useState("19:00");
   const [reportingPeriod, setReportingPeriod] = useState<Cadence["reportingPeriod"]>("month");
   const [benchmarkTarget, setBenchmarkTarget] = useState("");
+  const [healthcareCompliance, setHealthcareCompliance] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   const canSubmit = objective.trim().length > 0 && !loading;
@@ -135,6 +138,7 @@ export function RunPanel({ loading, onRun }: RunPanelProps) {
         reportingPeriod,
       },
       benchmarkTarget: benchmarkTarget.trim() || undefined,
+      healthcareCompliance,
     });
   }
 
@@ -230,6 +234,26 @@ export function RunPanel({ loading, onRun }: RunPanelProps) {
             </div>
           </div>
         </div>
+
+        {/* ── Conformité : option choisie par le client ────────────────── */}
+        <label className="flex items-start gap-2 rounded-lg border border-hair bg-canvas px-3 py-2.5 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={healthcareCompliance}
+            onChange={(e) => setHealthcareCompliance(e.target.checked)}
+            disabled={loading}
+            className="mt-0.5"
+          />
+          <span className="text-xs text-ink">
+            {t("Activer le contrôle de conformité santé (ANSM)", "Enable healthcare compliance check (ANSM)")}
+            <span className="block text-2xs text-muted">
+              {t(
+                "À activer uniquement pour les marques du secteur santé/médical. Désactivé : conformité publicitaire générale.",
+                "Enable only for health/medical brands. Off: general advertising compliance.",
+              )}
+            </span>
+          </span>
+        </label>
 
         {/* ── Cadence & Benchmark (section repliable) ───────────────── */}
         <div className="rounded-lg border border-hair overflow-hidden">

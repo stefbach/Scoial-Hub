@@ -195,14 +195,18 @@ function fallbackArticle(body: Body, brand: BrandContext): ArticleResult {
 async function generateArticle(body: Body, brand: BrandContext): Promise<{ article: ArticleResult; aiGenerated: boolean }> {
   if (!isAiConfigured) return { article: fallbackArticle(body, brand), aiGenerated: false };
 
+  // Si un prompt personnalisé est fourni, on le présente comme un BRIEF à suivre
+  // (et non comme la consigne finale), pour que la contrainte de sortie JSON
+  // ci-dessous reste prioritaire — sinon le modèle suit le brief et répond en
+  // prose, ce qui cassait le parsing (→ faux "démo").
   const directive = body.customPrompt?.trim()
-    ? body.customPrompt.trim()
+    ? `BRIEF DE RÉDACTION À SUIVRE (sujet imposé : """${body.input}""") :\n${body.customPrompt.trim()}`
     : `Rédige un article LinkedIn à partir de ${body.source === "text" ? "ce texte" : "ces mots-clés"} : """${body.input}"""\n${LENGTH_GUIDE[body.length ?? "article"]}`;
 
   const prompt = `${directive}${brandSection(brand, "CONTEXTE MARQUE (à intégrer sans dévier du sujet demandé)")}
 Langue de sortie : ${langName(body.language ?? "fr")}
 
-Retourne STRICTEMENT ce JSON :
+IMPÉRATIF DE SORTIE — quelles que soient les instructions du brief ci-dessus : réponds UNIQUEMENT par un objet JSON valide conforme au schéma ci-dessous. Aucun texte hors JSON, pas de bloc \`\`\`. Échappe correctement les guillemets et sauts de ligne dans les chaînes.
 {
   "title": "titre d'article fort et professionnel",
   "hook": "1-2 phrases d'accroche qui donnent envie de lire (1re ligne du post)",
@@ -223,20 +227,45 @@ Retourne STRICTEMENT ce JSON :
     });
     const raw = res.content.filter((b) => b.type === "text").map((b) => (b as { type: "text"; text: string }).text).join("");
     const match = raw.match(/\{[\s\S]*\}/);
-    if (!match) return { article: fallbackArticle(body, brand), aiGenerated: false };
-    const p = JSON.parse(match[0]) as Partial<ArticleResult>;
-    return {
-      article: {
-        title: p.title ?? body.input.slice(0, 80),
-        hook: p.hook ?? "",
-        body: p.body ?? "",
-        keyTakeaways: (p.keyTakeaways ?? []).slice(0, 6),
-        hashtags: (p.hashtags ?? []).slice(0, 6),
-        cta: p.cta ?? "",
-        visualPrompts: (p.visualPrompts ?? []).slice(0, 3),
-      },
-      aiGenerated: true,
-    };
+    if (match) {
+      try {
+        const p = JSON.parse(match[0]) as Partial<ArticleResult>;
+        return {
+          article: {
+            title: p.title ?? body.input.slice(0, 80),
+            hook: p.hook ?? "",
+            body: p.body ?? "",
+            keyTakeaways: (p.keyTakeaways ?? []).slice(0, 6),
+            hashtags: (p.hashtags ?? []).slice(0, 6),
+            cta: p.cta ?? "",
+            visualPrompts: (p.visualPrompts ?? []).slice(0, 3),
+          },
+          aiGenerated: true,
+        };
+      } catch {
+        /* JSON invalide → on récupère le texte brut ci-dessous */
+      }
+    }
+    // L'IA a répondu mais pas en JSON exploitable (souvent avec un brief
+    // personnalisé) : on récupère le texte tel quel comme corps d'article,
+    // plutôt que d'afficher un faux message « démo ».
+    const cleaned = raw.replace(/```(json)?/gi, "").trim();
+    if (cleaned.length > 40) {
+      const firstLine = cleaned.split("\n").find((l) => l.trim())?.replace(/^#+\s*/, "").slice(0, 90) ?? body.input.slice(0, 80);
+      return {
+        article: {
+          title: firstLine,
+          hook: "",
+          body: cleaned,
+          keyTakeaways: [],
+          hashtags: [],
+          cta: "",
+          visualPrompts: [],
+        },
+        aiGenerated: true,
+      };
+    }
+    return { article: fallbackArticle(body, brand), aiGenerated: false };
   } catch (e) {
     console.warn("[linkedin-article] fallback:", e);
     return { article: fallbackArticle(body, brand), aiGenerated: false };

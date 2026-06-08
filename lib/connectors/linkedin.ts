@@ -47,7 +47,7 @@ const LI_OAUTH_BASE = "https://www.linkedin.com/oauth/v2";
  * trop ancienne fait échouer toutes les requêtes. Surchargeable via
  * LINKEDIN_API_VERSION si LinkedIn impose une version précise.
  */
-const LINKEDIN_VERSION = process.env.LINKEDIN_API_VERSION || "202606";
+const LINKEDIN_VERSION = process.env.LINKEDIN_API_VERSION || "202510";
 
 /**
  * Scopes OAuth LinkedIn.

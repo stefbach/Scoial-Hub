@@ -253,6 +253,15 @@ const ICONS: Record<string, React.ReactNode> = {
       <path d="M5.5 5.5l3 1.5-3 1.5v-3Z" fill="currentColor"/>
     </svg>
   ),
+  "/benchmark": (
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+      <path d="M2 13V2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+      <path d="M2 13h11" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+      <rect x="4" y="8" width="2.2" height="3.5" fill="currentColor"/>
+      <rect x="7.4" y="5.5" width="2.2" height="6" fill="currentColor"/>
+      <rect x="10.8" y="3" width="2.2" height="8.5" fill="currentColor"/>
+    </svg>
+  ),
   "/studio-video": (
     <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
       <rect x="1.5" y="3.5" width="9" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.2" fill="none"/>
@@ -300,6 +309,7 @@ const GROUPS: { label?: string; items: NavItem[] }[] = [
       { href: "/inbox",       label: "Inbox" },
       { href: "/veille",      label: "Veille & Marché" },
       { href: "/publicites",  label: "Competitor Ads" },
+      { href: "/benchmark",   label: "Benchmark" },
       { href: "/parametres-connecteurs", label: "Connecteurs" },
     ],
   },

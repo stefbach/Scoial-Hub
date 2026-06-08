@@ -39,6 +39,7 @@ export function ScheduledDetailModal({
   const [date, setDate] = useState<Date>(new Date());
   const [time, setTime] = useState("09:00");
   const [confirm, setConfirm] = useState<null | "publish" | "delete">(null);
+  const [busy, setBusy] = useState(false);
 
   // Reset transient state whenever a different post is opened.
   useEffect(() => {
@@ -61,20 +62,46 @@ export function ScheduledDetailModal({
 
   if (!post) return null;
 
-  const handleSaveReschedule = () => {
-    reschedulePost(companyId, post.id, format(date, "yyyy-MM-dd"), time);
+  const handleSaveReschedule = async () => {
+    const newDate = format(date, "yyyy-MM-dd");
+    setBusy(true);
+    // Persiste côté serveur (Supabase) — c'est la source affichée.
+    try {
+      await fetch(`/api/scheduled-posts/${post.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date: newDate, time }),
+      });
+    } catch { /* on tente quand même le store local */ }
+    // Met aussi à jour le store local (posts de démo / hors Supabase).
+    reschedulePost(companyId, post.id, newDate, time);
+    setBusy(false);
     onChanged();
     onClose();
   };
 
-  const handlePublish = () => {
+  const handlePublish = async () => {
+    setBusy(true);
+    try {
+      await fetch(`/api/scheduled-posts/${post.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "published", publishedAt: new Date().toISOString() }),
+      });
+    } catch { /* store local en repli */ }
     publishPost(companyId, post.id);
+    setBusy(false);
     onChanged();
     onClose();
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
+    setBusy(true);
+    try {
+      await fetch(`/api/scheduled-posts/${post.id}`, { method: "DELETE" });
+    } catch { /* store local en repli */ }
     deletePost(companyId, post.id);
+    setBusy(false);
     onChanged();
     onClose();
   };
@@ -147,7 +174,7 @@ export function ScheduledDetailModal({
             </div>
             <div className="mt-2 flex justify-end gap-2">
               <Button variant="ghost" onClick={() => setRescheduling(false)}>{t("Annuler", "Cancel")}</Button>
-              <Button variant="primary" onClick={handleSaveReschedule}>{t("Enregistrer", "Save")}</Button>
+              <Button variant="primary" onClick={handleSaveReschedule} disabled={busy}>{busy ? t("Enregistrement…", "Saving…") : t("Enregistrer", "Save")}</Button>
             </div>
           </div>
         )}

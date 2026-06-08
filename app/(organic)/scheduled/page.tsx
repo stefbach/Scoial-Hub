@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCompany } from "@/lib/company-context";
@@ -31,41 +31,32 @@ function ScheduledContent() {
   const t = useT();
   const [view, setView] = useState<"list" | "calendar">("list");
   const [openPost, setOpenPost] = useState<ScheduledPost | null>(null);
-  const [, setTick] = useState(0);
-  const refresh = () => setTick((n) => n + 1);
 
   // ── Fusion des posts réels Supabase ──────────────────────────────────────
   const [apiPosts, setApiPosts] = useState<ScheduledPost[]>([]);
   const fetchedForCompany = useRef<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    async function fetchPosts() {
-      if (!company.id) return;
-      try {
-        const res = await fetch(`/api/scheduled-posts?companyId=${encodeURIComponent(company.id)}`);
-        if (!res.ok) return;
-        const fetched: ScheduledPost[] = await res.json();
-        if (!cancelled && Array.isArray(fetched)) {
-          setApiPosts(fetched);
-          fetchedForCompany.current = company.id;
-        }
-      } catch {
-        // Silencieux — fallback données locales
+  const fetchPosts = useCallback(async () => {
+    if (!company.id) return;
+    try {
+      const res = await fetch(`/api/scheduled-posts?companyId=${encodeURIComponent(company.id)}`, { cache: "no-store" });
+      if (!res.ok) return;
+      const fetched: ScheduledPost[] = await res.json();
+      if (Array.isArray(fetched)) {
+        setApiPosts(fetched);
+        fetchedForCompany.current = company.id;
       }
+    } catch {
+      // Silencieux — fallback données locales
     }
+  }, [company.id]);
 
+  useEffect(() => {
     fetchPosts();
-
     const handleFocus = () => { fetchPosts(); };
     window.addEventListener("focus", handleFocus);
-
-    return () => {
-      cancelled = true;
-      window.removeEventListener("focus", handleFocus);
-    };
-  }, [company.id]);
+    return () => { window.removeEventListener("focus", handleFocus); };
+  }, [fetchPosts]);
 
   const mergedScheduled = useMemo(() => {
     const apiIds = new Set(apiPosts.map((p) => p.id));
@@ -213,7 +204,7 @@ function ScheduledContent() {
         companyId={company.id}
         post={openPost}
         onClose={() => setOpenPost(null)}
-        onChanged={refresh}
+        onChanged={fetchPosts}
       />
     </div>
   );

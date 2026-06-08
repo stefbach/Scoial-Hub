@@ -47,19 +47,12 @@ const NAV_TR: Record<string, [string, string]> = {
   "Accounts": ["Comptes sociaux", "Accounts"],
   "Settings": ["Paramètres", "Settings"],
   "Pilotage & Bots": ["Pilotage & Bots", "Pilot & Bots"],
-  "Avatar IA": ["Avatar IA", "AI Avatar"],
   "Telegram": ["Telegram", "Telegram"],
   "MCP Claude": ["Connecteur MCP", "MCP Connector"],
 };
 
 /* ── Icônes SVG inline ─────────────────────────────────────────────── */
 const ICONS: Record<string, React.ReactNode> = {
-  "/avatar": (
-    <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
-      <circle cx="7.5" cy="5.5" r="3" stroke="currentColor" strokeWidth="1.2" fill="none"/>
-      <path d="M2.5 13c0-2.8 2.2-4.5 5-4.5s5 1.7 5 4.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" fill="none"/>
-    </svg>
-  ),
   "/mes-societes": (
     <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
       <rect x="2" y="5" width="5.5" height="8" rx="1" stroke="currentColor" strokeWidth="1.2" fill="none"/>
@@ -345,7 +338,6 @@ const GROUPS: { label?: string; items: NavItem[] }[] = [
   {
     label: "Pilotage & Bots",
     items: [
-      { href: "/avatar",   label: "Avatar IA" },
       { href: "/telegram", label: "Telegram" },
       { href: "/mcp",      label: "MCP Claude" },
     ],

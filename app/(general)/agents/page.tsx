@@ -117,6 +117,7 @@ export default function AgentsPage() {
           profileId: payload.profileId,
           cadence: payload.cadence,
           benchmarkTarget: payload.benchmarkTarget,
+          healthcareCompliance: payload.healthcareCompliance,
         }),
       });
 

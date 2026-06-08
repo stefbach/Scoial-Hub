@@ -48,13 +48,207 @@ export interface ProProfile {
   semanticField: string[];
   /** Objectif de captation audience (% de portée sur cible) — objectif réaliste 90 jours */
   audienceCaptureTarget90d: number;
+  /**
+   * Secteur santé/médical : déclenche la conformité réglementaire santé
+   * (ANSM, politiques Meta santé, recommandation de consulter un professionnel).
+   * Absent/false → conformité publicitaire générale (pas de jargon médical).
+   */
+  healthcare?: boolean;
 }
 
 // ── Catalogue des profils ──────────────────────────────────────────────────────
 
 export const PRO_PROFILES: ProProfile[] = [
   {
+    id: "generaliste",
+    label: "Généraliste (tous secteurs)",
+    description:
+      "Profil neutre, adapté à toute marque ou activité. Aucune contrainte sectorielle imposée — la stratégie suit la voix et l'objectif de la marque.",
+    acquisitionLevers: [
+      "Contenu de marque régulier et cohérent",
+      "Publicité Meta/LinkedIn ciblée par centres d'intérêt",
+      "Preuve sociale (avis, témoignages, cas clients)",
+      "Offres et appels à l'action clairs",
+    ],
+    priorityPlatforms: ["instagram", "facebook", "linkedin"],
+    complianceConstraints: [
+      "Pas d'allégations trompeuses ni de promesses non tenables",
+      "Mentions légales et offres conformes au Code de la consommation",
+      "Respect des politiques publicitaires des plateformes",
+      "RGPD : consentement pour la collecte de données",
+    ],
+    sectorKPIs: {
+      cpm: { min: 4, max: 12, unit: "€" },
+      cpc: { min: 0.4, max: 1.6, unit: "€" },
+      ctr: { min: 0.9, max: 2.5, unit: "%" },
+      engagementRate: { min: 1.5, max: 5, unit: "%" },
+      cpa: { min: 8, max: 40, unit: "€" },
+      conversionRate: { min: 1.5, max: 5, unit: "%" },
+      roas: { min: 2, max: 6, unit: "x" },
+    },
+    typicalAudience: "Audience large, à préciser selon la marque et l'objectif.",
+    contentAngles: [
+      "Valeur et bénéfices concrets pour le client",
+      "Storytelling de marque et coulisses",
+      "Preuve sociale et témoignages",
+      "Offres, nouveautés et appels à l'action",
+    ],
+    recommendedTone: "Adapté à la voix de la marque : clair, engageant, authentique.",
+    semanticField: ["marque", "offre", "client", "qualité", "nouveauté", "communauté"],
+    audienceCaptureTarget90d: 12,
+  },
+  {
+    id: "commerce_detail",
+    label: "Commerce & retail",
+    description:
+      "Boutiques, e-commerce et enseignes vendant des produits au grand public (hors secteurs réglementés santé).",
+    acquisitionLevers: [
+      "Catalogue produits et Advantage+ Shopping (Meta)",
+      "Promotions, déstockages et éditions limitées",
+      "Contenu UGC et créateurs",
+      "Retargeting panier et fidélisation",
+    ],
+    priorityPlatforms: ["instagram", "facebook", "tiktok"],
+    complianceConstraints: [
+      "Prix barrés et promotions conformes (Code de la consommation)",
+      "Droit de rétractation 14 j affiché (vente en ligne)",
+      "Pas d'allégations produit trompeuses",
+      "Politiques publicitaires des plateformes",
+    ],
+    sectorKPIs: {
+      cpm: { min: 4, max: 10, unit: "€" },
+      cpc: { min: 0.3, max: 1.2, unit: "€" },
+      ctr: { min: 1, max: 3, unit: "%" },
+      engagementRate: { min: 1.5, max: 5, unit: "%" },
+      cpa: { min: 6, max: 30, unit: "€" },
+      conversionRate: { min: 1.5, max: 4.5, unit: "%" },
+      roas: { min: 2.5, max: 8, unit: "x" },
+    },
+    typicalAudience: "Consommateurs intéressés par la catégorie de produit, 18–55 ans.",
+    contentAngles: [
+      "Mise en scène produit et bénéfices",
+      "Offres et urgence (stock limité)",
+      "Avis clients et UGC",
+      "Nouveautés et coulisses",
+    ],
+    recommendedTone: "Dynamique, désirable, orienté bénéfice et passage à l'action.",
+    semanticField: ["produit", "offre", "livraison", "nouveauté", "promo", "qualité"],
+    audienceCaptureTarget90d: 14,
+  },
+  {
+    id: "restauration_hospitality",
+    label: "Restauration & hospitality",
+    description:
+      "Restaurants, cafés, hôtels, lieux et expériences. Ancrage local et désir visuel.",
+    acquisitionLevers: [
+      "Contenu visuel appétissant (Reels, photos)",
+      "Référencement local (Google, Maps) et avis",
+      "Partenariats créateurs food/voyage locaux",
+      "Offres et réservations en ligne",
+    ],
+    priorityPlatforms: ["instagram", "tiktok", "facebook"],
+    complianceConstraints: [
+      "Loi Évin : encadrement de la publicité sur l'alcool",
+      "Affichage des prix et informations allergènes",
+      "Pas d'allégations nutritionnelles non conformes",
+      "Politiques publicitaires des plateformes",
+    ],
+    sectorKPIs: {
+      cpm: { min: 3, max: 9, unit: "€" },
+      cpc: { min: 0.25, max: 1, unit: "€" },
+      ctr: { min: 1.2, max: 3.5, unit: "%" },
+      engagementRate: { min: 2.5, max: 7, unit: "%" },
+      cpa: { min: 5, max: 25, unit: "€" },
+      conversionRate: { min: 2, max: 6, unit: "%" },
+    },
+    typicalAudience: "Habitants et visiteurs de la zone, gourmands et amateurs d'expériences.",
+    contentAngles: [
+      "Plats/lieux en image (désir visuel)",
+      "Coulisses, équipe et savoir-faire",
+      "Événements, offres et réservations",
+      "Avis clients et ambiance",
+    ],
+    recommendedTone: "Chaleureux, sensoriel, convivial, local.",
+    semanticField: ["saveur", "fraîcheur", "ambiance", "local", "réservation", "expérience"],
+    audienceCaptureTarget90d: 16,
+  },
+  {
+    id: "services_b2b",
+    label: "Services B2B & professionnels",
+    description:
+      "Agences, cabinets de conseil, prestataires et services aux entreprises (hors santé réglementée).",
+    acquisitionLevers: [
+      "Contenu d'expertise et leadership (LinkedIn)",
+      "Lead magnets (livres blancs, webinaires)",
+      "Études de cas et preuves de résultats",
+      "Prospection et retargeting LinkedIn",
+    ],
+    priorityPlatforms: ["linkedin", "facebook", "instagram"],
+    complianceConstraints: [
+      "Pas de promesses de résultats garanties",
+      "Allégations étayées par des cas réels",
+      "RGPD : DPA avec les clients et consentement",
+      "Politiques publicitaires des plateformes",
+    ],
+    sectorKPIs: {
+      cpm: { min: 8, max: 22, unit: "€" },
+      cpc: { min: 1.5, max: 5, unit: "€" },
+      ctr: { min: 0.6, max: 1.8, unit: "%" },
+      engagementRate: { min: 1, max: 3.5, unit: "%" },
+      cpa: { min: 25, max: 120, unit: "€" },
+      conversionRate: { min: 2, max: 6, unit: "%" },
+    },
+    typicalAudience: "Décideurs et professionnels (dirigeants, managers), PME/ETI.",
+    contentAngles: [
+      "Expertise et points de vue",
+      "Études de cas et ROI client",
+      "Méthodes et bonnes pratiques",
+      "Témoignages et preuves",
+    ],
+    recommendedTone: "Crédible, expert, orienté résultat, sans jargon inutile.",
+    semanticField: ["expertise", "performance", "accompagnement", "ROI", "stratégie", "solution"],
+    audienceCaptureTarget90d: 10,
+  },
+  {
+    id: "immobilier",
+    label: "Immobilier",
+    description:
+      "Agences immobilières, promoteurs et services liés au logement. Confiance et projection.",
+    acquisitionLevers: [
+      "Annonces visuelles et visites virtuelles",
+      "Référencement local et avis",
+      "Lead ads (estimations, prises de contact)",
+      "Retargeting des visiteurs de biens",
+    ],
+    priorityPlatforms: ["facebook", "instagram", "linkedin"],
+    complianceConstraints: [
+      "Mentions légales obligatoires (loi Hoguet, honoraires)",
+      "Informations exactes sur les biens (surface, DPE)",
+      "Pas d'allégations trompeuses sur la rentabilité",
+      "Politiques publicitaires des plateformes",
+    ],
+    sectorKPIs: {
+      cpm: { min: 5, max: 14, unit: "€" },
+      cpc: { min: 0.5, max: 2, unit: "€" },
+      ctr: { min: 0.8, max: 2.2, unit: "%" },
+      engagementRate: { min: 1, max: 3.5, unit: "%" },
+      cpa: { min: 15, max: 80, unit: "€" },
+      conversionRate: { min: 1.5, max: 5, unit: "%" },
+    },
+    typicalAudience: "Acheteurs, vendeurs et investisseurs, 28–60 ans, zone géographique ciblée.",
+    contentAngles: [
+      "Biens en image et visites",
+      "Conseils achat/vente/investissement",
+      "Témoignages clients et transactions réussies",
+      "Marché local et estimations",
+    ],
+    recommendedTone: "Rassurant, professionnel, orienté projet de vie.",
+    semanticField: ["logement", "achat", "vente", "investissement", "estimation", "local"],
+    audienceCaptureTarget90d: 11,
+  },
+  {
     id: "sante_clinique",
+    healthcare: true,
     label: "Clinique / Santé générale",
     description:
       "Établissements de soins, cliniques, centres médicaux pluridisciplinaires. Priorité à la confiance, à l'accessibilité et à la proximité patient.",
@@ -107,6 +301,7 @@ export const PRO_PROFILES: ProProfile[] = [
   },
   {
     id: "teleconsultation",
+    healthcare: true,
     label: "Téléconsultation médicale",
     description:
       "Plateformes de médecine à distance, consultation vidéo, télésuivi. Accent sur la praticité, la rapidité et la déstigmatisation.",
@@ -161,6 +356,7 @@ export const PRO_PROFILES: ProProfile[] = [
   },
   {
     id: "medical_international",
+    healthcare: true,
     label: "Médical international",
     description:
       "Tourisme médical, centres de soin à l'international, cliniques recevant des patients étrangers. Multilinguisme et standards internationaux.",
@@ -321,6 +517,7 @@ export const PRO_PROFILES: ProProfile[] = [
   },
   {
     id: "cabinet_liberal",
+    healthcare: true,
     label: "Cabinet libéral médical",
     description:
       "Médecins, kinésithérapeutes, infirmiers, dentistes, psychologues en exercice libéral. Proximité locale et relation patient au cœur.",
@@ -432,7 +629,7 @@ export function getProfile(id: string): ProProfile | undefined {
   return PRO_PROFILES.find((p) => p.id === id);
 }
 
-/** Retourne le profil par défaut (clinique/santé générale). */
+/** Retourne le profil par défaut (généraliste, tous secteurs — non médical). */
 export function getDefaultProfile(): ProProfile {
   return PRO_PROFILES[0];
 }

@@ -39,6 +39,7 @@ export async function POST(req: NextRequest) {
       profileId,
       cadence,
       benchmarkTarget,
+      healthcareCompliance,
     } = body as {
       objective?: string;
       companyId?: string;
@@ -47,6 +48,7 @@ export async function POST(req: NextRequest) {
       profileId?: string;
       cadence?: Cadence;
       benchmarkTarget?: string;
+      healthcareCompliance?: boolean;
     };
 
     // Validation des champs obligatoires
@@ -95,6 +97,7 @@ export async function POST(req: NextRequest) {
       cadence: cadence && typeof cadence === "object" ? cadence : undefined,
       benchmarkTarget:
         typeof benchmarkTarget === "string" ? benchmarkTarget : undefined,
+      healthcareCompliance: healthcareCompliance === true,
     });
 
     return NextResponse.json(result);

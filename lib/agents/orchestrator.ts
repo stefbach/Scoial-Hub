@@ -65,6 +65,12 @@ export interface OrchestrationInput {
   cadence?: Cadence;
   /** Cible de benchmark libre (optionnel — rétro-compatible) */
   benchmarkTarget?: string;
+  /**
+   * Option choisie par le CLIENT : activer le contrôle de conformité santé
+   * (ANSM + politiques Meta santé). Désactivé par défaut → conformité
+   * publicitaire générale. Ce n'est ni l'app ni le profil qui décident.
+   */
+  healthcareCompliance?: boolean;
 }
 
 // ── Utilitaires ───────────────────────────────────────────────────────────────
@@ -126,39 +132,67 @@ async function auditLog(
 
 // ── System prompts ─────────────────────────────────────────────────────────────
 
-/** System prompt pour l'évaluation de conformité santé. */
-const COMPLIANCE_SYSTEM_PROMPT = `
-You are a specialist compliance officer for healthcare and medical advertising. You review social media posts for a medical brand group (DDS Group) operating in France and internationally.
+/**
+ * System prompt de conformité — SECTOR-AWARE.
+ * Le contrôle santé/ANSM n'est appliqué QUE pour les profils `healthcare`.
+ * Pour tous les autres secteurs, on applique une conformité publicitaire
+ * générale (véracité, pas de promesses trompeuses, politiques plateformes,
+ * protection du consommateur) — sans aucun jargon ni règle médicale.
+ */
+function buildComplianceSystemPrompt(profile: ProProfile, healthcareMode: boolean): string {
+  if (healthcareMode) {
+    return `
+You are a specialist compliance officer for healthcare and medical advertising, reviewing social media posts for a brand in the "${profile.label}" sector (France + international).
 
-Your job is to evaluate posts against:
+Evaluate posts against:
 1. French health advertising regulations (ANSM guidelines)
 2. Meta health ad policies (Facebook & Instagram)
-3. General EU consumer protection rules for health claims
+3. EU consumer protection rules for health claims
 
-### BLOCK-level violations (post must NOT be published):
-- Explicit or implicit guaranteed results ("lose 20 kg guaranteed", "cure your diabetes")
+### BLOCK (must NOT be published):
+- Guaranteed results or cure claims ("lose 20 kg guaranteed", "cure your diabetes")
 - False or unsubstantiated medical claims presented as facts
-- Content that exploits vulnerability or fear in a manipulative way
-- Explicit before/after framing that promises physical transformation
+- Manipulative exploitation of vulnerability or fear
+- Before/after framing promising physical transformation
 - Specific medication names with dosage claims
-- Unlicensed or unapproved health claims
 
-### WARN-level issues (post needs revision):
-- Mildly alarmist phrasing ("Don't wait until it's too late")
-- Implied guarantees without the word "guaranteed" ("you will feel better")
-- Missing recommendation to consult a professional for medical decisions
-- Hashtags or phrasing that could target people by health condition
-- Comparative claims without evidence ("the best treatment")
-- Vague "natural" or "miracle" language
+### WARN (needs revision):
+- Alarmist phrasing; implied guarantees ("you will feel better")
+- Missing recommendation to consult a professional where relevant
+- Targeting by health condition; unevidenced comparative or "miracle" claims
 
-### PASS (content is compliant):
-- Informational, evidence-respecting language
-- Proper use of "may", "can help", "supports", "consult your doctor"
-- No manipulative emotional triggers
+### PASS: measured, evidence-respecting language ("may", "can help", "consult your doctor"), no manipulative triggers.
 
 ## Response format — valid JSON only, no prose:
-{"verdict": "pass"|"warn"|"block", "issues": ["issue 1"], "suggestion": "optional"}
-`.trim();
+{"verdict": "pass"|"warn"|"block", "issues": ["issue 1"], "suggestion": "optional"}`.trim();
+  }
+
+  // Conformité publicitaire GÉNÉRALE (non médicale).
+  return `
+You are an advertising compliance reviewer for a brand in the "${profile.label}" sector. You review social media posts for general advertising compliance — NOT medical/health rules (this brand is not in a regulated health sector).
+
+Evaluate posts against:
+1. Truthfulness & fair advertising (no misleading or deceptive claims)
+2. Platform ad policies (Meta, LinkedIn, TikTok)
+3. EU/French consumer protection (clear offers, no false scarcity/urgency, lawful pricing)
+
+### BLOCK (must NOT be published):
+- Demonstrably false claims or guaranteed outcomes presented as fact
+- Deceptive pricing/offers, or content that violates platform policies
+- Manipulative exploitation of vulnerability, hateful or discriminatory content
+
+### WARN (needs revision):
+- Unsubstantiated superlatives ("the best", "n°1") without proof
+- Misleading urgency/scarcity; unclear terms of an offer
+- Borderline claims that should be softened or evidenced
+
+### PASS: honest, clear, benefit-led content with substantiated claims and compliant offers.
+
+Apply ONLY the sector constraints provided by the user — do NOT invent medical/health requirements.
+
+## Response format — valid JSON only, no prose:
+{"verdict": "pass"|"warn"|"block", "issues": ["issue 1"], "suggestion": "optional"}`.trim();
+}
 
 function buildStrategistSystemPrompt(profile: ProProfile): string {
   return `
@@ -186,7 +220,18 @@ Tu dois produire UNIQUEMENT un JSON valide (sans prose ni markdown autour) avec 
 `.trim();
 }
 
-function buildCopywriterSystemPrompt(profile: ProProfile, voice: string): string {
+function buildCopywriterSystemPrompt(profile: ProProfile, voice: string, healthcareMode: boolean): string {
+  const rules = healthcareMode
+    ? `Règles impératives (ANSM + Meta Health Policies) :
+- Jamais d'allégations médicales non étayées ni de résultats garantis
+- Toujours recommander de consulter un professionnel de santé si pertinent
+- Langage mesuré : "peut aider", "soutient", "accompagne", "peut contribuer"
+- Pas de ciblage par pathologie ni exploitation de la peur ou de la vulnérabilité`
+    : `Règles impératives (publicité responsable) :
+- Pas d'allégations trompeuses ni de promesses non tenables
+- Superlatifs ("le meilleur", "n°1") seulement s'ils sont justifiables
+- Offres claires et conformes ; pas de fausse urgence/rareté
+- Respect des politiques publicitaires des plateformes`;
   return `
 Tu es un expert copywriter social media de niveau international, spécialisé en communication ${profile.label}.
 
@@ -196,11 +241,7 @@ Brand voice de la marque : ${voice}
 Champ sémantique à activer : ${profile.semanticField.slice(0, 6).join(", ")}
 Plateformes cibles : ${profile.priorityPlatforms.slice(0, 3).join(", ")}
 
-Règles impératives (ANSM + Meta Health Policies) :
-- Jamais d'allégations médicales non étayées ni de résultats garantis
-- Toujours recommander de consulter un professionnel de santé si pertinent
-- Langage mesuré : "peut aider", "soutient", "accompagne", "peut contribuer"
-- Pas de ciblage par pathologie ni exploitation de la peur ou de la vulnérabilité
+${rules}
 
 Angles de contenu recommandés pour ce secteur :
 ${profile.contentAngles.map((a) => `- ${a}`).join("\n")}
@@ -561,7 +602,7 @@ ${profile.semanticField.slice(0, 4).map((s) => `#${s.replace(/\s+/g, "")}`).join
     const resp = await client.messages.create({
       model: env.anthropicModel,
       max_tokens: 500,
-      system: buildCopywriterSystemPrompt(profile, voice),
+      system: buildCopywriterSystemPrompt(profile, voice, Boolean(input.healthcareCompliance)),
       messages: [
         {
           role: "user",
@@ -611,7 +652,7 @@ function buildImagePrompt(copyText: string, profile: ProProfile): string {
   const firstLine = copyText.split("\n")[0].replace(/[#@*_~`]/g, "").trim().slice(0, 120);
   const tone = profile.recommendedTone.split(".")[0].trim().toLowerCase();
   const semantics = profile.semanticField.slice(0, 4).join(", ");
-  return `Professional healthcare social media visual for ${profile.label}. ${firstLine}. Style: ${tone}, clean, trustworthy. Themes: ${semantics}. No text overlay, high quality, modern medical aesthetic, warm lighting.`;
+  return `Professional social media visual for the "${profile.label}" sector. ${firstLine}. Style: ${tone}, clean, modern, on-brand. Themes: ${semantics}. No text overlay, high quality, tasteful lighting.`;
 }
 
 /**
@@ -628,8 +669,8 @@ async function runCreative(
   const platforms = profile.priorityPlatforms.slice(0, 2).join(" + ");
   const briefBase = `Brief créatif — Profil : ${profile.label}
 • Format principal : image carrée 1080×1080 px (Feed ${platforms}) + bannière 1200×628 px
-• Palette : tons doux, professionnels, inspirants confiance
-• Style : photographie médicale/professionnelle, authentique, souriant
+• Palette : tons cohérents avec la marque, professionnels
+• Style : photographie professionnelle authentique, adaptée au secteur
 • Éléments obligatoires : logo de la marque (coin bas-droit), mention légale si requis
 • Accroche visuelle : "${copyText.split("\n")[0].slice(0, 80)}…"
 • Variantes : Story 9:16 (1080×1920) + Réels 4:5 (1080×1350)
@@ -705,6 +746,8 @@ async function runCompliance(
   issues: string[];
   suggestion?: string;
 }> {
+  // Décision du CLIENT (option du run), pas du profil ni de l'app.
+  const healthcareMode = Boolean(input.healthcareCompliance);
   if (!isAiConfigured) {
     return {
       step: {
@@ -727,11 +770,11 @@ async function runCompliance(
     const resp = await client.messages.create({
       model: env.anthropicModel,
       max_tokens: 420,
-      system: COMPLIANCE_SYSTEM_PROMPT,
+      system: buildComplianceSystemPrompt(profile, healthcareMode),
       messages: [
         {
           role: "user",
-          content: `Évalue ce post pour une marque dans le secteur "${profile.label}" (politiques ANSM + Meta santé).
+          content: `Évalue ce post pour une marque dans le secteur "${profile.label}"${healthcareMode ? " (politiques ANSM + Meta santé)" : " (conformité publicitaire générale — secteur non médical)"}.
 
 Contraintes spécifiques au profil :
 ${profileConstraints}
@@ -774,7 +817,9 @@ ${copyText}
     return {
       step: {
         agent: "compliance",
-        title: "Vérification de conformité ANSM / Meta",
+        title: healthcareMode
+          ? "Vérification de conformité ANSM / Meta"
+          : "Vérification de conformité publicitaire",
         status: parsed.verdict === "block" ? "blocked" : "done",
         output: outputLines.join("\n"),
         finishedAt: ts(),

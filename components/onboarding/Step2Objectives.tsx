@@ -10,6 +10,7 @@ import { useT } from "@/lib/i18n";
 import { ALL_NETWORKS, type SocialNetwork } from "@/lib/onboarding/types";
 import type { SuggestedObjective } from "@/lib/onboarding/types";
 import { CountryCombobox } from "@/components/ui/CountryCombobox";
+import { CityCombobox } from "@/components/ui/CityCombobox";
 import { COUNTRIES } from "@/lib/scope";
 
 /** Nom complet d'un pays depuis son code ISO (sinon le code tel quel). */
@@ -304,9 +305,6 @@ export default function Step2Objectives() {
   // ── Zone géographique ──────────────────────────────────────────────────────
   const geo = state.geo ?? { countries: [] };
 
-  // Input état local pour pays
-  const [cityInput, setCityInput] = useState("");
-
   const addCountry = useCallback(
     (id: string) => {
       const v = id.trim().toUpperCase();
@@ -328,15 +326,17 @@ export default function Step2Objectives() {
     [geo, patchState]
   );
 
-  const addCity = useCallback(() => {
-    const v = cityInput.trim();
-    if (!v) return;
-    const cities = geo.cities ?? [];
-    if (!cities.includes(v)) {
-      patchState({ geo: { ...geo, cities: [...cities, v] } });
-    }
-    setCityInput("");
-  }, [cityInput, geo, patchState]);
+  const addCity = useCallback(
+    (name: string) => {
+      const v = name.trim();
+      if (!v) return;
+      const cities = geo.cities ?? [];
+      if (!cities.includes(v)) {
+        patchState({ geo: { ...geo, cities: [...cities, v] } });
+      }
+    },
+    [geo, patchState]
+  );
 
   const removeCity = useCallback(
     (city: string) => {
@@ -629,32 +629,17 @@ export default function Step2Objectives() {
             </div>
           )}
 
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={cityInput}
-              onChange={(e) => setCityInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") { e.preventDefault(); addCity(); }
-              }}
-              placeholder={t("Paris, Port-Louis, Lyon…", "Paris, Port-Louis, Lyon…")}
-              className="input flex-1"
-              aria-label={t(
-                "Ajouter une ville (Entrée pour valider)",
-                "Add a city (Enter to confirm)"
-              )}
-            />
-            <button
-              type="button"
-              onClick={addCity}
-              disabled={!cityInput.trim()}
-              className="btn-secondary flex items-center gap-1.5 text-xs disabled:opacity-50"
-              aria-label={t("Ajouter la ville", "Add city")}
-            >
-              <PlusIcon />
-              {t("Ajouter", "Add")}
-            </button>
-          </div>
+          <CityCombobox
+            countries={geo.countries ?? []}
+            onAdd={addCity}
+            placeholder={t("Tapez une ville du pays choisi…", "Type a city in the chosen country…")}
+          />
+          <p className="text-2xs text-muted">
+            {t(
+              "Les villes proposées correspondent au(x) pays sélectionné(s) ci-dessus.",
+              "Suggested cities match the country(ies) selected above.",
+            )}
+          </p>
         </div>
 
         {/* Rayon (optionnel) */}

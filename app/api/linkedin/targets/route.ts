@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-const LI_V = "202405";
+const LI_V = process.env.LINKEDIN_API_VERSION || "202510";
 
 async function liGet(path: string, token: string): Promise<Record<string, unknown> | null> {
   try {

@@ -113,9 +113,11 @@
     background: #5a4d75;
   }
 
-  /* Sélection de texte — améthyste lumineuse sur fond sombre */
+  /* Sélection de texte — surlignage opaque pour rester lisible quel que soit le
+     fond (clair ou sombre). Un violet semi-opaque + texte blanc garantit le
+     contraste (corrige le texte illisible quand une zone est sélectionnée). */
   ::selection {
-    background: rgb(168 85 247 / 0.35);
+    background: rgb(124 58 237 / 0.9);
     color: #fff;
   }
 }

@@ -9,6 +9,14 @@ import { useOnboardingCtx } from "@/components/onboarding/context";
 import { useT } from "@/lib/i18n";
 import { ALL_NETWORKS, type SocialNetwork } from "@/lib/onboarding/types";
 import type { SuggestedObjective } from "@/lib/onboarding/types";
+import { CountryCombobox } from "@/components/ui/CountryCombobox";
+import { COUNTRIES } from "@/lib/scope";
+
+/** Nom complet d'un pays depuis son code ISO (sinon le code tel quel). */
+function countryLabel(code: string): string {
+  const c = COUNTRIES.find((x) => x.id.toLowerCase() === code.toLowerCase());
+  return c ? `${c.flag} ${c.label}` : code;
+}
 
 // ── Icônes SVG inline ───────────────────────────────────────────────────────
 
@@ -297,18 +305,19 @@ export default function Step2Objectives() {
   const geo = state.geo ?? { countries: [] };
 
   // Input état local pour pays
-  const [countryInput, setCountryInput] = useState("");
   const [cityInput, setCityInput] = useState("");
 
-  const addCountry = useCallback(() => {
-    const v = countryInput.trim().toUpperCase();
-    if (!v) return;
-    const countries = geo.countries ?? [];
-    if (!countries.includes(v)) {
-      patchState({ geo: { ...geo, countries: [...countries, v] } });
-    }
-    setCountryInput("");
-  }, [countryInput, geo, patchState]);
+  const addCountry = useCallback(
+    (id: string) => {
+      const v = id.trim().toUpperCase();
+      if (!v) return;
+      const countries = geo.countries ?? [];
+      if (!countries.includes(v)) {
+        patchState({ geo: { ...geo, countries: [...countries, v] } });
+      }
+    },
+    [geo, patchState]
+  );
 
   const removeCountry = useCallback(
     (code: string) => {
@@ -569,50 +578,29 @@ export default function Step2Objectives() {
             {t("Pays ciblés", "Target countries")}
           </label>
 
-          {/* Chips pays existants */}
+          {/* Chips pays existants (nom complet + drapeau) */}
           {(geo.countries ?? []).length > 0 && (
             <div className="flex flex-wrap gap-1.5">
               {geo.countries.map((code) => (
                 <RemovableChip
                   key={code}
-                  label={code}
+                  label={countryLabel(code)}
                   onRemove={() => removeCountry(code)}
                 />
               ))}
             </div>
           )}
 
-          {/* Input ajout pays */}
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={countryInput}
-              onChange={(e) => setCountryInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") { e.preventDefault(); addCountry(); }
-              }}
-              placeholder={t("MU, FR, RE, CA…", "MU, FR, RE, CA…")}
-              className="input flex-1"
-              aria-label={t(
-                "Ajouter un code pays (Entrée pour valider)",
-                "Add a country code (Enter to confirm)"
-              )}
-            />
-            <button
-              type="button"
-              onClick={addCountry}
-              disabled={!countryInput.trim()}
-              className="btn-secondary flex items-center gap-1.5 text-xs disabled:opacity-50"
-              aria-label={t("Ajouter le pays", "Add country")}
-            >
-              <PlusIcon />
-              {t("Ajouter", "Add")}
-            </button>
-          </div>
+          {/* Autocomplétion : tapez le NOM du pays, sélectionnez → ajouté en chip */}
+          <CountryCombobox
+            value=""
+            onChange={(id) => addCountry(id)}
+            placeholder={t("Tapez un pays (ex. France, Maurice)…", "Type a country (e.g. France, Mauritius)…")}
+          />
           <p className="text-2xs text-muted">
             {t(
-              "Codes ISO 2 lettres ou noms — ex. MU (Maurice), FR (France), RE (La Réunion)",
-              "2-letter ISO codes or names — e.g. MU (Mauritius), FR (France), RE (Réunion)"
+              "Tapez le nom du pays et sélectionnez-le dans la liste. Les pays choisis s'affichent ci-dessus.",
+              "Type the country name and pick it from the list. Selected countries appear above.",
             )}
           </p>
         </div>

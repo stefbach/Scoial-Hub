@@ -113,6 +113,7 @@ export default function Step3Competition() {
   const [running, setRunning] = useState(false);
   const [runResult, setRunResult] = useState<VeilleAnalysis | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
+  const [done, setDone] = useState(false); // une analyse a été menée à terme
 
   // ── Gestion des mots-clés ──────────────────────────────────────────────────
 
@@ -132,6 +133,7 @@ export default function Step3Competition() {
     setRunning(true);
     setRunResult(null);
     setRunError(null);
+    setDone(false);
     try {
       const res = await fetch("/api/veille/run", {
         method: "POST",
@@ -150,6 +152,7 @@ export default function Step3Competition() {
         return;
       }
       setRunResult(data.analysis ?? null);
+      setDone(true);
     } catch (err) {
       setRunError(
         t(
@@ -331,6 +334,25 @@ export default function Step3Competition() {
               <path d="M8 5v4M8 11v.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
             </svg>
             <p className="text-sm text-danger-700">{runError}</p>
+          </div>
+        )}
+
+        {/* Rapport minimal garanti — l'analyse a abouti mais sans données détaillées */}
+        {done && !running && !runResult && (
+          <div className="space-y-2 rounded-xl border border-success-200 bg-success-50 px-4 py-3 animate-fade-in">
+            <p className="flex items-center gap-2 text-sm font-semibold text-success-700">
+              <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor" aria-hidden><path fillRule="evenodd" d="M16.7 5.3a1 1 0 010 1.4l-8 8a1 1 0 01-1.4 0l-4-4a1 1 0 111.4-1.4L8 12.6l7.3-7.3a1 1 0 011.4 0z" clipRule="evenodd"/></svg>
+              {t("Analyse terminée", "Analysis complete")}
+            </p>
+            <p className="text-xs text-ink leading-relaxed">
+              {t(
+                `L'analyse de votre marché a été lancée pour ${state.geo?.countries?.[0] ?? "votre zone"} sur ${keywords.length} mot(s)-clé. Le rapport détaillé (concurrents, recommandations) se construit en continu — retrouvez-le dans la Veille.`,
+                `Market analysis ran for ${state.geo?.countries?.[0] ?? "your zone"} on ${keywords.length} keyword(s). The detailed report (competitors, recommendations) keeps building — find it in Market Intelligence.`,
+              )}
+            </p>
+            <Link href="/veille" className="btn-secondary inline-flex text-xs">
+              {t("Voir le rapport complet", "View full report")}
+            </Link>
           </div>
         )}
 

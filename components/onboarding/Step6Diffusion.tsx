@@ -261,12 +261,23 @@ function ProgrammationSection() {
   // Ajout d'une nouvelle heure (format HH:mm)
   const [newTime, setNewTime] = useState("09:00");
 
+  // Nombre de jours attendus selon la cadence (pour guider la sélection).
+  const expectedDays = schedule.cadence === "daily" ? 7 : schedule.cadence === "weekly" ? 1 : 3;
+
   function setCadence(cadence: CadenceId) {
     patchState({ schedule: { ...schedule, cadence } });
   }
 
   function setStartDate(startDate: string) {
     patchState({ schedule: { ...schedule, startDate } });
+  }
+
+  function toggleDay(day: number) {
+    const cur = schedule.days ?? [];
+    const next = cur.includes(day)
+      ? cur.filter((d) => d !== day)
+      : [...cur, day].sort((a, b) => a - b);
+    patchState({ schedule: { ...schedule, days: next } });
   }
 
   function addTime() {
@@ -319,6 +330,48 @@ function ProgrammationSection() {
             })}
           </div>
         </div>
+
+        {/* Jours de publication — affiché pour 3×/sem & hebdo (pas « quotidien ») */}
+        {schedule.cadence && schedule.cadence !== "daily" && (
+          <div className="space-y-2">
+            <p className="text-xs font-semibold text-muted">
+              {t("Jours de publication", "Posting days")}
+              <span className="ml-1 font-normal text-muted">
+                {t(`(choisissez ${expectedDays} jour${expectedDays > 1 ? "s" : ""})`, `(pick ${expectedDays} day${expectedDays > 1 ? "s" : ""})`)}
+              </span>
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {[
+                { d: 1, fr: "Lun", en: "Mon" }, { d: 2, fr: "Mar", en: "Tue" },
+                { d: 3, fr: "Mer", en: "Wed" }, { d: 4, fr: "Jeu", en: "Thu" },
+                { d: 5, fr: "Ven", en: "Fri" }, { d: 6, fr: "Sam", en: "Sat" },
+                { d: 0, fr: "Dim", en: "Sun" },
+              ].map(({ d, fr, en }) => {
+                const on = (schedule.days ?? []).includes(d);
+                return (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => toggleDay(d)}
+                    aria-pressed={on}
+                    className={[
+                      "rounded-lg border px-3 py-1.5 text-xs font-semibold transition-all",
+                      on ? "border-primary-400 bg-page text-white shadow-sm" : "border-hair bg-card text-muted hover:border-primary-300 hover:text-ink",
+                    ].join(" ")}
+                  >
+                    {t(fr, en)}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-2xs text-muted">
+              {t(
+                "Les agents publieront ces jours-là, à partir de la date de démarrage.",
+                "Agents will post on these days, starting from the start date.",
+              )}
+            </p>
+          </div>
+        )}
 
         {/* Date de démarrage */}
         <div className="space-y-2">

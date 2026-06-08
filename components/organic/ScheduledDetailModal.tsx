@@ -231,7 +231,7 @@ function ConfirmDialog({
 }) {
   const t = useT();
   return (
-    <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-black/20 p-6">
+    <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-ink/50 backdrop-blur-sm p-6">
       <div className="w-full max-w-xs rounded-lg border-hair border-hair bg-card p-4 shadow-xl">
         <p className="text-sm text-ink">{message}</p>
         <div className="mt-4 flex justify-end gap-2">

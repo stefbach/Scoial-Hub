@@ -50,17 +50,40 @@ function extractImageUrls(data: unknown): string[] {
   return d.images.map((i) => (typeof i === "string" ? i : i?.url ?? "")).filter(Boolean);
 }
 
-/** Assemble une version texte plat publiable du post LinkedIn. */
+/** Limite de caractères d'un post LinkedIn (API /rest/posts). */
+const LINKEDIN_MAX = 3000;
+
+/** Tronque proprement à la dernière frontière de phrase/paragraphe sous `max`. */
+function clampClean(text: string, max: number): string {
+  if (text.length <= max) return text;
+  const slice = text.slice(0, max - 1);
+  // Cherche une fin de phrase / saut de ligne propre dans le dernier tiers.
+  const lastBreak = Math.max(
+    slice.lastIndexOf("\n\n"),
+    slice.lastIndexOf(". "),
+    slice.lastIndexOf("! "),
+    slice.lastIndexOf("? "),
+    slice.lastIndexOf("\n"),
+  );
+  const cut = lastBreak > max * 0.6 ? slice.slice(0, lastBreak + 1) : slice;
+  return cut.trimEnd() + "…";
+}
+
+/** Assemble une version texte plat publiable du post LinkedIn (titre inclus). */
 function toPlainText(a: Article): string {
   const body = a.body.replace(/^#{1,6}\s*/gm, "").replace(/\*\*/g, "");
-  return [
+  const text = [
+    a.title ? a.title.trim() : "",
+    "",
     a.hook,
     "",
     body,
     a.keyTakeaways.length ? "\n" + a.keyTakeaways.map((k) => `• ${k}`).join("\n") : "",
     a.cta ? `\n${a.cta}` : "",
     a.hashtags.length ? `\n${a.hashtags.join(" ")}` : "",
-  ].filter(Boolean).join("\n").trim();
+  ].filter((s) => s !== undefined).join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  // Garde-fou : ne jamais dépasser la limite LinkedIn (texte refusé/tronqué sinon).
+  return clampClean(text, LINKEDIN_MAX);
 }
 
 export function ArticleStudio() {
@@ -351,6 +374,17 @@ export function ArticleStudio() {
           {article.hashtags.length > 0 && (
             <p className="text-sm font-medium text-primary-700">{article.hashtags.join("  ")}</p>
           )}
+          {/* Compteur de caractères vs limite LinkedIn (post ≤ 3000) */}
+          {(() => {
+            const len = toPlainText(article).length;
+            const over = len >= LINKEDIN_MAX;
+            return (
+              <p className={`text-2xs ${over ? "font-semibold text-danger-600" : "text-muted"}`}>
+                {t(`${len} / ${LINKEDIN_MAX} caractères publiés sur LinkedIn`, `${len} / ${LINKEDIN_MAX} characters published to LinkedIn`)}
+                {over && t(" — l'excédent est coupé proprement à la publication.", " — extra is cleanly trimmed on publish.")}
+              </p>
+            );
+          })()}
           {publishMsg && <p className="rounded-lg bg-canvas px-3 py-2 text-xs text-ink">{publishMsg}</p>}
         </section>
       )}

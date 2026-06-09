@@ -104,6 +104,8 @@ export interface OnboardingSchedule {
   startDate?: string;
   /** heures de publication HH:mm. */
   times?: string[];
+  /** jours de publication (0=Dim … 6=Sam) pour les cadences 3x/sem & hebdo. */
+  days?: number[];
 }
 
 export type CreativeMode = "autonomous" | "bank" | "product";

@@ -188,13 +188,33 @@ function fallbackArticle(body: Body, brand: BrandContext): ArticleResult {
   return {
     title: `${topic}`,
     hook: `Voici une réflexion professionnelle sur : ${topic}.`,
-    body: `Démo — IA non configurée.\n\nCet article serait rédigé dans la voix de ${brand.name || "votre marque"} (${brand.voice || "ton professionnel"}), à partir de votre saisie :\n\n${body.input}\n\nConfigurez la clé IA (ANTHROPIC_API_KEY) pour obtenir un article complet de niveau professionnel.`,
+    body: `Démo - IA non configurée.\n\nCet article serait rédigé dans la voix de ${brand.name || "votre marque"} (${brand.voice || "ton professionnel"}), à partir de votre saisie :\n\n${body.input}\n\nConfigurez la clé IA (ANTHROPIC_API_KEY) pour obtenir un article complet de niveau professionnel.`,
     keyTakeaways: ["Point clé 1", "Point clé 2", "Point clé 3"],
     hashtags: ["#LinkedIn", "#Stratégie", "#Expertise"],
     cta: "Qu'en pensez-vous ? Partagez votre avis en commentaire.",
     visualPrompts: [
       `Visuel éditorial professionnel et épuré illustrant : ${topic}. Style corporate moderne, couleurs sobres, haute qualité, sans texte.`,
     ],
+  };
+}
+
+/** Remplace les tirets cadratins (—) et demi-cadratins (–) — l'utilisateur n'en veut pas. */
+function noCadratin(s: string): string {
+  return s
+    .replace(/\s*[—―]\s*/g, " - ") // cadratin / barre horizontale → tiret simple
+    .replace(/–/g, "-")             // demi-cadratin → trait d'union
+    .replace(/[ \t]{2,}/g, " ");
+}
+
+/** Nettoie tous les champs texte d'un article (cadratins). */
+function sanitizeArticle(a: ArticleResult): ArticleResult {
+  return {
+    ...a,
+    title: noCadratin(a.title),
+    hook: noCadratin(a.hook),
+    body: noCadratin(a.body),
+    cta: noCadratin(a.cta),
+    keyTakeaways: a.keyTakeaways.map(noCadratin),
   };
 }
 
@@ -213,6 +233,8 @@ async function generateArticle(body: Body, brand: BrandContext): Promise<{ artic
 Langue de sortie : ${langName(body.language ?? "fr")}
 
 CONTRAINTE LINKEDIN (impérative) : le post complet (title + hook + body + keyTakeaways + cta + hashtags) doit être COMPLET et tenir en MOINS de 3000 caractères (vise ~${LINKEDIN_CHAR_BUDGET}). Calibre la longueur pour TERMINER l'article proprement sous la limite — privilégie un texte dense et abouti plutôt que long et coupé. Ne te fais JAMAIS interrompre en plein milieu.
+
+TYPOGRAPHIE : n'utilise JAMAIS de tiret cadratin (—) ni demi-cadratin (–). Utilise des virgules, des points ou des parenthèses à la place.
 
 IMPÉRATIF DE SORTIE — quelles que soient les instructions du brief ci-dessus : réponds UNIQUEMENT par un objet JSON valide conforme au schéma ci-dessous. Aucun texte hors JSON, pas de bloc \`\`\`. Échappe correctement les guillemets et sauts de ligne dans les chaînes.
 {
@@ -239,7 +261,7 @@ IMPÉRATIF DE SORTIE — quelles que soient les instructions du brief ci-dessus 
       try {
         const p = JSON.parse(match[0]) as Partial<ArticleResult>;
         return {
-          article: {
+          article: sanitizeArticle({
             title: p.title ?? body.input.slice(0, 80),
             hook: p.hook ?? "",
             body: p.body ?? "",
@@ -247,7 +269,7 @@ IMPÉRATIF DE SORTIE — quelles que soient les instructions du brief ci-dessus 
             hashtags: (p.hashtags ?? []).slice(0, 6),
             cta: p.cta ?? "",
             visualPrompts: (p.visualPrompts ?? []).slice(0, 3),
-          },
+          }),
           aiGenerated: true,
         };
       } catch {
@@ -261,7 +283,7 @@ IMPÉRATIF DE SORTIE — quelles que soient les instructions du brief ci-dessus 
     if (cleaned.length > 40) {
       const firstLine = cleaned.split("\n").find((l) => l.trim())?.replace(/^#+\s*/, "").slice(0, 90) ?? body.input.slice(0, 80);
       return {
-        article: {
+        article: sanitizeArticle({
           title: firstLine,
           hook: "",
           body: cleaned,
@@ -269,7 +291,7 @@ IMPÉRATIF DE SORTIE — quelles que soient les instructions du brief ci-dessus 
           hashtags: [],
           cta: "",
           visualPrompts: [],
-        },
+        }),
         aiGenerated: true,
       };
     }

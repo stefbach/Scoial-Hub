@@ -50,13 +50,32 @@ function extractImageUrls(data: unknown): string[] {
   return d.images.map((i) => (typeof i === "string" ? i : i?.url ?? "")).filter(Boolean);
 }
 
-/** Limite de caractères indicative d'un post LinkedIn (pour le compteur). */
+/** Limite de caractères d'un post LinkedIn (API /rest/posts). */
 const LINKEDIN_MAX = 3000;
+
+/**
+ * Garde-fou de dernier recours : si le texte dépasse la limite LinkedIn, on
+ * coupe à une frontière de phrase/paragraphe propre (jamais en plein mot).
+ * En pratique la génération vise déjà ~2900 caractères → rarement déclenché.
+ */
+function clampClean(text: string, max: number): string {
+  if (text.length <= max) return text;
+  const slice = text.slice(0, max - 1);
+  const lastBreak = Math.max(
+    slice.lastIndexOf("\n\n"),
+    slice.lastIndexOf(". "),
+    slice.lastIndexOf("! "),
+    slice.lastIndexOf("? "),
+    slice.lastIndexOf("\n"),
+  );
+  const cut = lastBreak > max * 0.7 ? slice.slice(0, lastBreak + 1) : slice;
+  return cut.trimEnd() + "…";
+}
 
 /** Assemble une version texte plat publiable du post LinkedIn (titre inclus, complet). */
 function toPlainText(a: Article): string {
   const body = a.body.replace(/^#{1,6}\s*/gm, "").replace(/\*\*/g, "");
-  return [
+  const text = [
     a.title ? a.title.trim() : "",
     "",
     a.hook,
@@ -66,6 +85,7 @@ function toPlainText(a: Article): string {
     a.cta ? `\n${a.cta}` : "",
     a.hashtags.length ? `\n${a.hashtags.join(" ")}` : "",
   ].filter((s) => s !== undefined).join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  return clampClean(text, LINKEDIN_MAX);
 }
 
 export function ArticleStudio() {

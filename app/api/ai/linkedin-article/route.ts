@@ -94,11 +94,17 @@ async function loadBrandContext(companyId: string, includeRag: boolean): Promise
   return ctx;
 }
 
+// Longueurs calibrées pour PRODUIRE un post LinkedIn COMPLET et qui TIENT dans
+// la limite (3000 caractères) — le texte doit se terminer proprement, jamais
+// être tronqué. On vise dense et abouti plutôt que long et coupé.
 const LENGTH_GUIDE: Record<string, string> = {
-  post: "Post LinkedIn court et percutant (150–250 mots), une idée forte développée avec un exemple concret.",
-  article: "Article LinkedIn structuré et fouillé (600–900 mots, 4–5 sections avec intertitres, chaque section développée avec exemples concrets et raisonnement — pas de généralités creuses).",
-  long: "Article LinkedIn approfondi de leadership éclairé (1200–1800 mots, intertitres clairs, exemples concrets, mise en perspective nuancée, données chiffrées uniquement si véridiques — sinon ne pas inventer).",
+  post: "Post LinkedIn percutant et COMPLET (~120–180 mots), une idée forte développée avec un exemple concret.",
+  article: "Article LinkedIn structuré et COMPLET (~300–400 mots, 3–4 intertitres courts, chaque section développée avec un exemple concret — pas de généralités creuses), qui se termine proprement.",
+  long: "Article LinkedIn riche et COMPLET tenant en UN SEUL post (~430–520 mots, intertitres clairs, exemples concrets, mise en perspective), qui se termine proprement SANS dépasser la limite LinkedIn.",
 };
+
+/** Budget caractères cible (marge sous la limite LinkedIn de 3000). */
+const LINKEDIN_CHAR_BUDGET = 2900;
 
 function langName(language: string): string {
   return language === "en" ? "English" : "français";
@@ -205,6 +211,8 @@ async function generateArticle(body: Body, brand: BrandContext): Promise<{ artic
 
   const prompt = `${directive}${brandSection(brand, "CONTEXTE MARQUE (à intégrer sans dévier du sujet demandé)")}
 Langue de sortie : ${langName(body.language ?? "fr")}
+
+CONTRAINTE LINKEDIN (impérative) : le post complet (title + hook + body + keyTakeaways + cta + hashtags) doit être COMPLET et tenir en MOINS de 3000 caractères (vise ~${LINKEDIN_CHAR_BUDGET}). Calibre la longueur pour TERMINER l'article proprement sous la limite — privilégie un texte dense et abouti plutôt que long et coupé. Ne te fais JAMAIS interrompre en plein milieu.
 
 IMPÉRATIF DE SORTIE — quelles que soient les instructions du brief ci-dessus : réponds UNIQUEMENT par un objet JSON valide conforme au schéma ci-dessous. Aucun texte hors JSON, pas de bloc \`\`\`. Échappe correctement les guillemets et sauts de ligne dans les chaînes.
 {

@@ -218,6 +218,59 @@ function sanitizeArticle(a: ArticleResult): ArticleResult {
   };
 }
 
+/** Reconstitue le texte publié sur LinkedIn (même assemblage que le client) pour en mesurer la longueur. */
+function assembledPostText(a: ArticleResult): string {
+  const body = a.body.replace(/^#{1,6}\s*/gm, "").replace(/\*\*/g, "");
+  return [
+    a.title ? a.title.trim() : "",
+    "",
+    a.hook,
+    "",
+    body,
+    a.keyTakeaways.length ? "\n" + a.keyTakeaways.map((k) => `• ${k}`).join("\n") : "",
+    a.cta ? `\n${a.cta}` : "",
+    a.hashtags.length ? `\n${a.hashtags.join(" ")}` : "",
+  ].filter((s) => s !== undefined).join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+/**
+ * Réécrit l'article plus court pour tenir sous la limite LinkedIn, en restant
+ * COMPLET et cohérent (condense — ne tronque pas). Garde l'original si échec.
+ */
+async function condenseToFit(a: ArticleResult, client: Anthropic, lang: string): Promise<ArticleResult> {
+  const current = assembledPostText(a).length;
+  const promptC = `Ce post LinkedIn fait ${current} caractères, c'est TROP LONG (le total publié doit tenir sous 3000). Réécris-le pour que le TOTAL (title + hook + body + keyTakeaways + cta + hashtags) tienne en MOINS de ${LINKEDIN_CHAR_BUDGET} caractères, en restant COMPLET, cohérent et fluide : CONDENSE (phrases plus courtes, va à l'essentiel), ne tronque pas, ne termine pas par « … ». Langue : ${lang}. N'utilise jamais de tiret cadratin (—) ni demi-cadratin (–).
+
+Réponds UNIQUEMENT en JSON (même schéma) :
+{"title":"...","hook":"...","body":"...","keyTakeaways":["..."],"hashtags":["..."],"cta":"..."}
+
+Post actuel à condenser :
+${JSON.stringify({ title: a.title, hook: a.hook, body: a.body, keyTakeaways: a.keyTakeaways, cta: a.cta, hashtags: a.hashtags })}`;
+  try {
+    const res = await client.messages.create({
+      model: env.anthropicModel,
+      max_tokens: 1600,
+      system: SYSTEM,
+      messages: [{ role: "user", content: promptC }],
+    });
+    const raw = res.content.filter((b) => b.type === "text").map((b) => (b as { type: "text"; text: string }).text).join("");
+    const m = raw.match(/\{[\s\S]*\}/);
+    if (m) {
+      const p = JSON.parse(m[0]) as Partial<ArticleResult>;
+      return sanitizeArticle({
+        title: p.title ?? a.title,
+        hook: p.hook ?? a.hook,
+        body: p.body ?? a.body,
+        keyTakeaways: (p.keyTakeaways ?? a.keyTakeaways).slice(0, 6),
+        hashtags: (p.hashtags ?? a.hashtags).slice(0, 6),
+        cta: p.cta ?? a.cta,
+        visualPrompts: a.visualPrompts,
+      });
+    }
+  } catch { /* on garde l'original */ }
+  return a;
+}
+
 async function generateArticle(body: Body, brand: BrandContext): Promise<{ article: ArticleResult; aiGenerated: boolean }> {
   if (!isAiConfigured) return { article: fallbackArticle(body, brand), aiGenerated: false };
 
@@ -260,18 +313,21 @@ IMPÉRATIF DE SORTIE — quelles que soient les instructions du brief ci-dessus 
     if (match) {
       try {
         const p = JSON.parse(match[0]) as Partial<ArticleResult>;
-        return {
-          article: sanitizeArticle({
-            title: p.title ?? body.input.slice(0, 80),
-            hook: p.hook ?? "",
-            body: p.body ?? "",
-            keyTakeaways: (p.keyTakeaways ?? []).slice(0, 6),
-            hashtags: (p.hashtags ?? []).slice(0, 6),
-            cta: p.cta ?? "",
-            visualPrompts: (p.visualPrompts ?? []).slice(0, 3),
-          }),
-          aiGenerated: true,
-        };
+        let article = sanitizeArticle({
+          title: p.title ?? body.input.slice(0, 80),
+          hook: p.hook ?? "",
+          body: p.body ?? "",
+          keyTakeaways: (p.keyTakeaways ?? []).slice(0, 6),
+          hashtags: (p.hashtags ?? []).slice(0, 6),
+          cta: p.cta ?? "",
+          visualPrompts: (p.visualPrompts ?? []).slice(0, 3),
+        });
+        // Si le post dépasse la limite LinkedIn, on le CONDENSE (réécriture
+        // complète plus courte) au lieu de le tronquer à la publication.
+        if (assembledPostText(article).length > LINKEDIN_CHAR_BUDGET) {
+          article = await condenseToFit(article, client, langName(body.language ?? "fr"));
+        }
+        return { article, aiGenerated: true };
       } catch {
         /* JSON invalide → on récupère le texte brut ci-dessous */
       }

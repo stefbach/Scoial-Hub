@@ -94,11 +94,17 @@ async function loadBrandContext(companyId: string, includeRag: boolean): Promise
   return ctx;
 }
 
+// Longueurs calibrées pour un POST LinkedIn publié via l'API (limite 3000
+// caractères). Le post complet (titre + accroche + corps + à-retenir + CTA +
+// hashtags) DOIT tenir sous ~2900 caractères — sinon il est tronqué.
 const LENGTH_GUIDE: Record<string, string> = {
-  post: "Post LinkedIn court et percutant (150–250 mots), une idée forte développée avec un exemple concret.",
-  article: "Article LinkedIn structuré et fouillé (600–900 mots, 4–5 sections avec intertitres, chaque section développée avec exemples concrets et raisonnement — pas de généralités creuses).",
-  long: "Article LinkedIn approfondi de leadership éclairé (1200–1800 mots, intertitres clairs, exemples concrets, mise en perspective nuancée, données chiffrées uniquement si véridiques — sinon ne pas inventer).",
+  post: "Post LinkedIn court et percutant (~90–140 mots, ~600–900 caractères), une idée forte avec un exemple concret.",
+  article: "Article LinkedIn structuré (~220–320 mots, ~1500–2100 caractères, 3–4 intertitres courts, chaque section développée avec un exemple concret — pas de généralités creuses).",
+  long: "Article LinkedIn approfondi MAIS qui tient en un seul post (~350–430 mots, MAX ~2700 caractères, intertitres clairs, exemples concrets ; ne JAMAIS dépasser la limite LinkedIn).",
 };
+
+/** Limite caractères d'un post LinkedIn (marge sous 3000). */
+const LINKEDIN_CHAR_BUDGET = 2900;
 
 function langName(language: string): string {
   return language === "en" ? "English" : "français";
@@ -205,6 +211,8 @@ async function generateArticle(body: Body, brand: BrandContext): Promise<{ artic
 
   const prompt = `${directive}${brandSection(brand, "CONTEXTE MARQUE (à intégrer sans dévier du sujet demandé)")}
 Langue de sortie : ${langName(body.language ?? "fr")}
+
+CONTRAINTE DE TAILLE LINKEDIN (impérative) : le post sera publié tel quel sur LinkedIn (limite 3000 caractères). La somme de title + hook + body + keyTakeaways + cta + hashtags doit IMPÉRATIVEMENT rester SOUS ${LINKEDIN_CHAR_BUDGET} caractères. Rédige un texte COMPLET et autonome qui se termine proprement (jamais coupé en plein milieu). Si le sujet est vaste, va à l'essentiel plutôt que de dépasser.
 
 IMPÉRATIF DE SORTIE — quelles que soient les instructions du brief ci-dessus : réponds UNIQUEMENT par un objet JSON valide conforme au schéma ci-dessous. Aucun texte hors JSON, pas de bloc \`\`\`. Échappe correctement les guillemets et sauts de ligne dans les chaînes.
 {

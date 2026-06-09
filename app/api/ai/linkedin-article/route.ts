@@ -94,16 +94,16 @@ async function loadBrandContext(companyId: string, includeRag: boolean): Promise
   return ctx;
 }
 
-// Longueurs calibrées pour un POST LinkedIn publié via l'API (limite 3000
-// caractères). Le post complet (titre + accroche + corps + à-retenir + CTA +
-// hashtags) DOIT tenir sous ~2900 caractères — sinon il est tronqué.
+// Longueurs calibrées pour PRODUIRE un post LinkedIn COMPLET et qui TIENT dans
+// la limite (3000 caractères) — le texte doit se terminer proprement, jamais
+// être tronqué. On vise dense et abouti plutôt que long et coupé.
 const LENGTH_GUIDE: Record<string, string> = {
-  post: "Post LinkedIn court et percutant (~90–140 mots, ~600–900 caractères), une idée forte avec un exemple concret.",
-  article: "Article LinkedIn structuré (~220–320 mots, ~1500–2100 caractères, 3–4 intertitres courts, chaque section développée avec un exemple concret — pas de généralités creuses).",
-  long: "Article LinkedIn approfondi MAIS qui tient en un seul post (~350–430 mots, MAX ~2700 caractères, intertitres clairs, exemples concrets ; ne JAMAIS dépasser la limite LinkedIn).",
+  post: "Post LinkedIn percutant et COMPLET (~120–180 mots), une idée forte développée avec un exemple concret.",
+  article: "Article LinkedIn structuré et COMPLET (~300–400 mots, 3–4 intertitres courts, chaque section développée avec un exemple concret — pas de généralités creuses), qui se termine proprement.",
+  long: "Article LinkedIn riche et COMPLET tenant en UN SEUL post (~430–520 mots, intertitres clairs, exemples concrets, mise en perspective), qui se termine proprement SANS dépasser la limite LinkedIn.",
 };
 
-/** Limite caractères d'un post LinkedIn (marge sous 3000). */
+/** Budget caractères cible (marge sous la limite LinkedIn de 3000). */
 const LINKEDIN_CHAR_BUDGET = 2900;
 
 function langName(language: string): string {
@@ -212,7 +212,7 @@ async function generateArticle(body: Body, brand: BrandContext): Promise<{ artic
   const prompt = `${directive}${brandSection(brand, "CONTEXTE MARQUE (à intégrer sans dévier du sujet demandé)")}
 Langue de sortie : ${langName(body.language ?? "fr")}
 
-CONTRAINTE DE TAILLE LINKEDIN (impérative) : le post sera publié tel quel sur LinkedIn (limite 3000 caractères). La somme de title + hook + body + keyTakeaways + cta + hashtags doit IMPÉRATIVEMENT rester SOUS ${LINKEDIN_CHAR_BUDGET} caractères. Rédige un texte COMPLET et autonome qui se termine proprement (jamais coupé en plein milieu). Si le sujet est vaste, va à l'essentiel plutôt que de dépasser.
+CONTRAINTE LINKEDIN (impérative) : le post complet (title + hook + body + keyTakeaways + cta + hashtags) doit être COMPLET et tenir en MOINS de 3000 caractères (vise ~${LINKEDIN_CHAR_BUDGET}). Calibre la longueur pour TERMINER l'article proprement sous la limite — privilégie un texte dense et abouti plutôt que long et coupé. Ne te fais JAMAIS interrompre en plein milieu.
 
 IMPÉRATIF DE SORTIE — quelles que soient les instructions du brief ci-dessus : réponds UNIQUEMENT par un objet JSON valide conforme au schéma ci-dessous. Aucun texte hors JSON, pas de bloc \`\`\`. Échappe correctement les guillemets et sauts de ligne dans les chaînes.
 {

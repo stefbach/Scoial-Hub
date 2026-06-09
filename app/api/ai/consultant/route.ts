@@ -175,8 +175,10 @@ export async function POST(req: NextRequest) {
       lock?: boolean;
       reset?: boolean;
       dna?: BrandDna;
+      language?: "fr" | "en";
     };
     const companyId = body.companyId;
+    const lang: "fr" | "en" = body.language === "en" ? "en" : "fr";
     if (!companyId) return NextResponse.json({ error: "companyId requis" }, { status: 400 });
 
     const guard = await requireCompanyAccess(companyId, { mode: "edit" });
@@ -251,7 +253,8 @@ export async function POST(req: NextRequest) {
 
     const kit = await getBrandKit(companyId).catch(() => null);
     // RAG : mémoire stratégique accumulée (veille, pubs, Page, agents…).
-    const memoryContext = await getMemoryContext(companyId, 25).catch(() => "");
+    // Contexte allégé (12) pour réduire la latence des tours de conversation.
+    const memoryContext = await getMemoryContext(companyId, 12).catch(() => "");
 
     const known = {
       positioning: existing.positioning,
@@ -303,7 +306,7 @@ ${transcript}
 8. Quand l'ADN est riche et cohérent (mission + cible + positionnement + message clé + ton + direction visuelle + au moins une stratégie réseau), passe "readyToLock" à true et invite à verrouiller.
 
 # STYLE DE "reply"
-Prise de parole naturelle, humaine, en français, 1 à 4 phrases, jamais de listes à puces froides. Ton de vrai consultant : précis, inspirant, utile.
+Prise de parole naturelle, humaine, ${lang === "en" ? "EN ANGLAIS (the client's interface is in English — reply in English)" : "EN FRANÇAIS"}, 1 à 4 phrases, jamais de listes à puces froides. Ton de vrai consultant : précis, inspirant, utile. La langue de "reply" DOIT être ${lang === "en" ? "l'anglais" : "le français"} ; les champs "dna" peuvent rester en français.
 
 # FORMAT DE SORTIE — STRICTEMENT du JSON, sans aucun texte autour :
 {
@@ -324,7 +327,13 @@ Prise de parole naturelle, humaine, en français, 1 à 4 phrases, jamais de list
   "memoryNotes": [ { "kind": "insight|angle|format|recommendation|competitor|keyword", "title": "", "content": "", "network": "(optionnel) instagram|facebook|tiktok|linkedin" } ]
 }`;
 
-    const result = await callClaudeJSON<ConsultantResult>(prompt, { maxTokens: 2200, temperature: 0.75 });
+    // Modèle rapide + budget de tokens réduit : l'entretien doit rester fluide
+    // (les tours longs faisaient ~70 s avec un gros modèle / 2200 tokens).
+    const result = await callClaudeJSON<ConsultantResult>(prompt, {
+      model: "claude-sonnet-4-6",
+      maxTokens: 1600,
+      temperature: 0.7,
+    });
     if (!result) {
       return NextResponse.json(
         { error: "Le consultant IA n'a pas pu répondre. Reformulez ou réessayez." },
@@ -358,7 +367,9 @@ Prise de parole naturelle, humaine, en français, 1 à 4 phrases, jamais de list
     if (memEntries.length) await appendMemory(companyId, memEntries).catch(() => {});
 
     return NextResponse.json({
-      reply: str(result.reply) || "Parlez-moi de votre marque : qu'est-ce qui la rend unique ?",
+      reply: str(result.reply) || (lang === "en"
+        ? "Tell me about your brand — what makes it unique?"
+        : "Parlez-moi de votre marque : qu'est-ce qui la rend unique ?"),
       readyToLock: Boolean(result.readyToLock),
       dna: { ...(result.dna ?? {}), networkStrategies: coerceNetStrats(result.dna?.networkStrategies) },
       visualPrompts: arr(result.visualPrompts).slice(0, 3),

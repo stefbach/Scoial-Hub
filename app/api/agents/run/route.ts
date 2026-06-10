@@ -103,8 +103,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(result);
   } catch (err) {
     console.error("[api/agents/run] Erreur inattendue :", err);
+    // On remonte un message LISIBLE (jamais un objet → évite « [object Object] »
+    // côté UI) tout en gardant un repli explicite.
+    const detail =
+      err instanceof Error
+        ? err.message
+        : typeof err === "string"
+        ? err
+        : (() => { try { return JSON.stringify(err); } catch { return String(err); } })();
     return NextResponse.json(
-      { error: "Erreur interne lors de l'orchestration. Veuillez réessayer." },
+      { error: `Erreur lors de l'orchestration : ${detail || "cause inconnue"}. Veuillez réessayer.` },
       { status: 500 }
     );
   }

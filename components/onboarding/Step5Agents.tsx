@@ -490,8 +490,16 @@ export default function Step5Agents() {
       });
 
       if (!res.ok) {
-        const body = await res.json().catch(() => ({})) as { error?: string };
-        throw new Error(body.error ?? t(`Erreur serveur (${res.status})`, `Server error (${res.status})`));
+        const body = await res.json().catch(() => ({})) as { error?: unknown };
+        // Le serveur peut renvoyer une chaîne OU (par erreur) un objet : on
+        // normalise pour ne JAMAIS afficher « [object Object] » à l'écran.
+        const msg =
+          typeof body.error === "string"
+            ? body.error
+            : body.error
+            ? JSON.stringify(body.error)
+            : t(`Erreur serveur (${res.status})`, `Server error (${res.status})`);
+        throw new Error(msg);
       }
 
       const data: AgentRunResult = await res.json();

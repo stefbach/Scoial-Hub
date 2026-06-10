@@ -421,15 +421,19 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
         {SPINE.map((item) => renderItem(item, { entry: item.href === "/demarrage" }))}
       </ul>
 
-      {/* Séparateur + en-tête « Modules » */}
-      <div className="mt-5 border-t border-hair pt-4">
-        <div className="mb-1.5 px-3 section-label">{tr("Modules")}</div>
-      </div>
+      {/* Séparateur entre la colonne vertébrale et les modules.
+          (On a retiré l'en-tête « Modules » redondant qui se confondait avec
+          le premier libellé de groupe — cf. retours #7/#23.) */}
+      <div className="mt-5 border-t border-hair pt-4" />
 
       {GROUPS.map((group, i) => (
-        <div key={i} className={i > 0 ? "mt-5" : ""}>
+        <div key={i} className={i > 0 ? "mt-4" : ""}>
           {group.label && (
-            <div className="mb-1.5 px-3 section-label">{tr(group.label)}</div>
+            // Libellé de section : clairement non cliquable et distinct des items
+            // (plus petit, davantage espacé, couleur atténuée).
+            <div className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted/60 select-none">
+              {tr(group.label)}
+            </div>
           )}
           <ul className="space-y-px" role="list">
             {group.items.filter(canSee).map((item) => renderItem(item))}

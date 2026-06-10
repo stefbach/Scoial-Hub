@@ -45,8 +45,8 @@ interface VeilleRunResult {
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 /** Couleur du chip réseau selon la plateforme */
-function networkColor(network: string): string {
-  const n = network.toLowerCase();
+function networkColor(network?: string): string {
+  const n = (network ?? "").toLowerCase();
   if (n === "facebook") return "text-platform-facebook border-blue-200 bg-blue-50";
   if (n === "instagram") return "text-platform-instagram border-pink-200 bg-pink-50";
   if (n === "linkedin") return "text-platform-linkedin border-sky-200 bg-sky-50";
@@ -87,7 +87,7 @@ function BulbIcon() {
 
 /** Barre de score /100 */
 function ScoreBar({ score }: { score: number }) {
-  const pct = Math.min(Math.max(score, 0), 100);
+  const pct = Math.min(Math.max(Number(score) || 0, 0), 100);
   const color = pct >= 70 ? "bg-danger-500" : pct >= 40 ? "bg-warning-500" : "bg-success-500";
   return (
     <div className="flex items-center gap-2" aria-label={`Score ${pct}/100`}>

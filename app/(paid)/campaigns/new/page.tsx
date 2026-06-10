@@ -8,7 +8,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useCompany } from "@/lib/company-context";
 import { useT } from "@/lib/i18n";
-import { PageHeader } from "@/components/ui/PageHeader";
+import { StudioHero, Segmented } from "@/components/studio/StudioUI";
 import { Spinner, BusyHint } from "@/components/ui/Spinner";
 import { generateVideoPolling } from "@/lib/ai/generate-video-client";
 
@@ -134,6 +134,9 @@ export default function NewMetaAdPage() {
   const [loadingLeads, setLoadingLeads] = useState(false);
 
   const isConvObjective = objective === "ventes" || objective === "conversions";
+
+  // Deux expériences possibles : assistant IA OU réglages avancés manuels.
+  const [mode, setMode] = useState<"assist" | "manual">("assist");
 
   // Assistant IA conversationnel (chat → remplissage automatique)
   const [chatMessages, setChatMessages] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
@@ -494,17 +497,16 @@ export default function NewMetaAdPage() {
   const inputCls = "w-full rounded-lg border border-hair bg-canvas px-3 py-2 text-sm text-ink outline-none focus:border-primary-400";
 
   return (
-    <div className="mx-auto max-w-3xl animate-fade-in">
-      <PageHeader
+    <div className="mx-auto max-w-4xl animate-fade-in space-y-5">
+      <StudioHero
+        icon="📣"
         title={t("Créer une publicité Meta", "Create a Meta ad")}
+        subtitle={t(
+          "Une vraie campagne Facebook/Instagram via votre compte connecté, créée EN PAUSE (aucune dépense) — vous l'activez ensuite explicitement.",
+          "A real Facebook/Instagram campaign through your connected account, created PAUSED (no spend) — you then activate it explicitly."
+        )}
         actions={<Link href="/campaigns" className="btn-secondary text-sm">{t("← Campagnes", "← Campaigns")}</Link>}
       />
-      <p className="mb-5 text-sm text-muted">
-        {t(
-          "Publie une vraie campagne Facebook/Instagram via votre compte connecté. Elle est créée EN PAUSE (aucune dépense) — vous l'activez ensuite explicitement.",
-          "Publishes a real Facebook/Instagram campaign through your connected account. It is created PAUSED (no spend) — you then activate it explicitly."
-        )}
-      </p>
 
       {/* État de connexion Meta */}
       {loadingConn ? (
@@ -528,8 +530,18 @@ export default function NewMetaAdPage() {
         </div>
       )}
 
+      {/* Choix de l'expérience : assistant IA OU réglages avancés (les deux complets) */}
+      <Segmented
+        value={mode}
+        onChange={setMode}
+        options={[
+          { id: "assist", label: t("✨ Assistant IA", "✨ AI assistant") },
+          { id: "manual", label: t("⚙️ Réglages avancés", "⚙️ Advanced settings") },
+        ]}
+      />
+
       {/* Assistant IA conversationnel : on discute, l'IA remplit tout */}
-      <section className="card mb-5 border-l-4 border-ai-text p-5">
+      <section className={`card border-l-4 border-ai-text p-5 ${mode === "assist" ? "" : "hidden"}`}>
         <span className="section-label text-ai-text">{t("Assistant IA — discutez, l'IA construit la campagne", "AI assistant — chat, AI builds the campaign")}</span>
         <p className="mt-0.5 text-2xs text-muted">
           {t(
@@ -568,6 +580,9 @@ export default function NewMetaAdPage() {
                 {publishing && <Spinner size={14} className="text-white" />}
                 {publishing ? t("Création sur Meta…", "Creating on Meta…") : t("Créer directement (EN PAUSE)", "Create directly (PAUSED)")}
               </button>
+              <button type="button" onClick={() => setMode("manual")} className="btn-secondary inline-flex items-center gap-1.5 text-sm">
+                {t("Ajuster les réglages →", "Adjust settings →")}
+              </button>
               {genImg && <span className="inline-flex items-center gap-1.5 text-2xs text-muted"><Spinner size={12} className="text-ai-text" /> {t("Visuel en cours de génération…", "Visual being generated…")}</span>}
             </div>
           </div>
@@ -592,9 +607,9 @@ export default function NewMetaAdPage() {
         {!conn?.connected && <p className="mt-1 text-2xs text-muted">{t("Connectez Meta pour activer l'assistant.", "Connect Meta to enable the assistant.")}</p>}
       </section>
 
-      <fieldset disabled={!conn?.connected || publishing || !canEdit} className="space-y-5 disabled:opacity-60">
+      <fieldset disabled={!conn?.connected || publishing || !canEdit} className={`space-y-5 disabled:opacity-60 ${mode === "manual" ? "" : "hidden"}`}>
         {/* Type de publicité */}
-        <section className="card p-5 space-y-3">
+        <section className="studio-card p-5 space-y-3">
           <span className="section-label">{t("Type de publicité", "Ad type")}</span>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {([
@@ -611,7 +626,7 @@ export default function NewMetaAdPage() {
         </section>
 
         {/* Réglages campagne */}
-        <section className="card p-5 space-y-4">
+        <section className="studio-card p-5 space-y-4">
           <span className="section-label">{t("Campagne", "Campaign")}</span>
           <div>
             <label className="mb-1 block text-xs font-medium text-muted">{t("Nom de la campagne", "Campaign name")}</label>
@@ -706,7 +721,7 @@ export default function NewMetaAdPage() {
         </section>
 
         {/* Audience — centres d'intérêt */}
-        <section className="card p-5 space-y-3">
+        <section className="studio-card p-5 space-y-3">
           <span className="section-label">{t("Audience — centres d'intérêt", "Audience — interests")}</span>
           <div className="flex gap-2">
             <input
@@ -773,7 +788,7 @@ export default function NewMetaAdPage() {
         </section>
 
         {/* Placements */}
-        <section className="card p-5 space-y-3">
+        <section className="studio-card p-5 space-y-3">
           <span className="section-label">{t("Placements", "Placements")}</span>
           <div className="inline-flex rounded-lg border border-hair bg-canvas p-0.5">
             {(["auto", "manual"] as const).map((p) => (
@@ -799,7 +814,7 @@ export default function NewMetaAdPage() {
         </section>
 
         {/* Créative */}
-        <section className="card p-5 space-y-4">
+        <section className="studio-card p-5 space-y-4">
           <span className="section-label">{t("Visuel & message", "Creative & copy")}</span>
           <div>
             <label className="mb-1 block text-xs font-medium text-muted">{t("Texte principal", "Primary text")}</label>
@@ -990,7 +1005,7 @@ export default function NewMetaAdPage() {
 
         {/* Formulaire de prospects (Instant Form) */}
         {adType === "lead" && (
-          <section className="card p-5 space-y-4">
+          <section className="studio-card p-5 space-y-4">
             <span className="section-label">{t("Formulaire de prospects", "Lead form")}</span>
             <p className="text-2xs text-muted">{t("Le prospect remplit ces champs directement dans Facebook/Instagram, sans quitter l'app.", "The prospect fills these fields directly in Facebook/Instagram, without leaving the app.")}</p>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

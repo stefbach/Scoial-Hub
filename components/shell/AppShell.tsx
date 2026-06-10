@@ -89,7 +89,7 @@ function UserMenu() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-10 z-50 w-56 rounded-xl border border-hair bg-card shadow-lg animate-fade-in">
+        <div className="absolute right-0 top-10 z-[70] w-56 rounded-xl border border-hair bg-card shadow-lg animate-fade-in">
           <div className="px-4 py-3">
             <p className="text-2xs text-muted section-label mb-0.5">Connecté en tant que</p>
             <p className="text-sm font-medium text-ink truncate">{email}</p>

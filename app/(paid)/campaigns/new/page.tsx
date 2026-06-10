@@ -10,6 +10,7 @@ import { useCompany } from "@/lib/company-context";
 import { useT } from "@/lib/i18n";
 import { StudioHero, Segmented } from "@/components/studio/StudioUI";
 import { MetaGeoPicker, type GeoLoc } from "@/components/ads/MetaGeoPicker";
+import { MetaLanguagePicker, type MetaLocale } from "@/components/ads/MetaLanguagePicker";
 import { Spinner, BusyHint } from "@/components/ui/Spinner";
 import { generateVideoPolling } from "@/lib/ai/generate-video-client";
 
@@ -85,6 +86,7 @@ export default function NewMetaAdPage() {
   const [geoLocs, setGeoLocs] = useState<GeoLoc[]>([
     { key: "FR", name: "France", type: "country", countryCode: "FR" },
   ]);
+  const [languages, setLanguages] = useState<MetaLocale[]>([]);
   const [ageMin, setAgeMin] = useState(18);
   const [ageMax, setAgeMax] = useState(65);
   const [gender, setGender] = useState<"all" | "male" | "female">("all");
@@ -451,6 +453,7 @@ export default function NewMetaAdPage() {
           countries: countries.length || cities.length || regions.length ? countries : ["FR"],
           cities: cities.length ? cities : undefined,
           regions: regions.length ? regions : undefined,
+          locales: languages.length ? languages.map((l) => l.key) : undefined,
           ageMin, ageMax, gender,
           interests: selInterests.length ? selInterests : undefined,
           placement,
@@ -716,6 +719,13 @@ export default function NewMetaAdPage() {
             <label className="mb-1 block text-xs font-medium text-muted">{t("Localisations (pays, villes, régions)", "Locations (countries, cities, regions)")}</label>
             <MetaGeoPicker companyId={companyId} value={geoLocs} onChange={setGeoLocs} disabled={!conn?.connected} />
             <p className="mt-1 text-2xs text-muted">{t("Recherchez comme dans Meta. Les villes ont un rayon ajustable.", "Search like in Meta. Cities have an adjustable radius.")}</p>
+          </div>
+
+          {/* Langues (optionnel) — autocomplétion Meta */}
+          <div>
+            <label className="mb-1 block text-xs font-medium text-muted">{t("Langues (optionnel)", "Languages (optional)")}</label>
+            <MetaLanguagePicker companyId={companyId} value={languages} onChange={setLanguages} disabled={!conn?.connected} />
+            <p className="mt-1 text-2xs text-muted">{t("Laissez vide pour toutes les langues, ou restreignez le ciblage.", "Leave empty for all languages, or restrict targeting.")}</p>
           </div>
 
           {/* Ciblage de base */}

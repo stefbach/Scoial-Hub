@@ -82,6 +82,8 @@ export interface PublishAdInput {
   cities?: { key: string; radius?: number; distanceUnit?: "kilometer" | "mile" }[];
   /** Régions/états ciblés (clés Meta). */
   regions?: { key: string }[];
+  /** Langues ciblées (clés locale Meta issues de la recherche adlocale). */
+  locales?: number[];
   ageMin?: number;
   ageMax?: number;
   gender?: "all" | "male" | "female";
@@ -217,6 +219,7 @@ export async function publishAd(input: PublishAdInput): Promise<PublishAdResult>
     age_min: input.ageMin ?? 18,
     age_max: input.ageMax ?? 65,
   };
+  if (input.locales?.length) targeting.locales = input.locales.map(Number).filter(Boolean);
   if (input.gender === "male") targeting.genders = [1];
   else if (input.gender === "female") targeting.genders = [2];
   if (input.interests?.length) {

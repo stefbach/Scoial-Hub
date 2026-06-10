@@ -78,6 +78,10 @@ export interface PublishAdInput {
   startTime?: string;          // ISO — début de diffusion (défaut : +1h)
   endTime?: string;            // ISO — fin (obligatoire si budget à vie)
   countries: string[];         // ex ["FR","MU"]
+  /** Villes ciblées (clés Meta issues de la recherche adgeolocation) + rayon. */
+  cities?: { key: string; radius?: number; distanceUnit?: "kilometer" | "mile" }[];
+  /** Régions/états ciblés (clés Meta). */
+  regions?: { key: string }[];
   ageMin?: number;
   ageMax?: number;
   gender?: "all" | "male" | "female";
@@ -194,9 +198,22 @@ export async function publishAd(input: PublishAdInput): Promise<PublishAdResult>
   }, token);
   const campaignId = String(campaign.id);
 
-  // 2) Ciblage : géo + âge + genre + centres d'intérêt + placements.
+  // 2) Ciblage : géo (pays + villes + régions) + âge + genre + intérêts + placements.
+  const geo: Params = {};
+  if (input.countries.length) geo.countries = input.countries;
+  if (input.cities?.length) {
+    geo.cities = input.cities.map((c) => ({
+      key: c.key,
+      radius: c.radius ?? 25,
+      distance_unit: c.distanceUnit ?? "kilometer",
+    }));
+  }
+  if (input.regions?.length) geo.regions = input.regions.map((r) => ({ key: r.key }));
+  // Meta exige au moins une localisation : repli France si rien n'est fourni.
+  if (!geo.countries && !geo.cities && !geo.regions) geo.countries = ["FR"];
+
   const targeting: Params = {
-    geo_locations: { countries: input.countries.length ? input.countries : ["FR"] },
+    geo_locations: geo,
     age_min: input.ageMin ?? 18,
     age_max: input.ageMax ?? 65,
   };

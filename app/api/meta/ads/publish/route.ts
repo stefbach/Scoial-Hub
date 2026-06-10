@@ -38,6 +38,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       startTime: body.startTime,
       endTime: body.endTime,
       countries: Array.isArray(body.countries) ? body.countries : [],
+      cities: Array.isArray(body.cities) ? body.cities : undefined,
+      regions: Array.isArray(body.regions) ? body.regions : undefined,
       ageMin: body.ageMin,
       ageMax: body.ageMax,
       gender: body.gender,

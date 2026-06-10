@@ -15,7 +15,7 @@ export const maxDuration = 60;
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { companyId, website, handles, companyName, description } = body;
+    const { companyId, website, handles, companyName, description, language } = body;
 
     if (!companyId) {
       return NextResponse.json(
@@ -28,7 +28,14 @@ export async function POST(req: NextRequest) {
     if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
 
     // Appel à l'analyse IA (Claude) — peut prendre plusieurs secondes
-    const profile = await analyzeBrand({ companyId, website, handles, companyName, description });
+    const profile = await analyzeBrand({
+      companyId,
+      website,
+      handles,
+      companyName,
+      description,
+      language: language === "en" ? "en" : "fr",
+    });
 
     // Persistance du profil
     await saveBrandProfile(profile);

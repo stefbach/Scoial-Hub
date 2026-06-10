@@ -246,6 +246,7 @@ export function AiVisualsPanel({
   videoModel,
   brandHints,
   companyId,
+  onUse,
 }: {
   used: number;
   cap: number;
@@ -259,6 +260,8 @@ export function AiVisualsPanel({
   brandHints?: string;
   /** Société — enregistre les visuels générés dans la bibliothèque média. */
   companyId?: string;
+  /** Attache un visuel généré à la publication (aperçu + publication). */
+  onUse?: (media: { url: string; kind: "image" | "video" }) => void;
 }) {
   const t = useT();
   const [mode, setMode] = useState<"image" | "video">("image");
@@ -270,7 +273,16 @@ export function AiVisualsPanel({
   const [mockMessage, setMockMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<string[]>([]);
+  // Nombre d'images à générer (1, 2 ou 4) — l'utilisateur n'est plus forcé à 4.
+  const [count, setCount] = useState<1 | 2 | 4>(1);
+  // Visuel actuellement attaché à la publication (pour le marquer comme choisi).
+  const [usedUrl, setUsedUrl] = useState<string | null>(null);
   const isVideo = mode === "video";
+
+  const handleUse = (url: string, kind: "image" | "video") => {
+    setUsedUrl(url);
+    onUse?.({ url, kind });
+  };
 
   const handleGenerate = async () => {
     const base = prompt.trim();
@@ -310,7 +322,7 @@ export function AiVisualsPanel({
           format: fmt,
           platform,
           style,
-          n: 4,
+          n: count,
           model: imageModel,
           companyId,
         }),
@@ -417,6 +429,22 @@ export function AiVisualsPanel({
         </span>
       </div>
 
+      {/* Nombre d'images (image uniquement) — 1 par défaut, jusqu'à 4 */}
+      {!isVideo && (
+        <div className="mt-2 flex items-center gap-1.5">
+          <span className="text-2xs text-muted">{t("Nombre", "Count")}</span>
+          {([1, 2, 4] as const).map((c) => (
+            <button
+              key={c}
+              onClick={() => setCount(c)}
+              className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${count === c ? "bg-ai-visual text-white" : "bg-card text-muted ring-1 ring-hair hover:text-ink"}`}
+            >
+              {c}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Generate button + variations */}
       <div className="mt-2 flex gap-1.5">
         <button
@@ -425,7 +453,11 @@ export function AiVisualsPanel({
           className="flex items-center gap-1 rounded-md bg-ai-visual px-2.5 py-1 text-2xs font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
         >
           {loading && <Spinner />}
-          {isVideo ? t("Générer la vidéo", "Generate video") : t("Générer 4 options", "Generate 4 options")}
+          {isVideo
+            ? t("Générer la vidéo", "Generate video")
+            : count === 1
+            ? t("Générer 1 image", "Generate 1 image")
+            : t(`Générer ${count} options`, `Generate ${count} options`)}
         </button>
         <button
           disabled
@@ -453,21 +485,26 @@ export function AiVisualsPanel({
         isVideo ? (
           <div className="mt-2">
             <video src={results[0]} controls className="w-full rounded-md border-hair border-ai-visual/40" />
-            <a href={results[0]} download className="mt-1 inline-block text-2xs text-ai-visual hover:underline">
-              ⬇ {t("Télécharger la vidéo", "Download video")}
-            </a>
+            <div className="mt-1 flex items-center gap-3">
+              {onUse && (
+                <button
+                  onClick={() => handleUse(results[0], "video")}
+                  className={`rounded-md px-2 py-0.5 text-2xs font-medium ${usedUrl === results[0] ? "bg-success-500 text-white" : "bg-ai-visual text-white hover:opacity-90"}`}
+                >
+                  {usedUrl === results[0] ? `✓ ${t("Ajoutée", "Added")}` : t("Utiliser cette vidéo", "Use this video")}
+                </button>
+              )}
+              <a href={results[0]} download className="text-2xs text-ai-visual hover:underline">
+                ⬇ {t("Télécharger", "Download")}
+              </a>
+            </div>
           </div>
         ) : (
-        <div className="mt-2 grid grid-cols-4 gap-2">
+        <div className={`mt-2 grid gap-2 ${results.length === 1 ? "grid-cols-1" : results.length === 2 ? "grid-cols-2" : "grid-cols-4"}`}>
           {results.map((url, i) => (
-            <a
+            <div
               key={i}
-              href={url}
-              target="_blank"
-              rel="noopener noreferrer"
-              download
-              className="group relative block overflow-hidden rounded-md border-hair border-ai-visual/40 aspect-square"
-              title={t("Ouvrir / télécharger", "Open / download")}
+              className={`group relative overflow-hidden rounded-md border ${usedUrl === url ? "border-success-500 ring-1 ring-success-500" : "border-ai-visual/40"} aspect-square`}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
@@ -475,10 +512,24 @@ export function AiVisualsPanel({
                 alt={t(`Visuel généré ${i + 1}`, `Generated visual ${i + 1}`)}
                 className="h-full w-full object-cover"
               />
-              <span className="absolute bottom-1 right-1 rounded bg-ink/70 px-1.5 py-0.5 text-2xs text-white opacity-0 transition-opacity group-hover:opacity-100">
-                ⬇
-              </span>
-            </a>
+              {/* Actions : choisir ce visuel (→ aperçu + publication) ou télécharger */}
+              <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-1 bg-gradient-to-t from-black/70 to-transparent p-1 opacity-0 transition-opacity group-hover:opacity-100">
+                {onUse ? (
+                  <button
+                    onClick={() => handleUse(url, "image")}
+                    className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${usedUrl === url ? "bg-success-500 text-white" : "bg-white/90 text-ink hover:bg-white"}`}
+                  >
+                    {usedUrl === url ? `✓ ${t("Ajoutée", "Added")}` : t("Utiliser", "Use")}
+                  </button>
+                ) : <span />}
+                <a href={url} target="_blank" rel="noopener noreferrer" download className="rounded bg-ink/70 px-1.5 py-0.5 text-[10px] text-white" title={t("Ouvrir / télécharger", "Open / download")}>
+                  ⬇
+                </a>
+              </div>
+              {usedUrl === url && (
+                <span className="absolute left-1 top-1 rounded bg-success-500 px-1.5 py-0.5 text-[10px] font-medium text-white">✓</span>
+              )}
+            </div>
           ))}
         </div>
         )

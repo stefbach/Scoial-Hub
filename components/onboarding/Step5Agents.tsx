@@ -327,7 +327,7 @@ function StepCard({ step, isLast }: { step: AgentRunResult["steps"][number]; isL
 
           {/* Sortie de l'étape */}
           {displayOutput && (
-            <pre className="mt-2 whitespace-pre-wrap rounded-lg border border-hair bg-canvas px-3 py-2 text-xs leading-relaxed text-ink">
+            <pre className="mt-2 whitespace-pre-wrap rounded-lg bg-canvas/60 px-3 py-2 font-sans text-xs leading-relaxed text-ink ring-1 ring-hair/50">
               {displayOutput}
             </pre>
           )}
@@ -375,7 +375,7 @@ function FinalOutputCard({ finalOutput }: { finalOutput: string }) {
         </span>
       </div>
       <div className="p-4">
-        <pre className="whitespace-pre-wrap rounded-xl border border-hair bg-canvas px-4 py-3 text-sm leading-relaxed text-ink">
+        <pre className="whitespace-pre-wrap rounded-xl bg-canvas/60 px-4 py-3 font-sans text-sm leading-relaxed text-ink ring-1 ring-hair/50">
           {finalOutput}
         </pre>
       </div>

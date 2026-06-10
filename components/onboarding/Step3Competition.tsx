@@ -504,7 +504,7 @@ export default function Step3Competition() {
       </section>
 
       {/* ── Note optionnelle — lien vers veille ── */}
-      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-hair bg-canvas px-4 py-3">
+      <div className="flex flex-wrap items-center gap-2 rounded-xl bg-canvas/60 px-4 py-3 ring-1 ring-hair/50">
         {/* Icône info */}
         <svg className="shrink-0 text-muted" width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden>
           <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.3" fill="none" />

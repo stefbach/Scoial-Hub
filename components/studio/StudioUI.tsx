@@ -21,7 +21,7 @@ export function StudioHero({
 }) {
   return (
     <header className="studio-hero animate-fade-in px-5 py-6 sm:px-7 sm:py-7">
-      <div className="flex items-start gap-4">
+      <div className="flex flex-wrap items-start gap-4">
         <span className="studio-hero-badge shrink-0" aria-hidden="true">
           {icon}
         </span>
@@ -31,7 +31,7 @@ export function StudioHero({
           </h1>
           <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-muted">{subtitle}</p>
         </div>
-        {actions && <div className="hidden shrink-0 sm:block">{actions}</div>}
+        {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
       </div>
     </header>
   );

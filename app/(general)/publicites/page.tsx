@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useT } from "@/lib/i18n";
+import { StudioHero } from "@/components/studio/StudioUI";
 import { Toast } from "@/components/ui/Toast";
 import { useCompany } from "@/lib/company-context";
 import { StrategyPanel } from "@/components/strategy/StrategyPanel";
@@ -123,20 +124,14 @@ export default function PublicitesPage() {
 
   return (
     <div className="animate-fade-in space-y-5">
-      <div className="flex flex-wrap items-start gap-3">
-        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-white" style={{ background: "#1877F2" }} aria-hidden>
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="white"><path d="M22 12a10 10 0 1 0-11.6 9.9v-7H7.9V12h2.5V9.8c0-2.5 1.5-3.9 3.8-3.9 1.1 0 2.2.2 2.2.2v2.5h-1.2c-1.2 0-1.6.8-1.6 1.5V12h2.7l-.4 2.9h-2.3v7A10 10 0 0 0 22 12z" /></svg>
-        </span>
-        <div className="min-w-0 flex-1">
-          <h1 className="text-xl font-bold tracking-tight text-ink">{t("Publicités concurrentes (Meta Ad Library)", "Competitor ads (Meta Ad Library)")}</h1>
-          <p className="mt-0.5 text-sm text-muted">
-            {t(
-              "Données réelles des publicités actives sur Facebook & Instagram, triées par impressions.",
-              "Real data on active Facebook & Instagram ads, sorted by impressions."
-            )}
-          </p>
-        </div>
-      </div>
+      <StudioHero
+        icon="🔎"
+        title={t("Publicités concurrentes (Meta Ad Library)", "Competitor ads (Meta Ad Library)")}
+        subtitle={t(
+          "Données réelles des publicités actives sur Facebook & Instagram, triées par impressions.",
+          "Real data on active Facebook & Instagram ads, sorted by impressions."
+        )}
+      />
 
       {/* Fil conducteur : de la recherche de pubs à la campagne */}
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-2xs text-muted">

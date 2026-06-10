@@ -6,7 +6,7 @@
 
 import { useRef, useState } from "react";
 import { useCompany } from "@/lib/company-context";
-import { PageHeader } from "@/components/ui/PageHeader";
+import { StudioHero, StudioStep, Segmented } from "@/components/studio/StudioUI";
 import { Spinner, BusyHint } from "@/components/ui/Spinner";
 import { useT } from "@/lib/i18n";
 import { createClient } from "@/lib/supabase/client";
@@ -365,40 +365,35 @@ export default function StudioAvatarPage() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl space-y-5">
-      <div>
-        <PageHeader title={t("Studio Avatar", "Avatar Studio")} scoped={false} />
-        <p className="-mt-3 max-w-3xl text-sm text-muted">
-          {t(
-            "Un visage + un sujet → l'IA écrit le script, génère la voix et anime un avatar qui parle. Idéal pour des vidéos courtes social media.",
-            "A face + a topic → the AI writes the script, generates the voice and animates a talking avatar. Great for short social videos."
-          )}
-        </p>
-      </div>
+    <div className="mx-auto max-w-6xl space-y-5">
+      <StudioHero
+        icon="🎭"
+        title={t("Studio Avatar", "Avatar Studio")}
+        subtitle={t(
+          "Un visage + un sujet → l'IA écrit le script, génère la voix et anime un avatar qui parle. Idéal pour des vidéos courtes social media.",
+          "A face + a topic → the AI writes the script, generates the voice and animates a talking avatar. Great for short social videos."
+        )}
+      />
 
       {!canEdit ? (
         <div className="card p-8 text-center text-sm text-muted">
           {t("Accès en lecture seule : la génération d'avatars est réservée aux accès en édition.", "View-only access: avatar generation requires edit access.")}
         </div>
       ) : (
-        <div className="grid gap-5 lg:grid-cols-2">
+        <div className="grid gap-5 lg:grid-cols-[1.05fr_0.95fr]">
           {/* Colonne réglages */}
           <div className="space-y-4">
-            <section className="card p-5 space-y-3">
-              <p className="section-label">{t("1 · Scène — personne + décor", "1 · Scene — person + background")}</p>
+            <StudioStep n={1} title={t("Scène — personne + décor", "Scene — person + background")}>
 
               {/* Source de la personne : téléverser ou générer */}
-              <div className="flex gap-1 rounded-lg border border-hair p-1">
-                {([
+              <Segmented
+                value={personMode}
+                onChange={setPersonMode}
+                options={[
                   { id: "upload", label: t("Téléverser / URL", "Upload / URL") },
                   { id: "generate", label: t("Générer la personne", "Generate person") },
-                ] as const).map((m) => (
-                  <button key={m.id} onClick={() => setPersonMode(m.id)}
-                    className={`flex-1 rounded-md px-2 py-1.5 text-xs font-semibold transition-colors ${personMode === m.id ? "bg-page text-white" : "text-muted hover:text-ink"}`}>
-                    {m.label}
-                  </button>
-                ))}
-              </div>
+                ]}
+              />
 
               {personMode === "upload" ? (
                 <div className="flex gap-2">
@@ -443,10 +438,9 @@ export default function StudioAvatarPage() {
                   <img src={faceUrl} alt="" className="max-h-48 rounded-xl object-contain ring-1 ring-hair" onError={(e) => { e.currentTarget.style.display = "none"; }} />
                 </div>
               )}
-            </section>
+            </StudioStep>
 
-            <section className="card p-5 space-y-3">
-              <p className="section-label">{t("2 · Script", "2 · Script")}</p>
+            <StudioStep n={2} title={t("Script", "Script")}>
               <input value={topic} onChange={(e) => setTopic(e.target.value)} placeholder={t("Sujet (ex. « Notre nouvelle offre minceur »)", "Topic (e.g. \"Our new weight-loss offer\")")} className="input" />
               <div className="flex flex-wrap items-center gap-2">
                 <select value={language} onChange={(e) => setLanguage(e.target.value)} className="input w-auto">
@@ -462,10 +456,9 @@ export default function StudioAvatarPage() {
                 </button>
               </div>
               <textarea value={script} onChange={(e) => setScript(e.target.value)} rows={6} placeholder={t("Le script parlé apparaîtra ici (éditable)…", "The spoken script will appear here (editable)…")} className="input" />
-            </section>
+            </StudioStep>
 
-            <section className="card p-5 space-y-3">
-              <p className="section-label">{t("3 · Voix & rendu", "3 · Voice & render")}</p>
+            <StudioStep n={3} title={t("Voix & rendu", "Voice & render")}>
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <div>
                   <label className="text-2xs text-muted">{t("Voix", "Voice")}</label>
@@ -534,7 +527,7 @@ export default function StudioAvatarPage() {
                 <input type="checkbox" checked={subtitles} onChange={(e) => setSubtitles(e.target.checked)} className="h-4 w-4 accent-page" />
                 {t("Ajouter des sous-titres incrustés (transcription auto)", "Add burned-in subtitles (auto transcription)")}
               </label>
-            </section>
+            </StudioStep>
 
             <button onClick={genVideo} disabled={rendering} className="btn-primary w-full justify-center py-3 text-sm disabled:opacity-50">
               {rendering ? <span className="inline-flex items-center gap-2"><Spinner size={16} className="text-white" />{t("Génération de l'avatar…", "Generating avatar…")}</span> : t("🎬 Générer la vidéo avatar", "🎬 Generate avatar video")}
@@ -544,16 +537,17 @@ export default function StudioAvatarPage() {
             {error && <p className="rounded-lg bg-danger-50 px-3 py-2 text-xs text-danger-700">{error}</p>}
           </div>
 
-          {/* Colonne résultat */}
-          <div className="space-y-3">
+          {/* Colonne résultat — collante pour garder l'aperçu en vue */}
+          <div className="space-y-3 lg:sticky lg:top-4 lg:self-start">
             <p className="section-label">{t("Résultat", "Result")}</p>
-            <div className="card flex aspect-[9/16] max-h-[70vh] items-center justify-center overflow-hidden p-0">
+            <div className="studio-preview mx-auto flex aspect-[9/16] max-h-[72vh] w-full items-center justify-center overflow-hidden rounded-xl bg-black/40">
               {videoUrl ? (
                 // eslint-disable-next-line jsx-a11y/media-has-caption
                 <video src={videoUrl} controls autoPlay className="h-full w-full object-contain bg-black" />
               ) : (
-                <div className="px-6 text-center text-sm text-muted">
-                  {t("La vidéo de votre avatar s'affichera ici.", "Your avatar video will appear here.")}
+                <div className="flex flex-col items-center gap-3 px-6 text-center">
+                  <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/[0.04] text-2xl ring-1 ring-hair">🎬</span>
+                  <p className="text-sm text-muted">{t("La vidéo de votre avatar s'affichera ici.", "Your avatar video will appear here.")}</p>
                 </div>
               )}
             </div>

@@ -96,6 +96,10 @@ export default function NewMetaAdPage() {
   const [interestResults, setInterestResults] = useState<{ id: string; name: string; audienceSize?: number }[]>([]);
   const [searchingInt, setSearchingInt] = useState(false);
   const [selInterests, setSelInterests] = useState<{ id: string; name: string }[]>([]);
+  // Exclusions de ciblage (intérêts, audiences, localisations).
+  const [exInterests, setExInterests] = useState<{ id: string; name: string }[]>([]);
+  const [exAudiences, setExAudiences] = useState<{ id: string; name: string }[]>([]);
+  const [exGeoLocs, setExGeoLocs] = useState<GeoLoc[]>([]);
 
   // Placements
   const [placement, setPlacement] = useState<"auto" | "manual">("auto");
@@ -471,6 +475,11 @@ export default function NewMetaAdPage() {
           pixelId: adType === "traffic" && isConvObjective ? pixelId : undefined,
           conversionEvent: adType === "traffic" && isConvObjective ? conversionEvent : undefined,
           customAudiences: selAudiences.length ? selAudiences : undefined,
+          excludedInterests: exInterests.length ? exInterests : undefined,
+          excludedCustomAudiences: exAudiences.length ? exAudiences.map((a) => ({ id: a.id })) : undefined,
+          excludedCountries: exGeoLocs.filter((g) => g.type === "country").map((g) => (g.countryCode || g.key).toUpperCase()),
+          excludedCities: exGeoLocs.filter((g) => g.type === "city").map((g) => ({ key: g.key, radius: g.radius ?? 25, distanceUnit: "kilometer" as const })),
+          excludedRegions: exGeoLocs.filter((g) => g.type === "region").map((g) => ({ key: g.key })),
           variants: variants.map((v) => ({ primaryText: v })).filter((v) => v.primaryText.trim()),
         }),
       });
@@ -814,6 +823,66 @@ export default function NewMetaAdPage() {
               </div>
             )}
           </div>
+        </section>
+
+        {/* Exclusions de ciblage (qui NE PAS toucher) */}
+        <section className="studio-card p-5 space-y-3">
+          <span className="section-label">{t("Exclusions (qui ne pas cibler)", "Exclusions (who not to target)")}</span>
+
+          {/* Lieux exclus */}
+          <div>
+            <label className="mb-1 block text-xs font-medium text-muted">{t("Lieux exclus", "Excluded locations")}</label>
+            <MetaGeoPicker companyId={companyId} value={exGeoLocs} onChange={setExGeoLocs} disabled={!conn?.connected} />
+          </div>
+
+          {/* Intérêts exclus — réutilise les résultats de recherche ci-dessus */}
+          <div className="border-t border-hair pt-3">
+            <span className="text-xs font-semibold text-ink">{t("Centres d'intérêt exclus", "Excluded interests")}</span>
+            {interestResults.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {interestResults.map((it) => {
+                  const on = exInterests.some((x) => x.id === it.id);
+                  return (
+                    <button key={`ex-${it.id}`} type="button"
+                      onClick={() => setExInterests((cur) => cur.some((x) => x.id === it.id) ? cur.filter((x) => x.id !== it.id) : [...cur, { id: it.id, name: it.name }])}
+                      className={`rounded-full px-3 py-1 text-2xs font-medium ${on ? "bg-danger-500 text-white" : "bg-canvas text-muted ring-1 ring-hair hover:text-ink"}`}>
+                      {on ? "− " : ""}{it.name}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            {exInterests.length > 0 ? (
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                <span className="text-2xs text-muted">{t("Exclus :", "Excluded:")}</span>
+                {exInterests.map((it) => (
+                  <button key={it.id} type="button" onClick={() => setExInterests((cur) => cur.filter((x) => x.id !== it.id))}
+                    className="rounded-full bg-danger-50 px-2.5 py-1 text-2xs font-semibold text-danger-700 ring-1 ring-danger-200">{it.name} ✕</button>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-1 text-2xs text-muted">{t("Recherchez un intérêt ci-dessus, puis cliquez-le ici pour l'exclure.", "Search an interest above, then click it here to exclude it.")}</p>
+            )}
+          </div>
+
+          {/* Audiences exclues — réutilise la liste chargée ci-dessus */}
+          {audiences.length > 0 && (
+            <div className="border-t border-hair pt-3">
+              <span className="text-xs font-semibold text-ink">{t("Audiences exclues", "Excluded audiences")}</span>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {audiences.map((a) => {
+                  const on = exAudiences.some((x) => x.id === a.id);
+                  return (
+                    <button key={`exa-${a.id}`} type="button"
+                      onClick={() => setExAudiences((cur) => cur.some((x) => x.id === a.id) ? cur.filter((x) => x.id !== a.id) : [...cur, { id: a.id, name: a.name }])}
+                      className={`rounded-full px-3 py-1 text-2xs font-medium ${on ? "bg-danger-500 text-white" : "bg-canvas text-muted ring-1 ring-hair hover:text-ink"}`}>
+                      {on ? "− " : ""}{a.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </section>
 
         {/* Placements */}

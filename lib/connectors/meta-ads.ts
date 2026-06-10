@@ -84,6 +84,12 @@ export interface PublishAdInput {
   regions?: { key: string }[];
   /** Langues ciblées (clés locale Meta issues de la recherche adlocale). */
   locales?: number[];
+  /** Exclusions de ciblage. */
+  excludedInterests?: { id: string; name?: string }[];
+  excludedCustomAudiences?: { id: string }[];
+  excludedCountries?: string[];
+  excludedCities?: { key: string; radius?: number; distanceUnit?: "kilometer" | "mile" }[];
+  excludedRegions?: { key: string }[];
   ageMin?: number;
   ageMax?: number;
   gender?: "all" | "male" | "female";
@@ -214,12 +220,28 @@ export async function publishAd(input: PublishAdInput): Promise<PublishAdResult>
   // Meta exige au moins une localisation : repli France si rien n'est fourni.
   if (!geo.countries && !geo.cities && !geo.regions) geo.countries = ["FR"];
 
+  // Localisations EXCLUES (excluded_geo_locations).
+  const exGeo: Params = {};
+  if (input.excludedCountries?.length) exGeo.countries = input.excludedCountries;
+  if (input.excludedCities?.length) {
+    exGeo.cities = input.excludedCities.map((c) => ({ key: c.key, radius: c.radius ?? 25, distance_unit: c.distanceUnit ?? "kilometer" }));
+  }
+  if (input.excludedRegions?.length) exGeo.regions = input.excludedRegions.map((r) => ({ key: r.key }));
+  if (exGeo.countries || exGeo.cities || exGeo.regions) geo.excluded_geo_locations = exGeo;
+
   const targeting: Params = {
     geo_locations: geo,
     age_min: input.ageMin ?? 18,
     age_max: input.ageMax ?? 65,
   };
   if (input.locales?.length) targeting.locales = input.locales.map(Number).filter(Boolean);
+  // Exclusions : centres d'intérêt + audiences personnalisées.
+  if (input.excludedInterests?.length) {
+    targeting.exclusions = { interests: input.excludedInterests.map((i) => ({ id: i.id, name: i.name })) };
+  }
+  if (input.excludedCustomAudiences?.length) {
+    targeting.excluded_custom_audiences = input.excludedCustomAudiences.map((a) => ({ id: a.id }));
+  }
   if (input.gender === "male") targeting.genders = [1];
   else if (input.gender === "female") targeting.genders = [2];
   if (input.interests?.length) {

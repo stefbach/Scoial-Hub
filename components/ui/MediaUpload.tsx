@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useT } from "@/lib/i18n";
+import { createClient } from "@/lib/supabase/client";
 
 const MAX_BYTES = 25 * 1024 * 1024;
 const ACCEPT = "image/png,image/jpeg,video/mp4";
@@ -21,28 +22,51 @@ function formatSize(bytes: number) {
 export function MediaUpload({
   media,
   onChange,
+  companyId,
 }: {
   media: UploadedMedia | null;
   onChange: (m: UploadedMedia | null) => void;
+  /** Si fourni, le fichier est hébergé publiquement (URL atteignable par
+   *  Instagram/Facebook/LinkedIn). Sans companyId : aperçu local seulement. */
+  companyId?: string;
 }) {
   const t = useT();
   const inputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  const [hosting, setHosting] = useState(false);
 
-  const accept = (file: File) => {
+  const accept = async (file: File) => {
     setError(null);
     if (file.size > MAX_BYTES) {
-      setError("File is over 25MB. Please choose a smaller file.");
+      setError(t("Fichier supérieur à 25 Mo. Choisissez un fichier plus léger.", "File is over 25MB. Please choose a smaller file."));
       return;
     }
-    const kind = file.type.startsWith("video") ? "video" : "image";
-    onChange({
-      url: URL.createObjectURL(file),
-      name: file.name,
-      size: file.size,
-      kind,
-    });
+    const kind: "image" | "video" = file.type.startsWith("video") ? "video" : "image";
+    // Aperçu instantané (URL locale) pour une UX immédiate.
+    onChange({ url: URL.createObjectURL(file), name: file.name, size: file.size, kind });
+
+    // Hébergement public : indispensable pour publier sur les réseaux (les
+    // plateformes récupèrent l'image côté serveur — une URL blob: ne marche pas).
+    if (!companyId) return;
+    const sb = createClient();
+    if (!sb) return;
+    setHosting(true);
+    try {
+      const safe = file.name.replace(/[^a-zA-Z0-9.\-_]/g, "_");
+      const path = `${companyId}/compose/${Date.now()}-${safe}`;
+      const { error: upErr } = await sb.storage.from("sh-videos").upload(path, file, { upsert: true, contentType: file.type });
+      if (upErr) {
+        setError(t("Hébergement de l'image échoué — la publication réseau pourrait ne pas fonctionner.", "Image hosting failed — network publishing may not work."));
+        return;
+      }
+      const { data } = sb.storage.from("sh-videos").getPublicUrl(path);
+      if (data?.publicUrl) {
+        onChange({ url: data.publicUrl, name: file.name, size: file.size, kind });
+      }
+    } finally {
+      setHosting(false);
+    }
   };
 
   if (media) {
@@ -58,7 +82,7 @@ export function MediaUpload({
         </div>
         <div className="min-w-0 flex-1">
           <div className="truncate text-xs font-medium text-ink">{media.name}</div>
-          <div className="text-2xs text-muted">{formatSize(media.size)} · uploaded</div>
+          <div className="text-2xs text-muted">{formatSize(media.size)} · {hosting ? t("hébergement…", "hosting…") : t("prêt", "ready")}</div>
         </div>
         <button
           type="button"

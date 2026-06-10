@@ -50,6 +50,12 @@ export default function StudioAvatarPage() {
   const [cloning, setCloning] = useState(false);
   const [consent, setConsent] = useState(false);
   const cloneRef = useRef<HTMLInputElement>(null);
+  // Enregistrement micro in-browser (alternative au téléversement de fichier).
+  const [recording, setRecording] = useState(false);
+  const [recordSecs, setRecordSecs] = useState(0);
+  const mediaRecRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const recTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [subtitles, setSubtitles] = useState(false);
   const [seconds, setSeconds] = useState(20);
   const [script, setScript] = useState("");
@@ -174,15 +180,21 @@ export default function StudioAvatarPage() {
   // Clone une voix à partir d'un échantillon audio téléversé.
   async function cloneVoiceFile(files: FileList | null) {
     if (!files || files.length === 0) return;
+    await cloneVoiceBlob(files[0], files[0].name);
+  }
+
+  // Cœur du clonage : upload de l'échantillon (fichier OU enregistrement micro)
+  // puis appel du clonage. Réutilisé par le téléversement et l'enregistrement.
+  async function cloneVoiceBlob(blob: Blob, name: string) {
     if (!consent) { setError(t("Cochez la case de consentement pour cloner une voix.", "Tick the consent box to clone a voice.")); return; }
+    if (!blob || blob.size === 0) { setError(t("Échantillon audio vide.", "Empty audio sample.")); return; }
     const sb = createClient();
     if (!sb) { setError(t("Stockage indisponible.", "Storage unavailable.")); return; }
     setCloning(true); setError(null); setNote(null);
     try {
-      const file = files[0];
-      const safe = file.name.replace(/[^a-zA-Z0-9.\-_]/g, "_");
+      const safe = name.replace(/[^a-zA-Z0-9.\-_]/g, "_");
       const path = `${company.id}/voice/${Date.now()}-${safe}`;
-      const { error: upErr } = await sb.storage.from("sh-videos").upload(path, file, { upsert: true, contentType: file.type });
+      const { error: upErr } = await sb.storage.from("sh-videos").upload(path, blob, { upsert: true, contentType: blob.type || "audio/webm" });
       if (upErr) { setError(t("Échec de l'envoi de l'audio.", "Audio upload failed.")); return; }
       const { data } = sb.storage.from("sh-videos").getPublicUrl(path);
       const audioUrl = data?.publicUrl;
@@ -204,6 +216,58 @@ export default function StudioAvatarPage() {
     } catch (e) {
       setError(e instanceof Error ? e.message : t("Échec du clonage.", "Cloning failed."));
     } finally { setCloning(false); }
+  }
+
+  // Choisit le meilleur format d'enregistrement supporté par le navigateur.
+  function pickRecMime(): string {
+    const cands = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg"];
+    if (typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported) {
+      return cands.find((m) => MediaRecorder.isTypeSupported(m)) ?? "";
+    }
+    return "";
+  }
+
+  function stopRecording() {
+    const mr = mediaRecRef.current;
+    if (mr && mr.state !== "inactive") mr.stop();
+  }
+
+  // Démarre l'enregistrement micro ; à l'arrêt, l'échantillon est cloné directement.
+  async function startRecording() {
+    setError(null); setNote(null);
+    if (!consent) { setError(t("Cochez la case de consentement pour cloner une voix.", "Tick the consent box to clone a voice.")); return; }
+    if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+      setError(t("L'enregistrement n'est pas supporté par ce navigateur.", "Recording is not supported by this browser.")); return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mime = pickRecMime();
+      const mr = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+      chunksRef.current = [];
+      mr.ondataavailable = (e) => { if (e.data && e.data.size > 0) chunksRef.current.push(e.data); };
+      mr.onstop = () => {
+        stream.getTracks().forEach((tr) => tr.stop());
+        if (recTimerRef.current) { clearInterval(recTimerRef.current); recTimerRef.current = null; }
+        setRecording(false);
+        const type = mr.mimeType || "audio/webm";
+        const ext = type.includes("mp4") ? "m4a" : type.includes("ogg") ? "ogg" : "webm";
+        const blob = new Blob(chunksRef.current, { type });
+        void cloneVoiceBlob(blob, `enregistrement-${Date.now()}.${ext}`);
+      };
+      mr.start();
+      mediaRecRef.current = mr;
+      setRecording(true);
+      setRecordSecs(0);
+      recTimerRef.current = setInterval(() => {
+        setRecordSecs((s) => {
+          const n = s + 1;
+          if (n >= 300) stopRecording(); // plafond 5 min
+          return n;
+        });
+      }, 1000);
+    } catch {
+      setError(t("Micro inaccessible. Autorisez l'accès au microphone.", "Microphone unavailable. Allow microphone access."));
+    }
   }
 
   async function genVideo() {
@@ -424,17 +488,33 @@ export default function StudioAvatarPage() {
                   <details className="mt-2 rounded-lg border border-hair bg-white/[0.02] px-3 py-2">
                     <summary className="cursor-pointer text-2xs font-medium text-muted">{t("🎙️ Cloner une voix", "🎙️ Clone a voice")}</summary>
                     <div className="mt-2 space-y-2">
-                      <p className="text-2xs text-muted">{t("Téléversez un échantillon clair (10s–5min, MP3/WAV). La voix clonée s'ajoutera à la liste.", "Upload a clear sample (10s–5min, MP3/WAV). The cloned voice is added to the list.")}</p>
+                      <p className="text-2xs text-muted">{t("Enregistrez-vous au micro (10s–5min) ou téléversez un échantillon clair. La voix clonée s'ajoutera à la liste.", "Record yourself with the mic (10s–5min) or upload a clear sample. The cloned voice is added to the list.")}</p>
                       <label className="flex items-start gap-2 text-2xs text-muted">
                         <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-0.5 h-3.5 w-3.5 accent-page" />
                         {t("Je certifie avoir le droit d'utiliser et de cloner cette voix.", "I certify I have the right to use and clone this voice.")}
                       </label>
                       <input ref={cloneRef} type="file" accept="audio/*" className="hidden" onChange={(e) => cloneVoiceFile(e.target.files)} />
-                      <button type="button" onClick={() => cloneRef.current?.click()} disabled={cloning || !consent}
-                        className="btn-secondary inline-flex items-center gap-1.5 text-2xs disabled:opacity-50">
-                        {cloning && <Spinner size={12} className="text-current" />}
-                        {cloning ? t("Clonage…", "Cloning…") : t("⬆︎ Téléverser un échantillon", "⬆︎ Upload a sample")}
-                      </button>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {/* Enregistrement micro in-browser */}
+                        {!recording ? (
+                          <button type="button" onClick={startRecording} disabled={cloning || !consent}
+                            className="btn-secondary inline-flex items-center gap-1.5 text-2xs disabled:opacity-50">
+                            🎙️ {t("Enregistrer", "Record")}
+                          </button>
+                        ) : (
+                          <button type="button" onClick={stopRecording}
+                            className="inline-flex items-center gap-1.5 rounded-md bg-danger-500 px-2.5 py-1 text-2xs font-medium text-white">
+                            <span className="h-2 w-2 animate-pulse rounded-full bg-white" />
+                            {t("Arrêter", "Stop")} · {String(Math.floor(recordSecs / 60)).padStart(2, "0")}:{String(recordSecs % 60).padStart(2, "0")}
+                          </button>
+                        )}
+                        {/* Téléversement de fichier */}
+                        <button type="button" onClick={() => cloneRef.current?.click()} disabled={cloning || !consent || recording}
+                          className="btn-secondary inline-flex items-center gap-1.5 text-2xs disabled:opacity-50">
+                          {cloning && <Spinner size={12} className="text-current" />}
+                          {cloning ? t("Clonage…", "Cloning…") : t("⬆︎ Téléverser un échantillon", "⬆︎ Upload a sample")}
+                        </button>
+                      </div>
                     </div>
                   </details>
                   {!AVATAR_LANGS.find((l) => l.code === language)?.native && !clonedVoices.some((v) => v.id === voiceId) && (

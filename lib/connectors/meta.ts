@@ -210,7 +210,47 @@ class FacebookConnector implements SocialConnector {
       };
     }
 
-    // Publication sur une Facebook Page (POST /{page-id}/feed).
+    const pageId = input.externalAccountId;
+
+    // ── Média joint : Facebook exige des endpoints dédiés (≠ /feed) ──────────
+    if (input.media?.url) {
+      const isVideo =
+        input.media.mimeType?.startsWith("video") ??
+        /\.(mp4|mov|avi|m4v|webm)(\?|$)/i.test(input.media.url);
+
+      if (isVideo) {
+        // Vidéo de Page : POST /{page-id}/videos avec file_url public.
+        const vid = await graphFetch<{ id: string }>(`/${pageId}/videos`, {
+          method: "POST",
+          body: JSON.stringify({
+            file_url: input.media.url,
+            description: input.text,
+            access_token: input.accessToken,
+          }),
+        });
+        return {
+          externalId: vid.id,
+          url: `https://www.facebook.com/${vid.id}`,
+        };
+      }
+
+      // Photo de Page : POST /{page-id}/photos avec url publique + légende.
+      const photo = await graphFetch<{ id: string; post_id?: string }>(`/${pageId}/photos`, {
+        method: "POST",
+        body: JSON.stringify({
+          url: input.media.url,
+          caption: input.text,
+          access_token: input.accessToken,
+        }),
+      });
+      const id = photo.post_id ?? photo.id;
+      return {
+        externalId: id,
+        url: `https://www.facebook.com/${id}`,
+      };
+    }
+
+    // ── Sinon : publication texte (+ lien) sur le mur (POST /{page-id}/feed) ──
     const body: Record<string, string> = {
       message: input.text,
       access_token: input.accessToken,
@@ -221,7 +261,7 @@ class FacebookConnector implements SocialConnector {
     if (input.linkDescription) body.description = input.linkDescription;
 
     const result = await graphFetch<{ id: string }>(
-      `/${input.externalAccountId}/feed`,
+      `/${pageId}/feed`,
       {
         method: "POST",
         body: JSON.stringify(body),

@@ -20,6 +20,7 @@ import {
 import { captionsToSrt } from "@/lib/video/srt";
 import PromptStudio from "@/components/studio/PromptStudio";
 import BrandKitPanel from "@/components/studio/BrandKitPanel";
+import { StudioHero, StudioStep } from "@/components/studio/StudioUI";
 
 // ── Studio Créatif : images + vidéos → assemblage & marketing pro ────────────────
 
@@ -172,27 +173,23 @@ export default function StudioPage() {
 
   return (
     <div className="animate-fade-in space-y-5">
-      {/* En-tête */}
-      <div className="flex items-start gap-3 rounded-2xl border border-primary-200 bg-gradient-to-br from-primary-50 to-card px-5 py-4">
-        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-white shadow-sm" style={{ background: "linear-gradient(135deg,#5b2d8e,#7c3aed)" }} aria-hidden>
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="8" height="8" rx="1.5" stroke="white" strokeWidth="1.6"/><rect x="13" y="3" width="8" height="8" rx="1.5" stroke="white" strokeWidth="1.6"/><path d="M3 16.5A1.5 1.5 0 0 1 4.5 15h6A1.5 1.5 0 0 1 12 16.5v3A1.5 1.5 0 0 1 10.5 21h-6A1.5 1.5 0 0 1 3 19.5v-3Z" stroke="white" strokeWidth="1.6"/><path d="m15 18 6-3v6l-6-3Z" fill="white"/></svg>
-        </span>
-        <div className="min-w-0">
-          <h1 className="text-xl font-bold tracking-tight text-ink">{t("Studio Créatif", "Creative Studio")}</h1>
-          <p className="mt-0.5 text-sm text-primary-700">
-            {t(
-              "Importez des photos et/ou vidéos — on les assemble et on les markète automatiquement, réseau par réseau.",
-              "Upload photos and/or videos — we assemble and market them automatically, network by network."
-            )}
-          </p>
-          <a href="/campaigns/new" className="mt-1 inline-flex items-center gap-1.5 text-sm font-medium text-primary-600 hover:underline">
-            {t("→ Créer une pub Meta avec votre média", "→ Create a Meta ad with your media")}
-          </a>
-        </div>
-        <button onClick={resetStudio} className="btn-ghost ml-auto shrink-0 text-xs text-muted" title={t("Repartir d'un projet vierge", "Start a blank project")}>
-          {t("↺ Réinitialiser", "↺ Reset")}
-        </button>
-      </div>
+      {/* En-tête immersif */}
+      <StudioHero
+        icon="🎞️"
+        title={t("Studio Créatif", "Creative Studio")}
+        subtitle={t(
+          "Importez des photos et/ou vidéos — on les assemble et on les markète automatiquement, réseau par réseau.",
+          "Upload photos and/or videos — we assemble and market them automatically, network by network."
+        )}
+        actions={
+          <button onClick={resetStudio} className="btn-ghost shrink-0 text-xs text-muted" title={t("Repartir d'un projet vierge", "Start a blank project")}>
+            {t("↺ Réinitialiser", "↺ Reset")}
+          </button>
+        }
+      />
+      <a href="/campaigns/new" className="-mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-page hover:underline">
+        {t("→ Créer une pub Meta avec votre média", "→ Create a Meta ad with your media")}
+      </a>
 
       {/* Brand kit persistant — logo / charte / palette, réutilisés partout */}
       <BrandKitPanel
@@ -209,8 +206,7 @@ export default function StudioPage() {
       <PromptStudio onGenerated={(a) => setAssets((prev) => [...prev, a])} brandHints={brandHints} />
 
       {/* Étape 1 : médias */}
-      <section className="card p-5">
-        <div className="section-label mb-3">{t("1 · Vos médias (photos & vidéos)", "1 · Your media (photos & videos)")}</div>
+      <StudioStep n={1} title={t("Vos médias (photos & vidéos)", "Your media (photos & videos)")}>
 
         <div
           className="flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-hair bg-canvas px-4 py-7 text-center transition-colors hover:border-primary-300"
@@ -271,11 +267,10 @@ export default function StudioPage() {
             </div>
           </div>
         )}
-      </section>
+      </StudioStep>
 
       {/* Étape 2 : assemblage */}
-      <section className="card p-5">
-        <div className="section-label mb-3">{t("2 · Que veut-on en faire ?", "2 · What do we make?")}</div>
+      <StudioStep n={2} title={t("Que veut-on en faire ?", "What do we make?")}>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
           {ASSEMBLY_MODES.map((mode) => {
             const on = assembly === mode.id;
@@ -291,11 +286,10 @@ export default function StudioPage() {
             );
           })}
         </div>
-      </section>
+      </StudioStep>
 
       {/* Étape 3 : objectif & réseaux */}
-      <section className="card p-5">
-        <div className="section-label mb-3">{t("3 · Objectif & réseaux", "3 · Objective & networks")}</div>
+      <StudioStep n={3} title={t("Objectif & réseaux", "Objective & networks")}>
         <input
           className="input mb-4 w-full"
           placeholder={t("Objectif marketing (ex : générer des leads)", "Marketing objective (e.g. generate leads)")}
@@ -312,7 +306,7 @@ export default function StudioPage() {
             );
           })}
         </div>
-      </section>
+      </StudioStep>
 
       <button
         className="btn-primary w-full justify-center py-3 text-sm disabled:opacity-50"

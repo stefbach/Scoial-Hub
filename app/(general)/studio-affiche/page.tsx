@@ -15,6 +15,7 @@ import { Spinner, BusyHint } from "@/components/ui/Spinner";
 import { IMAGE_MODELS, DEFAULT_IMAGE_MODEL_ID } from "@/lib/ai/model-catalog";
 import BrandKitPanel from "@/components/studio/BrandKitPanel";
 import BrandChartView from "@/components/studio/BrandChartView";
+import { StudioHero, StudioStep } from "@/components/studio/StudioUI";
 import { SafeBoundary } from "@/components/ui/SafeBoundary";
 import type { BrandKit } from "@/lib/brand-kit/types";
 
@@ -299,28 +300,25 @@ export default function StudioAffichePage() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
-      <header className="flex items-start justify-between gap-3">
-        <div>
-          <p className="section-label text-primary-500">{t("Studio", "Studio")}</p>
-          <h1 className="mt-1 text-2xl font-bold tracking-tight text-ink">{t("Studio Affiches & Visuels", "Poster & Visual Studio")}</h1>
-          <p className="mt-1 max-w-2xl text-sm text-muted">
-            {t("Créez des affiches A4/A3 et des visuels réseaux : fond IA ou image, texte, logo — export prêt à imprimer ou à publier.", "Create A4/A3 posters and social visuals: AI or uploaded background, text, logo — export ready to print or publish.")}
-          </p>
-          <a href="/campaigns/new" className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-primary-600 hover:underline">
-            {t("→ Créer une pub Meta (vos visuels sont dans la bibliothèque)", "→ Create a Meta ad (your visuals are in the library)")}
-          </a>
-        </div>
-        <button onClick={resetStudio} className="btn-ghost shrink-0 text-xs text-muted" title={t("Repartir d'une affiche vierge", "Start from a blank poster")}>
-          {t("↺ Réinitialiser", "↺ Reset")}
-        </button>
-      </header>
+      <StudioHero
+        icon="🖼️"
+        title={t("Studio Affiches & Visuels", "Poster & Visual Studio")}
+        subtitle={t("Créez des affiches A4/A3 et des visuels réseaux : fond IA ou image, texte, logo — export prêt à imprimer ou à publier.", "Create A4/A3 posters and social visuals: AI or uploaded background, text, logo — export ready to print or publish.")}
+        actions={
+          <button onClick={resetStudio} className="btn-ghost shrink-0 text-xs text-muted" title={t("Repartir d'une affiche vierge", "Start from a blank poster")}>
+            {t("↺ Réinitialiser", "↺ Reset")}
+          </button>
+        }
+      />
+      <a href="/campaigns/new" className="-mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-page hover:underline">
+        {t("→ Créer une pub Meta (vos visuels sont dans la bibliothèque)", "→ Create a Meta ad (your visuals are in the library)")}
+      </a>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[360px_1fr]">
         {/* ── Panneau de contrôle ── */}
         <div className="space-y-5">
           {/* Format */}
-          <section className="card p-4">
-            <div className="section-label mb-2">{t("Format", "Format")}</div>
+          <StudioStep n={1} title={t("Format", "Format")}>
             <div className="grid grid-cols-2 gap-2">
               {FORMATS.map((f) => (
                 <button key={f.id} onClick={() => setFormatId(f.id)}
@@ -329,11 +327,10 @@ export default function StudioAffichePage() {
                 </button>
               ))}
             </div>
-          </section>
+          </StudioStep>
 
           {/* Fond */}
-          <section className="card p-4 space-y-3">
-            <div className="section-label">{t("Fond", "Background")}</div>
+          <StudioStep n={2} title={t("Fond", "Background")}>
 
             {/* Modèle IA */}
             <div>
@@ -360,11 +357,10 @@ export default function StudioAffichePage() {
               </label>
             </div>
             {generating && <BusyHint label={t("Création du visuel…", "Creating the visual…")} eta={t("~15–40 s", "~15–40 s")} />}
-          </section>
+          </StudioStep>
 
           {/* Texte */}
-          <section className="card p-4 space-y-3">
-            <div className="section-label">{t("Texte", "Text")}</div>
+          <StudioStep n={3} title={t("Texte", "Text")}>
             <input value={headline} onChange={(e) => setHeadline(e.target.value)} placeholder={t("Titre", "Headline")} className={inputCls} />
             <input value={subtitle} onChange={(e) => setSubtitle(e.target.value)} placeholder={t("Sous-titre (optionnel)", "Subtitle (optional)")} className={inputCls} />
             <div className="flex items-center gap-2">
@@ -386,11 +382,10 @@ export default function StudioAffichePage() {
                 {t("Voile lisibilité", "Readability scrim")}
               </label>
             </div>
-          </section>
+          </StudioStep>
 
           {/* Logo : placement sur l'affiche (le logo vient du brand kit) */}
-          <section className="card p-4 space-y-3">
-            <div className="section-label">{t("Logo sur l'affiche", "Logo on the poster")}</div>
+          <StudioStep n={4} title={t("Logo sur l'affiche", "Logo on the poster")}>
             <div className="flex flex-wrap items-center gap-2">
               <label className="btn-secondary cursor-pointer text-xs">
                 {logoImg ? t("Remplacer ponctuellement", "Replace for this poster") : t("📁 Logo ponctuel", "📁 One-off logo")}
@@ -408,7 +403,7 @@ export default function StudioAffichePage() {
             ) : (
               <p className="text-2xs text-muted">{t("Importez le logo dans le brand kit ci-dessous pour le réutiliser partout.", "Upload the logo in the brand kit below to reuse it everywhere.")}</p>
             )}
-          </section>
+          </StudioStep>
 
           {/* Brand kit persistant (logo + charte + analyse IA, mémorisé par marque) */}
           <BrandKitPanel

@@ -6,7 +6,7 @@
 
 import { useRef, useState } from "react";
 import { useCompany } from "@/lib/company-context";
-import { PageHeader } from "@/components/ui/PageHeader";
+import { StudioHero, StudioStep, Segmented } from "@/components/studio/StudioUI";
 import { Spinner, BusyHint } from "@/components/ui/Spinner";
 import { useT } from "@/lib/i18n";
 import { createClient } from "@/lib/supabase/client";
@@ -50,6 +50,12 @@ export default function StudioAvatarPage() {
   const [cloning, setCloning] = useState(false);
   const [consent, setConsent] = useState(false);
   const cloneRef = useRef<HTMLInputElement>(null);
+  // Enregistrement micro in-browser (alternative au téléversement de fichier).
+  const [recording, setRecording] = useState(false);
+  const [recordSecs, setRecordSecs] = useState(0);
+  const mediaRecRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const recTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [subtitles, setSubtitles] = useState(false);
   const [seconds, setSeconds] = useState(20);
   const [script, setScript] = useState("");
@@ -174,15 +180,21 @@ export default function StudioAvatarPage() {
   // Clone une voix à partir d'un échantillon audio téléversé.
   async function cloneVoiceFile(files: FileList | null) {
     if (!files || files.length === 0) return;
+    await cloneVoiceBlob(files[0], files[0].name);
+  }
+
+  // Cœur du clonage : upload de l'échantillon (fichier OU enregistrement micro)
+  // puis appel du clonage. Réutilisé par le téléversement et l'enregistrement.
+  async function cloneVoiceBlob(blob: Blob, name: string) {
     if (!consent) { setError(t("Cochez la case de consentement pour cloner une voix.", "Tick the consent box to clone a voice.")); return; }
+    if (!blob || blob.size === 0) { setError(t("Échantillon audio vide.", "Empty audio sample.")); return; }
     const sb = createClient();
     if (!sb) { setError(t("Stockage indisponible.", "Storage unavailable.")); return; }
     setCloning(true); setError(null); setNote(null);
     try {
-      const file = files[0];
-      const safe = file.name.replace(/[^a-zA-Z0-9.\-_]/g, "_");
+      const safe = name.replace(/[^a-zA-Z0-9.\-_]/g, "_");
       const path = `${company.id}/voice/${Date.now()}-${safe}`;
-      const { error: upErr } = await sb.storage.from("sh-videos").upload(path, file, { upsert: true, contentType: file.type });
+      const { error: upErr } = await sb.storage.from("sh-videos").upload(path, blob, { upsert: true, contentType: blob.type || "audio/webm" });
       if (upErr) { setError(t("Échec de l'envoi de l'audio.", "Audio upload failed.")); return; }
       const { data } = sb.storage.from("sh-videos").getPublicUrl(path);
       const audioUrl = data?.publicUrl;
@@ -204,6 +216,58 @@ export default function StudioAvatarPage() {
     } catch (e) {
       setError(e instanceof Error ? e.message : t("Échec du clonage.", "Cloning failed."));
     } finally { setCloning(false); }
+  }
+
+  // Choisit le meilleur format d'enregistrement supporté par le navigateur.
+  function pickRecMime(): string {
+    const cands = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg"];
+    if (typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported) {
+      return cands.find((m) => MediaRecorder.isTypeSupported(m)) ?? "";
+    }
+    return "";
+  }
+
+  function stopRecording() {
+    const mr = mediaRecRef.current;
+    if (mr && mr.state !== "inactive") mr.stop();
+  }
+
+  // Démarre l'enregistrement micro ; à l'arrêt, l'échantillon est cloné directement.
+  async function startRecording() {
+    setError(null); setNote(null);
+    if (!consent) { setError(t("Cochez la case de consentement pour cloner une voix.", "Tick the consent box to clone a voice.")); return; }
+    if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+      setError(t("L'enregistrement n'est pas supporté par ce navigateur.", "Recording is not supported by this browser.")); return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mime = pickRecMime();
+      const mr = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+      chunksRef.current = [];
+      mr.ondataavailable = (e) => { if (e.data && e.data.size > 0) chunksRef.current.push(e.data); };
+      mr.onstop = () => {
+        stream.getTracks().forEach((tr) => tr.stop());
+        if (recTimerRef.current) { clearInterval(recTimerRef.current); recTimerRef.current = null; }
+        setRecording(false);
+        const type = mr.mimeType || "audio/webm";
+        const ext = type.includes("mp4") ? "m4a" : type.includes("ogg") ? "ogg" : "webm";
+        const blob = new Blob(chunksRef.current, { type });
+        void cloneVoiceBlob(blob, `enregistrement-${Date.now()}.${ext}`);
+      };
+      mr.start();
+      mediaRecRef.current = mr;
+      setRecording(true);
+      setRecordSecs(0);
+      recTimerRef.current = setInterval(() => {
+        setRecordSecs((s) => {
+          const n = s + 1;
+          if (n >= 300) stopRecording(); // plafond 5 min
+          return n;
+        });
+      }, 1000);
+    } catch {
+      setError(t("Micro inaccessible. Autorisez l'accès au microphone.", "Microphone unavailable. Allow microphone access."));
+    }
   }
 
   async function genVideo() {
@@ -301,40 +365,35 @@ export default function StudioAvatarPage() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl space-y-5">
-      <div>
-        <PageHeader title={t("Studio Avatar", "Avatar Studio")} scoped={false} />
-        <p className="-mt-3 max-w-3xl text-sm text-muted">
-          {t(
-            "Un visage + un sujet → l'IA écrit le script, génère la voix et anime un avatar qui parle. Idéal pour des vidéos courtes social media.",
-            "A face + a topic → the AI writes the script, generates the voice and animates a talking avatar. Great for short social videos."
-          )}
-        </p>
-      </div>
+    <div className="mx-auto max-w-6xl space-y-5">
+      <StudioHero
+        icon="🎭"
+        title={t("Studio Avatar", "Avatar Studio")}
+        subtitle={t(
+          "Un visage + un sujet → l'IA écrit le script, génère la voix et anime un avatar qui parle. Idéal pour des vidéos courtes social media.",
+          "A face + a topic → the AI writes the script, generates the voice and animates a talking avatar. Great for short social videos."
+        )}
+      />
 
       {!canEdit ? (
         <div className="card p-8 text-center text-sm text-muted">
           {t("Accès en lecture seule : la génération d'avatars est réservée aux accès en édition.", "View-only access: avatar generation requires edit access.")}
         </div>
       ) : (
-        <div className="grid gap-5 lg:grid-cols-2">
+        <div className="grid gap-5 lg:grid-cols-[1.05fr_0.95fr]">
           {/* Colonne réglages */}
           <div className="space-y-4">
-            <section className="card p-5 space-y-3">
-              <p className="section-label">{t("1 · Scène — personne + décor", "1 · Scene — person + background")}</p>
+            <StudioStep n={1} title={t("Scène — personne + décor", "Scene — person + background")}>
 
               {/* Source de la personne : téléverser ou générer */}
-              <div className="flex gap-1 rounded-lg border border-hair p-1">
-                {([
+              <Segmented
+                value={personMode}
+                onChange={setPersonMode}
+                options={[
                   { id: "upload", label: t("Téléverser / URL", "Upload / URL") },
                   { id: "generate", label: t("Générer la personne", "Generate person") },
-                ] as const).map((m) => (
-                  <button key={m.id} onClick={() => setPersonMode(m.id)}
-                    className={`flex-1 rounded-md px-2 py-1.5 text-xs font-semibold transition-colors ${personMode === m.id ? "bg-page text-white" : "text-muted hover:text-ink"}`}>
-                    {m.label}
-                  </button>
-                ))}
-              </div>
+                ]}
+              />
 
               {personMode === "upload" ? (
                 <div className="flex gap-2">
@@ -379,10 +438,9 @@ export default function StudioAvatarPage() {
                   <img src={faceUrl} alt="" className="max-h-48 rounded-xl object-contain ring-1 ring-hair" onError={(e) => { e.currentTarget.style.display = "none"; }} />
                 </div>
               )}
-            </section>
+            </StudioStep>
 
-            <section className="card p-5 space-y-3">
-              <p className="section-label">{t("2 · Script", "2 · Script")}</p>
+            <StudioStep n={2} title={t("Script", "Script")}>
               <input value={topic} onChange={(e) => setTopic(e.target.value)} placeholder={t("Sujet (ex. « Notre nouvelle offre minceur »)", "Topic (e.g. \"Our new weight-loss offer\")")} className="input" />
               <div className="flex flex-wrap items-center gap-2">
                 <select value={language} onChange={(e) => setLanguage(e.target.value)} className="input w-auto">
@@ -398,10 +456,9 @@ export default function StudioAvatarPage() {
                 </button>
               </div>
               <textarea value={script} onChange={(e) => setScript(e.target.value)} rows={6} placeholder={t("Le script parlé apparaîtra ici (éditable)…", "The spoken script will appear here (editable)…")} className="input" />
-            </section>
+            </StudioStep>
 
-            <section className="card p-5 space-y-3">
-              <p className="section-label">{t("3 · Voix & rendu", "3 · Voice & render")}</p>
+            <StudioStep n={3} title={t("Voix & rendu", "Voice & render")}>
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <div>
                   <label className="text-2xs text-muted">{t("Voix", "Voice")}</label>
@@ -424,17 +481,33 @@ export default function StudioAvatarPage() {
                   <details className="mt-2 rounded-lg border border-hair bg-white/[0.02] px-3 py-2">
                     <summary className="cursor-pointer text-2xs font-medium text-muted">{t("🎙️ Cloner une voix", "🎙️ Clone a voice")}</summary>
                     <div className="mt-2 space-y-2">
-                      <p className="text-2xs text-muted">{t("Téléversez un échantillon clair (10s–5min, MP3/WAV). La voix clonée s'ajoutera à la liste.", "Upload a clear sample (10s–5min, MP3/WAV). The cloned voice is added to the list.")}</p>
+                      <p className="text-2xs text-muted">{t("Enregistrez-vous au micro (10s–5min) ou téléversez un échantillon clair. La voix clonée s'ajoutera à la liste.", "Record yourself with the mic (10s–5min) or upload a clear sample. The cloned voice is added to the list.")}</p>
                       <label className="flex items-start gap-2 text-2xs text-muted">
                         <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-0.5 h-3.5 w-3.5 accent-page" />
                         {t("Je certifie avoir le droit d'utiliser et de cloner cette voix.", "I certify I have the right to use and clone this voice.")}
                       </label>
                       <input ref={cloneRef} type="file" accept="audio/*" className="hidden" onChange={(e) => cloneVoiceFile(e.target.files)} />
-                      <button type="button" onClick={() => cloneRef.current?.click()} disabled={cloning || !consent}
-                        className="btn-secondary inline-flex items-center gap-1.5 text-2xs disabled:opacity-50">
-                        {cloning && <Spinner size={12} className="text-current" />}
-                        {cloning ? t("Clonage…", "Cloning…") : t("⬆︎ Téléverser un échantillon", "⬆︎ Upload a sample")}
-                      </button>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {/* Enregistrement micro in-browser */}
+                        {!recording ? (
+                          <button type="button" onClick={startRecording} disabled={cloning || !consent}
+                            className="btn-secondary inline-flex items-center gap-1.5 text-2xs disabled:opacity-50">
+                            🎙️ {t("Enregistrer", "Record")}
+                          </button>
+                        ) : (
+                          <button type="button" onClick={stopRecording}
+                            className="inline-flex items-center gap-1.5 rounded-md bg-danger-500 px-2.5 py-1 text-2xs font-medium text-white">
+                            <span className="h-2 w-2 animate-pulse rounded-full bg-white" />
+                            {t("Arrêter", "Stop")} · {String(Math.floor(recordSecs / 60)).padStart(2, "0")}:{String(recordSecs % 60).padStart(2, "0")}
+                          </button>
+                        )}
+                        {/* Téléversement de fichier */}
+                        <button type="button" onClick={() => cloneRef.current?.click()} disabled={cloning || !consent || recording}
+                          className="btn-secondary inline-flex items-center gap-1.5 text-2xs disabled:opacity-50">
+                          {cloning && <Spinner size={12} className="text-current" />}
+                          {cloning ? t("Clonage…", "Cloning…") : t("⬆︎ Téléverser un échantillon", "⬆︎ Upload a sample")}
+                        </button>
+                      </div>
                     </div>
                   </details>
                   {!AVATAR_LANGS.find((l) => l.code === language)?.native && !clonedVoices.some((v) => v.id === voiceId) && (
@@ -454,7 +527,7 @@ export default function StudioAvatarPage() {
                 <input type="checkbox" checked={subtitles} onChange={(e) => setSubtitles(e.target.checked)} className="h-4 w-4 accent-page" />
                 {t("Ajouter des sous-titres incrustés (transcription auto)", "Add burned-in subtitles (auto transcription)")}
               </label>
-            </section>
+            </StudioStep>
 
             <button onClick={genVideo} disabled={rendering} className="btn-primary w-full justify-center py-3 text-sm disabled:opacity-50">
               {rendering ? <span className="inline-flex items-center gap-2"><Spinner size={16} className="text-white" />{t("Génération de l'avatar…", "Generating avatar…")}</span> : t("🎬 Générer la vidéo avatar", "🎬 Generate avatar video")}
@@ -464,16 +537,17 @@ export default function StudioAvatarPage() {
             {error && <p className="rounded-lg bg-danger-50 px-3 py-2 text-xs text-danger-700">{error}</p>}
           </div>
 
-          {/* Colonne résultat */}
-          <div className="space-y-3">
+          {/* Colonne résultat — collante pour garder l'aperçu en vue */}
+          <div className="space-y-3 lg:sticky lg:top-4 lg:self-start">
             <p className="section-label">{t("Résultat", "Result")}</p>
-            <div className="card flex aspect-[9/16] max-h-[70vh] items-center justify-center overflow-hidden p-0">
+            <div className="studio-preview mx-auto flex aspect-[9/16] max-h-[72vh] w-full items-center justify-center overflow-hidden rounded-xl bg-black/40">
               {videoUrl ? (
                 // eslint-disable-next-line jsx-a11y/media-has-caption
                 <video src={videoUrl} controls autoPlay className="h-full w-full object-contain bg-black" />
               ) : (
-                <div className="px-6 text-center text-sm text-muted">
-                  {t("La vidéo de votre avatar s'affichera ici.", "Your avatar video will appear here.")}
+                <div className="flex flex-col items-center gap-3 px-6 text-center">
+                  <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/[0.04] text-2xl ring-1 ring-hair">🎬</span>
+                  <p className="text-sm text-muted">{t("La vidéo de votre avatar s'affichera ici.", "Your avatar video will appear here.")}</p>
                 </div>
               )}
             </div>

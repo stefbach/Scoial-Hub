@@ -87,16 +87,24 @@ export async function POST(
       );
     }
 
-    // Instagram exige un média : un post programmé ne porte pas l'URL de l'image
-    // (seulement son type). On publie depuis Composer pour Instagram.
-    if (platform === "instagram") {
+    // Média attaché (URL) — requis par Instagram (pas de post texte seul),
+    // optionnel mais pris en compte pour Facebook/LinkedIn.
+    const mediaUrl = post.media?.url;
+    if (platform === "instagram" && !mediaUrl) {
       return NextResponse.json(
-        { error: "Instagram exige une image — publiez ce contenu depuis Composer." },
+        { error: "Instagram exige un visuel (image ou vidéo). Ajoutez un média à la publication avant de publier." },
         { status: 422 }
       );
     }
 
-    const input: PublishInput = { externalAccountId, accessToken, text };
+    const input: PublishInput = {
+      externalAccountId,
+      accessToken,
+      text,
+      media: mediaUrl
+        ? { url: mediaUrl, mimeType: post.media?.kind === "video" ? "video/mp4" : "image/jpeg" }
+        : undefined,
+    };
 
     let result;
     try {

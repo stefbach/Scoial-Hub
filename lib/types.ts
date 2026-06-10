@@ -68,7 +68,7 @@ export interface ScheduledPost {
   status?: "scheduled" | "draft" | "published"; // defaults to "scheduled" when omitted
   body?: string; // full post text, used to resume editing a draft
   automationName?: string; // present when source === "automation"
-  media?: { kind: "image" | "video" }; // attached media, if any
+  media?: { kind: "image" | "video"; url?: string }; // média attaché (url requise pour publier sur Instagram)
   publishedAt?: string; // ISO timestamp set when published from the modal
 }
 

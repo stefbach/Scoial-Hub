@@ -166,14 +166,23 @@ export function ScheduledDetailModal({
           {post.body || post.title}
         </div>
 
-        {/* Media */}
+        {/* Media — aperçu réel si l'URL est connue (visuel qui sera publié) */}
         {post.media && (
           <div className="mt-3">
             <div className="section-label mb-1">{t("Média", "Media")}</div>
-            <div className="flex h-[90px] w-[120px] items-center justify-center rounded-md border-hair border-hair bg-canvas">
-              <span className="text-2xs text-muted">
-                {post.media.kind === "video" ? t("Vidéo", "Video") : t("Image", "Image")}
-              </span>
+            <div className="flex h-[90px] w-[120px] items-center justify-center overflow-hidden rounded-md border-hair border-hair bg-canvas">
+              {post.media.url ? (
+                post.media.kind === "video" ? (
+                  <video src={post.media.url} className="h-full w-full object-cover" muted />
+                ) : (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={post.media.url} alt="" className="h-full w-full object-cover" />
+                )
+              ) : (
+                <span className="text-2xs text-muted">
+                  {post.media.kind === "video" ? t("Vidéo", "Video") : t("Image", "Image")}
+                </span>
+              )}
             </div>
           </div>
         )}

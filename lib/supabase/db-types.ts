@@ -34,7 +34,7 @@ export interface DbScheduledPost {
   status: string;
   needs_review: boolean | null;
   automation_name: string | null;
-  media: { kind: "image" | "video" } | null;
+  media: { kind: "image" | "video"; url?: string } | null;
   published_at: string | null;
   external_id: string | null;
   created_at: string;

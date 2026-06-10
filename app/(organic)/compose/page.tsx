@@ -186,6 +186,9 @@ function ComposeContent() {
             time: postTime,
             status,
             source: "manual",
+            // Média attaché (URL incluse) → indispensable pour publier sur
+            // Instagram, et utilisé aussi pour Facebook/LinkedIn.
+            media: upload ? { kind: upload.kind, url: upload.url } : undefined,
           }),
         })
       )
@@ -441,7 +444,7 @@ function ComposeContent() {
           />
 
           {/* Media upload */}
-          <MediaUpload media={upload} onChange={setUpload} />
+          <MediaUpload media={upload} onChange={setUpload} companyId={company.id} />
           {upload && (
             <button
               type="button"

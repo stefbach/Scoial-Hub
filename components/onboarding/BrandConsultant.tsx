@@ -9,7 +9,7 @@
 // Réutilisable : page dédiée /identite ET étape 0 du démarrage guidé.
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useT } from "@/lib/i18n";
+import { useT, useLang } from "@/lib/i18n";
 import { generateVideoPolling } from "@/lib/ai/generate-video-client";
 import type { BrandProfile } from "@/lib/onboarding/types";
 
@@ -85,6 +85,8 @@ export function BrandConsultant({
   continueLabel?: string;
 }) {
   const t = useT();
+  const { lang } = useLang();
+  const storageKey = `axon_brand_chat_${companyId}`;
 
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState("");
@@ -104,11 +106,54 @@ export function BrandConsultant({
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const kicked = useRef(false);
+  const restored = useRef(false);
+
+  // Accueil instantané (statique) : aucune attente IA à l'ouverture de la page.
+  const greeting = useCallback(
+    (): string =>
+      lang === "en"
+        ? `Hi 👋 I'm your brand consultant. To build the DNA of ${companyName}, let's start with the essentials: what made you want to create this brand, and what makes it unique?`
+        : `Bonjour 👋 je suis votre consultant de marque. Pour bâtir l'ADN de ${companyName}, commençons par l'essentiel : qu'est-ce qui vous a donné envie de créer cette marque, et qu'est-ce qui la rend unique ?`,
+    [lang, companyName]
+  );
 
   // Auto-scroll du fil de conversation.
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, sending]);
+
+  // ── Restauration de la conversation (persistée localement) ─────────────────
+  // Évite de reperdre l'entretien à chaque rechargement de page (#17).
+  useEffect(() => {
+    if (restored.current) return;
+    restored.current = true;
+    try {
+      const raw = localStorage.getItem(storageKey);
+      if (raw) {
+        const saved = JSON.parse(raw) as {
+          messages?: ChatMsg[];
+          dna?: BrandDna;
+          visualPrompts?: string[];
+          readyToLock?: boolean;
+        };
+        if (Array.isArray(saved.messages) && saved.messages.length) {
+          setMessages(saved.messages);
+          if (saved.dna) setDna(saved.dna);
+          if (Array.isArray(saved.visualPrompts)) setVisualPrompts(saved.visualPrompts);
+          if (typeof saved.readyToLock === "boolean") setReadyToLock(saved.readyToLock);
+          kicked.current = true; // historique présent : pas de message d'accueil
+        }
+      }
+    } catch { /* stockage indisponible : on repart à vide */ }
+  }, [storageKey]);
+
+  // Persistance locale de la conversation (ne jamais écraser avec du vide).
+  useEffect(() => {
+    if (!restored.current || messages.length === 0) return;
+    try {
+      localStorage.setItem(storageKey, JSON.stringify({ messages, dna, visualPrompts, readyToLock }));
+    } catch { /* ignore */ }
+  }, [messages, dna, visualPrompts, readyToLock, storageKey]);
 
   // ── Appel d'un tour de conversation ────────────────────────────────────────
   const turn = useCallback(
@@ -119,7 +164,7 @@ export function BrandConsultant({
         const res = await fetch("/api/ai/consultant", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ companyId, messages: history }),
+          body: JSON.stringify({ companyId, messages: history, language: lang }),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data?.error || `Erreur ${res.status}`);
@@ -147,7 +192,7 @@ export function BrandConsultant({
         setSending(false);
       }
     },
-    [companyId]
+    [companyId, lang]
   );
 
   const send = useCallback(() => {
@@ -251,6 +296,7 @@ export function BrandConsultant({
         body: JSON.stringify({ companyId, reset: true }),
       });
     } catch { /* non bloquant */ }
+    try { localStorage.removeItem(storageKey); } catch { /* ignore */ }
     setMessages([]);
     setDna({});
     setReadyToLock(false);
@@ -258,16 +304,18 @@ export function BrandConsultant({
     setVisuals([]);
     setLocked(false);
     setResetting(false);
-    kicked.current = false; // relance l'ouverture de la conversation
-  }, [resetting, companyId, t]);
+    kicked.current = false; // relance l'accueil
+  }, [resetting, companyId, t, storageKey]);
 
-  // Relance la conversation après une remise à zéro.
+  // Message d'accueil instantané (au 1er rendu et après remise à zéro).
+  // On n'appelle plus l'IA à l'ouverture : la page ne « charge » plus 90 s (#20).
   useEffect(() => {
+    if (!restored.current) return;
     if (!kicked.current && messages.length === 0 && !locked) {
       kicked.current = true;
-      turn([]);
+      setMessages([{ role: "assistant", content: greeting() }]);
     }
-  }, [messages.length, locked, turn]);
+  }, [messages.length, locked, greeting]);
 
   const hasDna =
     Boolean(dna.positioning || dna.mission || dna.keyMessage || dna.audience || dna.tone);
@@ -275,7 +323,7 @@ export function BrandConsultant({
   return (
     <div className="grid gap-5 lg:grid-cols-[1.15fr_0.85fr]">
       {/* ── Colonne conversation ─────────────────────────────────────────── */}
-      <div className="card flex h-[68vh] min-h-[480px] flex-col overflow-hidden">
+      <div className="card flex h-[80vh] min-h-[560px] flex-col overflow-hidden">
         <div className="flex items-center gap-2.5 border-b border-hair px-4 py-3">
           <span className="flex h-8 w-8 items-center justify-center rounded-full bg-page/20 text-sm">🧠</span>
           <div className="min-w-0 flex-1">
@@ -305,7 +353,7 @@ export function BrandConsultant({
                 className={[
                   "max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed",
                   m.role === "user"
-                    ? "bg-page text-white rounded-br-md"
+                    ? "bg-page text-white rounded-br-md selection:bg-white selection:text-page"
                     : "bg-white/[0.05] text-ink rounded-bl-md ring-1 ring-hair",
                 ].join(" ")}
               >

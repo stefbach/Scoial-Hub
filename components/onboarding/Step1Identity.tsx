@@ -129,20 +129,6 @@ function LinkedInIcon() {
   );
 }
 
-function ArrowRightIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-      <path
-        d="M2.5 7h9M8 3.5l3.5 3.5L8 10.5"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
 // ── Configuration des plateformes ──────────────────────────────────────────
 
 interface PlatformConfig {
@@ -443,7 +429,7 @@ function ProfileResult({
   analyzing: boolean;
 }) {
   const t = useT();
-  const { profile, next } = useOnboardingCtx();
+  const { profile } = useOnboardingCtx();
 
   return (
     <div className="space-y-4">
@@ -573,17 +559,9 @@ function ProfileResult({
         </div>
       )}
 
-      {/* Bouton principal — passer à l'étape 2 */}
-      <div className="flex justify-end pt-1">
-        <button
-          type="button"
-          onClick={next}
-          className="btn-primary flex items-center gap-2"
-        >
-          {t("C'est tout à fait nous → Objectifs", "That's us → Objectives")}
-          <ArrowRightIcon />
-        </button>
-      </div>
+      {/* La navigation (Retour / Passer / Continuer) est assurée par la barre
+          d'actions globale du parcours — on évite un second bouton « Continuer »
+          dans la carte qui prêtait à confusion (cf. retour #30). */}
     </div>
   );
 }

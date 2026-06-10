@@ -172,7 +172,8 @@ function buildPrompt(
   website: string,
   handles: BrandHandles,
   siteText: string,
-  description: string
+  description: string,
+  language: "fr" | "en" = "fr"
 ): string {
   const handlesSection = [
     handles.instagram ? `- Instagram : @${handles.instagram}` : null,
@@ -220,7 +221,7 @@ Retourne STRICTEMENT ce JSON (aucun markdown, aucune explication) :
 }
 
 Règles :
-- Tout en français, concret et spécifique à cette marque (pas générique).
+- ${language === "en" ? "Write ALL textual values (summary, positioning, tone, audience, themes, strengths, labels, why…) in ENGLISH" : "Tout en français"}, concret et spécifique à cette marque (pas générique).
 - themes : max 6 éléments.
 - strengths : max 5 éléments.
 - keywords : max 8 éléments, orientés veille concurrentielle.
@@ -293,6 +294,7 @@ export async function analyzeBrand(input: {
   handles?: BrandHandles;
   companyName?: string;
   description?: string;
+  language?: "fr" | "en";
 }): Promise<BrandProfile> {
   // 1. Construction du profil de base
   const profile = makeEmptyBrandProfile(input.companyId);
@@ -322,7 +324,8 @@ export async function analyzeBrand(input: {
       profile.website,
       profile.handles,
       siteText,
-      profile.description
+      profile.description,
+      input.language === "en" ? "en" : "fr"
     );
 
     const message = await client.messages.create({

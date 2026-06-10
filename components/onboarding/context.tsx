@@ -14,6 +14,7 @@ import {
   useState,
 } from "react";
 import { useCompany } from "@/lib/company-context";
+import { useLang } from "@/lib/i18n";
 import {
   type BrandHandles,
   type BrandProfile,
@@ -73,6 +74,7 @@ export function useOnboardingCtx(): OnboardingCtx {
 
 export function OnboardingProvider({ children }: { children: React.ReactNode }) {
   const { company } = useCompany();
+  const { lang } = useLang();
   const companyId = company.id;
   const companyName = company.name;
 
@@ -180,7 +182,7 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
         const res = await fetch("/api/onboarding/analyze", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ companyId, website, handles, companyName, description }),
+          body: JSON.stringify({ companyId, website, handles, companyName, description, language: lang }),
         });
         if (!res.ok) {
           const j = await res.json().catch(() => ({}));
@@ -196,7 +198,7 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
         setAnalyzing(false);
       }
     },
-    [companyId, companyName]
+    [companyId, companyName, lang]
   );
 
   const applyProfile = useCallback((next: BrandProfile) => {

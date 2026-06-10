@@ -27,6 +27,7 @@ const PLACEHOLDER =
 /** Langues de diffusion proposées pour la rédaction du contenu par l'IA. */
 const DIFFUSION_LANGUAGES = [
   "Français",
+  "Kreol Morisien",
   "English",
   "Español",
   "Deutsch",
@@ -428,7 +429,16 @@ function ComposeContent() {
           <AgentLauncher context={t("page Compose", "Compose page")} defaultObjective={t("Rédiger une série de posts pour les réseaux", "Draft a series of posts for the networks")} />
           {/* AI panels — réseau dérivé du 1er compte sélectionné (respecte le réseau). */}
           <AiTextPanel brandVoiceLabel={company.code} platform={activePlatform} language={language} />
-          <AiVisualsPanel used={data.library.aiBudgetUsed} cap={data.library.aiBudgetCap} platform={activePlatform} imageModel={imageModel} videoModel={videoModel} brandHints={brandHints} companyId={company.id} />
+          <AiVisualsPanel
+            used={data.library.aiBudgetUsed}
+            cap={data.library.aiBudgetCap}
+            platform={activePlatform}
+            imageModel={imageModel}
+            videoModel={videoModel}
+            brandHints={brandHints}
+            companyId={company.id}
+            onUse={(m) => setUpload({ url: m.url, name: m.kind === "video" ? "ai-video" : "ai-visual", size: 0, kind: m.kind })}
+          />
 
           {/* Media upload */}
           <MediaUpload media={upload} onChange={setUpload} />

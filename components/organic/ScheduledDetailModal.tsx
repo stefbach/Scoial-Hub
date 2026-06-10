@@ -40,12 +40,14 @@ export function ScheduledDetailModal({
   const [time, setTime] = useState("09:00");
   const [confirm, setConfirm] = useState<null | "publish" | "delete">(null);
   const [busy, setBusy] = useState(false);
+  const [pubError, setPubError] = useState<string | null>(null);
 
   // Reset transient state whenever a different post is opened.
   useEffect(() => {
     if (post) {
       setRescheduling(false);
       setConfirm(null);
+      setPubError(null);
       setDate(new Date(`${post.date}T00:00:00`));
       setTime(post.time);
     }
@@ -82,17 +84,29 @@ export function ScheduledDetailModal({
 
   const handlePublish = async () => {
     setBusy(true);
+    setPubError(null);
+    // Publication RÉELLE sur le réseau connecté (Facebook/LinkedIn) côté serveur.
+    // Si ça échoue (compte non connecté, token expiré…), on remonte l'erreur au
+    // lieu de faire croire à une publication réussie.
     try {
-      await fetch(`/api/scheduled-posts/${post.id}`, {
-        method: "PATCH",
+      const res = await fetch(`/api/scheduled-posts/${post.id}/publish`, {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "published", publishedAt: new Date().toISOString() }),
+        body: JSON.stringify({ companyId }),
       });
-    } catch { /* store local en repli */ }
-    publishPost(companyId, post.id);
-    setBusy(false);
-    onChanged();
-    onClose();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || t("Publication impossible.", "Could not publish."));
+      // Succès → on reflète l'état localement et on ferme.
+      publishPost(companyId, post.id);
+      setBusy(false);
+      setConfirm(null);
+      onChanged();
+      onClose();
+    } catch (e) {
+      setBusy(false);
+      setConfirm(null);
+      setPubError(e instanceof Error ? e.message : t("Publication impossible.", "Could not publish."));
+    }
   };
 
   const handleDelete = async () => {
@@ -179,6 +193,13 @@ export function ScheduledDetailModal({
           </div>
         )}
       </div>
+
+      {/* Erreur de publication (réseau non connecté, token expiré, refus Graph…) */}
+      {pubError && (
+        <div className="mx-4 mb-1 rounded-md border-hair border border-danger-200 bg-danger-50 px-3 py-2 text-xs text-danger-700">
+          {pubError}
+        </div>
+      )}
 
       {/* Actions */}
       <div className="flex items-center justify-between gap-2 border-t-hair border-hair px-4 py-3">

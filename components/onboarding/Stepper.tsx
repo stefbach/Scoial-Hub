@@ -56,7 +56,7 @@ export function Stepper({ steps }: { steps: StepMeta[] }) {
                     s.n
                   )}
                 </span>
-                <span className="hidden min-w-0 flex-col sm:flex">
+                <span className="hidden min-w-0 flex-col lg:flex">
                   <span
                     className={`truncate text-2xs font-semibold uppercase tracking-wide ${
                       active ? "text-primary-700" : done ? "text-success-700" : "text-muted"

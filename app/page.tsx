@@ -212,9 +212,13 @@ export default function Home() {
 
   return (
     <div className="mc-root">
-      {/* Décor : mesh gradient + grain */}
+      {/* Décor : mesh gradient + grain + réseau neuronal vivant pleine page */}
       <div className="mc-mesh" aria-hidden />
       <div className="mc-grain" aria-hidden />
+      <div className="mc-livenet" aria-hidden>
+        {/* Signature AXON : la constellation réagit au curseur sur TOUTE la page */}
+        <NetworkCanvas density={1} intensity={1.8} pointerTarget="window" />
+      </div>
 
       {/* ── Nav ── */}
       <header className="mc-nav">
@@ -233,8 +237,6 @@ export default function Home() {
 
       {/* ── Hero ── */}
       <section className="mc-hero relative">
-        {/* Réseau neuronal vivant — il réagit au curseur (signature AXON) */}
-        <NetworkCanvas density={0.8} />
         <div className="mc-hero-copy">
           <span className="mc-eyebrow">{t("Le hub social des PME", "The social hub for small teams")}</span>
           <h1 className="mc-h1">

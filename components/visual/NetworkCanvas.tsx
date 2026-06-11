@@ -22,10 +22,16 @@ interface Node {
 
 export function NetworkCanvas({
   density = 1,
+  intensity = 1,
+  pointerTarget = "parent",
   className = "",
 }: {
   /** Multiplicateur de densité de nœuds (1 = défaut, ~1 nœud / 14000px²). */
   density?: number;
+  /** Multiplicateur d'opacité des liens/nœuds (1 = subtil, ~1.7 = affirmé). */
+  intensity?: number;
+  /** Où écouter le curseur : le parent (héros) ou la fenêtre (couche pleine page). */
+  pointerTarget?: "parent" | "window";
   className?: string;
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
@@ -41,7 +47,8 @@ export function NetworkCanvas({
     // Améthyste sur sombre, améthyste profonde sur clair — toujours discret.
     const nodeColor = light ? "124, 58, 237" : "196, 165, 255";
     const linkColor = light ? "124, 58, 237" : "168, 130, 255";
-    const baseAlpha = light ? 0.5 : 0.55;
+    const baseAlpha = Math.min(0.95, (light ? 0.5 : 0.55) * intensity);
+    const linkScale = intensity;
 
     let w = 0, h = 0, dpr = 1;
     let nodes: Node[] = [];
@@ -88,7 +95,7 @@ export function NetworkCanvas({
           const my = (a.y + b.y) / 2 - mouse.y;
           const md = Math.sqrt(mx * mx + my * my);
           const boost = md < MOUSE_DIST ? (1 - md / MOUSE_DIST) * 0.35 : 0;
-          const alpha = (1 - d / LINK_DIST) * 0.16 + boost;
+          const alpha = Math.min(0.85, ((1 - d / LINK_DIST) * 0.16 + boost) * linkScale);
           ctx.strokeStyle = `rgba(${linkColor}, ${alpha.toFixed(3)})`;
           ctx.lineWidth = 1;
           ctx.beginPath();
@@ -125,13 +132,18 @@ export function NetworkCanvas({
     };
     const onLeave = () => { mouse.x = -9999; mouse.y = -9999; };
 
+    // Couche pleine page (pointer-events:none) → on écoute la fenêtre ;
+    // sinon le parent direct (héros) reçoit les événements.
+    const evtTarget: GlobalEventHandlers | null =
+      pointerTarget === "window" ? window : canvas.parentElement;
+
     resize();
     if (reduced) {
       draw(); // un seul rendu statique — pas d'animation
     } else {
       raf = requestAnimationFrame(step);
-      canvas.parentElement?.addEventListener("pointermove", onMove);
-      canvas.parentElement?.addEventListener("pointerleave", onLeave);
+      evtTarget?.addEventListener("pointermove", onMove as EventListener);
+      evtTarget?.addEventListener("pointerleave", onLeave);
     }
 
     // Pause hors écran (économie batterie / CPU).
@@ -151,10 +163,10 @@ export function NetworkCanvas({
       cancelAnimationFrame(raf);
       io.disconnect();
       ro.disconnect();
-      canvas.parentElement?.removeEventListener("pointermove", onMove);
-      canvas.parentElement?.removeEventListener("pointerleave", onLeave);
+      evtTarget?.removeEventListener("pointermove", onMove as EventListener);
+      evtTarget?.removeEventListener("pointerleave", onLeave);
     };
-  }, [density]);
+  }, [density, intensity, pointerTarget]);
 
   return (
     <canvas

@@ -516,6 +516,8 @@ html[data-theme="light"] .app-shell > .app-grain {
             radial-gradient(30% 38% at 88% 60%, rgba(168,85,247,.16), transparent 60%);
           filter:saturate(1.1);animation:mcfloat 18s ease-in-out infinite alternate;}
         @keyframes mcfloat{to{transform:translate3d(0,-4%,0) scale(1.05)}}
+        /* Réseau neuronal vivant — couche fixe entre le décor et le contenu. */
+        .mc-root>.mc-livenet{position:fixed;inset:0;z-index:1;pointer-events:none;}
         .mc-root>.mc-grain{position:fixed;inset:0;z-index:1;pointer-events:none;opacity:.05;mix-blend-mode:overlay;
           background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");}
         .mc-root>*{position:relative;z-index:2;}

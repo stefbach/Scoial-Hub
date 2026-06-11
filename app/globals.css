@@ -516,6 +516,8 @@ html[data-theme="light"] .app-shell > .app-grain {
             radial-gradient(30% 38% at 88% 60%, rgba(168,85,247,.16), transparent 60%);
           filter:saturate(1.1);animation:mcfloat 18s ease-in-out infinite alternate;}
         @keyframes mcfloat{to{transform:translate3d(0,-4%,0) scale(1.05)}}
+        /* Réseau neuronal vivant — couche fixe entre le décor et le contenu. */
+        .mc-root>.mc-livenet{position:fixed;inset:0;z-index:1;pointer-events:none;}
         .mc-root>.mc-grain{position:fixed;inset:0;z-index:1;pointer-events:none;opacity:.05;mix-blend-mode:overlay;
           background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");}
         .mc-root>*{position:relative;z-index:2;}
@@ -643,6 +645,15 @@ html[data-theme="light"] .app-shell > .app-grain {
         /* Sections */
         .mc-section{max-width:1200px;margin:0 auto;padding:clamp(3rem,7vw,6rem) clamp(1rem,4vw,3rem);}
         .mc-sec-head{margin-bottom:2.4rem;}
+        /* ── Constellation des agents — le système nerveux de la marque ── */
+        .ac-svg{display:block;width:100%;max-width:1080px;margin:0 auto;}
+        .ac-label{font-size:13px;fill:#cdbfe8;font-family:var(--font-sans);letter-spacing:.02em;}
+        .ac-node{animation:acFloat 6s ease-in-out infinite;}
+        .ac-core .ac-halo{animation:acHalo 3s ease-in-out infinite;}
+        @keyframes acFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+        @keyframes acHalo{0%,100%{stroke-opacity:.55;stroke-width:1.5}50%{stroke-opacity:.15;stroke-width:7}}
+        @media(prefers-reduced-motion:reduce){.ac-pulse{display:none}.ac-node,.ac-core .ac-halo{animation:none}}
+        @media(max-width:640px){.ac-label{font-size:17px}}
         .mc-kicker{font-size:.72rem;letter-spacing:.18em;text-transform:uppercase;color:#b98bff;}
         .mc-h2{font-family:var(--font-display);font-weight:600;letter-spacing:-.025em;font-size:clamp(1.8rem,4vw,3rem);margin:.5rem 0 0;line-height:1.05;}
         .mc-grid{display:grid;gap:1rem;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));}
@@ -750,13 +761,21 @@ html[data-theme="light"] .app-shell > .app-grain {
         .mc-persona,.mc-trust{display:flex;flex-direction:column;gap:.55rem;padding:1.5rem;border-radius:18px;
           background:linear-gradient(160deg,rgba(255,255,255,.05),rgba(255,255,255,.012));border:1px solid rgba(255,255,255,.08);transition:.45s cubic-bezier(.22,1,.36,1);}
         .mc-persona:hover,.mc-trust:hover{transform:translateY(-5px);border-color:rgba(255,138,76,.35);box-shadow:0 22px 50px -24px rgba(255,138,76,.35);}
-        .mc-persona-e,.mc-trust-e{font-size:1.7rem;line-height:1;}
+        .mc-persona-e,.mc-trust-e{display:inline-flex;width:46px;height:46px;align-items:center;justify-content:center;
+          border-radius:14px;color:#d9c7ff;
+          background:linear-gradient(150deg,rgba(168,85,247,.28),rgba(124,58,237,.10));
+          border:1px solid rgba(168,85,247,.35);
+          box-shadow:0 8px 22px -12px rgba(124,58,237,.8),inset 0 1px 0 rgba(255,255,255,.14);}
         .mc-persona h3,.mc-trust h3{font-size:1.02rem;color:#f4eeff;}
         .mc-persona p,.mc-trust p{font-size:.9rem;line-height:1.55;color:#b6abc9;}
         .mc-how{position:relative;display:flex;flex-direction:column;gap:.5rem;padding:1.6rem;border-radius:18px;
           background:linear-gradient(160deg,rgba(255,255,255,.05),rgba(255,255,255,.012));border:1px solid rgba(255,200,150,.14);}
         .mc-how-n{position:absolute;top:1rem;right:1.1rem;font-family:var(--font-display);font-size:2rem;font-weight:800;color:rgba(255,138,76,.45);}
-        .mc-how-e{font-size:1.8rem;line-height:1;}
+        .mc-how-e{display:inline-flex;width:48px;height:48px;align-items:center;justify-content:center;
+          border-radius:15px;color:#d9c7ff;
+          background:linear-gradient(150deg,rgba(168,85,247,.28),rgba(124,58,237,.10));
+          border:1px solid rgba(168,85,247,.35);
+          box-shadow:0 8px 22px -12px rgba(124,58,237,.8),inset 0 1px 0 rgba(255,255,255,.14);}
         .mc-how h3{font-size:1.05rem;color:#f4eeff;}
         .mc-how p{font-size:.9rem;line-height:1.55;color:#b6abc9;}
         /* FAQ */

@@ -12,6 +12,8 @@ import Link from "next/link";
 import { useT } from "@/lib/i18n";
 import { LanguageSwitcher } from "@/lib/i18n";
 import { NetworkCanvas } from "@/components/visual/NetworkCanvas";
+import { AgentConstellation } from "@/components/landing/AgentConstellation";
+import { IconBriefcase, IconTarget, IconBuildings, IconLink, IconChat, IconTrendingUp, IconLock, IconShieldCheck, IconMic, IconAward } from "@/components/visual/Icons";
 
 // Scène WebGL (Three.js) — chargée côté client uniquement.
 const Hero3D = dynamic(() => import("@/components/landing/Hero3D").then((m) => m.Hero3D), { ssr: false });
@@ -108,22 +110,22 @@ const TESTIMONIALS = [
 ];
 
 const FOR_WHO = [
-  { e: "🧑‍💼", fr: "Dirigeant·e de PME", en: "Small-business owner", dfr: "Vous faites déjà tout. Reprenez vos soirées : vos assistants publient pendant que vous vivez.", den: "You already do everything. Get your evenings back — your assistants post while you live your life." },
-  { e: "🎯", fr: "Responsable marketing solo", en: "Solo marketing manager", dfr: "Une personne, la charge d'une équipe. AXON, ce sont vos renforts : création, publication, pubs, réponses.", den: "One person, a team's workload. AXON is your backup: create, publish, ads, replies." },
-  { e: "🏢", fr: "Agence ou freelance", en: "Agency or freelancer", dfr: "Gérez plusieurs marques isolées, exportez les performances, générez les visuels en charte — en minutes.", den: "Manage several isolated brands, export performance, generate on-brand visuals — in minutes." },
+  { Ic: IconBriefcase, fr: "Dirigeant·e de PME", en: "Small-business owner", dfr: "Vous faites déjà tout. Reprenez vos soirées : vos assistants publient pendant que vous vivez.", den: "You already do everything. Get your evenings back — your assistants post while you live your life." },
+  { Ic: IconTarget, fr: "Responsable marketing solo", en: "Solo marketing manager", dfr: "Une personne, la charge d'une équipe. AXON, ce sont vos renforts : création, publication, pubs, réponses.", den: "One person, a team's workload. AXON is your backup: create, publish, ads, replies." },
+  { Ic: IconBuildings, fr: "Agence ou freelance", en: "Agency or freelancer", dfr: "Gérez plusieurs marques isolées, exportez les performances, générez les visuels en charte — en minutes.", den: "Manage several isolated brands, export performance, generate on-brand visuals — in minutes." },
 ];
 
 const HOW = [
-  { n: "1", e: "🔌", fr: "Connectez en 2 minutes", en: "Connect in 2 minutes", dfr: "Liez Facebook, Instagram ou LinkedIn. Aucune configuration technique, aucune carte bancaire.", den: "Link Facebook, Instagram or LinkedIn. No technical setup, no credit card." },
-  { n: "2", e: "💬", fr: "Décrivez, l'IA crée", en: "Describe it, AI creates", dfr: "« Une pub pour ma clinique, 30 €/j, femmes 35-55 ans. » Texte, visuel et ciblage générés — en pause, prêts à relire.", den: "\"An ad for my clinic, €30/d, women 35-55.\" Copy, visual and targeting generated — paused, ready to review." },
-  { n: "3", e: "📈", fr: "Vous validez, on suit", en: "You approve, we track", dfr: "Rien ne part sans votre accord. Ensuite, le tableau de bord affiche vos vrais résultats, simplement.", den: "Nothing goes live without your approval. Then the dashboard shows your real results, simply." },
+  { n: "1", Ic: IconLink, fr: "Connectez en 2 minutes", en: "Connect in 2 minutes", dfr: "Liez Facebook, Instagram ou LinkedIn. Aucune configuration technique, aucune carte bancaire.", den: "Link Facebook, Instagram or LinkedIn. No technical setup, no credit card." },
+  { n: "2", Ic: IconChat, fr: "Décrivez, l'IA crée", en: "Describe it, AI creates", dfr: "« Une pub pour ma clinique, 30 €/j, femmes 35-55 ans. » Texte, visuel et ciblage générés — en pause, prêts à relire.", den: "\"An ad for my clinic, €30/d, women 35-55.\" Copy, visual and targeting generated — paused, ready to review." },
+  { n: "3", Ic: IconTrendingUp, fr: "Vous validez, on suit", en: "You approve, we track", dfr: "Rien ne part sans votre accord. Ensuite, le tableau de bord affiche vos vrais résultats, simplement.", den: "Nothing goes live without your approval. Then the dashboard shows your real results, simply." },
 ];
 
 const REASSURE = [
-  { e: "🔒", fr: "Vos données restent les vôtres", en: "Your data stays yours", dfr: "Comptes, visuels, chiffres : privés et chiffrés. Connexion via l'API officielle Meta, aucun mot de passe stocké.", den: "Accounts, visuals, numbers: private and encrypted. Official Meta API, no passwords stored." },
-  { e: "✅", fr: "Rien ne se publie sans vous", en: "Nothing posts without you", dfr: "Chaque post et chaque pub attend votre feu vert. Toujours.", den: "Every post and ad waits for your green light. Always." },
-  { e: "🗣️", fr: "Dans votre voix", en: "In your own voice", dfr: "Les assistants apprennent votre ton et écrivent comme vous, pas comme un robot.", den: "Your assistants learn your tone and write like you, not like a robot." },
-  { e: "🤝", fr: "Sans engagement", en: "No commitment", dfr: "Démarrez gratuitement. Résiliez quand vous voulez. Support humain en français.", den: "Start free. Cancel anytime. Human support included." },
+  { Ic: IconLock, fr: "Vos données restent les vôtres", en: "Your data stays yours", dfr: "Comptes, visuels, chiffres : privés et chiffrés. Connexion via l'API officielle Meta, aucun mot de passe stocké.", den: "Accounts, visuals, numbers: private and encrypted. Official Meta API, no passwords stored." },
+  { Ic: IconShieldCheck, fr: "Rien ne se publie sans vous", en: "Nothing posts without you", dfr: "Chaque post et chaque pub attend votre feu vert. Toujours.", den: "Every post and ad waits for your green light. Always." },
+  { Ic: IconMic, fr: "Dans votre voix", en: "In your own voice", dfr: "Les assistants apprennent votre ton et écrivent comme vous, pas comme un robot.", den: "Your assistants learn your tone and write like you, not like a robot." },
+  { Ic: IconAward, fr: "Sans engagement", en: "No commitment", dfr: "Démarrez gratuitement. Résiliez quand vous voulez. Support humain en français.", den: "Start free. Cancel anytime. Human support included." },
 ];
 
 const FAQ = [
@@ -212,14 +214,19 @@ export default function Home() {
 
   return (
     <div className="mc-root">
-      {/* Décor : mesh gradient + grain */}
+      {/* Décor : mesh gradient + grain + réseau neuronal vivant pleine page */}
       <div className="mc-mesh" aria-hidden />
       <div className="mc-grain" aria-hidden />
+      <div className="mc-livenet" aria-hidden>
+        {/* Signature AXON : la constellation réagit au curseur sur TOUTE la page */}
+        <NetworkCanvas density={1} intensity={1.8} pointerTarget="window" />
+      </div>
 
       {/* ── Nav ── */}
       <header className="mc-nav">
         <Link href="/" className="mc-brand"><span className="mc-brand-dot" /> AXON<span>·AI</span></Link>
         <nav className="mc-navlinks">
+          <a href="#reseau">{t("Le réseau", "The network")}</a>
           <a href="#capabilities">{t("Fonctionnalités", "Features")}</a>
           <a href="#showcase">{t("Aperçu", "Preview")}</a>
           <Link href="/agents">{t("Agents", "Agents")}</Link>
@@ -233,8 +240,6 @@ export default function Home() {
 
       {/* ── Hero ── */}
       <section className="mc-hero relative">
-        {/* Réseau neuronal vivant — il réagit au curseur (signature AXON) */}
-        <NetworkCanvas density={0.8} />
         <div className="mc-hero-copy">
           <span className="mc-eyebrow">{t("Le hub social des PME", "The social hub for small teams")}</span>
           <h1 className="mc-h1">
@@ -263,6 +268,21 @@ export default function Home() {
         <div className="mc-scene">
           <Hero3D />
         </div>
+      </section>
+
+      {/* ── Le concept : le système nerveux de la marque ── */}
+      <section id="reseau" className="mc-section reveal">
+        <header className="mc-sec-head" style={{ textAlign: "center" }}>
+          <span className="mc-kicker">{t("Le concept", "The concept")}</span>
+          <h2 className="mc-h2">{t("Votre marque a désormais un système nerveux.", "Your brand now has a nervous system.")}</h2>
+          <p className="mc-sec-sub" style={{ margin: "0.8rem auto 0" }}>
+            {t(
+              "Votre voix entre d'un côté. Le noyau AXON l'orchestre entre six agents spécialisés — stratège, rédacteur, créatif, conformité, media buyer, analyste — et le publisher la transmet à vos communautés. Chaque impulsion que vous voyez circuler, c'est une décision qui se prend.",
+              "Your voice comes in on one side. The AXON core orchestrates it across six specialist agents — strategist, copywriter, creative, compliance, media buyer, analyst — and the publisher carries it to your communities. Every pulse you see travelling is a decision being made."
+            )}
+          </p>
+        </header>
+        <AgentConstellation />
       </section>
 
       {/* ── Bande humaine : la vraie promesse, ce sont des gens reliés ── */}
@@ -383,7 +403,7 @@ export default function Home() {
         <div className="mc-grid mc-grid-3">
           {FOR_WHO.map((w, i) => (
             <div key={w.fr} className="mc-persona reveal" style={{ transitionDelay: `${i * 80}ms` }}>
-              <span className="mc-persona-e" aria-hidden>{w.e}</span>
+              <span className="mc-persona-e"><w.Ic size={23} /></span>
               <h3>{t(w.fr, w.en)}</h3>
               <p>{t(w.dfr, w.den)}</p>
             </div>
@@ -401,7 +421,7 @@ export default function Home() {
           {HOW.map((h, i) => (
             <div key={h.n} className="mc-how reveal" style={{ transitionDelay: `${i * 80}ms` }}>
               <span className="mc-how-n">{h.n}</span>
-              <span className="mc-how-e" aria-hidden>{h.e}</span>
+              <span className="mc-how-e"><h.Ic size={24} /></span>
               <h3>{t(h.fr, h.en)}</h3>
               <p>{t(h.dfr, h.den)}</p>
             </div>
@@ -495,7 +515,7 @@ export default function Home() {
         <div className="mc-grid mc-grid-4">
           {REASSURE.map((r, i) => (
             <div key={r.fr} className="mc-trust reveal" style={{ transitionDelay: `${i * 70}ms` }}>
-              <span className="mc-trust-e" aria-hidden>{r.e}</span>
+              <span className="mc-trust-e"><r.Ic size={23} /></span>
               <h3>{t(r.fr, r.en)}</h3>
               <p>{t(r.dfr, r.den)}</p>
             </div>

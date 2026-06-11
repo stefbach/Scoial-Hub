@@ -16,6 +16,7 @@ import { IMAGE_MODELS, DEFAULT_IMAGE_MODEL_ID } from "@/lib/ai/model-catalog";
 import BrandKitPanel from "@/components/studio/BrandKitPanel";
 import BrandChartView from "@/components/studio/BrandChartView";
 import { StudioHero, StudioStep } from "@/components/studio/StudioUI";
+import { IconFrame } from "@/components/visual/Icons";
 import { SafeBoundary } from "@/components/ui/SafeBoundary";
 import type { BrandKit } from "@/lib/brand-kit/types";
 
@@ -301,7 +302,7 @@ export default function StudioAffichePage() {
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <StudioHero
-        icon="🖼️"
+        icon={<IconFrame size={24} />}
         title={t("Studio Affiches & Visuels", "Poster & Visual Studio")}
         subtitle={t("Créez des affiches A4/A3 et des visuels réseaux : fond IA ou image, texte, logo — export prêt à imprimer ou à publier.", "Create A4/A3 posters and social visuals: AI or uploaded background, text, logo — export ready to print or publish.")}
         actions={

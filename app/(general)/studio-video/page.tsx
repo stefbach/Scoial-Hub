@@ -21,6 +21,7 @@ import { captionsToSrt } from "@/lib/video/srt";
 import PromptStudio from "@/components/studio/PromptStudio";
 import BrandKitPanel from "@/components/studio/BrandKitPanel";
 import { StudioHero, StudioStep } from "@/components/studio/StudioUI";
+import { IconFilm } from "@/components/visual/Icons";
 
 // ── Studio Créatif : images + vidéos → assemblage & marketing pro ────────────────
 
@@ -175,7 +176,7 @@ export default function StudioPage() {
     <div className="animate-fade-in space-y-5">
       {/* En-tête immersif */}
       <StudioHero
-        icon="🎞️"
+        icon={<IconFilm size={24} />}
         title={t("Studio Créatif", "Creative Studio")}
         subtitle={t(
           "Importez des photos et/ou vidéos — on les assemble et on les markète automatiquement, réseau par réseau.",

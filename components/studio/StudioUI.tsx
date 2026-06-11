@@ -6,8 +6,10 @@
 // Purement présentationnel — aucune logique métier ici.
 
 import type { ReactNode } from "react";
+import { NetworkCanvas } from "@/components/visual/NetworkCanvas";
 
-/** Héros de studio : badge icône dégradé + titre serif + sous-titre + actions. */
+/** Héros de studio : badge icône dégradé + titre serif + sous-titre + actions,
+ *  sur fond de « réseau vivant » (constellation neuronale réactive au curseur). */
 export function StudioHero({
   icon,
   title,
@@ -21,8 +23,10 @@ export function StudioHero({
 }) {
   return (
     <header className="studio-hero animate-fade-in px-5 py-6 sm:px-7 sm:py-7">
-      <div className="flex flex-wrap items-start gap-4">
-        <span className="studio-hero-badge shrink-0" aria-hidden="true">
+      {/* Réseau neuronal animé — signature AXON (l'axone, la connexion) */}
+      <NetworkCanvas density={0.9} />
+      <div className="relative flex flex-wrap items-start gap-4">
+        <span className="studio-hero-badge animate-float animate-breathe shrink-0" aria-hidden="true">
           {icon}
         </span>
         <div className="min-w-0 flex-1">

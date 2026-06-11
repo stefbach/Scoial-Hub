@@ -11,6 +11,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useT } from "@/lib/i18n";
 import { LanguageSwitcher } from "@/lib/i18n";
+import { NetworkCanvas } from "@/components/visual/NetworkCanvas";
 
 // Scène WebGL (Three.js) — chargée côté client uniquement.
 const Hero3D = dynamic(() => import("@/components/landing/Hero3D").then((m) => m.Hero3D), { ssr: false });
@@ -231,7 +232,9 @@ export default function Home() {
       </header>
 
       {/* ── Hero ── */}
-      <section className="mc-hero">
+      <section className="mc-hero relative">
+        {/* Réseau neuronal vivant — il réagit au curseur (signature AXON) */}
+        <NetworkCanvas density={0.8} />
         <div className="mc-hero-copy">
           <span className="mc-eyebrow">{t("Le hub social des PME", "The social hub for small teams")}</span>
           <h1 className="mc-h1">

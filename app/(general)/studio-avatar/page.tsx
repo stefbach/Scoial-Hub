@@ -8,6 +8,7 @@ import { useRef, useState } from "react";
 import { useCompany } from "@/lib/company-context";
 import { StudioHero, StudioStep, Segmented } from "@/components/studio/StudioUI";
 import { Tilt3D } from "@/components/visual/Tilt3D";
+import { IconMask, IconClapper } from "@/components/visual/Icons";
 import { Spinner, BusyHint } from "@/components/ui/Spinner";
 import { useT } from "@/lib/i18n";
 import { createClient } from "@/lib/supabase/client";
@@ -368,7 +369,7 @@ export default function StudioAvatarPage() {
   return (
     <div className="mx-auto max-w-6xl space-y-5">
       <StudioHero
-        icon="🎭"
+        icon={<IconMask size={24} />}
         title={t("Studio Avatar", "Avatar Studio")}
         subtitle={t(
           "Un visage + un sujet → l'IA écrit le script, génère la voix et anime un avatar qui parle. Idéal pour des vidéos courtes social media.",
@@ -548,7 +549,7 @@ export default function StudioAvatarPage() {
                   <video src={videoUrl} controls autoPlay className="h-full w-full object-contain bg-black" />
                 ) : (
                   <div className="flex flex-col items-center gap-3 px-6 text-center">
-                    <span className="animate-float flex h-14 w-14 items-center justify-center rounded-2xl bg-white/[0.04] text-2xl ring-1 ring-hair">🎬</span>
+                    <span className="animate-float flex h-14 w-14 items-center justify-center rounded-2xl bg-white/[0.04] text-muted ring-1 ring-hair"><IconClapper size={26} /></span>
                     <p className="text-sm text-muted">{t("La vidéo de votre avatar s'affichera ici.", "Your avatar video will appear here.")}</p>
                   </div>
                 )}

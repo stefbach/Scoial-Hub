@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { format } from "date-fns";
 import { useCompany } from "@/lib/company-context";
 import { StudioHero } from "@/components/studio/StudioUI";
+import { IconBars } from "@/components/visual/Icons";
 import { MetricCard } from "@/components/ui/MetricCard";
 import { Dropdown, DropdownItem } from "@/components/ui/Dropdown";
 import { DatePicker } from "@/components/ui/DateTimePicker";
@@ -484,7 +485,7 @@ function AdPerformanceContent() {
   return (
     <div className="animate-fade-in">
       <StudioHero
-        icon="📊"
+        icon={<IconBars size={24} />}
         subtitle={t("Suivez les résultats réels de vos publicités Meta : dépense, portée, clics, conversions.", "Track real results of your Meta ads: spend, reach, clicks, conversions.")}
         title={t("Performance des publicités", "Ad Performance")}
         actions={

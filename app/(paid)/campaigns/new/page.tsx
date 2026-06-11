@@ -9,6 +9,7 @@ import Link from "next/link";
 import { useCompany } from "@/lib/company-context";
 import { useT } from "@/lib/i18n";
 import { StudioHero, Segmented } from "@/components/studio/StudioUI";
+import { IconMegaphone } from "@/components/visual/Icons";
 import { MetaGeoPicker, type GeoLoc } from "@/components/ads/MetaGeoPicker";
 import { MetaLanguagePicker, type MetaLocale } from "@/components/ads/MetaLanguagePicker";
 import { Spinner, BusyHint } from "@/components/ui/Spinner";
@@ -527,7 +528,7 @@ export default function NewMetaAdPage() {
   return (
     <div className="mx-auto max-w-4xl animate-fade-in space-y-5">
       <StudioHero
-        icon="📣"
+        icon={<IconMegaphone size={24} />}
         title={t("Créer une publicité Meta", "Create a Meta ad")}
         subtitle={t(
           "Une vraie campagne Facebook/Instagram via votre compte connecté, créée EN PAUSE (aucune dépense) — vous l'activez ensuite explicitement.",

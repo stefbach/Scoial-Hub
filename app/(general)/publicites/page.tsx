@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useT } from "@/lib/i18n";
 import { StudioHero } from "@/components/studio/StudioUI";
+import { IconScout } from "@/components/visual/Icons";
 import { Toast } from "@/components/ui/Toast";
 import { useCompany } from "@/lib/company-context";
 import { StrategyPanel } from "@/components/strategy/StrategyPanel";
@@ -125,7 +126,7 @@ export default function PublicitesPage() {
   return (
     <div className="animate-fade-in space-y-5">
       <StudioHero
-        icon="🔎"
+        icon={<IconScout size={24} />}
         title={t("Publicités concurrentes (Meta Ad Library)", "Competitor ads (Meta Ad Library)")}
         subtitle={t(
           "Données réelles des publicités actives sur Facebook & Instagram, triées par impressions.",

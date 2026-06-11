@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCompany } from "@/lib/company-context";
 import { StudioHero } from "@/components/studio/StudioUI";
+import { IconTrend } from "@/components/visual/Icons";
 import { Button } from "@/components/ui/Button";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Toggle } from "@/components/ui/Toggle";
@@ -120,7 +121,7 @@ function CampaignsContent() {
   return (
     <div className="animate-fade-in">
       <StudioHero
-        icon="📈"
+        icon={<IconTrend size={24} />}
         title={t("Campagnes", "Campaigns")}
         subtitle={t("Vos campagnes publicitaires Meta — créez, suivez et activez la diffusion.", "Your Meta ad campaigns — create, track and activate delivery.")}
         actions={

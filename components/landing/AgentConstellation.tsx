@@ -14,17 +14,43 @@ import { useT } from "@/lib/i18n";
 
 interface AgentNode {
   x: number; y: number;
-  icon: string;
+  icon: keyof typeof GLYPHS;
   fr: string; en: string;
 }
 
+// Icônes vectorielles maison (espace 24×24, trait 1.8) — pas d'emoji :
+// rendu identique sur tous les OS, style premium cohérent.
+const GLYPHS = {
+  heart: ["M12 20.5S4.5 15.6 4.5 10.4C4.5 7.8 6.5 6 8.8 6c1.3 0 2.5.6 3.2 1.6C12.7 6.6 13.9 6 15.2 6c2.3 0 4.3 1.8 4.3 4.4 0 5.2-7.5 10.1-7.5 10.1Z"],
+  compass: ["M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z", "M15.2 8.8 13 13l-4.2 2.2L11 11l4.2-2.2Z"],
+  pen: ["M16.5 3.9a2.1 2.1 0 0 1 3 3L8 18.4 4 19.5l1.1-4L16.5 3.9Z", "M13.5 6.9l3.6 3.6"],
+  palette: ["M12 3.5a8.5 8.5 0 1 0 0 17h1.6a1.9 1.9 0 0 0 1.4-3.2c-.8-.9-.2-2.3 1-2.3h1.5a4 4 0 0 0 4-4c0-4.2-4.3-7.5-9.5-7.5Z", "M8 9.5h.01M12 7.5h.01M16 9.5h.01"],
+  shield: ["M12 3.5 18.5 6v5c0 4.3-2.8 7.8-6.5 9-3.7-1.2-6.5-4.7-6.5-9V6L12 3.5Z", "m9 11.5 2.2 2.2 4-4.4"],
+  megaphone: ["M4 10.5v3h2.5l8 4v-11l-8 4H4Z", "M17.5 9.5v5", "m7.5 13.7.9 4.3h2.2"],
+  bars: ["M7 17v-5M12 17V7.5M17 17v-7", "M5 17h14"],
+  plane: ["M21 3 10.8 13.2", "M21 3l-6.2 18-3.9-8.1L3 9.2 21 3Z"],
+} as const;
+
+/** Pose une icône vectorielle (espace 24×24) centrée en (x,y) à l'échelle s. */
+function Glyph({ name, x, y, s = 1 }: { name: keyof typeof GLYPHS; x: number; y: number; s?: number }) {
+  return (
+    <g
+      transform={`translate(${x - 12 * s}, ${y - 12 * s}) scale(${s})`}
+      stroke="#fff" strokeOpacity="0.92" strokeWidth="1.8"
+      strokeLinecap="round" strokeLinejoin="round" fill="none"
+    >
+      {GLYPHS[name].map((d, i) => <path key={i} d={d} />)}
+    </g>
+  );
+}
+
 const AGENTS: AgentNode[] = [
-  { x: 470, y: 60,  icon: "🧭", fr: "Stratège",    en: "Strategist" },
-  { x: 470, y: 142, icon: "✍️", fr: "Rédacteur",   en: "Copywriter" },
-  { x: 470, y: 224, icon: "🎨", fr: "Créatif",     en: "Creative" },
-  { x: 470, y: 306, icon: "🛡️", fr: "Conformité",  en: "Compliance" },
-  { x: 470, y: 388, icon: "📣", fr: "Media Buyer", en: "Media Buyer" },
-  { x: 470, y: 470, icon: "📊", fr: "Analyste",    en: "Analyst" },
+  { x: 470, y: 60,  icon: "compass",   fr: "Stratège",    en: "Strategist" },
+  { x: 470, y: 142, icon: "pen",       fr: "Rédacteur",   en: "Copywriter" },
+  { x: 470, y: 224, icon: "palette",   fr: "Créatif",     en: "Creative" },
+  { x: 470, y: 306, icon: "shield",    fr: "Conformité",  en: "Compliance" },
+  { x: 470, y: 388, icon: "megaphone", fr: "Media Buyer", en: "Media Buyer" },
+  { x: 470, y: 470, icon: "bars",      fr: "Analyste",    en: "Analyst" },
 ];
 
 const NETWORKS = [
@@ -102,7 +128,7 @@ export function AgentConstellation() {
       {/* Votre marque (le point de départ humain) */}
       <g className="ac-node" style={{ transformOrigin: `${BRAND.x}px ${BRAND.y}px` }}>
         <circle cx={BRAND.x} cy={BRAND.y} r="34" fill="#171122" stroke="#a855f7" strokeWidth="1.5" />
-        <text x={BRAND.x} y={BRAND.y + 7} textAnchor="middle" fontSize="22">🫶</text>
+        <Glyph name="heart" x={BRAND.x} y={BRAND.y} s={1.25} />
         <text x={BRAND.x} y={BRAND.y + 58} textAnchor="middle" className="ac-label">{t("Votre marque", "Your brand")}</text>
       </g>
 
@@ -120,7 +146,7 @@ export function AgentConstellation() {
       {AGENTS.map((a, i) => (
         <g key={i} className="ac-node" style={{ transformOrigin: `${a.x}px ${a.y}px`, animationDelay: `${i * 0.35}s` }}>
           <circle cx={a.x} cy={a.y} r="26" fill="#171122" stroke="#7c3aed" strokeWidth="1.4" />
-          <text x={a.x} y={a.y + 6} textAnchor="middle" fontSize="17">{a.icon}</text>
+          <Glyph name={a.icon} x={a.x} y={a.y} s={1} />
           <text x={a.x + 38} y={a.y + 4} className="ac-label" textAnchor="start">{t(a.fr, a.en)}</text>
         </g>
       ))}
@@ -128,7 +154,7 @@ export function AgentConstellation() {
       {/* Publisher (la sortie) */}
       <g className="ac-node" style={{ transformOrigin: `${PUB.x}px ${PUB.y}px`, animationDelay: "0.5s" }}>
         <circle cx={PUB.x} cy={PUB.y} r="32" fill="#171122" stroke="#d946ef" strokeWidth="1.6" />
-        <text x={PUB.x} y={PUB.y + 7} textAnchor="middle" fontSize="20">🚀</text>
+        <Glyph name="plane" x={PUB.x} y={PUB.y} s={1.15} />
         <text x={PUB.x} y={PUB.y + 56} textAnchor="middle" className="ac-label">Publisher</text>
       </g>
 

@@ -13,6 +13,7 @@ import { useT } from "@/lib/i18n";
 import { LanguageSwitcher } from "@/lib/i18n";
 import { NetworkCanvas } from "@/components/visual/NetworkCanvas";
 import { AgentConstellation } from "@/components/landing/AgentConstellation";
+import { IconBriefcase, IconTarget, IconBuildings, IconLink, IconChat, IconTrendingUp, IconLock, IconShieldCheck, IconMic, IconAward } from "@/components/visual/Icons";
 
 // Scène WebGL (Three.js) — chargée côté client uniquement.
 const Hero3D = dynamic(() => import("@/components/landing/Hero3D").then((m) => m.Hero3D), { ssr: false });
@@ -109,22 +110,22 @@ const TESTIMONIALS = [
 ];
 
 const FOR_WHO = [
-  { icon: "M3 8.5h18v11H3zM8 8.5V6.5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 13h18", fr: "Dirigeant·e de PME", en: "Small-business owner", dfr: "Vous faites déjà tout. Reprenez vos soirées : vos assistants publient pendant que vous vivez.", den: "You already do everything. Get your evenings back — your assistants post while you live your life." },
-  { icon: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM12 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z", fr: "Responsable marketing solo", en: "Solo marketing manager", dfr: "Une personne, la charge d'une équipe. AXON, ce sont vos renforts : création, publication, pubs, réponses.", den: "One person, a team's workload. AXON is your backup: create, publish, ads, replies." },
-  { icon: "M4 21V5l7-2.2v18M11 21V9.5l9 3.2V21M3 21h18M7 8h.01M7 12h.01M15 13h.01M15 17h.01", fr: "Agence ou freelance", en: "Agency or freelancer", dfr: "Gérez plusieurs marques isolées, exportez les performances, générez les visuels en charte — en minutes.", den: "Manage several isolated brands, export performance, generate on-brand visuals — in minutes." },
+  { Ic: IconBriefcase, fr: "Dirigeant·e de PME", en: "Small-business owner", dfr: "Vous faites déjà tout. Reprenez vos soirées : vos assistants publient pendant que vous vivez.", den: "You already do everything. Get your evenings back — your assistants post while you live your life." },
+  { Ic: IconTarget, fr: "Responsable marketing solo", en: "Solo marketing manager", dfr: "Une personne, la charge d'une équipe. AXON, ce sont vos renforts : création, publication, pubs, réponses.", den: "One person, a team's workload. AXON is your backup: create, publish, ads, replies." },
+  { Ic: IconBuildings, fr: "Agence ou freelance", en: "Agency or freelancer", dfr: "Gérez plusieurs marques isolées, exportez les performances, générez les visuels en charte — en minutes.", den: "Manage several isolated brands, export performance, generate on-brand visuals — in minutes." },
 ];
 
 const HOW = [
-  { n: "1", icon: "M8.5 8.5 4.5 12.5a3.2 3.2 0 0 0 4.5 4.5M15.5 15.5l4-4a3.2 3.2 0 0 0-4.5-4.5M9.5 14.5l5-5", fr: "Connectez en 2 minutes", en: "Connect in 2 minutes", dfr: "Liez Facebook, Instagram ou LinkedIn. Aucune configuration technique, aucune carte bancaire.", den: "Link Facebook, Instagram or LinkedIn. No technical setup, no credit card." },
-  { n: "2", icon: "M21 11.5a8 8 0 0 1-11.6 7.1L4 20.5l1.9-5.3A8 8 0 1 1 21 11.5ZM8.5 11.5h.01M12 11.5h.01M15.5 11.5h.01", fr: "Décrivez, l'IA crée", en: "Describe it, AI creates", dfr: "« Une pub pour ma clinique, 30 €/j, femmes 35-55 ans. » Texte, visuel et ciblage générés — en pause, prêts à relire.", den: "\"An ad for my clinic, €30/d, women 35-55.\" Copy, visual and targeting generated — paused, ready to review." },
-  { n: "3", icon: "M3 19.5h18M4.5 15 9.5 10l3.5 3.5L20 6.5M15.5 6.5H20V11", fr: "Vous validez, on suit", en: "You approve, we track", dfr: "Rien ne part sans votre accord. Ensuite, le tableau de bord affiche vos vrais résultats, simplement.", den: "Nothing goes live without your approval. Then the dashboard shows your real results, simply." },
+  { n: "1", Ic: IconLink, fr: "Connectez en 2 minutes", en: "Connect in 2 minutes", dfr: "Liez Facebook, Instagram ou LinkedIn. Aucune configuration technique, aucune carte bancaire.", den: "Link Facebook, Instagram or LinkedIn. No technical setup, no credit card." },
+  { n: "2", Ic: IconChat, fr: "Décrivez, l'IA crée", en: "Describe it, AI creates", dfr: "« Une pub pour ma clinique, 30 €/j, femmes 35-55 ans. » Texte, visuel et ciblage générés — en pause, prêts à relire.", den: "\"An ad for my clinic, €30/d, women 35-55.\" Copy, visual and targeting generated — paused, ready to review." },
+  { n: "3", Ic: IconTrendingUp, fr: "Vous validez, on suit", en: "You approve, we track", dfr: "Rien ne part sans votre accord. Ensuite, le tableau de bord affiche vos vrais résultats, simplement.", den: "Nothing goes live without your approval. Then the dashboard shows your real results, simply." },
 ];
 
 const REASSURE = [
-  { icon: "M6 10.5V8a6 6 0 0 1 12 0v2.5M5 10.5h14v9.5H5zM12 14.5v3", fr: "Vos données restent les vôtres", en: "Your data stays yours", dfr: "Comptes, visuels, chiffres : privés et chiffrés. Connexion via l'API officielle Meta, aucun mot de passe stocké.", den: "Accounts, visuals, numbers: private and encrypted. Official Meta API, no passwords stored." },
-  { icon: "M12 3.5 18.5 6v5c0 4.3-2.8 7.8-6.5 9-3.7-1.2-6.5-4.7-6.5-9V6L12 3.5ZM9 11.7l2.2 2.2 4-4.4", fr: "Rien ne se publie sans vous", en: "Nothing posts without you", dfr: "Chaque post et chaque pub attend votre feu vert. Toujours.", den: "Every post and ad waits for your green light. Always." },
-  { icon: "M12 3a3 3 0 0 1 3 3v5a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3ZM5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21", fr: "Dans votre voix", en: "In your own voice", dfr: "Les assistants apprennent votre ton et écrivent comme vous, pas comme un robot.", den: "Your assistants learn your tone and write like you, not like a robot." },
-  { icon: "M3 11.5 11.5 3H18a3 3 0 0 1 3 3v6.5L12.5 21 3 11.5ZM16.4 7.6h.01", fr: "Sans engagement", en: "No commitment", dfr: "Démarrez gratuitement. Résiliez quand vous voulez. Support humain en français.", den: "Start free. Cancel anytime. Human support included." },
+  { Ic: IconLock, fr: "Vos données restent les vôtres", en: "Your data stays yours", dfr: "Comptes, visuels, chiffres : privés et chiffrés. Connexion via l'API officielle Meta, aucun mot de passe stocké.", den: "Accounts, visuals, numbers: private and encrypted. Official Meta API, no passwords stored." },
+  { Ic: IconShieldCheck, fr: "Rien ne se publie sans vous", en: "Nothing posts without you", dfr: "Chaque post et chaque pub attend votre feu vert. Toujours.", den: "Every post and ad waits for your green light. Always." },
+  { Ic: IconMic, fr: "Dans votre voix", en: "In your own voice", dfr: "Les assistants apprennent votre ton et écrivent comme vous, pas comme un robot.", den: "Your assistants learn your tone and write like you, not like a robot." },
+  { Ic: IconAward, fr: "Sans engagement", en: "No commitment", dfr: "Démarrez gratuitement. Résiliez quand vous voulez. Support humain en français.", den: "Start free. Cancel anytime. Human support included." },
 ];
 
 const FAQ = [
@@ -402,7 +403,7 @@ export default function Home() {
         <div className="mc-grid mc-grid-3">
           {FOR_WHO.map((w, i) => (
             <div key={w.fr} className="mc-persona reveal" style={{ transitionDelay: `${i * 80}ms` }}>
-              <span className="mc-persona-e"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d={w.icon} /></svg></span>
+              <span className="mc-persona-e"><w.Ic size={23} /></span>
               <h3>{t(w.fr, w.en)}</h3>
               <p>{t(w.dfr, w.den)}</p>
             </div>
@@ -420,7 +421,7 @@ export default function Home() {
           {HOW.map((h, i) => (
             <div key={h.n} className="mc-how reveal" style={{ transitionDelay: `${i * 80}ms` }}>
               <span className="mc-how-n">{h.n}</span>
-              <span className="mc-how-e"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d={h.icon} /></svg></span>
+              <span className="mc-how-e"><h.Ic size={24} /></span>
               <h3>{t(h.fr, h.en)}</h3>
               <p>{t(h.dfr, h.den)}</p>
             </div>
@@ -514,7 +515,7 @@ export default function Home() {
         <div className="mc-grid mc-grid-4">
           {REASSURE.map((r, i) => (
             <div key={r.fr} className="mc-trust reveal" style={{ transitionDelay: `${i * 70}ms` }}>
-              <span className="mc-trust-e"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d={r.icon} /></svg></span>
+              <span className="mc-trust-e"><r.Ic size={23} /></span>
               <h3>{t(r.fr, r.en)}</h3>
               <p>{t(r.dfr, r.den)}</p>
             </div>

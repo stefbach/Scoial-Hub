@@ -46,7 +46,18 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="fr" className={`${fraunces.variable} ${manrope.variable}`}>
+    <html lang="fr" className={`${fraunces.variable} ${manrope.variable}`} suppressHydrationWarning>
+      <head>
+        {/* Applique le thème (jour/nuit) AVANT la première peinture — aucun flash.
+            Sombre par défaut ; « light » si l'utilisateur l'a choisi.
+            NOTE sécurité : contenu 100% statique (aucune donnée utilisateur). */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              'try{if(localStorage.getItem("axon_theme")==="light")document.documentElement.dataset.theme="light"}catch(e){}',
+          }}
+        />
+      </head>
       <body>
         <LangProvider>
           <CompanyProvider>

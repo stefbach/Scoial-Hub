@@ -761,13 +761,15 @@ html[data-theme="light"] .app-shell > .app-grain {
         .mc-persona,.mc-trust{display:flex;flex-direction:column;gap:.55rem;padding:1.5rem;border-radius:18px;
           background:linear-gradient(160deg,rgba(255,255,255,.05),rgba(255,255,255,.012));border:1px solid rgba(255,255,255,.08);transition:.45s cubic-bezier(.22,1,.36,1);}
         .mc-persona:hover,.mc-trust:hover{transform:translateY(-5px);border-color:rgba(255,138,76,.35);box-shadow:0 22px 50px -24px rgba(255,138,76,.35);}
-        .mc-persona-e,.mc-trust-e{font-size:1.7rem;line-height:1;}
+        .mc-persona-e,.mc-trust-e{display:inline-flex;width:42px;height:42px;align-items:center;justify-content:center;
+          border-radius:12px;color:#c4a5ff;background:rgba(124,58,237,.12);border:1px solid rgba(168,85,247,.25);}
         .mc-persona h3,.mc-trust h3{font-size:1.02rem;color:#f4eeff;}
         .mc-persona p,.mc-trust p{font-size:.9rem;line-height:1.55;color:#b6abc9;}
         .mc-how{position:relative;display:flex;flex-direction:column;gap:.5rem;padding:1.6rem;border-radius:18px;
           background:linear-gradient(160deg,rgba(255,255,255,.05),rgba(255,255,255,.012));border:1px solid rgba(255,200,150,.14);}
         .mc-how-n{position:absolute;top:1rem;right:1.1rem;font-family:var(--font-display);font-size:2rem;font-weight:800;color:rgba(255,138,76,.45);}
-        .mc-how-e{font-size:1.8rem;line-height:1;}
+        .mc-how-e{display:inline-flex;width:44px;height:44px;align-items:center;justify-content:center;
+          border-radius:13px;color:#c4a5ff;background:rgba(124,58,237,.12);border:1px solid rgba(168,85,247,.25);}
         .mc-how h3{font-size:1.05rem;color:#f4eeff;}
         .mc-how p{font-size:.9rem;line-height:1.55;color:#b6abc9;}
         /* FAQ */

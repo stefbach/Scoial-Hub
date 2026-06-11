@@ -645,6 +645,15 @@ html[data-theme="light"] .app-shell > .app-grain {
         /* Sections */
         .mc-section{max-width:1200px;margin:0 auto;padding:clamp(3rem,7vw,6rem) clamp(1rem,4vw,3rem);}
         .mc-sec-head{margin-bottom:2.4rem;}
+        /* ── Constellation des agents — le système nerveux de la marque ── */
+        .ac-svg{display:block;width:100%;max-width:1080px;margin:0 auto;}
+        .ac-label{font-size:13px;fill:#cdbfe8;font-family:var(--font-sans);letter-spacing:.02em;}
+        .ac-node{animation:acFloat 6s ease-in-out infinite;}
+        .ac-core .ac-halo{animation:acHalo 3s ease-in-out infinite;}
+        @keyframes acFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+        @keyframes acHalo{0%,100%{stroke-opacity:.55;stroke-width:1.5}50%{stroke-opacity:.15;stroke-width:7}}
+        @media(prefers-reduced-motion:reduce){.ac-pulse{display:none}.ac-node,.ac-core .ac-halo{animation:none}}
+        @media(max-width:640px){.ac-label{font-size:17px}}
         .mc-kicker{font-size:.72rem;letter-spacing:.18em;text-transform:uppercase;color:#b98bff;}
         .mc-h2{font-family:var(--font-display);font-weight:600;letter-spacing:-.025em;font-size:clamp(1.8rem,4vw,3rem);margin:.5rem 0 0;line-height:1.05;}
         .mc-grid{display:grid;gap:1rem;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));}

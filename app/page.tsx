@@ -12,6 +12,7 @@ import Link from "next/link";
 import { useT } from "@/lib/i18n";
 import { LanguageSwitcher } from "@/lib/i18n";
 import { NetworkCanvas } from "@/components/visual/NetworkCanvas";
+import { AgentConstellation } from "@/components/landing/AgentConstellation";
 
 // Scène WebGL (Three.js) — chargée côté client uniquement.
 const Hero3D = dynamic(() => import("@/components/landing/Hero3D").then((m) => m.Hero3D), { ssr: false });
@@ -224,6 +225,7 @@ export default function Home() {
       <header className="mc-nav">
         <Link href="/" className="mc-brand"><span className="mc-brand-dot" /> AXON<span>·AI</span></Link>
         <nav className="mc-navlinks">
+          <a href="#reseau">{t("Le réseau", "The network")}</a>
           <a href="#capabilities">{t("Fonctionnalités", "Features")}</a>
           <a href="#showcase">{t("Aperçu", "Preview")}</a>
           <Link href="/agents">{t("Agents", "Agents")}</Link>
@@ -265,6 +267,21 @@ export default function Home() {
         <div className="mc-scene">
           <Hero3D />
         </div>
+      </section>
+
+      {/* ── Le concept : le système nerveux de la marque ── */}
+      <section id="reseau" className="mc-section reveal">
+        <header className="mc-sec-head" style={{ textAlign: "center" }}>
+          <span className="mc-kicker">{t("Le concept", "The concept")}</span>
+          <h2 className="mc-h2">{t("Votre marque a désormais un système nerveux.", "Your brand now has a nervous system.")}</h2>
+          <p className="mc-sec-sub" style={{ margin: "0.8rem auto 0" }}>
+            {t(
+              "Votre voix entre d'un côté. Le noyau AXON l'orchestre entre six agents spécialisés — stratège, rédacteur, créatif, conformité, media buyer, analyste — et le publisher la transmet à vos communautés. Chaque impulsion que vous voyez circuler, c'est une décision qui se prend.",
+              "Your voice comes in on one side. The AXON core orchestrates it across six specialist agents — strategist, copywriter, creative, compliance, media buyer, analyst — and the publisher carries it to your communities. Every pulse you see travelling is a decision being made."
+            )}
+          </p>
+        </header>
+        <AgentConstellation />
       </section>
 
       {/* ── Bande humaine : la vraie promesse, ce sont des gens reliés ── */}

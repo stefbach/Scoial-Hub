@@ -635,7 +635,7 @@ export default function NewMetaAdPage() {
         {!conn?.connected && <p className="mt-1 text-2xs text-muted">{t("Connectez Meta pour activer l'assistant.", "Connect Meta to enable the assistant.")}</p>}
       </section>
 
-      <fieldset disabled={!conn?.connected || publishing || !canEdit} className={`space-y-5 disabled:opacity-60 ${mode === "manual" ? "" : "hidden"}`}>
+      <fieldset disabled={!conn?.connected || publishing || !canEdit} className={`stagger-in space-y-5 disabled:opacity-60 ${mode === "manual" ? "" : "hidden"}`}>
         {/* Type de publicité */}
         <section className="studio-card p-5 space-y-3">
           <span className="section-label">{t("Type de publicité", "Ad type")}</span>

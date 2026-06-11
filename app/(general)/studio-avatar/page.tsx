@@ -7,6 +7,7 @@
 import { useRef, useState } from "react";
 import { useCompany } from "@/lib/company-context";
 import { StudioHero, StudioStep, Segmented } from "@/components/studio/StudioUI";
+import { Tilt3D } from "@/components/visual/Tilt3D";
 import { Spinner, BusyHint } from "@/components/ui/Spinner";
 import { useT } from "@/lib/i18n";
 import { createClient } from "@/lib/supabase/client";
@@ -382,7 +383,7 @@ export default function StudioAvatarPage() {
       ) : (
         <div className="grid gap-5 lg:grid-cols-[1.05fr_0.95fr]">
           {/* Colonne réglages */}
-          <div className="space-y-4">
+          <div className="stagger-in space-y-4">
             <StudioStep n={1} title={t("Scène — personne + décor", "Scene — person + background")}>
 
               {/* Source de la personne : téléverser ou générer */}
@@ -540,17 +541,19 @@ export default function StudioAvatarPage() {
           {/* Colonne résultat — collante pour garder l'aperçu en vue */}
           <div className="space-y-3 lg:sticky lg:top-4 lg:self-start">
             <p className="section-label">{t("Résultat", "Result")}</p>
-            <div className="studio-preview mx-auto flex aspect-[9/16] max-h-[72vh] w-full items-center justify-center overflow-hidden rounded-xl bg-black/40">
-              {videoUrl ? (
-                // eslint-disable-next-line jsx-a11y/media-has-caption
-                <video src={videoUrl} controls autoPlay className="h-full w-full object-contain bg-black" />
-              ) : (
-                <div className="flex flex-col items-center gap-3 px-6 text-center">
-                  <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/[0.04] text-2xl ring-1 ring-hair">🎬</span>
-                  <p className="text-sm text-muted">{t("La vidéo de votre avatar s'affichera ici.", "Your avatar video will appear here.")}</p>
-                </div>
-              )}
-            </div>
+            <Tilt3D max={5} className="rounded-xl">
+              <div className="studio-preview mx-auto flex aspect-[9/16] max-h-[72vh] w-full items-center justify-center overflow-hidden rounded-xl bg-black/40">
+                {videoUrl ? (
+                  // eslint-disable-next-line jsx-a11y/media-has-caption
+                  <video src={videoUrl} controls autoPlay className="h-full w-full object-contain bg-black" />
+                ) : (
+                  <div className="flex flex-col items-center gap-3 px-6 text-center">
+                    <span className="animate-float flex h-14 w-14 items-center justify-center rounded-2xl bg-white/[0.04] text-2xl ring-1 ring-hair">🎬</span>
+                    <p className="text-sm text-muted">{t("La vidéo de votre avatar s'affichera ici.", "Your avatar video will appear here.")}</p>
+                  </div>
+                )}
+              </div>
+            </Tilt3D>
             {videoUrl && (
               <div className="space-y-2">
                 {savedToLibrary && (

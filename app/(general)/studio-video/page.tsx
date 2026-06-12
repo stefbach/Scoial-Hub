@@ -56,7 +56,11 @@ export default function StudioPage() {
   const [brandColors, setBrandColors] = useState<{ text?: string; accent?: string }>({});
   const [pkg, setPkg] = useState<VideoMarketingPackage | null>(null);
   // Graine poussée par le copilote IA vers PromptStudio.
-  const [seed, setSeed] = useState<{ nonce: number; kind?: "image" | "video"; prompt?: string; imageModel?: string; videoModel?: string } | undefined>();
+  const [seed, setSeed] = useState<{ nonce: number; kind?: "image" | "video"; prompt?: string; imageModel?: string; videoModel?: string; autorun?: boolean } | undefined>();
+  // Bandes-son/voix off générées dans le studio (réutilisables au rendu des cuts).
+  const [genAudios, setGenAudios] = useState<{ url: string; label: string }[]>([]);
+  // Durée cible du montage (transmise au plan marketing).
+  const [durationHint, setDurationHint] = useState(20);
   const [toast, setToast] = useState<{ message: string; key: number } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -76,6 +80,16 @@ export default function StudioPage() {
   }
   function removeAsset(url: string) {
     setAssets((prev) => prev.filter((a) => a.url !== url));
+  }
+  // Timeline : déplace un média dans l'ordre de montage.
+  function moveAsset(index: number, dir: -1 | 1) {
+    setAssets((prev) => {
+      const next = [...prev];
+      const j = index + dir;
+      if (j < 0 || j >= next.length) return prev;
+      [next[index], next[j]] = [next[j], next[index]];
+      return next;
+    });
   }
   function addUrl() {
     const u = urlInput.trim();
@@ -129,7 +143,7 @@ export default function StudioPage() {
       const res = await fetch("/api/video/marketize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ assets, assembly, objective, platforms, brandVoice: company.brandVoice, lang, companyId: company.id }),
+        body: JSON.stringify({ assets, assembly, objective, platforms, brandVoice: company.brandVoice, lang, companyId: company.id, durationHintSec: durationHint }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -220,6 +234,7 @@ export default function StudioPage() {
             prompt: s.prompt,
             imageModel: s.modelId && IMAGE_MODELS.some((m) => m.id === s.modelId) ? s.modelId : undefined,
             videoModel: s.modelId && VIDEO_MODELS.some((m) => m.id === s.modelId) ? s.modelId : undefined,
+            autorun: true, // le copilote déclenche la génération directement
           });
         }}
       />
@@ -227,8 +242,8 @@ export default function StudioPage() {
       {/* Génération par prompt (IA) — image ou vidéo, tous formats publiables */}
       <PromptStudio onGenerated={(a) => setAssets((prev) => [...prev, a])} brandHints={brandHints} seed={seed} />
 
-      {/* Musique & voix off (tout le catalogue audio) */}
-      <AudioStudio />
+      {/* Musique & voix off (tout le catalogue audio) — réutilisées au rendu */}
+      <AudioStudio onGenerated={(url, k) => setGenAudios((prev) => [...prev, { url, label: k === "music" ? `Musique générée ${prev.length + 1}` : `Voix off générée ${prev.length + 1}` }])} />
 
       {/* Étape 1 : médias */}
       <StudioStep n={1} title={t("Vos médias (photos & vidéos)", "Your media (photos & videos)")}>
@@ -269,8 +284,14 @@ export default function StudioPage() {
           <div className="mt-3">
             <div className="mb-2 text-2xs text-muted">{imageCount} {t("image(s)", "image(s)")} · {videoCount} {t("vidéo(s)", "video(s)")}</div>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-              {assets.map((a) => (
+              {assets.map((a, ai) => (
                 <div key={a.url} className="group relative overflow-hidden rounded-lg border border-hair bg-canvas">
+                  {/* Ordre de montage (timeline) */}
+                  <span className="absolute bottom-1 left-1 z-10 rounded bg-page px-1.5 py-0.5 text-2xs font-bold text-white">{ai + 1}</span>
+                  <div className="absolute bottom-1 right-1 z-10 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                    <button onClick={() => moveAsset(ai, -1)} disabled={ai === 0} aria-label={t("Avancer dans la timeline", "Move earlier")} className="rounded bg-ink/70 px-1.5 py-0.5 text-2xs text-white disabled:opacity-30">◀</button>
+                    <button onClick={() => moveAsset(ai, 1)} disabled={ai === assets.length - 1} aria-label={t("Reculer dans la timeline", "Move later")} className="rounded bg-ink/70 px-1.5 py-0.5 text-2xs text-white disabled:opacity-30">▶</button>
+                  </div>
                   {a.kind === "image" ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={a.url} alt={a.name ?? ""} className="h-24 w-full object-cover" />
@@ -331,6 +352,12 @@ export default function StudioPage() {
             );
           })}
         </div>
+        {/* Durée cible du montage (timeline) */}
+        <label className="mt-4 flex items-center gap-3 text-xs text-muted">
+          {t("Durée cible du montage", "Target edit duration")}
+          <input type="range" min={6} max={60} step={2} value={durationHint} onChange={(e) => setDurationHint(Number(e.target.value))} className="flex-1 accent-page" />
+          <span className="w-10 text-right font-semibold text-ink">{durationHint}s</span>
+        </label>
       </StudioStep>
 
       <button
@@ -371,7 +398,7 @@ export default function StudioPage() {
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             {pkg.cuts.map((c) => (
-              <CutCard key={c.platform} cut={c} assets={pkg.assets} captions={pkg.captions} brandLogoUrl={brandLogoUrl} brandColors={brandColors} companyId={company.id} onCopy={copy} t={t} />
+              <CutCard key={c.platform} cut={c} assets={pkg.assets} captions={pkg.captions} brandLogoUrl={brandLogoUrl} brandColors={brandColors} companyId={company.id} onCopy={copy} t={t} extraTracks={genAudios} />
             ))}
           </div>
         </section>
@@ -405,8 +432,10 @@ function CutCard({
   companyId,
   onCopy,
   t,
+  extraTracks,
 }: {
   cut: PlatformCut;
+  extraTracks?: { url: string; label: string }[];
   assets: MediaAsset[];
   captions: CaptionSegment[];
   brandLogoUrl?: string;
@@ -612,7 +641,14 @@ function CutCard({
 
       {renderable && (
         <Field label={t("🎵 Musique", "🎵 Music")}>
-          <select className="input w-full text-sm" value={musicId} onChange={(e) => { setMusicId(e.target.value); setCustomMusic(""); }}>
+          <select className="input w-full text-sm" value={musicId} onChange={(e) => {
+            const v = e.target.value;
+            if (v.startsWith("gen:")) { setMusicId("none"); setCustomMusic(v.slice(4)); return; }
+            setMusicId(v); setCustomMusic("");
+          }}>
+            {(extraTracks ?? []).map((tr) => (
+              <option key={tr.url} value={`gen:${tr.url}`}>♪ {tr.label} (IA)</option>
+            ))}
             {MUSIC_TRACKS.map((m) => (
               <option key={m.id} value={m.id}>{t(m.labelFr, m.labelEn)}</option>
             ))}

@@ -17,6 +17,7 @@ import BrandKitPanel from "@/components/studio/BrandKitPanel";
 import BrandChartView from "@/components/studio/BrandChartView";
 import { StudioHero, StudioStep } from "@/components/studio/StudioUI";
 import { StudioCopilot, type CopilotSuggestion } from "@/components/studio/StudioCopilot";
+import { ImageEditor } from "@/components/studio/ImageEditor";
 import { IconFrame } from "@/components/visual/Icons";
 import { SafeBoundary } from "@/components/ui/SafeBoundary";
 import type { BrandKit } from "@/lib/brand-kit/types";
@@ -81,6 +82,8 @@ export default function StudioAffichePage() {
   const [prompt, setPrompt] = useState("");
   const [modelId, setModelId] = useState(DEFAULT_IMAGE_MODEL_ID);
   const [bgImg, setBgImg] = useState<HTMLImageElement | null>(null);
+  // URL source du fond (https générée ou data-URI upload) — base de la retouche IA.
+  const [bgUrl, setBgUrl] = useState<string | null>(null);
   const [logoImg, setLogoImg] = useState<HTMLImageElement | null>(null);
   const [generating, setGenerating] = useState(false);
   const [suggesting, setSuggesting] = useState(false);
@@ -101,12 +104,15 @@ export default function StudioAffichePage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   // ── Génération du fond par IA ───────────────────────────────────────────────
-  async function generateBackground() {
+  // `o` permet au copilote de générer immédiatement avec SES valeurs (axe :
+  // « le copilote déclenche la génération »), sans attendre le re-render React.
+  async function generateBackground(o?: { prompt?: string; model?: string; ar?: string }) {
     setGenerating(true); setNote(null);
     try {
+      const effPrompt = o?.prompt ?? prompt;
       const r = await fetch("/api/ai/generate-image", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: [prompt || `affiche professionnelle pour ${company.name}`, promptHints].filter(Boolean).join(". "), format: format.ar, n: 1, model: modelId }),
+        body: JSON.stringify({ prompt: [effPrompt || `affiche professionnelle pour ${company.name}`, promptHints].filter(Boolean).join(". "), format: o?.ar ?? format.ar, n: 1, model: o?.model ?? modelId }),
       });
       const d = await r.json();
       if (!r.ok) { setNote(d.error || t("Échec de génération.", "Generation failed.")); return; }
@@ -115,9 +121,20 @@ export default function StudioAffichePage() {
       // Proxy même-origine → canvas exportable sans taint CORS.
       const img = await loadImage(`/api/proxy-image?url=${encodeURIComponent(urls[0])}`);
       setBgImg(img);
+      setBgUrl(urls[0]); // URL brute conservée pour la retouche IA
     } catch (e) {
       setNote(e instanceof Error ? e.message : t("Échec.", "Failed."));
     } finally { setGenerating(false); }
+  }
+
+  // Applique une nouvelle version (retouche/upscale) comme fond du canvas.
+  async function applyEditedBg(url: string) {
+    try {
+      const src = url.startsWith("data:") ? url : `/api/proxy-image?url=${encodeURIComponent(url)}`;
+      const img = await loadImage(src);
+      setBgImg(img);
+      setBgUrl(url);
+    } catch { setNote(t("Image retouchée illisible.", "Edited image unreadable.")); }
   }
 
   // ── Prompt généré par l'IA (puis utilisé pour générer l'image) ──────────────
@@ -142,7 +159,7 @@ export default function StudioAffichePage() {
     reader.onload = async () => {
       try {
         const img = await loadImage(String(reader.result));
-        if (kind === "bg") setBgImg(img);
+        if (kind === "bg") { setBgImg(img); setBgUrl(String(reader.result)); }
         else setLogoImg(img);
       } catch { setNote(t("Image illisible.", "Unreadable image.")); }
     };
@@ -324,12 +341,16 @@ export default function StudioAffichePage() {
             studio="affiche"
             currentPrompt={prompt}
             onApply={(s: CopilotSuggestion) => {
+              const validModel = s.modelId && IMAGE_MODELS.some((m) => m.id === s.modelId) ? s.modelId : undefined;
               if (s.prompt) setPrompt(s.prompt);
-              if (s.modelId && IMAGE_MODELS.some((m) => m.id === s.modelId)) setModelId(s.modelId);
+              if (validModel) setModelId(validModel);
+              let ar: string | undefined;
               if (s.aspect) {
                 const map: Record<string, string> = { "1:1": "sq", "9:16": "story", "16:9": "wide", "4:5": "portrait" };
-                if (map[s.aspect]) setFormatId(map[s.aspect]);
+                if (map[s.aspect]) { setFormatId(map[s.aspect]); ar = s.aspect; }
               }
+              // Le copilote DÉCLENCHE la génération (pas seulement le remplissage).
+              if (s.prompt && canEdit) void generateBackground({ prompt: s.prompt, model: validModel, ar });
             }}
           />
           {/* Format */}
@@ -363,7 +384,7 @@ export default function StudioAffichePage() {
               <button onClick={suggestPrompt} disabled={suggesting || !canEdit} className="btn-secondary text-xs disabled:opacity-50">
                 {suggesting ? <span className="inline-flex items-center gap-1.5"><Spinner size={12} className="text-primary-600" />{t("Prompt…", "Prompt…")}</span> : t("🧠 Suggérer un prompt (IA)", "🧠 Suggest a prompt (AI)")}
               </button>
-              <button onClick={generateBackground} disabled={generating || !canEdit} title={!canEdit ? t("Lecture seule", "View only") : undefined} className="btn-primary text-xs disabled:opacity-50">
+              <button onClick={() => generateBackground()} disabled={generating || !canEdit} title={!canEdit ? t("Lecture seule", "View only") : undefined} className="btn-primary text-xs disabled:opacity-50">
                 {generating ? <span className="inline-flex items-center gap-1.5"><Spinner size={12} className="text-white" />{t("Génération…", "Generating…")}</span> : t("✨ Générer le fond (IA)", "✨ Generate background (AI)")}
               </button>
               <label className="btn-secondary cursor-pointer text-xs">
@@ -373,6 +394,9 @@ export default function StudioAffichePage() {
             </div>
             {generating && <BusyHint label={t("Création du visuel…", "Creating the visual…")} eta={t("~15–40 s", "~15–40 s")} />}
           </StudioStep>
+
+          {/* Retouche IA du fond — modifie par consignes, versions conservées */}
+          {bgUrl && canEdit && <ImageEditor imageUrl={bgUrl} aspect={format.ar} onResult={applyEditedBg} />}
 
           {/* Texte */}
           <StudioStep n={3} title={t("Texte", "Text")}>

@@ -31,7 +31,7 @@ export function ScheduledDetailModal({
   companyId: string;
   post: ScheduledPost | null;
   onClose: () => void;
-  onChanged: () => void;
+  onChanged: () => void | Promise<void>;
 }) {
   const router = useRouter();
   const t = useT();
@@ -78,7 +78,9 @@ export function ScheduledDetailModal({
     // Met aussi à jour le store local (posts de démo / hors Supabase).
     reschedulePost(companyId, post.id, newDate, time);
     setBusy(false);
-    onChanged();
+    // On rafraîchit la liste AVANT de fermer pour que la nouvelle date soit
+    // immédiatement reflétée dans la liste/calendrier parent.
+    await onChanged();
     onClose();
   };
 
@@ -116,7 +118,7 @@ export function ScheduledDetailModal({
     } catch { /* store local en repli */ }
     deletePost(companyId, post.id);
     setBusy(false);
-    onChanged();
+    await onChanged();
     onClose();
   };
 

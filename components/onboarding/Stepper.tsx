@@ -19,14 +19,28 @@ export function Stepper({ steps }: { steps: StepMeta[] }) {
   const t = useT();
   const current = state.step;
 
+  const activeStep = steps.find((s) => s.n === current) ?? steps[0];
+
   return (
     <nav aria-label={t("Progression du parcours", "Onboarding progress")}>
+      {/* Titre de l'étape courante — toujours visible, y compris en fenêtre
+          étroite / écran partagé où les libellés du rail sont masqués (#4). */}
+      {activeStep && (
+        <div className="mb-2 flex items-center gap-2 lg:hidden">
+          <span className="inline-flex shrink-0 items-center rounded-full bg-primary/10 px-2 py-0.5 text-2xs font-semibold uppercase tracking-wide text-primary-700">
+            {t(`Étape ${current}`, `Step ${current}`)} / {steps.length}
+          </span>
+          <span className="truncate text-sm font-semibold text-ink">
+            {t(activeStep.title.fr, activeStep.title.en)}
+          </span>
+        </div>
+      )}
       <ol className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:gap-2">
         {steps.map((s, i) => {
           const done = current > s.n;
           const active = current === s.n;
           return (
-            <li key={s.key} className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2">
+            <li key={s.key} className="flex min-w-0 shrink-0 items-center gap-1.5 sm:flex-1 sm:shrink lg:gap-2">
               <button
                 type="button"
                 onClick={() => goTo(s.n)}
@@ -56,7 +70,7 @@ export function Stepper({ steps }: { steps: StepMeta[] }) {
                     s.n
                   )}
                 </span>
-                <span className="hidden min-w-0 flex-col lg:flex">
+                <span className={`min-w-0 flex-col ${active ? "flex" : "hidden lg:flex"}`}>
                   <span
                     className={`truncate text-2xs font-semibold uppercase tracking-wide ${
                       active ? "text-primary-700" : done ? "text-success-700" : "text-muted"

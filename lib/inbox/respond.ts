@@ -101,6 +101,7 @@ export async function draftReply(
 
   const lang = agent?.language === "fr" ? "français"
     : agent?.language === "en" ? "anglais"
+    : agent?.language === "kreol" ? "kreol morisien (créole mauricien)"
     : "la même langue que le message";
 
   const persona = agent?.persona?.trim()

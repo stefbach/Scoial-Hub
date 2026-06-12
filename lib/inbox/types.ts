@@ -13,7 +13,7 @@ export type InboxChannel =
 export type AgentScope = "all" | "channel";
 /** 'suggest' : rédige un brouillon à valider. 'auto' : envoie seul si confiant. */
 export type AgentAutonomy = "suggest" | "auto";
-export type AgentLanguage = "auto" | "fr" | "en";
+export type AgentLanguage = "auto" | "fr" | "en" | "kreol";
 
 export interface InboxAgent {
   id: string;

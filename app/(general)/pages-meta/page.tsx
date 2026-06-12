@@ -277,7 +277,7 @@ export default function PagesMetaPage() {
                 </button>
               </div>
               {analyzing && (
-                <BusyHint label={t("Analyse de votre Page en cours…", "Analyzing your Page…")} eta={t("~20–30 s", "~20–30 s")} />
+                <BusyHint label={t("Analyse de votre Page en cours…", "Analyzing your Page…")} eta={t("~30–60 s", "~30–60 s")} />
               )}
               {analysis && <AnalysisReport a={analysis} t={t} />}
             </section>

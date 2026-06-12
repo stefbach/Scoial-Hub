@@ -395,9 +395,9 @@ export function BrandConsultant({
                   send();
                 }
               }}
-              rows={1}
+              rows={4}
               placeholder={t("Répondez au consultant…", "Reply to the consultant…")}
-              className="input max-h-32 min-h-[2.5rem] flex-1 resize-none"
+              className="input max-h-48 min-h-[6rem] flex-1 resize-none"
             />
             <button onClick={send} disabled={sending || !input.trim()} className="btn-primary h-[2.5rem]">
               {t("Envoyer", "Send")}

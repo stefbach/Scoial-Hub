@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/Button";
 import { PlatformTag } from "@/components/ui/PlatformTag";
 import { ScheduledDetailModal } from "@/components/organic/ScheduledDetailModal";
 import { groupDateLabel } from "@/lib/format";
+import { deletePost } from "@/lib/draft-store";
 import type { ScheduledPost } from "@/lib/types";
 
 type TabId = "all" | "scheduled" | "drafts";
@@ -72,6 +73,18 @@ function ScheduledContent() {
   };
 
   const visible = mergedScheduled.filter((p) => p.status !== "published");
+
+  // Suppression rapide depuis la liste (survol) : serveur + store local + refetch.
+  const handleQuickDelete = useCallback(async (post: ScheduledPost) => {
+    if (typeof window !== "undefined" && !window.confirm(
+      t("Supprimer cette publication ? Cette action est irréversible.", "Delete this post? This cannot be undone.")
+    )) return;
+    try {
+      await fetch(`/api/scheduled-posts/${post.id}`, { method: "DELETE" });
+    } catch { /* repli store local */ }
+    deletePost(company.id, post.id);
+    await fetchPosts();
+  }, [company.id, fetchPosts, t]);
 
   const isScheduledStatus = (p: ScheduledPost) => !isDraft(p);
   const counts = {
@@ -190,7 +203,13 @@ function ScheduledContent() {
               <div className="section-label mb-2">{groupDateLabel(date)}</div>
               <div className="card divide-y divide-hair overflow-hidden">
                 {items.map((p) => (
-                  <PostRow key={p.id} post={p} onOpen={() => setOpenPost(p)} />
+                  <PostRow
+                    key={p.id}
+                    post={p}
+                    onOpen={() => setOpenPost(p)}
+                    onEdit={() => router.push(`/compose?post=${p.id}`)}
+                    onDelete={() => handleQuickDelete(p)}
+                  />
                 ))}
               </div>
             </div>
@@ -210,7 +229,17 @@ function ScheduledContent() {
   );
 }
 
-function PostRow({ post: p, onOpen }: { post: ScheduledPost; onOpen: () => void }) {
+function PostRow({
+  post: p,
+  onOpen,
+  onEdit,
+  onDelete,
+}: {
+  post: ScheduledPost;
+  onOpen: () => void;
+  onEdit?: () => void;
+  onDelete?: () => void;
+}) {
   const t = useT();
   const inner = (
     <>
@@ -261,12 +290,55 @@ function PostRow({ post: p, onOpen }: { post: ScheduledPost; onOpen: () => void 
     );
   }
   return (
-    <button
-      onClick={onOpen}
-      className="flex w-full cursor-pointer items-center gap-3 px-4 py-3 text-left text-sm transition-colors hover:bg-canvas"
-    >
-      {inner}
-    </button>
+    <div className="group/row relative">
+      <button
+        onClick={onOpen}
+        className="flex w-full cursor-pointer items-center gap-3 px-4 py-3 pr-24 text-left text-sm transition-colors hover:bg-canvas"
+      >
+        {inner}
+      </button>
+      {/* Actions rapides révélées au survol (#16) */}
+      <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center gap-1 opacity-0 transition-opacity group-hover/row:pointer-events-auto group-hover/row:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100">
+        {onEdit && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onEdit(); }}
+            aria-label={t("Modifier", "Edit")}
+            title={t("Modifier", "Edit")}
+            className="flex h-7 w-7 items-center justify-center rounded-md bg-card text-muted shadow-xs ring-1 ring-hair transition-colors hover:text-ink"
+          >
+            <RowEditIcon />
+          </button>
+        )}
+        {onDelete && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onDelete(); }}
+            aria-label={t("Supprimer", "Delete")}
+            title={t("Supprimer", "Delete")}
+            className="flex h-7 w-7 items-center justify-center rounded-md bg-card text-danger-600 shadow-xs ring-1 ring-hair transition-colors hover:bg-danger-50"
+          >
+            <RowTrashIcon />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function RowEditIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4 12.5-12.5z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function RowTrashIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M3 6h18M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2m2 0v14a1 1 0 01-1 1H6a1 1 0 01-1-1V6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
 }
 

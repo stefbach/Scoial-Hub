@@ -239,6 +239,7 @@ export function AgentModal({
             <option value="auto">{t("Auto (langue du message)", "Auto (message language)")}</option>
             <option value="fr">Français</option>
             <option value="en">English</option>
+            <option value="kreol">Kreol Morisien</option>
           </select>
         </div>
 

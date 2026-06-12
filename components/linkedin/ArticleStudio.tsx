@@ -449,25 +449,6 @@ export function ArticleStudio() {
           {article.hashtags.length > 0 && (
             <p className="text-sm font-medium text-primary-700">{article.hashtags.join("  ")}</p>
           )}
-          {/* Compteur + jauge vs limite LinkedIn (post ≤ 3000) */}
-          {(() => {
-            const len = toPlainText(article).length;
-            const over = len > LINKEDIN_MAX;
-            const pct = Math.min(100, Math.round((len / LINKEDIN_MAX) * 100));
-            return (
-              <div className="space-y-1">
-                <div className="h-1.5 w-full overflow-hidden rounded-full bg-canvas">
-                  <div className={`h-full rounded-full transition-all ${over ? "bg-danger-500" : len > LINKEDIN_MAX * 0.92 ? "bg-warning-500" : "bg-success-500"}`} style={{ width: `${pct}%` }} />
-                </div>
-                <p className={`text-2xs ${over ? "font-semibold text-danger-600" : "text-muted"}`}>
-                  {t(`${len} / ${LINKEDIN_MAX} caractères`, `${len} / ${LINKEDIN_MAX} characters`)}
-                  {over
-                    ? t(" — au-delà de 3000 : sera condensé automatiquement à la publication (jamais coupé).", " — above 3000: will be auto-condensed at publish (never truncated).")
-                    : t(" — tient dans la limite LinkedIn ✓", " — fits within LinkedIn's limit ✓")}
-                </p>
-              </div>
-            );
-          })()}
 
           {/* ── Chatbot d'ajustement : on dialogue pour affiner l'article ── */}
           <div className="rounded-xl border border-hair bg-canvas/60 p-3">

@@ -114,6 +114,12 @@ export function ArticleStudio() {
   const [article, setArticle] = useState<Article | null>(null);
   const [articleLoading, setArticleLoading] = useState(false);
   const [aiNote, setAiNote] = useState<string | null>(null);
+  // « Dispositif final » : le texte EXACT qui sera publié sur LinkedIn.
+  // C'est la source de vérité de la publication ; le chatbot écrit dedans et
+  // l'utilisateur peut aussi l'éditer à la main.
+  const [postText, setPostText] = useState("");
+  // Dernière version produite par l'IA, en attente d'être appliquée au post.
+  const [pendingText, setPendingText] = useState<string | null>(null);
 
   // Visuels
   const [images, setImages] = useState<Record<number, string[]>>({});
@@ -147,16 +153,20 @@ export function ArticleStudio() {
       const d = await readJson(r);
       if (!r.ok) throw new Error((d.error as string) || t("Échec de l'ajustement.", "Adjustment failed."));
       if (d.changed === false) {
-        // L'IA n'a pas pu appliquer la demande : on le dit clairement, on ne
-        // remplace PAS l'article par une copie identique.
+        // L'IA n'a pas pu appliquer la demande : on le dit clairement.
         setChat((c) => [...c, { role: "assistant", content: t("Je n'ai pas réussi à appliquer ce changement. Reformulez (ex. « raccourcis l'intro de 2 phrases »).", "I couldn't apply that change. Try rephrasing (e.g. “shorten the intro by 2 sentences”).") }]);
         return;
       }
-      // Nouvel objet (référence fraîche) → l'aperçu « à publier » se met à jour.
+      // On applique DIRECTEMENT la nouvelle version au post final (dispositif
+      // final) ET on garde l'article structuré à jour. On mémorise aussi la
+      // version IA pour le bouton « Appliquer au post ».
       const next = { ...(d.article as Article) };
+      const nextText = toPlainText(next);
       setArticle(next);
-      const newLen = toPlainText(next).length;
-      setChat((c) => [...c, { role: "assistant", content: t(`Article ajusté ✓ (${newLen} caractères)`, `Article adjusted ✓ (${newLen} characters)`) }]);
+      setPostText(nextText);
+      setPendingText(nextText);
+      const newLen = nextText.length;
+      setChat((c) => [...c, { role: "assistant", content: t(`Post ajusté ✓ (${newLen} caractères) — appliqué au post à publier.`, `Post adjusted ✓ (${newLen} characters) — applied to the post.`) }]);
     } catch (e) {
       setChat((c) => [...c, { role: "assistant", content: t("Désolé, l'ajustement a échoué. Reformulez ?", "Sorry, the adjustment failed. Try rephrasing?") }]);
       setError(e instanceof Error ? e.message : t("Échec.", "Failed."));
@@ -200,7 +210,10 @@ export function ArticleStudio() {
       });
       const d = await readJson(r);
       if (!r.ok) throw new Error((d.error as string) || t("Échec.", "Failed."));
-      setArticle(d.article as Article);
+      const a = d.article as Article;
+      setArticle(a);
+      setPostText(toPlainText(a));   // le post final reflète l'article généré
+      setPendingText(null);
       if (!d.aiGenerated) setAiNote(t("Démo — IA non configurée (ANTHROPIC_API_KEY).", "Demo — AI not configured (ANTHROPIC_API_KEY)."));
     } catch (e) {
       setError(e instanceof Error ? e.message : t("Échec.", "Failed."));
@@ -231,26 +244,28 @@ export function ArticleStudio() {
   }
 
   async function copyArticle() {
-    if (!article) return;
-    await navigator.clipboard.writeText(toPlainText(article));
+    if (!postText.trim()) return;
+    await navigator.clipboard.writeText(postText);
     setCopied(true);
     setTimeout(() => setCopied(false), 1800);
   }
 
   async function publish() {
-    if (!article) return;
+    if (!postText.trim()) return;
     setPublishing(true); setPublishMsg(null);
     try {
-      // VERROUILLAGE longueur : si le post dépasse la limite LinkedIn, on
-      // CONDENSE (réécriture complète plus courte) au lieu de tronquer.
-      let art = article;
-      if (toPlainText(art).length > LINKEDIN_MAX) {
+      // Le post final = `postText` (édité/ajusté). VERROUILLAGE longueur : si
+      // > limite LinkedIn, on CONDENSE (réécriture complète) au lieu de tronquer.
+      let finalText = postText;
+      if (finalText.length > LINKEDIN_MAX && article) {
         setPublishMsg(t("Ajustement automatique pour tenir dans la limite LinkedIn…", "Auto-adjusting to fit LinkedIn's limit…"));
-        art = await condenseToFit(art);
+        const art = await condenseToFit(article);
         setArticle(art);
+        finalText = toPlainText(art);
+        setPostText(finalText);
       }
       // Filet de sécurité ultime (jamais > 3000), à une frontière de phrase.
-      const text = clampClean(toPlainText(art), LINKEDIN_MAX);
+      const text = clampClean(finalText, LINKEDIN_MAX);
       const chosenImg = selectedImage || Object.values(images).flat()[0];
       // Route réelle (par société + cible profil/Page), comme l'Espace LinkedIn.
       const r = await fetch("/api/linkedin/publish", {
@@ -553,12 +568,18 @@ export function ArticleStudio() {
         </section>
       )}
 
-      {/* Aperçu prêt à publier — rendu fidèle au post LinkedIn (texte + visuel) */}
+      {/* POST FINAL — le texte EXACT qui sera publié (éditable, source de vérité) */}
       {article && (
         <section className="card p-5">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <span className="section-label">{t("Aperçu prêt à publier", "Ready-to-publish preview")}</span>
-            <div className="flex gap-2">
+            <span className="section-label">{t("Post final à publier", "Final post to publish")}</span>
+            <div className="flex flex-wrap gap-2">
+              {/* Bouton explicite : applique la dernière version IA au post final */}
+              {pendingText !== null && pendingText !== postText && (
+                <button onClick={() => setPostText(pendingText)} className="btn-secondary text-xs">
+                  {t("⤵ Appliquer la version IA au post", "⤵ Apply AI version to the post")}
+                </button>
+              )}
               <button onClick={copyArticle} className="btn-secondary text-xs">{copied ? t("Copié ✓", "Copied ✓") : t("Copier le texte", "Copy text")}</button>
               <button onClick={publish} disabled={publishing || !canEdit} title={!canEdit ? t("Lecture seule", "View only") : undefined} className="btn-primary inline-flex items-center gap-1.5 text-xs disabled:opacity-50">
                 {publishing && <Spinner size={14} className="text-white" />}
@@ -567,7 +588,36 @@ export function ArticleStudio() {
             </div>
           </div>
 
-          <div className="mx-auto max-w-xl rounded-xl border border-hair bg-canvas p-4">
+          {/* Zone éditable = ce qui part RÉELLEMENT sur LinkedIn */}
+          <textarea
+            value={postText}
+            onChange={(e) => setPostText(e.target.value)}
+            rows={12}
+            disabled={!canEdit}
+            className="w-full resize-y rounded-xl border border-hair bg-canvas p-4 text-sm leading-relaxed text-ink outline-none focus:border-primary-400"
+          />
+          {/* Compteur + jauge sur le POST FINAL */}
+          {(() => {
+            const len = postText.length;
+            const over = len > LINKEDIN_MAX;
+            const pct = Math.min(100, Math.round((len / LINKEDIN_MAX) * 100));
+            return (
+              <div className="mt-2 space-y-1">
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-card">
+                  <div className={`h-full rounded-full transition-all ${over ? "bg-danger-500" : len > LINKEDIN_MAX * 0.92 ? "bg-warning-500" : "bg-success-500"}`} style={{ width: `${pct}%` }} />
+                </div>
+                <p className={`text-2xs ${over ? "font-semibold text-danger-600" : "text-muted"}`}>
+                  {t(`${len} / ${LINKEDIN_MAX} caractères`, `${len} / ${LINKEDIN_MAX} characters`)}
+                  {over
+                    ? t(" — sera condensé automatiquement à la publication (jamais coupé).", " — will be auto-condensed at publish (never truncated).")
+                    : t(" — tient dans la limite LinkedIn ✓", " — fits within LinkedIn's limit ✓")}
+                </p>
+              </div>
+            );
+          })()}
+
+          {/* Aperçu fidèle (rendu LinkedIn) du post final */}
+          <div className="mx-auto mt-4 max-w-xl rounded-xl border border-hair bg-canvas p-4">
             {/* En-tête type LinkedIn */}
             <div className="flex items-center gap-2.5">
               <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#0A66C2] text-sm font-bold text-white">
@@ -579,8 +629,8 @@ export function ArticleStudio() {
               </div>
             </div>
 
-            {/* Corps du post */}
-            <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-ink">{toPlainText(article)}</p>
+            {/* Corps du post = le texte final exact */}
+            <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-ink">{postText}</p>
 
             {/* Visuel choisi */}
             {(selectedImage || Object.values(images).flat()[0]) && (

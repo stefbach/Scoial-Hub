@@ -618,6 +618,14 @@ html[data-theme="light"] .app-shell > .app-grain {
         .earth3d-loading{position:absolute;inset:0;z-index:2;display:flex;align-items:center;justify-content:center;
           color:#cdbfe8;font-size:.9rem;letter-spacing:.04em;pointer-events:none;
           background:radial-gradient(60% 60% at 50% 45%,rgba(124,58,237,.18),transparent);}
+        .globe-invite{position:absolute;left:50%;bottom:3.4rem;transform:translateX(-50%);z-index:3;
+          display:inline-flex;align-items:center;gap:.5rem;white-space:nowrap;
+          font-size:.78rem;font-weight:600;color:#ece7f5;pointer-events:none;
+          background:rgba(20,14,34,.7);border:1px solid rgba(168,85,247,.4);border-radius:999px;
+          padding:.4rem .9rem;backdrop-filter:blur(8px);animation:fadeIn .6s ease both, inviteBob 3s ease-in-out infinite;}
+        .globe-invite-dot{width:8px;height:8px;border-radius:50%;background:#c4a5ff;box-shadow:0 0 0 0 rgba(196,165,255,.6);animation:invitePulse 1.8s ease-out infinite;}
+        @keyframes invitePulse{0%{box-shadow:0 0 0 0 rgba(196,165,255,.55)}100%{box-shadow:0 0 0 12px rgba(196,165,255,0)}}
+        @keyframes inviteBob{0%,100%{transform:translateX(-50%) translateY(0)}50%{transform:translateX(-50%) translateY(-4px)}}
 
         /* ── Téléphone 3D animé (capabilities) ── */
         .phone3d{display:flex;align-items:center;justify-content:center;perspective:1400px;}
@@ -655,6 +663,7 @@ html[data-theme="light"] .app-shell > .app-grain {
         @keyframes phoneMedia{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
         @keyframes phoneBar{0%,100%{transform:scaleY(.55)}50%{transform:scaleY(1)}}
         .mc-constellation-3d{transform-style:preserve-3d;}
+        .constellation3d{position:relative;width:100%;height:clamp(440px,52vw,640px);}
         @media(prefers-reduced-motion:reduce){
           .phone3d-stage,.phone3d-media,.phone3d-chart span{animation:none;}
         }

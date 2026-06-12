@@ -106,8 +106,11 @@ export function GoogleEarth() {
           if (scene.moon) scene.moon.show = false;
           viewer.cesiumWidget.creditContainer.style.display = "none";
 
-          // Vue initiale (Afrique/Europe, légèrement inclinée).
-          viewer.camera.setView({ destination: Cesium.Cartesian3.fromDegrees(20, 18, 22_000_000) });
+          // Vue initiale : globe plus grand (plus proche) et légèrement incliné.
+          viewer.camera.setView({
+            destination: Cesium.Cartesian3.fromDegrees(20, 16, 13_500_000),
+            orientation: { heading: 0, pitch: Cesium.Math.toRadians(-90), roll: 0 },
+          });
 
           // ── Villes : points + libellés cliquables ────────────────────────
           for (const c of CITIES) {
@@ -118,6 +121,57 @@ export function GoogleEarth() {
               label: { text: c.name, font: "600 13px Manrope, sans-serif", fillColor: Cesium.Color.WHITE, showBackground: true, backgroundColor: Cesium.Color.fromCssColorString("rgba(20,14,34,0.72)"), pixelOffset: new Cesium.Cartesian2(0, -18), scaleByDistance: new Cesium.NearFarScalar(1.5e6, 1.0, 2.0e7, 0.0), translucencyByDistance: new Cesium.NearFarScalar(1.5e7, 1.0, 2.4e7, 0.0) },
             });
           }
+
+          // ── Arcs réseau : lignes virtuelles reliant les villes du monde ──
+          const arcCity = (a: { lat: number; lon: number }, b: { lat: number; lon: number }) => {
+            const start = Cesium.Cartographic.fromDegrees(a.lon, a.lat);
+            const end = Cesium.Cartographic.fromDegrees(b.lon, b.lat);
+            const geo = new Cesium.EllipsoidGeodesic(start, end);
+            const n = 64;
+            const peak = Math.min(2_400_000, 350_000 + geo.surfaceDistance * 0.16);
+            const pts: any[] = [];
+            for (let i = 0; i <= n; i++) {
+              const f = i / n;
+              const c = geo.interpolateUsingFraction(f);
+              pts.push(Cesium.Cartesian3.fromRadians(c.longitude, c.latitude, Math.sin(f * Math.PI) * peak));
+            }
+            return pts;
+          };
+          // Maillage : chaque ville reliée à 2 autres → toile sur le globe.
+          const links: [number, number][] = [];
+          for (let i = 0; i < CITIES.length; i++) {
+            links.push([i, (i + 1) % CITIES.length]);
+            links.push([i, (i + 3) % CITIES.length]);
+          }
+          links.forEach(([i, j], k) => {
+            viewer.entities.add({
+              polyline: {
+                positions: arcCity(CITIES[i], CITIES[j]),
+                width: 1.6,
+                material: new Cesium.PolylineGlowMaterialProperty({
+                  glowPower: 0.22,
+                  color: new Cesium.CallbackProperty(() => {
+                    // Pulsation lumineuse décalée par arc.
+                    const a = 0.35 + 0.45 * (0.5 + 0.5 * Math.sin(Date.now() * 0.0016 + k));
+                    return Cesium.Color.fromCssColorString("#c4a5ff").withAlpha(a);
+                  }, false),
+                }),
+              },
+            });
+          });
+          // Impulsions voyageant sur les arcs.
+          const pulseLinks = links.slice(0, 6);
+          pulseLinks.forEach(([i, j], k) => {
+            const path = arcCity(CITIES[i], CITIES[j]);
+            viewer.entities.add({
+              position: new Cesium.CallbackProperty(() => {
+                const f = ((Date.now() * 0.00018 + k * 0.16) % 1);
+                const idx = Math.min(path.length - 1, Math.floor(f * path.length));
+                return path[idx];
+              }, false),
+              point: { pixelSize: 6, color: Cesium.Color.WHITE, outlineColor: Cesium.Color.fromCssColorString("#c4a5ff"), outlineWidth: 1 },
+            });
+          });
 
           // ── Satellites = réseaux sociaux en orbite ───────────────────────
           const sats = [
@@ -199,6 +253,14 @@ export function GoogleEarth() {
     <div className="globe-hero">
       <div ref={ref} className="globe-canvas earth3d-canvas" />
       {!ready && <div className="earth3d-loading">Chargement de la Terre…</div>}
+
+      {/* Invitation à zoomer */}
+      {ready && (
+        <div className="globe-invite">
+          <span className="globe-invite-dot" />
+          {"Zoomez jusqu'à votre rue — Paris, New York, Flic-en-Flac…"}
+        </div>
+      )}
 
       <form className="globe-search" onSubmit={(e) => { e.preventDefault(); if (search.trim()) searchRef.current(search.trim()); }}>
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>

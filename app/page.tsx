@@ -12,8 +12,7 @@ import Link from "next/link";
 import { useT } from "@/lib/i18n";
 import { LanguageSwitcher } from "@/lib/i18n";
 import { NetworkCanvas } from "@/components/visual/NetworkCanvas";
-import { AgentConstellation } from "@/components/landing/AgentConstellation";
-import { Tilt3D } from "@/components/visual/Tilt3D";
+const AgentConstellation3D = dynamic(() => import("@/components/landing/AgentConstellation3D").then((m) => m.AgentConstellation3D), { ssr: false });
 import { IconLink, IconChat, IconTrendingUp, IconLock, IconShieldCheck, IconMic, IconAward } from "@/components/visual/Icons";
 
 // Scène WebGL (Three.js) — chargée côté client uniquement.
@@ -214,7 +213,7 @@ export default function Home() {
             )}
           </p>
         </header>
-        <Tilt3D max={9} className="mc-constellation-3d animate-float"><AgentConstellation /></Tilt3D>
+        <AgentConstellation3D />
       </section>
 
 

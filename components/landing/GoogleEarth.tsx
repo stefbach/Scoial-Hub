@@ -115,12 +115,16 @@ export function GoogleEarth() {
               { eventType: Cesium.CameraEventType.WHEEL, modifier: Cesium.KeyboardEventModifier.CTRL },
             ];
           } catch { /* ignore */ }
-          // Filet : on intercepte la molette nue AVANT Cesium → la page défile.
+          // Filet GARANTI : on intercepte la molette nue AVANT Cesium (phase
+          // capture) et on fait défiler la page nous-mêmes. Ctrl/⌘ → zoom globe.
           const wheelGuard = (e: WheelEvent) => {
             if (e.ctrlKey || e.metaKey) return; // Ctrl/⌘ → Cesium zoome
-            e.stopPropagation();                // empêche Cesium de happer la molette
+            e.stopPropagation();
+            e.preventDefault();
+            const factor = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? window.innerHeight : 1;
+            window.scrollBy(0, e.deltaY * factor);
           };
-          ref.current!.addEventListener("wheel", wheelGuard, { capture: true, passive: true });
+          ref.current!.addEventListener("wheel", wheelGuard, { capture: true, passive: false });
           (viewer as any)._axonWheelGuard = wheelGuard;
 
           // Vue initiale : globe plus grand (plus proche) et légèrement incliné.

@@ -7,13 +7,14 @@
 import { useState } from "react";
 import { useCompany } from "@/lib/company-context";
 import { useT } from "@/lib/i18n";
-import { MUSIC_MODELS, VOICE_MODELS } from "@/lib/ai/model-catalog";
+import { MUSIC_MODELS, VOICE_MODELS, VOICE_PRESETS } from "@/lib/ai/model-catalog";
 
 export function AudioStudio({ onGenerated }: { onGenerated?: (url: string, kind: "music" | "voice") => void }) {
   const { company } = useCompany();
   const t = useT();
   const [kind, setKind] = useState<"music" | "voice">("music");
   const [model, setModel] = useState(MUSIC_MODELS[0].id);
+  const [voice, setVoice] = useState<string>("");
   const [text, setText] = useState("");
   const [seconds, setSeconds] = useState(15);
   const [busy, setBusy] = useState(false);
@@ -24,8 +25,14 @@ export function AudioStudio({ onGenerated }: { onGenerated?: (url: string, kind:
 
   function switchKind(k: "music" | "voice") {
     setKind(k);
-    setModel((k === "music" ? MUSIC_MODELS : VOICE_MODELS)[0].id);
+    const first = (k === "music" ? MUSIC_MODELS : VOICE_MODELS)[0].id;
+    setModel(first);
+    setVoice(VOICE_PRESETS[first]?.[0]?.id ?? "");
     setUrl(null);
+  }
+  function switchModel(id: string) {
+    setModel(id);
+    setVoice(VOICE_PRESETS[id]?.[0]?.id ?? "");
   }
 
   async function generate() {
@@ -34,7 +41,7 @@ export function AudioStudio({ onGenerated }: { onGenerated?: (url: string, kind:
     try {
       const r = await fetch("/api/ai/generate-audio", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyId: company.id, kind, model, prompt: text.trim(), seconds }),
+        body: JSON.stringify({ companyId: company.id, kind, model, prompt: text.trim(), seconds, voice: voice || undefined }),
       });
       const d = await r.json();
       if (d.simulated) { setNote(t("Génération audio non configurée (REPLICATE_API_TOKEN).", "Audio generation not configured (REPLICATE_API_TOKEN).")); return; }
@@ -61,9 +68,16 @@ export function AudioStudio({ onGenerated }: { onGenerated?: (url: string, kind:
         <button type="button" data-active={kind === "voice"} onClick={() => switchKind("voice")} className="studio-seg-btn">{t("Voix off", "Voiceover")}</button>
       </div>
 
-      <select value={model} onChange={(e) => setModel(e.target.value)} className="input text-xs" title={t("Modèle audio", "Audio model")}>
+      <select value={model} onChange={(e) => switchModel(e.target.value)} className="input text-xs" title={t("Modèle audio", "Audio model")}>
         {models.map((m) => <option key={m.id} value={m.id}>{m.label}{m.note ? ` — ${m.note}` : ""}</option>)}
       </select>
+
+      {/* TOUTES les voix du modèle choisi (catalogue Replicate complet) */}
+      {kind === "voice" && (VOICE_PRESETS[model]?.length ?? 0) > 0 && (
+        <select value={voice} onChange={(e) => setVoice(e.target.value)} className="input text-xs" title={t("Voix", "Voice")}>
+          {VOICE_PRESETS[model]!.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}
+        </select>
+      )}
 
       <textarea
         value={text}

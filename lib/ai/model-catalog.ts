@@ -11,7 +11,7 @@ export interface GenModel {
   id: string;
   label: string;
   note?: string;
-  buildInput: (prompt: string, opts: { aspect?: string; seconds?: number; imageUrl?: string }) => Record<string, unknown>;
+  buildInput: (prompt: string, opts: { aspect?: string; seconds?: number; imageUrl?: string; voice?: string }) => Record<string, unknown>;
 }
 
 /* ── Helpers ratio ─────────────────────────────────────────────────────────── */
@@ -195,13 +195,13 @@ export const VOICE_MODELS: GenModel[] = [
     id: "minimax/speech-02-hd",
     label: "MiniMax Speech 02 HD",
     note: "Voix très naturelle (multi-langues)",
-    buildInput: (p) => ({ text: p, voice_id: "Wise_Woman", speed: 1, emotion: "neutral" }),
+    buildInput: (p, o) => ({ text: p, voice_id: o.voice || "Wise_Woman", speed: 1, emotion: "neutral" }),
   },
   {
     id: "jaaari/kokoro-82m",
     label: "Kokoro 82M",
     note: "TTS rapide & léger",
-    buildInput: (p) => ({ text: p, voice: "af_bella", speed: 1 }),
+    buildInput: (p, o) => ({ text: p, voice: o.voice || "af_bella", speed: 1 }),
   },
   {
     id: "lucataco/xtts-v2",
@@ -290,6 +290,61 @@ export function getEditModel(id?: string): GenModel {
 export function getAudioModel(id?: string): GenModel {
   return [...MUSIC_MODELS, ...VOICE_MODELS].find((m) => m.id === id) ?? MUSIC_MODELS[0];
 }
+
+/** Voix disponibles par modèle TTS (toutes les voix Replicate exposées). */
+export const VOICE_PRESETS: Record<string, { id: string; label: string }[]> = {
+  "minimax/speech-02-hd": [
+    { id: "Wise_Woman", label: "Femme sage (posée)" },
+    { id: "Calm_Woman", label: "Femme calme" },
+    { id: "Lovely_Girl", label: "Jeune femme douce" },
+    { id: "Lively_Girl", label: "Jeune femme pétillante" },
+    { id: "Inspirational_girl", label: "Femme inspirante" },
+    { id: "Sweet_Girl_2", label: "Voix sucrée" },
+    { id: "Exuberant_Girl", label: "Femme exubérante" },
+    { id: "Abbess", label: "Femme mûre (autorité douce)" },
+    { id: "Deep_Voice_Man", label: "Homme voix grave" },
+    { id: "Elegant_Man", label: "Homme élégant" },
+    { id: "Imposing_Manner", label: "Homme imposant" },
+    { id: "Patient_Man", label: "Homme posé" },
+    { id: "Determined_Man", label: "Homme déterminé" },
+    { id: "Casual_Guy", label: "Homme décontracté" },
+    { id: "Friendly_Person", label: "Voix amicale" },
+    { id: "Young_Knight", label: "Jeune homme héroïque" },
+    { id: "Decent_Boy", label: "Jeune homme propre" },
+  ],
+  "jaaari/kokoro-82m": [
+    { id: "ff_siwis", label: "Siwis — Français (F)" },
+    { id: "af_bella", label: "Bella — EN (F)" },
+    { id: "af_heart", label: "Heart — EN (F)" },
+    { id: "af_nicole", label: "Nicole — EN (F, chuchotée)" },
+    { id: "af_sarah", label: "Sarah — EN (F)" },
+    { id: "af_sky", label: "Sky — EN (F)" },
+    { id: "af_nova", label: "Nova — EN (F)" },
+    { id: "af_alloy", label: "Alloy — EN (F)" },
+    { id: "af_aoede", label: "Aoede — EN (F)" },
+    { id: "af_jessica", label: "Jessica — EN (F)" },
+    { id: "af_river", label: "River — EN (F)" },
+    { id: "am_adam", label: "Adam — EN (H)" },
+    { id: "am_michael", label: "Michael — EN (H)" },
+    { id: "am_echo", label: "Echo — EN (H)" },
+    { id: "am_eric", label: "Eric — EN (H)" },
+    { id: "am_liam", label: "Liam — EN (H)" },
+    { id: "am_onyx", label: "Onyx — EN (H, grave)" },
+    { id: "am_puck", label: "Puck — EN (H)" },
+    { id: "bf_emma", label: "Emma — EN britannique (F)" },
+    { id: "bf_isabella", label: "Isabella — EN britannique (F)" },
+    { id: "bf_alice", label: "Alice — EN britannique (F)" },
+    { id: "bf_lily", label: "Lily — EN britannique (F)" },
+    { id: "bm_george", label: "George — EN britannique (H)" },
+    { id: "bm_lewis", label: "Lewis — EN britannique (H)" },
+    { id: "bm_daniel", label: "Daniel — EN britannique (H)" },
+    { id: "bm_fable", label: "Fable — EN britannique (H)" },
+    { id: "if_sara", label: "Sara — Italien (F)" },
+    { id: "im_nicola", label: "Nicola — Italien (H)" },
+    { id: "ef_dora", label: "Dora — Espagnol (F)" },
+    { id: "em_alex", label: "Alex — Espagnol (H)" },
+  ],
+};
 
 /** Tous les modèles, par catégorie — pour les sélecteurs de studio. */
 export const MODEL_GROUPS = {

@@ -21,6 +21,7 @@ export async function POST(req: NextRequest) {
       model?: string;
       prompt?: string;
       seconds?: number;
+      voice?: string;
     };
     const { companyId, kind = "music", prompt, seconds } = body;
     if (!companyId) return NextResponse.json({ error: "companyId requis" }, { status: 400 });
@@ -41,7 +42,7 @@ export async function POST(req: NextRequest) {
     const modelId = pool.some((m) => m.id === body.model) ? body.model! : fallback;
     const model = getAudioModel(modelId);
 
-    const input = model.buildInput(prompt.trim(), { seconds });
+    const input = model.buildInput(prompt.trim(), { seconds, voice: body.voice });
     const url = await runReplicateUrl(modelId, input);
     if (!url) {
       return NextResponse.json({ error: "Aucun audio renvoyé par le modèle. Réessayez." }, { status: 502 });

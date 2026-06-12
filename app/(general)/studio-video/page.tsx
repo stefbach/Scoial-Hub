@@ -62,6 +62,8 @@ export default function StudioPage() {
   // Durée cible du montage (transmise au plan marketing).
   const [durationHint, setDurationHint] = useState(20);
   const [toast, setToast] = useState<{ message: string; key: number } | null>(null);
+  // Onglet du panneau « Créer avec l'IA » : copilote / visuel / audio.
+  const [genTab, setGenTab] = useState<"copilot" | "visual" | "audio">("copilot");
   const fileRef = useRef<HTMLInputElement>(null);
 
   const notify = (m: string) => setToast({ message: m, key: Date.now() });
@@ -222,28 +224,52 @@ export default function StudioPage() {
         }}
       />
 
-      {/* Copilote créatif — décrit l'idée, prépare prompt + modèle + format */}
-      <StudioCopilot
-        studio="video"
-        currentPrompt={objective}
-        onApply={(s: CopilotSuggestion) => {
-          if (s.category === "music" || s.category === "voice") return; // géré par le studio audio
-          setSeed({
-            nonce: Date.now(),
-            kind: s.category === "video" ? "video" : "image",
-            prompt: s.prompt,
-            imageModel: s.modelId && IMAGE_MODELS.some((m) => m.id === s.modelId) ? s.modelId : undefined,
-            videoModel: s.modelId && VIDEO_MODELS.some((m) => m.id === s.modelId) ? s.modelId : undefined,
-            autorun: true, // le copilote déclenche la génération directement
-          });
-        }}
-      />
-
-      {/* Génération par prompt (IA) — image ou vidéo, tous formats publiables */}
-      <PromptStudio onGenerated={(a) => setAssets((prev) => [...prev, a])} brandHints={brandHints} seed={seed} />
-
-      {/* Musique & voix off (tout le catalogue audio) — réutilisées au rendu */}
-      <AudioStudio onGenerated={(url, k) => setGenAudios((prev) => [...prev, { url, label: k === "music" ? `Musique générée ${prev.length + 1}` : `Voix off générée ${prev.length + 1}` }])} />
+      {/* ── CRÉER AVEC L'IA — un seul panneau, trois outils ── */}
+      <div className="studio-card overflow-hidden">
+        <div className="flex flex-wrap items-center gap-3 border-b border-hair px-4 py-3">
+          <span className="studio-badge">✦</span>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-ink">{t("Créer avec l'IA", "Create with AI")}</p>
+            <p className="text-2xs text-muted">{t("Décrivez — le studio génère visuels, vidéos, musiques et voix.", "Describe — the studio generates visuals, videos, music and voices.")}</p>
+          </div>
+          <div className="studio-seg w-full sm:w-auto">
+            <button type="button" data-active={genTab === "copilot"} onClick={() => setGenTab("copilot")} className="studio-seg-btn whitespace-nowrap">✦ {t("Copilote", "Copilot")}</button>
+            <button type="button" data-active={genTab === "visual"} onClick={() => setGenTab("visual")} className="studio-seg-btn whitespace-nowrap">🎬 {t("Visuel", "Visual")}</button>
+            <button type="button" data-active={genTab === "audio"} onClick={() => setGenTab("audio")} className="studio-seg-btn whitespace-nowrap">♪ {t("Musique & voix", "Music & voice")}</button>
+          </div>
+        </div>
+        <div className="p-4">
+          <div className={genTab === "copilot" ? "" : "hidden"}>
+            <StudioCopilot
+              studio="video"
+              currentPrompt={objective}
+              onApply={(s: CopilotSuggestion) => {
+                if (s.category === "music" || s.category === "voice") { setGenTab("audio"); return; }
+                setGenTab("visual");
+                setSeed({
+                  nonce: Date.now(),
+                  kind: s.category === "video" ? "video" : "image",
+                  prompt: s.prompt,
+                  imageModel: s.modelId && IMAGE_MODELS.some((m) => m.id === s.modelId) ? s.modelId : undefined,
+                  videoModel: s.modelId && VIDEO_MODELS.some((m) => m.id === s.modelId) ? s.modelId : undefined,
+                  autorun: true, // le copilote déclenche la génération directement
+                });
+              }}
+            />
+          </div>
+          <div className={genTab === "visual" ? "" : "hidden"}>
+            <PromptStudio onGenerated={(a) => setAssets((prev) => [...prev, a])} brandHints={brandHints} seed={seed} />
+          </div>
+          <div className={genTab === "audio" ? "" : "hidden"}>
+            <AudioStudio onGenerated={(url, k) => setGenAudios((prev) => [...prev, { url, label: k === "music" ? `Musique générée ${prev.length + 1}` : `Voix off générée ${prev.length + 1}` }])} />
+          </div>
+          {genAudios.length > 0 && (
+            <p className="mt-2 text-2xs text-muted">
+              ♪ {genAudios.length} {t("piste(s) générée(s) — disponibles comme bande-son au rendu des déclinaisons.", "generated track(s) — available as soundtrack when rendering cuts.")}
+            </p>
+          )}
+        </div>
+      </div>
 
       {/* Étape 1 : médias */}
       <StudioStep n={1} title={t("Vos médias (photos & vidéos)", "Your media (photos & videos)")}>
@@ -452,6 +478,7 @@ function CutCard({
   const [caption, setCaption] = useState(cut.caption);
   const [overlays, setOverlays] = useState(cut.overlays);
   const [caps, setCaps] = useState<CaptionSegment[]>(captions);
+  const [burnSubs, setBurnSubs] = useState(captions.length > 0);
   const [musicId, setMusicId] = useState("none");
   const [customMusic, setCustomMusic] = useState("");
   const [withLogo, setWithLogo] = useState(true);
@@ -501,9 +528,55 @@ function CutCard({
   function setCapText(i: number, text: string) {
     setCaps((prev) => prev.map((c, j) => (j === i ? { ...c, text } : c)));
   }
+  function addCap() {
+    setCaps((prev) => {
+      const last = prev[prev.length - 1];
+      const start = last ? last.end : 0;
+      return [...prev, { start, end: start + 2.5, text: "" }];
+    });
+    setBurnSubs(true);
+  }
+  function removeCap(i: number) {
+    setCaps((prev) => prev.filter((_, j) => j !== i));
+  }
 
   // ── Rendu vidéo (Shotstack) ──────────────────────────────────────────────────
   const [rState, setRState] = useState<"idle" | "queued" | "rendering" | "done" | "failed" | "unsupported">("idle");
+  // Planification directe de la vidéo rendue (sans repasser par Composer).
+  const [schedOpen, setSchedOpen] = useState(false);
+  const [schedNets, setSchedNets] = useState<string[]>(["instagram"]);
+  const [schedDate, setSchedDate] = useState(() => new Date(Date.now() + 86400000).toISOString().slice(0, 10));
+  const [schedTime, setSchedTime] = useState("09:00");
+  const [schedBusy, setSchedBusy] = useState(false);
+  const [schedMsg, setSchedMsg] = useState<string | null>(null);
+
+  async function scheduleRendered() {
+    if (!rUrl || schedBusy || schedNets.length === 0) return;
+    setSchedBusy(true); setSchedMsg(null);
+    try {
+      const text = (caption || hook || "").trim();
+      const results = await Promise.all(schedNets.map((platform) =>
+        fetch("/api/scheduled-posts", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            companyId, platform,
+            title: (text.slice(0, 48) || "Vidéo studio") + (text.length > 48 ? "…" : ""),
+            body: text, date: schedDate, time: schedTime,
+            status: "scheduled", source: "manual",
+            media: { kind: "video", url: rUrl },
+          }),
+        })
+      ));
+      if (results.every((r) => r.ok)) {
+        setSchedMsg(t(`✓ Programmée le ${schedDate} à ${schedTime} — visible dans Programmés.`, `✓ Scheduled for ${schedDate} at ${schedTime} — see Scheduled.`));
+        setSchedOpen(false);
+      } else {
+        setSchedMsg(t("Échec de la programmation d'au moins un réseau.", "Failed to schedule at least one network."));
+      }
+    } catch {
+      setSchedMsg(t("Erreur réseau.", "Network error."));
+    } finally { setSchedBusy(false); }
+  }
   const [rUrl, setRUrl] = useState<string | null>(null);
   const [rErr, setRErr] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -525,7 +598,7 @@ function CutCard({
       const res = await fetch("/api/video/render", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cut: editedCut, assets, captions: caps, logoUrl: withLogo ? brandLogoUrl : undefined, brandColors, companyId }),
+        body: JSON.stringify({ cut: editedCut, assets, captions: burnSubs ? caps.filter((c) => c.text.trim()) : [], logoUrl: withLogo ? brandLogoUrl : undefined, brandColors, companyId }),
       });
       const data = await res.json();
       if (!res.ok || !data.id) {
@@ -675,16 +748,28 @@ function CutCard({
         </Field>
       )}
 
-      {renderable && caps.length > 0 && (
-        <Field label={t("Sous-titres incrustés (modifiables)", "Burned-in subtitles (editable)")}>
-          <div className="space-y-1.5">
-            {caps.map((c, i) => (
-              <div key={i} className="flex items-center gap-2">
-                <span className="w-14 shrink-0 font-mono text-2xs text-primary">{c.start}-{c.end}s</span>
-                <input className="input flex-1 text-xs" value={c.text} onChange={(e) => setCapText(i, e.target.value)} />
-              </div>
-            ))}
+      {renderable && (
+        <Field label={t("Sous-titres", "Subtitles")}>
+          <div className="mb-1.5 flex items-center justify-between gap-2">
+            <label className="flex items-center gap-1.5 text-2xs text-muted">
+              <input type="checkbox" checked={burnSubs} onChange={(e) => setBurnSubs(e.target.checked)} className="h-3.5 w-3.5 accent-page" />
+              {t("Incruster dans la vidéo", "Burn into the video")}
+            </label>
+            <button type="button" onClick={addCap} className="btn-ghost text-2xs text-page">+ {t("Ajouter une ligne", "Add a line")}</button>
           </div>
+          {caps.length === 0 ? (
+            <p className="text-2xs text-muted">{t("Aucun sous-titre — ajoutez une ligne ou laissez l'IA les générer au plan suivant.", "No subtitles — add a line or let the AI generate them on the next plan.")}</p>
+          ) : (
+            <div className="space-y-1.5">
+              {caps.map((c, i) => (
+                <div key={i} className="flex items-center gap-1.5">
+                  <span className="w-14 shrink-0 text-right text-2xs tabular-nums text-muted">{c.start.toFixed(1)}–{c.end.toFixed(1)}s</span>
+                  <input className="input flex-1 text-xs" value={c.text} onChange={(e) => setCapText(i, e.target.value)} placeholder={t("Texte du sous-titre…", "Subtitle text…")} />
+                  <button type="button" onClick={() => removeCap(i)} aria-label={t("Supprimer", "Remove")} className="shrink-0 text-muted hover:text-danger-600">✕</button>
+                </div>
+              ))}
+            </div>
+          )}
         </Field>
       )}
 
@@ -722,13 +807,39 @@ function CutCard({
                 <a href={rUrl} target="_blank" rel="noopener noreferrer" download className="btn-secondary flex-1 justify-center text-2xs">
                   ⬇ {t("Télécharger", "Download")}
                 </a>
-                <a href={`/compose?media=${encodeURIComponent(rUrl)}&kind=video`} className="btn-primary flex-1 justify-center text-2xs">
-                  {t("Publier / Programmer →", "Publish / Schedule →")}
+                <button className="btn-primary flex-1 justify-center text-2xs" onClick={() => setSchedOpen((v) => !v)}>
+                  📅 {t("Programmer", "Schedule")}
+                </button>
+                <a href={`/compose?media=${encodeURIComponent(rUrl)}&kind=video`} className="btn-secondary flex-1 justify-center text-2xs">
+                  {t("Ouvrir dans Composer", "Open in Composer")}
                 </a>
                 <button className="btn-ghost shrink-0 text-2xs" onClick={startRender}>
                   ↻ {t("Régénérer", "Re-render")}
                 </button>
               </div>
+
+              {/* Programmation directe : réseaux + date + heure */}
+              {schedOpen && (
+                <div className="space-y-2 rounded-lg border border-hair bg-canvas/60 p-2.5">
+                  <div className="flex flex-wrap gap-1.5">
+                    {["facebook", "instagram", "tiktok"].map((n) => (
+                      <button key={n} type="button"
+                        onClick={() => setSchedNets((prev) => prev.includes(n) ? prev.filter((x) => x !== n) : [...prev, n])}
+                        className={`rounded-full px-2.5 py-1 text-2xs font-medium ${schedNets.includes(n) ? "bg-page text-white" : "bg-card text-muted ring-1 ring-hair hover:text-ink"}`}>
+                        {n === "facebook" ? "Facebook" : n === "instagram" ? "Instagram" : "TikTok"}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input type="date" value={schedDate} onChange={(e) => setSchedDate(e.target.value)} className="input flex-1 text-xs" />
+                    <input type="time" value={schedTime} onChange={(e) => setSchedTime(e.target.value)} className="input w-24 text-xs" />
+                    <button type="button" onClick={scheduleRendered} disabled={schedBusy || schedNets.length === 0} className="btn-primary shrink-0 text-2xs disabled:opacity-50">
+                      {schedBusy ? t("…", "…") : t("Programmer", "Schedule")}
+                    </button>
+                  </div>
+                </div>
+              )}
+              {schedMsg && <p className="rounded-lg bg-canvas px-2.5 py-1.5 text-2xs text-ink">{schedMsg}</p>}
             </div>
           )}
           {rState === "unsupported" && (

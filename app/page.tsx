@@ -3,7 +3,7 @@
 /* Homepage "Mission Control" — sombre, cinématique, 3D partout.
    - Scène hero 3D : logos sociaux en orbite, téléphone 3D, tableau de bord 3D
      incliné, parallax piloté à la souris.
-   - Réseaux mis en avant : Facebook, Instagram, LinkedIn, X (Twitter).
+   - Réseaux mis en avant : Facebook, Instagram, LinkedIn, TikTok.
    - Thème local sombre (la page publique n'utilise pas les tokens clairs). */
 
 import { useEffect, useState } from "react";
@@ -52,15 +52,16 @@ function LinkedInLogo({ s = 28 }: { s?: number }) {
     </svg>
   );
 }
-function XLogo({ s = 26 }: { s?: number }) {
+function TikTokLogo({ s = 26 }: { s?: number }) {
   return (
     <svg width={s} height={s} viewBox="0 0 24 24" aria-hidden>
-      <rect width="24" height="24" rx="6" fill="#0a0a0a" />
-      <path d="M13.9 10.6 18.4 5.5h-1.6l-3.8 4.3-3-4.3H5.2l4.7 6.7-4.7 5.3h1.6l4.1-4.6 3.3 4.6h4.8l-5.1-7.2Zm-1.4 1.6-.5-.7-3.8-5.3h1.7l3 4.3.5.7 4 5.6h-1.7l-3.2-4.6Z" fill="#fff" />
+      <rect width="24" height="24" rx="6" fill="#010101" />
+      <path d="M16.5 5.2c.5 1.6 1.7 2.9 3.3 3.3v2.4c-1.2 0-2.4-.4-3.4-1v4.9a4.7 4.7 0 1 1-4.7-4.7c.2 0 .5 0 .7.05v2.5a2.2 2.2 0 1 0 1.5 2.1V5.2h2.3Z" fill="#fff" />
+      <path d="M16.9 5.2c.5 1.6 1.7 2.9 3.3 3.3" fill="none" stroke="#25F4EE" strokeWidth="0" />
     </svg>
   );
 }
-const NETWORKS = [FacebookLogo, InstagramLogo, LinkedInLogo, XLogo];
+const NETWORKS = [FacebookLogo, InstagramLogo, LinkedInLogo, TikTokLogo];
 
 /* ───────────────────────── Données réelles (README) ─────────────────────── */
 const STATS = [
@@ -249,8 +250,8 @@ export default function Home() {
           </h1>
           <p className="mc-sub">
             {t(
-              "Une équipe d'assistants IA s'occupe de vos posts, vos visuels et vos pubs sur Facebook, Instagram, LinkedIn et X. Vous gardez la main : rien ne se publie sans votre feu vert.",
-              "A team of AI assistants takes care of your posts, visuals and ads on Facebook, Instagram, LinkedIn and X. You stay in charge — nothing goes live without your green light."
+              "Une équipe d'assistants IA s'occupe de vos posts, vos visuels et vos pubs sur Facebook, Instagram, LinkedIn et TikTok. Vous gardez la main : rien ne se publie sans votre feu vert.",
+              "A team of AI assistants takes care of your posts, visuals and ads on Facebook, Instagram, LinkedIn and TikTok. You stay in charge — nothing goes live without your green light."
             )}
           </p>
           <div className="mc-cta-row">
@@ -304,7 +305,7 @@ export default function Home() {
         <div className="mc-marquee-track">
           {Array.from({ length: 3 }).flatMap((_, k) =>
             NETWORKS.map((L, i) => (
-              <span key={`${k}-${i}`} className="mc-chip"><L s={22} /> {["Facebook", "Instagram", "LinkedIn", "X"][i]}</span>
+              <span key={`${k}-${i}`} className="mc-chip"><L s={22} /> {["Facebook", "Instagram", "LinkedIn", "TikTok"][i]}</span>
             ))
           )}
         </div>
@@ -318,8 +319,8 @@ export default function Home() {
             <h2 className="mc-h2">{t("Vos communautés, au même endroit.", "Your communities, in one place.")}</h2>
             <p className="mc-human-p">
               {t(
-                "Facebook, Instagram, LinkedIn, X — vos audiences ne sont plus des silos. L'IA relie les conversations, les contenus et les campagnes autour de vraies personnes.",
-                "Facebook, Instagram, LinkedIn, X — your audiences are no longer silos. AI links conversations, content and campaigns around real people."
+                "Facebook, Instagram, LinkedIn, TikTok — vos audiences ne sont plus des silos. L'IA relie les conversations, les contenus et les campagnes autour de vraies personnes.",
+                "Facebook, Instagram, LinkedIn, TikTok — your audiences are no longer silos. AI links conversations, content and campaigns around real people."
               )}
             </p>
             <Link href="/pilotage" className="mc-btn mc-btn-glow mc-btn-lg">{t("Voir le pilotage", "See the command center")}</Link>

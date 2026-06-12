@@ -57,7 +57,7 @@ const NETWORKS = [
   { x: 880, y: 120, c: "#1877F2", label: "Facebook",  glyph: "f" },
   { x: 880, y: 220, c: "#e1306c", label: "Instagram", glyph: "ig" },
   { x: 880, y: 320, c: "#0A66C2", label: "LinkedIn",  glyph: "in" },
-  { x: 880, y: 420, c: "#9ca3af", label: "X",         glyph: "x" },
+  { x: 880, y: 420, c: "#010101", label: "TikTok",    glyph: "tiktok" },
 ];
 
 const BRAND = { x: 80, y: 265 };
@@ -175,8 +175,9 @@ export function AgentConstellation() {
           {n.glyph === "in" && (
             <text x={n.x} y={n.y + 6} textAnchor="middle" fontSize="15" fontWeight="800" fill="#fff" fontFamily="var(--font-sans)">in</text>
           )}
-          {n.glyph === "x" && (
-            <text x={n.x} y={n.y + 7} textAnchor="middle" fontSize="18" fontWeight="800" fill="#fff" fontFamily="var(--font-sans)">𝕏</text>
+          {n.glyph === "tiktok" && (
+            <path transform={`translate(${n.x - 9}, ${n.y - 9}) scale(0.75)`} fill="#fff"
+              d="M16.5 5.2c.5 1.6 1.7 2.9 3.3 3.3v2.4c-1.2 0-2.4-.4-3.4-1v4.9a4.7 4.7 0 1 1-4.7-4.7c.2 0 .5 0 .7.05v2.5a2.2 2.2 0 1 0 1.5 2.1V5.2h2.3Z" />
           )}
           <text x={n.x} y={n.y + 46} textAnchor="middle" className="ac-label">{n.label}</text>
         </g>

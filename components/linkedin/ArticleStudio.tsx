@@ -72,10 +72,12 @@ function clampClean(text: string, max: number): string {
   return cut.trimEnd() + "…";
 }
 
-/** Assemble une version texte plat publiable du post LinkedIn (titre inclus, complet). */
+/** Assemble le post LinkedIn COMPLET (titre inclus) — SANS troncature.
+ *  Le verrouillage de longueur se fait à la publication (condensation IA),
+ *  jamais en coupant le texte. */
 function toPlainText(a: Article): string {
   const body = a.body.replace(/^#{1,6}\s*/gm, "").replace(/\*\*/g, "");
-  const text = [
+  return [
     a.title ? a.title.trim() : "",
     "",
     a.hook,
@@ -85,7 +87,6 @@ function toPlainText(a: Article): string {
     a.cta ? `\n${a.cta}` : "",
     a.hashtags.length ? `\n${a.hashtags.join(" ")}` : "",
   ].filter((s) => s !== undefined).join("\n").replace(/\n{3,}/g, "\n\n").trim();
-  return clampClean(text, LINKEDIN_MAX);
 }
 
 export function ArticleStudio() {
@@ -120,11 +121,49 @@ export function ArticleStudio() {
   const [imgModel, setImgModel] = useState(VISUAL_MODELS[0].id);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
+  // Chatbot d'ajustement (révision conversationnelle de l'article)
+  const [chat, setChat] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [revising, setRevising] = useState(false);
+
   // Publication
   const [publishing, setPublishing] = useState(false);
   const [publishMsg, setPublishMsg] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  /** Demande à l'IA d'ajuster l'article courant selon une consigne libre. */
+  async function reviseArticle(instruction: string) {
+    if (!article || !instruction.trim() || revising) return;
+    setRevising(true); setError(null);
+    const history = chat.slice(-6);
+    setChat((c) => [...c, { role: "user", content: instruction }]);
+    setChatInput("");
+    try {
+      const r = await fetch("/api/ai/linkedin-article", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyId, mode: "revise", language, article, instruction, history }),
+      });
+      const d = await readJson(r);
+      if (!r.ok) throw new Error((d.error as string) || t("Échec de l'ajustement.", "Adjustment failed."));
+      setArticle(d.article as Article);
+      setChat((c) => [...c, { role: "assistant", content: t("Article ajusté ✓", "Article adjusted ✓") }]);
+    } catch (e) {
+      setChat((c) => [...c, { role: "assistant", content: t("Désolé, l'ajustement a échoué. Reformulez ?", "Sorry, the adjustment failed. Try rephrasing?") }]);
+      setError(e instanceof Error ? e.message : t("Échec.", "Failed."));
+    } finally { setRevising(false); }
+  }
+
+  /** Condense l'article via l'IA pour qu'il tienne sous la limite (verrouillage). */
+  async function condenseToFit(a: Article): Promise<Article> {
+    const r = await fetch("/api/ai/linkedin-article", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ companyId, mode: "revise", language, article: a, instruction: "Condense l'article pour qu'il tienne complet sous 3000 caractères, sans rien couper, en gardant l'essentiel." }),
+    });
+    const d = await readJson(r);
+    if (r.ok && d.article) return d.article as Article;
+    return a;
+  }
 
   async function genPrompt() {
     if (!input.trim()) { setError(t("Saisissez des mots-clés ou un texte.", "Enter keywords or text.")); return; }
@@ -144,7 +183,7 @@ export function ArticleStudio() {
 
   async function genArticle() {
     if (!input.trim()) { setError(t("Saisissez des mots-clés ou un texte.", "Enter keywords or text.")); return; }
-    setError(null); setArticleLoading(true); setAiNote(null); setImages({});
+    setError(null); setArticleLoading(true); setAiNote(null); setImages({}); setChat([]);
     try {
       const r = await fetch("/api/ai/linkedin-article", {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -193,11 +232,21 @@ export function ArticleStudio() {
     if (!article) return;
     setPublishing(true); setPublishMsg(null);
     try {
+      // VERROUILLAGE longueur : si le post dépasse la limite LinkedIn, on
+      // CONDENSE (réécriture complète plus courte) au lieu de tronquer.
+      let art = article;
+      if (toPlainText(art).length > LINKEDIN_MAX) {
+        setPublishMsg(t("Ajustement automatique pour tenir dans la limite LinkedIn…", "Auto-adjusting to fit LinkedIn's limit…"));
+        art = await condenseToFit(art);
+        setArticle(art);
+      }
+      // Filet de sécurité ultime (jamais > 3000), à une frontière de phrase.
+      const text = clampClean(toPlainText(art), LINKEDIN_MAX);
       const chosenImg = selectedImage || Object.values(images).flat()[0];
       // Route réelle (par société + cible profil/Page), comme l'Espace LinkedIn.
       const r = await fetch("/api/linkedin/publish", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyId, text: toPlainText(article), imageUrl: chosenImg || undefined }),
+        body: JSON.stringify({ companyId, text, imageUrl: chosenImg || undefined }),
       });
       const d = await readJson(r);
       if (d.connected === false) {
@@ -376,17 +425,72 @@ export function ArticleStudio() {
           {article.hashtags.length > 0 && (
             <p className="text-sm font-medium text-primary-700">{article.hashtags.join("  ")}</p>
           )}
-          {/* Compteur de caractères vs limite LinkedIn (post ≤ 3000) */}
+          {/* Compteur + jauge vs limite LinkedIn (post ≤ 3000) */}
           {(() => {
             const len = toPlainText(article).length;
-            const over = len >= LINKEDIN_MAX;
+            const over = len > LINKEDIN_MAX;
+            const pct = Math.min(100, Math.round((len / LINKEDIN_MAX) * 100));
             return (
-              <p className={`text-2xs ${over ? "font-semibold text-danger-600" : "text-muted"}`}>
-                {t(`${len} / ${LINKEDIN_MAX} caractères publiés sur LinkedIn`, `${len} / ${LINKEDIN_MAX} characters published to LinkedIn`)}
-                {over && t(" — au-delà de 3000, LinkedIn peut refuser le post : raccourcissez un peu.", " — above 3000, LinkedIn may reject the post: shorten a little.")}
-              </p>
+              <div className="space-y-1">
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-canvas">
+                  <div className={`h-full rounded-full transition-all ${over ? "bg-danger-500" : len > LINKEDIN_MAX * 0.92 ? "bg-warning-500" : "bg-success-500"}`} style={{ width: `${pct}%` }} />
+                </div>
+                <p className={`text-2xs ${over ? "font-semibold text-danger-600" : "text-muted"}`}>
+                  {t(`${len} / ${LINKEDIN_MAX} caractères`, `${len} / ${LINKEDIN_MAX} characters`)}
+                  {over
+                    ? t(" — au-delà de 3000 : sera condensé automatiquement à la publication (jamais coupé).", " — above 3000: will be auto-condensed at publish (never truncated).")
+                    : t(" — tient dans la limite LinkedIn ✓", " — fits within LinkedIn's limit ✓")}
+                </p>
+              </div>
             );
           })()}
+
+          {/* ── Chatbot d'ajustement : on dialogue pour affiner l'article ── */}
+          <div className="rounded-xl border border-hair bg-canvas/60 p-3">
+            <p className="section-label mb-2">{t("Ajuster avec l'assistant", "Adjust with the assistant")}</p>
+            <div className="mb-2 flex flex-wrap gap-1.5">
+              {[
+                { fr: "Raccourcir", en: "Shorten", ins: "Raccourcis l'article tout en gardant l'essentiel." },
+                { fr: "Plus percutant", en: "More punchy", ins: "Rends le ton plus percutant et direct." },
+                { fr: "Ajouter une statistique", en: "Add a stat", ins: "Ajoute une statistique crédible et vérifiable liée au sujet." },
+                { fr: "Plus chaleureux", en: "Warmer", ins: "Adopte un ton plus chaleureux et humain." },
+                { fr: "Finir par une question", en: "End with a question", ins: "Termine par une question d'engagement forte." },
+                { fr: "Plus d'exemples", en: "More examples", ins: "Ajoute un exemple concret supplémentaire." },
+              ].map((q) => (
+                <button key={q.fr} type="button" disabled={revising} onClick={() => reviseArticle(q.ins)}
+                  className="rounded-full border border-hair bg-card px-2.5 py-1 text-2xs text-ink transition-colors hover:border-page hover:text-page disabled:opacity-50">
+                  {t(q.fr, q.en)}
+                </button>
+              ))}
+            </div>
+            {chat.length > 0 && (
+              <div className="mb-2 max-h-40 space-y-1.5 overflow-y-auto">
+                {chat.map((m, i) => (
+                  <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+                    <span className={`max-w-[85%] rounded-2xl px-3 py-1.5 text-2xs ${m.role === "user" ? "bg-page text-white" : "bg-card text-ink ring-1 ring-hair"}`}>{m.content}</span>
+                  </div>
+                ))}
+                {revising && (
+                  <div className="flex justify-start"><span className="inline-flex items-center gap-1.5 rounded-2xl bg-card px-3 py-1.5 text-2xs text-muted ring-1 ring-hair"><Spinner size={11} className="text-page" /> {t("Ajustement…", "Adjusting…")}</span></div>
+                )}
+              </div>
+            )}
+            <div className="flex items-end gap-2">
+              <textarea
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); reviseArticle(chatInput); } }}
+                rows={1}
+                disabled={revising || !canEdit}
+                placeholder={t("Ex : « raccourcis l'intro et ajoute un chiffre »", "E.g. “shorten the intro and add a figure”")}
+                className="max-h-24 min-h-[2.25rem] flex-1 resize-none rounded-lg border border-hair bg-card px-3 py-2 text-sm text-ink outline-none focus:border-primary-400"
+              />
+              <button type="button" onClick={() => reviseArticle(chatInput)} disabled={revising || !chatInput.trim() || !canEdit} className="btn-primary h-[2.25rem] shrink-0 text-xs disabled:opacity-50">
+                {t("Ajuster", "Adjust")}
+              </button>
+            </div>
+          </div>
+
           {publishMsg && <p className="rounded-lg bg-canvas px-3 py-2 text-xs text-ink">{publishMsg}</p>}
         </section>
       )}

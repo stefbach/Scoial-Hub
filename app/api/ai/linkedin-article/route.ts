@@ -22,7 +22,7 @@ import { getMemoryContext } from "@/lib/memory";
 
 interface Body {
   companyId: string;
-  mode: "prompt" | "article";
+  mode: "prompt" | "article" | "revise";
   /** "keywords" | "text" : nature de l'entrée. */
   source?: "keywords" | "text";
   input: string;
@@ -34,6 +34,10 @@ interface Body {
   language?: "fr" | "en";
   /** En mode "article" : le prompt (éventuellement édité) à utiliser. */
   customPrompt?: string;
+  /** En mode "revise" : l'article courant + la consigne d'ajustement + l'historique. */
+  article?: ArticleResult;
+  instruction?: string;
+  history?: { role: "user" | "assistant"; content: string }[];
   /**
    * RAG opt-in : si vrai, on injecte le positionnement, les thèmes et la
    * mémoire stratégique (veille/pubs/Page) pour ancrer l'article dans la marque.
@@ -271,6 +275,62 @@ ${JSON.stringify({ title: a.title, hook: a.hook, body: a.body, keyTakeaways: a.k
   return a;
 }
 
+/**
+ * Mode CHATBOT : applique une consigne d'ajustement à l'article COURANT
+ * (« raccourcis l'intro », « ajoute une statistique », « ton plus direct »,
+ * « termine par une question »…) et renvoie l'article révisé — toujours
+ * COMPLET et sous la limite LinkedIn (condensé si besoin, jamais tronqué).
+ */
+async function reviseArticle(body: Body, client: Anthropic): Promise<{ article: ArticleResult; aiGenerated: boolean }> {
+  const cur = body.article;
+  if (!cur) throw new Error("article manquant pour la révision");
+  const lang = langName(body.language ?? "fr");
+  const instruction = (body.instruction ?? "").trim() || "Améliore l'article.";
+
+  const histText = (body.history ?? [])
+    .slice(-6)
+    .map((m) => `${m.role === "user" ? "DEMANDE" : "ASSISTANT"} : ${m.content}`)
+    .join("\n");
+
+  const prompt = `Tu ajustes un article LinkedIn EXISTANT selon la demande de l'utilisateur. Tu NE repars PAS de zéro : tu modifies l'article fourni en respectant la demande, et tu gardes tout le reste cohérent.
+
+${histText ? `HISTORIQUE DES ÉCHANGES :\n${histText}\n` : ""}
+DEMANDE ACTUELLE : ${instruction}
+
+ARTICLE ACTUEL (JSON) :
+${JSON.stringify({ title: cur.title, hook: cur.hook, body: cur.body, keyTakeaways: cur.keyTakeaways, hashtags: cur.hashtags, cta: cur.cta })}
+
+CONTRAINTE LINKEDIN (impérative) : le post complet (title + hook + body + keyTakeaways + cta + hashtags) doit rester COMPLET et tenir en MOINS de 3000 caractères (vise ~${LINKEDIN_CHAR_BUDGET}). Termine toujours proprement, jamais de « … ». Langue : ${lang}.
+TYPOGRAPHIE : n'utilise JAMAIS de tiret cadratin (—) ni demi-cadratin (–).
+
+Réponds UNIQUEMENT par un objet JSON valide (même schéma), sans aucun texte autour :
+{"title":"...","hook":"...","body":"...","keyTakeaways":["..."],"hashtags":["..."],"cta":"..."}`;
+
+  const res = await client.messages.create({
+    model: env.anthropicModel,
+    max_tokens: 3500,
+    system: SYSTEM,
+    messages: [{ role: "user", content: prompt }],
+  });
+  const raw = res.content.filter((b) => b.type === "text").map((b) => (b as { type: "text"; text: string }).text).join("");
+  const m = raw.match(/\{[\s\S]*\}/);
+  if (!m) return { article: cur, aiGenerated: false };
+  const p = JSON.parse(m[0]) as Partial<ArticleResult>;
+  let article = sanitizeArticle({
+    title: p.title ?? cur.title,
+    hook: p.hook ?? cur.hook,
+    body: p.body ?? cur.body,
+    keyTakeaways: (p.keyTakeaways ?? cur.keyTakeaways).slice(0, 6),
+    hashtags: (p.hashtags ?? cur.hashtags).slice(0, 6),
+    cta: p.cta ?? cur.cta,
+    visualPrompts: cur.visualPrompts,
+  });
+  if (assembledPostText(article).length > LINKEDIN_CHAR_BUDGET) {
+    article = await condenseToFit(article, client, lang);
+  }
+  return { article, aiGenerated: true };
+}
+
 async function generateArticle(body: Body, brand: BrandContext): Promise<{ article: ArticleResult; aiGenerated: boolean }> {
   if (!isAiConfigured) return { article: fallbackArticle(body, brand), aiGenerated: false };
 
@@ -361,8 +421,13 @@ IMPÉRATIF DE SORTIE — quelles que soient les instructions du brief ci-dessus 
 export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as Body;
-    if (!body.companyId || !body.input?.trim()) {
+    // En révision (chatbot), c'est l'article + la consigne qui comptent, pas `input`.
+    const needsInput = body.mode !== "revise";
+    if (!body.companyId || (needsInput && !body.input?.trim())) {
       return NextResponse.json({ error: "companyId et input requis" }, { status: 400 });
+    }
+    if (body.mode === "revise" && !body.article) {
+      return NextResponse.json({ error: "article requis pour la révision" }, { status: 400 });
     }
     const guard = await requireCompanyAccess(body.companyId);
     if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
@@ -374,8 +439,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ prompt, aiGenerated: isAiConfigured });
     }
 
+    // Mode chatbot : ajuste l'article courant selon la consigne (sous la limite).
+    if (body.mode === "revise") {
+      if (!isAiConfigured) {
+        return NextResponse.json({ error: "IA non configurée (ANTHROPIC_API_KEY)." }, { status: 503 });
+      }
+      const client = new Anthropic({ apiKey: env.anthropicKey });
+      const { article, aiGenerated } = await reviseArticle(body, client);
+      return NextResponse.json({ article, aiGenerated, length: assembledPostText(article).length });
+    }
+
     const { article, aiGenerated } = await generateArticle(body, brand);
-    return NextResponse.json({ article, aiGenerated });
+    return NextResponse.json({ article, aiGenerated, length: assembledPostText(article).length });
   } catch (e) {
     console.error("[POST /api/ai/linkedin-article]", e);
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });

@@ -107,7 +107,8 @@ function summarizePosts(posts: MetaPost[], net: string) {
 
 export async function analyzeMetaContent(
   ins: MetaInsights,
-  companyName: string
+  companyName: string,
+  language: "fr" | "en" = "fr"
 ): Promise<MetaContentAnalysis> {
   const stats = computeStats(ins);
 
@@ -130,7 +131,7 @@ Engagement moyen : Instagram ${stats.avgEngagementIg}/post, Facebook ${stats.avg
 Échantillon de publications (avec engagement réel) :
 ${JSON.stringify(samples, null, 2)}
 
-Retourne STRICTEMENT ce JSON (aucun texte autour), en français, concret et spécifique à cette Page :
+Retourne STRICTEMENT ce JSON (aucun texte autour), ${language === "en" ? "with ALL textual values written in ENGLISH" : "en français"}, concret et spécifique à cette Page :
 {
   "synthese": "2-3 phrases : état de la Page et potentiel d'optimisation",
   "pointsForts": ["..."],

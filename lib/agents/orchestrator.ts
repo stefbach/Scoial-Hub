@@ -71,9 +71,18 @@ export interface OrchestrationInput {
    * publicitaire générale. Ce n'est ni l'app ni le profil qui décident.
    */
   healthcareCompliance?: boolean;
+  /** Langue de sortie des textes produits par l'IA (défaut : "fr"). */
+  language?: "fr" | "en";
 }
 
 // ── Utilitaires ───────────────────────────────────────────────────────────────
+
+/** Consigne de langue à injecter dans les prompts IA (textes produits). */
+function langDirective(language: "fr" | "en"): string {
+  return language === "en"
+    ? "\n\nIMPORTANT: Write ALL textual output (every string value) in ENGLISH."
+    : "\n\nIMPORTANT : rédige TOUT le texte produit en FRANÇAIS.";
+}
 
 function ts(): string {
   return new Date().toISOString();
@@ -503,7 +512,7 @@ Cadence éditoriale retenue : ${formatCadence(cadence)}`;
     const resp = await client.messages.create({
       model: env.anthropicModel,
       max_tokens: 700,
-      system: buildStrategistSystemPrompt(profile),
+      system: buildStrategistSystemPrompt(profile) + langDirective(input.language === "en" ? "en" : "fr"),
       messages: [
         {
           role: "user",
@@ -602,7 +611,7 @@ ${profile.semanticField.slice(0, 4).map((s) => `#${s.replace(/\s+/g, "")}`).join
     const resp = await client.messages.create({
       model: env.anthropicModel,
       max_tokens: 500,
-      system: buildCopywriterSystemPrompt(profile, voice, Boolean(input.healthcareCompliance)),
+      system: buildCopywriterSystemPrompt(profile, voice, Boolean(input.healthcareCompliance)) + langDirective(input.language === "en" ? "en" : "fr"),
       messages: [
         {
           role: "user",
@@ -770,7 +779,7 @@ async function runCompliance(
     const resp = await client.messages.create({
       model: env.anthropicModel,
       max_tokens: 420,
-      system: buildComplianceSystemPrompt(profile, healthcareMode),
+      system: buildComplianceSystemPrompt(profile, healthcareMode) + langDirective(input.language === "en" ? "en" : "fr"),
       messages: [
         {
           role: "user",
@@ -1144,7 +1153,7 @@ async function runAnalyst(
     const resp = await client.messages.create({
       model: env.anthropicModel,
       max_tokens: 700,
-      system: buildAnalystSystemPrompt(profile, cadence),
+      system: buildAnalystSystemPrompt(profile, cadence) + langDirective(input.language === "en" ? "en" : "fr"),
       messages: [
         {
           role: "user",

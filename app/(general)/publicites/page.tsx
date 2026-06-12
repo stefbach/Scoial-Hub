@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useT } from "@/lib/i18n";
+import { useT, useLang } from "@/lib/i18n";
 import { StudioHero } from "@/components/studio/StudioUI";
 import { IconScout } from "@/components/visual/Icons";
 import { Toast } from "@/components/ui/Toast";
@@ -37,6 +37,7 @@ interface AdStrategyAnalysis {
 
 export default function PublicitesPage() {
   const t = useT();
+  const { lang } = useLang();
   const { company } = useCompany();
   const [country, setCountry] = useState("mu");
   const [terms, setTerms] = useState("");
@@ -83,7 +84,7 @@ export default function PublicitesPage() {
       const res = await fetch("/api/veille/ads-analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ads, country: country.trim().toUpperCase(), terms: terms.trim(), companyId: company.id }),
+        body: JSON.stringify({ ads, country: country.trim().toUpperCase(), terms: terms.trim(), companyId: company.id, language: lang }),
       });
       const data = await res.json();
       if (data.analysis) {

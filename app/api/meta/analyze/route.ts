@@ -13,8 +13,9 @@ import { requireCompanyAccess } from "@/lib/auth/guard";
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
   try {
-    const { companyId } = await req.json();
+    const { companyId, language } = await req.json();
     if (!companyId) return NextResponse.json({ error: "companyId requis" }, { status: 400 });
+    const lang: "fr" | "en" = language === "en" ? "en" : "fr";
 
     const guard = await requireCompanyAccess(companyId);
     if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
@@ -27,7 +28,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const { resolveCompanyUuid } = await import("@/lib/repositories/resolve-company");
     const name = await getCompanyName(await resolveCompanyUuid(companyId));
     const insights = await fetchMetaInsights(ctx);
-    const analysis = await analyzeMetaContent(insights, name || "la marque");
+    const analysis = await analyzeMetaContent(insights, name || "la marque", lang);
 
     // Mémoire stratégique : conclusions de l'analyse de Page.
     try {

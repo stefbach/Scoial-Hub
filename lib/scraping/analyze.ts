@@ -190,7 +190,8 @@ function buildMockAnalysis(query: ScrapeQuery, contents: CompetitorContent[]): A
 
 async function analyzeWithClaude(
   query: ScrapeQuery,
-  contents: CompetitorContent[]
+  contents: CompetitorContent[],
+  language: "fr" | "en" = "fr"
 ): Promise<AnalysisResult> {
   const Anthropic = (await import("@anthropic-ai/sdk")).default;
   const client = new Anthropic({ apiKey: env.anthropicKey });
@@ -244,7 +245,7 @@ Produis UNIQUEMENT ce JSON strict (aucun texte autour) :
   "competiteurs": [ { "handle": "exactement le handle fourni", "strategie": "2 phrases : piliers de contenu, formats, ton, cadence", "pourquoiPuissant": "2 phrases : ce qui explique sa domination (audience, régularité, angle, communauté…)" } ]
 }
 
-Règles : max 3 formatsGagnants, max 3 anglesThematiques, max 4 recommandations. Un objet "competiteurs" par profil fourni, du plus puissant au moins puissant. Réponds en français, concret.`;
+Règles : max 3 formatsGagnants, max 3 anglesThematiques, max 4 recommandations. Un objet "competiteurs" par profil fourni, du plus puissant au moins puissant. ${language === "en" ? "Write ALL textual values (resume, descriptions, angles, titres, details, actions, strategie, pourquoiPuissant…) in ENGLISH" : "Réponds en français"}, concret.`;
 
   const message = await client.messages.create({
     model: env.anthropicModel,
@@ -295,14 +296,15 @@ Règles : max 3 formatsGagnants, max 3 anglesThematiques, max 4 recommandations.
 
 export async function analyzeCompetition(
   query: ScrapeQuery,
-  contents: CompetitorContent[]
+  contents: CompetitorContent[],
+  language: "fr" | "en" = "fr"
 ): Promise<AnalysisResult> {
   if (!isAiConfigured || contents.length === 0) {
     return buildMockAnalysis(query, contents);
   }
 
   try {
-    return await analyzeWithClaude(query, contents);
+    return await analyzeWithClaude(query, contents, language);
   } catch (err) {
     console.warn("[analyzeCompetition] Claude failed, fallback mock:", err);
     return buildMockAnalysis(query, contents);

@@ -12,8 +12,9 @@
 // stylisé hors-ligne, DPR ≤ 2, pause hors écran, gestes inertiels, et mode
 // statique si prefers-reduced-motion.
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
+import { EarthExplorer, type Place } from "./EarthExplorer";
 
 const R = 1; // rayon du globe (unité scène)
 
@@ -95,6 +96,21 @@ export function GlobeHero() {
   const wrapRef = useRef<HTMLDivElement>(null);
   const labelsRef = useRef<HTMLDivElement>(null);
   const flyToRef = useRef<(lat: number, lon: number) => void>(() => {});
+  const diveRef = useRef<(lat: number, lon: number, name: string) => void>(() => {});
+  // Atterrissage satellite (Google Earth) sur le lieu choisi.
+  const [place, setPlace] = useState<Place | null>(null);
+  const [search, setSearch] = useState("");
+  // Plongée 3D PUIS ouverture de l'explorateur satellite (effet « descente »).
+  const dive = (lat: number, lon: number, name: string) => {
+    flyToRef.current(lat, lon);
+    window.setTimeout(() => setPlace({ lat, lon, name }), 900);
+  };
+  diveRef.current = dive;
+  const onSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    const q = search.trim();
+    if (q) setPlace({ lat: 20, lon: 0, name: q, query: q }); // l'explorateur géocode et y vole
+  };
 
   useEffect(() => {
     const wrap = wrapRef.current;
@@ -191,7 +207,7 @@ export function GlobeHero() {
       el.type = "button";
       el.className = "globe-label";
       el.textContent = city.name;
-      el.addEventListener("click", () => flyToRef.current(city.lat, city.lon));
+      el.addEventListener("click", () => diveRef.current(city.lat, city.lon, city.name));
       labelsEl.appendChild(el);
       labels.push({ el, marker: m, city });
     }
@@ -275,7 +291,7 @@ export function GlobeHero() {
         const hits = raycaster.intersectObjects(labels.map((l) => l.marker));
         if (hits.length) {
           const hit = labels.find((l) => l.marker === hits[0].object);
-          if (hit) flyToRef.current(hit.city.lat, hit.city.lon);
+          if (hit) diveRef.current(hit.city.lat, hit.city.lon, hit.city.name);
         }
       }
     };
@@ -426,15 +442,27 @@ export function GlobeHero() {
     <div className="globe-hero">
       <div ref={wrapRef} className="globe-canvas" />
       <div ref={labelsRef} className="globe-labels" aria-hidden />
-      {/* Le monde à portée : villes en un clic */}
+
+      {/* Recherche d'un lieu → atterrissage satellite (Google Earth) */}
+      <form className="globe-search" onSubmit={onSearch}>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+          <circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" />
+        </svg>
+        <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Atterrir sur un lieu : Pékin, New York, Flic-en-Flac…" aria-label="Rechercher un lieu" />
+        <button type="submit">Explorer</button>
+      </form>
+
+      {/* Le monde à portée : villes en un clic (plongée satellite) */}
       <div className="globe-chips">
-        <span className="globe-hint">Glissez pour explorer · Ctrl+molette ou double-clic pour zoomer</span>
+        <span className="globe-hint">Cliquez une ville pour plonger en satellite · glissez le globe pour explorer</span>
         {CITIES.filter((c) => c.chip).map((c) => (
-          <button key={c.name} type="button" className="globe-chip" onClick={() => flyToRef.current(c.lat, c.lon)}>
+          <button key={c.name} type="button" className="globe-chip" onClick={() => dive(c.lat, c.lon, c.name)}>
             {c.name}
           </button>
         ))}
       </div>
+
+      <EarthExplorer place={place} onClose={() => setPlace(null)} />
     </div>
   );
 }

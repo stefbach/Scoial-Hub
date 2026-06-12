@@ -106,6 +106,23 @@ export function GoogleEarth() {
           if (scene.moon) scene.moon.show = false;
           viewer.cesiumWidget.creditContainer.style.display = "none";
 
+          // ── Défilement de page préservé ─────────────────────────────────
+          // Le zoom du globe ne capte plus la molette « nue » (sinon impossible
+          // de scroller la home). Zoom = Ctrl/⌘ + molette, pincement, ou boutons.
+          try {
+            scene.screenSpaceCameraController.zoomEventTypes = [
+              Cesium.CameraEventType.PINCH,
+              { eventType: Cesium.CameraEventType.WHEEL, modifier: Cesium.KeyboardEventModifier.CTRL },
+            ];
+          } catch { /* ignore */ }
+          // Filet : on intercepte la molette nue AVANT Cesium → la page défile.
+          const wheelGuard = (e: WheelEvent) => {
+            if (e.ctrlKey || e.metaKey) return; // Ctrl/⌘ → Cesium zoome
+            e.stopPropagation();                // empêche Cesium de happer la molette
+          };
+          ref.current!.addEventListener("wheel", wheelGuard, { capture: true, passive: true });
+          (viewer as any)._axonWheelGuard = wheelGuard;
+
           // Vue initiale : globe plus grand (plus proche) et légèrement incliné.
           viewer.camera.setView({
             destination: Cesium.Cartesian3.fromDegrees(20, 16, 13_500_000),
@@ -240,9 +257,13 @@ export function GoogleEarth() {
       })();
     }).catch(fail);
 
+    const node = ref.current;
     return () => {
       cancelled = true;
       clearTimeout(timeout);
+      try {
+        if (viewer?._axonWheelGuard && node) node.removeEventListener("wheel", viewer._axonWheelGuard, { capture: true } as any);
+      } catch { /* ignore */ }
       try { if (viewer) viewer.destroy(); } catch { /* ignore */ }
     };
   }, []);
@@ -258,7 +279,7 @@ export function GoogleEarth() {
       {ready && (
         <div className="globe-invite">
           <span className="globe-invite-dot" />
-          {"Zoomez jusqu'à votre rue — Paris, New York, Flic-en-Flac…"}
+          {"Ctrl + molette pour zoomer jusqu'à votre rue — Paris, New York, Flic-en-Flac…"}
         </div>
       )}
 
@@ -271,7 +292,7 @@ export function GoogleEarth() {
       </form>
 
       <div className="globe-chips">
-        <span className="globe-hint">Cliquez une ville pour plonger · molette pour zoomer jusqu'à la rue</span>
+        <span className="globe-hint">Cliquez une ville pour plonger · Ctrl + molette (ou pincement) pour zoomer · molette = défiler la page</span>
         {CITIES.map((c) => (
           <button key={c.name} type="button" className="globe-chip" onClick={() => flyRef.current(c.lat, c.lon)}>{c.name}</button>
         ))}

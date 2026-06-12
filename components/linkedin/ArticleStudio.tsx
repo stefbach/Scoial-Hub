@@ -52,6 +52,8 @@ function extractImageUrls(data: unknown): string[] {
 
 /** Limite de caractères d'un post LinkedIn (API /rest/posts). */
 const LINKEDIN_MAX = 3000;
+/** Budget cible avec marge sous la limite (on condense jusqu'à passer dessous). */
+const LINKEDIN_BUDGET = 2900;
 
 /**
  * Garde-fou de dernier recours : si le texte dépasse la limite LinkedIn, on
@@ -68,8 +70,9 @@ function clampClean(text: string, max: number): string {
     slice.lastIndexOf("? "),
     slice.lastIndexOf("\n"),
   );
+  // Coupe à une frontière de phrase, SANS « … » (texte qui se termine proprement).
   const cut = lastBreak > max * 0.7 ? slice.slice(0, lastBreak + 1) : slice;
-  return cut.trimEnd() + "…";
+  return cut.trimEnd();
 }
 
 /** Assemble le post LinkedIn COMPLET (titre inclus) — SANS troncature.
@@ -254,18 +257,25 @@ export function ArticleStudio() {
     if (!postText.trim()) return;
     setPublishing(true); setPublishMsg(null);
     try {
-      // Le post final = `postText` (édité/ajusté). VERROUILLAGE longueur : si
-      // > limite LinkedIn, on CONDENSE (réécriture complète) au lieu de tronquer.
+      // Le post final = `postText` (édité/ajusté). VERROUILLAGE longueur : on
+      // CONDENSE (réécriture COMPLÈTE) tant que ça dépasse le budget de 2900
+      // (marge sous la limite LinkedIn de 3000), jusqu'à 3 passes — sans jamais
+      // tronquer le contenu.
       let finalText = postText;
-      if (finalText.length > LINKEDIN_MAX && article) {
+      let art = article;
+      let pass = 0;
+      while (finalText.length > LINKEDIN_BUDGET && art && pass < 3) {
         setPublishMsg(t("Ajustement automatique pour tenir dans la limite LinkedIn…", "Auto-adjusting to fit LinkedIn's limit…"));
-        const art = await condenseToFit(article);
-        setArticle(art);
-        finalText = toPlainText(art);
-        setPostText(finalText);
+        const next = await condenseToFit(art);
+        const nextText = toPlainText(next);
+        // Si la passe ne réduit plus, on arrête (évite une boucle inutile).
+        if (nextText.length >= finalText.length) { art = next; finalText = nextText; break; }
+        art = next; finalText = nextText; pass++;
       }
-      // Filet de sécurité ultime (jamais > 3000), à une frontière de phrase.
-      const text = clampClean(finalText, LINKEDIN_MAX);
+      setArticle(art);
+      setPostText(finalText);
+      // Filet de sécurité ultime (≤ 3000, coupe à une frontière de phrase, sans « … »).
+      const text = finalText.length > LINKEDIN_MAX ? clampClean(finalText, LINKEDIN_MAX) : finalText;
       const chosenImg = selectedImage || Object.values(images).flat()[0];
       // Route réelle (par société + cible profil/Page), comme l'Espace LinkedIn.
       const r = await fetch("/api/linkedin/publish", {

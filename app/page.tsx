@@ -16,7 +16,9 @@ import { AgentConstellation } from "@/components/landing/AgentConstellation";
 import { IconBriefcase, IconTarget, IconBuildings, IconLink, IconChat, IconTrendingUp, IconLock, IconShieldCheck, IconMic, IconAward } from "@/components/visual/Icons";
 
 // Scène WebGL (Three.js) — chargée côté client uniquement.
-const Hero3D = dynamic(() => import("@/components/landing/Hero3D").then((m) => m.Hero3D), { ssr: false });
+// Globe terrestre interactif : on tourne autour du monde, les réseaux sociaux
+// sont les satellites. Villes accessibles en un clic (fly-to façon Google Earth).
+const GlobeHero = dynamic(() => import("@/components/landing/GlobeHero").then((m) => m.GlobeHero), { ssr: false });
 
 /* ───────────────────────── Logos réseaux (SVG inline) ───────────────────── */
 function FacebookLogo({ s = 28 }: { s?: number }) {
@@ -265,9 +267,9 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Scène WebGL (Three.js) — téléphone + dashboard verre + logos en orbite */}
+        {/* Globe terrestre 3D — le monde à portée, satellites = réseaux sociaux */}
         <div className="mc-scene">
-          <Hero3D />
+          <GlobeHero />
         </div>
       </section>
 

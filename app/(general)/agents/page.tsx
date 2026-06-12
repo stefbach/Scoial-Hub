@@ -18,7 +18,7 @@ import { RunPanel } from "@/components/agents/RunPanel";
 import { RunTimeline } from "@/components/agents/RunTimeline";
 import type { AgentId, AgentRunResult, AgentStepStatus } from "@/lib/agents/types";
 import type { RunPayload } from "@/components/agents/RunPanel";
-import { useT } from "@/lib/i18n";
+import { useT, useLang } from "@/lib/i18n";
 
 // ── Sélecteur de marque interne (réutilise useCompany) ───────────────────────
 
@@ -93,6 +93,7 @@ function getAgentStatuses(result: AgentRunResult | null): Map<AgentId, AgentStep
 
 export default function AgentsPage() {
   const t = useT();
+  const { lang } = useLang();
   const { company } = useCompany();
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<AgentRunResult | null>(null);
@@ -118,6 +119,7 @@ export default function AgentsPage() {
           cadence: payload.cadence,
           benchmarkTarget: payload.benchmarkTarget,
           healthcareCompliance: payload.healthcareCompliance,
+          language: lang,
         }),
       });
 

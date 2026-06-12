@@ -158,7 +158,7 @@ function Shell() {
 
       {/* Navigation */}
       {!loading && (
-        <div className="flex items-center justify-between gap-3 border-t border-hair pt-4">
+        <div className="flex items-center justify-between gap-3 pt-2">
           <button
             type="button"
             onClick={back}

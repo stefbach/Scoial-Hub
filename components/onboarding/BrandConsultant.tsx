@@ -123,10 +123,20 @@ export function BrandConsultant({
   }, [messages, sending]);
 
   // ── Restauration de la conversation (persistée localement) ─────────────────
-  // Évite de reperdre l'entretien à chaque rechargement de page (#17).
+  // Persistée par companyId : un rechargement restaure le bon fil (#12/#17), et
+  // changer d'entreprise réinitialise puis recharge le fil de l'entreprise
+  // ACTUELLEMENT sélectionnée (évite d'afficher un thread périmé).
   useEffect(() => {
-    if (restored.current) return;
+    // À chaque changement de companyId (storageKey), on repart d'un état propre
+    // puis on restaure le fil propre à cette entreprise.
     restored.current = true;
+    kicked.current = false;
+    setMessages([]);
+    setDna({});
+    setReadyToLock(false);
+    setVisualPrompts([]);
+    setVisuals([]);
+    setLocked(false);
     try {
       const raw = localStorage.getItem(storageKey);
       if (raw) {
@@ -385,9 +395,9 @@ export function BrandConsultant({
                   send();
                 }
               }}
-              rows={1}
+              rows={4}
               placeholder={t("Répondez au consultant…", "Reply to the consultant…")}
-              className="input max-h-32 min-h-[2.5rem] flex-1 resize-none"
+              className="input max-h-48 min-h-[6rem] flex-1 resize-none"
             />
             <button onClick={send} disabled={sending || !input.trim()} className="btn-primary h-[2.5rem]">
               {t("Envoyer", "Send")}

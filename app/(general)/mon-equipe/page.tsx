@@ -185,10 +185,20 @@ export default function MonEquipePage() {
             load();
             if (res?.invited && res.email) {
               copyInvite(res.email);
-              setNote(t(
-                `Invitation créée pour ${res.email} et copiée — envoyez-la-lui pour finaliser la création de son compte.`,
-                `Invitation created for ${res.email} and copied — send it so they can finish creating their account.`
-              ));
+              // Honnêteté : aucun e-mail n'est envoyé automatiquement (pas de
+              // fournisseur d'e-mail configuré côté serveur). On l'indique
+              // explicitement plutôt que de laisser croire à un envoi (#17).
+              setNote(
+                res.emailSent === false
+                  ? t(
+                      `Invitation créée pour ${res.email}, mais AUCUN e-mail n'a pu être envoyé (envoi d'e-mails non configuré sur le serveur). Le texte d'invitation a été copié — envoyez-le-lui vous-même pour finaliser la création de son compte.`,
+                      `Invitation created for ${res.email}, but NO email could be sent (email sending is not configured on the server). The invitation text was copied — send it to them yourself so they can finish creating their account.`
+                    )
+                  : t(
+                      `Invitation créée pour ${res.email} et copiée — envoyez-la-lui pour finaliser la création de son compte.`,
+                      `Invitation created for ${res.email} and copied — send it so they can finish creating their account.`
+                    )
+              );
             } else if (res?.added) {
               setNote(t("Utilisateur ajouté à l'équipe ✓", "User added to the team ✓"));
             }
@@ -217,7 +227,7 @@ function MemberEditor({
   companies: TeamCompany[];
   member?: TeamMember;
   onClose: () => void;
-  onSaved: (res?: { added?: boolean; invited?: boolean; email?: string }) => void;
+  onSaved: (res?: { added?: boolean; invited?: boolean; emailSent?: boolean; email?: string }) => void;
 }) {
   const t = useT();
   const isEdit = Boolean(member);
@@ -246,7 +256,7 @@ function MemberEditor({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "fail");
-      onSaved({ added: data.added, invited: data.invited, email: email.trim() });
+      onSaved({ added: data.added, invited: data.invited, emailSent: data.emailSent, email: email.trim() });
     } catch (e) {
       setError(e instanceof Error ? e.message : t("Échec.", "Failed."));
     } finally {

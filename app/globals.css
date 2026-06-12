@@ -52,6 +52,66 @@ html[data-theme="light"] {
   --color-hair:    228 223 240;  /* bordures lavande discrètes (#e4dff0) */
 }
 
+/* ── Thème clair — tuiles & accents « callout » ─────────────────────────
+   Les couleurs sémantiques (primary-50/100/200, success/warning/danger-50,
+   ai-textbg/visualbg) sont calibrées pour le SOMBRE : ce sont des tuiles
+   FONCÉES avec un texte clair. Sur fond blanc, elles deviennent des pavés
+   vifs/illisibles. On les remappe ici en tuiles CLAIRES + texte foncé pour
+   garder le même langage visuel, en douceur, et un contraste lisible.
+   (Corrige #1 composer, #20 pages, #22/#23 agents, #5 autocomplétion.)   */
+html[data-theme="light"] {
+  /* Tuiles violettes (états sélectionnés / callouts IA) */
+  --tile-primary-50:  245 243 255;  /* lavande très clair  */
+  --tile-primary-100: 237 233 254;
+  --tile-primary-200: 221 214 254;  /* bordures douces     */
+  --tile-primary-text: 109 40 217;  /* #6d28d9 — texte violet lisible */
+
+  /* IA — fond lavande clair + texte violet profond */
+  --tile-ai-bg:   243 240 255;
+  --tile-ai-text: 109 40 217;
+
+  /* Sémantiques (tuiles claires + textes foncés) */
+  --tile-success-bg: 220 252 231; --tile-success-text: 21 128 61;
+  --tile-warning-bg: 254 243 199; --tile-warning-text: 146 64 14;
+  --tile-danger-bg:  254 226 226; --tile-danger-text:  185 28 28;
+  --tile-danger-border: 254 202 202;
+}
+
+/* On n'applique les remaps QUE sur le thème clair, via les classes utilitaires
+   réellement utilisées dans l'app. Cela évite de toucher au thème sombre. */
+html[data-theme="light"] .bg-primary-50  { background-color: rgb(var(--tile-primary-50)); }
+html[data-theme="light"] .bg-primary-100 { background-color: rgb(var(--tile-primary-100)); }
+html[data-theme="light"] .border-primary-100 { border-color: rgb(var(--tile-primary-100)); }
+html[data-theme="light"] .border-primary-200 { border-color: rgb(var(--tile-primary-200)); }
+html[data-theme="light"] .text-primary-500,
+html[data-theme="light"] .text-primary-600,
+html[data-theme="light"] .text-primary-700 { color: rgb(var(--tile-primary-text)); }
+html[data-theme="light"] .ring-primary-200 { --tw-ring-color: rgb(var(--tile-primary-200)); }
+
+html[data-theme="light"] .bg-ai-textbg,
+html[data-theme="light"] .bg-ai-visualbg { background-color: rgb(var(--tile-ai-bg)); }
+html[data-theme="light"] .text-ai-text,
+html[data-theme="light"] .text-ai-visual { color: rgb(var(--tile-ai-text)); }
+
+/* Anneaux / filets / pastilles IA : sur fond blanc, le violet vif (#b794f6) des
+   boutons « sélectionnés » du composer est trop saturé. On les adoucit avec le
+   violet lisible des tuiles (cf. #1 composer). Couvre aussi les variantes /30, /20. */
+html[data-theme="light"] .ring-ai-text\/30,
+html[data-theme="light"] .ring-ai-text\/20,
+html[data-theme="light"] .ring-ai-text { --tw-ring-color: rgb(var(--tile-ai-text) / 0.22); }
+html[data-theme="light"] .bg-ai-text,
+html[data-theme="light"] .bg-ai-visual { background-color: rgb(var(--tile-ai-text)); }
+html[data-theme="light"] .border-ai-text { border-color: rgb(var(--tile-ai-text) / 0.3); }
+
+html[data-theme="light"] .bg-success-50  { background-color: rgb(var(--tile-success-bg)); }
+html[data-theme="light"] .text-success-600,
+html[data-theme="light"] .text-success-700 { color: rgb(var(--tile-success-text)); }
+html[data-theme="light"] .bg-warning-50  { background-color: rgb(var(--tile-warning-bg)); }
+html[data-theme="light"] .text-warning-700 { color: rgb(var(--tile-warning-text)); }
+html[data-theme="light"] .bg-danger-50   { background-color: rgb(var(--tile-danger-bg)); }
+html[data-theme="light"] .text-danger-700 { color: rgb(var(--tile-danger-text)); }
+html[data-theme="light"] .border-danger-200 { border-color: rgb(var(--tile-danger-border)); }
+
 /* Ajustements clair : les voiles « blanc alpha » pensés pour le sombre
    deviennent des voiles encre très légers, et le héros studio s'éclaircit. */
 html[data-theme="light"] .studio-hero {
@@ -70,6 +130,19 @@ html[data-theme="light"] .studio-card {
 }
 html[data-theme="light"] .studio-seg {
   background: rgb(28 21 46 / 0.03);
+}
+
+/* ── Confirm scrim — voile dégradé progressif + flou ────────────────────
+   Remplace le « rectangle gris plat » derrière les pop-ups de confirmation
+   (cf. #2 Programmés) par un fond dégradé doux avec un flou progressif, qui
+   met le focus sur la boîte de dialogue sans pavé opaque.                  */
+.confirm-scrim {
+  background:
+    radial-gradient(120% 90% at 50% 50%, rgb(var(--color-ink) / 0.10), transparent 70%),
+    linear-gradient(180deg, rgb(var(--color-ink) / 0.42), rgb(var(--color-ink) / 0.30));
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  animation: fadeIn 160ms ease-out both;
 }
 
 /* ── Base ──────────────────────────────────────────────────────────── */
@@ -565,6 +638,184 @@ html[data-theme="light"] .app-shell > .app-grain {
 
         /* Scène 3D / WebGL */
         .mc-scene{height:clamp(380px,54vw,580px);position:relative;}
+        /* ── Héros plein écran : la Terre en scène ── */
+        .mc-hero2{position:relative;height:100svh;min-height:640px;overflow:hidden;}
+        .mc-hero2-globe{position:absolute;inset:0;}
+        .mc-hero2-scrim{position:absolute;inset:0;z-index:1;pointer-events:none;
+          background:linear-gradient(90deg,rgba(10,7,16,.92) 0%,rgba(10,7,16,.6) 32%,transparent 58%),
+                     linear-gradient(0deg,rgba(10,7,16,.92) 0%,transparent 26%),
+                     linear-gradient(180deg,rgba(10,7,16,.55) 0%,transparent 18%);}
+        .mc-hero2-copy{position:relative;z-index:2;max-width:640px;pointer-events:none;
+          padding:clamp(4.5rem,14vh,8rem) clamp(1rem,5vw,4rem) 0;}
+        .mc-hero2-copy a,.mc-hero2-copy button{pointer-events:auto;}
+        .mc-h1-xl{font-size:clamp(2.5rem,5.6vw,4.6rem);line-height:1.04;}
+        @media(max-width:760px){
+          .mc-hero2{height:auto;min-height:100svh;padding-bottom:6.5rem;}
+          .mc-hero2-scrim{background:linear-gradient(0deg,rgba(10,7,16,.94) 0%,rgba(10,7,16,.35) 55%,transparent 80%);}
+        }
+        .globe-hint{flex-basis:100%;text-align:center;font-size:.66rem;color:rgba(205,191,232,.65);
+          letter-spacing:.04em;order:99;padding-top:.15rem;}
+        /* Recherche de lieu sur le globe */
+        .globe-search{position:absolute;top:1rem;left:50%;transform:translateX(-50%);z-index:3;
+          display:flex;align-items:center;gap:.5rem;width:min(92%,440px);
+          background:rgba(20,14,34,.78);border:1px solid rgba(168,85,247,.4);border-radius:999px;
+          padding:.35rem .35rem .35rem .85rem;backdrop-filter:blur(8px);color:#cdbfe8;}
+        .globe-search input{flex:1;min-width:0;background:transparent;border:none;outline:none;
+          color:#ece7f5;font-size:.82rem;}
+        .globe-search input::placeholder{color:rgba(205,191,232,.6);}
+        .globe-search button{flex-shrink:0;background:linear-gradient(135deg,#7c3aed,#c026d3);color:#fff;
+          border:none;border-radius:999px;padding:.4rem .9rem;font-size:.78rem;font-weight:600;cursor:pointer;}
+        /* ── Overlay satellite plein écran (Google Earth) ── */
+        .earth-ex{position:fixed;inset:0;z-index:1000;background:#0a0710;animation:fadeIn .3s ease both;}
+        .earth-ex-map{position:absolute;inset:0;background:#0a0710;}
+        .earth-ex-map .leaflet-control-attribution{background:rgba(10,7,16,.7);color:#a89cc4;}
+        .earth-ex-top{position:absolute;top:0;left:0;right:0;z-index:1200;display:flex;align-items:center;gap:.75rem;
+          padding:.7rem .9rem;background:linear-gradient(180deg,rgba(10,7,16,.92),transparent);}
+        .earth-ex-search{display:flex;align-items:center;gap:.5rem;flex:1;max-width:460px;color:#cdbfe8;
+          background:rgba(23,17,34,.92);border:1px solid rgba(168,85,247,.4);border-radius:999px;padding:.35rem .35rem .35rem .85rem;}
+        .earth-ex-search input{flex:1;min-width:0;background:transparent;border:none;outline:none;color:#ece7f5;font-size:.85rem;}
+        .earth-ex-search input::placeholder{color:rgba(205,191,232,.6);}
+        .earth-ex-search button{flex-shrink:0;background:linear-gradient(135deg,#7c3aed,#c026d3);color:#fff;border:none;border-radius:999px;padding:.4rem .85rem;font-size:.78rem;font-weight:600;cursor:pointer;}
+        .earth-ex-place{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+          font-size:.85rem;font-weight:600;color:#ece7f5;text-shadow:0 1px 4px rgba(0,0,0,.6);}
+        .earth-ex-close{flex-shrink:0;width:38px;height:38px;border-radius:50%;border:1px solid rgba(168,85,247,.4);
+          background:rgba(23,17,34,.92);color:#ece7f5;font-size:1rem;cursor:pointer;}
+        .earth-ex-close:hover{background:rgba(124,58,237,.5);}
+        .earth-ex-err{position:absolute;top:4rem;left:50%;transform:translateX(-50%);z-index:1200;
+          background:rgba(190,18,60,.92);color:#fff;font-size:.8rem;border-radius:8px;padding:.4rem .8rem;}
+        .earth-ex-hint{position:absolute;bottom:.6rem;left:.9rem;z-index:1200;font-size:.7rem;color:rgba(205,191,232,.8);
+          background:rgba(10,7,16,.6);border-radius:8px;padding:.25rem .6rem;backdrop-filter:blur(4px);}
+        @media(max-width:640px){.earth-ex-place{display:none;}}
+        .earth3d-canvas{background:#0a0710;}
+        .earth3d-canvas canvas{outline:none;}
+        .earth3d-loading{position:absolute;inset:0;z-index:2;display:flex;align-items:center;justify-content:center;
+          color:#cdbfe8;font-size:.9rem;letter-spacing:.04em;pointer-events:none;
+          background:radial-gradient(60% 60% at 50% 45%,rgba(124,58,237,.18),transparent);}
+        .globe-invite{position:absolute;left:50%;bottom:3.4rem;transform:translateX(-50%);z-index:3;
+          display:inline-flex;align-items:center;gap:.5rem;white-space:nowrap;
+          font-size:.78rem;font-weight:600;color:#ece7f5;pointer-events:none;
+          background:rgba(20,14,34,.7);border:1px solid rgba(168,85,247,.4);border-radius:999px;
+          padding:.4rem .9rem;backdrop-filter:blur(8px);animation:fadeIn .6s ease both, inviteBob 3s ease-in-out infinite;}
+        .globe-invite-dot{width:8px;height:8px;border-radius:50%;background:#c4a5ff;box-shadow:0 0 0 0 rgba(196,165,255,.6);animation:invitePulse 1.8s ease-out infinite;}
+        @keyframes invitePulse{0%{box-shadow:0 0 0 0 rgba(196,165,255,.55)}100%{box-shadow:0 0 0 12px rgba(196,165,255,0)}}
+        @keyframes inviteBob{0%,100%{transform:translateX(-50%) translateY(0)}50%{transform:translateX(-50%) translateY(-4px)}}
+        .globe-zoom{position:absolute;right:1rem;bottom:5.4rem;z-index:4;display:flex;flex-direction:column;gap:.4rem;}
+        .globe-zoom button{width:42px;height:42px;border-radius:12px;font-size:1.5rem;font-weight:700;line-height:1;
+          color:#ece7f5;cursor:pointer;display:flex;align-items:center;justify-content:center;
+          background:rgba(20,14,34,.82);border:1px solid rgba(168,85,247,.45);backdrop-filter:blur(8px);
+          box-shadow:0 8px 22px -10px rgba(124,58,237,.7);transition:all .15s ease;}
+        .globe-zoom button:hover{background:rgba(124,58,237,.5);border-color:#c4a5ff;transform:translateY(-1px);}
+        .globe-zoom button:active{transform:scale(.94);}
+        /* Bouton plein écran */
+        .globe-full-btn{position:absolute;top:1rem;right:1rem;z-index:5;cursor:pointer;
+          font-size:.8rem;font-weight:600;color:#ece7f5;white-space:nowrap;
+          background:rgba(20,14,34,.82);border:1px solid rgba(168,85,247,.45);border-radius:999px;
+          padding:.45rem .95rem;backdrop-filter:blur(8px);box-shadow:0 8px 22px -10px rgba(124,58,237,.7);
+          transition:all .15s ease;}
+        .globe-full-btn:hover{background:rgba(124,58,237,.5);border-color:#c4a5ff;}
+        /* Mode plein écran : exploration libre (molette = zoom) */
+        .earth-full{position:fixed!important;inset:0!important;z-index:1000!important;height:100svh!important;
+          background:#0a0710;animation:fadeIn .25s ease both;}
+        .earth-full .globe-full-btn{top:1.1rem;}
+        @media(max-width:640px){.globe-full-btn{font-size:.72rem;padding:.4rem .7rem;}}
+
+        /* ── Téléphone réaliste premium (capabilities) ── */
+        .ph{display:flex;align-items:center;justify-content:center;perspective:1600px;}
+        .ph-float{position:relative;transform-style:preserve-3d;animation:phFloat 8s ease-in-out infinite;}
+        .ph-frame{position:relative;width:clamp(232px,23vw,300px);aspect-ratio:9/19.3;border-radius:46px;
+          padding:11px;transform:rotateY(-20deg) rotateX(5deg);transform-style:preserve-3d;
+          background:linear-gradient(135deg,#3a3550 0%,#15121f 38%,#0c0a14 62%,#2a2640 100%);
+          box-shadow:0 60px 120px -40px rgba(0,0,0,.85), 0 30px 70px -30px rgba(124,58,237,.55),
+                     inset 0 0 0 2px rgba(255,255,255,.06), inset 0 2px 1px rgba(255,255,255,.18),
+                     inset 0 -2px 1px rgba(0,0,0,.5);}
+        /* Boutons latéraux */
+        .ph-btn{position:absolute;background:linear-gradient(180deg,#2a2640,#16131f);border-radius:3px;}
+        .ph-vol-up{left:-3px;top:23%;width:3px;height:7%;}
+        .ph-vol-dn{left:-3px;top:33%;width:3px;height:9%;}
+        .ph-power{right:-3px;top:27%;width:3px;height:11%;}
+        .ph-screen{position:relative;height:100%;border-radius:36px;overflow:hidden;
+          background:radial-gradient(120% 80% at 50% 0%,#181326,#0b0814 60%);
+          display:flex;flex-direction:column;color:#ece7f5;font-size:11px;padding:0 12px;
+          box-shadow:inset 0 0 0 1px rgba(0,0,0,.6);}
+        .ph-status{display:flex;align-items:center;justify-content:space-between;padding:9px 6px 4px;color:#fff;}
+        .ph-time{font-weight:700;font-size:12px;letter-spacing:.02em;}
+        .ph-status-icons{display:flex;align-items:center;gap:5px;color:#fff;}
+        .ph-island{position:absolute;top:9px;left:50%;transform:translateX(-50%);width:78px;height:22px;border-radius:14px;background:#000;z-index:5;}
+        .ph-appbar{display:flex;align-items:center;gap:9px;padding:8px 2px 8px;}
+        .ph-logo{width:30px;height:30px;border-radius:9px;display:flex;align-items:center;justify-content:center;
+          background:linear-gradient(135deg,#7c3aed,#c026d3);color:#fff;font-weight:800;box-shadow:0 4px 12px -4px rgba(124,58,237,.8);}
+        .ph-logo b{font-family:var(--font-display);font-size:16px;}
+        .ph-appttl{flex:1;line-height:1.15;}
+        .ph-appttl b{display:block;font-size:13px;letter-spacing:.06em;}
+        .ph-appttl i{font-style:normal;font-size:9.5px;color:#a89cc4;}
+        .ph-bell{position:relative;color:#cdbfe8;}
+        .ph-bell-dot{position:absolute;top:-1px;right:-1px;width:6px;height:6px;border-radius:50%;background:#e1306c;border:1.5px solid #0b0814;}
+        .ph-tabs{display:flex;gap:6px;background:rgba(255,255,255,.05);border-radius:10px;padding:3px;}
+        .ph-tabs span{flex:1;text-align:center;padding:5px 0;border-radius:8px;font-size:10px;color:#a89cc4;}
+        .ph-tabs span.on{background:linear-gradient(135deg,#7c3aed,#c026d3);color:#fff;font-weight:600;}
+        .ph-card{margin-top:9px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.06);border-radius:16px;padding:9px;}
+        .ph-card-h{display:flex;align-items:center;gap:7px;}
+        .ph-av{width:26px;height:26px;border-radius:50%;background:conic-gradient(from 130deg,#7c3aed,#e1306c,#1877F2,#7c3aed);}
+        .ph-card-id{flex:1;line-height:1.2;}
+        .ph-card-id b{font-size:11px;}
+        .ph-card-id i{font-style:normal;font-size:9px;color:#8b80a8;}
+        .ph-nets{display:flex;}
+        .ph-n{width:18px;height:18px;border-radius:6px;margin-left:-5px;border:1.5px solid #0b0814;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:10px;}
+        .ph-n.ph-fb{background:#1877F2;font-family:Georgia,serif;}
+        .ph-n.ph-li{background:#0A66C2;}
+        .ph-n.ph-ig{background:linear-gradient(135deg,#feda75,#fa7e1e,#d62976,#4f5bd5);}
+        .ph-media{position:relative;height:118px;border-radius:12px;overflow:hidden;margin:8px 0;}
+        .ph-media-sky{position:absolute;inset:0;background:linear-gradient(180deg,#1a1030 0%,#7b3f6e 48%,#e8915a 78%,#f4c06a 100%);}
+        .ph-media-city{position:absolute;left:0;right:0;bottom:0;height:46%;
+          background:linear-gradient(180deg,transparent,rgba(10,7,16,.85)),
+            repeating-linear-gradient(90deg,#1a1326 0 7px,#241a36 7px 9px,transparent 9px 16px);
+          -webkit-mask:linear-gradient(180deg,transparent,#000 40%);mask:linear-gradient(180deg,transparent,#000 40%);}
+        .ph-media-glow{position:absolute;left:18%;top:34%;width:46px;height:46px;border-radius:50%;background:radial-gradient(circle,rgba(255,210,140,.95),transparent 65%);}
+        .ph-cap{display:flex;flex-direction:column;gap:5px;}
+        .ph-cap i{height:7px;border-radius:4px;background:rgba(255,255,255,.14);}
+        .ph-act{display:flex;gap:14px;margin-top:9px;color:#a89cc4;font-size:10px;}
+        .ph-a{display:inline-flex;align-items:center;gap:4px;}
+        .ph-a.ph-like{color:#e1306c;}
+        .ph-kpis{display:flex;gap:7px;margin-top:11px;}
+        .ph-kpi{flex:1;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06);border-radius:11px;padding:7px 4px;text-align:center;line-height:1.15;}
+        .ph-kpi b{display:block;font-size:14px;font-weight:800;color:#fff;}
+        .ph-kpi i{font-style:normal;font-size:8.5px;color:#8b80a8;}
+        .ph-chart{display:flex;align-items:flex-end;gap:5px;height:42px;margin-top:9px;}
+        .ph-chart span{flex:1;border-radius:4px 4px 0 0;background:linear-gradient(180deg,#c4a5ff,#7c3aed);transform-origin:bottom;animation:phBar 2.8s ease-in-out infinite;}
+        .ph-nav{margin-top:auto;display:flex;align-items:center;justify-content:space-between;padding:11px 6px 14px;color:#6f6690;}
+        .ph-nav svg{width:21px;height:21px;}
+        .ph-nav svg:first-child{color:#c4a5ff;}
+        .ph-nav-fab{width:40px;height:40px;border-radius:13px;display:flex;align-items:center;justify-content:center;
+          background:linear-gradient(135deg,#7c3aed,#c026d3);color:#fff;box-shadow:0 8px 20px -6px rgba(124,58,237,.9);}
+        .ph-nav-fab svg{width:20px;height:20px;}
+        /* Reflet de verre balayant */
+        .ph-glare{position:absolute;inset:11px;border-radius:36px;pointer-events:none;
+          background:linear-gradient(125deg,rgba(255,255,255,.16) 0%,rgba(255,255,255,0) 28%,transparent 70%,rgba(255,255,255,.05) 100%);
+          animation:phGlare 9s ease-in-out infinite;}
+        .ph-shadow{position:absolute;left:8%;right:8%;bottom:-7%;height:9%;border-radius:50%;z-index:-1;
+          background:radial-gradient(50% 100% at 50% 50%,rgba(124,58,237,.45),transparent 70%);filter:blur(16px);}
+        @keyframes phFloat{0%,100%{transform:translateY(0) rotateZ(0)}50%{transform:translateY(-16px) rotateZ(-1.2deg)}}
+        @keyframes phBar{0%,100%{transform:scaleY(.5)}50%{transform:scaleY(1)}}
+        @keyframes phGlare{0%,100%{opacity:.5;transform:translateX(-4%)}50%{opacity:.9;transform:translateX(4%)}}
+        @media(prefers-reduced-motion:reduce){.ph-float,.ph-chart span,.ph-glare{animation:none;}}
+        .mc-constellation-3d{transform-style:preserve-3d;}
+        .constellation3d{position:relative;width:100%;height:clamp(440px,52vw,640px);}
+        /* ── Globe terrestre interactif (GlobeHero) ── */
+        .globe-hero{position:absolute;inset:0;}
+        .globe-canvas{position:absolute;inset:0;}
+        .globe-labels{position:absolute;inset:0;overflow:hidden;pointer-events:none;}
+        .globe-label{position:absolute;top:0;left:0;pointer-events:auto;cursor:pointer;
+          font-size:.68rem;font-weight:600;letter-spacing:.02em;color:#ece7f5;white-space:nowrap;
+          background:rgba(20,14,34,.72);border:1px solid rgba(168,85,247,.4);border-radius:999px;
+          padding:.18rem .55rem;backdrop-filter:blur(6px);
+          transition:opacity .25s ease, border-color .15s ease;will-change:transform;}
+        .globe-label:hover{border-color:#c4a5ff;background:rgba(124,58,237,.45);}
+        .globe-chips{position:absolute;left:50%;bottom:.4rem;transform:translateX(-50%);
+          display:flex;flex-wrap:wrap;justify-content:center;gap:.4rem;max-width:95%;}
+        .globe-chip{font-size:.72rem;font-weight:600;color:#d9c7ff;white-space:nowrap;cursor:pointer;
+          background:rgba(124,58,237,.14);border:1px solid rgba(168,85,247,.35);border-radius:999px;
+          padding:.3rem .75rem;backdrop-filter:blur(6px);transition:all .15s ease;}
+        .globe-chip:hover{background:rgba(124,58,237,.4);color:#fff;border-color:#c4a5ff;}
         .mc-webgl{position:absolute;inset:0;width:100%;height:100%;}
         .mc-webgl canvas{display:block;}
         /* (anciens styles CSS-3D conservés pour compat, non utilisés) */

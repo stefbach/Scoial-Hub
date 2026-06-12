@@ -13,12 +13,12 @@ import type { AdEntry } from "@/lib/scraping/ad-library";
 
 export async function POST(req: NextRequest) {
   try {
-    const body = (await req.json()) as { ads?: AdEntry[]; country?: string; terms?: string; companyId?: string };
+    const body = (await req.json()) as { ads?: AdEntry[]; country?: string; terms?: string; companyId?: string; language?: "fr" | "en" };
     const ads = Array.isArray(body.ads) ? body.ads : [];
     if (ads.length === 0) {
       return NextResponse.json({ error: "Aucune publicité à analyser." }, { status: 400 });
     }
-    const analysis = await analyzeAds(ads, { country: body.country, terms: body.terms });
+    const analysis = await analyzeAds(ads, { country: body.country, terms: body.terms, language: body.language === "en" ? "en" : "fr" });
 
     // Mémoire stratégique : conclusions sur la stratégie publicitaire concurrente.
     if (body.companyId) {

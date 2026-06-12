@@ -40,6 +40,7 @@ export async function POST(req: NextRequest) {
       cadence,
       benchmarkTarget,
       healthcareCompliance,
+      language,
     } = body as {
       objective?: string;
       companyId?: string;
@@ -49,6 +50,7 @@ export async function POST(req: NextRequest) {
       cadence?: Cadence;
       benchmarkTarget?: string;
       healthcareCompliance?: boolean;
+      language?: "fr" | "en";
     };
 
     // Validation des champs obligatoires
@@ -98,6 +100,7 @@ export async function POST(req: NextRequest) {
       benchmarkTarget:
         typeof benchmarkTarget === "string" ? benchmarkTarget : undefined,
       healthcareCompliance: healthcareCompliance === true,
+      language: language === "en" ? "en" : "fr",
     });
 
     return NextResponse.json(result);

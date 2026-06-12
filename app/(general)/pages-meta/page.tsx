@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useCompany } from "@/lib/company-context";
-import { useT } from "@/lib/i18n";
+import { useT, useLang } from "@/lib/i18n";
 import MetaAdsPublisher from "@/components/ads/MetaAdsPublisher";
 import { OrganicPublisher } from "@/components/meta/OrganicPublisher";
 import { Spinner, BusyHint } from "@/components/ui/Spinner";
@@ -57,6 +57,7 @@ const nf = (n: number) => n.toLocaleString("fr-FR");
 
 export default function PagesMetaPage() {
   const t = useT();
+  const { lang } = useLang();
   const { company } = useCompany();
   const companyId = company.id;
 
@@ -125,7 +126,7 @@ export default function PagesMetaPage() {
       const res = await fetch("/api/meta/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyId }),
+        body: JSON.stringify({ companyId, language: lang }),
       });
       const data = await res.json().catch(() => null);
       if (!res.ok || data?.error) {
@@ -276,7 +277,7 @@ export default function PagesMetaPage() {
                 </button>
               </div>
               {analyzing && (
-                <BusyHint label={t("Analyse de votre Page en cours…", "Analyzing your Page…")} eta={t("~20–30 s", "~20–30 s")} />
+                <BusyHint label={t("Analyse de votre Page en cours…", "Analyzing your Page…")} eta={t("~30–60 s", "~30–60 s")} />
               )}
               {analysis && <AnalysisReport a={analysis} t={t} />}
             </section>

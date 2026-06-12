@@ -32,6 +32,29 @@ const LINKEDIN_CLIENT_ID = process.env.LINKEDIN_CLIENT_ID ?? "";
 const LINKEDIN_CLIENT_SECRET = process.env.LINKEDIN_CLIENT_SECRET ?? "";
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
+/** Limite stricte du champ `commentary` d'un post LinkedIn (API /rest/posts). */
+const LINKEDIN_COMMENTARY_MAX = 3000;
+
+/**
+ * Garantit un texte de post LinkedIn ≤ 3000 caractères, coupé PROPREMENT à une
+ * frontière de phrase ou de paragraphe (jamais en plein mot, sans « … »).
+ * En pratique les articles sont déjà calibrés sous 2900 → rarement déclenché ;
+ * c'est le filet de sécurité ultime, valable pour TOUS les chemins de publication.
+ */
+function clampCommentary(text: string, max = LINKEDIN_COMMENTARY_MAX): string {
+  const t = (text ?? "").trim();
+  if (t.length <= max) return t;
+  const slice = t.slice(0, max);
+  const br = Math.max(
+    slice.lastIndexOf("\n\n"),
+    slice.lastIndexOf(". "),
+    slice.lastIndexOf("! "),
+    slice.lastIndexOf("? "),
+    slice.lastIndexOf("\n"),
+  );
+  return (br > max * 0.6 ? slice.slice(0, br + 1) : slice).trim();
+}
+
 /** True quand les app credentials LinkedIn sont présents. */
 export const isLinkedInConfigured =
   Boolean(LINKEDIN_CLIENT_ID) && Boolean(LINKEDIN_CLIENT_SECRET);
@@ -286,9 +309,14 @@ class LinkedInConnector implements SocialConnector {
       : input.externalAccountId;
 
     // Construction du body pour l'API Posts (linkedin.com/rest/posts).
+    // GARDE-FOU universel : le champ `commentary` de l'API Posts est limité à
+    // 3000 caractères. Au-delà, LinkedIn tronque (avec « … ») côté serveur. On
+    // garantit donc ≤ 3000 EN COUPANT PROPREMENT à une frontière de phrase
+    // (jamais en plein mot, aucun « … »). Couvre TOUS les chemins de
+    // publication (studio article, espace LinkedIn, publications programmées).
     const postBody: Record<string, unknown> = {
       author,
-      commentary: input.text,
+      commentary: clampCommentary(input.text),
       visibility: "PUBLIC",
       distribution: {
         feedDistribution: "MAIN_FEED",

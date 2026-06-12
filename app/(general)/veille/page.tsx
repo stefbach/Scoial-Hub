@@ -24,7 +24,7 @@ import type { CompetitorContent } from "@/lib/scraping/types";
 import type { AnalysisResult } from "@/lib/scraping/analyze";
 import type { IdentifiedCompetitor } from "@/app/api/veille/identify/route";
 import type { ScrapeNetwork } from "@/lib/scraping/types";
-import { useT } from "@/lib/i18n";
+import { useT, useLang } from "@/lib/i18n";
 
 /* ─────────────────────────────────────────────────────────────────────────────
    Types locaux
@@ -110,6 +110,7 @@ function TagInput({
 
 export default function VeillePage() {
   const t = useT();
+  const { lang } = useLang();
   const { company } = useCompany();
   const { country, setCountryId } = useScope();
 
@@ -317,6 +318,7 @@ export default function VeillePage() {
             geo,
             keywords,
             theme,
+            language: lang,
           }),
         });
         if (ares.ok) {

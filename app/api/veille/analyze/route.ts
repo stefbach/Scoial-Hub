@@ -20,8 +20,10 @@ export async function POST(req: NextRequest) {
       keywords?: string[];
       theme?: string;
       companyId?: string;
+      language?: "fr" | "en";
     };
 
+    const lang: "fr" | "en" = body.language === "en" ? "en" : "fr";
     const contents = Array.isArray(body.contents) ? body.contents : [];
     const competitors = [
       ...new Set(contents.map((c) => `${c.network}|${c.handle}`)),
@@ -38,7 +40,8 @@ export async function POST(req: NextRequest) {
         competitors,
         limit: contents.length,
       },
-      contents
+      contents,
+      lang
     );
 
     // Mémoire stratégique persistante : on conserve les conclusions de la veille.

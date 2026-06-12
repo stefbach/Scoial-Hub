@@ -40,8 +40,9 @@ function buildMock(ads: AdEntry[]): AdStrategyAnalysis {
 
 export async function analyzeAds(
   ads: AdEntry[],
-  context: { country?: string; terms?: string }
+  context: { country?: string; terms?: string; language?: "fr" | "en" }
 ): Promise<AdStrategyAnalysis> {
+  const language: "fr" | "en" = context.language === "en" ? "en" : "fr";
   if (!isAiConfigured || ads.length === 0) return buildMock(ads);
 
   try {
@@ -72,7 +73,7 @@ Produis UNIQUEMENT ce JSON strict (aucun texte autour) :
   "recommandations": [ { "titre": "string", "detail": "string" } ]
 }
 
-Règles : max 4 anglesDominants, max 5 offres, max 5 ctas, max 5 pourquoiPerformantes, max 4 recommandations. Réponds en français, concret et actionnable.`;
+Règles : max 4 anglesDominants, max 5 offres, max 5 ctas, max 5 pourquoiPerformantes, max 4 recommandations. ${language === "en" ? "Write ALL textual values in ENGLISH" : "Réponds en français"}, concret et actionnable.`;
 
     const message = await client.messages.create({
       model: env.anthropicModel,

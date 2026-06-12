@@ -106,9 +106,9 @@ export function CityCombobox({
                 type="button"
                 onMouseEnter={() => setHighlight(i)}
                 onClick={() => choose(c.name)}
-                className={`flex w-full flex-col items-start px-3 py-1.5 text-left ${i === highlight ? "bg-primary-50" : "hover:bg-canvas"}`}
+                className={`flex w-full flex-col items-start px-3 py-1.5 text-left ${i === highlight ? "bg-primary-50 text-primary-700" : "text-ink hover:bg-canvas"}`}
               >
-                <span className="text-sm text-ink">{c.name}</span>
+                <span className="text-sm font-medium text-current">{c.name}</span>
                 <span className="text-2xs text-muted">{c.label}</span>
               </button>
             </li>

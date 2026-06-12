@@ -421,10 +421,9 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
         {SPINE.map((item) => renderItem(item, { entry: item.href === "/demarrage" }))}
       </ul>
 
-      {/* Séparateur entre la colonne vertébrale et les modules.
-          (On a retiré l'en-tête « Modules » redondant qui se confondait avec
-          le premier libellé de groupe — cf. retours #7/#23.) */}
-      <div className="mt-5 border-t border-hair pt-4" />
+      {/* Séparateur entre la colonne vertébrale et les modules — simple filet,
+          sans cadre (cf. retour #8 : on retire le rectangle gris). */}
+      <div className="mt-5 mb-4 h-px bg-hair" />
 
       {GROUPS.map((group, i) => (
         <div key={i} className={i > 0 ? "mt-4" : ""}>
@@ -441,20 +440,20 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
         </div>
       ))}
 
-      {/* Déconnexion — lien direct (navigation pure, toujours fiable) */}
-      <div className="mt-5 border-t border-hair pt-4">
+      {/* Déconnexion — bouton plein (solide), sans cadre gris (cf. retours #8/#9). */}
+      <div className="mt-5">
         <a
           href="/api/auth/logout"
           onClick={() => { try { window.localStorage.removeItem("sh_company_id"); } catch { /* ignore */ } }}
-          className="group relative mt-1 flex w-full items-center gap-2.5 rounded-lg px-3 py-[0.4rem] text-sm text-muted transition-all duration-[120ms] hover:bg-danger-500/10 hover:text-danger-600"
+          className="flex w-full items-center justify-center gap-2.5 rounded-lg bg-danger-500 px-3 py-[0.45rem] text-sm font-semibold text-white shadow-sm transition-all duration-[120ms] hover:bg-[#e11d48] active:scale-[0.98]"
           title={tr("Se déconnecter")}
         >
-          <span className="shrink-0 opacity-45 transition-opacity duration-[120ms] group-hover:opacity-80">
+          <span className="shrink-0">
             <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
               <path d="M6 2H3a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h3M10 10l3-3-3-3M13 7H5.5" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           </span>
-          <span className="font-medium">{tr("Se déconnecter")}</span>
+          <span>{tr("Se déconnecter")}</span>
         </a>
       </div>
     </nav>

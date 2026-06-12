@@ -169,7 +169,7 @@ export async function addOrInviteMember(
   role: OrgRole,
   access: CompanyAccessGrant[],
   invitedBy?: string
-): Promise<{ added?: boolean; invited?: boolean; error?: string }> {
+): Promise<{ added?: boolean; invited?: boolean; emailSent?: boolean; error?: string }> {
   if (!isSupabaseConfigured) return { error: "Supabase non configuré" };
   const sb = createAdminClient();
   if (!sb) return { error: "Supabase non configuré" };
@@ -197,7 +197,10 @@ export async function addOrInviteMember(
     status: "pending",
     invited_by: invitedBy ?? null,
   });
-  return { invited: true };
+  // Aucun fournisseur d'e-mail n'est configuré côté serveur (pas de provider/clé).
+  // On reste honnête : l'invitation est créée mais AUCUN e-mail n'est envoyé.
+  // Le flag est remonté à l'UI pour l'indiquer clairement à l'admin.
+  return { invited: true, emailSent: false };
 }
 
 /** Met à jour le rôle et les accès d'un membre existant. */

@@ -337,7 +337,9 @@ export default function Step3Competition() {
           </div>
         )}
 
-        {/* Rapport minimal garanti — l'analyse a abouti mais sans données détaillées */}
+        {/* Rapport minimal garanti — l'analyse a abouti mais sans données détaillées.
+            On affiche le rapport INLINE sur cette étape (#6) : pas de redirection
+            vers « Veille ». Un lien optionnel reste disponible pour aller plus loin. */}
         {done && !running && !runResult && (
           <div className="space-y-2 rounded-xl border border-success-200 bg-success-50 px-4 py-3 animate-fade-in">
             <p className="flex items-center gap-2 text-sm font-semibold text-success-700">
@@ -346,22 +348,21 @@ export default function Step3Competition() {
             </p>
             <p className="text-xs text-ink leading-relaxed">
               {t(
-                `L'analyse de votre marché a été lancée pour ${state.geo?.countries?.[0] ?? "votre zone"} sur ${keywords.length} mot(s)-clé. Le rapport détaillé (concurrents, recommandations) se construit en continu — retrouvez-le dans la Veille.`,
-                `Market analysis ran for ${state.geo?.countries?.[0] ?? "your zone"} on ${keywords.length} keyword(s). The detailed report (competitors, recommendations) keeps building — find it in Market Intelligence.`,
+                `L'analyse de votre marché a été lancée pour ${state.geo?.countries?.[0] ?? "votre zone"} sur ${keywords.length} mot(s)-clé. Le rapport détaillé (concurrents, recommandations) s'affiche ci-dessous, directement sur cette étape.`,
+                `Market analysis ran for ${state.geo?.countries?.[0] ?? "your zone"} on ${keywords.length} keyword(s). The detailed report (competitors, recommendations) appears below, right on this step.`,
               )}
             </p>
-            <Link href="/veille" className="btn-secondary inline-flex text-xs">
-              {t("Voir le rapport complet", "View full report")}
-            </Link>
           </div>
         )}
 
-        {/* Résultats */}
-        {runResult && !running && (
+        {/* Résultats — rapport affiché INLINE (#6). On rend le bloc dès que
+            l'analyse a abouti (done), même si les données détaillées sont vides :
+            les sous-sections gèrent leurs propres états « pas encore de données ». */}
+        {(runResult || done) && !running && (
           <div className="space-y-4 animate-fade-in">
 
             {/* Résumé */}
-            {runResult.resume && (
+            {runResult?.resume && (
               <div className="rounded-xl border border-primary-200 bg-primary-50 px-4 py-3 space-y-1">
                 <p className="text-2xs font-semibold uppercase tracking-wide text-primary-500">
                   {t("Résumé de l'analyse", "Analysis summary")}
@@ -371,7 +372,7 @@ export default function Step3Competition() {
             )}
 
             {/* Concurrents */}
-            {runResult.competiteurs && runResult.competiteurs.length > 0 ? (
+            {runResult?.competiteurs && runResult.competiteurs.length > 0 ? (
               <div className="space-y-2">
                 <p className="section-label">{t("Concurrents détectés", "Detected competitors")}</p>
                 <ol className="space-y-2" role="list">
@@ -466,7 +467,7 @@ export default function Step3Competition() {
             )}
 
             {/* Recommandations */}
-            {runResult.recommandations && runResult.recommandations.length > 0 && (
+            {runResult?.recommandations && runResult.recommandations.length > 0 && (
               <div className="space-y-2">
                 <p className="section-label">
                   {t("Recommandations prioritaires", "Priority recommendations")}

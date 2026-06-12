@@ -11,7 +11,7 @@ export interface GenModel {
   id: string;
   label: string;
   note?: string;
-  buildInput: (prompt: string, opts: { aspect?: string; seconds?: number }) => Record<string, unknown>;
+  buildInput: (prompt: string, opts: { aspect?: string; seconds?: number; imageUrl?: string }) => Record<string, unknown>;
 }
 
 /* ── Helpers ratio ─────────────────────────────────────────────────────────── */
@@ -107,6 +107,108 @@ export const IMAGE_MODELS: GenModel[] = [
     note: "Rendu riche et net",
     buildInput: (p, o) => ({ prompt: p, aspect_ratio: imgRatio(o.aspect) }),
   },
+  {
+    id: "qwen/qwen-image",
+    label: "Qwen-Image",
+    note: "Texte net dans l'image",
+    buildInput: (p, o) => ({ prompt: p, aspect_ratio: imgRatio(o.aspect) }),
+  },
+  {
+    id: "luma/photon",
+    label: "Luma Photon",
+    note: "Photoréalisme cinématique",
+    buildInput: (p, o) => ({ prompt: p, aspect_ratio: imgRatio(o.aspect) }),
+  },
+];
+
+/* ── Édition d'image (image + prompt → image) ─────────────────────────────── */
+// Modèles « instruct » : on fournit une image source ET une consigne d'édition.
+// L'appelant passe l'URL source ; buildInput place la clé image attendue.
+export const EDIT_MODELS: GenModel[] = [
+  {
+    id: "black-forest-labs/flux-kontext-pro",
+    label: "Flux Kontext Pro",
+    note: "Édition guidée (garde le sujet)",
+    buildInput: (p, o) => ({ prompt: p, input_image: o.imageUrl, aspect_ratio: imgRatio(o.aspect), output_format: "webp" }),
+  },
+  {
+    id: "black-forest-labs/flux-kontext-max",
+    label: "Flux Kontext Max",
+    note: "Édition qualité max",
+    buildInput: (p, o) => ({ prompt: p, input_image: o.imageUrl, aspect_ratio: imgRatio(o.aspect), output_format: "webp" }),
+  },
+  {
+    id: "qwen/qwen-image-edit",
+    label: "Qwen Image Edit",
+    note: "Édition + texte précis",
+    buildInput: (p, o) => ({ prompt: p, image: o.imageUrl }),
+  },
+  {
+    id: "google/nano-banana",
+    label: "Nano Banana (édition)",
+    note: "Retouche cohérente Google",
+    buildInput: (p, o) => ({ prompt: p, image_input: o.imageUrl ? [o.imageUrl] : [], output_format: "png" }),
+  },
+];
+
+/* ── Amélioration (upscale / restauration) ────────────────────────────────── */
+export const UPSCALE_MODELS: GenModel[] = [
+  {
+    id: "nightmareai/real-esrgan",
+    label: "Real-ESRGAN ×4",
+    note: "Upscale net ×4",
+    buildInput: (_p, o) => ({ image: o.imageUrl, scale: 4 }),
+  },
+  {
+    id: "philz1337x/clarity-upscaler",
+    label: "Clarity Upscaler",
+    note: "Upscale créatif HD",
+    buildInput: (_p, o) => ({ image: o.imageUrl, scale_factor: 2 }),
+  },
+];
+
+/* ── Musique (texte → musique) ────────────────────────────────────────────── */
+export const MUSIC_MODELS: GenModel[] = [
+  {
+    id: "meta/musicgen",
+    label: "MusicGen (Meta)",
+    note: "Musique sur description",
+    buildInput: (p, o) => ({ prompt: p, duration: Math.min(30, Math.max(5, o.seconds ?? 15)), model_version: "stereo-large", output_format: "mp3" }),
+  },
+  {
+    id: "lucataco/ace-step",
+    label: "ACE-Step",
+    note: "Musique + structure",
+    buildInput: (p, o) => ({ tags: p, duration: Math.min(60, Math.max(10, o.seconds ?? 20)) }),
+  },
+  {
+    id: "stackadoc/stable-audio-open-1.0",
+    label: "Stable Audio Open",
+    note: "Boucles & ambiances",
+    buildInput: (p, o) => ({ prompt: p, seconds_total: Math.min(30, Math.max(5, o.seconds ?? 12)) }),
+  },
+];
+
+/* ── Voix (texte → parole) ────────────────────────────────────────────────── */
+export const VOICE_MODELS: GenModel[] = [
+  {
+    id: "minimax/speech-02-hd",
+    label: "MiniMax Speech 02 HD",
+    note: "Voix très naturelle (multi-langues)",
+    buildInput: (p) => ({ text: p, voice_id: "Wise_Woman", speed: 1, emotion: "neutral" }),
+  },
+  {
+    id: "jaaari/kokoro-82m",
+    label: "Kokoro 82M",
+    note: "TTS rapide & léger",
+    buildInput: (p) => ({ text: p, voice: "af_bella", speed: 1 }),
+  },
+  {
+    id: "lucataco/xtts-v2",
+    label: "XTTS v2",
+    note: "Clonage de voix (multi-langues)",
+    buildInput: (p) => ({ text: p, language: "fr" }),
+  },
 ];
 
 /* ── Vidéos ────────────────────────────────────────────────────────────────── */
@@ -178,3 +280,23 @@ export function getImageModel(id?: string): GenModel {
 export function getVideoModel(id?: string): GenModel {
   return VIDEO_MODELS.find((m) => m.id === id) ?? VIDEO_MODELS[0];
 }
+
+export const DEFAULT_EDIT_MODEL_ID = EDIT_MODELS[0].id;
+export const DEFAULT_MUSIC_MODEL_ID = MUSIC_MODELS[0].id;
+export const DEFAULT_VOICE_MODEL_ID = VOICE_MODELS[0].id;
+export function getEditModel(id?: string): GenModel {
+  return EDIT_MODELS.find((m) => m.id === id) ?? EDIT_MODELS[0];
+}
+export function getAudioModel(id?: string): GenModel {
+  return [...MUSIC_MODELS, ...VOICE_MODELS].find((m) => m.id === id) ?? MUSIC_MODELS[0];
+}
+
+/** Tous les modèles, par catégorie — pour les sélecteurs de studio. */
+export const MODEL_GROUPS = {
+  image: IMAGE_MODELS,
+  edit: EDIT_MODELS,
+  upscale: UPSCALE_MODELS,
+  video: VIDEO_MODELS,
+  music: MUSIC_MODELS,
+  voice: VOICE_MODELS,
+} as const;

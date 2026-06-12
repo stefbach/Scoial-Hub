@@ -16,6 +16,7 @@ import { IMAGE_MODELS, DEFAULT_IMAGE_MODEL_ID } from "@/lib/ai/model-catalog";
 import BrandKitPanel from "@/components/studio/BrandKitPanel";
 import BrandChartView from "@/components/studio/BrandChartView";
 import { StudioHero, StudioStep } from "@/components/studio/StudioUI";
+import { StudioCopilot, type CopilotSuggestion } from "@/components/studio/StudioCopilot";
 import { IconFrame } from "@/components/visual/Icons";
 import { SafeBoundary } from "@/components/ui/SafeBoundary";
 import type { BrandKit } from "@/lib/brand-kit/types";
@@ -318,6 +319,19 @@ export default function StudioAffichePage() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[360px_1fr]">
         {/* ── Panneau de contrôle ── */}
         <div className="stagger-in space-y-5">
+          {/* Copilote créatif — décrivez, l'IA prépare prompt + modèle + format */}
+          <StudioCopilot
+            studio="affiche"
+            currentPrompt={prompt}
+            onApply={(s: CopilotSuggestion) => {
+              if (s.prompt) setPrompt(s.prompt);
+              if (s.modelId && IMAGE_MODELS.some((m) => m.id === s.modelId)) setModelId(s.modelId);
+              if (s.aspect) {
+                const map: Record<string, string> = { "1:1": "sq", "9:16": "story", "16:9": "wide", "4:5": "portrait" };
+                if (map[s.aspect]) setFormatId(map[s.aspect]);
+              }
+            }}
+          />
           {/* Format */}
           <StudioStep n={1} title={t("Format", "Format")}>
             <div className="grid grid-cols-2 gap-2">

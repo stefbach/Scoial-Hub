@@ -82,10 +82,13 @@ interface ResultState {
 export default function PromptStudio({
   onGenerated,
   brandHints,
+  seed,
 }: {
   onGenerated: (asset: MediaAsset) => void;
   /** Indications de style issues du brand kit (injectées dans le prompt). */
   brandHints?: string;
+  /** Graine poussée par le copilote IA (prompt/modèle/type). */
+  seed?: { nonce: number; kind?: "image" | "video"; prompt?: string; imageModel?: string; videoModel?: string };
 }) {
   const t = useT();
   const { company } = useCompany();
@@ -95,6 +98,17 @@ export default function PromptStudio({
   const [imageModel, setImageModel] = useState(DEFAULT_IMAGE_MODEL_ID);
   const [videoModel, setVideoModel] = useState(DEFAULT_VIDEO_MODEL_ID);
   const [prompt, setPrompt] = useState("");
+
+  // Le copilote pousse une graine → on remplit le prompt/modèle/type.
+  useEffect(() => {
+    if (!seed) return;
+    if (seed.kind) setKind(seed.kind);
+    if (seed.prompt) setPrompt(seed.prompt);
+    if (seed.imageModel) setImageModel(seed.imageModel);
+    if (seed.videoModel) setVideoModel(seed.videoModel);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seed?.nonce]);
+
   const [improving, setImproving] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);

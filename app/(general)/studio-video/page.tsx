@@ -21,7 +21,10 @@ import { captionsToSrt } from "@/lib/video/srt";
 import PromptStudio from "@/components/studio/PromptStudio";
 import BrandKitPanel from "@/components/studio/BrandKitPanel";
 import { StudioHero, StudioStep } from "@/components/studio/StudioUI";
+import { StudioCopilot, type CopilotSuggestion } from "@/components/studio/StudioCopilot";
+import { AudioStudio } from "@/components/studio/AudioStudio";
 import { IconFilm } from "@/components/visual/Icons";
+import { IMAGE_MODELS, VIDEO_MODELS } from "@/lib/ai/model-catalog";
 
 // ── Studio Créatif : images + vidéos → assemblage & marketing pro ────────────────
 
@@ -52,6 +55,8 @@ export default function StudioPage() {
   // Couleurs de marque appliquées aux textes/CTA incrustés.
   const [brandColors, setBrandColors] = useState<{ text?: string; accent?: string }>({});
   const [pkg, setPkg] = useState<VideoMarketingPackage | null>(null);
+  // Graine poussée par le copilote IA vers PromptStudio.
+  const [seed, setSeed] = useState<{ nonce: number; kind?: "image" | "video"; prompt?: string; imageModel?: string; videoModel?: string } | undefined>();
   const [toast, setToast] = useState<{ message: string; key: number } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -203,8 +208,27 @@ export default function StudioPage() {
         }}
       />
 
+      {/* Copilote créatif — décrit l'idée, prépare prompt + modèle + format */}
+      <StudioCopilot
+        studio="video"
+        currentPrompt={objective}
+        onApply={(s: CopilotSuggestion) => {
+          if (s.category === "music" || s.category === "voice") return; // géré par le studio audio
+          setSeed({
+            nonce: Date.now(),
+            kind: s.category === "video" ? "video" : "image",
+            prompt: s.prompt,
+            imageModel: s.modelId && IMAGE_MODELS.some((m) => m.id === s.modelId) ? s.modelId : undefined,
+            videoModel: s.modelId && VIDEO_MODELS.some((m) => m.id === s.modelId) ? s.modelId : undefined,
+          });
+        }}
+      />
+
       {/* Génération par prompt (IA) — image ou vidéo, tous formats publiables */}
-      <PromptStudio onGenerated={(a) => setAssets((prev) => [...prev, a])} brandHints={brandHints} />
+      <PromptStudio onGenerated={(a) => setAssets((prev) => [...prev, a])} brandHints={brandHints} seed={seed} />
+
+      {/* Musique & voix off (tout le catalogue audio) */}
+      <AudioStudio />
 
       {/* Étape 1 : médias */}
       <StudioStep n={1} title={t("Vos médias (photos & vidéos)", "Your media (photos & videos)")}>

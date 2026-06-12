@@ -7,6 +7,7 @@
 import { useRef, useState } from "react";
 import { useCompany } from "@/lib/company-context";
 import { StudioHero, StudioStep, Segmented } from "@/components/studio/StudioUI";
+import { StudioCopilot, type CopilotSuggestion } from "@/components/studio/StudioCopilot";
 import { Tilt3D } from "@/components/visual/Tilt3D";
 import { IconMask, IconClapper } from "@/components/visual/Icons";
 import { Spinner, BusyHint } from "@/components/ui/Spinner";
@@ -385,6 +386,19 @@ export default function StudioAvatarPage() {
         <div className="grid gap-5 lg:grid-cols-[1.05fr_0.95fr]">
           {/* Colonne réglages */}
           <div className="stagger-in space-y-4">
+            {/* Copilote : écrit le script et/ou prépare le portrait à générer */}
+            <StudioCopilot
+              studio="avatar"
+              currentPrompt={topic}
+              onApply={(s: CopilotSuggestion) => {
+                if (s.script) setScript(s.script);
+                if (s.prompt && s.category === "image") {
+                  setPersonMode("generate");
+                  setPersonPrompt(s.prompt);
+                  if (s.modelId && IMAGE_MODELS.some((m) => m.id === s.modelId)) setImageModel(s.modelId);
+                }
+              }}
+            />
             <StudioStep n={1} title={t("Scène — personne + décor", "Scene — person + background")}>
 
               {/* Source de la personne : téléverser ou générer */}

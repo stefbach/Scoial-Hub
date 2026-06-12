@@ -613,6 +613,51 @@ html[data-theme="light"] .app-shell > .app-grain {
         .earth-ex-hint{position:absolute;bottom:.6rem;left:.9rem;z-index:1200;font-size:.7rem;color:rgba(205,191,232,.8);
           background:rgba(10,7,16,.6);border-radius:8px;padding:.25rem .6rem;backdrop-filter:blur(4px);}
         @media(max-width:640px){.earth-ex-place{display:none;}}
+        .earth3d-canvas{background:#0a0710;}
+        .earth3d-canvas canvas{outline:none;}
+        .earth3d-loading{position:absolute;inset:0;z-index:2;display:flex;align-items:center;justify-content:center;
+          color:#cdbfe8;font-size:.9rem;letter-spacing:.04em;pointer-events:none;
+          background:radial-gradient(60% 60% at 50% 45%,rgba(124,58,237,.18),transparent);}
+
+        /* ── Téléphone 3D animé (capabilities) ── */
+        .phone3d{display:flex;align-items:center;justify-content:center;perspective:1400px;}
+        .phone3d-stage{position:relative;transform-style:preserve-3d;animation:phoneFloat 7s ease-in-out infinite;}
+        .phone3d-body{position:relative;width:clamp(210px,22vw,270px);aspect-ratio:9/19.5;border-radius:34px;
+          background:linear-gradient(150deg,#241a36,#120b1e);border:1px solid rgba(168,85,247,.4);
+          box-shadow:0 40px 90px -30px rgba(124,58,237,.7),inset 0 1px 0 rgba(255,255,255,.12);
+          transform:rotateY(-22deg) rotateX(6deg);transform-style:preserve-3d;padding:10px;}
+        .phone3d-notch{position:absolute;top:12px;left:50%;transform:translateX(-50%);width:64px;height:15px;
+          background:#0a0710;border-radius:0 0 12px 12px;z-index:3;}
+        .phone3d-screen{height:100%;border-radius:26px;background:#0c0717;overflow:hidden;display:flex;
+          flex-direction:column;gap:8px;padding:24px 12px 12px;}
+        .phone3d-head{display:flex;align-items:center;gap:8px;}
+        .phone3d-avatar{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#7c3aed,#c026d3);}
+        .phone3d-lines{flex:1;display:flex;flex-direction:column;gap:5px;}
+        .phone3d-lines i{height:7px;border-radius:4px;background:#2c2440;}
+        .phone3d-lines i:first-child{width:70%;background:#46396b;}
+        .phone3d-live{font-size:8px;font-weight:800;letter-spacing:.1em;color:#fff;background:#e1306c;border-radius:6px;padding:3px 6px;}
+        .phone3d-nets{display:flex;gap:7px;}
+        .p3-net{flex:1;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;
+          font-weight:800;font-size:15px;color:#fff;}
+        .p3-fb{background:#1877F2;} .p3-li{background:#0A66C2;} .p3-tt{background:#010101;}
+        .p3-ig{background:linear-gradient(135deg,#feda75,#fa7e1e,#d62976,#4f5bd5);}
+        .phone3d-media{height:38%;border-radius:14px;background:linear-gradient(125deg,#1877F2,#a855f7,#e1306c);
+          background-size:200% 200%;animation:phoneMedia 6s ease infinite;}
+        .phone3d-chart{flex:1;display:flex;align-items:flex-end;gap:6px;padding-top:4px;}
+        .phone3d-chart span{flex:1;border-radius:5px 5px 0 0;background:linear-gradient(180deg,#c4a5ff,#7c3aed);
+          transform-origin:bottom;animation:phoneBar 2.6s ease-in-out infinite;}
+        .phone3d-foot{display:flex;gap:8px;}
+        .phone3d-foot i{flex:1;height:9px;border-radius:5px;background:#241a36;}
+        .phone3d-foot i:first-child{width:60%;background:#46396b;}
+        .phone3d-glow{position:absolute;inset:-12% -8% -18%;z-index:-1;border-radius:40px;
+          background:radial-gradient(60% 50% at 50% 60%,rgba(124,58,237,.45),transparent 70%);filter:blur(20px);}
+        @keyframes phoneFloat{0%,100%{transform:translateY(0) rotateZ(0)}50%{transform:translateY(-14px) rotateZ(-1deg)}}
+        @keyframes phoneMedia{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
+        @keyframes phoneBar{0%,100%{transform:scaleY(.55)}50%{transform:scaleY(1)}}
+        .mc-constellation-3d{transform-style:preserve-3d;}
+        @media(prefers-reduced-motion:reduce){
+          .phone3d-stage,.phone3d-media,.phone3d-chart span{animation:none;}
+        }
         /* ── Globe terrestre interactif (GlobeHero) ── */
         .globe-hero{position:absolute;inset:0;}
         .globe-canvas{position:absolute;inset:0;}

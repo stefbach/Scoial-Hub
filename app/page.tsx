@@ -13,12 +13,14 @@ import { useT } from "@/lib/i18n";
 import { LanguageSwitcher } from "@/lib/i18n";
 import { NetworkCanvas } from "@/components/visual/NetworkCanvas";
 import { AgentConstellation } from "@/components/landing/AgentConstellation";
+import { Tilt3D } from "@/components/visual/Tilt3D";
 import { IconLink, IconChat, IconTrendingUp, IconLock, IconShieldCheck, IconMic, IconAward } from "@/components/visual/Icons";
 
 // Scène WebGL (Three.js) — chargée côté client uniquement.
 // Globe terrestre interactif : on tourne autour du monde, les réseaux sociaux
 // sont les satellites. Villes accessibles en un clic (fly-to façon Google Earth).
-const GlobeHero = dynamic(() => import("@/components/landing/GlobeHero").then((m) => m.GlobeHero), { ssr: false });
+const GoogleEarth = dynamic(() => import("@/components/landing/GoogleEarth").then((m) => m.GoogleEarth), { ssr: false });
+const Phone3D = dynamic(() => import("@/components/landing/Phone3D").then((m) => m.Phone3D), { ssr: false });
 
 /* ───────────────────────── Logos réseaux (SVG inline) ───────────────────── */
 function FacebookLogo({ s = 28 }: { s?: number }) {
@@ -174,7 +176,7 @@ export default function Home() {
 
       {/* ── Héros plein écran : la Terre — le monde à portée ── */}
       <section className="mc-hero2">
-        <div className="mc-hero2-globe"><GlobeHero /></div>
+        <div className="mc-hero2-globe"><GoogleEarth /></div>
         <div className="mc-hero2-scrim" aria-hidden />
         <div className="mc-hero2-copy">
           <span className="mc-eyebrow">{t("Le hub social des PME — le monde à portée", "The social hub for small teams — the world within reach")}</span>
@@ -212,7 +214,7 @@ export default function Home() {
             )}
           </p>
         </header>
-        <AgentConstellation />
+        <Tilt3D max={9} className="mc-constellation-3d animate-float"><AgentConstellation /></Tilt3D>
       </section>
 
 
@@ -226,13 +228,7 @@ export default function Home() {
             <h2 className="mc-h2">{t("Tout votre social, au même endroit.", "Your whole social presence, in one place.")}</h2>
             <p className="mc-sec-sub">{t("De l'idée au message publié — vos assistants s'occupent de la création, la publication, les réponses et la veille. Cliquez sur une carte pour voir.", "From idea to published post — your assistants handle creation, publishing, replies and watch. Click a card to take a look.")}</p>
           </header>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/hero/iphone.png"
-            alt={t("L'app AXON-AI sur mobile", "The AXON-AI app on mobile")}
-            className="mc-cap-phone"
-            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-          />
+          <Phone3D />
         </div>
 
         {/* Onglets dynamiques par catégorie — allège l'affichage (3-4 cartes) */}

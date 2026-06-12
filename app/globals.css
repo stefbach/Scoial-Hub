@@ -627,46 +627,87 @@ html[data-theme="light"] .app-shell > .app-grain {
         @keyframes invitePulse{0%{box-shadow:0 0 0 0 rgba(196,165,255,.55)}100%{box-shadow:0 0 0 12px rgba(196,165,255,0)}}
         @keyframes inviteBob{0%,100%{transform:translateX(-50%) translateY(0)}50%{transform:translateX(-50%) translateY(-4px)}}
 
-        /* ── Téléphone 3D animé (capabilities) ── */
-        .phone3d{display:flex;align-items:center;justify-content:center;perspective:1400px;}
-        .phone3d-stage{position:relative;transform-style:preserve-3d;animation:phoneFloat 7s ease-in-out infinite;}
-        .phone3d-body{position:relative;width:clamp(210px,22vw,270px);aspect-ratio:9/19.5;border-radius:34px;
-          background:linear-gradient(150deg,#241a36,#120b1e);border:1px solid rgba(168,85,247,.4);
-          box-shadow:0 40px 90px -30px rgba(124,58,237,.7),inset 0 1px 0 rgba(255,255,255,.12);
-          transform:rotateY(-22deg) rotateX(6deg);transform-style:preserve-3d;padding:10px;}
-        .phone3d-notch{position:absolute;top:12px;left:50%;transform:translateX(-50%);width:64px;height:15px;
-          background:#0a0710;border-radius:0 0 12px 12px;z-index:3;}
-        .phone3d-screen{height:100%;border-radius:26px;background:#0c0717;overflow:hidden;display:flex;
-          flex-direction:column;gap:8px;padding:24px 12px 12px;}
-        .phone3d-head{display:flex;align-items:center;gap:8px;}
-        .phone3d-avatar{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#7c3aed,#c026d3);}
-        .phone3d-lines{flex:1;display:flex;flex-direction:column;gap:5px;}
-        .phone3d-lines i{height:7px;border-radius:4px;background:#2c2440;}
-        .phone3d-lines i:first-child{width:70%;background:#46396b;}
-        .phone3d-live{font-size:8px;font-weight:800;letter-spacing:.1em;color:#fff;background:#e1306c;border-radius:6px;padding:3px 6px;}
-        .phone3d-nets{display:flex;gap:7px;}
-        .p3-net{flex:1;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;
-          font-weight:800;font-size:15px;color:#fff;}
-        .p3-fb{background:#1877F2;} .p3-li{background:#0A66C2;} .p3-tt{background:#010101;}
-        .p3-ig{background:linear-gradient(135deg,#feda75,#fa7e1e,#d62976,#4f5bd5);}
-        .phone3d-media{height:38%;border-radius:14px;background:linear-gradient(125deg,#1877F2,#a855f7,#e1306c);
-          background-size:200% 200%;animation:phoneMedia 6s ease infinite;}
-        .phone3d-chart{flex:1;display:flex;align-items:flex-end;gap:6px;padding-top:4px;}
-        .phone3d-chart span{flex:1;border-radius:5px 5px 0 0;background:linear-gradient(180deg,#c4a5ff,#7c3aed);
-          transform-origin:bottom;animation:phoneBar 2.6s ease-in-out infinite;}
-        .phone3d-foot{display:flex;gap:8px;}
-        .phone3d-foot i{flex:1;height:9px;border-radius:5px;background:#241a36;}
-        .phone3d-foot i:first-child{width:60%;background:#46396b;}
-        .phone3d-glow{position:absolute;inset:-12% -8% -18%;z-index:-1;border-radius:40px;
-          background:radial-gradient(60% 50% at 50% 60%,rgba(124,58,237,.45),transparent 70%);filter:blur(20px);}
-        @keyframes phoneFloat{0%,100%{transform:translateY(0) rotateZ(0)}50%{transform:translateY(-14px) rotateZ(-1deg)}}
-        @keyframes phoneMedia{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
-        @keyframes phoneBar{0%,100%{transform:scaleY(.55)}50%{transform:scaleY(1)}}
+        /* ── Téléphone réaliste premium (capabilities) ── */
+        .ph{display:flex;align-items:center;justify-content:center;perspective:1600px;}
+        .ph-float{position:relative;transform-style:preserve-3d;animation:phFloat 8s ease-in-out infinite;}
+        .ph-frame{position:relative;width:clamp(232px,23vw,300px);aspect-ratio:9/19.3;border-radius:46px;
+          padding:11px;transform:rotateY(-20deg) rotateX(5deg);transform-style:preserve-3d;
+          background:linear-gradient(135deg,#3a3550 0%,#15121f 38%,#0c0a14 62%,#2a2640 100%);
+          box-shadow:0 60px 120px -40px rgba(0,0,0,.85), 0 30px 70px -30px rgba(124,58,237,.55),
+                     inset 0 0 0 2px rgba(255,255,255,.06), inset 0 2px 1px rgba(255,255,255,.18),
+                     inset 0 -2px 1px rgba(0,0,0,.5);}
+        /* Boutons latéraux */
+        .ph-btn{position:absolute;background:linear-gradient(180deg,#2a2640,#16131f);border-radius:3px;}
+        .ph-vol-up{left:-3px;top:23%;width:3px;height:7%;}
+        .ph-vol-dn{left:-3px;top:33%;width:3px;height:9%;}
+        .ph-power{right:-3px;top:27%;width:3px;height:11%;}
+        .ph-screen{position:relative;height:100%;border-radius:36px;overflow:hidden;
+          background:radial-gradient(120% 80% at 50% 0%,#181326,#0b0814 60%);
+          display:flex;flex-direction:column;color:#ece7f5;font-size:11px;padding:0 12px;
+          box-shadow:inset 0 0 0 1px rgba(0,0,0,.6);}
+        .ph-status{display:flex;align-items:center;justify-content:space-between;padding:9px 6px 4px;color:#fff;}
+        .ph-time{font-weight:700;font-size:12px;letter-spacing:.02em;}
+        .ph-status-icons{display:flex;align-items:center;gap:5px;color:#fff;}
+        .ph-island{position:absolute;top:9px;left:50%;transform:translateX(-50%);width:78px;height:22px;border-radius:14px;background:#000;z-index:5;}
+        .ph-appbar{display:flex;align-items:center;gap:9px;padding:8px 2px 8px;}
+        .ph-logo{width:30px;height:30px;border-radius:9px;display:flex;align-items:center;justify-content:center;
+          background:linear-gradient(135deg,#7c3aed,#c026d3);color:#fff;font-weight:800;box-shadow:0 4px 12px -4px rgba(124,58,237,.8);}
+        .ph-logo b{font-family:var(--font-display);font-size:16px;}
+        .ph-appttl{flex:1;line-height:1.15;}
+        .ph-appttl b{display:block;font-size:13px;letter-spacing:.06em;}
+        .ph-appttl i{font-style:normal;font-size:9.5px;color:#a89cc4;}
+        .ph-bell{position:relative;color:#cdbfe8;}
+        .ph-bell-dot{position:absolute;top:-1px;right:-1px;width:6px;height:6px;border-radius:50%;background:#e1306c;border:1.5px solid #0b0814;}
+        .ph-tabs{display:flex;gap:6px;background:rgba(255,255,255,.05);border-radius:10px;padding:3px;}
+        .ph-tabs span{flex:1;text-align:center;padding:5px 0;border-radius:8px;font-size:10px;color:#a89cc4;}
+        .ph-tabs span.on{background:linear-gradient(135deg,#7c3aed,#c026d3);color:#fff;font-weight:600;}
+        .ph-card{margin-top:9px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.06);border-radius:16px;padding:9px;}
+        .ph-card-h{display:flex;align-items:center;gap:7px;}
+        .ph-av{width:26px;height:26px;border-radius:50%;background:conic-gradient(from 130deg,#7c3aed,#e1306c,#1877F2,#7c3aed);}
+        .ph-card-id{flex:1;line-height:1.2;}
+        .ph-card-id b{font-size:11px;}
+        .ph-card-id i{font-style:normal;font-size:9px;color:#8b80a8;}
+        .ph-nets{display:flex;}
+        .ph-n{width:18px;height:18px;border-radius:6px;margin-left:-5px;border:1.5px solid #0b0814;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:10px;}
+        .ph-n.ph-fb{background:#1877F2;font-family:Georgia,serif;}
+        .ph-n.ph-li{background:#0A66C2;}
+        .ph-n.ph-ig{background:linear-gradient(135deg,#feda75,#fa7e1e,#d62976,#4f5bd5);}
+        .ph-media{position:relative;height:118px;border-radius:12px;overflow:hidden;margin:8px 0;}
+        .ph-media-sky{position:absolute;inset:0;background:linear-gradient(180deg,#1a1030 0%,#7b3f6e 48%,#e8915a 78%,#f4c06a 100%);}
+        .ph-media-city{position:absolute;left:0;right:0;bottom:0;height:46%;
+          background:linear-gradient(180deg,transparent,rgba(10,7,16,.85)),
+            repeating-linear-gradient(90deg,#1a1326 0 7px,#241a36 7px 9px,transparent 9px 16px);
+          -webkit-mask:linear-gradient(180deg,transparent,#000 40%);mask:linear-gradient(180deg,transparent,#000 40%);}
+        .ph-media-glow{position:absolute;left:18%;top:34%;width:46px;height:46px;border-radius:50%;background:radial-gradient(circle,rgba(255,210,140,.95),transparent 65%);}
+        .ph-cap{display:flex;flex-direction:column;gap:5px;}
+        .ph-cap i{height:7px;border-radius:4px;background:rgba(255,255,255,.14);}
+        .ph-act{display:flex;gap:14px;margin-top:9px;color:#a89cc4;font-size:10px;}
+        .ph-a{display:inline-flex;align-items:center;gap:4px;}
+        .ph-a.ph-like{color:#e1306c;}
+        .ph-kpis{display:flex;gap:7px;margin-top:11px;}
+        .ph-kpi{flex:1;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06);border-radius:11px;padding:7px 4px;text-align:center;line-height:1.15;}
+        .ph-kpi b{display:block;font-size:14px;font-weight:800;color:#fff;}
+        .ph-kpi i{font-style:normal;font-size:8.5px;color:#8b80a8;}
+        .ph-chart{display:flex;align-items:flex-end;gap:5px;height:42px;margin-top:9px;}
+        .ph-chart span{flex:1;border-radius:4px 4px 0 0;background:linear-gradient(180deg,#c4a5ff,#7c3aed);transform-origin:bottom;animation:phBar 2.8s ease-in-out infinite;}
+        .ph-nav{margin-top:auto;display:flex;align-items:center;justify-content:space-between;padding:11px 6px 14px;color:#6f6690;}
+        .ph-nav svg{width:21px;height:21px;}
+        .ph-nav svg:first-child{color:#c4a5ff;}
+        .ph-nav-fab{width:40px;height:40px;border-radius:13px;display:flex;align-items:center;justify-content:center;
+          background:linear-gradient(135deg,#7c3aed,#c026d3);color:#fff;box-shadow:0 8px 20px -6px rgba(124,58,237,.9);}
+        .ph-nav-fab svg{width:20px;height:20px;}
+        /* Reflet de verre balayant */
+        .ph-glare{position:absolute;inset:11px;border-radius:36px;pointer-events:none;
+          background:linear-gradient(125deg,rgba(255,255,255,.16) 0%,rgba(255,255,255,0) 28%,transparent 70%,rgba(255,255,255,.05) 100%);
+          animation:phGlare 9s ease-in-out infinite;}
+        .ph-shadow{position:absolute;left:8%;right:8%;bottom:-7%;height:9%;border-radius:50%;z-index:-1;
+          background:radial-gradient(50% 100% at 50% 50%,rgba(124,58,237,.45),transparent 70%);filter:blur(16px);}
+        @keyframes phFloat{0%,100%{transform:translateY(0) rotateZ(0)}50%{transform:translateY(-16px) rotateZ(-1.2deg)}}
+        @keyframes phBar{0%,100%{transform:scaleY(.5)}50%{transform:scaleY(1)}}
+        @keyframes phGlare{0%,100%{opacity:.5;transform:translateX(-4%)}50%{opacity:.9;transform:translateX(4%)}}
+        @media(prefers-reduced-motion:reduce){.ph-float,.ph-chart span,.ph-glare{animation:none;}}
         .mc-constellation-3d{transform-style:preserve-3d;}
         .constellation3d{position:relative;width:100%;height:clamp(440px,52vw,640px);}
-        @media(prefers-reduced-motion:reduce){
-          .phone3d-stage,.phone3d-media,.phone3d-chart span{animation:none;}
-        }
         /* ── Globe terrestre interactif (GlobeHero) ── */
         .globe-hero{position:absolute;inset:0;}
         .globe-canvas{position:absolute;inset:0;}

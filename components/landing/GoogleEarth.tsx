@@ -66,6 +66,7 @@ export function GoogleEarth() {
   const [ready, setReady] = useState(false);
   const flyRef = useRef<(lat: number, lon: number) => void>(() => {});
   const searchRef = useRef<(q: string) => void>(() => {});
+  const zoomRef = useRef<(dir: 1 | -1) => void>(() => {});
   const [search, setSearch] = useState("");
 
   useEffect(() => {
@@ -115,17 +116,49 @@ export function GoogleEarth() {
               { eventType: Cesium.CameraEventType.WHEEL, modifier: Cesium.KeyboardEventModifier.CTRL },
             ];
           } catch { /* ignore */ }
-          // Filet GARANTI : on intercepte la molette nue AVANT Cesium (phase
-          // capture) et on fait défiler la page nous-mêmes. Ctrl/⌘ → zoom globe.
+          // ── Zoom facile, scroll préservé ────────────────────────────────
+          // La molette zoome le globe DÈS qu'on explore (vue rapprochée) ; en
+          // vue « espace », elle fait défiler la page. Boutons +/- et double-
+          // clic disponibles partout. Ctrl/⌘ + molette zoome toujours.
+          try {
+            scene.screenSpaceCameraController.zoomEventTypes = [
+              Cesium.CameraEventType.WHEEL,
+              Cesium.CameraEventType.PINCH,
+            ];
+          } catch { /* ignore */ }
+          const ENGAGE_H = 5_000_000; // sous ce niveau → on explore
           const wheelGuard = (e: WheelEvent) => {
-            if (e.ctrlKey || e.metaKey) return; // Ctrl/⌘ → Cesium zoome
-            e.stopPropagation();
-            e.preventDefault();
+            if (e.ctrlKey || e.metaKey) return; // zoom globe
+            const h = viewer?.camera?.positionCartographic?.height ?? 1e9;
+            if (h < ENGAGE_H) return;            // en exploration → la molette zoome
+            // En vue espace → la page défile.
+            e.stopPropagation(); e.preventDefault();
             const factor = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? window.innerHeight : 1;
             window.scrollBy(0, e.deltaY * factor);
           };
           ref.current!.addEventListener("wheel", wheelGuard, { capture: true, passive: false });
           (viewer as any)._axonWheelGuard = wheelGuard;
+
+          // Boutons +/- (zoom relatif à l'altitude courante → fluide).
+          zoomRef.current = (dir: 1 | -1) => {
+            const h = viewer.camera.positionCartographic.height;
+            if (dir === 1) viewer.camera.zoomIn(h * 0.45);
+            else viewer.camera.zoomOut(h * 0.55);
+          };
+
+          // Double-clic → on plonge vers le point visé.
+          const dbl = new Cesium.ScreenSpaceEventHandler(scene.canvas);
+          dbl.setInputAction((ev: any) => {
+            const cart = viewer.camera.pickEllipsoid(ev.position);
+            if (!cart) return;
+            const carto = Cesium.Cartographic.fromCartesian(cart);
+            const newH = Math.max(1500, viewer.camera.positionCartographic.height * 0.35);
+            viewer.camera.flyTo({
+              destination: Cesium.Cartesian3.fromDegrees(Cesium.Math.toDegrees(carto.longitude), Cesium.Math.toDegrees(carto.latitude), newH),
+              orientation: { heading: 0, pitch: Cesium.Math.toRadians(newH < 60000 ? -55 : -90), roll: 0 },
+              duration: 1.4,
+            });
+          }, Cesium.ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
 
           // Vue initiale : globe plus grand (plus proche) et légèrement incliné.
           viewer.camera.setView({
@@ -283,7 +316,15 @@ export function GoogleEarth() {
       {ready && (
         <div className="globe-invite">
           <span className="globe-invite-dot" />
-          {"Ctrl + molette pour zoomer jusqu'à votre rue — Paris, New York, Flic-en-Flac…"}
+          {"Zoomez (+/− ou double-clic) jusqu'à votre rue — Paris, New York, Flic-en-Flac…"}
+        </div>
+      )}
+
+      {/* Commandes de zoom bien visibles */}
+      {ready && (
+        <div className="globe-zoom">
+          <button type="button" aria-label="Zoomer" onClick={() => zoomRef.current(1)}>+</button>
+          <button type="button" aria-label="Dézoomer" onClick={() => zoomRef.current(-1)}>−</button>
         </div>
       )}
 
@@ -296,7 +337,7 @@ export function GoogleEarth() {
       </form>
 
       <div className="globe-chips">
-        <span className="globe-hint">Cliquez une ville pour plonger · Ctrl + molette (ou pincement) pour zoomer · molette = défiler la page</span>
+        <span className="globe-hint">Cliquez une ville ou double-cliquez pour plonger · +/− ou molette (en exploration) pour zoomer</span>
         {CITIES.map((c) => (
           <button key={c.name} type="button" className="globe-chip" onClick={() => flyRef.current(c.lat, c.lon)}>{c.name}</button>
         ))}

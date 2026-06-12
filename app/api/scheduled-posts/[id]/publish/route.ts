@@ -3,44 +3,18 @@
 // Publie RÉELLEMENT une publication programmée sur le réseau connecté.
 // Auparavant, « Publier maintenant » se contentait de passer le statut à
 // "published" en base — le post n'était jamais envoyé à Facebook/LinkedIn.
-// Ici on récupère le compte connecté (page_id + token de Page pour Facebook),
-// on appelle le connecteur, PUIS on marque le post comme publié. En cas
-// d'échec (compte non connecté, token expiré, refus Graph API), on remonte
-// une vraie erreur au lieu de faire croire à une publication réussie.
+// La logique (connexion → connecteur → marquage publié) est factorisée dans
+// lib/publishing/publish-scheduled.ts, partagée avec le cron de publication
+// automatique (/api/cron/publish-due). En cas d'échec (compte non connecté,
+// token expiré, refus API), on remonte une vraie erreur au lieu de faire
+// croire à une publication réussie.
 
 export const runtime = "nodejs";
 
 import { type NextRequest, NextResponse } from "next/server";
-import { getScheduledPost, updateScheduledPost } from "@/lib/repositories/scheduled-posts";
-import { getConnection } from "@/lib/repositories/channel-connections";
-import { resolveCompanyUuid } from "@/lib/repositories/resolve-company";
-import { getConnector } from "@/lib/connectors/index";
+import { getScheduledPost } from "@/lib/repositories/scheduled-posts";
+import { publishScheduledPostNow } from "@/lib/publishing/publish-scheduled";
 import { requireCompanyAccess } from "@/lib/auth/guard";
-import type { PublishInput } from "@/lib/connectors/types";
-import type { Platform } from "@/lib/types";
-
-/** Identifiant de compte + token requis par le connecteur, selon la plateforme. */
-function resolveCreds(
-  platform: Platform,
-  cfg: Record<string, string>
-): { externalAccountId: string; accessToken: string } {
-  switch (platform) {
-    case "facebook":
-      return { externalAccountId: cfg.page_id ?? "", accessToken: cfg.page_access_token ?? "" };
-    case "instagram":
-      return { externalAccountId: cfg.ig_business_account_id ?? "", accessToken: cfg.page_access_token ?? "" };
-    case "linkedin":
-      return { externalAccountId: cfg.external_id ?? "", accessToken: cfg.access_token ?? "" };
-    default:
-      return { externalAccountId: "", accessToken: "" };
-  }
-}
-
-const PLATFORM_LABEL: Record<Platform, string> = {
-  facebook: "Facebook",
-  instagram: "Instagram",
-  linkedin: "LinkedIn",
-};
 
 export async function POST(
   req: NextRequest,
@@ -61,74 +35,17 @@ export async function POST(
       return NextResponse.json({ error: "Publication introuvable." }, { status: 404 });
     }
 
-    const text = (post.body || post.title || "").trim();
-    if (!text) {
-      return NextResponse.json({ error: "La publication est vide." }, { status: 400 });
+    const outcome = await publishScheduledPostNow(post, companyId);
+    if (!outcome.ok) {
+      return NextResponse.json({ error: outcome.error }, { status: outcome.status });
     }
-
-    const platform = post.platform;
-    const label = PLATFORM_LABEL[platform] ?? platform;
-
-    // Compte connecté = source de vérité pour les tokens (page_access_token…).
-    const uuid = await resolveCompanyUuid(companyId);
-    const conn = await getConnection(uuid, platform);
-    if (!conn || conn.status !== "connected") {
-      return NextResponse.json(
-        { error: `Le compte ${label} n'est pas connecté. Connectez-le dans Connecteurs avant de publier.` },
-        { status: 409 }
-      );
-    }
-
-    const { externalAccountId, accessToken } = resolveCreds(platform, conn.config ?? {});
-    if (!externalAccountId || !accessToken) {
-      return NextResponse.json(
-        { error: `La connexion ${label} est incomplète (Page/token manquant). Reconnectez le compte.` },
-        { status: 409 }
-      );
-    }
-
-    // Média attaché (URL) — requis par Instagram (pas de post texte seul),
-    // optionnel mais pris en compte pour Facebook/LinkedIn.
-    const mediaUrl = post.media?.url;
-    if (platform === "instagram" && !mediaUrl) {
-      return NextResponse.json(
-        { error: "Instagram exige un visuel (image ou vidéo). Ajoutez un média à la publication avant de publier." },
-        { status: 422 }
-      );
-    }
-
-    const input: PublishInput = {
-      externalAccountId,
-      accessToken,
-      text,
-      media: mediaUrl
-        ? { url: mediaUrl, mimeType: post.media?.kind === "video" ? "video/mp4" : "image/jpeg" }
-        : undefined,
-    };
-
-    let result;
-    try {
-      const connector = getConnector(platform);
-      result = await connector.publishPost(input);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Erreur inconnue";
-      console.error(`[POST /api/scheduled-posts/${params.id}/publish] ${platform}:`, message);
-      return NextResponse.json(
-        { error: `Échec de la publication sur ${label} : ${message}` },
-        { status: 502 }
-      );
-    }
-
-    // Publication effectuée → on marque le post comme publié.
-    const publishedAt = new Date().toISOString();
-    await updateScheduledPost(params.id, { status: "published", publishedAt }).catch(() => {});
 
     return NextResponse.json({
       published: true,
-      simulated: result.simulated ?? false,
-      externalId: result.externalId,
-      url: result.url,
-      platform,
+      simulated: outcome.simulated ?? false,
+      externalId: outcome.externalId,
+      url: outcome.url,
+      platform: outcome.platform,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Erreur serveur";

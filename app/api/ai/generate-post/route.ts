@@ -5,7 +5,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { env, isAiConfigured } from "@/lib/env";
 
 type Action = "generate" | "rewrite" | "shorten" | "hashtags";
-type Platform = "facebook" | "instagram" | "linkedin";
+type Platform = "facebook" | "instagram" | "linkedin" | "tiktok";
 
 interface RequestBody {
   prompt: string;
@@ -30,6 +30,7 @@ const PLATFORM_RULES: Record<Platform, string> = {
   facebook: "Maximum 63,206 characters. Optimal length: 40–80 words for organic reach. Hashtags: 2–5 max, keep them subtle.",
   instagram: "Maximum 2,200 characters. Optimal length: 138–150 characters for engagement. Hashtags: 5–15 recommended, place at end or in first comment.",
   linkedin: "Maximum 3,000 characters. Optimal length: 150–300 words for professional context. Hashtags: 3–5, professional and specific.",
+  tiktok: "Caption max 2,200 characters. Optimal: short punchy hook (under 150 chars) + 3-5 trending hashtags. Spoken, energetic, Gen-Z friendly tone. The VIDEO carries the message.",
 };
 
 const ACTION_INSTRUCTIONS: Record<Action, string> = {

@@ -5,7 +5,7 @@
 //
 // Dégradation gracieuse : si Supabase est absent → store en mémoire.
 
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/env";
 import { encryptSecret, decryptSecret } from "@/lib/crypto";
 
@@ -173,6 +173,43 @@ export async function getConnection(
     return data ? decryptRow(data as ChannelConnection) : null;
   } catch (err) {
     console.error("[channel-connections] getConnection exception:", err);
+    return null;
+  }
+}
+
+/**
+ * Variante admin de getConnection — lit via le client service_role (bypass RLS).
+ * Réservée aux tâches de fond (cron de publication) où aucune session
+ * utilisateur n'existe. Ne throw jamais.
+ */
+export async function getConnectionAdmin(
+  companyId: string,
+  channel: string
+): Promise<ChannelConnection | null> {
+  if (!isSupabaseConfigured) {
+    const m = mockFind(companyId, channel);
+    return m ? decryptRow(m) : null;
+  }
+
+  try {
+    const supabase = createAdminClient();
+    if (!supabase) return null;
+
+    const { data, error } = await supabase
+      .from("sh_channel_connections")
+      .select("*")
+      .eq("company_id", companyId)
+      .eq("channel", channel)
+      .maybeSingle();
+
+    if (error) {
+      console.error("[channel-connections] getConnectionAdmin error:", error);
+      return null;
+    }
+
+    return data ? decryptRow(data as ChannelConnection) : null;
+  } catch (err) {
+    console.error("[channel-connections] getConnectionAdmin exception:", err);
     return null;
   }
 }

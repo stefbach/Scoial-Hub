@@ -7,6 +7,9 @@
 import { useRef, useState } from "react";
 import { useCompany } from "@/lib/company-context";
 import { StudioHero, StudioStep, Segmented } from "@/components/studio/StudioUI";
+import { StudioCopilot, type CopilotSuggestion } from "@/components/studio/StudioCopilot";
+import { ImageEditor } from "@/components/studio/ImageEditor";
+import { PublishScheduler } from "@/components/studio/PublishScheduler";
 import { Tilt3D } from "@/components/visual/Tilt3D";
 import { IconMask, IconClapper } from "@/components/visual/Icons";
 import { Spinner, BusyHint } from "@/components/ui/Spinner";
@@ -96,17 +99,19 @@ export default function StudioAvatarPage() {
   }
 
   // Génère une personne (portrait) depuis un prompt → devient l'avatar.
-  async function genPerson() {
-    if (!personPrompt.trim()) { setError(t("Décrivez la personne à générer.", "Describe the person to generate.")); return; }
+  // `o` permet au copilote de générer immédiatement avec SES valeurs.
+  async function genPerson(o?: { prompt?: string; model?: string }) {
+    const effPrompt = o?.prompt ?? personPrompt;
+    if (!effPrompt.trim()) { setError(t("Décrivez la personne à générer.", "Describe the person to generate.")); return; }
     setComposing(true); setError(null); setNote(null);
     try {
       const r = await fetch("/api/ai/generate-image", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           companyId: company.id,
-          model: imageModel,
+          model: o?.model ?? imageModel,
           format: "portrait",
-          prompt: `${personPrompt}. Portrait photoréaliste, regard caméra, cadrage buste, lumière studio, haute qualité, détails nets.`,
+          prompt: `${effPrompt}. Portrait photoréaliste, regard caméra, cadrage buste, lumière studio, haute qualité, détails nets.`,
         }),
       });
       const d = await r.json();
@@ -385,6 +390,22 @@ export default function StudioAvatarPage() {
         <div className="grid gap-5 lg:grid-cols-[1.05fr_0.95fr]">
           {/* Colonne réglages */}
           <div className="stagger-in space-y-4">
+            {/* Copilote : écrit le script et/ou prépare le portrait à générer */}
+            <StudioCopilot
+              studio="avatar"
+              currentPrompt={topic}
+              onApply={(s: CopilotSuggestion) => {
+                if (s.script) setScript(s.script);
+                if (s.prompt && s.category === "image") {
+                  const validModel = s.modelId && IMAGE_MODELS.some((m) => m.id === s.modelId) ? s.modelId : undefined;
+                  setPersonMode("generate");
+                  setPersonPrompt(s.prompt);
+                  if (validModel) setImageModel(validModel);
+                  // Le copilote DÉCLENCHE la génération du portrait.
+                  if (canEdit) void genPerson({ prompt: s.prompt, model: validModel });
+                }
+              }}
+            />
             <StudioStep n={1} title={t("Scène — personne + décor", "Scene — person + background")}>
 
               {/* Source de la personne : téléverser ou générer */}
@@ -412,7 +433,7 @@ export default function StudioAvatarPage() {
                     <select value={imageModel} onChange={(e) => setImageModel(e.target.value)} className="input flex-1">
                       {IMAGE_MODELS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
                     </select>
-                    <button onClick={genPerson} disabled={composing} className="btn-secondary shrink-0 inline-flex items-center gap-1.5 text-xs disabled:opacity-50">
+                    <button onClick={() => genPerson()} disabled={composing} className="btn-secondary shrink-0 inline-flex items-center gap-1.5 text-xs disabled:opacity-50">
                       {composing && <Spinner size={14} className="text-current" />}
                       {t("✨ Générer", "✨ Generate")}
                     </button>
@@ -441,6 +462,11 @@ export default function StudioAvatarPage() {
                 </div>
               )}
             </StudioStep>
+
+            {/* Retouche IA du portrait (tenue, décor, lumière… versions conservées) */}
+            {faceUrl.trim() && canEdit && (
+              <ImageEditor imageUrl={faceUrl} aspect="4:5" onResult={(u) => setFaceUrl(u)} />
+            )}
 
             <StudioStep n={2} title={t("Script", "Script")}>
               <input value={topic} onChange={(e) => setTopic(e.target.value)} placeholder={t("Sujet (ex. « Notre nouvelle offre minceur »)", "Topic (e.g. \"Our new weight-loss offer\")")} className="input" />
@@ -567,8 +593,11 @@ export default function StudioAvatarPage() {
                 </a>
                 <div className="flex gap-2">
                   <a href="/media" className="btn-ghost flex-1 justify-center text-xs">{t("📚 Médiathèque", "📚 Media library")}</a>
-                  <a href={`/compose?media=${encodeURIComponent(videoUrl)}&kind=video`} className="btn-primary flex-1 justify-center text-xs">{t("Publier / Programmer →", "Publish / Schedule →")}</a>
+                  <a href={`/compose?media=${encodeURIComponent(videoUrl)}&kind=video`} className="btn-secondary flex-1 justify-center text-xs">{t("Ouvrir dans Composer", "Open in Composer")}</a>
                 </div>
+
+                {/* Publier maintenant / programmer — directement depuis le studio */}
+                <PublishScheduler companyId={company.id} mediaUrl={videoUrl} mediaKind="video" defaultText={script.split("\n")[0]?.slice(0, 180) ?? ""} />
                 {!savedToLibrary && (
                   <button onClick={() => videoUrl && saveToLibrary(videoUrl)} className="btn-ghost w-full justify-center text-2xs text-muted">
                     {t("Réessayer l'enregistrement en médiathèque", "Retry saving to library")}

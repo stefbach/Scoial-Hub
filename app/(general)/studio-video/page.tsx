@@ -21,7 +21,11 @@ import { captionsToSrt } from "@/lib/video/srt";
 import PromptStudio from "@/components/studio/PromptStudio";
 import BrandKitPanel from "@/components/studio/BrandKitPanel";
 import { StudioHero, StudioStep } from "@/components/studio/StudioUI";
+import { StudioCopilot, type CopilotSuggestion } from "@/components/studio/StudioCopilot";
+import { AudioStudio } from "@/components/studio/AudioStudio";
+import { PublishScheduler } from "@/components/studio/PublishScheduler";
 import { IconFilm } from "@/components/visual/Icons";
+import { IMAGE_MODELS, VIDEO_MODELS } from "@/lib/ai/model-catalog";
 
 // ── Studio Créatif : images + vidéos → assemblage & marketing pro ────────────────
 
@@ -52,7 +56,15 @@ export default function StudioPage() {
   // Couleurs de marque appliquées aux textes/CTA incrustés.
   const [brandColors, setBrandColors] = useState<{ text?: string; accent?: string }>({});
   const [pkg, setPkg] = useState<VideoMarketingPackage | null>(null);
+  // Graine poussée par le copilote IA vers PromptStudio.
+  const [seed, setSeed] = useState<{ nonce: number; kind?: "image" | "video"; prompt?: string; imageModel?: string; videoModel?: string; autorun?: boolean } | undefined>();
+  // Bandes-son/voix off générées dans le studio (réutilisables au rendu des cuts).
+  const [genAudios, setGenAudios] = useState<{ url: string; label: string }[]>([]);
+  // Durée cible du montage (transmise au plan marketing).
+  const [durationHint, setDurationHint] = useState(20);
   const [toast, setToast] = useState<{ message: string; key: number } | null>(null);
+  // Onglet du panneau « Créer avec l'IA » : copilote / visuel / audio.
+  const [genTab, setGenTab] = useState<"copilot" | "visual" | "audio">("copilot");
   const fileRef = useRef<HTMLInputElement>(null);
 
   const notify = (m: string) => setToast({ message: m, key: Date.now() });
@@ -71,6 +83,16 @@ export default function StudioPage() {
   }
   function removeAsset(url: string) {
     setAssets((prev) => prev.filter((a) => a.url !== url));
+  }
+  // Timeline : déplace un média dans l'ordre de montage.
+  function moveAsset(index: number, dir: -1 | 1) {
+    setAssets((prev) => {
+      const next = [...prev];
+      const j = index + dir;
+      if (j < 0 || j >= next.length) return prev;
+      [next[index], next[j]] = [next[j], next[index]];
+      return next;
+    });
   }
   function addUrl() {
     const u = urlInput.trim();
@@ -124,7 +146,7 @@ export default function StudioPage() {
       const res = await fetch("/api/video/marketize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ assets, assembly, objective, platforms, brandVoice: company.brandVoice, lang, companyId: company.id }),
+        body: JSON.stringify({ assets, assembly, objective, platforms, brandVoice: company.brandVoice, lang, companyId: company.id, durationHintSec: durationHint }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -203,8 +225,52 @@ export default function StudioPage() {
         }}
       />
 
-      {/* Génération par prompt (IA) — image ou vidéo, tous formats publiables */}
-      <PromptStudio onGenerated={(a) => setAssets((prev) => [...prev, a])} brandHints={brandHints} />
+      {/* ── CRÉER AVEC L'IA — un seul panneau, trois outils ── */}
+      <div className="studio-card overflow-hidden">
+        <div className="flex flex-wrap items-center gap-3 border-b border-hair px-4 py-3">
+          <span className="studio-badge">✦</span>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-ink">{t("Créer avec l'IA", "Create with AI")}</p>
+            <p className="text-2xs text-muted">{t("Décrivez — le studio génère visuels, vidéos, musiques et voix.", "Describe — the studio generates visuals, videos, music and voices.")}</p>
+          </div>
+          <div className="studio-seg w-full sm:w-auto">
+            <button type="button" data-active={genTab === "copilot"} onClick={() => setGenTab("copilot")} className="studio-seg-btn whitespace-nowrap">✦ {t("Copilote", "Copilot")}</button>
+            <button type="button" data-active={genTab === "visual"} onClick={() => setGenTab("visual")} className="studio-seg-btn whitespace-nowrap">🎬 {t("Visuel", "Visual")}</button>
+            <button type="button" data-active={genTab === "audio"} onClick={() => setGenTab("audio")} className="studio-seg-btn whitespace-nowrap">♪ {t("Musique & voix", "Music & voice")}</button>
+          </div>
+        </div>
+        <div className="p-4">
+          <div className={genTab === "copilot" ? "" : "hidden"}>
+            <StudioCopilot
+              studio="video"
+              currentPrompt={objective}
+              onApply={(s: CopilotSuggestion) => {
+                if (s.category === "music" || s.category === "voice") { setGenTab("audio"); return; }
+                setGenTab("visual");
+                setSeed({
+                  nonce: Date.now(),
+                  kind: s.category === "video" ? "video" : "image",
+                  prompt: s.prompt,
+                  imageModel: s.modelId && IMAGE_MODELS.some((m) => m.id === s.modelId) ? s.modelId : undefined,
+                  videoModel: s.modelId && VIDEO_MODELS.some((m) => m.id === s.modelId) ? s.modelId : undefined,
+                  autorun: true, // le copilote déclenche la génération directement
+                });
+              }}
+            />
+          </div>
+          <div className={genTab === "visual" ? "" : "hidden"}>
+            <PromptStudio onGenerated={(a) => setAssets((prev) => [...prev, a])} brandHints={brandHints} seed={seed} />
+          </div>
+          <div className={genTab === "audio" ? "" : "hidden"}>
+            <AudioStudio onGenerated={(url, k) => setGenAudios((prev) => [...prev, { url, label: k === "music" ? `Musique générée ${prev.length + 1}` : `Voix off générée ${prev.length + 1}` }])} />
+          </div>
+          {genAudios.length > 0 && (
+            <p className="mt-2 text-2xs text-muted">
+              ♪ {genAudios.length} {t("piste(s) générée(s) — disponibles comme bande-son au rendu des déclinaisons.", "generated track(s) — available as soundtrack when rendering cuts.")}
+            </p>
+          )}
+        </div>
+      </div>
 
       {/* Étape 1 : médias */}
       <StudioStep n={1} title={t("Vos médias (photos & vidéos)", "Your media (photos & videos)")}>
@@ -245,8 +311,14 @@ export default function StudioPage() {
           <div className="mt-3">
             <div className="mb-2 text-2xs text-muted">{imageCount} {t("image(s)", "image(s)")} · {videoCount} {t("vidéo(s)", "video(s)")}</div>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-              {assets.map((a) => (
+              {assets.map((a, ai) => (
                 <div key={a.url} className="group relative overflow-hidden rounded-lg border border-hair bg-canvas">
+                  {/* Ordre de montage (timeline) */}
+                  <span className="absolute bottom-1 left-1 z-10 rounded bg-page px-1.5 py-0.5 text-2xs font-bold text-white">{ai + 1}</span>
+                  <div className="absolute bottom-1 right-1 z-10 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                    <button onClick={() => moveAsset(ai, -1)} disabled={ai === 0} aria-label={t("Avancer dans la timeline", "Move earlier")} className="rounded bg-ink/70 px-1.5 py-0.5 text-2xs text-white disabled:opacity-30">◀</button>
+                    <button onClick={() => moveAsset(ai, 1)} disabled={ai === assets.length - 1} aria-label={t("Reculer dans la timeline", "Move later")} className="rounded bg-ink/70 px-1.5 py-0.5 text-2xs text-white disabled:opacity-30">▶</button>
+                  </div>
                   {a.kind === "image" ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={a.url} alt={a.name ?? ""} className="h-24 w-full object-cover" />
@@ -307,6 +379,12 @@ export default function StudioPage() {
             );
           })}
         </div>
+        {/* Durée cible du montage (timeline) */}
+        <label className="mt-4 flex items-center gap-3 text-xs text-muted">
+          {t("Durée cible du montage", "Target edit duration")}
+          <input type="range" min={6} max={60} step={2} value={durationHint} onChange={(e) => setDurationHint(Number(e.target.value))} className="flex-1 accent-page" />
+          <span className="w-10 text-right font-semibold text-ink">{durationHint}s</span>
+        </label>
       </StudioStep>
 
       <button
@@ -347,7 +425,7 @@ export default function StudioPage() {
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             {pkg.cuts.map((c) => (
-              <CutCard key={c.platform} cut={c} assets={pkg.assets} captions={pkg.captions} brandLogoUrl={brandLogoUrl} brandColors={brandColors} companyId={company.id} onCopy={copy} t={t} />
+              <CutCard key={c.platform} cut={c} assets={pkg.assets} captions={pkg.captions} brandLogoUrl={brandLogoUrl} brandColors={brandColors} companyId={company.id} onCopy={copy} t={t} extraTracks={genAudios} />
             ))}
           </div>
         </section>
@@ -381,8 +459,10 @@ function CutCard({
   companyId,
   onCopy,
   t,
+  extraTracks,
 }: {
   cut: PlatformCut;
+  extraTracks?: { url: string; label: string }[];
   assets: MediaAsset[];
   captions: CaptionSegment[];
   brandLogoUrl?: string;
@@ -399,6 +479,7 @@ function CutCard({
   const [caption, setCaption] = useState(cut.caption);
   const [overlays, setOverlays] = useState(cut.overlays);
   const [caps, setCaps] = useState<CaptionSegment[]>(captions);
+  const [burnSubs, setBurnSubs] = useState(captions.length > 0);
   const [musicId, setMusicId] = useState("none");
   const [customMusic, setCustomMusic] = useState("");
   const [withLogo, setWithLogo] = useState(true);
@@ -448,6 +529,17 @@ function CutCard({
   function setCapText(i: number, text: string) {
     setCaps((prev) => prev.map((c, j) => (j === i ? { ...c, text } : c)));
   }
+  function addCap() {
+    setCaps((prev) => {
+      const last = prev[prev.length - 1];
+      const start = last ? last.end : 0;
+      return [...prev, { start, end: start + 2.5, text: "" }];
+    });
+    setBurnSubs(true);
+  }
+  function removeCap(i: number) {
+    setCaps((prev) => prev.filter((_, j) => j !== i));
+  }
 
   // ── Rendu vidéo (Shotstack) ──────────────────────────────────────────────────
   const [rState, setRState] = useState<"idle" | "queued" | "rendering" | "done" | "failed" | "unsupported">("idle");
@@ -472,7 +564,7 @@ function CutCard({
       const res = await fetch("/api/video/render", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cut: editedCut, assets, captions: caps, logoUrl: withLogo ? brandLogoUrl : undefined, brandColors, companyId }),
+        body: JSON.stringify({ cut: editedCut, assets, captions: burnSubs ? caps.filter((c) => c.text.trim()) : [], logoUrl: withLogo ? brandLogoUrl : undefined, brandColors, companyId }),
       });
       const data = await res.json();
       if (!res.ok || !data.id) {
@@ -588,7 +680,14 @@ function CutCard({
 
       {renderable && (
         <Field label={t("🎵 Musique", "🎵 Music")}>
-          <select className="input w-full text-sm" value={musicId} onChange={(e) => { setMusicId(e.target.value); setCustomMusic(""); }}>
+          <select className="input w-full text-sm" value={musicId} onChange={(e) => {
+            const v = e.target.value;
+            if (v.startsWith("gen:")) { setMusicId("none"); setCustomMusic(v.slice(4)); return; }
+            setMusicId(v); setCustomMusic("");
+          }}>
+            {(extraTracks ?? []).map((tr) => (
+              <option key={tr.url} value={`gen:${tr.url}`}>♪ {tr.label} (IA)</option>
+            ))}
             {MUSIC_TRACKS.map((m) => (
               <option key={m.id} value={m.id}>{t(m.labelFr, m.labelEn)}</option>
             ))}
@@ -615,16 +714,28 @@ function CutCard({
         </Field>
       )}
 
-      {renderable && caps.length > 0 && (
-        <Field label={t("Sous-titres incrustés (modifiables)", "Burned-in subtitles (editable)")}>
-          <div className="space-y-1.5">
-            {caps.map((c, i) => (
-              <div key={i} className="flex items-center gap-2">
-                <span className="w-14 shrink-0 font-mono text-2xs text-primary">{c.start}-{c.end}s</span>
-                <input className="input flex-1 text-xs" value={c.text} onChange={(e) => setCapText(i, e.target.value)} />
-              </div>
-            ))}
+      {renderable && (
+        <Field label={t("Sous-titres", "Subtitles")}>
+          <div className="mb-1.5 flex items-center justify-between gap-2">
+            <label className="flex items-center gap-1.5 text-2xs text-muted">
+              <input type="checkbox" checked={burnSubs} onChange={(e) => setBurnSubs(e.target.checked)} className="h-3.5 w-3.5 accent-page" />
+              {t("Incruster dans la vidéo", "Burn into the video")}
+            </label>
+            <button type="button" onClick={addCap} className="btn-ghost text-2xs text-page">+ {t("Ajouter une ligne", "Add a line")}</button>
           </div>
+          {caps.length === 0 ? (
+            <p className="text-2xs text-muted">{t("Aucun sous-titre — ajoutez une ligne ou laissez l'IA les générer au plan suivant.", "No subtitles — add a line or let the AI generate them on the next plan.")}</p>
+          ) : (
+            <div className="space-y-1.5">
+              {caps.map((c, i) => (
+                <div key={i} className="flex items-center gap-1.5">
+                  <span className="w-14 shrink-0 text-right text-2xs tabular-nums text-muted">{c.start.toFixed(1)}–{c.end.toFixed(1)}s</span>
+                  <input className="input flex-1 text-xs" value={c.text} onChange={(e) => setCapText(i, e.target.value)} placeholder={t("Texte du sous-titre…", "Subtitle text…")} />
+                  <button type="button" onClick={() => removeCap(i)} aria-label={t("Supprimer", "Remove")} className="shrink-0 text-muted hover:text-danger-600">✕</button>
+                </div>
+              ))}
+            </div>
+          )}
         </Field>
       )}
 
@@ -662,13 +773,16 @@ function CutCard({
                 <a href={rUrl} target="_blank" rel="noopener noreferrer" download className="btn-secondary flex-1 justify-center text-2xs">
                   ⬇ {t("Télécharger", "Download")}
                 </a>
-                <a href={`/compose?media=${encodeURIComponent(rUrl)}&kind=video`} className="btn-primary flex-1 justify-center text-2xs">
-                  {t("Publier / Programmer →", "Publish / Schedule →")}
+                <a href={`/compose?media=${encodeURIComponent(rUrl)}&kind=video`} className="btn-secondary flex-1 justify-center text-2xs">
+                  {t("Ouvrir dans Composer", "Open in Composer")}
                 </a>
                 <button className="btn-ghost shrink-0 text-2xs" onClick={startRender}>
                   ↻ {t("Régénérer", "Re-render")}
                 </button>
               </div>
+
+              {/* Publier maintenant / programmer — directement depuis le studio */}
+              <PublishScheduler companyId={companyId} mediaUrl={rUrl} mediaKind="video" defaultText={(caption || hook || "").trim()} />
             </div>
           )}
           {rState === "unsupported" && (

@@ -4,10 +4,13 @@
 // LinkedIn connecté de la société → publier → analyser la stratégie.
 
 import { useCallback, useEffect, useState } from "react";
+import { addDays, format } from "date-fns";
 import { useCompany } from "@/lib/company-context";
 import { useT } from "@/lib/i18n";
 import { Spinner, BusyHint } from "@/components/ui/Spinner";
+import { DatePicker, TimePicker } from "@/components/ui/DateTimePicker";
 import { ArticleStudio } from "@/components/linkedin/ArticleStudio";
+import { LinkedInScheduler } from "@/components/linkedin/LinkedInScheduler";
 import { ConnectGuide } from "@/components/connect/ConnectGuide";
 
 interface Account {
@@ -57,12 +60,18 @@ export default function LinkedInPage() {
   const [analyzing, setAnalyzing] = useState(false);
 
   const [guide, setGuide] = useState(false);
-  const [tab, setTab] = useState<"publish" | "article">("publish");
+  const [tab, setTab] = useState<"publish" | "article" | "schedule">("publish");
 
-  // Onglet initial depuis l'URL (?tab=article) — ex. lien/redirection.
+  // Planification d'un post unique (onglet Publication)
+  const [schedDate, setSchedDate] = useState<Date>(() => addDays(new Date(), 1));
+  const [schedTime, setSchedTime] = useState("09:00");
+  const [scheduling, setScheduling] = useState(false);
+
+  // Onglet initial depuis l'URL (?tab=article|schedule) — ex. lien/redirection.
   useEffect(() => {
     try {
-      if (new URLSearchParams(window.location.search).get("tab") === "article") setTab("article");
+      const q = new URLSearchParams(window.location.search).get("tab");
+      if (q === "article" || q === "schedule") setTab(q);
     } catch { /* ignore */ }
   }, []);
 
@@ -131,6 +140,38 @@ export default function LinkedInPage() {
     } finally { setPublishing(false); }
   }
 
+  async function schedule() {
+    if (!text.trim()) { setPubMsg(t("Écrivez un texte.", "Write some text.")); return; }
+    setScheduling(true); setPubMsg(null);
+    try {
+      const r = await fetch("/api/scheduled-posts", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          companyId,
+          platform: "linkedin",
+          title: text.trim().split("\n")[0].slice(0, 80) || "Post LinkedIn",
+          body: text,
+          date: format(schedDate, "yyyy-MM-dd"),
+          time: schedTime,
+          status: "scheduled",
+          source: "manual",
+        }),
+      });
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}));
+        setPubMsg(d.error ?? t("Échec de la planification.", "Scheduling failed."));
+        return;
+      }
+      setPubMsg(t(
+        `Publication planifiée pour le ${format(schedDate, "yyyy-MM-dd")} à ${schedTime} ✓ — retrouvez-la dans l'onglet Programmation.`,
+        `Post scheduled for ${format(schedDate, "yyyy-MM-dd")} at ${schedTime} ✓ — see the Scheduling tab.`
+      ));
+      setText(""); setLink("");
+    } catch (e) {
+      setPubMsg(e instanceof Error ? e.message : t("Échec de la planification.", "Scheduling failed."));
+    } finally { setScheduling(false); }
+  }
+
   async function analyze() {
     setAnalyzing(true);
     try {
@@ -185,10 +226,11 @@ export default function LinkedInPage() {
         </div>
       )}
 
-      {/* Onglets : Publication & stratégie | Article & visuels */}
+      {/* Onglets : Publication & stratégie | Programmation | Article & visuels */}
       <div className="flex gap-1 rounded-xl border border-hair bg-card p-1">
         {([
           { id: "publish", label: t("Publication & stratégie", "Publishing & strategy") },
+          { id: "schedule", label: t("Programmation", "Scheduling") },
           { id: "article", label: t("Article & visuels", "Article & visuals") },
         ] as const).map((tb) => (
           <button
@@ -204,6 +246,8 @@ export default function LinkedInPage() {
       </div>
 
       {tab === "article" && <ArticleStudio />}
+
+      {tab === "schedule" && <LinkedInScheduler />}
 
       {tab === "publish" && (
       <>
@@ -277,10 +321,32 @@ export default function LinkedInPage() {
             <input type="checkbox" checked={useMemory} onChange={(e) => setUseMemory(e.target.checked)} className="h-3.5 w-3.5 accent-primary-600" />
             {t("S'appuyer sur la marque (RAG)", "Ground in brand (RAG)")}
           </label>
-          <button onClick={publish} disabled={publishing || !canEdit} title={!canEdit ? t("Lecture seule", "View only") : undefined} className="btn-primary ml-auto inline-flex items-center gap-1.5 text-sm disabled:opacity-50">
+          <button onClick={publish} disabled={publishing || scheduling || !canEdit} title={!canEdit ? t("Lecture seule", "View only") : undefined} className="btn-primary ml-auto inline-flex items-center gap-1.5 text-sm disabled:opacity-50">
             {publishing && <Spinner size={16} className="text-white" />}
             {publishing ? t("Publication…", "Publishing…") : t("Publier maintenant", "Publish now")}
           </button>
+        </div>
+
+        {/* Planifier pour plus tard */}
+        <div className="mt-3 flex flex-wrap items-end gap-3 rounded-xl border border-hair bg-canvas p-3">
+          <div className="w-44">
+            <p className="section-label">{t("Date", "Date")}</p>
+            <div className="mt-1"><DatePicker value={schedDate} onChange={setSchedDate} /></div>
+          </div>
+          <div className="w-24">
+            <p className="section-label">{t("Heure", "Time")}</p>
+            <div className="mt-1"><TimePicker value={schedTime} onChange={setSchedTime} /></div>
+          </div>
+          <button onClick={schedule} disabled={scheduling || publishing || !canEdit} title={!canEdit ? t("Lecture seule", "View only") : undefined} className="btn-secondary ml-auto inline-flex items-center gap-1.5 text-sm disabled:opacity-50">
+            {scheduling && <Spinner size={16} className="text-current" />}
+            {scheduling ? t("Planification…", "Scheduling…") : t("📅 Planifier", "📅 Schedule")}
+          </button>
+          <p className="w-full text-2xs text-muted">
+            {t(
+              "Les publications programmées partent automatiquement (vérification toutes les 10 min). File d'attente dans l'onglet Programmation.",
+              "Scheduled posts go out automatically (checked every 10 min). Queue in the Scheduling tab."
+            )}
+          </p>
         </div>
         {publishing && <BusyHint label={t("Publication sur LinkedIn…", "Publishing to LinkedIn…")} eta="~5 s" />}
         {pubMsg && <p className="rounded-lg bg-canvas px-3 py-2 text-xs text-ink">{pubMsg}</p>}

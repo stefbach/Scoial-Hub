@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { Tabs } from "@/components/ui/Tabs";
 import { AiTextPanel, AiVisualsPanel } from "@/components/ui/AiPanel";
 import { CreativeInspiration } from "@/components/compose/CreativeInspiration";
+import { ComposeAgent, type ComposeNet } from "@/components/compose/ComposeAgent";
 import { MediaEditor } from "@/components/compose/MediaEditor";
 import { PostPreview, type PreviewPlatform } from "@/components/compose/PostPreview";
 import BrandKitPanel from "@/components/studio/BrandKitPanel";
@@ -39,13 +40,14 @@ const DIFFUSION_LANGUAGES = [
 ] as const;
 
 const platformLabel = (p: string) =>
-  p === "facebook" ? "Facebook" : p === "instagram" ? "Instagram" : "LinkedIn";
+  p === "facebook" ? "Facebook" : p === "instagram" ? "Instagram" : p === "tiktok" ? "TikTok" : "LinkedIn";
 
 /** Couleur de marque officielle par réseau (alignée sur les tokens Tailwind). */
 const PLATFORM_DOT: Record<string, string> = {
   facebook: "#1877f2",
   instagram: "#e1306c",
   linkedin: "#0a66c2",
+  tiktok: "#010101",
 };
 
 export default function ComposePage() {
@@ -79,12 +81,19 @@ function ComposeContent() {
   const source = draft ?? post ?? template ?? duplicateAsSource;
 
   const [body, setBody] = useState(source?.body ?? "");
+  // Textes ADAPTÉS par réseau (écrits par l'agent IA ou édités à la main).
+  // `body` reste le texte commun (repli quand un réseau n'a pas de variante).
+  const [bodies, setBodies] = useState<Partial<Record<ComposeNet, string>>>({});
+  // TikTok : cible de préparation/programmation (publication auto à venir).
+  const [tiktokOn, setTiktokOn] = useState(false);
+  // RAG opt-in pour l'agent : s'appuyer sur la mémoire stratégique de la marque.
+  const [useMemory, setUseMemory] = useState(false);
   const [selected, setSelected] = useState<string[]>(() => {
     if (source) {
       const acc = data.accounts.find((a) => a.platform === source.platform);
-      return acc ? [acc.id] : data.accounts.map((a) => a.id);
+      return acc ? [acc.id] : data.accounts.filter((a) => a.platform !== "linkedin").map((a) => a.id);
     }
-    return data.accounts.map((a) => a.id);
+    return data.accounts.filter((a) => a.platform !== "linkedin").map((a) => a.id);
   });
   const scheduleSource = draft ?? post; // templates carry no schedule
   const [when, setWhen] = useState<"now" | "schedule">("schedule");
@@ -119,15 +128,17 @@ function ComposeContent() {
   const toggle = (id: string) =>
     setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
 
-  const count = selected.length;
+  const count = selected.length + (tiktokOn ? 1 : 0);
   const noneSelected = count === 0;
 
   const selectedPlatforms = useMemo(
-    () =>
-      data.accounts
+    () => [
+      ...data.accounts
         .filter((a) => selected.includes(a.id))
         .map((a) => a.platform),
-    [data.accounts, selected]
+      ...(tiktokOn ? (["tiktok"] as const) : []),
+    ],
+    [data.accounts, selected, tiktokOn]
   );
 
   // Keep the preview platform in sync with what's actually selected.
@@ -140,8 +151,9 @@ function ComposeContent() {
   // Réseaux distincts réellement ciblés (onglets d'aperçu et bascule).
   // On ne propose en aperçu que ce qui est sélectionné, dans l'ordre canonique.
   const previewPlatforms = useMemo(() => {
-    const order: PreviewPlatform[] = ["facebook", "instagram", "linkedin"];
-    const present = new Set(previewAccounts.map((a) => a.platform));
+    const order: PreviewPlatform[] = ["facebook", "instagram", "tiktok", "linkedin"];
+    const present = new Set<string>(previewAccounts.map((a) => a.platform));
+    if (tiktokOn) present.add("tiktok");
     const list = order.filter((p) => present.has(p));
     return list.length ? list : (["facebook"] as PreviewPlatform[]);
   }, [previewAccounts]);
@@ -173,15 +185,17 @@ function ComposeContent() {
     const postTime = mode === "now" ? format(now, "HH:mm") : time;
 
     const results = await Promise.all(
-      selectedPlatforms.map((platform) =>
-        fetch("/api/scheduled-posts", {
+      selectedPlatforms.map((platform) => {
+        // Texte ADAPTÉ au réseau si l'agent/l'utilisateur en a produit un.
+        const netBody = (bodies[platform as ComposeNet] ?? "").trim() || body;
+        return fetch("/api/scheduled-posts", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             companyId: company.id,
             platform,
-            title: title || t("(Sans titre)", "(Untitled)"),
-            body,
+            title: (netBody.slice(0, 48) + (netBody.length > 48 ? "…" : "")) || t("(Sans titre)", "(Untitled)"),
+            body: netBody,
             date: postDate,
             time: postTime,
             status,
@@ -190,8 +204,8 @@ function ComposeContent() {
             // Instagram, et utilisé aussi pour Facebook/LinkedIn.
             media: upload ? { kind: upload.kind, url: upload.url } : undefined,
           }),
-        })
-      )
+        });
+      })
     );
     return results.every((res) => res.ok);
   };
@@ -332,7 +346,7 @@ function ComposeContent() {
               </span>
             </div>
             <div className="flex flex-wrap gap-2">
-              {data.accounts.map((a) => {
+              {data.accounts.filter((a) => a.platform !== "linkedin").map((a) => {
                 const on = selected.includes(a.id);
                 return (
                   <button
@@ -356,10 +370,28 @@ function ComposeContent() {
                   </button>
                 );
               })}
+              {/* TikTok : préparation + programmation (publication auto à venir) */}
+              <button
+                onClick={() => setTiktokOn((v) => !v)}
+                aria-pressed={tiktokOn}
+                title={t("TikTok — contenu préparé et programmé ici ; publication depuis l'app TikTok", "TikTok — content prepared & scheduled here; publish from the TikTok app")}
+                className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
+                  tiktokOn
+                    ? "bg-ai-textbg text-ai-text ring-1 ring-ai-text/30 shadow-xs"
+                    : "border border-hair bg-card text-muted hover:bg-canvas hover:text-ink"
+                }`}
+              >
+                <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: PLATFORM_DOT.tiktok }} />
+                <span className="font-semibold">TikTok</span>
+              </button>
             </div>
-            {noneSelected && (
+            <p className="mt-2 text-2xs text-muted">
+              {t("LinkedIn a son espace dédié →", "LinkedIn has its dedicated space →")}{" "}
+              <a href="/linkedin" className="font-medium text-page hover:underline">{t("Espace LinkedIn", "LinkedIn space")}</a>
+            </p>
+            {noneSelected && !tiktokOn && (
               <p className="mt-2 text-2xs text-danger-600">
-                {t("Sélectionnez au moins un compte pour publier.", "Select at least one account to publish.")}
+                {t("Sélectionnez au moins un réseau pour publier.", "Select at least one network to publish.")}
               </p>
             )}
           </div>
@@ -369,11 +401,25 @@ function ComposeContent() {
             <div className="section-label mb-2.5">{t("Contenu de la publication", "Post content")}</div>
             <Tabs
               tabs={[
-                { id: "all", label: t("Toutes les plateformes", "All platforms"), content: <ContentBox value={body} onChange={setBody} /> },
-                { id: "fb", label: "Facebook", content: <ContentBox value={body} onChange={setBody} /> },
-                { id: "ig", label: "Instagram", content: <ContentBox value={body} onChange={setBody} /> },
+                { id: "all", label: t("✦ Commun", "✦ Common"), content: <ContentBox value={body} onChange={setBody} /> },
+                ...(["facebook", "instagram", "tiktok"] as ComposeNet[])
+                  .filter((n) => selectedPlatforms.includes(n))
+                  .map((n) => ({
+                    id: n,
+                    label: `${platformLabel(n)}${(bodies[n] ?? "").trim() ? " ●" : ""}`,
+                    content: (
+                      <ContentBox
+                        value={bodies[n] ?? ""}
+                        onChange={(v: string) => setBodies((prev) => ({ ...prev, [n]: v }))}
+                        placeholder={t(`Texte spécifique ${platformLabel(n)} (sinon le texte commun est utilisé)…`, `Network-specific text for ${platformLabel(n)} (falls back to the common text)…`)}
+                      />
+                    ),
+                  })),
               ]}
             />
+            <p className="mt-1.5 text-2xs text-muted">
+              {t("L'agent IA remplit automatiquement un texte adapté à chaque réseau ; vous pouvez tout retoucher.", "The AI agent fills a tailored text per network; you can edit everything.")}
+            </p>
           </div>
 
           {/* Langue de diffusion — langue dans laquelle l'IA rédige le contenu */}
@@ -412,6 +458,25 @@ function ComposeContent() {
               </select>
             </label>
           </div>
+
+          {/* ── L'AGENT DE PUBLICATION — le cœur de Compose ── */}
+          <ComposeAgent
+            networks={(["facebook", "instagram", "tiktok"] as ComposeNet[]).filter((n) => selectedPlatforms.includes(n))}
+            useMemory={useMemory}
+            hasMedia={Boolean(upload)}
+            currentTexts={bodies}
+            onTexts={(texts) => {
+              setBodies((prev) => ({ ...prev, ...texts }));
+              // Le texte commun reprend la 1re variante (utile pour l'aperçu).
+              const first = texts.facebook ?? texts.instagram ?? texts.tiktok;
+              if (first) setBody(first);
+            }}
+            onMedia={(m) => setUpload({ url: m.url, name: m.kind === "video" ? "ai-video" : "ai-visual", size: 0, kind: m.kind })}
+          />
+          <label className="-mt-3 flex items-center gap-2 px-1 text-2xs text-muted">
+            <input type="checkbox" checked={useMemory} onChange={(e) => setUseMemory(e.target.checked)} className="h-3.5 w-3.5 accent-page" />
+            {t("S'appuyer sur la mémoire de marque (RAG) — veille, ADN, analyses", "Use brand memory (RAG) — watch, DNA, analyses")}
+          </label>
 
           {/* Brand kit persistant — logo / charte / palette réutilisés partout */}
           <BrandKitPanel companyId={company.id} brandName={company.name} onPromptHints={setBrandHints} />
@@ -566,7 +631,7 @@ function ComposeContent() {
   );
 }
 
-function ContentBox({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+function ContentBox({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder?: string }) {
   return (
     <textarea
       value={value}

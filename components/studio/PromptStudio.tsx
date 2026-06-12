@@ -82,10 +82,13 @@ interface ResultState {
 export default function PromptStudio({
   onGenerated,
   brandHints,
+  seed,
 }: {
   onGenerated: (asset: MediaAsset) => void;
   /** Indications de style issues du brand kit (injectées dans le prompt). */
   brandHints?: string;
+  /** Graine poussée par le copilote IA (prompt/modèle/type). */
+  seed?: { nonce: number; kind?: "image" | "video"; prompt?: string; imageModel?: string; videoModel?: string; autorun?: boolean };
 }) {
   const t = useT();
   const { company } = useCompany();
@@ -95,6 +98,23 @@ export default function PromptStudio({
   const [imageModel, setImageModel] = useState(DEFAULT_IMAGE_MODEL_ID);
   const [videoModel, setVideoModel] = useState(DEFAULT_VIDEO_MODEL_ID);
   const [prompt, setPrompt] = useState("");
+
+  // Le copilote pousse une graine → on remplit le prompt/modèle/type.
+  useEffect(() => {
+    if (!seed) return;
+    if (seed.kind) setKind(seed.kind);
+    if (seed.prompt) setPrompt(seed.prompt);
+    if (seed.imageModel) setImageModel(seed.imageModel);
+    if (seed.videoModel) setVideoModel(seed.videoModel);
+    // Le copilote DÉCLENCHE la génération directement (autorun).
+    if (seed.autorun && seed.prompt) {
+      void generate({ prompt: seed.prompt, kind: seed.kind, imageModel: seed.imageModel, videoModel: seed.videoModel });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seed?.nonce]);
+
+  // Durée vidéo souhaitée (selon modèle : 5/8/10 s).
+  const [videoSeconds, setVideoSeconds] = useState(8);
   const [improving, setImproving] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -210,8 +230,12 @@ export default function PromptStudio({
     return undefined;
   }
 
-  async function generate() {
-    const base = prompt.trim();
+  // `o` permet au copilote de générer immédiatement avec SES valeurs (autorun).
+  async function generate(o?: { prompt?: string; kind?: Kind; imageModel?: string; videoModel?: string }) {
+    const base = (o?.prompt ?? prompt).trim();
+    const effKind = o?.kind ?? kind;
+    const effImageModel = o?.imageModel ?? imageModel;
+    const effVideoModel = o?.videoModel ?? videoModel;
     if (!base || generating) return;
     if (!selected) return;
     // Injecte le style de marque (brand kit) pour des visuels cohérents.
@@ -221,7 +245,7 @@ export default function PromptStudio({
     setResult(null);
 
     try {
-      if (kind === "image") {
+      if (effKind === "image") {
         const res = await fetch("/api/ai/generate-image", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -231,7 +255,7 @@ export default function PromptStudio({
             platform: selected.platform,
             placement: selected.placement,
             n: 1,
-            model: imageModel,
+            model: effImageModel,
           }),
         });
         const data = await res.json().catch(() => ({}));
@@ -261,7 +285,8 @@ export default function PromptStudio({
           prompt: idea,
           aspect: selected.aspect,
           platform: selected.platform,
-          model: videoModel,
+          model: effVideoModel,
+          seconds: videoSeconds,
           companyId: company.id,
         });
         if (r.simulated) {
@@ -375,6 +400,20 @@ export default function PromptStudio({
         )}
       </div>
 
+      {/* Paramètre avancé : durée souhaitée de la vidéo */}
+      {kind === "video" && (
+        <div className="mt-2 flex items-center gap-1.5 text-2xs text-muted">
+          {t("Durée", "Duration")}
+          {[5, 8, 10].map((s) => (
+            <button key={s} type="button" onClick={() => setVideoSeconds(s)}
+              className={`rounded-full px-2.5 py-1 font-medium ${videoSeconds === s ? "bg-page text-white" : "bg-canvas text-muted ring-1 ring-hair hover:text-ink"}`}>
+              {s}s
+            </button>
+          ))}
+          <span className="ml-1 opacity-70">{t("(selon le modèle)", "(model-dependent)")}</span>
+        </div>
+      )}
+
       {/* Prompt */}
       <div className="mb-2">
         <label className="mb-1 block text-2xs font-semibold uppercase tracking-wide text-muted">
@@ -419,7 +458,7 @@ export default function PromptStudio({
         <button
           type="button"
           className="btn-primary text-sm"
-          onClick={generate}
+          onClick={() => generate()}
           disabled={generating || improving || !prompt.trim()}
         >
           {generating ? (

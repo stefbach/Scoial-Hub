@@ -52,6 +52,55 @@ html[data-theme="light"] {
   --color-hair:    228 223 240;  /* bordures lavande discrètes (#e4dff0) */
 }
 
+/* ── Thème clair — tuiles & accents « callout » ─────────────────────────
+   Les couleurs sémantiques (primary-50/100/200, success/warning/danger-50,
+   ai-textbg/visualbg) sont calibrées pour le SOMBRE : ce sont des tuiles
+   FONCÉES avec un texte clair. Sur fond blanc, elles deviennent des pavés
+   vifs/illisibles. On les remappe ici en tuiles CLAIRES + texte foncé pour
+   garder le même langage visuel, en douceur, et un contraste lisible.
+   (Corrige #1 composer, #20 pages, #22/#23 agents, #5 autocomplétion.)   */
+html[data-theme="light"] {
+  /* Tuiles violettes (états sélectionnés / callouts IA) */
+  --tile-primary-50:  245 243 255;  /* lavande très clair  */
+  --tile-primary-100: 237 233 254;
+  --tile-primary-200: 221 214 254;  /* bordures douces     */
+  --tile-primary-text: 109 40 217;  /* #6d28d9 — texte violet lisible */
+
+  /* IA — fond lavande clair + texte violet profond */
+  --tile-ai-bg:   243 240 255;
+  --tile-ai-text: 109 40 217;
+
+  /* Sémantiques (tuiles claires + textes foncés) */
+  --tile-success-bg: 220 252 231; --tile-success-text: 21 128 61;
+  --tile-warning-bg: 254 243 199; --tile-warning-text: 146 64 14;
+  --tile-danger-bg:  254 226 226; --tile-danger-text:  185 28 28;
+  --tile-danger-border: 254 202 202;
+}
+
+/* On n'applique les remaps QUE sur le thème clair, via les classes utilitaires
+   réellement utilisées dans l'app. Cela évite de toucher au thème sombre. */
+html[data-theme="light"] .bg-primary-50  { background-color: rgb(var(--tile-primary-50)); }
+html[data-theme="light"] .bg-primary-100 { background-color: rgb(var(--tile-primary-100)); }
+html[data-theme="light"] .border-primary-100 { border-color: rgb(var(--tile-primary-100)); }
+html[data-theme="light"] .border-primary-200 { border-color: rgb(var(--tile-primary-200)); }
+html[data-theme="light"] .text-primary-600,
+html[data-theme="light"] .text-primary-700 { color: rgb(var(--tile-primary-text)); }
+html[data-theme="light"] .ring-primary-200 { --tw-ring-color: rgb(var(--tile-primary-200)); }
+
+html[data-theme="light"] .bg-ai-textbg,
+html[data-theme="light"] .bg-ai-visualbg { background-color: rgb(var(--tile-ai-bg)); }
+html[data-theme="light"] .text-ai-text,
+html[data-theme="light"] .text-ai-visual { color: rgb(var(--tile-ai-text)); }
+
+html[data-theme="light"] .bg-success-50  { background-color: rgb(var(--tile-success-bg)); }
+html[data-theme="light"] .text-success-600,
+html[data-theme="light"] .text-success-700 { color: rgb(var(--tile-success-text)); }
+html[data-theme="light"] .bg-warning-50  { background-color: rgb(var(--tile-warning-bg)); }
+html[data-theme="light"] .text-warning-700 { color: rgb(var(--tile-warning-text)); }
+html[data-theme="light"] .bg-danger-50   { background-color: rgb(var(--tile-danger-bg)); }
+html[data-theme="light"] .text-danger-700 { color: rgb(var(--tile-danger-text)); }
+html[data-theme="light"] .border-danger-200 { border-color: rgb(var(--tile-danger-border)); }
+
 /* Ajustements clair : les voiles « blanc alpha » pensés pour le sombre
    deviennent des voiles encre très légers, et le héros studio s'éclaircit. */
 html[data-theme="light"] .studio-hero {
@@ -70,6 +119,19 @@ html[data-theme="light"] .studio-card {
 }
 html[data-theme="light"] .studio-seg {
   background: rgb(28 21 46 / 0.03);
+}
+
+/* ── Confirm scrim — voile dégradé progressif + flou ────────────────────
+   Remplace le « rectangle gris plat » derrière les pop-ups de confirmation
+   (cf. #2 Programmés) par un fond dégradé doux avec un flou progressif, qui
+   met le focus sur la boîte de dialogue sans pavé opaque.                  */
+.confirm-scrim {
+  background:
+    radial-gradient(120% 90% at 50% 50%, rgb(var(--color-ink) / 0.10), transparent 70%),
+    linear-gradient(180deg, rgb(var(--color-ink) / 0.42), rgb(var(--color-ink) / 0.30));
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  animation: fadeIn 160ms ease-out both;
 }
 
 /* ── Base ──────────────────────────────────────────────────────────── */

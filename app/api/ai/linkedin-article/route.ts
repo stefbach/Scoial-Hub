@@ -281,7 +281,7 @@ ${JSON.stringify({ title: a.title, hook: a.hook, body: a.body, keyTakeaways: a.k
  * « termine par une question »…) et renvoie l'article révisé — toujours
  * COMPLET et sous la limite LinkedIn (condensé si besoin, jamais tronqué).
  */
-async function reviseArticle(body: Body, client: Anthropic): Promise<{ article: ArticleResult; aiGenerated: boolean }> {
+async function reviseArticle(body: Body, client: Anthropic): Promise<{ article: ArticleResult; aiGenerated: boolean; changed: boolean }> {
   const cur = body.article;
   if (!cur) throw new Error("article manquant pour la révision");
   const lang = langName(body.language ?? "fr");
@@ -292,7 +292,7 @@ async function reviseArticle(body: Body, client: Anthropic): Promise<{ article: 
     .map((m) => `${m.role === "user" ? "DEMANDE" : "ASSISTANT"} : ${m.content}`)
     .join("\n");
 
-  const prompt = `Tu ajustes un article LinkedIn EXISTANT selon la demande de l'utilisateur. Tu NE repars PAS de zéro : tu modifies l'article fourni en respectant la demande, et tu gardes tout le reste cohérent.
+  const prompt = `Tu ajustes un article LinkedIn EXISTANT selon la demande de l'utilisateur. Tu NE repars PAS de zéro : tu modifies l'article fourni en respectant la demande, et tu RECOPIES INTÉGRALEMENT les champs non concernés.
 
 ${histText ? `HISTORIQUE DES ÉCHANGES :\n${histText}\n` : ""}
 DEMANDE ACTUELLE : ${instruction}
@@ -303,32 +303,39 @@ ${JSON.stringify({ title: cur.title, hook: cur.hook, body: cur.body, keyTakeaway
 CONTRAINTE LINKEDIN (impérative) : le post complet (title + hook + body + keyTakeaways + cta + hashtags) doit rester COMPLET et tenir en MOINS de 3000 caractères (vise ~${LINKEDIN_CHAR_BUDGET}). Termine toujours proprement, jamais de « … ». Langue : ${lang}.
 TYPOGRAPHIE : n'utilise JAMAIS de tiret cadratin (—) ni demi-cadratin (–).
 
-Réponds UNIQUEMENT par un objet JSON valide (même schéma), sans aucun texte autour :
+IMPÉRATIF : réponds UNIQUEMENT par un objet JSON valide complet (même schéma), AUCUN texte autour, pas de bloc \`\`\`, échappe les guillemets et sauts de ligne :
 {"title":"...","hook":"...","body":"...","keyTakeaways":["..."],"hashtags":["..."],"cta":"..."}`;
 
   const res = await client.messages.create({
     model: env.anthropicModel,
-    max_tokens: 3500,
+    max_tokens: 3800,
+    temperature: 0.5,
     system: SYSTEM,
     messages: [{ role: "user", content: prompt }],
   });
   const raw = res.content.filter((b) => b.type === "text").map((b) => (b as { type: "text"; text: string }).text).join("");
   const m = raw.match(/\{[\s\S]*\}/);
-  if (!m) return { article: cur, aiGenerated: false };
-  const p = JSON.parse(m[0]) as Partial<ArticleResult>;
+  let parsed: Partial<ArticleResult> | null = null;
+  if (m) {
+    try { parsed = JSON.parse(m[0]) as Partial<ArticleResult>; } catch { parsed = null; }
+  }
+  // Pas de JSON exploitable → on ne prétend PAS avoir ajusté (changed:false).
+  if (!parsed) return { article: cur, aiGenerated: false, changed: false };
+
   let article = sanitizeArticle({
-    title: p.title ?? cur.title,
-    hook: p.hook ?? cur.hook,
-    body: p.body ?? cur.body,
-    keyTakeaways: (p.keyTakeaways ?? cur.keyTakeaways).slice(0, 6),
-    hashtags: (p.hashtags ?? cur.hashtags).slice(0, 6),
-    cta: p.cta ?? cur.cta,
+    title: parsed.title ?? cur.title,
+    hook: parsed.hook ?? cur.hook,
+    body: parsed.body ?? cur.body,
+    keyTakeaways: (parsed.keyTakeaways ?? cur.keyTakeaways).slice(0, 6),
+    hashtags: (parsed.hashtags ?? cur.hashtags).slice(0, 6),
+    cta: parsed.cta ?? cur.cta,
     visualPrompts: cur.visualPrompts,
   });
   if (assembledPostText(article).length > LINKEDIN_CHAR_BUDGET) {
     article = await condenseToFit(article, client, lang);
   }
-  return { article, aiGenerated: true };
+  const changed = assembledPostText(article) !== assembledPostText(cur);
+  return { article, aiGenerated: true, changed };
 }
 
 async function generateArticle(body: Body, brand: BrandContext): Promise<{ article: ArticleResult; aiGenerated: boolean }> {
@@ -445,8 +452,8 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "IA non configurée (ANTHROPIC_API_KEY)." }, { status: 503 });
       }
       const client = new Anthropic({ apiKey: env.anthropicKey });
-      const { article, aiGenerated } = await reviseArticle(body, client);
-      return NextResponse.json({ article, aiGenerated, length: assembledPostText(article).length });
+      const { article, aiGenerated, changed } = await reviseArticle(body, client);
+      return NextResponse.json({ article, aiGenerated, changed, length: assembledPostText(article).length });
     }
 
     const { article, aiGenerated } = await generateArticle(body, brand);

@@ -146,8 +146,17 @@ export function ArticleStudio() {
       });
       const d = await readJson(r);
       if (!r.ok) throw new Error((d.error as string) || t("Échec de l'ajustement.", "Adjustment failed."));
-      setArticle(d.article as Article);
-      setChat((c) => [...c, { role: "assistant", content: t("Article ajusté ✓", "Article adjusted ✓") }]);
+      if (d.changed === false) {
+        // L'IA n'a pas pu appliquer la demande : on le dit clairement, on ne
+        // remplace PAS l'article par une copie identique.
+        setChat((c) => [...c, { role: "assistant", content: t("Je n'ai pas réussi à appliquer ce changement. Reformulez (ex. « raccourcis l'intro de 2 phrases »).", "I couldn't apply that change. Try rephrasing (e.g. “shorten the intro by 2 sentences”).") }]);
+        return;
+      }
+      // Nouvel objet (référence fraîche) → l'aperçu « à publier » se met à jour.
+      const next = { ...(d.article as Article) };
+      setArticle(next);
+      const newLen = toPlainText(next).length;
+      setChat((c) => [...c, { role: "assistant", content: t(`Article ajusté ✓ (${newLen} caractères)`, `Article adjusted ✓ (${newLen} characters)`) }]);
     } catch (e) {
       setChat((c) => [...c, { role: "assistant", content: t("Désolé, l'ajustement a échoué. Reformulez ?", "Sorry, the adjustment failed. Try rephrasing?") }]);
       setError(e instanceof Error ? e.message : t("Échec.", "Failed."));

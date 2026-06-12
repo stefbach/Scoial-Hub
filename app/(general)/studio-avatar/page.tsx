@@ -9,6 +9,7 @@ import { useCompany } from "@/lib/company-context";
 import { StudioHero, StudioStep, Segmented } from "@/components/studio/StudioUI";
 import { StudioCopilot, type CopilotSuggestion } from "@/components/studio/StudioCopilot";
 import { ImageEditor } from "@/components/studio/ImageEditor";
+import { PublishScheduler } from "@/components/studio/PublishScheduler";
 import { Tilt3D } from "@/components/visual/Tilt3D";
 import { IconMask, IconClapper } from "@/components/visual/Icons";
 import { Spinner, BusyHint } from "@/components/ui/Spinner";
@@ -592,8 +593,11 @@ export default function StudioAvatarPage() {
                 </a>
                 <div className="flex gap-2">
                   <a href="/media" className="btn-ghost flex-1 justify-center text-xs">{t("📚 Médiathèque", "📚 Media library")}</a>
-                  <a href={`/compose?media=${encodeURIComponent(videoUrl)}&kind=video`} className="btn-primary flex-1 justify-center text-xs">{t("Publier / Programmer →", "Publish / Schedule →")}</a>
+                  <a href={`/compose?media=${encodeURIComponent(videoUrl)}&kind=video`} className="btn-secondary flex-1 justify-center text-xs">{t("Ouvrir dans Composer", "Open in Composer")}</a>
                 </div>
+
+                {/* Publier maintenant / programmer — directement depuis le studio */}
+                <PublishScheduler companyId={company.id} mediaUrl={videoUrl} mediaKind="video" defaultText={script.split("\n")[0]?.slice(0, 180) ?? ""} />
                 {!savedToLibrary && (
                   <button onClick={() => videoUrl && saveToLibrary(videoUrl)} className="btn-ghost w-full justify-center text-2xs text-muted">
                     {t("Réessayer l'enregistrement en médiathèque", "Retry saving to library")}

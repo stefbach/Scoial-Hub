@@ -23,6 +23,7 @@ import BrandKitPanel from "@/components/studio/BrandKitPanel";
 import { StudioHero, StudioStep } from "@/components/studio/StudioUI";
 import { StudioCopilot, type CopilotSuggestion } from "@/components/studio/StudioCopilot";
 import { AudioStudio } from "@/components/studio/AudioStudio";
+import { PublishScheduler } from "@/components/studio/PublishScheduler";
 import { IconFilm } from "@/components/visual/Icons";
 import { IMAGE_MODELS, VIDEO_MODELS } from "@/lib/ai/model-catalog";
 
@@ -542,41 +543,6 @@ function CutCard({
 
   // ── Rendu vidéo (Shotstack) ──────────────────────────────────────────────────
   const [rState, setRState] = useState<"idle" | "queued" | "rendering" | "done" | "failed" | "unsupported">("idle");
-  // Planification directe de la vidéo rendue (sans repasser par Composer).
-  const [schedOpen, setSchedOpen] = useState(false);
-  const [schedNets, setSchedNets] = useState<string[]>(["instagram"]);
-  const [schedDate, setSchedDate] = useState(() => new Date(Date.now() + 86400000).toISOString().slice(0, 10));
-  const [schedTime, setSchedTime] = useState("09:00");
-  const [schedBusy, setSchedBusy] = useState(false);
-  const [schedMsg, setSchedMsg] = useState<string | null>(null);
-
-  async function scheduleRendered() {
-    if (!rUrl || schedBusy || schedNets.length === 0) return;
-    setSchedBusy(true); setSchedMsg(null);
-    try {
-      const text = (caption || hook || "").trim();
-      const results = await Promise.all(schedNets.map((platform) =>
-        fetch("/api/scheduled-posts", {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            companyId, platform,
-            title: (text.slice(0, 48) || "Vidéo studio") + (text.length > 48 ? "…" : ""),
-            body: text, date: schedDate, time: schedTime,
-            status: "scheduled", source: "manual",
-            media: { kind: "video", url: rUrl },
-          }),
-        })
-      ));
-      if (results.every((r) => r.ok)) {
-        setSchedMsg(t(`✓ Programmée le ${schedDate} à ${schedTime} — visible dans Programmés.`, `✓ Scheduled for ${schedDate} at ${schedTime} — see Scheduled.`));
-        setSchedOpen(false);
-      } else {
-        setSchedMsg(t("Échec de la programmation d'au moins un réseau.", "Failed to schedule at least one network."));
-      }
-    } catch {
-      setSchedMsg(t("Erreur réseau.", "Network error."));
-    } finally { setSchedBusy(false); }
-  }
   const [rUrl, setRUrl] = useState<string | null>(null);
   const [rErr, setRErr] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -807,9 +773,6 @@ function CutCard({
                 <a href={rUrl} target="_blank" rel="noopener noreferrer" download className="btn-secondary flex-1 justify-center text-2xs">
                   ⬇ {t("Télécharger", "Download")}
                 </a>
-                <button className="btn-primary flex-1 justify-center text-2xs" onClick={() => setSchedOpen((v) => !v)}>
-                  📅 {t("Programmer", "Schedule")}
-                </button>
                 <a href={`/compose?media=${encodeURIComponent(rUrl)}&kind=video`} className="btn-secondary flex-1 justify-center text-2xs">
                   {t("Ouvrir dans Composer", "Open in Composer")}
                 </a>
@@ -818,28 +781,8 @@ function CutCard({
                 </button>
               </div>
 
-              {/* Programmation directe : réseaux + date + heure */}
-              {schedOpen && (
-                <div className="space-y-2 rounded-lg border border-hair bg-canvas/60 p-2.5">
-                  <div className="flex flex-wrap gap-1.5">
-                    {["facebook", "instagram", "tiktok"].map((n) => (
-                      <button key={n} type="button"
-                        onClick={() => setSchedNets((prev) => prev.includes(n) ? prev.filter((x) => x !== n) : [...prev, n])}
-                        className={`rounded-full px-2.5 py-1 text-2xs font-medium ${schedNets.includes(n) ? "bg-page text-white" : "bg-card text-muted ring-1 ring-hair hover:text-ink"}`}>
-                        {n === "facebook" ? "Facebook" : n === "instagram" ? "Instagram" : "TikTok"}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <input type="date" value={schedDate} onChange={(e) => setSchedDate(e.target.value)} className="input flex-1 text-xs" />
-                    <input type="time" value={schedTime} onChange={(e) => setSchedTime(e.target.value)} className="input w-24 text-xs" />
-                    <button type="button" onClick={scheduleRendered} disabled={schedBusy || schedNets.length === 0} className="btn-primary shrink-0 text-2xs disabled:opacity-50">
-                      {schedBusy ? t("…", "…") : t("Programmer", "Schedule")}
-                    </button>
-                  </div>
-                </div>
-              )}
-              {schedMsg && <p className="rounded-lg bg-canvas px-2.5 py-1.5 text-2xs text-ink">{schedMsg}</p>}
+              {/* Publier maintenant / programmer — directement depuis le studio */}
+              <PublishScheduler companyId={companyId} mediaUrl={rUrl} mediaKind="video" defaultText={(caption || hook || "").trim()} />
             </div>
           )}
           {rState === "unsupported" && (

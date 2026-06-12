@@ -64,6 +64,9 @@ export function GoogleEarth() {
   const ref = useRef<HTMLDivElement>(null);
   const [failed, setFailed] = useState(false);
   const [ready, setReady] = useState(false);
+  const [full, setFull] = useState(false);            // mode plein écran (exploration libre)
+  const fullRef = useRef(false); fullRef.current = full;
+  const resizeKick = useRef<() => void>(() => {});
   const flyRef = useRef<(lat: number, lon: number) => void>(() => {});
   const searchRef = useRef<(q: string) => void>(() => {});
   const zoomRef = useRef<(dir: 1 | -1) => void>(() => {});
@@ -126,12 +129,11 @@ export function GoogleEarth() {
               Cesium.CameraEventType.PINCH,
             ];
           } catch { /* ignore */ }
-          const ENGAGE_H = 5_000_000; // sous ce niveau → on explore
+          // Molette : en PLEIN ÉCRAN elle zoome librement (comme Google Maps).
+          // En vue normale (intégrée), elle fait défiler la page — sauf Ctrl/⌘.
           const wheelGuard = (e: WheelEvent) => {
-            if (e.ctrlKey || e.metaKey) return; // zoom globe
-            const h = viewer?.camera?.positionCartographic?.height ?? 1e9;
-            if (h < ENGAGE_H) return;            // en exploration → la molette zoome
-            // En vue espace → la page défile.
+            if (fullRef.current) return;        // plein écran → Cesium zoome
+            if (e.ctrlKey || e.metaKey) return; // Ctrl/⌘ → zoom même intégré
             e.stopPropagation(); e.preventDefault();
             const factor = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? window.innerHeight : 1;
             window.scrollBy(0, e.deltaY * factor);
@@ -139,12 +141,27 @@ export function GoogleEarth() {
           ref.current!.addEventListener("wheel", wheelGuard, { capture: true, passive: false });
           (viewer as any)._axonWheelGuard = wheelGuard;
 
-          // Boutons +/- (zoom relatif à l'altitude courante → fluide).
+          // Zoom +/- FIABLE dans les deux sens : vol doux vers le point au
+          // centre de l'écran, en multipliant/divisant l'altitude.
           zoomRef.current = (dir: 1 | -1) => {
-            const h = viewer.camera.positionCartographic.height;
-            if (dir === 1) viewer.camera.zoomIn(h * 0.45);
-            else viewer.camera.zoomOut(h * 0.55);
+            const cam = viewer.camera;
+            const carto = cam.positionCartographic;
+            const targetH = dir === 1
+              ? Math.max(700, carto.height * 0.45)
+              : Math.min(24_000_000, carto.height * 2.1);
+            const canvas = scene.canvas;
+            const center = cam.pickEllipsoid(new Cesium.Cartesian2(canvas.clientWidth / 2, canvas.clientHeight / 2));
+            let lon: number, lat: number;
+            if (center) { const cc = Cesium.Cartographic.fromCartesian(center); lon = Cesium.Math.toDegrees(cc.longitude); lat = Cesium.Math.toDegrees(cc.latitude); }
+            else { lon = Cesium.Math.toDegrees(carto.longitude); lat = Cesium.Math.toDegrees(carto.latitude); }
+            cam.flyTo({
+              destination: Cesium.Cartesian3.fromDegrees(lon, lat, targetH),
+              orientation: { heading: cam.heading, pitch: cam.pitch, roll: 0 },
+              duration: 0.5,
+            });
           };
+          // Permet de forcer un resize Cesium quand on bascule en plein écran.
+          resizeKick.current = () => { try { viewer.resize(); } catch { /* ignore */ } };
 
           // Double-clic → on plonge vers le point visé.
           const dbl = new Cesium.ScreenSpaceEventHandler(scene.canvas);
@@ -248,11 +265,13 @@ export function GoogleEarth() {
           void satEntities;
 
           // ── Vol vers une ville / un lieu ─────────────────────────────────
+          // On arrive en vue RÉGIONALE (à plat) : on voit la zone, puis on
+          // zoome tranquillement avec +/- ou la molette (plein écran).
           flyRef.current = (lat: number, lon: number) => {
             viewer.camera.flyTo({
-              destination: Cesium.Cartesian3.fromDegrees(lon, lat, 1800),
-              orientation: { heading: 0, pitch: Cesium.Math.toRadians(-55), roll: 0 },
-              duration: 3.4,
+              destination: Cesium.Cartesian3.fromDegrees(lon, lat, 90_000),
+              orientation: { heading: 0, pitch: Cesium.Math.toRadians(-90), roll: 0 },
+              duration: 2.6,
             });
             lastInteract = Date.now();
           };
@@ -294,6 +313,7 @@ export function GoogleEarth() {
       })();
     }).catch(fail);
 
+    void resizeKick;
     const node = ref.current;
     return () => {
       cancelled = true;
@@ -305,22 +325,47 @@ export function GoogleEarth() {
     };
   }, []);
 
+  // Bascule plein écran : on redimensionne Cesium, on verrouille le scroll de
+  // la page derrière, et Échap permet de sortir.
+  useEffect(() => {
+    if (!full) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const t1 = setTimeout(() => resizeKick.current(), 60);
+    const t2 = setTimeout(() => resizeKick.current(), 360);
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setFull(false); };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = prev;
+      clearTimeout(t1); clearTimeout(t2);
+      window.removeEventListener("keydown", onKey);
+      setTimeout(() => resizeKick.current(), 60);
+    };
+  }, [full]);
+
   if (failed) return <GlobeHero />;
 
   return (
-    <div className="globe-hero">
+    <div className={`globe-hero${full ? " earth-full" : ""}`}>
       <div ref={ref} className="globe-canvas earth3d-canvas" />
       {!ready && <div className="earth3d-loading">Chargement de la Terre…</div>}
 
-      {/* Invitation à zoomer */}
+      {/* Bouton plein écran / sortie : l'exploration libre (molette = zoom) */}
       {ready && (
+        <button type="button" className="globe-full-btn" onClick={() => setFull((f) => !f)}>
+          {full ? "✕ Quitter" : "⛶ Explorer en plein écran"}
+        </button>
+      )}
+
+      {/* Invitation (mode intégré uniquement) */}
+      {ready && !full && (
         <div className="globe-invite">
           <span className="globe-invite-dot" />
-          {"Zoomez (+/− ou double-clic) jusqu'à votre rue — Paris, New York, Flic-en-Flac…"}
+          {"Cliquez une ville, ou « Explorer en plein écran » pour zoomer à la molette jusqu'à votre rue"}
         </div>
       )}
 
-      {/* Commandes de zoom bien visibles */}
+      {/* Commandes de zoom (toujours visibles) */}
       {ready && (
         <div className="globe-zoom">
           <button type="button" aria-label="Zoomer" onClick={() => zoomRef.current(1)}>+</button>
@@ -333,11 +378,11 @@ export function GoogleEarth() {
           <circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" />
         </svg>
         <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Atterrir sur un lieu : Pékin, New York, Flic-en-Flac…" aria-label="Rechercher un lieu" />
-        <button type="submit">Explorer</button>
+        <button type="submit">Aller</button>
       </form>
 
       <div className="globe-chips">
-        <span className="globe-hint">Cliquez une ville ou double-cliquez pour plonger · +/− ou molette (en exploration) pour zoomer</span>
+        <span className="globe-hint">{full ? "Molette = zoom · glissez = tourner · double-clic = plonger" : "Cliquez une ville pour la survoler · zoom avec +/−"}</span>
         {CITIES.map((c) => (
           <button key={c.name} type="button" className="globe-chip" onClick={() => flyRef.current(c.lat, c.lon)}>{c.name}</button>
         ))}

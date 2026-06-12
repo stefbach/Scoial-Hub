@@ -565,6 +565,23 @@ html[data-theme="light"] .app-shell > .app-grain {
 
         /* Scène 3D / WebGL */
         .mc-scene{height:clamp(380px,54vw,580px);position:relative;}
+        /* ── Héros plein écran : la Terre en scène ── */
+        .mc-hero2{position:relative;height:100svh;min-height:640px;overflow:hidden;}
+        .mc-hero2-globe{position:absolute;inset:0;}
+        .mc-hero2-scrim{position:absolute;inset:0;z-index:1;pointer-events:none;
+          background:linear-gradient(90deg,rgba(10,7,16,.92) 0%,rgba(10,7,16,.6) 32%,transparent 58%),
+                     linear-gradient(0deg,rgba(10,7,16,.92) 0%,transparent 26%),
+                     linear-gradient(180deg,rgba(10,7,16,.55) 0%,transparent 18%);}
+        .mc-hero2-copy{position:relative;z-index:2;max-width:640px;pointer-events:none;
+          padding:clamp(4.5rem,14vh,8rem) clamp(1rem,5vw,4rem) 0;}
+        .mc-hero2-copy a,.mc-hero2-copy button{pointer-events:auto;}
+        .mc-h1-xl{font-size:clamp(2.5rem,5.6vw,4.6rem);line-height:1.04;}
+        @media(max-width:760px){
+          .mc-hero2{height:auto;min-height:100svh;padding-bottom:6.5rem;}
+          .mc-hero2-scrim{background:linear-gradient(0deg,rgba(10,7,16,.94) 0%,rgba(10,7,16,.35) 55%,transparent 80%);}
+        }
+        .globe-hint{flex-basis:100%;text-align:center;font-size:.66rem;color:rgba(205,191,232,.65);
+          letter-spacing:.04em;order:99;padding-top:.15rem;}
         /* ── Globe terrestre interactif (GlobeHero) ── */
         .globe-hero{position:absolute;inset:0;}
         .globe-canvas{position:absolute;inset:0;}

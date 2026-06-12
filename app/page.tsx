@@ -13,7 +13,7 @@ import { useT } from "@/lib/i18n";
 import { LanguageSwitcher } from "@/lib/i18n";
 import { NetworkCanvas } from "@/components/visual/NetworkCanvas";
 import { AgentConstellation } from "@/components/landing/AgentConstellation";
-import { IconBriefcase, IconTarget, IconBuildings, IconLink, IconChat, IconTrendingUp, IconLock, IconShieldCheck, IconMic, IconAward } from "@/components/visual/Icons";
+import { IconLink, IconChat, IconTrendingUp, IconLock, IconShieldCheck, IconMic, IconAward } from "@/components/visual/Icons";
 
 // Scène WebGL (Three.js) — chargée côté client uniquement.
 // Globe terrestre interactif : on tourne autour du monde, les réseaux sociaux
@@ -99,12 +99,6 @@ const CAP_CATEGORIES = [
 // Catégorie de chaque capacité (même ordre que CAPABILITIES).
 const CAP_CAT_OF = ["ads", "ads", "ads", "ads", "create", "create", "create", "create", "publish", "publish", "pilot", "pilot", "pilot", "pilot"];
 
-const LOOP = [
-  { n: "01", fr: "Analyse", en: "Analyse", dfr: "Marché, concurrents et veille décodés en mémoire stratégique.", den: "Market, competitors & watch decoded into strategic memory." },
-  { n: "02", fr: "Création", en: "Create", dfr: "Textes, visuels et vidéos générés à votre image, tous formats.", den: "On-brand copy, visuals and videos, every format." },
-  { n: "03", fr: "Diffusion", en: "Publish", dfr: "Organique et publicité Meta — en pause d'abord, activation maîtrisée.", den: "Organic & Meta ads — paused first, controlled activation." },
-  { n: "04", fr: "Optimisation", en: "Optimise", dfr: "Le Pilote Pub ajuste budgets et campagnes sur la performance réelle.", den: "Ad Pilot adjusts budgets and campaigns on real performance." },
-];
 
 const TESTIMONIALS = [
   { q: "Avant, je publiais à minuit, épuisée. Aujourd'hui je valide trois posts depuis mon téléphone le matin — et c'est réglé.", a: "Sophie · gérante de clinique", m: "−65 % de temps", net: 0, av: "S", c: "#e1306c" },
@@ -112,11 +106,6 @@ const TESTIMONIALS = [
   { q: "Je gère 6 marques depuis un seul espace, et les visuels s'adaptent tout seuls à chaque réseau.", a: "Léa · social media manager", m: "6 marques, 1 outil", net: 1, av: "L", c: "#a855f7" },
 ];
 
-const FOR_WHO = [
-  { Ic: IconBriefcase, fr: "Dirigeant·e de PME", en: "Small-business owner", dfr: "Vous faites déjà tout. Reprenez vos soirées : vos assistants publient pendant que vous vivez.", den: "You already do everything. Get your evenings back — your assistants post while you live your life." },
-  { Ic: IconTarget, fr: "Responsable marketing solo", en: "Solo marketing manager", dfr: "Une personne, la charge d'une équipe. AXON, ce sont vos renforts : création, publication, pubs, réponses.", den: "One person, a team's workload. AXON is your backup: create, publish, ads, replies." },
-  { Ic: IconBuildings, fr: "Agence ou freelance", en: "Agency or freelancer", dfr: "Gérez plusieurs marques isolées, exportez les performances, générez les visuels en charte — en minutes.", den: "Manage several isolated brands, export performance, generate on-brand visuals — in minutes." },
-];
 
 const HOW = [
   { n: "1", Ic: IconLink, fr: "Connectez en 2 minutes", en: "Connect in 2 minutes", dfr: "Liez Facebook, Instagram ou LinkedIn. Aucune configuration technique, aucune carte bancaire.", den: "Link Facebook, Instagram or LinkedIn. No technical setup, no credit card." },
@@ -137,64 +126,6 @@ const FAQ = [
   { qfr: "Je gère plusieurs marques. Comment ça se passe ?", qen: "I manage several brands. How does it work?", afr: "Chaque marque a son espace isolé (connexions, campagnes, médias). On passe de l'une à l'autre en un clic.", aen: "Each brand has its own isolated workspace. Switch between them in one click." },
   { qfr: "Combien ça coûte ?", qen: "How much does it cost?", afr: "Démarrez gratuitement, sans carte bancaire. Les plans payants débloquent l'IA avancée, les pubs et le multi-marques.", aen: "Start free, no credit card. Paid plans unlock advanced AI, ads and multi-brand." },
 ];
-
-/* ───────────────────────── Réseau humain (SVG animé) ────────────────────── */
-function HumanNetwork() {
-  // Noeuds = personnes ; arêtes = liens. Couleurs réseaux pour les anneaux.
-  const nodes = [
-    { x: 90, y: 80, r: 30, c: "#1877F2" }, { x: 250, y: 50, r: 24, c: "#e1306c" },
-    { x: 420, y: 95, r: 32, c: "#0A66C2" }, { x: 560, y: 60, r: 22, c: "#111" },
-    { x: 160, y: 200, r: 26, c: "#e1306c" }, { x: 330, y: 220, r: 34, c: "#a855f7" },
-    { x: 500, y: 210, r: 26, c: "#1877F2" }, { x: 250, y: 330, r: 24, c: "#0A66C2" },
-    { x: 430, y: 340, r: 28, c: "#e1306c" }, { x: 600, y: 300, r: 22, c: "#a855f7" },
-  ];
-  const edges = [[0, 4], [0, 1], [1, 5], [2, 5], [2, 3], [3, 6], [4, 5], [5, 6], [4, 7], [5, 8], [7, 8], [6, 9], [8, 9], [1, 2]];
-  const person = "M0,7 a5,5 0 1,0 0.001,0 M-9,22 a9,9 0 0,1 18,0 Z";
-  return (
-    <svg className="mc-net" viewBox="0 0 680 400" fill="none" aria-hidden>
-      <defs>
-        {nodes.map((n, i) => (
-          <radialGradient key={i} id={`hn${i}`} cx="35%" cy="30%">
-            <stop offset="0%" stopColor={n.c} stopOpacity="0.95" /><stop offset="100%" stopColor={n.c} stopOpacity="0.55" />
-          </radialGradient>
-        ))}
-      </defs>
-      {edges.map(([a, b], i) => (
-        <line key={i} x1={nodes[a].x} y1={nodes[a].y} x2={nodes[b].x} y2={nodes[b].y}
-          stroke="#a855f7" strokeOpacity="0.35" strokeWidth="1.5" className="mc-net-edge" style={{ animationDelay: `${i * 0.15}s` }} />
-      ))}
-      {nodes.map((n, i) => (
-        <g key={i} className="mc-net-node" style={{ animationDelay: `${i * 0.12}s`, transformOrigin: `${n.x}px ${n.y}px` }}>
-          <circle cx={n.x} cy={n.y} r={n.r} fill={`url(#hn${i})`} stroke={n.c} strokeWidth="1.5" />
-          <g transform={`translate(${n.x},${n.y - n.r * 0.18}) scale(${n.r / 26})`} fill="#fff" fillOpacity="0.92">
-            <path d={person} />
-          </g>
-        </g>
-      ))}
-    </svg>
-  );
-}
-
-/* ───────────────────────── Tableau de bord 3D (CSS) ─────────────────────── */
-function Dashboard3D() {
-  const bars = [42, 70, 35, 88, 60, 95, 52];
-  return (
-    <div className="dash3d glass">
-      <div className="dash3d-head">
-        <span className="dash3d-dot" /><span className="dash3d-title">Performance · Meta</span>
-        <span className="dash3d-live">LIVE</span>
-      </div>
-      <div className="dash3d-kpis">
-        {[["Dépense", "1 266 €"], ["CTR", "2.1%"], ["Conv.", "394k"]].map(([k, v]) => (
-          <div key={k} className="dash3d-kpi"><b>{v}</b><span>{k}</span></div>
-        ))}
-      </div>
-      <div className="dash3d-chart">
-        {bars.map((h, i) => <span key={i} style={{ height: `${h}%`, animationDelay: `${i * 0.08}s` }} />)}
-      </div>
-    </div>
-  );
-}
 
 export default function Home() {
   const t = useT();
@@ -241,19 +172,20 @@ export default function Home() {
         </div>
       </header>
 
-      {/* ── Hero ── */}
-      <section className="mc-hero relative">
-        <div className="mc-hero-copy">
-          <span className="mc-eyebrow">{t("Le hub social des PME", "The social hub for small teams")}</span>
-          <h1 className="mc-h1">
-            {t("Reprenez du temps", "Win back your time")}<br />
-            <span className="mc-grad">{t("pour ce qui compte :", "for what matters:")}</span><br />
-            {t("vos clients.", "your people.")}
+      {/* ── Héros plein écran : la Terre — le monde à portée ── */}
+      <section className="mc-hero2">
+        <div className="mc-hero2-globe"><GlobeHero /></div>
+        <div className="mc-hero2-scrim" aria-hidden />
+        <div className="mc-hero2-copy">
+          <span className="mc-eyebrow">{t("Le hub social des PME — le monde à portée", "The social hub for small teams — the world within reach")}</span>
+          <h1 className="mc-h1 mc-h1-xl">
+            {t("Le monde entier", "The whole world")}<br />
+            <span className="mc-grad">{t("écoute votre marque.", "is listening to your brand.")}</span>
           </h1>
           <p className="mc-sub">
             {t(
-              "Une équipe d'assistants IA s'occupe de vos posts, vos visuels et vos pubs sur Facebook, Instagram, LinkedIn et TikTok. Vous gardez la main : rien ne se publie sans votre feu vert.",
-              "A team of AI assistants takes care of your posts, visuals and ads on Facebook, Instagram, LinkedIn and TikTok. You stay in charge — nothing goes live without your green light."
+              "Une équipe d'assistants IA publie vos posts, vos visuels et vos pubs sur Facebook, Instagram, LinkedIn et TikTok — de Paris à Port-Louis. Vous gardez la main : rien ne part sans votre feu vert.",
+              "A team of AI assistants publishes your posts, visuals and ads on Facebook, Instagram, LinkedIn and TikTok — from Paris to Port-Louis. You stay in charge: nothing goes live without your green light."
             )}
           </p>
           <div className="mc-cta-row">
@@ -261,15 +193,10 @@ export default function Home() {
             <Link href="/campaigns/new" className="mc-btn mc-btn-outline mc-btn-lg">{t("Voir une démo", "See a quick demo")}</Link>
           </div>
           <div className="mc-stats">
-            {STATS.map((s) => (
-              <div key={s.v} className="mc-stat"><b>{s.v}</b><span>{t(s.fr, s.en)}</span></div>
+            {STATS.map((st) => (
+              <div key={st.v} className="mc-stat"><b>{st.v}</b><span>{t(st.fr, st.en)}</span></div>
             ))}
           </div>
-        </div>
-
-        {/* Globe terrestre 3D — le monde à portée, satellites = réseaux sociaux */}
-        <div className="mc-scene">
-          <GlobeHero />
         </div>
       </section>
 
@@ -288,53 +215,8 @@ export default function Home() {
         <AgentConstellation />
       </section>
 
-      {/* ── Bande humaine : la vraie promesse, ce sont des gens reliés ── */}
-      <section className="mc-human-band reveal">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="/hero/inetraction.png"
-          alt={t("Des personnes reliées par AXON-AI", "People connected by AXON-AI")}
-          onError={(e) => { (e.currentTarget as HTMLImageElement).closest("section")?.style.setProperty("display", "none"); }}
-        />
-        <div className="mc-human-band-cap">
-          <span className="mc-kicker">{t("La technologie au service du lien", "Technology in service of connection")}</span>
-          <p>{t("Derrière chaque post, il y a une vraie relation. AXON s'occupe de la machine — vous, de l'humain.", "Behind every post is a real relationship. AXON handles the machine — you handle the human.")}</p>
-        </div>
-      </section>
 
-      {/* ── Bandeau réseaux ── */}
-      <section className="mc-marquee">
-        <div className="mc-marquee-track">
-          {Array.from({ length: 3 }).flatMap((_, k) =>
-            NETWORKS.map((L, i) => (
-              <span key={`${k}-${i}`} className="mc-chip"><L s={22} /> {["Facebook", "Instagram", "LinkedIn", "TikTok"][i]}</span>
-            ))
-          )}
-        </div>
-      </section>
 
-      {/* ── Humains connectés ── */}
-      <section className="mc-section mc-human">
-        <div className="mc-human-grid">
-          <div className="reveal">
-            <span className="mc-kicker">{t("Des humains, reliés", "Humans, connected")}</span>
-            <h2 className="mc-h2">{t("Vos communautés, au même endroit.", "Your communities, in one place.")}</h2>
-            <p className="mc-human-p">
-              {t(
-                "Facebook, Instagram, LinkedIn, TikTok — vos audiences ne sont plus des silos. L'IA relie les conversations, les contenus et les campagnes autour de vraies personnes.",
-                "Facebook, Instagram, LinkedIn, TikTok — your audiences are no longer silos. AI links conversations, content and campaigns around real people."
-              )}
-            </p>
-            <Link href="/pilotage" className="mc-btn mc-btn-glow mc-btn-lg">{t("Voir le pilotage", "See the command center")}</Link>
-          </div>
-          <div className="mc-human-viz reveal">
-            <HumanNetwork />
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/hero/femme%20tel.png" alt={t("Humains connectés", "Connected humans")} className="mc-human-photo"
-              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
-          </div>
-        </div>
-      </section>
 
       {/* ── Fonctionnalités (toutes) ── */}
       <section id="capabilities" className="mc-section">
@@ -384,43 +266,16 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Bandeau dynamique : toutes les fonctions défilent */}
-      <section className="mc-marquee mc-marquee-feat">
-        <div className="mc-marquee-track mc-marquee-rev">
-          {Array.from({ length: 2 }).flatMap((_, k) =>
-            CAPABILITIES.map((c, i) => (
-              <span key={`${k}-${i}`} className="mc-chip" style={{ ["--c" as string]: c.c }}>
-                <span className="mc-chip-dot" /> {t(c.fr, c.en)}
-              </span>
-            ))
-          )}
-        </div>
-      </section>
 
-      {/* ── Pour qui ? ── */}
-      <section className="mc-section">
-        <header className="mc-sec-head reveal">
-          <span className="mc-kicker">{t("Pour qui ?", "Who is it for?")}</span>
-          <h2 className="mc-h2">{t("Pensé pour celles et ceux qui portent déjà trop de casquettes.", "Built for people already wearing too many hats.")}</h2>
-        </header>
-        <div className="mc-grid mc-grid-3">
-          {FOR_WHO.map((w, i) => (
-            <div key={w.fr} className="mc-persona reveal" style={{ transitionDelay: `${i * 80}ms` }}>
-              <span className="mc-persona-e"><w.Ic size={23} /></span>
-              <h3>{t(w.fr, w.en)}</h3>
-              <p>{t(w.dfr, w.den)}</p>
-            </div>
-          ))}
-        </div>
-      </section>
 
-      {/* ── Comment ça marche ── */}
+
+      {/* ── Trois étapes ── */}
       <section className="mc-section mc-section--warm">
         <header className="mc-sec-head reveal">
           <span className="mc-kicker">{t("Comment ça marche", "How it works")}</span>
           <h2 className="mc-h2">{t("Trois étapes. Cinq minutes. Vous gardez la main.", "Three steps. Five minutes. You stay in control.")}</h2>
         </header>
-        <div className="mc-loop-row">
+        <div className="mc-grid mc-grid-3">
           {HOW.map((h, i) => (
             <div key={h.n} className="mc-how reveal" style={{ transitionDelay: `${i * 80}ms` }}>
               <span className="mc-how-n">{h.n}</span>
@@ -432,56 +287,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ── Méthode (boucle) ── */}
-      <section id="loop" className="mc-section mc-loop">
-        <header className="mc-sec-head">
-          <span className="mc-kicker">{t("La boucle d'apprentissage", "The learning loop")}</span>
-          <h2 className="mc-h2">{t("On écoute, on crée, on publie, on améliore.", "We listen, create, publish, improve.")}</h2>
-        </header>
-        <div className="mc-loop-row">
-          {LOOP.map((l) => (
-            <div key={l.n} className="mc-step tilt">
-              <span className="mc-step-n">{l.n}</span>
-              <h3>{t(l.fr, l.en)}</h3>
-              <p>{t(l.dfr, l.den)}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* ── Showcase 3D produit ── */}
-      <section id="showcase" className="mc-section mc-showcase">
-        <header className="mc-sec-head reveal">
-          <span className="mc-kicker">{t("Vu de l'intérieur", "Inside the product")}</span>
-          <h2 className="mc-h2">{t("Simple à prendre en main, dès la première minute.", "Easy to use, from the very first minute.")}</h2>
-        </header>
-        <div className="mc-window-wrap reveal">
-          <div className="mc-window">
-            <div className="mc-window-bar"><i /><i /><i /><span>app · /campaigns/new</span></div>
-            <div className="mc-window-body">
-              <div className="mc-w-side">
-                {["Pilotage", "Campagnes", "Médiathèque", "Agents", "Veille"].map((x, i) => (
-                  <span key={x} className={i === 1 ? "on" : ""}>{x}</span>
-                ))}
-              </div>
-              <div className="mc-w-main">
-                <div className="mc-w-row"><b>{t("Assistant — décrivez, l'IA remplit", "Assistant — describe, AI fills")}</b></div>
-                <div className="mc-w-bubble">{t("« Prospects chirurgie obésité, UK, 25€/j, formulaire »", "“Leads obesity surgery, UK, €25/d, form”")}</div>
-                <div className="mc-w-cards">
-                  <Dashboard3D />
-                  <div className="mc-w-mini">
-                    <div className="mc-w-mini-h"><InstagramLogo s={16} /> Reel 9:16</div>
-                    <div className="mc-w-mini-media" />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          {/* cartes de posts flottantes en 3D */}
-          <div className="mc-float mc-float-a"><div className="mc-post"><FacebookLogo s={18} /><span /><span className="sh" /></div></div>
-          <div className="mc-float mc-float-b"><div className="mc-post"><LinkedInLogo s={18} /><span /><span className="sh" /></div></div>
-        </div>
-      </section>
 
       {/* ── Témoignages ── */}
       <section className="mc-section">

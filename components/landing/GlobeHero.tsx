@@ -280,14 +280,22 @@ export function GlobeHero() {
       }
     };
     const onWheel = (e: WheelEvent) => {
+      // En héros plein écran, la molette seule doit continuer à faire défiler
+      // la page : le zoom se fait avec Ctrl/Cmd + molette (ou double-clic).
+      if (!(e.ctrlKey || e.metaKey)) return;
       e.preventDefault();
       sphTarget.radius = Math.min(4.6, Math.max(1.45, sphTarget.radius * (1 + e.deltaY * 0.0011)));
+      lastInteract = performance.now();
+    };
+    const onDbl = () => {
+      sphTarget.radius = sphTarget.radius > 1.8 ? Math.max(1.45, sphTarget.radius * 0.62) : 3.1;
       lastInteract = performance.now();
     };
     el.addEventListener("pointerdown", onDown);
     el.addEventListener("pointermove", onMove);
     el.addEventListener("pointerup", onUp);
     el.addEventListener("wheel", onWheel, { passive: false });
+    el.addEventListener("dblclick", onDbl);
 
     // ── Vol caméra vers une ville (fly-to façon Google Earth) ───────────────
     let fly: { t0: number; from: { r: number; p: number; t: number }; to: { r: number; p: number; t: number } } | null = null;
@@ -407,6 +415,7 @@ export function GlobeHero() {
       el.removeEventListener("pointermove", onMove);
       el.removeEventListener("pointerup", onUp);
       el.removeEventListener("wheel", onWheel);
+      el.removeEventListener("dblclick", onDbl);
       labels.forEach((l) => l.el.remove());
       renderer.dispose();
       wrap.removeChild(renderer.domElement);
@@ -419,6 +428,7 @@ export function GlobeHero() {
       <div ref={labelsRef} className="globe-labels" aria-hidden />
       {/* Le monde à portée : villes en un clic */}
       <div className="globe-chips">
+        <span className="globe-hint">Glissez pour explorer · Ctrl+molette ou double-clic pour zoomer</span>
         {CITIES.filter((c) => c.chip).map((c) => (
           <button key={c.name} type="button" className="globe-chip" onClick={() => flyToRef.current(c.lat, c.lon)}>
             {c.name}

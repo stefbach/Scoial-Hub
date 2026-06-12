@@ -90,7 +90,7 @@ function UserMenu() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-10 z-[70] w-56 rounded-xl border border-hair bg-card shadow-lg animate-fade-in">
+        <div className="absolute right-0 top-10 z-[100] w-56 rounded-xl border border-hair bg-card shadow-lg animate-fade-in">
           <div className="px-4 py-3">
             <p className="text-2xs text-muted section-label mb-0.5">Connecté en tant que</p>
             <p className="text-sm font-medium text-ink truncate">{email}</p>
@@ -179,7 +179,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <div className="app-grain" aria-hidden="true" />
 
       {/* Header sticky — blur + ombre au scroll via CSS */}
-      <header className="app-header sticky top-0 z-30 flex items-center justify-between border-b border-hair bg-canvas/70 px-3 py-2.5 backdrop-blur-xl sm:px-5">
+      <header className="app-header sticky top-0 z-[60] flex items-center justify-between border-b border-hair bg-canvas/70 px-3 py-2.5 backdrop-blur-xl sm:px-5">
         <div className="flex min-w-0 items-center gap-2 sm:gap-3">
           {/* Hamburger (mobile only) */}
           <button

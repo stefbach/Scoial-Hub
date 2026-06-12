@@ -489,8 +489,8 @@ export default function Step4Creative() {
         </section>
       )}
 
-      {/* ── Note rassurante ── */}
-      <div className="flex items-start gap-3 rounded-xl bg-canvas/60 px-4 py-3 ring-1 ring-hair/50">
+      {/* ── Note rassurante ── (sans cadre gris, cf. retour #13) */}
+      <div className="flex items-start gap-3 px-1 py-1">
         {/* Icône info */}
         <svg className="mt-0.5 shrink-0 text-muted" width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
           <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.3" fill="none" />

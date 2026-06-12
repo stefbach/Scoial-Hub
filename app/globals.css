@@ -83,6 +83,7 @@ html[data-theme="light"] .bg-primary-50  { background-color: rgb(var(--tile-prim
 html[data-theme="light"] .bg-primary-100 { background-color: rgb(var(--tile-primary-100)); }
 html[data-theme="light"] .border-primary-100 { border-color: rgb(var(--tile-primary-100)); }
 html[data-theme="light"] .border-primary-200 { border-color: rgb(var(--tile-primary-200)); }
+html[data-theme="light"] .text-primary-500,
 html[data-theme="light"] .text-primary-600,
 html[data-theme="light"] .text-primary-700 { color: rgb(var(--tile-primary-text)); }
 html[data-theme="light"] .ring-primary-200 { --tw-ring-color: rgb(var(--tile-primary-200)); }
@@ -91,6 +92,16 @@ html[data-theme="light"] .bg-ai-textbg,
 html[data-theme="light"] .bg-ai-visualbg { background-color: rgb(var(--tile-ai-bg)); }
 html[data-theme="light"] .text-ai-text,
 html[data-theme="light"] .text-ai-visual { color: rgb(var(--tile-ai-text)); }
+
+/* Anneaux / filets / pastilles IA : sur fond blanc, le violet vif (#b794f6) des
+   boutons « sélectionnés » du composer est trop saturé. On les adoucit avec le
+   violet lisible des tuiles (cf. #1 composer). Couvre aussi les variantes /30, /20. */
+html[data-theme="light"] .ring-ai-text\/30,
+html[data-theme="light"] .ring-ai-text\/20,
+html[data-theme="light"] .ring-ai-text { --tw-ring-color: rgb(var(--tile-ai-text) / 0.22); }
+html[data-theme="light"] .bg-ai-text,
+html[data-theme="light"] .bg-ai-visual { background-color: rgb(var(--tile-ai-text)); }
+html[data-theme="light"] .border-ai-text { border-color: rgb(var(--tile-ai-text) / 0.3); }
 
 html[data-theme="light"] .bg-success-50  { background-color: rgb(var(--tile-success-bg)); }
 html[data-theme="light"] .text-success-600,

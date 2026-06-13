@@ -24,6 +24,9 @@ import { StudioHero, StudioStep } from "@/components/studio/StudioUI";
 import { StudioCopilot, type CopilotSuggestion } from "@/components/studio/StudioCopilot";
 import { AudioStudio } from "@/components/studio/AudioStudio";
 import { PublishScheduler } from "@/components/studio/PublishScheduler";
+import { StudioDistribution } from "@/components/studio/StudioDistribution";
+import { MediaLibraryButton } from "@/components/studio/MediaLibrary";
+import { BusyHint } from "@/components/ui/Spinner";
 import { IconFilm } from "@/components/visual/Icons";
 import { IMAGE_MODELS, VIDEO_MODELS } from "@/lib/ai/model-catalog";
 
@@ -285,9 +288,18 @@ export default function StudioPage() {
         >
           <svg width="26" height="26" viewBox="0 0 24 24" fill="none" className="text-muted"><path d="M12 16V4m0 0L7 9m5-5 5 5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/><path d="M4 16v2.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V16" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/></svg>
           <p className="text-sm text-ink">{uploading ? t("Import en cours…", "Uploading…") : t("Glissez-déposez vos photos et vidéos", "Drag & drop your photos and videos")}</p>
-          <button className="btn-secondary text-xs" onClick={() => fileRef.current?.click()} disabled={uploading}>{t("Choisir des fichiers", "Choose files")}</button>
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <button className="btn-secondary text-xs" onClick={() => fileRef.current?.click()} disabled={uploading}>{t("Choisir des fichiers", "Choose files")}</button>
+            <MediaLibraryButton
+              companyId={company.id}
+              accept="all"
+              onPick={(a) => setAssets((prev) => prev.some((x) => x.url === a.url) ? prev : [...prev, { url: a.url, kind: a.type, name: a.url.split("/").pop() }])}
+              label={t("📚 Bibliothèque", "📚 Library")}
+              className="btn-secondary text-xs"
+            />
+          </div>
           <input ref={fileRef} type="file" accept="image/*,video/*" multiple className="hidden" onChange={(e) => e.target.files && onFiles(e.target.files)} />
-          <p className="text-2xs text-muted">{t("JPG, PNG, MP4, MOV… plusieurs fichiers acceptés", "JPG, PNG, MP4, MOV… multiple files accepted")}</p>
+          <p className="text-2xs text-muted">{t("JPG, PNG, MP4, MOV… plusieurs fichiers, ou piochez dans la bibliothèque", "JPG, PNG, MP4, MOV… multiple files, or pick from the library")}</p>
         </div>
 
         {/* Ajouter par URL */}
@@ -395,13 +407,27 @@ export default function StudioPage() {
       >
         {working ? t("Le studio travaille…", "The studio is working…") : t("✨ Assembler & marketer", "✨ Assemble & market")}
       </button>
-      {canEdit && (assets.length === 0 || platforms.length === 0) && (
+      {/* Feedback explicite : la création est bien lancée. */}
+      {working && (
+        <BusyHint
+          label={t("Assemblage et marketing en cours — déclinaisons par réseau, accroches, sous-titres…", "Assembling and marketing — per-network cuts, hooks, subtitles…")}
+          eta={t("~15–40 s", "~15–40 s")}
+        />
+      )}
+      {canEdit && !working && (assets.length === 0 || platforms.length === 0) && (
         <p className="-mt-2 text-center text-2xs text-muted">
           {assets.length === 0
-            ? t("Ajoutez au moins un média (import ou génération IA).", "Add at least one media item (import or AI generation).")
+            ? t("Ajoutez au moins un média (import, bibliothèque ou génération IA).", "Add at least one media item (import, library or AI generation).")
             : t("Choisissez au moins un réseau.", "Choose at least one network.")}
         </p>
       )}
+
+      {/* Diffusion (organique / pub) — toujours disponible : diffusez la
+          création produite OU un visuel/vidéo de la bibliothèque, sans dépendre
+          d'un rendu réussi. */}
+      <StudioStep n={4} title={t("Diffuser (organique / pub)", "Distribute (organic / ad)")} hint={t("Publier, programmer ou transformer en pub — votre création ou un média de la bibliothèque.", "Publish, schedule or turn into an ad — your creation or a library media.")}>
+        <StudioDistribution companyId={company.id} producedKind="video" defaultText={objective} />
+      </StudioStep>
 
       {/* Résultat */}
       {pkg && (
@@ -825,6 +851,10 @@ function CutCard({
               <button className="btn-secondary w-full justify-center text-2xs" onClick={generateImages}>
                 ↻ {t("Régénérer avec mes textes", "Re-generate with my texts")}
               </button>
+
+              {/* Publier maintenant / programmer / utiliser dans une pub — comme
+                  pour les vidéos, directement depuis le studio. */}
+              <PublishScheduler companyId={companyId} mediaUrl={images[0]} mediaKind="image" defaultText={(caption || hook || "").trim()} />
             </div>
           )}
           {imgState === "failed" && (

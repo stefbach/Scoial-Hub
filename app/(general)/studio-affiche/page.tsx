@@ -18,6 +18,7 @@ import BrandChartView from "@/components/studio/BrandChartView";
 import { StudioHero, StudioStep } from "@/components/studio/StudioUI";
 import { StudioCopilot, type CopilotSuggestion } from "@/components/studio/StudioCopilot";
 import { ImageEditor } from "@/components/studio/ImageEditor";
+import { StudioDistribution } from "@/components/studio/StudioDistribution";
 import { IconFrame } from "@/components/visual/Icons";
 import { SafeBoundary } from "@/components/ui/SafeBoundary";
 import type { BrandKit } from "@/lib/brand-kit/types";
@@ -284,10 +285,14 @@ export default function StudioAffichePage() {
     setPos("bottom");
     setScrim(true);
     setNote(null);
+    setPosterUrl(null);
     setPreviewTab("affiche");
   }
 
   const [savingLib, setSavingLib] = useState(false);
+  // URL publique de l'affiche enregistrée → débloque la publication / programmation
+  // / utilisation dans une pub (le canvas seul n'a pas d'URL partageable).
+  const [posterUrl, setPosterUrl] = useState<string | null>(null);
   // Enregistre l'affiche (PNG du canvas) dans la bibliothèque média, réutilisable
   // partout (campagnes, etc.).
   async function saveToLibrary() {
@@ -309,6 +314,7 @@ export default function StudioAffichePage() {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ companyId, url, type: "image", format: format.id, source: "studio-affiche" }),
       });
+      setPosterUrl(url); // débloque le bloc Publier / programmer / utiliser en pub
       setNote(t("✓ Enregistré dans la bibliothèque — réutilisable dans une pub.", "✓ Saved to the library — reusable in an ad."));
     } catch {
       setNote(t("Échec de l'enregistrement.", "Save failed."));
@@ -461,6 +467,23 @@ export default function StudioAffichePage() {
             {savingLib ? t("Enregistrement…", "Saving…") : t("📚 Enregistrer dans la bibliothèque", "📚 Save to library")}
           </button>
           {note && <p className="rounded-lg bg-warning-50 px-3 py-2 text-xs text-warning-700">{note}</p>}
+
+          {/* Diffusion (organique / pub) — toujours disponible : l'affiche
+              enregistrée est sélectionnée d'office, sinon on peut piocher dans
+              la bibliothèque. */}
+          {canEdit && (
+            <StudioDistribution
+              companyId={companyId}
+              producedUrl={posterUrl}
+              producedKind="image"
+              defaultText={[headline, subtitle].filter(Boolean).join(" — ")}
+            />
+          )}
+          {!posterUrl && (
+            <p className="text-2xs text-muted">
+              {t("Astuce : « Enregistrer dans la bibliothèque » pour diffuser l'affiche en cours, ou choisissez un visuel existant ci-dessus.", "Tip: \"Save to library\" to distribute the current poster, or pick an existing visual above.")}
+            </p>
+          )}
         </div>
 
         {/* ── Grand aperçu ── */}

@@ -23,7 +23,7 @@ import BrandKitPanel from "@/components/studio/BrandKitPanel";
 import { StudioHero, StudioStep } from "@/components/studio/StudioUI";
 import { StudioCopilot, type CopilotSuggestion } from "@/components/studio/StudioCopilot";
 import { AudioStudio } from "@/components/studio/AudioStudio";
-import { PublishScheduler } from "@/components/studio/PublishScheduler";
+import { StudioDiffusion } from "@/components/studio/StudioDiffusion";
 import { IconFilm } from "@/components/visual/Icons";
 import { IMAGE_MODELS, VIDEO_MODELS } from "@/lib/ai/model-catalog";
 
@@ -768,7 +768,6 @@ function CutCard({
           {rState === "done" && rUrl && (
             <div className="space-y-2">
               <video src={rUrl} controls preload="metadata" className="w-full rounded-lg border border-hair" />
-              <p className="text-2xs text-success-600">{t("✓ Enregistrée dans la Médiathèque", "✓ Saved to the Media library")}</p>
               <div className="flex gap-2">
                 <a href={rUrl} target="_blank" rel="noopener noreferrer" download className="btn-secondary flex-1 justify-center text-2xs">
                   ⬇ {t("Télécharger", "Download")}
@@ -781,8 +780,8 @@ function CutCard({
                 </button>
               </div>
 
-              {/* Publier maintenant / programmer — directement depuis le studio */}
-              <PublishScheduler companyId={companyId} mediaUrl={rUrl} mediaKind="video" defaultText={(caption || hook || "").trim()} />
+              {/* Diffusion unifiée : bibliothèque (auto) · pub Meta · publier / programmer */}
+              <StudioDiffusion companyId={companyId} mediaUrl={rUrl} mediaKind="video" defaultText={(caption || hook || "").trim()} savedToLibrary />
             </div>
           )}
           {rState === "unsupported" && (
@@ -825,6 +824,9 @@ function CutCard({
               <button className="btn-secondary w-full justify-center text-2xs" onClick={generateImages}>
                 ↻ {t("Régénérer avec mes textes", "Re-generate with my texts")}
               </button>
+
+              {/* Diffusion unifiée du visuel : bibliothèque (auto) · pub Meta · publier / programmer */}
+              <StudioDiffusion companyId={companyId} mediaUrl={images[0]} mediaKind="image" defaultText={(caption || hook || "").trim()} savedToLibrary />
             </div>
           )}
           {imgState === "failed" && (

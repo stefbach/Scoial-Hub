@@ -18,6 +18,7 @@ import BrandChartView from "@/components/studio/BrandChartView";
 import { StudioHero, StudioStep } from "@/components/studio/StudioUI";
 import { StudioCopilot, type CopilotSuggestion } from "@/components/studio/StudioCopilot";
 import { ImageEditor } from "@/components/studio/ImageEditor";
+import { StudioDiffusion } from "@/components/studio/StudioDiffusion";
 import { IconFrame } from "@/components/visual/Icons";
 import { SafeBoundary } from "@/components/ui/SafeBoundary";
 import type { BrandKit } from "@/lib/brand-kit/types";
@@ -288,8 +289,18 @@ export default function StudioAffichePage() {
   }
 
   const [savingLib, setSavingLib] = useState(false);
+  // URL publique (https) de l'affiche une fois hébergée — base de la diffusion
+  // (publier / programmer / intégrer dans une pub). Invalidée si le design change.
+  const [hostedUrl, setHostedUrl] = useState<string | null>(null);
+  const [savedToLibrary, setSavedToLibrary] = useState(false);
+
+  // Le design a changé → la version hébergée n'est plus à jour : on réinitialise
+  // la diffusion pour ne jamais publier une affiche périmée.
+  useEffect(() => { setHostedUrl(null); setSavedToLibrary(false); },
+    [bgImg, logoImg, headline, subtitle, color, pos, scrim, logoCorner, formatId]);
+
   // Enregistre l'affiche (PNG du canvas) dans la bibliothèque média, réutilisable
-  // partout (campagnes, etc.).
+  // partout (campagnes, etc.), ET conserve l'URL publique pour la diffusion.
   async function saveToLibrary() {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -309,7 +320,9 @@ export default function StudioAffichePage() {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ companyId, url, type: "image", format: format.id, source: "studio-affiche" }),
       });
-      setNote(t("✓ Enregistré dans la bibliothèque — réutilisable dans une pub.", "✓ Saved to the library — reusable in an ad."));
+      setHostedUrl(url);
+      setSavedToLibrary(true);
+      setNote(t("✓ Enregistré — vous pouvez maintenant le publier, le programmer ou en faire une pub.", "✓ Saved — you can now publish, schedule or turn it into an ad."));
     } catch {
       setNote(t("Échec de l'enregistrement.", "Save failed."));
     } finally { setSavingLib(false); }
@@ -456,10 +469,29 @@ export default function StudioAffichePage() {
           />
 
           <button onClick={exportPng} className="btn-primary w-full">{t("⬇︎ Télécharger (PNG haute déf)", "⬇︎ Download (high-res PNG)")}</button>
-          <button onClick={saveToLibrary} disabled={savingLib || !canEdit} className="btn-secondary inline-flex w-full items-center justify-center gap-1.5 disabled:opacity-50">
-            {savingLib && <Spinner size={14} className="text-current" />}
-            {savingLib ? t("Enregistrement…", "Saving…") : t("📚 Enregistrer dans la bibliothèque", "📚 Save to library")}
-          </button>
+
+          {/* Diffusion : enregistrer puis publier / programmer / intégrer dans une pub */}
+          {hostedUrl ? (
+            <StudioDiffusion
+              companyId={companyId}
+              mediaUrl={hostedUrl}
+              mediaKind="image"
+              defaultText={[headline, subtitle].filter(Boolean).join(" — ")}
+              savedToLibrary={savedToLibrary}
+              onSaveToLibrary={saveToLibrary}
+              saving={savingLib}
+            />
+          ) : (
+            <>
+              <button onClick={saveToLibrary} disabled={savingLib || !canEdit} className="btn-secondary inline-flex w-full items-center justify-center gap-1.5 disabled:opacity-50">
+                {savingLib && <Spinner size={14} className="text-current" />}
+                {savingLib ? t("Enregistrement…", "Saving…") : t("📚 Enregistrer — puis publier / programmer / pub", "📚 Save — then publish / schedule / ad")}
+              </button>
+              <p className="text-2xs text-muted">
+                {t("Enregistrez l'affiche pour pouvoir la publier, la programmer (Facebook / Instagram / TikTok) ou l'intégrer dans une pub Meta.", "Save the poster to publish it, schedule it (Facebook / Instagram / TikTok) or use it in a Meta ad.")}
+              </p>
+            </>
+          )}
           {note && <p className="rounded-lg bg-warning-50 px-3 py-2 text-xs text-warning-700">{note}</p>}
         </div>
 

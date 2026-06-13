@@ -9,7 +9,7 @@ import { useCompany } from "@/lib/company-context";
 import { StudioHero, StudioStep, Segmented } from "@/components/studio/StudioUI";
 import { StudioCopilot, type CopilotSuggestion } from "@/components/studio/StudioCopilot";
 import { ImageEditor } from "@/components/studio/ImageEditor";
-import { PublishScheduler } from "@/components/studio/PublishScheduler";
+import { StudioDiffusion } from "@/components/studio/StudioDiffusion";
 import { Tilt3D } from "@/components/visual/Tilt3D";
 import { IconMask, IconClapper } from "@/components/visual/Icons";
 import { Spinner, BusyHint } from "@/components/ui/Spinner";
@@ -583,26 +583,20 @@ export default function StudioAvatarPage() {
             </Tilt3D>
             {videoUrl && (
               <div className="space-y-2">
-                {savedToLibrary && (
-                  <p className="rounded-lg bg-success-50 px-3 py-1.5 text-2xs font-medium text-success-700">
-                    {t("✓ Enregistrée dans la Médiathèque", "✓ Saved to the Media library")}
-                  </p>
-                )}
                 <a href={videoUrl} target="_blank" rel="noopener noreferrer" download className="btn-secondary inline-flex w-full justify-center text-sm">
                   {t("⬇︎ Télécharger la vidéo", "⬇︎ Download video")}
                 </a>
-                <div className="flex gap-2">
-                  <a href="/media" className="btn-ghost flex-1 justify-center text-xs">{t("📚 Médiathèque", "📚 Media library")}</a>
-                  <a href={`/compose?media=${encodeURIComponent(videoUrl)}&kind=video`} className="btn-secondary flex-1 justify-center text-xs">{t("Ouvrir dans Composer", "Open in Composer")}</a>
-                </div>
+                <a href={`/compose?media=${encodeURIComponent(videoUrl)}&kind=video`} className="btn-ghost inline-flex w-full justify-center text-xs">{t("Ouvrir dans Composer", "Open in Composer")}</a>
 
-                {/* Publier maintenant / programmer — directement depuis le studio */}
-                <PublishScheduler companyId={company.id} mediaUrl={videoUrl} mediaKind="video" defaultText={script.split("\n")[0]?.slice(0, 180) ?? ""} />
-                {!savedToLibrary && (
-                  <button onClick={() => videoUrl && saveToLibrary(videoUrl)} className="btn-ghost w-full justify-center text-2xs text-muted">
-                    {t("Réessayer l'enregistrement en médiathèque", "Retry saving to library")}
-                  </button>
-                )}
+                {/* Diffusion unifiée : bibliothèque · pub Meta · publier / programmer */}
+                <StudioDiffusion
+                  companyId={company.id}
+                  mediaUrl={videoUrl}
+                  mediaKind="video"
+                  defaultText={script.split("\n")[0]?.slice(0, 180) ?? ""}
+                  savedToLibrary={savedToLibrary}
+                  onSaveToLibrary={() => videoUrl && saveToLibrary(videoUrl)}
+                />
               </div>
             )}
           </div>

@@ -825,6 +825,10 @@ function CutCard({
               <button className="btn-secondary w-full justify-center text-2xs" onClick={generateImages}>
                 ↻ {t("Régénérer avec mes textes", "Re-generate with my texts")}
               </button>
+
+              {/* Publier maintenant / programmer / utiliser dans une pub — comme
+                  pour les vidéos, directement depuis le studio. */}
+              <PublishScheduler companyId={companyId} mediaUrl={images[0]} mediaKind="image" defaultText={(caption || hook || "").trim()} />
             </div>
           )}
           {imgState === "failed" && (

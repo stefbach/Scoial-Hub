@@ -1,9 +1,11 @@
 "use client";
 
-// ── PublishScheduler — publier / programmer un média depuis un studio ─────────
-// Bloc réutilisable : choisir les réseaux (Facebook / Instagram / TikTok),
-// puis PUBLIER MAINTENANT (création + publication réelle via les connecteurs)
-// ou PROGRAMMER (date + heure → publié automatiquement par le cron).
+// ── PublishScheduler — publier / programmer / promouvoir un média ─────────────
+// Bloc réutilisable depuis n'importe quel studio (vidéo, avatar, affiche…) :
+//   • choisir les réseaux (Facebook / Instagram / TikTok),
+//   • PUBLIER MAINTENANT (création + publication réelle via les connecteurs),
+//   • PROGRAMMER (date + heure → publié automatiquement par le cron),
+//   • UTILISER DANS UNE PUB (ouvre la création de pub Meta avec le média prérempli).
 // Résultat détaillé par réseau (succès / erreur claire, ex. TikTok non câblé).
 
 import { useState } from "react";
@@ -91,9 +93,17 @@ export function PublishScheduler({
     setResults(out); setBusy(null);
   }
 
+  // ── Utiliser dans une pub Meta ──────────────────────────────────────────────
+  // Le média (et sa légende) préremplissent la création de campagne via les query
+  // params reconnus par /campaigns/new (?image=… | ?video=… &text=…).
+  const adHref = `/campaigns/new?${new URLSearchParams({
+    [mediaKind === "video" ? "video" : "image"]: mediaUrl,
+    ...(text.trim() ? { text: text.trim() } : {}),
+  }).toString()}`;
+
   return (
     <div className="space-y-2 rounded-xl border border-hair bg-canvas/60 p-3">
-      <p className="section-label">{t("Publier / programmer", "Publish / schedule")}</p>
+      <p className="section-label">{t("Publier / programmer / pub", "Publish / schedule / ad")}</p>
 
       {/* Réseaux cibles */}
       <div className="flex flex-wrap gap-1.5">
@@ -131,6 +141,12 @@ export function PublishScheduler({
           {busy === "later" ? t("Programmation…", "Scheduling…") : t("📅 Programmer", "📅 Schedule")}
         </button>
       </div>
+
+      {/* Utiliser le média dans une publicité Meta (préremplie) */}
+      <a href={adHref}
+        className="btn-ghost flex w-full items-center justify-center text-xs text-page hover:underline">
+        {t("📣 Utiliser dans une pub Meta", "📣 Use in a Meta ad")}
+      </a>
 
       {/* Résultats par réseau */}
       {results.length > 0 && (

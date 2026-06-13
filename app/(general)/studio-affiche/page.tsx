@@ -18,7 +18,7 @@ import BrandChartView from "@/components/studio/BrandChartView";
 import { StudioHero, StudioStep } from "@/components/studio/StudioUI";
 import { StudioCopilot, type CopilotSuggestion } from "@/components/studio/StudioCopilot";
 import { ImageEditor } from "@/components/studio/ImageEditor";
-import { PublishScheduler } from "@/components/studio/PublishScheduler";
+import { StudioDistribution } from "@/components/studio/StudioDistribution";
 import { IconFrame } from "@/components/visual/Icons";
 import { SafeBoundary } from "@/components/ui/SafeBoundary";
 import type { BrandKit } from "@/lib/brand-kit/types";
@@ -468,19 +468,20 @@ export default function StudioAffichePage() {
           </button>
           {note && <p className="rounded-lg bg-warning-50 px-3 py-2 text-xs text-warning-700">{note}</p>}
 
-          {/* Publier maintenant / programmer / utiliser dans une pub — dès que
-              l'affiche est enregistrée (URL publique disponible). */}
-          {posterUrl && canEdit && (
-            <PublishScheduler
+          {/* Diffusion (organique / pub) — toujours disponible : l'affiche
+              enregistrée est sélectionnée d'office, sinon on peut piocher dans
+              la bibliothèque. */}
+          {canEdit && (
+            <StudioDistribution
               companyId={companyId}
-              mediaUrl={posterUrl}
-              mediaKind="image"
+              producedUrl={posterUrl}
+              producedKind="image"
               defaultText={[headline, subtitle].filter(Boolean).join(" — ")}
             />
           )}
           {!posterUrl && (
             <p className="text-2xs text-muted">
-              {t("Enregistrez l'affiche pour la publier, la programmer ou l'utiliser dans une pub.", "Save the poster to publish, schedule or use it in an ad.")}
+              {t("Astuce : « Enregistrer dans la bibliothèque » pour diffuser l'affiche en cours, ou choisissez un visuel existant ci-dessus.", "Tip: \"Save to library\" to distribute the current poster, or pick an existing visual above.")}
             </p>
           )}
         </div>

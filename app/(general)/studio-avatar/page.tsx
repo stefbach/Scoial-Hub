@@ -9,7 +9,7 @@ import { useCompany } from "@/lib/company-context";
 import { StudioHero, StudioStep, Segmented } from "@/components/studio/StudioUI";
 import { StudioCopilot, type CopilotSuggestion } from "@/components/studio/StudioCopilot";
 import { ImageEditor } from "@/components/studio/ImageEditor";
-import { PublishScheduler } from "@/components/studio/PublishScheduler";
+import { StudioDistribution } from "@/components/studio/StudioDistribution";
 import { Tilt3D } from "@/components/visual/Tilt3D";
 import { IconMask, IconClapper } from "@/components/visual/Icons";
 import { Spinner, BusyHint } from "@/components/ui/Spinner";
@@ -468,7 +468,7 @@ export default function StudioAvatarPage() {
               <ImageEditor imageUrl={faceUrl} aspect="4:5" onResult={(u) => setFaceUrl(u)} />
             )}
 
-            <StudioStep n={2} title={t("Script", "Script")}>
+            <StudioStep n={2} title={t("Script", "Script")} hint={t("1) Le texte que l'avatar va dire — généré par l'IA ou écrit à la main.", "1) The text the avatar will say — AI-generated or written by hand.")}>
               <input value={topic} onChange={(e) => setTopic(e.target.value)} placeholder={t("Sujet (ex. « Notre nouvelle offre minceur »)", "Topic (e.g. \"Our new weight-loss offer\")")} className="input" />
               <div className="flex flex-wrap items-center gap-2">
                 <select value={language} onChange={(e) => setLanguage(e.target.value)} className="input w-auto">
@@ -486,7 +486,7 @@ export default function StudioAvatarPage() {
               <textarea value={script} onChange={(e) => setScript(e.target.value)} rows={6} placeholder={t("Le script parlé apparaîtra ici (éditable)…", "The spoken script will appear here (editable)…")} className="input" />
             </StudioStep>
 
-            <StudioStep n={3} title={t("Voix & rendu", "Voice & render")}>
+            <StudioStep n={3} title={t("Voix & rendu", "Voice & render")} hint={t("2) La voix choisie lit le script · 3) cochez les sous-titres pour les incruster automatiquement.", "2) The chosen voice reads the script · 3) tick subtitles to burn them in automatically.")}>
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <div>
                   <label className="text-2xs text-muted">{t("Voix", "Voice")}</label>
@@ -595,9 +595,6 @@ export default function StudioAvatarPage() {
                   <a href="/media" className="btn-ghost flex-1 justify-center text-xs">{t("📚 Médiathèque", "📚 Media library")}</a>
                   <a href={`/compose?media=${encodeURIComponent(videoUrl)}&kind=video`} className="btn-secondary flex-1 justify-center text-xs">{t("Ouvrir dans Composer", "Open in Composer")}</a>
                 </div>
-
-                {/* Publier maintenant / programmer — directement depuis le studio */}
-                <PublishScheduler companyId={company.id} mediaUrl={videoUrl} mediaKind="video" defaultText={script.split("\n")[0]?.slice(0, 180) ?? ""} />
                 {!savedToLibrary && (
                   <button onClick={() => videoUrl && saveToLibrary(videoUrl)} className="btn-ghost w-full justify-center text-2xs text-muted">
                     {t("Réessayer l'enregistrement en médiathèque", "Retry saving to library")}
@@ -605,6 +602,16 @@ export default function StudioAvatarPage() {
                 )}
               </div>
             )}
+
+            {/* Diffusion (organique / pub) — toujours disponible : la vidéo
+                générée est sélectionnée d'office, sinon on pioche dans la
+                bibliothèque (plus besoin d'attendre un rendu réussi). */}
+            <StudioDistribution
+              companyId={company.id}
+              producedUrl={videoUrl}
+              producedKind="video"
+              defaultText={script.split("\n")[0]?.slice(0, 180) ?? ""}
+            />
           </div>
         </div>
       )}

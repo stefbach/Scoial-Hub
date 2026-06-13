@@ -103,7 +103,7 @@ export function PublishScheduler({
 
   return (
     <div className="space-y-2 rounded-xl border border-hair bg-canvas/60 p-3">
-      <p className="section-label">{t("Publier / programmer / pub", "Publish / schedule / ad")}</p>
+      <p className="section-label">{t("Publication organique", "Organic post")}</p>
 
       {/* Réseaux cibles */}
       <div className="flex flex-wrap gap-1.5">
@@ -143,10 +143,13 @@ export function PublishScheduler({
       </div>
 
       {/* Utiliser le média dans une publicité Meta (préremplie) */}
-      <a href={adHref}
-        className="btn-ghost flex w-full items-center justify-center text-xs text-page hover:underline">
-        {t("📣 Utiliser dans une pub Meta", "📣 Use in a Meta ad")}
-      </a>
+      <div className="border-t border-hair pt-2">
+        <p className="section-label mb-1">{t("Publicité", "Ad")}</p>
+        <a href={adHref}
+          className="btn-secondary flex w-full items-center justify-center text-xs">
+          {t("📣 Utiliser dans une pub Meta", "📣 Use in a Meta ad")}
+        </a>
+      </div>
 
       {/* Résultats par réseau */}
       {results.length > 0 && (

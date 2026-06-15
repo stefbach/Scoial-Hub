@@ -11,6 +11,7 @@ import { requireCompanyAccess } from "@/lib/auth/guard";
 import { createAdminClient } from "@/lib/supabase/server";
 import { resolveCompanyUuid } from "@/lib/repositories/resolve-company";
 import { isAiConfigured, env } from "@/lib/env";
+import { isSafeRemoteUrl } from "@/lib/security/url-guard";
 import type { BrandChart } from "@/lib/brand-kit/types";
 
 const SUPPORTED = ["image/png", "image/jpeg", "image/gif", "image/webp"];
@@ -57,7 +58,7 @@ export async function POST(req: NextRequest) {
       const p = parseDataUrl(imageDataUrl);
       if (p) img = { mediaType: SUPPORTED.includes(p.mediaType) ? p.mediaType : "image/png", data: p.data };
     }
-    if (!img && logoUrl && /^https?:\/\//.test(logoUrl)) img = await fetchAsBase64(logoUrl);
+    if (!img && logoUrl && isSafeRemoteUrl(logoUrl)) img = await fetchAsBase64(logoUrl);
     if (!img) return NextResponse.json({ error: "Logo introuvable — importez d'abord un logo." }, { status: 400 });
 
     // Contexte marque (nom) pour une charte coherente.

@@ -12,6 +12,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { generateImageModel } from "@/lib/ai/replicate";
 import { resolveImageAspect } from "@/lib/social-formats";
 import { getImageModel, DEFAULT_IMAGE_MODEL_ID } from "@/lib/ai/model-catalog";
+import { requireUser, requireCompanyAccess } from "@/lib/auth/guard";
 
 interface RequestBody {
   prompt?: string;
@@ -54,6 +55,11 @@ export async function POST(req: NextRequest) {
   try {
     const body: RequestBody = await req.json().catch(() => ({}));
     const { prompt = "", platform, placement, format, n, model, companyId, imageUrl } = body;
+
+    // Auth : si une société est ciblée (persistance/mémoire), exiger l'accès en
+    // édition ; sinon exiger au moins une session.
+    const guard = companyId ? await requireCompanyAccess(companyId, { mode: "edit" }) : await requireUser();
+    if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 401 });
 
     if (!prompt.trim()) {
       return NextResponse.json({ error: "Prompt requis pour générer une image." }, { status: 400 });

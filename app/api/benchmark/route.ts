@@ -10,6 +10,7 @@ export const maxDuration = 120;
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireCompanyAccess } from "@/lib/auth/guard";
+import { isSafeRemoteUrl } from "@/lib/security/url-guard";
 import { callClaudeJSON } from "@/lib/ai/claude-json";
 import { isAiConfigured } from "@/lib/env";
 
@@ -65,7 +66,7 @@ export async function POST(req: NextRequest) {
   // Récupère en parallèle les pages fournies (pricing/landing) pour ancrer l'analyse.
   const scraped = await Promise.all(
     competitors.map(async (c) => {
-      const text = c.url ? await fetchText(c.url.trim()) : "";
+      const text = c.url && isSafeRemoteUrl(c.url) ? await fetchText(c.url.trim()) : "";
       return { name: (c.name ?? "").trim(), url: (c.url ?? "").trim(), text };
     })
   );

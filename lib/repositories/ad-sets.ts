@@ -122,3 +122,18 @@ export async function deleteAdSet(id: string): Promise<void> {
     throw new Error(error.message ?? "Failed to delete ad set");
   }
 }
+
+/**
+ * Société propriétaire d'un ad set (via sa campagne), pour les gardes d'autorisation.
+ * null en mock / id non-UUID (le guard route court-circuite alors en mode démo).
+ */
+export async function getAdSetCompanyId(id: string): Promise<string | null> {
+  if (!isSupabaseConfigured || !isUuid(id)) return null;
+  const supabase = createClient();
+  if (!supabase) return null;
+  const { data } = await supabase.from("sh_ad_sets").select("campaign_id").eq("id", id).maybeSingle();
+  const campaignId = data?.campaign_id as string | undefined;
+  if (!campaignId) return null;
+  const { data: camp } = await supabase.from("sh_campaigns").select("company_id").eq("id", campaignId).maybeSingle();
+  return (camp?.company_id as string | undefined) ?? null;
+}

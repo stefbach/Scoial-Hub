@@ -12,11 +12,17 @@ import { isMetaConfigured } from "@/lib/connectors/meta";
 import { upsertConnection } from "@/lib/repositories/channel-connections";
 import { buildState } from "@/lib/connectors/oauth-state";
 import { resolveCompanyUuid } from "@/lib/repositories/resolve-company";
+import { requireCompanyAccess } from "@/lib/auth/guard";
 import { env } from "@/lib/env";
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const companyId = req.nextUrl.searchParams.get("companyId") ?? "";
   const ret = req.nextUrl.searchParams.get("return") ?? "/parametres-connecteurs";
+  // Empêche de rattacher un compte à une société dont on n'a pas l'accès (édition).
+  if (companyId) {
+    const guard = await requireCompanyAccess(companyId, { mode: "edit" });
+    if (!guard.ok) return NextResponse.redirect(`${env.appUrl}${ret}?error=forbidden&platform=facebook`);
+  }
   try {
     if (!isMetaConfigured) {
       if (companyId) {

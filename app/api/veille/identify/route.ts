@@ -18,8 +18,17 @@ export interface IdentifiedCompetitor {
 }
 
 /* ── Mock de compétiteurs identifiés ── */
-function buildMockIdentified(theme: string, geo: string): IdentifiedCompetitor[] {
+function buildMockIdentified(theme: string, geo: string, lang: "fr" | "en" = "fr"): IdentifiedCompetitor[] {
   const geoLabel = geo.toUpperCase();
+  if (lang === "en") {
+    return [
+      { network: "instagram", handle: "@market_leader", name: "Market Leader", rationale: `Leading Instagram account for "${theme}" in ${geoLabel}`, unverified: true },
+      { network: "tiktok", handle: "@trending_rival", name: "Trending Rival", rationale: `Strong TikTok visibility on the "${theme}" topic`, unverified: true },
+      { network: "youtube", handle: "@sector_tutorials", name: "Sector Tutorials", rationale: `Go-to YouTube channel for "${theme}" tutorials`, unverified: true },
+      { network: "linkedin", handle: "@b2b_expert", name: "B2B Expert", rationale: `LinkedIn thought leader on "${theme}" in ${geoLabel}`, unverified: true },
+      { network: "facebook", handle: "@pro_community", name: "Pro Community", rationale: `Large Facebook community around "${theme}"`, unverified: true },
+    ];
+  }
   return [
     { network: "instagram", handle: "@leader_marche_fr", name: "Leader Marché FR", rationale: `Compte leader sur Instagram pour "${theme}" en ${geoLabel}`, unverified: true },
     { network: "tiktok", handle: "@tendance_concurrente", name: "Tendance Concurrente", rationale: `Forte visibilité TikTok sur la thématique ${theme}`, unverified: true },
@@ -42,9 +51,11 @@ export async function POST(req: NextRequest) {
       theme?: string;
       keywords?: string[];
       geo?: string;
+      language?: "fr" | "en";
     };
 
     const { companyId, theme = "", keywords = [], geo = "fr" } = body;
+    const lang: "fr" | "en" = body.language === "en" ? "en" : "fr";
 
     if (!companyId) {
       return NextResponse.json({ error: "companyId requis" }, { status: 400 });
@@ -52,7 +63,7 @@ export async function POST(req: NextRequest) {
 
     if (!isAiConfigured) {
       return NextResponse.json({
-        competitors: buildMockIdentified(theme || keywords[0] || "votre secteur", geo),
+        competitors: buildMockIdentified(theme || keywords[0] || (lang === "en" ? "your sector" : "votre secteur"), geo, lang),
         unverified: true,
         notice: IDENTIFY_NOTICE,
       });
@@ -83,7 +94,7 @@ Réponds UNIQUEMENT avec ce JSON (aucun texte avant ou après) :
   }
 ]
 
-Réponds en français.`;
+${lang === "en" ? "Write the \"name\" and \"rationale\" values in ENGLISH." : "Réponds en français."}`;
 
       const message = await client.messages.create({
         model: env.anthropicModel,
@@ -115,7 +126,7 @@ Réponds en français.`;
     } catch (err) {
       console.warn("[identify] Claude failed, fallback mock:", err);
       return NextResponse.json({
-        competitors: buildMockIdentified(theme || keywords[0] || "votre secteur", geo),
+        competitors: buildMockIdentified(theme || keywords[0] || (lang === "en" ? "your sector" : "votre secteur"), geo, lang),
         unverified: true,
         notice: IDENTIFY_NOTICE,
       });

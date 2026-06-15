@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 /* Sélecteur des éléments naturellement focusables, pour le focus-trap. */
 const FOCUSABLE =
@@ -20,6 +21,10 @@ export function Modal({
   const panelRef = useRef<HTMLDivElement>(null);
   // Mémorise l'élément focalisé avant l'ouverture pour le restaurer à la fermeture.
   const previouslyFocused = useRef<HTMLElement | null>(null);
+  // Portal vers <body> : garantit que le scrim couvre TOUTE la page, même si un
+  // ancêtre a un transform/filter/backdrop (qui « piège » sinon position:fixed).
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     if (!open) return;
@@ -74,8 +79,8 @@ export function Modal({
     };
   }, [open, onClose]);
 
-  if (!open) return null;
-  return (
+  if (!open || !mounted) return null;
+  return createPortal(
     /* Scrim: full-screen translucent overlay with blur — never an opaque grey box.
        Clicking the scrim (but not the panel) closes the modal. */
     <div
@@ -93,6 +98,7 @@ export function Modal({
       >
         {children}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

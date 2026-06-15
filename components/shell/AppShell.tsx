@@ -68,7 +68,7 @@ function UserMenu() {
   const initials = email.slice(0, 2).toUpperCase();
 
   return (
-    <div ref={menuRef} className="relative">
+    <div ref={menuRef} className="relative z-[70]">
       <button
         aria-label="Menu utilisateur"
         aria-expanded={open}

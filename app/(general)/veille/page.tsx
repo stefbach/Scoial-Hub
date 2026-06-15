@@ -265,7 +265,7 @@ export default function VeillePage() {
       const res = await fetch("/api/veille/identify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyId: company.id, theme, keywords, geo }),
+        body: JSON.stringify({ companyId: company.id, theme, keywords, geo, language: lang }),
       });
       if (res.ok) {
         const data = await res.json() as { competitors: IdentifiedCompetitor[] };

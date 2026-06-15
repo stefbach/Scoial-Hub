@@ -1,9 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { updateAudience, deleteAudience } from "@/lib/repositories/audiences";
-import { requireUser } from "@/lib/auth/guard";
+import { updateAudience, deleteAudience, getAudienceCompanyId } from "@/lib/repositories/audiences";
+import { requireCompanyAccess } from "@/lib/auth/guard";
+import type { AccessMode } from "@/lib/rbac/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+/** Garde d'ownership : l'audience doit appartenir à une société accessible. */
+async function guardAudience(id: string, mode: AccessMode) {
+  const companyId = await getAudienceCompanyId(id);
+  if (!companyId) return { ok: false as const, status: 404, error: "Audience not found" };
+  return requireCompanyAccess(companyId, { mode });
+}
 
 // PATCH /api/audiences/[id]
 // Body: partial Audience fields (name, description, detail, reach, inUse, config, …)
@@ -12,7 +20,7 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
-    const guard = await requireUser();
+    const guard = await guardAudience(params.id, "edit");
     if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
 
     const body = await req.json();
@@ -32,7 +40,7 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const guard = await requireUser();
+    const guard = await guardAudience(params.id, "edit");
     if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
 
     await deleteAudience(params.id);

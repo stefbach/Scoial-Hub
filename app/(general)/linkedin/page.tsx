@@ -78,16 +78,17 @@ export default function LinkedInPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await fetch(`/api/linkedin/account?companyId=${encodeURIComponent(companyId)}`);
+      // Les deux appels sont indépendants → en parallèle (au lieu de séquentiel).
+      const [r, tr] = await Promise.all([
+        fetch(`/api/linkedin/account?companyId=${encodeURIComponent(companyId)}`),
+        fetch(`/api/linkedin/targets?companyId=${encodeURIComponent(companyId)}`),
+      ]);
       const acc = r.ok ? await r.json() : { connected: false };
       setAccount(acc);
-      if (acc.connected) {
-        const tr = await fetch(`/api/linkedin/targets?companyId=${encodeURIComponent(companyId)}`);
-        if (tr.ok) {
-          const tg = (await tr.json()) as Targets;
-          setTargets(tg);
-          setSelected(tg.selected || tg.person?.urn || "");
-        }
+      if (acc.connected && tr.ok) {
+        const tg = (await tr.json()) as Targets;
+        setTargets(tg);
+        setSelected(tg.selected || tg.person?.urn || "");
       }
     } catch {
       setAccount({ connected: false });

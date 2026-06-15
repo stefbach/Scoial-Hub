@@ -3,6 +3,7 @@
 
 import { createAdminClient } from "@/lib/supabase/server";
 import { resolveCompanyUuid } from "@/lib/repositories/resolve-company";
+import { isSafeRemoteUrl } from "@/lib/security/url-guard";
 
 export interface MediaAsset {
   url: string;
@@ -38,6 +39,8 @@ export async function persistRemoteMedia(
 ): Promise<string> {
   if (!url || !/^https?:\/\//i.test(url)) return url;
   if (url.includes(`/storage/v1/object/public/${STORAGE_BUCKET}/`)) return url;
+  // Anti-SSRF : ne récupère jamais une URL pointant vers un hôte interne/privé.
+  if (!isSafeRemoteUrl(url)) return url;
   try {
     const sb = createAdminClient();
     if (!sb) return url;

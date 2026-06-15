@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useCompany } from "@/lib/company-context";
-import { useT } from "@/lib/i18n";
+import { useT, useLang } from "@/lib/i18n";
 import { StudioHero, Segmented } from "@/components/studio/StudioUI";
 import { IconMegaphone } from "@/components/visual/Icons";
 import { MetaGeoPicker, type GeoLoc } from "@/components/ads/MetaGeoPicker";
@@ -55,6 +55,7 @@ const VISUAL_FORMATS: { id: string; fr: string; en: string }[] = [
 
 export default function NewMetaAdPage() {
   const t = useT();
+  const { lang } = useLang();
   const { company, access } = useCompany();
   const canEdit = access.canEdit;
   const companyId = company.id;
@@ -373,7 +374,7 @@ export default function NewMetaAdPage() {
     try {
       const r = await fetch("/api/meta/ads/assist", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyId, messages: next }),
+        body: JSON.stringify({ companyId, messages: next, language: lang }),
       });
       const d = await r.json();
       if (!r.ok) { setError(d.error || t("L'assistant a échoué.", "Assistant failed.")); return; }

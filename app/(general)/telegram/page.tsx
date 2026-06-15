@@ -43,14 +43,29 @@ export default function ClientTelegramPage() {
   }, [load]);
 
   // Sondage tant que non relié : détecte le moment où le client clique Start.
+  // Backoff progressif (4→30 s) + plafond ~5 min pour ne pas marteler le serveur.
   useEffect(() => {
     if (!pairing || pairing.linked) {
-      if (pollRef.current) clearInterval(pollRef.current);
+      if (pollRef.current) clearTimeout(pollRef.current);
       return;
     }
-    pollRef.current = setInterval(load, 4000);
+    const delays = [4000, 6000, 10000, 15000, 30000];
+    let i = 0;
+    let elapsed = 0;
+    let cancelled = false;
+    const tick = async () => {
+      await load();
+      if (cancelled) return;
+      const d = delays[Math.min(i, delays.length - 1)];
+      i += 1;
+      elapsed += d;
+      if (elapsed > 5 * 60_000) return; // plafond : on cesse le sondage automatique
+      pollRef.current = setTimeout(tick, d);
+    };
+    pollRef.current = setTimeout(tick, delays[0]);
     return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
+      cancelled = true;
+      if (pollRef.current) clearTimeout(pollRef.current);
     };
   }, [pairing, load]);
 

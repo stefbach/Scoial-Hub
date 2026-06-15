@@ -1,9 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
-import { updateAdSet, deleteAdSet } from "@/lib/repositories/ad-sets";
-import { requireUser } from "@/lib/auth/guard";
+import { updateAdSet, deleteAdSet, getAdSetCompanyId } from "@/lib/repositories/ad-sets";
+import { requireCompanyAccess } from "@/lib/auth/guard";
+import { isSupabaseConfigured } from "@/lib/env";
+import type { AccessMode } from "@/lib/rbac/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+/** Garde d'ownership : l'ad set doit appartenir à une société accessible.
+ *  En mode démo (Supabase absent) on laisse passer (updateAdSet est no-op). */
+async function guardAdSet(id: string, mode: AccessMode) {
+  if (!isSupabaseConfigured) return { ok: true as const };
+  const companyId = await getAdSetCompanyId(id);
+  if (!companyId) return { ok: false as const, status: 404, error: "Ad set not found" };
+  return requireCompanyAccess(companyId, { mode });
+}
 
 // PATCH /api/ad-sets/[id]
 // Body: partial AdSet fields (enabled, status, name, dailyBudget, …)
@@ -13,7 +24,7 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
-    const guard = await requireUser();
+    const guard = await guardAdSet(params.id, "edit");
     if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
 
     const body = await req.json();
@@ -32,7 +43,7 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const guard = await requireUser();
+    const guard = await guardAdSet(params.id, "edit");
     if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
 
     await deleteAdSet(params.id);

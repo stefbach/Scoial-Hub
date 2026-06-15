@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCampaign, updateCampaign, deleteCampaign } from "@/lib/repositories/campaigns";
-import { requireUser } from "@/lib/auth/guard";
+import { getCampaign, getCampaignCompanyId, updateCampaign, deleteCampaign } from "@/lib/repositories/campaigns";
+import { requireCompanyAccess } from "@/lib/auth/guard";
+import type { AccessMode } from "@/lib/rbac/types";
+
+/** Garde d'ownership : la campagne doit appartenir à une société accessible. */
+async function guardCampaign(id: string, mode: AccessMode) {
+  const companyId = await getCampaignCompanyId(id);
+  if (!companyId) return { ok: false as const, status: 404, error: "Campaign not found" };
+  return requireCompanyAccess(companyId, { mode });
+}
 
 // GET /api/campaigns/[id]
 export async function GET(
@@ -8,7 +16,7 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const guard = await requireUser();
+    const guard = await guardCampaign(params.id, "view");
     if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
 
     const campaign = await getCampaign(params.id);
@@ -29,7 +37,7 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
-    const guard = await requireUser();
+    const guard = await guardCampaign(params.id, "edit");
     if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
 
     const body = await req.json();
@@ -49,7 +57,7 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const guard = await requireUser();
+    const guard = await guardCampaign(params.id, "edit");
     if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
 
     await deleteCampaign(params.id);

@@ -7,7 +7,7 @@
 
 import { useEffect, useState } from "react";
 import { useCompany } from "@/lib/company-context";
-import { useT } from "@/lib/i18n";
+import { useT, useLang } from "@/lib/i18n";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Spinner, BusyHint } from "@/components/ui/Spinner";
 
@@ -42,6 +42,7 @@ function scoreColor(n: number) {
 export default function BenchmarkPage() {
   const { company } = useCompany();
   const t = useT();
+  const { lang } = useLang();
 
   const [competitors, setCompetitors] = useState(DEFAULT_COMPETITORS);
   const [product, setProduct] = useState("");
@@ -83,7 +84,7 @@ export default function BenchmarkPage() {
     try {
       const res = await fetch("/api/veille/identify", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyId: company.id, theme: product.trim() || company.name, keywords: [], geo: "fr" }),
+        body: JSON.stringify({ companyId: company.id, theme: product.trim() || company.name, keywords: [], geo: "fr", language: lang }),
       });
       const d = await res.json() as { competitors?: { name: string }[] };
       const names = (d.competitors ?? []).map((c) => c.name).filter(Boolean);
@@ -112,6 +113,7 @@ export default function BenchmarkPage() {
           companyId: company.id,
           product: product.trim() || undefined,
           competitors: competitors.filter((c) => c.name.trim()),
+          language: lang,
         }),
       });
       const d = await res.json();

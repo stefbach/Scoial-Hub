@@ -8,6 +8,26 @@ Référence des conventions : `CLAUDE.md`. (Distinct de `docs/AUDIT.md`, qui est
 > politiques RLS Supabase : la RLS peut bloquer une partie des accès, mais la
 > défense en profondeur impose d'ajouter les gardes côté route.
 
+## Statut de remédiation (mis à jour)
+
+- ✅ **Sécurité** — toutes les failles Critiques + Élevées corrigées : gardes
+  `requireCompanyAccess`/`requireUser` ajoutées (api-keys, creatives,
+  campaigns/audiences/ad-sets `[id]`, video/render, routes IA, OAuth connecteurs)
+  + helper anti-SSRF `lib/security/url-guard.ts` appliqué (persistRemoteMedia,
+  benchmark, brand-chart).
+- ✅ **i18n** — `/api/benchmark`, `/api/meta/ads/assist`, identify (Benchmark)
+  reçoivent la langue + directive de prompt.
+- ✅ **Architecture** — MediaLibrary rendu via portail.
+- ✅ **Correctness** — fuite du minuteur d'enregistrement (studio-avatar) corrigée.
+  Faux positifs vérifiés et écartés : double `res.json()` (connexions), closure
+  `PromptStudio` (les valeurs sont passées explicitement à `generate`).
+- ✅ **Performance** — galerie média (`loading="lazy"`/clés stables), LinkedIn
+  (`Promise.all`), polling Telegram (backoff + plafond). Faux positif : les fetch
+  Pilotage sont déjà dans des effets séparés (donc concurrents).
+- ⏳ **Reporté (refactors, non bloquants)** : découpe de `campaigns/new` (~1279 l.)
+  et `compose` en sous-composants ; fusion filtre+tri `ad-performance`. À planifier
+  séparément (risque de régression si fait à la hâte).
+
 ## Synthèse
 
 | Domaine | Critiques | Élevés | Moyens | Faibles |

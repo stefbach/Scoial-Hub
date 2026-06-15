@@ -116,6 +116,23 @@ export async function getCampaign(id: string): Promise<Campaign | null> {
 }
 
 /**
+ * Renvoie l'identifiant de la société propriétaire d'une campagne (pour les
+ * gardes d'autorisation). null si introuvable.
+ */
+export async function getCampaignCompanyId(id: string): Promise<string | null> {
+  if (!isSupabaseConfigured) {
+    for (const [companyId, data] of Object.entries(COMPANY_DATA)) {
+      if (data.campaigns.list.some((c) => c.id === id)) return companyId;
+    }
+    return null;
+  }
+  const supabase = createClient();
+  if (!supabase) return null;
+  const { data } = await supabase.from("sh_campaigns").select("company_id").eq("id", id).maybeSingle();
+  return (data?.company_id as string | undefined) ?? null;
+}
+
+/**
  * Crée une nouvelle campagne.
  * En mode mock, pousse dans COMPANY_DATA[companyId].campaigns.list.
  */

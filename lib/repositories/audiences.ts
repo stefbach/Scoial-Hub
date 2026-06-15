@@ -212,3 +212,17 @@ export async function deleteAudience(id: string): Promise<void> {
     throw new Error(error.message ?? "Failed to delete audience");
   }
 }
+
+/** Société propriétaire d'une audience (pour les gardes d'autorisation). */
+export async function getAudienceCompanyId(id: string): Promise<string | null> {
+  if (!isSupabaseConfigured) {
+    for (const [companyId, data] of Object.entries(COMPANY_DATA)) {
+      if (data.audiences.list.some((a) => a.id === id)) return companyId;
+    }
+    return null;
+  }
+  const supabase = createClient();
+  if (!supabase) return null;
+  const { data } = await supabase.from("sh_audiences").select("company_id").eq("id", id).maybeSingle();
+  return (data?.company_id as string | undefined) ?? null;
+}

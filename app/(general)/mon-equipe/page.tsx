@@ -185,18 +185,17 @@ export default function MonEquipePage() {
             load();
             if (res?.invited && res.email) {
               copyInvite(res.email);
-              // Honnêteté : aucun e-mail n'est envoyé automatiquement (pas de
-              // fournisseur d'e-mail configuré côté serveur). On l'indique
-              // explicitement plutôt que de laisser croire à un envoi (#17).
+              // Un e-mail d'invitation est envoyé via Supabase Auth quand c'est
+              // possible ; sinon on retombe sur le texte copié (lien-relais).
               setNote(
-                res.emailSent === false
+                res.emailSent
                   ? t(
-                      `Invitation créée pour ${res.email}, mais AUCUN e-mail n'a pu être envoyé (envoi d'e-mails non configuré sur le serveur). Le texte d'invitation a été copié — envoyez-le-lui vous-même pour finaliser la création de son compte.`,
-                      `Invitation created for ${res.email}, but NO email could be sent (email sending is not configured on the server). The invitation text was copied — send it to them yourself so they can finish creating their account.`
+                      `Invitation envoyée par e-mail à ${res.email} ✓ (le texte a aussi été copié, en secours). Ses accès s'activeront à sa première connexion.`,
+                      `Invitation emailed to ${res.email} ✓ (the text was also copied, as a backup). Their access activates on first sign-in.`
                     )
                   : t(
-                      `Invitation créée pour ${res.email} et copiée — envoyez-la-lui pour finaliser la création de son compte.`,
-                      `Invitation created for ${res.email} and copied — send it so they can finish creating their account.`
+                      `Invitation créée pour ${res.email}, mais l'e-mail n'a pas pu être envoyé (SMTP non configuré côté Supabase). Le texte d'invitation a été copié — envoyez-le-lui vous-même pour finaliser la création de son compte.`,
+                      `Invitation created for ${res.email}, but the email could not be sent (SMTP not configured in Supabase). The invitation text was copied — send it to them yourself so they can finish creating their account.`
                     )
               );
             } else if (res?.added) {

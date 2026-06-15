@@ -6,6 +6,7 @@
 // les RÉUTILISER dans un assemblage, une publication, une pub… sans tout refaire.
 
 import { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useT } from "@/lib/i18n";
 import { Spinner } from "@/components/ui/Spinner";
 
@@ -71,6 +72,10 @@ function MediaLibraryModal({
   const [assets, setAssets] = useState<LibraryAsset[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>(accept === "all" ? "all" : accept);
+  // Portal vers <body> : le voile couvre toute la page même sous un ancêtre
+  // avec transform/backdrop-blur (cf. convention Modal de CLAUDE.md).
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   const load = useCallback(async () => {
     setError(null); setAssets(null);
@@ -107,7 +112,8 @@ function MediaLibraryModal({
     { id: "logo", label: t("Logo / charte", "Logo / brand") },
   ];
 
-  return (
+  if (!mounted) return null;
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
       <div className="flex max-h-[85vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-hair bg-page shadow-2xl"
         onClick={(e) => e.stopPropagation()}>
@@ -171,6 +177,7 @@ function MediaLibraryModal({
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

@@ -3,7 +3,7 @@
 // par les gardes (requireCompanyAccess / requireAccountAdmin). Ne throw jamais.
 
 import { createAdminClient } from "@/lib/supabase/server";
-import { isSupabaseConfigured } from "@/lib/env";
+import { isSupabaseConfigured, env } from "@/lib/env";
 import {
   AccessMode,
   CompanyAccessGrant,
@@ -197,10 +197,22 @@ export async function addOrInviteMember(
     status: "pending",
     invited_by: invitedBy ?? null,
   });
-  // Aucun fournisseur d'e-mail n'est configuré côté serveur (pas de provider/clé).
-  // On reste honnête : l'invitation est créée mais AUCUN e-mail n'est envoyé.
-  // Le flag est remonté à l'UI pour l'indiquer clairement à l'admin.
-  return { invited: true, emailSent: false };
+
+  // #10 — Envoi d'un VRAI e-mail d'invitation via Supabase Auth. Le destinataire
+  // reçoit un lien d'inscription ; à sa première connexion, consumeInvitations()
+  // applique automatiquement le rôle + les accès. Dégradation gracieuse : si
+  // l'e-mail échoue (SMTP non configuré côté Supabase, utilisateur déjà inscrit…)
+  // l'invitation reste créée et le lien-relais copiable prend le relais.
+  let emailSent = false;
+  try {
+    const redirectTo = `${env.appUrl.replace(/\/$/, "")}/auth/callback`;
+    const { error: inviteErr } = await sb.auth.admin.inviteUserByEmail(norm, { redirectTo });
+    emailSent = !inviteErr;
+  } catch {
+    emailSent = false;
+  }
+
+  return { invited: true, emailSent };
 }
 
 /** Met à jour le rôle et les accès d'un membre existant. */

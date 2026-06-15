@@ -62,9 +62,15 @@ function ScheduledContent() {
 
   useEffect(() => {
     fetchPosts();
-    const handleFocus = () => { fetchPosts(); };
+    // Refetch au retour sur l'onglet — anti-rebond pour éviter une rafale de
+    // requêtes si on alt-tab plusieurs fois rapidement.
+    let t: ReturnType<typeof setTimeout> | null = null;
+    const handleFocus = () => {
+      if (t) clearTimeout(t);
+      t = setTimeout(() => { fetchPosts(); }, 1000);
+    };
     window.addEventListener("focus", handleFocus);
-    return () => { window.removeEventListener("focus", handleFocus); };
+    return () => { if (t) clearTimeout(t); window.removeEventListener("focus", handleFocus); };
   }, [fetchPosts]);
 
   const mergedScheduled = useMemo(() => {

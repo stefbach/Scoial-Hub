@@ -15,7 +15,7 @@ import { callClaudeJSON } from "@/lib/ai/claude-json";
 import { isAiConfigured } from "@/lib/env";
 
 interface Competitor { name?: string; url?: string }
-interface Body { companyId?: string; product?: string; competitors?: Competitor[] }
+interface Body { companyId?: string; product?: string; competitors?: Competitor[]; language?: "fr" | "en" }
 
 export interface BenchmarkResult {
   summary: string;
@@ -109,7 +109,9 @@ Réponds UNIQUEMENT en JSON valide, structure EXACTE :
   "positioning": "Description de l'espace de marché et où nous nous situons",
   "recommendedPricing": {"tiers":[{"name":"PME","price":"99 €/mo","target":"cœur de cible","rationale":"pourquoi"}],"notes":"remarque marge/crédits IA"}
 }
-Inclus NOTRE PRODUIT en première ligne de "rows" (isYou=true) et une ligne par concurrent. La SWOT est du point de vue de NOTRE produit.`;
+Inclus NOTRE PRODUIT en première ligne de "rows" (isYou=true) et une ligne par concurrent. La SWOT est du point de vue de NOTRE produit.
+
+${(body.language === "en") ? "Write ALL textual values (summary, positioning, tiers, notes, swot, rationale…) in ENGLISH." : "Rédige toutes les valeurs textuelles en français."}`;
 
   const data = await callClaudeJSON<BenchmarkResult>(prompt, {
     model: "claude-sonnet-4-6",

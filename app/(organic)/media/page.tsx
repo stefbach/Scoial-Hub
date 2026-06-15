@@ -196,15 +196,15 @@ export default function MediaLibraryPage() {
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-          {shown.map((a, i) => (
-            <div key={i} className="card overflow-hidden p-0">
+          {shown.map((a) => (
+            <div key={a.url} className="card overflow-hidden p-0">
               <div className="relative aspect-square bg-canvas">
                 {a.type === "video" ? (
                   // eslint-disable-next-line jsx-a11y/media-has-caption
-                  <video src={a.url} controls className="h-full w-full object-cover" />
+                  <video src={a.url} controls preload="none" className="h-full w-full object-cover" />
                 ) : (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={a.url} alt="" className="h-full w-full object-cover" />
+                  <img src={a.url} alt="" loading="lazy" className="h-full w-full object-cover" />
                 )}
                 <span className="absolute left-1.5 top-1.5 rounded-full bg-black/55 px-2 py-0.5 text-[10px] font-semibold text-white">
                   {a.type === "video" ? "▶ " + t("vidéo", "video") : (a.format || "image")}

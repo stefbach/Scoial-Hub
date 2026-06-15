@@ -4,7 +4,7 @@
 // Visage + sujet → script (Claude) → voix (TTS) → lip-sync (Replicate) → vidéo
 // d'avatar parlant. Téléchargeable et publiable.
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useCompany } from "@/lib/company-context";
 import { StudioHero, StudioStep, Segmented } from "@/components/studio/StudioUI";
 import { StudioCopilot, type CopilotSuggestion } from "@/components/studio/StudioCopilot";
@@ -79,6 +79,13 @@ export default function StudioAvatarPage() {
   const [note, setNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // Nettoyage au démontage : stoppe le minuteur d'enregistrement et le micro
+  // s'ils tournent encore (évite une fuite + des setState post-démontage).
+  useEffect(() => () => {
+    if (recTimerRef.current) clearInterval(recTimerRef.current);
+    try { if (mediaRecRef.current && mediaRecRef.current.state !== "inactive") mediaRecRef.current.stop(); } catch { /* ignore */ }
+  }, []);
 
   async function uploadFace(files: FileList | null) {
     if (!files || files.length === 0) return;

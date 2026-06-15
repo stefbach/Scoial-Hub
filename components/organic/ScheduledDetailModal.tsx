@@ -27,11 +27,17 @@ export function ScheduledDetailModal({
   post,
   onClose,
   onChanged,
+  onOptimisticDelete,
+  onOptimisticReschedule,
 }: {
   companyId: string;
   post: ScheduledPost | null;
   onClose: () => void;
   onChanged: () => void | Promise<void>;
+  /** Masque le post de la liste immédiatement (avant le refetch). */
+  onOptimisticDelete?: (id: string) => void;
+  /** Met à jour la date/heure du post dans la liste immédiatement. */
+  onOptimisticReschedule?: (id: string, date: string, time: string) => void;
 }) {
   const router = useRouter();
   const t = useT();
@@ -77,6 +83,7 @@ export function ScheduledDetailModal({
     } catch { /* on tente quand même le store local */ }
     // Met aussi à jour le store local (posts de démo / hors Supabase).
     reschedulePost(companyId, post.id, newDate, time);
+    onOptimisticReschedule?.(post.id, newDate, time); // reflète la nouvelle date tout de suite
     setBusy(false);
     // On rafraîchit la liste AVANT de fermer pour que la nouvelle date soit
     // immédiatement reflétée dans la liste/calendrier parent.
@@ -113,6 +120,7 @@ export function ScheduledDetailModal({
 
   const handleDelete = async () => {
     setBusy(true);
+    onOptimisticDelete?.(post.id); // disparaît de la liste immédiatement
     try {
       await fetch(`/api/scheduled-posts/${post.id}`, { method: "DELETE" });
     } catch { /* store local en repli */ }

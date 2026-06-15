@@ -466,7 +466,7 @@ export default function Step4Creative() {
       {/* ── Panneau d'action contextuel — affiché si un mode est choisi ── */}
       {activeMode && (
         <section
-          className="card animate-fade-in space-y-4 p-5"
+          className="animate-fade-in space-y-4"
           aria-label={t("Options du mode sélectionné", "Selected mode options")}
         >
           {/* En-tête du panneau */}

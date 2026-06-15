@@ -14,6 +14,7 @@ import { MetaGeoPicker, type GeoLoc } from "@/components/ads/MetaGeoPicker";
 import { MetaLanguagePicker, type MetaLocale } from "@/components/ads/MetaLanguagePicker";
 import { Spinner, BusyHint } from "@/components/ui/Spinner";
 import { generateVideoPolling } from "@/lib/ai/generate-video-client";
+import { overlayLogoAndUpload, type LogoCorner } from "@/lib/media/logo-overlay";
 
 interface Conn {
   connected: boolean;
@@ -126,6 +127,10 @@ export default function NewMetaAdPage() {
   const [libOpen, setLibOpen] = useState(false);
   const [libAssets, setLibAssets] = useState<{ url: string; type: string; format?: string; source?: string }[]>([]);
   const [libLoading, setLibLoading] = useState(false);
+  // Logo de marque incrusté sur le visuel de l'annonce
+  const [brandLogoUrl, setBrandLogoUrl] = useState("");
+  const [logoCorner, setLogoCorner] = useState<LogoCorner>("br");
+  const [applyingLogo, setApplyingLogo] = useState(false);
 
   // Conversions (pixel)
   const [pixels, setPixels] = useState<{ id: string; name: string }[]>([]);
@@ -265,6 +270,36 @@ export default function NewMetaAdPage() {
       const d = await r.json();
       setLibAssets(Array.isArray(d.assets) ? d.assets : []);
     } catch { setLibAssets([]); } finally { setLibLoading(false); }
+  }
+
+  // Récupère le logo de la marque (depuis la bibliothèque) au chargement, pour
+  // proposer son incrustation sur le visuel de l'annonce.
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const r = await fetch(`/api/media?companyId=${encodeURIComponent(companyId)}`);
+        const d = await r.json();
+        const assets: { url: string; source?: string }[] = Array.isArray(d.assets) ? d.assets : [];
+        const logo = assets.find((a) => (a.source ?? "").startsWith("brand-kit:logo"));
+        if (active && logo?.url) setBrandLogoUrl(logo.url);
+      } catch { /* logo optionnel */ }
+    })();
+    return () => { active = false; };
+  }, [companyId]);
+
+  // Incruste le logo de la marque sur le visuel sélectionné → nouveau visuel logoté.
+  async function applyLogoToVisual() {
+    if (!imageUrl) { setError(t("Choisissez d'abord un visuel.", "Pick a visual first.")); return; }
+    if (!brandLogoUrl) { setError(t("Aucun logo de marque. Importez-le dans le brand kit (studio).", "No brand logo. Upload it in the brand kit (studio).")); return; }
+    setError(null); setApplyingLogo(true);
+    try {
+      const url = await overlayLogoAndUpload({ companyId, imageUrl, logoUrl: brandLogoUrl, corner: logoCorner, source: "campaign-logo" });
+      setGeneratedVisuals((prev) => [{ format: t("logo", "logo"), url }, ...prev]);
+      setImageUrl(url);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t("Échec de l'incrustation du logo.", "Logo overlay failed."));
+    } finally { setApplyingLogo(false); }
   }
 
   // Convertit une date (ISO ou yyyy-mm-dd) au format input datetime-local.
@@ -977,6 +1012,30 @@ export default function NewMetaAdPage() {
                 title={t("Repart du visuel sélectionné et applique le prompt (déclinaison)", "Starts from the selected visual and applies the prompt (variation)")}>
                 {t("⤳ Décliner depuis ce visuel", "⤳ Derive from this visual")}
               </button>
+            </div>
+
+            {/* Logo de marque incrusté sur le visuel de l'annonce */}
+            <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-hair bg-canvas px-3 py-2">
+              <span className="text-2xs font-medium text-muted">🏷️ {t("Logo de marque", "Brand logo")}</span>
+              {brandLogoUrl ? (
+                <>
+                  <span className="text-2xs text-muted">{t("Coin :", "Corner:")}</span>
+                  <div className="flex gap-1">
+                    {([["tl", "↖"], ["tr", "↗"], ["bl", "↙"], ["br", "↘"]] as const).map(([k, ic]) => (
+                      <button key={k} type="button" onClick={() => setLogoCorner(k)}
+                        className={`h-6 w-6 rounded text-xs ${logoCorner === k ? "bg-page text-white" : "bg-card text-muted ring-1 ring-hair hover:text-ink"}`}>{ic}</button>
+                    ))}
+                  </div>
+                  <button type="button" onClick={applyLogoToVisual} disabled={applyingLogo || !imageUrl}
+                    className="btn-secondary inline-flex items-center gap-1.5 text-xs disabled:opacity-50"
+                    title={!imageUrl ? t("Choisissez d'abord un visuel", "Pick a visual first") : undefined}>
+                    {applyingLogo && <Spinner size={14} className="text-current" />}
+                    {applyingLogo ? t("Incrustation…", "Applying…") : t("Incruster le logo", "Burn in the logo")}
+                  </button>
+                </>
+              ) : (
+                <span className="text-2xs text-muted">{t("Aucun logo — importez-le dans le brand kit (studio).", "No logo — upload it in the brand kit (studio).")}</span>
+              )}
             </div>
 
             {/* Bibliothèque média : visuels/vidéos déjà créés, réutilisables */}

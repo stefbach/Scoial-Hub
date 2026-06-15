@@ -42,6 +42,17 @@ interface RunResult {
   finishedAt: string;
 }
 
+// #3 — sauvegarde locale du dernier résultat de veille (par société), pour le
+// restaurer au rechargement de la page.
+function saveVeilleResult(companyId: string, result: RunResult | null) {
+  try {
+    if (typeof window === "undefined") return;
+    const key = `veille_result_${companyId}`;
+    if (result) localStorage.setItem(key, JSON.stringify(result));
+    else localStorage.removeItem(key);
+  } catch { /* quota / mode privé : non bloquant */ }
+}
+
 const NETWORKS: { value: ScrapeNetwork; label: string }[] = [
   { value: "instagram", label: "Instagram" },
   { value: "tiktok",    label: "TikTok" },
@@ -185,7 +196,19 @@ export default function VeillePage() {
     };
   }, [company.id]);
 
-  /* ── Ajout d'un compétiteur ── */
+  // #3 — Persistance de l'analyse : on restaure le dernier résultat au montage
+  // (et à chaque changement de société) pour qu'il survive à un rechargement.
+  // Le résultat complet (contenus + analyse) est gardé en localStorage par
+  // société — l'endpoint serveur /latest ne renvoyant qu'un résumé.
+  useEffect(() => {
+    let saved: RunResult | null = null;
+    try {
+      const raw = typeof window !== "undefined" ? localStorage.getItem(`veille_result_${company.id}`) : null;
+      if (raw) saved = JSON.parse(raw) as RunResult;
+    } catch { saved = null; }
+    if (saved && saved.analysis) { setResult(saved); setActiveTab("analyse"); }
+    else setResult(null);
+  }, [company.id]);
   async function handleAddCompetitor() {
     if (!addHandle.trim()) return;
     setAdding(true);
@@ -265,7 +288,7 @@ export default function VeillePage() {
       const res = await fetch("/api/veille/identify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyId: company.id, theme, keywords, geo }),
+        body: JSON.stringify({ companyId: company.id, theme, keywords, geo, language: lang }),
       });
       if (res.ok) {
         const data = await res.json() as { competitors: IdentifiedCompetitor[] };
@@ -305,6 +328,7 @@ export default function VeillePage() {
       // Étape 1 : afficher tout de suite les contenus collectés.
       setResult(data);
       setActiveTab("analyse");
+      saveVeilleResult(company.id, data); // #3 — persiste (survit au reload)
 
       // Étape 2 : analyse IA (Claude) séparée → ne dépasse jamais 60 s.
       setAnalyzing(true);
@@ -323,7 +347,11 @@ export default function VeillePage() {
         });
         if (ares.ok) {
           const adata = await ares.json() as { analysis: RunResult["analysis"] };
-          setResult((prev) => (prev ? { ...prev, analysis: adata.analysis } : prev));
+          setResult((prev) => {
+            const next = prev ? { ...prev, analysis: adata.analysis } : prev;
+            if (next) saveVeilleResult(company.id, next); // #3 — persiste l'analyse enrichie
+            return next;
+          });
           // L'analyse vient d'être persistée en mémoire stratégique → on
           // régénère le brief IA en tâche de fond (fire-and-forget). À l'issue de
           // la synthèse, on signale au StrategyPanel de se rafraîchir (sans clic).
@@ -709,7 +737,25 @@ export default function VeillePage() {
                 {activeTab === "analyse" && (
                   <div>
                     {result.analysis ? (
-                      <AnalysisPanel analysis={result.analysis} />
+                      <>
+                        <AnalysisPanel analysis={result.analysis} />
+                        {/* #16 — passer directement de l'analyse à une campagne (préremplie) */}
+                        <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-hair pt-4">
+                          <a
+                            href={`/campaigns/new?${new URLSearchParams({
+                              name: t("Campagne — enseignements veille", "Campaign — watch insights"),
+                              text: [result.analysis.resume, result.analysis.recommandations?.[0]?.action]
+                                .filter(Boolean).join(" ").slice(0, 600),
+                            }).toString()}`}
+                            className="btn-primary text-sm"
+                          >
+                            {t("🎯 Créer une campagne avec ces enseignements", "🎯 Create a campaign with these insights")}
+                          </a>
+                          <p className="min-w-0 flex-1 text-2xs text-muted">
+                            {t("Le résumé et la recommandation prioritaire préremplissent la création de campagne.", "The summary and top recommendation pre-fill the campaign creation.")}
+                          </p>
+                        </div>
+                      </>
                     ) : analyzing ? (
                       <div className="card flex items-center justify-center gap-3 p-8">
                         <Spinner />

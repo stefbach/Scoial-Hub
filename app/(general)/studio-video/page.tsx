@@ -68,6 +68,8 @@ export default function StudioPage() {
   const [toast, setToast] = useState<{ message: string; key: number } | null>(null);
   // Onglet du panneau « Créer avec l'IA » : copilote / visuel / audio.
   const [genTab, setGenTab] = useState<"copilot" | "visual" | "audio">("copilot");
+  // Plan en cours de glisser-déposer (montage).
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const notify = (m: string) => setToast({ message: m, key: Date.now() });
@@ -94,6 +96,17 @@ export default function StudioPage() {
       const j = index + dir;
       if (j < 0 || j >= next.length) return prev;
       [next[index], next[j]] = [next[j], next[index]];
+      return next;
+    });
+  }
+  // Glisser-déposer : réordonne le plan `from` à la position `to`.
+  function reorderAsset(from: number, to: number) {
+    if (from === to || from < 0 || to < 0) return;
+    setAssets((prev) => {
+      if (from >= prev.length || to >= prev.length) return prev;
+      const next = [...prev];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
       return next;
     });
   }
@@ -318,31 +331,43 @@ export default function StudioPage() {
           <button className="btn-secondary shrink-0 text-xs" onClick={addUrl}>{t("Ajouter", "Add")}</button>
         </div>
 
-        {/* Liste des médias */}
+        {/* Montage : ordre des plans (glisser-déposer + flèches) */}
         {assets.length > 0 && (
           <div className="mt-3">
-            <div className="mb-2 text-2xs text-muted">{imageCount} {t("image(s)", "image(s)")} · {videoCount} {t("vidéo(s)", "video(s)")}</div>
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <span className="text-2xs font-semibold uppercase tracking-wide text-muted">{t("Ordre du montage", "Edit order")}</span>
+              <span className="text-2xs text-muted">{imageCount} {t("image(s)", "image(s)")} · {videoCount} {t("vidéo(s)", "video(s)")} · {t("glissez pour réorganiser", "drag to reorder")}</span>
+            </div>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
               {assets.map((a, ai) => (
-                <div key={a.url} className="group relative overflow-hidden rounded-lg border border-hair bg-canvas">
-                  {/* Ordre de montage (timeline) */}
+                <div
+                  key={a.url}
+                  draggable
+                  onDragStart={() => setDragIndex(ai)}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => { e.preventDefault(); if (dragIndex !== null) reorderAsset(dragIndex, ai); setDragIndex(null); }}
+                  onDragEnd={() => setDragIndex(null)}
+                  className={`group relative cursor-grab overflow-hidden rounded-lg border bg-canvas transition-all active:cursor-grabbing ${dragIndex === ai ? "border-primary-400 opacity-50 ring-2 ring-primary-200" : "border-hair"}`}
+                >
+                  {/* Numéro du plan dans le montage */}
                   <span className="absolute bottom-1 left-1 z-10 rounded bg-page px-1.5 py-0.5 text-2xs font-bold text-white">{ai + 1}</span>
-                  <div className="absolute bottom-1 right-1 z-10 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                    <button onClick={() => moveAsset(ai, -1)} disabled={ai === 0} aria-label={t("Avancer dans la timeline", "Move earlier")} className="rounded bg-ink/70 px-1.5 py-0.5 text-2xs text-white disabled:opacity-30">◀</button>
-                    <button onClick={() => moveAsset(ai, 1)} disabled={ai === assets.length - 1} aria-label={t("Reculer dans la timeline", "Move later")} className="rounded bg-ink/70 px-1.5 py-0.5 text-2xs text-white disabled:opacity-30">▶</button>
+                  {/* Flèches d'ordre — toujours visibles (mobile-friendly) */}
+                  <div className="absolute bottom-1 right-1 z-10 flex gap-1">
+                    <button onClick={() => moveAsset(ai, -1)} disabled={ai === 0} aria-label={t("Avancer dans le montage", "Move earlier")} className="rounded bg-ink/70 px-1.5 py-0.5 text-2xs text-white disabled:opacity-30 hover:bg-ink">◀</button>
+                    <button onClick={() => moveAsset(ai, 1)} disabled={ai === assets.length - 1} aria-label={t("Reculer dans le montage", "Move later")} className="rounded bg-ink/70 px-1.5 py-0.5 text-2xs text-white disabled:opacity-30 hover:bg-ink">▶</button>
                   </div>
                   {a.kind === "image" ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={a.url} alt={a.name ?? ""} className="h-24 w-full object-cover" />
+                    <img src={a.url} alt={a.name ?? ""} className="pointer-events-none h-24 w-full object-cover" />
                   ) : (
-                    <video src={a.url} className="h-24 w-full object-cover" muted />
+                    <video src={a.url} className="pointer-events-none h-24 w-full object-cover" muted />
                   )}
                   <span className="absolute left-1 top-1 rounded bg-ink/70 px-1.5 py-0.5 text-2xs font-semibold text-white">
                     {a.kind === "image" ? "IMG" : "VID"}
                   </span>
                   <button
                     onClick={() => removeAsset(a.url)}
-                    className="absolute right-1 top-1 rounded-full bg-ink/70 p-1 text-white opacity-0 transition-opacity group-hover:opacity-100"
+                    className="absolute right-1 top-1 rounded-full bg-ink/70 p-1 text-white transition-opacity hover:bg-danger-500"
                     aria-label={t("Retirer", "Remove")}
                   >
                     <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>

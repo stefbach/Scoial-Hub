@@ -5,7 +5,7 @@
 // optionnelle). Le serveur récupère les pages puis Claude produit une matrice de
 // scores (12 dimensions), une SWOT, le positionnement et un prix conseillé.
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useCompany } from "@/lib/company-context";
 import { useT } from "@/lib/i18n";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -45,6 +45,8 @@ export default function BenchmarkPage() {
 
   const [competitors, setCompetitors] = useState(DEFAULT_COMPETITORS);
   const [product, setProduct] = useState("");
+  const [productPrefilled, setProductPrefilled] = useState(false);
+  const [suggesting, setSuggesting] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<BenchmarkResult | null>(null);
@@ -53,6 +55,50 @@ export default function BenchmarkPage() {
     setCompetitors((cs) => cs.map((c, j) => (j === i ? { ...c, [key]: v } : c)));
   const addComp = () => setCompetitors((cs) => (cs.length >= 6 ? cs : [...cs, { name: "", url: "" }]));
   const removeComp = (i: number) => setCompetitors((cs) => cs.filter((_, j) => j !== i));
+
+  // #20 — Réutiliser la description produit déjà saisie ailleurs : on préremplit
+  // « Votre produit » depuis l'identité de marque (résumé + positionnement),
+  // pour ne plus avoir à la ressaisir. L'utilisateur reste libre de l'éditer.
+  useEffect(() => {
+    let alive = true;
+    setProduct(""); setProductPrefilled(false);
+    fetch(`/api/onboarding/state?companyId=${encodeURIComponent(company.id)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!alive || !d?.profile) return;
+        const p = d.profile as { summary?: string; positioning?: string; audience?: string };
+        const text = [p.summary, p.positioning, p.audience ? `Cible : ${p.audience}` : ""]
+          .filter(Boolean).join(" ").trim();
+        if (text) { setProduct((cur) => cur || text); setProductPrefilled(true); }
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [company.id]);
+
+  // #21 — L'IA propose des concurrents à partir de votre produit ; l'utilisateur
+  // peut toujours en ajouter/éditer/supprimer manuellement.
+  async function suggestCompetitors() {
+    if (suggesting) return;
+    setSuggesting(true); setError(null);
+    try {
+      const res = await fetch("/api/veille/identify", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyId: company.id, theme: product.trim() || company.name, keywords: [], geo: "fr" }),
+      });
+      const d = await res.json() as { competitors?: { name: string }[] };
+      const names = (d.competitors ?? []).map((c) => c.name).filter(Boolean);
+      if (names.length === 0) { setError(t("Aucune suggestion — décrivez votre produit puis réessayez.", "No suggestion — describe your product then retry.")); return; }
+      setCompetitors((cs) => {
+        const existing = new Set(cs.map((c) => c.name.trim().toLowerCase()).filter(Boolean));
+        const additions = names
+          .filter((n) => !existing.has(n.toLowerCase()))
+          .map((n) => ({ name: n, url: "" }));
+        return [...cs.filter((c) => c.name.trim()), ...additions].slice(0, 6);
+      });
+    } catch {
+      setError(t("Erreur réseau pendant la suggestion.", "Network error while suggesting."));
+    } finally { setSuggesting(false); }
+  }
 
   async function run() {
     setLoading(true);
@@ -100,7 +146,7 @@ export default function BenchmarkPage() {
       {/* Saisie */}
       <div className="card space-y-4 p-5">
         <div>
-          <label className="section-label">{t("Votre produit (optionnel — rempli par défaut)", "Your product (optional — prefilled)")}</label>
+          <label className="section-label">{t("Votre produit", "Your product")}</label>
           <textarea
             value={product}
             onChange={(e) => setProduct(e.target.value)}
@@ -108,6 +154,9 @@ export default function BenchmarkPage() {
             placeholder={t("Décrivez votre produit, sa cible et ses atouts…", "Describe your product, target and strengths…")}
             className="input mt-1 w-full"
           />
+          {productPrefilled && (
+            <p className="mt-1 text-2xs text-muted">{t("✓ Prérempli depuis votre identité de marque — modifiable.", "✓ Prefilled from your brand identity — editable.")}</p>
+          )}
         </div>
 
         <div>
@@ -131,9 +180,15 @@ export default function BenchmarkPage() {
               </div>
             ))}
           </div>
-          {competitors.length < 6 && (
-            <button onClick={addComp} className="btn-ghost mt-2 text-xs">+ {t("Ajouter un concurrent", "Add competitor")}</button>
-          )}
+          <div className="mt-2 flex flex-wrap items-center gap-3">
+            {competitors.length < 6 && (
+              <button onClick={addComp} className="btn-ghost text-xs">+ {t("Ajouter un concurrent", "Add competitor")}</button>
+            )}
+            <button onClick={suggestCompetitors} disabled={suggesting} className="btn-secondary inline-flex items-center gap-1.5 text-xs disabled:opacity-50">
+              {suggesting && <Spinner size={12} className="text-current" />}
+              {suggesting ? t("Suggestion…", "Suggesting…") : t("✨ Suggérer des concurrents (IA)", "✨ Suggest competitors (AI)")}
+            </button>
+          </div>
         </div>
 
         <div className="flex items-center gap-3">

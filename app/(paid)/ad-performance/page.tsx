@@ -319,11 +319,12 @@ function AdPerformanceContent() {
   );
 
   const filteredRows = useMemo(() => {
+    const q = search.trim().toLowerCase(); // calculé une fois (pas par ligne)
     return allRows.filter((r) => {
       if (campaignFilter !== "all" && r.campaign.id !== campaignFilter) return false;
       if (platformFilter !== "all" && r.platform !== platformFilter) return false;
       if (statusFilter !== "all" && r.ad.status !== statusFilter) return false;
-      if (search.trim() && !r.ad.name.toLowerCase().includes(search.toLowerCase())) return false;
+      if (q && !r.ad.name.toLowerCase().includes(q)) return false;
       return true;
     });
   }, [allRows, campaignFilter, platformFilter, statusFilter, search]);

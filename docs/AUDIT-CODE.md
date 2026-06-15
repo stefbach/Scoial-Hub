@@ -24,9 +24,11 @@ Référence des conventions : `CLAUDE.md`. (Distinct de `docs/AUDIT.md`, qui est
 - ✅ **Performance** — galerie média (`loading="lazy"`/clés stables), LinkedIn
   (`Promise.all`), polling Telegram (backoff + plafond). Faux positif : les fetch
   Pilotage sont déjà dans des effets séparés (donc concurrents).
-- ⏳ **Reporté (refactors, non bloquants)** : découpe de `campaigns/new` (~1279 l.)
-  et `compose` en sous-composants ; fusion filtre+tri `ad-performance`. À planifier
-  séparément (risque de régression si fait à la hâte).
+- 🔄 **Refactors lisibilité (en cours)** : extraction de composants cohérents —
+  `campaigns/new` (1280→1182 : `AdResultPanel`, `AdAssistantPanel`) et `compose`
+  (642→613 : `WhenToPublish`). Les sections de formulaire fortement couplées
+  (78 `useState`) restent en place : les découper exigerait de remonter l'état
+  (hook/contexte) et présente un risque de régression — à faire posément.
 
 ## Synthèse
 

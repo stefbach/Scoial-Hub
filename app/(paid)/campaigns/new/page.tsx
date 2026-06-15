@@ -15,6 +15,8 @@ import { MetaLanguagePicker, type MetaLocale } from "@/components/ads/MetaLangua
 import { Spinner, BusyHint } from "@/components/ui/Spinner";
 import { generateVideoPolling } from "@/lib/ai/generate-video-client";
 import { overlayLogoAndUpload, type LogoCorner } from "@/lib/media/logo-overlay";
+import { AdResultPanel } from "@/components/paid/AdResultPanel";
+import { AdAssistantPanel } from "@/components/paid/AdAssistantPanel";
 
 interface Conn {
   connected: boolean;
@@ -606,71 +608,21 @@ export default function NewMetaAdPage() {
       />
 
       {/* Assistant IA conversationnel : on discute, l'IA remplit tout */}
-      <section className={`card border-l-4 border-ai-text p-5 ${mode === "assist" ? "" : "hidden"}`}>
-        <span className="section-label text-ai-text">{t("Assistant IA — discutez, l'IA construit la campagne", "AI assistant — chat, AI builds the campaign")}</span>
-        <p className="mt-0.5 text-2xs text-muted">
-          {t(
-            "Dites ce que vous voulez ; l'IA pose une question si besoin, puis remplit tout (objectif, budget, ciblage, texte, visuel, formulaire) selon les règles Meta.",
-            "Tell it what you want; the AI asks a question if needed, then fills everything (objective, budget, targeting, copy, visual, form) per Meta rules."
-          )}
-        </p>
-
-        {/* Fil de conversation */}
-        {chatMessages.length > 0 && (
-          <div className="mt-3 max-h-72 space-y-2 overflow-y-auto rounded-lg border border-hair bg-canvas p-3">
-            {chatMessages.map((m, i) => (
-              <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-                <span className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm ${m.role === "user" ? "bg-page text-white" : "bg-card text-ink ring-1 ring-hair"}`}>
-                  {m.content}
-                </span>
-              </div>
-            ))}
-            {assisting && (
-              <div className="flex justify-start"><span className="inline-flex items-center gap-1.5 rounded-2xl bg-card px-3 py-2 text-sm text-muted ring-1 ring-hair"><Spinner size={12} className="text-ai-text" /> {t("L'IA réfléchit…", "AI is thinking…")}</span></div>
-            )}
-          </div>
-        )}
-
-        {planReady && (
-          <div className="mt-2 rounded-lg bg-success-50 px-3 py-2.5 text-xs text-success-700">
-            {t("✓ Campagne pré-remplie ci-dessous. Vérifiez, ou créez-la directement (en PAUSE).", "✓ Campaign pre-filled below. Review, or create it directly (PAUSED).")}
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={publish}
-                disabled={publishing || genImg || !canEdit}
-                title={!canEdit ? t("Lecture seule", "View only") : undefined}
-                className="btn-primary inline-flex items-center gap-1.5 text-sm disabled:opacity-50"
-              >
-                {publishing && <Spinner size={14} className="text-white" />}
-                {publishing ? t("Création sur Meta…", "Creating on Meta…") : t("Créer directement (EN PAUSE)", "Create directly (PAUSED)")}
-              </button>
-              <button type="button" onClick={() => setMode("manual")} className="btn-secondary inline-flex items-center gap-1.5 text-sm">
-                {t("Ajuster les réglages →", "Adjust settings →")}
-              </button>
-              {genImg && <span className="inline-flex items-center gap-1.5 text-2xs text-muted"><Spinner size={12} className="text-ai-text" /> {t("Visuel en cours de génération…", "Visual being generated…")}</span>}
-            </div>
-          </div>
-        )}
-
-        <div className="mt-3 flex items-end gap-2">
-          <textarea
-            value={chatInput}
-            onChange={(e) => setChatInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChat(); } }}
-            rows={2}
-            placeholder={chatMessages.length === 0
-              ? t("Ex : « Des prospects pour la chirurgie de l'obésité, cible UK, 25 €/jour »", "E.g. \"Leads for obesity surgery, UK audience, €25/day\"")
-              : t("Votre réponse…", "Your reply…")}
-            className="flex-1 rounded-lg border border-hair bg-canvas px-3 py-2 text-sm text-ink outline-none focus:border-primary-400"
-          />
-          <button type="button" onClick={sendChat} disabled={assisting || !conn?.connected || !chatInput.trim() || !canEdit} className="btn-primary inline-flex shrink-0 items-center gap-1.5 text-sm disabled:opacity-50">
-            {assisting && <Spinner size={14} className="text-white" />}
-            {t("Envoyer", "Send")}
-          </button>
-        </div>
-        {!conn?.connected && <p className="mt-1 text-2xs text-muted">{t("Connectez Meta pour activer l'assistant.", "Connect Meta to enable the assistant.")}</p>}
-      </section>
+      <AdAssistantPanel
+        active={mode === "assist"}
+        messages={chatMessages}
+        assisting={assisting}
+        planReady={planReady}
+        publishing={publishing}
+        genImg={genImg}
+        canEdit={canEdit}
+        connected={!!conn?.connected}
+        input={chatInput}
+        onInputChange={setChatInput}
+        onSend={sendChat}
+        onPublish={publish}
+        onSwitchToManual={() => setMode("manual")}
+      />
 
       <fieldset disabled={!conn?.connected || publishing || !canEdit} className={`stagger-in space-y-5 disabled:opacity-60 ${mode === "manual" ? "" : "hidden"}`}>
         {/* Type de publicité */}
@@ -1213,67 +1165,17 @@ export default function NewMetaAdPage() {
 
       {/* Résultat + activation */}
       {result && (
-        <section className="card mt-5 border-l-4 border-success-400 p-5">
-          <div className="flex items-center gap-2">
-            <span className="section-label text-success-700">{t("Publicité créée sur Meta", "Ad created on Meta")}</span>
-            <span className="rounded-full bg-canvas px-2 py-0.5 text-2xs font-semibold text-muted ring-1 ring-hair">{isLive ? "ACTIVE" : "PAUSED"}</span>
-          </div>
-          <p className="mt-2 text-sm text-ink">
-            {t(
-              "Elle est en pause sur votre compte Meta — aucune dépense pour l'instant. Vous pouvez l'activer ici ou depuis le Gestionnaire de publicités.",
-              "It is paused on your Meta account — no spend yet. You can activate it here or from Ads Manager."
-            )}
-          </p>
-          <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-2xs text-muted sm:grid-cols-4">
-            <span>Campaign: {result.campaignId}</span>
-            <span>Ad set: {result.adSetId}</span>
-            <span>{t("Annonces", "Ads")}: {result.adIds?.length ?? 1}</span>
-            {result.leadFormId && <span>{t("Formulaire", "Form")}: {result.leadFormId}</span>}
-          </div>
-          <div className="mt-4 flex flex-wrap items-center gap-2">
-            <button onClick={activate} disabled={activating || isLive} className="btn-primary inline-flex items-center gap-1.5 text-sm disabled:opacity-50">
-              {activating && <Spinner size={14} className="text-white" />}
-              {isLive ? t("En ligne ✓", "Live ✓") : activating ? t("Activation…", "Activating…") : t("Activer (dépense réelle)", "Activate (real spend)")}
-            </button>
-            <a
-              href={conn?.adAccountId ? `https://business.facebook.com/adsmanager/manage/campaigns?act=${conn.adAccountId}` : "https://www.facebook.com/adsmanager"}
-              target="_blank" rel="noreferrer" className="btn-secondary text-sm"
-            >
-              {t("Ouvrir le Gestionnaire de pubs", "Open Ads Manager")}
-            </a>
-            <Link href="/ad-performance" className="text-xs text-primary-600 hover:underline">{t("Voir la performance →", "View performance →")}</Link>
-            {result.leadFormId && (
-              <button onClick={() => fetchLeads(result.leadFormId!)} disabled={loadingLeads} className="btn-secondary inline-flex items-center gap-1.5 text-sm disabled:opacity-50">
-                {loadingLeads && <Spinner size={14} className="text-current" />}
-                {t("Voir les prospects", "View leads")}
-              </button>
-            )}
-          </div>
-          {liveMsg && <p className="mt-3 rounded-lg bg-canvas px-3 py-2 text-xs text-ink">{liveMsg}</p>}
-
-          {/* Prospects récupérés du formulaire */}
-          {leads && (
-            <div className="mt-4 border-t border-hair pt-3">
-              <span className="section-label">{t("Prospects reçus", "Leads received")} ({leads.length})</span>
-              {leads.length === 0 ? (
-                <p className="mt-1 text-2xs text-muted">{t("Aucun prospect pour l'instant (le formulaire doit être actif et avoir reçu des soumissions). La récupération exige la permission « leads_retrieval » sur la Page.", "No leads yet (the form must be active and have submissions). Retrieval requires the Page 'leads_retrieval' permission.")}</p>
-              ) : (
-                <div className="mt-2 space-y-2">
-                  {leads.slice(0, 20).map((ld, i) => (
-                    <div key={i} className="rounded-lg border border-hair bg-canvas p-2 text-xs">
-                      <div className="flex flex-wrap gap-x-4 gap-y-0.5">
-                        {Object.entries(ld.fields).map(([k, v]) => (
-                          <span key={k} className="text-ink"><span className="text-muted">{k}:</span> {v}</span>
-                        ))}
-                      </div>
-                      {ld.createdTime && <span className="text-2xs text-muted">{new Date(ld.createdTime).toLocaleString("fr-FR")}</span>}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </section>
+        <AdResultPanel
+          result={result}
+          isLive={isLive}
+          adAccountId={conn?.adAccountId}
+          activating={activating}
+          onActivate={activate}
+          loadingLeads={loadingLeads}
+          onFetchLeads={fetchLeads}
+          liveMsg={liveMsg}
+          leads={leads}
+        />
       )}
     </div>
   );

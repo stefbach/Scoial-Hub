@@ -737,7 +737,25 @@ export default function VeillePage() {
                 {activeTab === "analyse" && (
                   <div>
                     {result.analysis ? (
-                      <AnalysisPanel analysis={result.analysis} />
+                      <>
+                        <AnalysisPanel analysis={result.analysis} />
+                        {/* #16 — passer directement de l'analyse à une campagne (préremplie) */}
+                        <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-hair pt-4">
+                          <a
+                            href={`/campaigns/new?${new URLSearchParams({
+                              name: t("Campagne — enseignements veille", "Campaign — watch insights"),
+                              text: [result.analysis.resume, result.analysis.recommandations?.[0]?.action]
+                                .filter(Boolean).join(" ").slice(0, 600),
+                            }).toString()}`}
+                            className="btn-primary text-sm"
+                          >
+                            {t("🎯 Créer une campagne avec ces enseignements", "🎯 Create a campaign with these insights")}
+                          </a>
+                          <p className="min-w-0 flex-1 text-2xs text-muted">
+                            {t("Le résumé et la recommandation prioritaire préremplissent la création de campagne.", "The summary and top recommendation pre-fill the campaign creation.")}
+                          </p>
+                        </div>
+                      </>
                     ) : analyzing ? (
                       <div className="card flex items-center justify-center gap-3 p-8">
                         <Spinner />

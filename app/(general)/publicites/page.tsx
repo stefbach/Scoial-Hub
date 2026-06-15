@@ -284,10 +284,18 @@ export default function PublicitesPage() {
                   <p className="section-label mb-2">{t("Recommandations pour vous", "Recommendations for you")}</p>
                   <div className="space-y-2">
                     {analysis.recommandations.map((r, i) => (
-                      <div key={i} className="rounded-lg border border-primary-200 bg-primary-50/50 p-3">
-                        <p className="text-sm font-semibold text-ink">{r.titre}</p>
+                      <a
+                        key={i}
+                        href={`/campaigns/new?${new URLSearchParams({ name: r.titre, text: `${r.titre} — ${r.detail}` }).toString()}`}
+                        className="group block rounded-lg border border-primary-200 bg-primary-50/50 p-3 transition-colors hover:border-primary-400 hover:bg-primary-50"
+                        title={t("Créer une campagne à partir de cette recommandation", "Create a campaign from this recommendation")}
+                      >
+                        <p className="flex items-center justify-between gap-2 text-sm font-semibold text-ink">
+                          {r.titre}
+                          <span className="shrink-0 text-2xs font-medium text-page opacity-0 transition-opacity group-hover:opacity-100">{t("Créer une pub →", "Create an ad →")}</span>
+                        </p>
                         <p className="mt-0.5 text-xs text-muted">{r.detail}</p>
-                      </div>
+                      </a>
                     ))}
                   </div>
                 </div>

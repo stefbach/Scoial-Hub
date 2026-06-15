@@ -157,6 +157,44 @@ export function BrandConsultant({
     } catch { /* stockage indisponible : on repart à vide */ }
   }, [storageKey]);
 
+  // #5 — Hydratation depuis le serveur : si aucun fil local n'existe (cache vidé
+  // ou autre appareil), on recharge l'ADN enregistré/verrouillé pour qu'il ne
+  // disparaisse pas au rechargement. Le fil local, s'il existe, reste prioritaire.
+  useEffect(() => {
+    let alive = true;
+    try { if (localStorage.getItem(storageKey)) return; } catch { /* continue */ }
+    fetch(`/api/onboarding/state?companyId=${encodeURIComponent(companyId)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!alive || !d?.profile) return;
+        const p = d.profile as BrandProfile;
+        const hasDna = Boolean(p.summary || p.positioning || p.mission || (p.values?.length));
+        if (!hasDna) return;
+        setDna({
+          summary: p.summary || undefined,
+          positioning: p.positioning || undefined,
+          mission: p.mission || undefined,
+          values: p.values?.length ? p.values : undefined,
+          keyMessage: p.keyMessage || undefined,
+          personality: p.personality?.length ? p.personality : undefined,
+          tone: p.tone || undefined,
+          audience: p.audience || undefined,
+          themes: p.themes?.length ? p.themes : undefined,
+          visualDirection: p.visualDirection || undefined,
+          keywords: p.keywords?.length ? p.keywords : undefined,
+          networkStrategies: (p.networkStrategies as unknown as NetStrategy[]) ?? undefined,
+        });
+        setReadyToLock(true);
+        if (p.philosophyLocked) setLocked(true);
+        kicked.current = true; // pas de message d'accueil : on a déjà un ADN
+        setMessages([{ role: "assistant", content: p.philosophyLocked
+          ? t("Votre identité de marque verrouillée est chargée ci-dessous. Vous pouvez l'affiner ou la reverrouiller.", "Your locked brand identity is loaded below. You can refine or re-lock it.")
+          : t("Votre identité de marque enregistrée est chargée ci-dessous. Reprenez l'entretien pour la compléter.", "Your saved brand identity is loaded below. Resume the interview to complete it.") }]);
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [companyId, storageKey, t]);
+
   // Persistance locale de la conversation (ne jamais écraser avec du vide).
   useEffect(() => {
     if (!restored.current || messages.length === 0) return;

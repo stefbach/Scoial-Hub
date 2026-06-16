@@ -47,7 +47,7 @@ function safeHex(c: string | undefined, fallback: string): string {
 }
 
 /** Construit le timeline Shotstack pour un cut + ses médias. */
-function buildEdit(cut: PlatformCut, assets: MediaAsset[], captions: CaptionSegment[], logoUrl?: string, brandColors?: BrandColors) {
+function buildEdit(cut: PlatformCut, assets: MediaAsset[], captions: CaptionSegment[], logoUrl?: string, brandColors?: BrandColors, callback?: string) {
   const size = SIZE[cut.aspect] ?? SIZE["9:16"];
   const videos = assets.filter((a) => a.kind === "video");
   const images = assets.filter((a) => a.kind === "image");
@@ -153,6 +153,9 @@ function buildEdit(cut: PlatformCut, assets: MediaAsset[], captions: CaptionSegm
   return {
     timeline,
     output: { format: "mp4", size, fps: 30 },
+    // Webhook Shotstack (optionnel) : appelé à la fin du rendu → persistance
+    // serveur même si le client a fermé l'onglet.
+    ...(callback ? { callback } : {}),
   };
 }
 
@@ -165,7 +168,8 @@ export async function submitRender(
   assets: MediaAsset[],
   captions: CaptionSegment[],
   logoUrl?: string,
-  brandColors?: BrandColors
+  brandColors?: BrandColors,
+  callback?: string
 ): Promise<RenderSubmit> {
   if (!isShotstackConfigured) {
     return { ok: false, error: "Aucun moteur de rendu configuré (SHOTSTACK_API_KEY)." };
@@ -177,7 +181,7 @@ export async function submitRender(
     return { ok: false, error: "Aucun média à rendre." };
   }
 
-  const body = JSON.stringify(buildEdit(cut, assets, captions, logoUrl, brandColors));
+  const body = JSON.stringify(buildEdit(cut, assets, captions, logoUrl, brandColors, callback));
   let lastErr = "Erreur Shotstack";
   // Essaie l'environnement configuré, puis bascule sur l'autre si la clé
   // ne correspond pas (401/403). L'env retenu est encodé dans l'id renvoyé.

@@ -174,6 +174,69 @@ export async function publishScheduledPostNow(
   };
 }
 
+// ── Verrou anti double-publication (cron concurrent) ─────────────────────────
+
+/**
+ * « Réserve » atomiquement un post pour publication : passe son statut de
+ * `scheduled` à `publishing` SI et seulement s'il est encore `scheduled`.
+ * Renvoie true si ce process a obtenu le verrou (un seul gagnant), false si un
+ * autre passage l'a déjà pris → évite qu'un même post parte deux fois.
+ */
+export async function claimDueScheduledPost(id: string): Promise<boolean> {
+  if (!isSupabaseConfigured) return true; // mock : pas de concurrence
+  const supabase = createAdminClient();
+  if (!supabase) return false;
+  const { data, error } = await supabase
+    .from("sh_scheduled_posts")
+    .update({ status: "publishing" })
+    .eq("id", id)
+    .eq("status", "scheduled") // compare-and-set atomique
+    .select("id");
+  return !error && Array.isArray(data) && data.length === 1;
+}
+
+/**
+ * Après un échec : un échec PERMANENT (config manquante, contenu invalide…)
+ * passe le post en `failed` (visible par l'utilisateur, on arrête de réessayer) ;
+ * un échec TRANSITOIRE (réseau/5xx) le remet en `scheduled` pour un nouvel essai.
+ */
+export async function finalizeFailedScheduledPost(id: string, permanent: boolean): Promise<void> {
+  const next: ScheduledPost["status"] = permanent ? "failed" : "scheduled";
+  if (!isSupabaseConfigured) {
+    await updateScheduledPost(id, { status: next }).catch(() => {});
+    return;
+  }
+  const supabase = createAdminClient();
+  if (!supabase) return;
+  try {
+    await supabase.from("sh_scheduled_posts").update({ status: next }).eq("id", id);
+  } catch { /* non bloquant */ }
+}
+
+/** Codes considérés comme erreurs PERMANENTES (inutile de réessayer). */
+export function isPermanentPublishError(status: number): boolean {
+  return status === 400 || status === 409 || status === 422;
+}
+
+/**
+ * Remet en `scheduled` les posts restés bloqués en `publishing` (ex. crash /
+ * timeout d'un passage cron précédent). Sûr car les passages cron ne se
+ * chevauchent pas (toutes les 10 min, ≤ 60 s d'exécution) : un `publishing`
+ * persistant est forcément orphelin. Renvoie le nombre de posts récupérés.
+ */
+export async function reclaimStalePublishing(): Promise<number> {
+  if (!isSupabaseConfigured) return 0;
+  const supabase = createAdminClient();
+  if (!supabase) return 0;
+  const { data, error } = await supabase
+    .from("sh_scheduled_posts")
+    .update({ status: "scheduled" })
+    .eq("status", "publishing")
+    .select("id");
+  if (error || !Array.isArray(data)) return 0;
+  return data.length;
+}
+
 // ── Posts arrivés à échéance (cron) ──────────────────────────────────────────
 
 export interface DueScheduledPost {
@@ -208,7 +271,7 @@ function rowToPost(row: DbScheduledPost): ScheduledPost {
 export async function listDueScheduledPosts(
   platforms: Platform[],
   now: Date = new Date(),
-  limit = 25
+  limit = 100
 ): Promise<DueScheduledPost[]> {
   const pad = (n: number) => String(n).padStart(2, "0");
   const todayStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;

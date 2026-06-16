@@ -16,7 +16,7 @@ import BrandKitPanel from "@/components/studio/BrandKitPanel";
 import { AgentLauncher } from "@/components/agents/AgentLauncher";
 import { IMAGE_MODELS, VIDEO_MODELS, DEFAULT_IMAGE_MODEL_ID, DEFAULT_VIDEO_MODEL_ID } from "@/lib/ai/model-catalog";
 import { MediaUpload, type UploadedMedia } from "@/components/ui/MediaUpload";
-import { DatePicker, TimePicker } from "@/components/ui/DateTimePicker";
+import { WhenToPublish } from "@/components/compose/WhenToPublish";
 import { Toast } from "@/components/ui/Toast";
 import { findDraft, findPost } from "@/lib/draft-store";
 import { findTemplate } from "@/lib/template-store";
@@ -524,43 +524,14 @@ function ComposeContent() {
           )}
 
           {/* When to publish */}
-          <div>
-            <div className="section-label mb-2.5">{t("Quand publier", "When to publish")}</div>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                onClick={() => setWhen("now")}
-                className={`rounded-lg py-2.5 text-sm font-medium transition-all ${
-                  when === "now"
-                    ? "bg-ai-textbg text-ai-text ring-1 ring-ai-text/30 shadow-xs"
-                    : "border border-hair bg-card text-ink hover:bg-canvas"
-                }`}
-              >
-                {t("Maintenant", "Now")}
-              </button>
-              <button
-                onClick={() => setWhen("schedule")}
-                className={`rounded-lg py-2.5 text-sm font-medium transition-all ${
-                  when === "schedule"
-                    ? "bg-ai-textbg text-ai-text ring-1 ring-ai-text/30 shadow-xs"
-                    : "border border-hair bg-card text-ink hover:bg-canvas"
-                }`}
-              >
-                {t("Planifier", "Schedule")}
-              </button>
-            </div>
-            {when === "schedule" && (
-              <>
-                <div className="mt-2.5 grid grid-cols-2 gap-2">
-                  <DatePicker value={date} onChange={setDate} />
-                  <TimePicker value={time} onChange={setTime} />
-                </div>
-                {/* Lève l'ambiguïté du fuseau : on planifie en heure locale. */}
-                <p className="mt-1.5 text-2xs text-muted">
-                  {t("Heure locale", "Local time")} : {Intl.DateTimeFormat().resolvedOptions().timeZone}
-                </p>
-              </>
-            )}
-          </div>
+          <WhenToPublish
+            when={when}
+            onWhenChange={setWhen}
+            date={date}
+            onDateChange={setDate}
+            time={time}
+            onTimeChange={setTime}
+          />
 
           {/* Footer actions */}
           <div className="flex justify-end gap-2 border-t border-hair pt-4">

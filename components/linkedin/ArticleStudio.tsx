@@ -4,7 +4,7 @@
 // prompt personnalisé (éditable), puis un article de niveau professionnel, avec
 // des visuels haute qualité associés, et la publication LinkedIn.
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useCompany } from "@/lib/company-context";
 import { useT } from "@/lib/i18n";
 import { Spinner, BusyHint } from "@/components/ui/Spinner";
@@ -93,7 +93,7 @@ function toPlainText(a: Article): string {
   ].filter((s) => s !== undefined).join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 
-export function ArticleStudio() {
+export function ArticleStudio({ seed }: { seed?: { nonce: number; text: string } }) {
   const { company, access } = useCompany();
   const canEdit = access.canEdit;
   const companyId = company.id;
@@ -146,6 +146,13 @@ export function ArticleStudio() {
   const [schedTime, setSchedTime] = useState("09:00");
   const [scheduling, setScheduling] = useState(false);
   const [queueKey, setQueueKey] = useState(0);
+
+  // Graine venue de la stratégie (« Utiliser » une idée de post) → préremplit
+  // la saisie en mode texte, dans le même espace.
+  useEffect(() => {
+    if (seed?.text) { setSource("text"); setInput(seed.text); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seed?.nonce]);
 
   /** Demande à l'IA d'ajuster l'article courant selon une consigne libre. */
   async function reviseArticle(instruction: string) {

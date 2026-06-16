@@ -8,6 +8,7 @@ import { useState } from "react";
 import { useCompany } from "@/lib/company-context";
 import { useT } from "@/lib/i18n";
 import { Spinner, BusyHint } from "@/components/ui/Spinner";
+import { LinkedInScheduler } from "@/components/linkedin/LinkedInScheduler";
 
 // Modèles visuels de qualité proposés sur cet écran (du plus net au plus rapide).
 const VISUAL_MODELS: { id: string; label: string }[] = [
@@ -140,6 +141,11 @@ export function ArticleStudio() {
   const [publishMsg, setPublishMsg] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Programmation (même espace : publier OU programmer, puis continuer à écrire)
+  const [schedDate, setSchedDate] = useState(() => new Date(Date.now() + 86400000).toISOString().slice(0, 10));
+  const [schedTime, setSchedTime] = useState("09:00");
+  const [scheduling, setScheduling] = useState(false);
+  const [queueKey, setQueueKey] = useState(0);
 
   /** Demande à l'IA d'ajuster l'article courant selon une consigne libre. */
   async function reviseArticle(instruction: string) {
@@ -297,6 +303,30 @@ export function ArticleStudio() {
     } catch (e) {
       setPublishMsg(e instanceof Error ? e.message : t("Échec de la publication.", "Publish failed."));
     } finally { setPublishing(false); }
+  }
+
+  /** Programme le post LinkedIn (part automatiquement via le cron) — même espace. */
+  async function schedule() {
+    if (!postText.trim()) return;
+    setScheduling(true); setPublishMsg(null);
+    try {
+      const chosenImg = selectedImage || Object.values(images).flat()[0];
+      const body = postText.trim();
+      const r = await fetch("/api/scheduled-posts", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          companyId, platform: "linkedin",
+          title: body.slice(0, 48) + (body.length > 48 ? "…" : ""),
+          body, date: schedDate, time: schedTime, status: "scheduled", source: "manual",
+          media: chosenImg ? { kind: "image", url: chosenImg } : undefined,
+        }),
+      });
+      if (!r.ok) { setPublishMsg(t("Échec de la programmation.", "Scheduling failed.")); return; }
+      setPublishMsg(t(`Programmé le ${schedDate} à ${schedTime} ✓ — dans la file ci-dessous. Vous pouvez continuer à écrire.`, `Scheduled for ${schedDate} at ${schedTime} ✓ — in the queue below. You can keep writing.`));
+      setQueueKey((k) => k + 1); // rafraîchit la file d'attente
+    } catch {
+      setPublishMsg(t("Erreur réseau.", "Network error."));
+    } finally { setScheduling(false); }
   }
 
   const inputCls = "w-full rounded-lg border border-hair bg-canvas px-3 py-2 text-sm text-ink outline-none focus:border-primary-400";
@@ -607,6 +637,18 @@ export function ArticleStudio() {
             );
           })()}
 
+          {/* Publier maintenant OU programmer — sans quitter l'espace */}
+          <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-hair pt-3">
+            <span className="section-label">{t("Programmer", "Schedule")}</span>
+            <input type="date" value={schedDate} onChange={(e) => setSchedDate(e.target.value)} className="rounded-lg border border-hair bg-canvas px-2 py-1 text-xs text-ink outline-none focus:border-primary-400" />
+            <input type="time" value={schedTime} onChange={(e) => setSchedTime(e.target.value)} className="rounded-lg border border-hair bg-canvas px-2 py-1 text-xs text-ink outline-none focus:border-primary-400" />
+            <button onClick={schedule} disabled={scheduling || publishing || !canEdit} title={!canEdit ? t("Lecture seule", "View only") : undefined} className="btn-secondary inline-flex items-center gap-1.5 text-xs disabled:opacity-50">
+              {scheduling && <Spinner size={14} className="text-current" />}
+              {scheduling ? t("Programmation…", "Scheduling…") : t("📅 Programmer", "📅 Schedule")}
+            </button>
+            <span className="text-2xs text-muted">{t("Part automatiquement (vérif. toutes les 10 min).", "Goes out automatically (checked every 10 min).")}</span>
+          </div>
+
           {/* Aperçu fidèle (rendu LinkedIn) du post final */}
           <div className="mx-auto mt-4 max-w-xl rounded-xl border border-hair bg-canvas p-4">
             {/* En-tête type LinkedIn */}
@@ -636,6 +678,12 @@ export function ArticleStudio() {
           {publishMsg && <p className="mt-3 rounded-lg bg-canvas px-3 py-2 text-xs text-ink">{publishMsg}</p>}
         </section>
       )}
+
+      {/* File d'attente LinkedIn — gérer / éditer / republier dans le MÊME espace */}
+      <section className="space-y-2">
+        <span className="section-label">{t("File d'attente & publications", "Queue & posts")}</span>
+        <LinkedInScheduler key={queueKey} />
+      </section>
     </div>
   );
 }

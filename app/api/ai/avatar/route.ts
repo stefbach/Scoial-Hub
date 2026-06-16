@@ -12,6 +12,8 @@ import { requireCompanyAccess } from "@/lib/auth/guard";
 import { callClaudeJSON } from "@/lib/ai/claude-json";
 import { runReplicateUrl, generateImageModel, startAvatarLipsync, startSubtitles, cloneVoiceMiniMax, getReplicatePrediction, isReplicateConfigured } from "@/lib/ai/replicate";
 import { getAvatarModel, getLang, TTS_MULTILINGUAL_MODEL, XTTS_MODEL, VOICE_BY_GENDER } from "@/lib/ai/avatar-models";
+import { env as appEnv, isWebhookConfigured } from "@/lib/env";
+import { createRenderJob, setRenderJobPrediction } from "@/lib/jobs/render-jobs";
 
 /**
  * Synthèse vocale routée : FR/EN → MiniMax (voix preset/clonée) ; autres langues
@@ -182,16 +184,30 @@ Réponds en JSON: { "script": "..." }`,
     const audioUrl = await synthesizeTTS(script, body.language, voiceId, body.speakerUrl);
     if (!audioUrl) throw new Error("Échec de la génération de la voix (TTS).");
 
+    // Webhook (optionnel) : si activé, on crée un job suivi côté Supabase et on
+    // passe une URL de webhook à Replicate → le rendu est persisté dans la
+    // bibliothèque même si l'utilisateur ferme l'onglet (filet de sécurité).
+    let webhookUrl: string | undefined;
+    let jobId: string | null = null;
+    if (isWebhookConfigured) {
+      jobId = await createRenderJob({ companyId: body.companyId!, kind: "avatar", provider: "replicate" });
+      if (jobId) {
+        webhookUrl = `${appEnv.appUrl.replace(/\/$/, "")}/api/webhooks/replicate?job=${jobId}&secret=${encodeURIComponent(appEnv.webhookSecret)}`;
+      }
+    }
+
     // 2) Lip-sync : DÉMARRE la prédiction sans attendre (les modèles avatar
     //    prennent plusieurs minutes → on évite le timeout serverless).
-    const started = await startAvatarLipsync(avatarSpec.id, sourceImage, audioUrl);
+    const started = await startAvatarLipsync(avatarSpec.id, sourceImage, audioUrl, webhookUrl);
     if (started.error) throw new Error(started.error);
     if (started.videoUrl) {
       return NextResponse.json({ videoUrl: started.videoUrl, audioUrl, sourceImage });
     }
     if (!started.id) throw new Error("Démarrage du lip-sync impossible.");
-    // Le client interroge GET /api/ai/avatar?id=… jusqu'au résultat.
-    return NextResponse.json({ pending: true, predictionId: started.id, audioUrl, sourceImage });
+    if (jobId && started.id) await setRenderJobPrediction(jobId, started.id);
+    // Le client interroge GET /api/ai/avatar?id=… jusqu'au résultat ; en parallèle
+    // le webhook finalisera le job côté serveur. `jobId` permet un suivi serveur.
+    return NextResponse.json({ pending: true, predictionId: started.id, jobId, audioUrl, sourceImage });
   } catch (e) {
     console.error("[POST /api/ai/avatar]", e);
     return NextResponse.json(

@@ -10,7 +10,6 @@ import { useT } from "@/lib/i18n";
 import { Spinner, BusyHint } from "@/components/ui/Spinner";
 import { DatePicker, TimePicker } from "@/components/ui/DateTimePicker";
 import { ArticleStudio } from "@/components/linkedin/ArticleStudio";
-import { LinkedInScheduler } from "@/components/linkedin/LinkedInScheduler";
 import { ConnectGuide } from "@/components/connect/ConnectGuide";
 
 interface Account {
@@ -60,18 +59,20 @@ export default function LinkedInPage() {
   const [analyzing, setAnalyzing] = useState(false);
 
   const [guide, setGuide] = useState(false);
-  const [tab, setTab] = useState<"publish" | "article" | "schedule">("publish");
+  const [tab, setTab] = useState<"publish" | "article">("article");
 
   // Planification d'un post unique (onglet Publication)
   const [schedDate, setSchedDate] = useState<Date>(() => addDays(new Date(), 1));
   const [schedTime, setSchedTime] = useState("09:00");
   const [scheduling, setScheduling] = useState(false);
 
-  // Onglet initial depuis l'URL (?tab=article|schedule) — ex. lien/redirection.
+  // Onglet initial depuis l'URL (?tab=publish) — ex. lien/redirection.
+  // « schedule » (ancien) renvoie vers l'espace unifié « article ».
   useEffect(() => {
     try {
       const q = new URLSearchParams(window.location.search).get("tab");
-      if (q === "article" || q === "schedule") setTab(q);
+      if (q === "publish") setTab("publish");
+      else if (q === "article" || q === "schedule") setTab("article");
     } catch { /* ignore */ }
   }, []);
 
@@ -194,7 +195,7 @@ export default function LinkedInPage() {
         <p className="section-label text-primary-500">LinkedIn</p>
         <h1 className="mt-1 text-2xl font-bold tracking-tight text-ink">{t("Votre espace LinkedIn", "Your LinkedIn space")}</h1>
         <p className="mt-1 max-w-2xl text-sm text-muted">
-          {t("Compte connecté, publication, stratégie, et studio d'articles & visuels LinkedIn.", "Connected account, publishing, strategy, and LinkedIn article & visuals studio.")}
+          {t("Un seul espace « Articles & visuels » : écrivez, publiez ou programmez, gérez la file d'attente et continuez à écrire — tout au même endroit.", "One “Articles & visuals” space: write, publish or schedule, manage the queue and keep writing — all in one place.")}
         </p>
       </header>
 
@@ -227,12 +228,13 @@ export default function LinkedInPage() {
         </div>
       )}
 
-      {/* Onglets : Publication & stratégie | Programmation | Article & visuels */}
+      {/* Un seul espace de contenu : « Articles & visuels » (écrire, publier,
+          programmer, file d'attente). « Compte & stratégie » reste pour la
+          connexion et la stratégie. */}
       <div className="flex gap-1 rounded-xl border border-hair bg-card p-1">
         {([
-          { id: "publish", label: t("Publication & stratégie", "Publishing & strategy") },
-          { id: "schedule", label: t("Programmation", "Scheduling") },
-          { id: "article", label: t("Article & visuels", "Article & visuals") },
+          { id: "article", label: t("Articles & visuels", "Articles & visuals") },
+          { id: "publish", label: t("Compte & stratégie", "Account & strategy") },
         ] as const).map((tb) => (
           <button
             key={tb.id}
@@ -247,8 +249,6 @@ export default function LinkedInPage() {
       </div>
 
       {tab === "article" && <ArticleStudio />}
-
-      {tab === "schedule" && <LinkedInScheduler />}
 
       {tab === "publish" && (
       <>

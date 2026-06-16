@@ -65,7 +65,7 @@ export interface ScheduledPost {
   time: string; // HH:mm
   source: PostSource;
   needsReview?: boolean;
-  status?: "scheduled" | "draft" | "published"; // defaults to "scheduled" when omitted
+  status?: "scheduled" | "draft" | "published" | "publishing" | "failed"; // defaults to "scheduled" when omitted
   body?: string; // full post text, used to resume editing a draft
   automationName?: string; // present when source === "automation"
   media?: { kind: "image" | "video"; url?: string }; // média attaché (url requise pour publier sur Instagram)

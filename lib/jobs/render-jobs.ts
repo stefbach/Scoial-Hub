@@ -91,6 +91,33 @@ export async function completeRenderJob(jobId: string, resultUrl: string): Promi
   } catch { /* non bloquant */ }
 }
 
+/** Jobs encore `processing` plus vieux que `olderThanMs` (webhook manqué ?). */
+export async function listStaleProcessingJobs(olderThanMs: number, limit = 50): Promise<RenderJob[]> {
+  if (!isSupabaseConfigured) return [];
+  const sb = createAdminClient();
+  if (!sb) return [];
+  const cutoff = new Date(Date.now() - olderThanMs).toISOString();
+  const { data, error } = await sb
+    .from(TABLE)
+    .select("*")
+    .eq("status", "processing")
+    .lt("updated_at", cutoff)
+    .not("prediction_id", "is", null)
+    .order("updated_at", { ascending: true })
+    .limit(limit);
+  if (error || !Array.isArray(data)) return [];
+  return data.map((d) => ({
+    id: String(d.id),
+    companyId: String(d.company_id),
+    kind: d.kind as RenderJobKind,
+    provider: d.provider as RenderJobProvider,
+    predictionId: d.prediction_id ? String(d.prediction_id) : null,
+    status: d.status as RenderJobStatus,
+    resultUrl: d.result_url ? String(d.result_url) : null,
+    error: d.error ? String(d.error) : null,
+  }));
+}
+
 /** Marque un job en échec. */
 export async function failRenderJob(jobId: string, error: string): Promise<void> {
   const sb = createAdminClient();

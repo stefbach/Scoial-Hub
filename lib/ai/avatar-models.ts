@@ -60,6 +60,9 @@ export interface AvatarLang {
 export const AVATAR_LANGS: AvatarLang[] = [
   { code: "fr", label: "Français", claude: "français", xtts: "fr", boost: "French", native: true },
   { code: "en", label: "English", claude: "anglais", xtts: "en", boost: "English", native: true },
+  // Créole mauricien : script rédigé en kreol morisien ; prononciation via la
+  // voix française (base lexicale francophone) — utile notamment pour Tibok.
+  { code: "mfe", label: "Kreol morisien", claude: "créole mauricien (kreol morisien)", xtts: "fr", boost: "French" },
   { code: "es", label: "Español", claude: "espagnol", xtts: "es" },
   { code: "de", label: "Deutsch", claude: "allemand", xtts: "de" },
   { code: "it", label: "Italiano", claude: "italien", xtts: "it" },

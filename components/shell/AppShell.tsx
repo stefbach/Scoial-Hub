@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { ReadOnlyBanner } from "./ReadOnlyBanner";
 import { Sidebar } from "./Sidebar";
 import { HelpButton } from "@/components/help/HelpButton";
@@ -17,7 +18,10 @@ import { isSupabaseConfigured } from "@/lib/env";
 function UserMenu() {
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     if (!isSupabaseConfigured) return;
@@ -33,9 +37,10 @@ function UserMenu() {
   useEffect(() => {
     if (!open) return;
     function handleClick(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
+      const target = e.target as Node;
+      const inMenu = menuRef.current?.contains(target);
+      const inPanel = panelRef.current?.contains(target);
+      if (!inMenu && !inPanel) setOpen(false);
     }
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
@@ -89,14 +94,20 @@ function UserMenu() {
         />
       </button>
 
-      {open && (
-        <div className="absolute right-0 top-10 z-[100] w-56 rounded-xl border border-hair bg-card shadow-lg animate-fade-in">
+      {/* Rendu via portal au-dessus de tout (le header a un backdrop-blur qui
+          crée un contexte d'empilement → un z-index local ne suffit pas). */}
+      {open && mounted && createPortal(
+        <div
+          ref={panelRef}
+          className="fixed right-3 top-14 z-[2000] w-56 rounded-xl border border-hair bg-card shadow-lg animate-fade-in sm:right-5"
+        >
           <div className="px-4 py-3">
             <p className="text-2xs text-muted section-label mb-0.5">Connecté en tant que</p>
             <p className="text-sm font-medium text-ink truncate">{email}</p>
             <p className="mt-1.5 text-2xs text-muted">↙ {"Se déconnecter via le menu de gauche"}</p>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

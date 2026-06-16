@@ -129,13 +129,15 @@ export const EDIT_MODELS: GenModel[] = [
     id: "black-forest-labs/flux-kontext-pro",
     label: "Flux Kontext Pro",
     note: "Édition guidée (garde le sujet)",
-    buildInput: (p, o) => ({ prompt: p, input_image: o.imageUrl, aspect_ratio: imgRatio(o.aspect), output_format: "webp" }),
+    // Flux Kontext n'accepte que jpg|png pour output_format (webp → 422).
+    buildInput: (p, o) => ({ prompt: p, input_image: o.imageUrl, aspect_ratio: imgRatio(o.aspect), output_format: "png" }),
   },
   {
     id: "black-forest-labs/flux-kontext-max",
     label: "Flux Kontext Max",
     note: "Édition qualité max",
-    buildInput: (p, o) => ({ prompt: p, input_image: o.imageUrl, aspect_ratio: imgRatio(o.aspect), output_format: "webp" }),
+    // Flux Kontext n'accepte que jpg|png pour output_format (webp → 422).
+    buildInput: (p, o) => ({ prompt: p, input_image: o.imageUrl, aspect_ratio: imgRatio(o.aspect), output_format: "png" }),
   },
   {
     id: "qwen/qwen-image-edit",

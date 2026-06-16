@@ -9,6 +9,9 @@ export const env = {
   anthropicKey: process.env.ANTHROPIC_API_KEY ?? "",
   anthropicModel: process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-6",
   appUrl: process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
+  // Secret partagé pour authentifier les webhooks providers (Replicate/Shotstack)
+  // qui « réveillent » nos jobs de rendu quand le résultat est prêt.
+  webhookSecret: process.env.WEBHOOK_SECRET ?? "",
   // Bot Telegram central AXON-AI : un seul bot pour tous les comptes.
   // Chaque compte est relié par un code de jumelage (pas de bot par client).
   telegramBotToken: process.env.TELEGRAM_BOT_TOKEN ?? "",
@@ -26,6 +29,10 @@ export const isAiConfigured = Boolean(env.anthropicKey);
 /** True quand le bot Telegram central est configuré (token + username). */
 export const isTelegramBotConfigured =
   Boolean(env.telegramBotToken) && Boolean(env.telegramBotUsername);
+
+/** True quand les webhooks de rendu sont activables (secret + URL publique). */
+export const isWebhookConfigured =
+  Boolean(env.webhookSecret) && /^https?:\/\//.test(env.appUrl) && !env.appUrl.includes("localhost");
 
 /** True quand un moteur de rendu vidéo (Creatomate/Shotstack/worker FFmpeg) est branché. */
 export const isVideoRenderConfigured =

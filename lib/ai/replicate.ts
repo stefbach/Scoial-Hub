@@ -108,15 +108,21 @@ async function resolveLatestVersion(model: string): Promise<string | null> {
 async function createPrediction(
   model: string,
   input: Record<string, unknown>,
-  wait = true
+  wait = true,
+  webhook?: string
 ): Promise<ReplicatePrediction> {
   const [owner, name] = model.split("/");
+  // Webhook optionnel : Replicate appelle cette URL à la complétion → permet de
+  // finaliser le rendu côté serveur même si le client ferme l'onglet.
+  const hook = webhook
+    ? { webhook, webhook_events_filter: ["completed"] as const }
+    : {};
 
   // 1) Endpoint « modèle officiel » (cible la dernière version sans la spécifier).
   let res = await replicateFetch(`${REPLICATE_API_BASE}/models/${owner}/${name}/predictions`, {
     method: "POST",
     headers: replicateHeaders(wait),
-    body: JSON.stringify({ input }),
+    body: JSON.stringify({ input, ...hook }),
   });
 
   // 2) 404 → modèle communautaire : on résout la version et on relance via /predictions.
@@ -126,7 +132,7 @@ async function createPrediction(
       res = await replicateFetch(`${REPLICATE_API_BASE}/predictions`, {
         method: "POST",
         headers: replicateHeaders(wait),
-        body: JSON.stringify({ version, input }),
+        body: JSON.stringify({ version, input, ...hook }),
       });
     }
   }
@@ -554,12 +560,13 @@ export async function lipsyncAvatar(
 export async function startAvatarLipsync(
   model: string,
   imageUrl: string,
-  audioUrl: string
+  audioUrl: string,
+  webhook?: string
 ): Promise<{ id?: string; status?: string; videoUrl?: string; error?: string }> {
   if (!isReplicateConfigured) return { error: "not-configured" };
   const { imageKey, audioKey } = await detectAvatarKeys(model);
   // wait=false : démarrage immédiat (pas de blocage ~60s → pas de timeout fonction).
-  const pred = await createPrediction(model, { [imageKey]: imageUrl, [audioKey]: audioUrl }, false);
+  const pred = await createPrediction(model, { [imageKey]: imageUrl, [audioKey]: audioUrl }, false, webhook);
   if (pred.status === "succeeded") return { id: pred.id, status: "succeeded", videoUrl: firstUrl(pred.output) ?? undefined };
   if (pred.status === "failed" || pred.status === "canceled") return { id: pred.id, status: "failed", error: pred.error ?? "failed" };
   return { id: pred.id, status: pred.status };

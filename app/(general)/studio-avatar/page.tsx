@@ -304,7 +304,7 @@ export default function StudioAvatarPage() {
       } else if (d.pending && d.predictionId) {
         // Lip-sync long → on interroge le statut jusqu'au résultat (≤ 8 min).
         finalUrl = await pollAvatar(d.predictionId);
-        if (!finalUrl) setError(t("La génération a échoué ou dépassé le temps imparti.", "Generation failed or timed out."));
+        if (!finalUrl) setError(t("Le rendu est long : il continue côté serveur et apparaîtra dans la Médiathèque dès qu'il est prêt. Réessayez ou changez de modèle d'avatar si besoin.", "The render is taking long: it continues server-side and will appear in the Media library once ready. Retry or switch avatar model if needed."));
       } else {
         setError(t("Aucune vidéo renvoyée.", "No video returned."));
       }
@@ -365,7 +365,7 @@ export default function StudioAvatarPage() {
 
   // Interroge GET /api/ai/avatar?id=… jusqu'à succès/échec (poll 5s, max ~8 min).
   async function pollAvatar(id: string): Promise<string | null> {
-    const deadline = Date.now() + 8 * 60_000;
+    const deadline = Date.now() + 12 * 60_000;
     while (Date.now() < deadline) {
       await new Promise((r) => setTimeout(r, 5000));
       try {
@@ -435,7 +435,7 @@ export default function StudioAvatarPage() {
                 </div>
               ) : (
                 <div className="space-y-2">
-                  <input value={personPrompt} onChange={(e) => setPersonPrompt(e.target.value)} placeholder={t("Décrivez la personne (ex. « femme médecin, 40 ans, blouse blanche, souriante »)", "Describe the person (e.g. \"female doctor, 40s, white coat, smiling\")")} className="input" />
+                  <textarea value={personPrompt} onChange={(e) => setPersonPrompt(e.target.value)} rows={4} placeholder={t("Décrivez la personne (ex. « femme médecin, 40 ans, blouse blanche, souriante »)", "Describe the person (e.g. \"female doctor, 40s, white coat, smiling\")")} className="input resize-y min-h-[6rem]" />
                   <div className="flex gap-2">
                     <select value={imageModel} onChange={(e) => setImageModel(e.target.value)} className="input flex-1">
                       {IMAGE_MODELS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}

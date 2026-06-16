@@ -12,7 +12,7 @@
  * En cas d'échec (compte non connecté, token expiré…), le post reste
  * "scheduled" et sera retenté au prochain passage ; l'erreur est journalisée.
  *
- * Plateformes traitées : LinkedIn (extensible — ajouter à PLATFORMS).
+ * Plateformes traitées : LinkedIn, Facebook, Instagram (extensible — ajouter à PLATFORMS).
  *
  * Sécurité : valide le header `Authorization: Bearer <CRON_SECRET>`.
  * Si CRON_SECRET est absent (dev/local), laisse passer sans contrôle.
@@ -37,7 +37,7 @@ export const maxDuration = 60;
 // Publications traitées en parallèle par paquet (débit ↑ sans saturer les API).
 const CONCURRENCY = 8;
 
-const PLATFORMS: Platform[] = ["linkedin"];
+const PLATFORMS: Platform[] = ["linkedin", "facebook", "instagram"];
 
 /* ── Auth ──────────────────────────────────────────────────────────────── */
 

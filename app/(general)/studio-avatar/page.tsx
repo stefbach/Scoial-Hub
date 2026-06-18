@@ -648,7 +648,7 @@ export default function StudioAvatarPage() {
                 <div>
                   <label className="text-2xs text-muted">{t("Avatar (modèle)", "Avatar (model)")}</label>
                   <select value={lipsyncModel} onChange={(e) => setLipsyncModel(e.target.value)} className="input mt-1">
-                    {AVATAR_MODELS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+                    {AVATAR_MODELS.map((m) => <option key={m.id} value={m.id}>{t(m.label, m.labelEn)}</option>)}
                   </select>
                   {AVATAR_MODELS.find((m) => m.id === lipsyncModel)?.needsVideo && (
                     <p className="mt-1 text-2xs text-warning-600">

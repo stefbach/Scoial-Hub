@@ -132,7 +132,7 @@ function MediaLibraryModal({
         <div className="flex flex-wrap gap-1.5 border-b border-hair px-4 py-2">
           {FILTERS.map((f) => (
             <button key={f.id} type="button" onClick={() => setFilter(f.id)}
-              className={`rounded-full px-2.5 py-1 text-2xs font-medium transition-colors ${filter === f.id ? "bg-page text-white ring-1 ring-primary-300" : "bg-canvas text-muted ring-1 ring-hair hover:text-ink"}`}>
+              className={`rounded-full px-2.5 py-1 text-2xs font-medium transition-colors ${filter === f.id ? "bg-primary-50 text-primary-700 ring-1 ring-primary-300" : "bg-canvas text-muted ring-1 ring-hair hover:text-ink"}`}>
               {f.label}
             </button>
           ))}
@@ -168,8 +168,8 @@ function MediaLibraryModal({
                   <span className="absolute left-1 top-1 rounded bg-ink/70 px-1.5 py-0.5 text-2xs font-semibold text-white">
                     {isLogo(a) ? "LOGO" : a.type === "image" ? "IMG" : "VID"}
                   </span>
-                  <span className="absolute inset-0 flex items-center justify-center bg-page/0 text-2xs font-semibold text-white opacity-0 transition-opacity group-hover:bg-page/40 group-hover:opacity-100">
-                    {t("Choisir", "Pick")}
+                  <span className="absolute inset-0 flex items-center justify-center bg-ink/0 opacity-0 transition-all group-hover:bg-ink/45 group-hover:opacity-100">
+                    <span className="rounded-full bg-white/95 px-3 py-1 text-2xs font-semibold text-ink shadow-sm">{t("Choisir", "Pick")}</span>
                   </span>
                 </button>
               ))}

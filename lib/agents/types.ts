@@ -193,8 +193,12 @@ export interface AgentDef {
   id: AgentId;
   /** Nom affiché en français */
   name: string;
-  /** Rôle en une ligne */
+  /** Nom affiché en anglais (i18n) */
+  nameEn: string;
+  /** Rôle en une ligne (français) */
   role: string;
+  /** Rôle en une ligne (anglais, i18n) */
+  roleEn: string;
   /**
    * Classe de couleur Tailwind pour l'accent visuel.
    * Doit correspondre à un token défini dans tailwind.config.ts.

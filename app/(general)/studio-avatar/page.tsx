@@ -79,6 +79,7 @@ export default function StudioAvatarPage() {
   const [note, setNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const hydrated = useRef(false); // #16 — évite d'écraser le stockage au montage
 
   // Nettoyage au démontage : stoppe le minuteur d'enregistrement et le micro
   // s'ils tournent encore (évite une fuite + des setState post-démontage).
@@ -86,6 +87,39 @@ export default function StudioAvatarPage() {
     if (recTimerRef.current) clearInterval(recTimerRef.current);
     try { if (mediaRecRef.current && mediaRecRef.current.state !== "inactive") mediaRecRef.current.stop(); } catch { /* ignore */ }
   }, []);
+
+  // #16 — Persistance par société : la création d'avatar survit au rechargement.
+  useEffect(() => {
+    hydrated.current = false;
+    try {
+      const raw = localStorage.getItem(`avatar_studio_${company.id}`);
+      if (raw) {
+        const s = JSON.parse(raw) as Record<string, unknown>;
+        if (typeof s.faceUrl === "string") setFaceUrl(s.faceUrl);
+        if (typeof s.topic === "string") setTopic(s.topic);
+        if (typeof s.language === "string") setLanguage(s.language);
+        if (typeof s.voiceId === "string") setVoiceId(s.voiceId);
+        if (typeof s.seconds === "number") setSeconds(s.seconds);
+        if (typeof s.script === "string") setScript(s.script);
+        if (typeof s.environment === "string") setEnvironment(s.environment);
+        if (typeof s.lipsyncModel === "string") setLipsyncModel(s.lipsyncModel);
+        if (typeof s.personPrompt === "string") setPersonPrompt(s.personPrompt);
+        if (typeof s.imageModel === "string") setImageModel(s.imageModel);
+        if (typeof s.videoUrl === "string") { setVideoUrl(s.videoUrl); setSavedToLibrary(Boolean(s.savedToLibrary)); }
+      }
+    } catch { /* stockage indisponible */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [company.id]);
+
+  // Sauvegarde (ignore le 1er passage pour ne pas écraser avec l'état initial).
+  useEffect(() => {
+    if (!hydrated.current) { hydrated.current = true; return; }
+    try {
+      localStorage.setItem(`avatar_studio_${company.id}`, JSON.stringify({
+        faceUrl, topic, language, voiceId, seconds, script, environment, lipsyncModel, personPrompt, imageModel, videoUrl, savedToLibrary,
+      }));
+    } catch { /* quota / mode privé */ }
+  }, [company.id, faceUrl, topic, language, voiceId, seconds, script, environment, lipsyncModel, personPrompt, imageModel, videoUrl, savedToLibrary]);
 
   async function uploadFace(files: FileList | null) {
     if (!files || files.length === 0) return;

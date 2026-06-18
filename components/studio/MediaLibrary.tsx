@@ -115,7 +115,7 @@ function MediaLibraryModal({
   if (!mounted) return null;
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
-      <div className="flex max-h-[85vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-hair bg-page shadow-2xl"
+      <div className="flex max-h-[85vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-hair bg-card shadow-2xl"
         onClick={(e) => e.stopPropagation()}>
         {/* En-tête */}
         <div className="flex items-center justify-between gap-3 border-b border-hair px-4 py-3">

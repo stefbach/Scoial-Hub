@@ -23,6 +23,8 @@ export interface AvatarModel {
   audioKey: string;
   /** entrées additionnelles fixes. */
   extra?: Record<string, unknown>;
+  /** true = exige une VIDÉO source (doublage) ; échoue avec une simple photo. */
+  needsVideo?: boolean;
   note?: string;
 }
 
@@ -37,8 +39,8 @@ export const VOICE_MODELS: VoiceModel[] = [
 export const AVATAR_MODELS: AvatarModel[] = [
   { id: "bytedance/omni-human", label: "OmniHuman (ByteDance) — qualité studio · photo", faceKey: "image", audioKey: "audio", note: "Photo + voix → vidéo professionnelle. Recommandé." },
   { id: "veed/fabric-1.0", label: "VEED Fabric 1.0 — photo → vidéo parlante", faceKey: "image", audioKey: "audio", note: "Transforme une image en avatar parlant." },
-  { id: "sync/lipsync-2-pro", label: "Sync Lipsync 2 Pro — studio (idéal vidéo source)", faceKey: "video", audioKey: "audio", note: "Top qualité ; idéalement une vidéo source." },
-  { id: "heygen/lipsync-precision", label: "HeyGen Lipsync Precision — doublage vidéo", faceKey: "video", audioKey: "audio", note: "Haute précision ; source vidéo recommandée." },
+  { id: "sync/lipsync-2-pro", label: "Sync Lipsync 2 Pro — studio (vidéo source requise)", faceKey: "video", audioKey: "audio", needsVideo: true, note: "Top qualité ; nécessite une vidéo source." },
+  { id: "heygen/lipsync-precision", label: "HeyGen Lipsync Precision — doublage vidéo", faceKey: "video", audioKey: "audio", needsVideo: true, note: "Haute précision ; nécessite une vidéo source." },
   { id: "cjwbw/sadtalker", label: "SadTalker — basique (photo, rapide)", faceKey: "source_image", audioKey: "driven_audio", extra: { preprocess: "full" }, note: "Repli léger." },
 ];
 

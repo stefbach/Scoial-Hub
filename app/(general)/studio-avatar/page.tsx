@@ -355,9 +355,23 @@ export default function StudioAvatarPage() {
       } else if (d.videoUrl) {
         finalUrl = d.videoUrl;
       } else if (d.pending && d.predictionId) {
-        // Lip-sync long → on interroge le statut jusqu'au résultat (≤ 8 min).
-        finalUrl = await pollAvatar(d.predictionId);
-        if (!finalUrl) setError(t("Le rendu est long : il continue côté serveur et apparaîtra dans la Médiathèque dès qu'il est prêt. Réessayez ou changez de modèle d'avatar si besoin.", "The render is taking long: it continues server-side and will appear in the Media library once ready. Retry or switch avatar model if needed."));
+        // Lip-sync long → on interroge le statut jusqu'au résultat (≤ 12 min).
+        const res = await pollAvatar(d.predictionId);
+        if (res.ok) {
+          finalUrl = res.url;
+        } else if (res.reason === "failed") {
+          // Échec réel du modèle : on montre la cause exacte. Cas fréquent :
+          // un modèle « doublage vidéo » (HeyGen Lipsync Precision, Sync Lipsync 2 Pro)
+          // nourri d'une simple photo → choisir OmniHuman ou VEED Fabric.
+          setError(
+            t(
+              `La génération a échoué${res.error ? ` : ${res.error}` : "."} Astuce : certains modèles exigent une vidéo source — pour une photo, utilisez « OmniHuman » ou « VEED Fabric ».`,
+              `Generation failed${res.error ? `: ${res.error}` : "."} Tip: some models require a source video — for a photo, use “OmniHuman” or “VEED Fabric”.`
+            )
+          );
+        } else {
+          setError(t("Le rendu est long : il continue côté serveur et apparaîtra dans la Médiathèque dès qu'il est prêt. Réessayez ou changez de modèle d'avatar si besoin.", "The render is taking long: it continues server-side and will appear in the Media library once ready. Retry or switch avatar model if needed."));
+        }
       } else {
         setError(t("Aucune vidéo renvoyée.", "No video returned."));
       }
@@ -373,7 +387,11 @@ export default function StudioAvatarPage() {
           });
           const sd = await sr.json();
           if (sr.ok) {
-            const subUrl = sd.videoUrl || (sd.pending && sd.predictionId ? await pollAvatar(sd.predictionId) : null);
+            let subUrl: string | null = typeof sd.videoUrl === "string" ? sd.videoUrl : null;
+            if (!subUrl && sd.pending && sd.predictionId) {
+              const sub = await pollAvatar(sd.predictionId);
+              subUrl = sub.ok ? sub.url : null;
+            }
             if (subUrl) { finalUrl = subUrl; setNote(t("Sous-titres ajoutés ✓", "Subtitles added ✓")); }
             else setNote(t("Vidéo prête (sous-titres indisponibles).", "Video ready (subtitles unavailable)."));
           }
@@ -416,19 +434,25 @@ export default function StudioAvatarPage() {
     } catch { /* non bloquant */ }
   }
 
-  // Interroge GET /api/ai/avatar?id=… jusqu'à succès/échec (poll 5s, max ~8 min).
-  async function pollAvatar(id: string): Promise<string | null> {
+  // Interroge GET /api/ai/avatar?id=… jusqu'à succès/échec (poll 5s, max 12 min).
+  // Résultat discriminé : on distingue un ÉCHEC réel (modèle qui plante, ex. un
+  // modèle « vidéo source » nourri d'une photo) d'un simple DÉPASSEMENT de délai
+  // — sinon l'utilisateur reçoit le même message trompeur dans les deux cas.
+  type PollResult =
+    | { ok: true; url: string }
+    | { ok: false; reason: "failed" | "timeout"; error?: string };
+  async function pollAvatar(id: string): Promise<PollResult> {
     const deadline = Date.now() + 12 * 60_000;
     while (Date.now() < deadline) {
       await new Promise((r) => setTimeout(r, 5000));
       try {
         const res = await fetch(`/api/ai/avatar?id=${encodeURIComponent(id)}`);
         const d = await res.json();
-        if (d.status === "succeeded" && d.videoUrl) return d.videoUrl;
-        if (d.status === "failed") return null;
+        if (d.status === "succeeded" && d.videoUrl) return { ok: true, url: d.videoUrl };
+        if (d.status === "failed") return { ok: false, reason: "failed", error: typeof d.error === "string" ? d.error : undefined };
       } catch { /* on retente */ }
     }
-    return null;
+    return { ok: false, reason: "timeout" };
   }
 
   return (
@@ -626,6 +650,14 @@ export default function StudioAvatarPage() {
                   <select value={lipsyncModel} onChange={(e) => setLipsyncModel(e.target.value)} className="input mt-1">
                     {AVATAR_MODELS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
                   </select>
+                  {AVATAR_MODELS.find((m) => m.id === lipsyncModel)?.needsVideo && (
+                    <p className="mt-1 text-2xs text-warning-600">
+                      {t(
+                        "⚠ Ce modèle exige une vidéo source (doublage). À partir d'une photo, choisissez « OmniHuman » ou « VEED Fabric ».",
+                        "⚠ This model requires a source video (dubbing). From a photo, pick “OmniHuman” or “VEED Fabric”."
+                      )}
+                    </p>
+                  )}
                 </div>
               </div>
               <label className="flex cursor-pointer items-center gap-2 text-xs text-muted">

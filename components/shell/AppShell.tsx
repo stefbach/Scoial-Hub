@@ -99,12 +99,21 @@ function UserMenu() {
       {open && mounted && createPortal(
         <div
           ref={panelRef}
-          className="fixed right-3 top-14 z-[2000] w-56 rounded-xl border border-hair bg-card shadow-lg animate-fade-in sm:right-5"
+          className="fixed right-3 top-14 z-[2000] w-60 overflow-hidden rounded-xl border border-hair bg-card shadow-lg animate-fade-in sm:right-5"
         >
-          <div className="px-4 py-3">
+          <div className="border-b border-hair px-4 py-3">
             <p className="text-2xs text-muted section-label mb-0.5">Connecté en tant que</p>
             <p className="text-sm font-medium text-ink truncate">{email}</p>
-            <p className="mt-1.5 text-2xs text-muted">↙ {"Se déconnecter via le menu de gauche"}</p>
+          </div>
+          <nav className="py-1 text-sm">
+            <a href="/comptes" className="flex items-center gap-2 px-4 py-2 text-ink hover:bg-canvas">🏢 Mes sociétés</a>
+            <a href="/mon-equipe" className="flex items-center gap-2 px-4 py-2 text-ink hover:bg-canvas">👥 Mon équipe</a>
+            <a href="/parametres-connecteurs" className="flex items-center gap-2 px-4 py-2 text-ink hover:bg-canvas">🔌 Connecteurs & accès</a>
+          </nav>
+          <div className="border-t border-hair p-1">
+            <a href="/api/auth/logout" className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-danger-600 hover:bg-danger-50">
+              ⎋ Se déconnecter
+            </a>
           </div>
         </div>,
         document.body

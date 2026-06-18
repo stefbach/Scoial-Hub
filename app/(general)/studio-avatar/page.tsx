@@ -10,6 +10,7 @@ import { StudioHero, StudioStep, Segmented } from "@/components/studio/StudioUI"
 import { StudioCopilot, type CopilotSuggestion } from "@/components/studio/StudioCopilot";
 import { ImageEditor } from "@/components/studio/ImageEditor";
 import { StudioDistribution } from "@/components/studio/StudioDistribution";
+import { MediaLibraryButton } from "@/components/studio/MediaLibrary";
 import { Tilt3D } from "@/components/visual/Tilt3D";
 import { IconMask, IconClapper } from "@/components/visual/Icons";
 import { Spinner, BusyHint } from "@/components/ui/Spinner";
@@ -78,8 +79,25 @@ export default function StudioAvatarPage() {
   const [savedToLibrary, setSavedToLibrary] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [savingAvatar, setSavingAvatar] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const hydrated = useRef(false); // #16 — évite d'écraser le stockage au montage
+
+  // #18 — Enregistre l'avatar courant dans la bibliothèque (réutilisable ensuite
+  // via « Mes avatars enregistrés »).
+  async function saveAvatar() {
+    if (!faceUrl.trim() || savingAvatar) return;
+    setSavingAvatar(true); setError(null); setNote(null);
+    try {
+      const r = await fetch("/api/media", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyId: company.id, url: faceUrl, type: "image", source: "avatar-face" }),
+      });
+      setNote(r.ok ? t("Avatar enregistré ✓ — retrouvez-le via « Mes avatars enregistrés ».", "Avatar saved ✓ — find it via “My saved avatars”.") : t("Échec de l'enregistrement.", "Save failed."));
+    } catch {
+      setError(t("Erreur réseau.", "Network error."));
+    } finally { setSavingAvatar(false); }
+  }
 
   // Nettoyage au démontage : stoppe le minuteur d'enregistrement et le micro
   // s'ils tournent encore (évite une fuite + des setState post-démontage).
@@ -106,6 +124,7 @@ export default function StudioAvatarPage() {
         if (typeof s.personPrompt === "string") setPersonPrompt(s.personPrompt);
         if (typeof s.imageModel === "string") setImageModel(s.imageModel);
         if (typeof s.videoUrl === "string") { setVideoUrl(s.videoUrl); setSavedToLibrary(Boolean(s.savedToLibrary)); }
+        if (Array.isArray(s.clonedVoices)) setClonedVoices(s.clonedVoices); // #19 — voix clonées conservées
       }
     } catch { /* stockage indisponible */ }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -116,10 +135,10 @@ export default function StudioAvatarPage() {
     if (!hydrated.current) { hydrated.current = true; return; }
     try {
       localStorage.setItem(`avatar_studio_${company.id}`, JSON.stringify({
-        faceUrl, topic, language, voiceId, seconds, script, environment, lipsyncModel, personPrompt, imageModel, videoUrl, savedToLibrary,
+        faceUrl, topic, language, voiceId, seconds, script, environment, lipsyncModel, personPrompt, imageModel, videoUrl, savedToLibrary, clonedVoices,
       }));
     } catch { /* quota / mode privé */ }
-  }, [company.id, faceUrl, topic, language, voiceId, seconds, script, environment, lipsyncModel, personPrompt, imageModel, videoUrl, savedToLibrary]);
+  }, [company.id, faceUrl, topic, language, voiceId, seconds, script, environment, lipsyncModel, personPrompt, imageModel, videoUrl, savedToLibrary, clonedVoices]);
 
   async function uploadFace(files: FileList | null) {
     if (!files || files.length === 0) return;
@@ -502,6 +521,23 @@ export default function StudioAvatarPage() {
                   <img src={faceUrl} alt="" className="max-h-48 rounded-xl object-contain ring-1 ring-hair" onError={(e) => { e.currentTarget.style.display = "none"; }} />
                 </div>
               )}
+
+              {/* #18 — enregistrer / réutiliser un avatar */}
+              <div className="flex flex-wrap items-center gap-2 border-t border-hair pt-2">
+                <MediaLibraryButton
+                  companyId={company.id}
+                  accept="image"
+                  label={t("📚 Mes avatars enregistrés", "📚 My saved avatars")}
+                  className="btn-secondary text-xs"
+                  onPick={(a) => setFaceUrl(a.url)}
+                />
+                {faceUrl.trim() && (
+                  <button onClick={saveAvatar} disabled={savingAvatar} className="btn-secondary inline-flex items-center gap-1.5 text-xs disabled:opacity-50">
+                    {savingAvatar && <Spinner size={12} className="text-current" />}
+                    {savingAvatar ? t("Enregistrement…", "Saving…") : t("💾 Enregistrer cet avatar", "💾 Save this avatar")}
+                  </button>
+                )}
+              </div>
             </StudioStep>
 
             {/* Retouche IA du portrait (tenue, décor, lumière… versions conservées) */}

@@ -106,8 +106,10 @@ function UserMenu() {
             <p className="text-sm font-medium text-ink truncate">{email}</p>
           </div>
           <nav className="py-1 text-sm">
+            <a href="/settings?section=profile" className="flex items-center gap-2 px-4 py-2 text-ink hover:bg-canvas">👤 Mon compte</a>
+            <a href="/settings" className="flex items-center gap-2 px-4 py-2 text-ink hover:bg-canvas">⚙️ Paramètres</a>
             <a href="/comptes" className="flex items-center gap-2 px-4 py-2 text-ink hover:bg-canvas">🏢 Mes sociétés</a>
-            <a href="/mon-equipe" className="flex items-center gap-2 px-4 py-2 text-ink hover:bg-canvas">👥 Mon équipe</a>
+            <a href="/mon-equipe" className="flex items-center gap-2 px-4 py-2 text-ink hover:bg-canvas">👥 Mon équipe & membres</a>
             <a href="/parametres-connecteurs" className="flex items-center gap-2 px-4 py-2 text-ink hover:bg-canvas">🔌 Connecteurs & accès</a>
           </nav>
           <div className="border-t border-hair p-1">

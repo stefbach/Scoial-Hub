@@ -138,7 +138,7 @@ export function AgentCard({ agent, stepStatus, active }: AgentCardProps) {
             {AGENT_ICON[agent.id]}
           </div>
           <div className="min-w-0">
-            <div className={`truncate text-sm font-semibold ${accentText}`}>{agent.name}</div>
+            <div className={`truncate text-sm font-semibold ${accentText}`}>{t(agent.name, agent.nameEn)}</div>
             <div className="text-2xs text-muted">{t("Autonomie par défaut :", "Default autonomy:")} {AUTONOMY_LABEL[agent.defaultAutonomy]}</div>
           </div>
         </div>
@@ -146,7 +146,7 @@ export function AgentCard({ agent, stepStatus, active }: AgentCardProps) {
       </div>
 
       {/* Rôle */}
-      <p className="text-xs leading-relaxed text-muted">{agent.role}</p>
+      <p className="text-xs leading-relaxed text-muted">{t(agent.role, agent.roleEn)}</p>
 
       {/* Badges autonomie + connecteurs */}
       <div className="flex flex-wrap items-center gap-1.5">

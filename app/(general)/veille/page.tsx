@@ -793,7 +793,7 @@ function FlowBanner({ t }: { t: (fr: string, en: string) => string }) {
       <div className="flex flex-wrap items-stretch gap-2">
         {steps.map((s, i) => (
           <div key={s.en} className="flex items-center gap-2 min-w-0">
-            <div className="flex items-center gap-2 rounded-lg border border-hair bg-card px-3 py-1.5 min-w-0">
+            <div className="flex items-center gap-2 rounded-lg bg-canvas px-3 py-1.5 min-w-0">
               <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary-100 text-2xs font-bold text-primary-700">
                 {i + 1}
               </span>

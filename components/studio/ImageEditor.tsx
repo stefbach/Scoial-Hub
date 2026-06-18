@@ -99,7 +99,7 @@ export function ImageEditor({
         />
         <div className="flex flex-wrap items-center gap-2">
           <select value={editModel} onChange={(e) => setEditModel(e.target.value)} className={`${inputCls} flex-1 min-w-[180px]`} title={t("Modèle d'édition", "Edit model")}>
-            {EDIT_MODELS.map((m) => <option key={m.id} value={m.id}>{m.label}{m.note ? ` — ${m.note}` : ""}</option>)}
+            {EDIT_MODELS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
           </select>
           <button type="button" onClick={() => run("edit")} disabled={busy !== null || !instruction.trim()} className="btn-primary shrink-0 text-xs disabled:opacity-50">
             {busy === "edit" ? t("Retouche…", "Editing…") : t("✨ Appliquer", "✨ Apply")}
@@ -110,7 +110,7 @@ export function ImageEditor({
       {/* Upscale */}
       <div className="flex flex-wrap items-center gap-2 border-t border-hair pt-3">
         <select value={upModel} onChange={(e) => setUpModel(e.target.value)} className={`${inputCls} flex-1 min-w-[180px]`} title={t("Modèle d'amélioration", "Upscale model")}>
-          {UPSCALE_MODELS.map((m) => <option key={m.id} value={m.id}>{m.label}{m.note ? ` — ${m.note}` : ""}</option>)}
+          {UPSCALE_MODELS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
         </select>
         <button type="button" onClick={() => run("upscale")} disabled={busy !== null} className="btn-secondary shrink-0 text-xs disabled:opacity-50">
           {busy === "upscale" ? t("Amélioration…", "Upscaling…") : t("⬆ Améliorer (HD)", "⬆ Upscale (HD)")}

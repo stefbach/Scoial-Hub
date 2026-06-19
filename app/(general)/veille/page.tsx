@@ -152,6 +152,10 @@ export default function VeillePage() {
   const [runError, setRunError] = useState<string | null>(null);
   // Incrémenté après une analyse → force le StrategyPanel à recharger le brief.
   const [memoryRefresh, setMemoryRefresh] = useState(0);
+  // #5 — langue dans laquelle l'analyse IA a été rédigée (pour proposer une
+  // régénération si l'utilisateur change la langue après coup).
+  const [analysisLang, setAnalysisLang] = useState<string | null>(null);
+  const [reanalyzing, setReanalyzing] = useState(false);
 
   // Onglets résultats
   const [activeTab, setActiveTab] = useState<"contenus" | "analyse">("analyse");
@@ -208,6 +212,10 @@ export default function VeillePage() {
     } catch { saved = null; }
     if (saved && saved.analysis) { setResult(saved); setActiveTab("analyse"); }
     else setResult(null);
+    try {
+      const l = typeof window !== "undefined" ? localStorage.getItem(`veille_analysis_lang_${company.id}`) : null;
+      setAnalysisLang(l || null);
+    } catch { setAnalysisLang(null); }
   }, [company.id]);
   async function handleAddCompetitor() {
     if (!addHandle.trim()) return;
@@ -352,6 +360,8 @@ export default function VeillePage() {
             if (next) saveVeilleResult(company.id, next); // #3 — persiste l'analyse enrichie
             return next;
           });
+          setAnalysisLang(lang); // #5 — mémorise la langue de rédaction
+          try { localStorage.setItem(`veille_analysis_lang_${company.id}`, lang); } catch { /* non bloquant */ }
           // L'analyse vient d'être persistée en mémoire stratégique → on
           // régénère le brief IA en tâche de fond (fire-and-forget). À l'issue de
           // la synthèse, on signale au StrategyPanel de se rafraîchir (sans clic).
@@ -375,6 +385,35 @@ export default function VeillePage() {
       console.error("[veille run]", err);
     } finally {
       setRunning(false);
+    }
+  }
+
+  // #5 — Régénère l'analyse IA dans la langue courante en réutilisant les contenus
+  // déjà collectés (pas de nouveau scraping), quand la langue a changé après coup.
+  async function reanalyzeInLang() {
+    const contents = result?.scrape?.contents ?? [];
+    if (reanalyzing || contents.length === 0) return;
+    setReanalyzing(true);
+    try {
+      const ares = await fetch("/api/veille/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyId: company.id, contents, geo, keywords, theme, language: lang }),
+      });
+      if (ares.ok) {
+        const adata = await ares.json() as { analysis: RunResult["analysis"] };
+        setResult((prev) => {
+          const next = prev ? { ...prev, analysis: adata.analysis } : prev;
+          if (next) saveVeilleResult(company.id, next);
+          return next;
+        });
+        setAnalysisLang(lang);
+        try { localStorage.setItem(`veille_analysis_lang_${company.id}`, lang); } catch { /* non bloquant */ }
+      }
+    } catch (e) {
+      console.warn("[veille reanalyze]", e);
+    } finally {
+      setReanalyzing(false);
     }
   }
 
@@ -738,6 +777,22 @@ export default function VeillePage() {
                   <div>
                     {result.analysis ? (
                       <>
+                        {/* #5 — l'analyse a été rédigée dans une autre langue */}
+                        {analysisLang && analysisLang !== lang && (
+                          <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-warning-200 bg-warning-50 px-3 py-2 text-2xs text-warning-700">
+                            <span className="flex-1">
+                              {t(
+                                "Cette analyse a été rédigée dans une autre langue. La régénérer dans la langue sélectionnée ?",
+                                "This analysis was written in another language. Regenerate it in the selected language?"
+                              )}
+                            </span>
+                            <button type="button" onClick={reanalyzeInLang} disabled={reanalyzing} className="btn-secondary shrink-0 text-2xs disabled:opacity-50">
+                              {reanalyzing
+                                ? t("Régénération…", "Regenerating…")
+                                : t(`Régénérer en ${lang === "en" ? "anglais" : "français"}`, `Regenerate in ${lang === "en" ? "English" : "French"}`)}
+                            </button>
+                          </div>
+                        )}
                         <AnalysisPanel analysis={result.analysis} />
                         {/* #16 — passer directement de l'analyse à une campagne (préremplie) */}
                         <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-hair pt-4">

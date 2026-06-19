@@ -59,10 +59,11 @@ export async function callClaudeJSON<T>(
 
   try {
     const Anthropic = (await import("@anthropic-ai/sdk")).default;
-    // timeout : borne la latence d'un appel (sinon un modèle lent fait dépasser le
-    // maxDuration de la fonction serverless → 504). maxRetries : le SDK réessaie
-    // déjà en interne sur surcharge/429 ; on limite pour ne pas cumuler les délais.
-    const client = new Anthropic({ apiKey: env.anthropicKey, timeout: 45_000, maxRetries: 1 });
+    // timeout court : un appel qui « pend » (latence/surcharge côté API) doit
+    // échouer VITE (≤30s) pour rester sous la limite de durée de la fonction
+    // serverless (≈60s selon le plan) → évite le 504. maxRetries 0 : pas de
+    // ré-essai interne du SDK qui cumulerait les délais.
+    const client = new Anthropic({ apiKey: env.anthropicKey, timeout: 30_000, maxRetries: 0 });
 
     const message = await client.messages.create({
       model: opts.model ?? env.anthropicModel,

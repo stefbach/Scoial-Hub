@@ -49,6 +49,21 @@ export const COUNTRIES: Country[] = ISO2_CODES.map((code) => ({
   flag: flagFromCode(code),
 })).sort((a, b) => a.label.localeCompare(b.label, "fr"));
 
+// #6 — Nom de pays localisé dans la langue de l'interface (FR/EN/…), via Intl.
+// Les libellés statiques de COUNTRIES restent en FR pour la compatibilité ; les
+// composants d'affichage utilisent ce helper pour respecter la langue choisie.
+const regionNamesCache: Record<string, { of: (c: string) => string | undefined } | null> = {};
+export function countryLabel(code: string, lang: string): string {
+  if (!(lang in regionNamesCache)) {
+    try {
+      regionNamesCache[lang] = new Intl.DisplayNames([lang], { type: "region" });
+    } catch {
+      regionNamesCache[lang] = null;
+    }
+  }
+  return regionNamesCache[lang]?.of(code.toUpperCase()) ?? code.toUpperCase();
+}
+
 export type DateRange = { from: Date; to: Date };
 
 interface ScopeValue {

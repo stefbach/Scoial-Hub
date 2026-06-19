@@ -8,8 +8,8 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { COUNTRIES } from "@/lib/scope";
-import { useT } from "@/lib/i18n";
+import { COUNTRIES, countryLabel } from "@/lib/scope";
+import { useT, useLang } from "@/lib/i18n";
 
 export function CountryCombobox({
   value,
@@ -21,23 +21,31 @@ export function CountryCombobox({
   placeholder?: string;
 }) {
   const t = useT();
+  const { lang } = useLang();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [highlight, setHighlight] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
 
+  // #6 — libellés localisés dans la langue de l'interface (FR/EN), triés en conséquence.
+  const localized = useMemo(
+    () => COUNTRIES.map((c) => ({ ...c, label: countryLabel(c.id, lang) }))
+      .sort((a, b) => a.label.localeCompare(b.label, lang)),
+    [lang]
+  );
+
   const selected = useMemo(
-    () => COUNTRIES.find((c) => c.id.toLowerCase() === value.toLowerCase()),
-    [value]
+    () => localized.find((c) => c.id.toLowerCase() === value.toLowerCase()),
+    [value, localized]
   );
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return COUNTRIES;
-    return COUNTRIES.filter(
+    if (!q) return localized;
+    return localized.filter(
       (c) => c.label.toLowerCase().includes(q) || c.id.toLowerCase().includes(q)
     );
-  }, [query]);
+  }, [query, localized]);
 
   // Fermeture au clic extérieur.
   useEffect(() => {

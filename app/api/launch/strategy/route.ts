@@ -71,6 +71,7 @@ Max 4 canaux par section, max 4 éléments par liste, max 4 phases de calendrier
       model: "claude-sonnet-4-6",
       maxTokens: 3000,
       temperature: 0.55,
+      system: "Tu réponds STRICTEMENT par un unique objet JSON valide, sans texte autour. Échappe correctement tout retour à la ligne dans les chaînes (\\n).",
     });
     if (!result) {
       return NextResponse.json({ error: "Stratégie non générée. Réessayez." }, { status: 502 });

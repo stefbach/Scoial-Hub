@@ -83,20 +83,53 @@ export async function callClaudeJSON<T>(
     const jsonMatch = rawText.match(/\{[\s\S]*\}/);
     if (!jsonMatch) return null;
 
-    try {
-      return JSON.parse(jsonMatch[0]) as T;
-    } catch {
-      // Réponse probablement tronquée (max_tokens) → tente une réparation simple
-      // en fermant les structures ouvertes après le dernier élément complet.
-      const repaired = repairTruncatedJson(jsonMatch[0]);
-      if (repaired) {
-        try { return JSON.parse(repaired) as T; } catch { /* abandon */ }
+    // Tentatives en cascade, de la plus fidèle à la plus permissive :
+    //  1) tel quel ;
+    //  2) caractères de contrôle bruts (retours à la ligne non échappés dans les
+    //     chaînes) corrigés — cause n°1 d'échec de parsing des réponses LLM ;
+    //  3) réparation d'une troncature (max_tokens) sur la version échappée.
+    const candidate = jsonMatch[0];
+    const escaped = escapeRawControlChars(candidate);
+    const attempts = [candidate, escaped, repairTruncatedJson(escaped) ?? ""];
+    for (const attempt of attempts) {
+      if (!attempt) continue;
+      try {
+        return JSON.parse(attempt) as T;
+      } catch {
+        /* tentative suivante */
       }
-      return null;
     }
+    return null;
   } catch {
     return null;
   }
+}
+
+/**
+ * Échappe les caractères de contrôle bruts (retour à la ligne, tabulation, etc.)
+ * présents À L'INTÉRIEUR des chaînes JSON. Les LLM insèrent souvent des sauts de
+ * ligne littéraux dans les valeurs textuelles, ce qui rend le JSON invalide.
+ * On ne touche pas aux caractères hors chaînes (mise en forme du JSON).
+ */
+function escapeRawControlChars(s: string): string {
+  let out = "";
+  let inStr = false;
+  let esc = false;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (esc) { out += ch; esc = false; continue; }
+    if (ch === "\\") { out += ch; esc = true; continue; }
+    if (ch === '"') { inStr = !inStr; out += ch; continue; }
+    if (inStr) {
+      if (ch === "\n") { out += "\\n"; continue; }
+      if (ch === "\r") { out += "\\r"; continue; }
+      if (ch === "\t") { out += "\\t"; continue; }
+      const code = ch.charCodeAt(0);
+      if (code < 0x20) { out += "\\u" + code.toString(16).padStart(4, "0"); continue; }
+    }
+    out += ch;
+  }
+  return out;
 }
 
 /**

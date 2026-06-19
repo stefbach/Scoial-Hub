@@ -66,8 +66,9 @@ ${goal}
 
     const result = await callClaudeJSON<CopilotTurn>(prompt, {
       model: "claude-sonnet-4-6",
-      maxTokens: 1800,
+      maxTokens: 2200,
       temperature: 0.5,
+      system: "Tu réponds STRICTEMENT par un unique objet JSON valide, sans texte autour. Échappe correctement tout retour à la ligne dans les chaînes (\\n).",
     });
     if (!result) {
       return NextResponse.json({ error: "Le copilote n'a pas pu répondre. Réessayez." }, { status: 502 });

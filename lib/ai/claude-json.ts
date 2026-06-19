@@ -81,7 +81,11 @@ export async function callClaudeJSON<T>(
 
     // Extrait le premier objet JSON présent dans la réponse.
     const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) return null;
+    if (!jsonMatch) {
+      const stop = (message as { stop_reason?: string }).stop_reason;
+      console.warn(`[callClaudeJSON] aucun JSON (stop_reason=${stop}):`, rawText.slice(0, 160));
+      return null;
+    }
 
     // Tentatives en cascade, de la plus fidèle à la plus permissive :
     //  1) tel quel ;
@@ -99,8 +103,11 @@ export async function callClaudeJSON<T>(
         /* tentative suivante */
       }
     }
+    const stop = (message as { stop_reason?: string }).stop_reason;
+    console.warn(`[callClaudeJSON] JSON non parsable (stop_reason=${stop}):`, candidate.slice(0, 220));
     return null;
-  } catch {
+  } catch (e) {
+    console.error("[callClaudeJSON] appel IA échoué:", e instanceof Error ? e.message : e);
     return null;
   }
 }
@@ -130,6 +137,25 @@ function escapeRawControlChars(s: string): string {
     out += ch;
   }
   return out;
+}
+
+/**
+ * Comme `callClaudeJSON`, mais réessaie après un court délai si le résultat est
+ * `null` — utile contre les échecs TRANSITOIRES du modèle (surcharge 529, limite
+ * de débit, réponse occasionnellement non parsable). `retries` = nombre de
+ * tentatives supplémentaires (1 par défaut → 2 appels au total au pire).
+ */
+export async function callClaudeJSONRetry<T>(
+  prompt: string,
+  opts: CallClaudeJSONOptions = {},
+  retries = 1
+): Promise<T | null> {
+  for (let i = 0; i <= retries; i++) {
+    const result = await callClaudeJSON<T>(prompt, opts);
+    if (result) return result;
+    if (i < retries) await new Promise((res) => setTimeout(res, 700 * (i + 1)));
+  }
+  return null;
 }
 
 /**

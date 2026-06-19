@@ -13,6 +13,7 @@ import { useCompany } from "@/lib/company-context";
 import { StudioHero, StudioStep, Segmented } from "@/components/studio/StudioUI";
 import { Spinner } from "@/components/ui/Spinner";
 import { MirofishStudio } from "@/components/simulateur/MirofishStudio";
+import { LaunchCopilot } from "@/components/simulateur/LaunchCopilot";
 import type { SimulationResult } from "@/lib/ai/simulation";
 
 function IconCrystal({ size = 24 }: { size?: number }) {
@@ -54,6 +55,8 @@ export default function SimulateurPage() {
   const [note, setNote] = useState<string | null>(null);
   const [result, setResult] = useState<SimulationResult | null>(null);
 
+  // Mode d'usage : Copilote guidé (RAG → simulation → stratégie) ou mode manuel.
+  const [uiMode, setUiMode] = useState<"copilote" | "manuel">("copilote");
   // Moteur : standard (Claude, rapide) ou premium (MiroFish, multi-agents).
   const [engine, setEngine] = useState<"standard" | "premium">("standard");
   const [premiumAvailable, setPremiumAvailable] = useState(false);
@@ -128,7 +131,20 @@ export default function SimulateurPage() {
         )}
       />
 
-      {!canEdit ? (
+      <div className="flex justify-center">
+        <Segmented
+          value={uiMode}
+          onChange={(v) => setUiMode(v as "copilote" | "manuel")}
+          options={[
+            { id: "copilote", label: t("✦ Copilote de lancement", "✦ Launch copilot") },
+            { id: "manuel", label: t("Mode manuel", "Manual mode") },
+          ]}
+        />
+      </div>
+
+      {uiMode === "copilote" ? (
+        <LaunchCopilot premiumAvailable={premiumAvailable} />
+      ) : !canEdit ? (
         <div className="card p-8 text-center text-sm text-muted">
           {t("Accès en lecture seule : la simulation est réservée aux accès en édition.", "View-only access: simulation requires edit access.")}
         </div>

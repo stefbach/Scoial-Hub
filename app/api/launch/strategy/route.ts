@@ -4,7 +4,7 @@
 // directement applicable dans les campagnes de l'app.
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireCompanyAccess } from "@/lib/auth/guard";

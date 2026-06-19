@@ -10,8 +10,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useT, useLang } from "@/lib/i18n";
 import { useCompany } from "@/lib/company-context";
-import { StudioHero, StudioStep } from "@/components/studio/StudioUI";
+import { StudioHero, StudioStep, Segmented } from "@/components/studio/StudioUI";
 import { Spinner } from "@/components/ui/Spinner";
+import { MirofishStudio } from "@/components/simulateur/MirofishStudio";
 import type { SimulationResult } from "@/lib/ai/simulation";
 
 function IconCrystal({ size = 24 }: { size?: number }) {
@@ -53,7 +54,19 @@ export default function SimulateurPage() {
   const [note, setNote] = useState<string | null>(null);
   const [result, setResult] = useState<SimulationResult | null>(null);
 
+  // Moteur : standard (Claude, rapide) ou premium (MiroFish, multi-agents).
+  const [engine, setEngine] = useState<"standard" | "premium">("standard");
+  const [premiumAvailable, setPremiumAvailable] = useState(false);
+
   const hydrated = useRef(false);
+
+  // Disponibilité du moteur premium (MiroFish branché côté serveur ?).
+  useEffect(() => {
+    fetch("/api/mirofish/available")
+      .then((r) => r.json())
+      .then((d) => setPremiumAvailable(Boolean(d?.available)))
+      .catch(() => setPremiumAvailable(false));
+  }, []);
 
   // Persistance par société : les saisies et la dernière simulation survivent au
   // rechargement (cohérent avec Veille / Studio Avatar / Publicités).
@@ -154,18 +167,35 @@ export default function SimulateurPage() {
                 className="input resize-y" />
             </StudioStep>
 
-            <button onClick={run} disabled={running} className="btn-primary w-full justify-center py-3 text-sm disabled:opacity-50">
-              {running
-                ? <span className="inline-flex items-center gap-2"><Spinner size={16} className="text-white" />{t("Simulation en cours… (30-60 s)", "Simulating… (30-60 s)")}</span>
-                : t("🔮 Lancer la simulation", "🔮 Run simulation")}
-            </button>
-            {note && <p className="rounded-lg bg-canvas px-3 py-2 text-xs text-muted">{note}</p>}
-            {error && <p className="rounded-lg bg-danger-50 px-3 py-2 text-xs text-danger-700">{error}</p>}
+            {premiumAvailable && (
+              <Segmented
+                value={engine}
+                onChange={setEngine}
+                options={[
+                  { id: "standard", label: t("Standard · rapide", "Standard · fast") },
+                  { id: "premium", label: t("Premium · MiroFish", "Premium · MiroFish") },
+                ]}
+              />
+            )}
+
+            {engine === "standard" && (
+              <>
+                <button onClick={run} disabled={running} className="btn-primary w-full justify-center py-3 text-sm disabled:opacity-50">
+                  {running
+                    ? <span className="inline-flex items-center gap-2"><Spinner size={16} className="text-white" />{t("Simulation en cours… (30-60 s)", "Simulating… (30-60 s)")}</span>
+                    : t("🔮 Lancer la simulation", "🔮 Run simulation")}
+                </button>
+                {note && <p className="rounded-lg bg-canvas px-3 py-2 text-xs text-muted">{note}</p>}
+                {error && <p className="rounded-lg bg-danger-50 px-3 py-2 text-xs text-danger-700">{error}</p>}
+              </>
+            )}
           </div>
 
           {/* ── Colonne résultat ── */}
           <div className="space-y-4 lg:sticky lg:top-4 lg:self-start">
-            {!result ? (
+            {engine === "premium" ? (
+              <MirofishStudio brief={{ product, audience, message, market, trends, brand: company.name, language: lang }} />
+            ) : !result ? (
               <div className="card flex min-h-[280px] flex-col items-center justify-center gap-3 p-8 text-center">
                 <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-50 text-primary-600"><IconCrystal size={28} /></span>
                 <p className="text-sm text-muted">{t("La prédiction de réception s'affichera ici.", "The reception prediction will appear here.")}</p>

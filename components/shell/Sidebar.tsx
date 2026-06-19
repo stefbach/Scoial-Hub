@@ -28,6 +28,7 @@ const NAV_TR: Record<string, [string, string]> = {
   "Inbox": ["Messagerie", "Inbox"],
   "Veille & Marché": ["Veille & Marché", "Market Watch"],
   "Competitor Ads": ["Pubs concurrentes", "Competitor Ads"],
+  "Simulateur": ["Simulateur & Prédiction", "Simulation & Prediction"],
   "Connecteurs": ["Connecteurs", "Connectors"],
   "Organic": ["Organique", "Organic"],
   "Compose": ["Composer", "Compose"],
@@ -253,6 +254,13 @@ const ICONS: Record<string, React.ReactNode> = {
       <path d="M5.5 5.5l3 1.5-3 1.5v-3Z" fill="currentColor"/>
     </svg>
   ),
+  "/simulateur": (
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+      <circle cx="7" cy="6.5" r="4.5" stroke="currentColor" strokeWidth="1.2" fill="none"/>
+      <path d="M3.5 13h7" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+      <path d="M5.5 4.8a2.3 2.3 0 0 1 2-1" stroke="currentColor" strokeWidth="1.05" strokeLinecap="round" opacity="0.7"/>
+    </svg>
+  ),
   "/benchmark": (
     <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
       <path d="M2 13V2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
@@ -309,6 +317,7 @@ const GROUPS: { label?: string; items: NavItem[] }[] = [
       { href: "/inbox",       label: "Inbox" },
       { href: "/veille",      label: "Veille & Marché" },
       { href: "/publicites",  label: "Competitor Ads" },
+      { href: "/simulateur",  label: "Simulateur" },
       { href: "/benchmark",   label: "Benchmark" },
       { href: "/parametres-connecteurs", label: "Connecteurs" },
     ],

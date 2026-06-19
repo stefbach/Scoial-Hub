@@ -8,7 +8,7 @@ export const maxDuration = 120;
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireCompanyAccess } from "@/lib/auth/guard";
-import { callClaudeJSONRetry } from "@/lib/ai/claude-json";
+import { callClaudeJSON } from "@/lib/ai/claude-json";
 import { isAiConfigured } from "@/lib/env";
 import { buildLaunchContext, launchContextDigest } from "@/lib/launch/context";
 import type { CopilotTurn, LaunchBrief } from "@/lib/launch/types";
@@ -64,7 +64,7 @@ ${goal}
 # FORMAT — STRICTEMENT du JSON valide, sans texte autour :
 {"reply":"","brief":{"product":"","audience":"","message":"","market":"","trends":"","objective":"","budget":"","timeline":"","channels":[],"kpis":[],"differentiators":[]},"missing":[],"questions":[],"ready":false}`;
 
-    const result = await callClaudeJSONRetry<CopilotTurn>(prompt, {
+    const result = await callClaudeJSON<CopilotTurn>(prompt, {
       model: "claude-sonnet-4-6",
       maxTokens: 2200,
       temperature: 0.5,

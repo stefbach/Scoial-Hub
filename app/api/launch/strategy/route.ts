@@ -8,7 +8,7 @@ export const maxDuration = 120;
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireCompanyAccess } from "@/lib/auth/guard";
-import { callClaudeJSONRetry } from "@/lib/ai/claude-json";
+import { callClaudeJSON } from "@/lib/ai/claude-json";
 import { isAiConfigured } from "@/lib/env";
 import { buildLaunchContext, launchContextDigest } from "@/lib/launch/context";
 import { appendMemory } from "@/lib/memory";
@@ -67,7 +67,7 @@ ${body.report ? `# RÉSULTATS DE SIMULATION DE MARCHÉ (à exploiter en priorit�
 }
 Max 4 canaux par section, max 4 éléments par liste, max 4 phases de calendrier.`;
 
-    const result = await callClaudeJSONRetry<LaunchStrategy>(prompt, {
+    const result = await callClaudeJSON<LaunchStrategy>(prompt, {
       model: "claude-sonnet-4-6",
       maxTokens: 3000,
       temperature: 0.55,

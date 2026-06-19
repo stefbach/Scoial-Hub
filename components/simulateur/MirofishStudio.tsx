@@ -40,7 +40,14 @@ function pick<T = unknown>(obj: unknown, ...keys: string[]): T | undefined {
   return undefined;
 }
 
-export function MirofishStudio({ brief }: { brief: MirofishBrief }) {
+export function MirofishStudio({
+  brief,
+  onReport,
+}: {
+  brief: MirofishBrief;
+  /** Remonte le rapport markdown + l'id de simulation au parent (Copilote). */
+  onReport?: (markdown: string, simulationId: string) => void;
+}) {
   const t = useT();
   const { lang } = useLang();
   const { company } = useCompany();
@@ -153,8 +160,10 @@ export function MirofishStudio({ brief }: { brief: MirofishBrief }) {
       if (!reportId) throw new Error("MiroFish: report_id manquant.");
       const rep = await mf(`api/report/${reportId}`);
       const md = pick<string>(rep, "markdown_content", "markdown", "content");
-      setReport(md || t("(Rapport vide.)", "(Empty report.)"));
+      const finalMd = md || t("(Rapport vide.)", "(Empty report.)");
+      setReport(finalMd);
       setStage("report", "done");
+      onReport?.(finalMd, simId);
     } catch (e) {
       setError(e instanceof Error ? e.message : t("Échec de la simulation premium.", "Premium simulation failed."));
       setStages((prev) => prev.map((s) => (s.state === "running" ? { ...s, state: "error" } : s)));

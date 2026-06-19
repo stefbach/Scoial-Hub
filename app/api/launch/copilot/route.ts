@@ -64,8 +64,11 @@ ${goal}
 # FORMAT — STRICTEMENT du JSON valide, sans texte autour :
 {"reply":"","brief":{"product":"","audience":"","message":"","market":"","trends":"","objective":"","budget":"","timeline":"","channels":[],"kpis":[],"differentiators":[]},"missing":[],"questions":[],"ready":false}`;
 
+    // Modèle RAPIDE (Haiku) pour le chat : faible latence → évite les timeouts
+    // intermittents de Sonnet sous surcharge. Largement suffisant pour dialoguer
+    // et construire le brief. La stratégie finale reste sur Sonnet (qualité).
     const result = await callClaudeJSON<CopilotTurn>(prompt, {
-      model: "claude-sonnet-4-6",
+      model: "claude-haiku-4-5-20251001",
       maxTokens: 2200,
       temperature: 0.5,
       system: "Tu réponds STRICTEMENT par un unique objet JSON valide, sans texte autour. Échappe correctement tout retour à la ligne dans les chaînes (\\n).",

@@ -4,7 +4,7 @@
 // Retourne une réponse + le brief cumulé + ce qu'il reste à préciser + ready.
 
 export const runtime = "nodejs";
-export const maxDuration = 45;
+export const maxDuration = 120;
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireCompanyAccess } from "@/lib/auth/guard";

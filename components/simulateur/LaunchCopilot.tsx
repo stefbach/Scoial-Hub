@@ -25,6 +25,18 @@ import type { SimulationResult } from "@/lib/ai/simulation";
 
 type Phase = "chat" | "simulate" | "strategy";
 type Msg = { role: "user" | "assistant"; content: string };
+type JsonObj = Record<string, unknown> & { error?: string };
+
+// Lecture tolérante : si la réponse n'est pas du JSON (page d'erreur plateforme,
+// timeout 504…), on renvoie un objet d'erreur lisible au lieu de planter.
+async function readJson(r: Response): Promise<JsonObj> {
+  const text = await r.text();
+  try {
+    return text ? (JSON.parse(text) as JsonObj) : {};
+  } catch {
+    return { error: `Réponse inattendue du serveur (${r.status}). Réessayez.` };
+  }
+}
 
 function simResultToReport(r: SimulationResult): string {
   const lines = [
@@ -77,8 +89,8 @@ export function LaunchCopilot({ premiumAvailable }: { premiumAvailable: boolean 
     setStatus(null); setPhase("chat"); setMsgs([]); setBrief({ product: "", audience: "" });
     setReady(false); setReport(null); setSimResult(null); setStrategy(null); setApplied(null);
     fetch(`/api/launch/context?companyId=${encodeURIComponent(company.id)}&companyName=${encodeURIComponent(company.name)}`)
-      .then((r) => r.json())
-      .then((d) => setStatus(d?.status ?? null))
+      .then(readJson)
+      .then((d) => setStatus((d.status as LaunchContextStatus) ?? null))
       .catch(() => setStatus(null));
   }, [company.id, company.name]);
 
@@ -96,9 +108,9 @@ export function LaunchCopilot({ premiumAvailable }: { premiumAvailable: boolean 
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ companyId: company.id, companyName: company.name, goal: g, brief, history, language: lang }),
       });
-      const d = await r.json();
-      if (!r.ok) throw new Error(d?.error || t("Le copilote a échoué.", "Copilot failed."));
-      const turn = d as CopilotTurn;
+      const d = await readJson(r);
+      if (!r.ok) throw new Error(d.error || t("Le copilote a échoué.", "Copilot failed."));
+      const turn = d as unknown as CopilotTurn;
       setMsgs((m) => [...m, { role: "assistant", content: turn.reply || "…" }]);
       if (turn.brief) setBrief(turn.brief);
       setMissing(turn.missing ?? []);
@@ -123,8 +135,8 @@ export function LaunchCopilot({ premiumAvailable }: { premiumAvailable: boolean 
           market: brief.market, trends: brief.trends, language: lang,
         }),
       });
-      const d = await r.json();
-      if (!r.ok || !d.result) throw new Error((d.error as string) || t("Échec de la simulation.", "Simulation failed."));
+      const d = await readJson(r);
+      if (!r.ok || !d.result) throw new Error(d.error || t("Échec de la simulation.", "Simulation failed."));
       setSimResult(d.result as SimulationResult);
       setReport(simResultToReport(d.result as SimulationResult));
     } catch (e) {
@@ -142,8 +154,8 @@ export function LaunchCopilot({ premiumAvailable }: { premiumAvailable: boolean 
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ companyId: company.id, companyName: company.name, brief, report, language: lang }),
       });
-      const d = await r.json();
-      if (!r.ok || !d.strategy) throw new Error((d.error as string) || t("Stratégie non générée.", "Strategy not generated."));
+      const d = await readJson(r);
+      if (!r.ok || !d.strategy) throw new Error(d.error || t("Stratégie non générée.", "Strategy not generated."));
       setStrategy(d.strategy as LaunchStrategy);
     } catch (e) {
       setErr(e instanceof Error ? e.message : t("Erreur réseau.", "Network error."));
@@ -161,9 +173,9 @@ export function LaunchCopilot({ premiumAvailable }: { premiumAvailable: boolean 
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ companyId: company.id, strategy, productName: brief.product }),
       });
-      const d = await r.json();
-      if (!r.ok) throw new Error((d.error as string) || t("Application échouée.", "Apply failed."));
-      setApplied(d as ApplyResult);
+      const d = await readJson(r);
+      if (!r.ok) throw new Error(d.error || t("Application échouée.", "Apply failed."));
+      setApplied(d as unknown as ApplyResult);
     } catch (e) {
       setErr(e instanceof Error ? e.message : t("Erreur réseau.", "Network error."));
     } finally {

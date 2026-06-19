@@ -71,6 +71,7 @@ Max 4 canaux par section, max 4 éléments par liste, max 4 phases de calendrier
       model: "claude-sonnet-4-6",
       maxTokens: 3000,
       temperature: 0.55,
+      timeoutMs: 50_000, // génération lourde Sonnet : plus de marge, mais sous le cap fonction
       system: "Tu réponds STRICTEMENT par un unique objet JSON valide, sans texte autour. Échappe correctement tout retour à la ligne dans les chaînes (\\n).",
     });
     if (!result) {

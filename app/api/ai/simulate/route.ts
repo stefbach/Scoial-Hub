@@ -74,7 +74,13 @@ Réponds STRICTEMENT en JSON, sans texte autour, au format :
   "trendAlignment": "..."
 }`;
 
-  const data = await callClaudeJSON<SimulationResult>(prompt, { maxTokens: 3200, temperature: 0.7 });
+  // Tier « rapide » : modèle Haiku (faible latence) → tient dans le budget de la
+  // fonction même sous charge (Sonnet, plus lent sur 3200 tokens, expirait).
+  const data = await callClaudeJSON<SimulationResult>(prompt, {
+    model: "claude-haiku-4-5-20251001",
+    maxTokens: 3200,
+    temperature: 0.7,
+  });
   if (!data || typeof data.score !== "number" || !Array.isArray(data.personas)) {
     return NextResponse.json({ error: "La simulation n'a pas abouti. Réessayez." }, { status: 502 });
   }

@@ -44,6 +44,10 @@ export interface CallClaudeJSONOptions {
   system?: string;
   /** Température d'échantillonnage optionnelle. */
   temperature?: number;
+  /** Timeout de l'appel en ms (défaut : 30000). À augmenter pour les
+   *  générations lourdes/lentes, tout en restant SOUS la limite de durée de la
+   *  fonction serverless pour éviter un 504. */
+  timeoutMs?: number;
 }
 
 /**
@@ -59,19 +63,22 @@ export async function callClaudeJSON<T>(
 
   try {
     const Anthropic = (await import("@anthropic-ai/sdk")).default;
-    // timeout court : un appel qui « pend » (latence/surcharge côté API) doit
-    // échouer VITE (≤30s) pour rester sous la limite de durée de la fonction
-    // serverless (≈60s selon le plan) → évite le 504. maxRetries 0 : pas de
-    // ré-essai interne du SDK qui cumulerait les délais.
-    const client = new Anthropic({ apiKey: env.anthropicKey, timeout: 30_000, maxRetries: 0 });
+    // maxRetries 0 : pas de ré-essai interne du SDK qui cumulerait les délais.
+    const client = new Anthropic({ apiKey: env.anthropicKey, maxRetries: 0 });
 
-    const message = await client.messages.create({
-      model: opts.model ?? env.anthropicModel,
-      max_tokens: opts.maxTokens ?? 1500,
-      ...(opts.system ? { system: opts.system } : {}),
-      ...(opts.temperature !== undefined ? { temperature: opts.temperature } : {}),
-      messages: [{ role: "user", content: prompt }],
-    });
+    // timeout par appel : un appel qui « pend » (latence/surcharge côté API) doit
+    // échouer pour rester SOUS la limite de durée de la fonction serverless
+    // (sinon 504). 30s par défaut ; surchargeable pour les générations lourdes.
+    const message = await client.messages.create(
+      {
+        model: opts.model ?? env.anthropicModel,
+        max_tokens: opts.maxTokens ?? 1500,
+        ...(opts.system ? { system: opts.system } : {}),
+        ...(opts.temperature !== undefined ? { temperature: opts.temperature } : {}),
+        messages: [{ role: "user", content: prompt }],
+      },
+      { timeout: opts.timeoutMs ?? 30_000 }
+    );
 
     // Concatène les blocs texte de la réponse, en retirant les éventuelles
     // clôtures Markdown (```json … ```).

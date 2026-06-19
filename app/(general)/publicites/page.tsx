@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useT, useLang } from "@/lib/i18n";
 import { StudioHero } from "@/components/studio/StudioUI";
@@ -51,6 +51,33 @@ export default function PublicitesPage() {
   const [analysis, setAnalysis] = useState<AdStrategyAnalysis | null>(null);
   // Incrémenté après une analyse → force le StrategyPanel à recharger le brief.
   const [memoryRefresh, setMemoryRefresh] = useState(0);
+
+  // #9 — Persistance par société : les pubs trouvées et l'analyse IA survivent au
+  // rechargement de la page (évite de tout reperdre et relancer l'analyse).
+  const hydrated = useRef(false);
+  useEffect(() => {
+    hydrated.current = false;
+    try {
+      const raw = localStorage.getItem(`publicites_${company.id}`);
+      if (raw) {
+        const s = JSON.parse(raw) as Record<string, unknown>;
+        if (typeof s.country === "string") setCountry(s.country);
+        if (typeof s.terms === "string") setTerms(s.terms);
+        if (s.adType === "ALL" || s.adType === "POLITICAL_AND_ISSUE_ADS") setAdType(s.adType);
+        if (Array.isArray(s.ads)) setAds(s.ads as AdEntry[]);
+        if (typeof s.metricsAvailable === "boolean") setMetricsAvailable(s.metricsAvailable);
+        if (s.analysis && typeof s.analysis === "object") setAnalysis(s.analysis as AdStrategyAnalysis);
+      }
+    } catch { /* stockage indisponible */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [company.id]);
+
+  useEffect(() => {
+    if (!hydrated.current) { hydrated.current = true; return; }
+    try {
+      localStorage.setItem(`publicites_${company.id}`, JSON.stringify({ country, terms, adType, ads, metricsAvailable, analysis }));
+    } catch { /* quota / mode privé */ }
+  }, [company.id, country, terms, adType, ads, metricsAvailable, analysis]);
 
   async function search() {
     setLoading(true);

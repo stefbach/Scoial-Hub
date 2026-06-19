@@ -80,8 +80,12 @@ export default function StudioAvatarPage() {
   const [note, setNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [savingAvatar, setSavingAvatar] = useState(false);
+  // #19/#20 — id de la prédiction lip-sync en cours : persisté pour reprendre le
+  // suivi après un rechargement / une navigation, sans dépendre du webhook serveur.
+  const [pendingPredictionId, setPendingPredictionId] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const hydrated = useRef(false); // #16 — évite d'écraser le stockage au montage
+  const resumed = useRef(false);  // #19/#20 — garde contre une double reprise
 
   // #18 — Enregistre l'avatar courant dans la bibliothèque (réutilisable ensuite
   // via « Mes avatars enregistrés »).
@@ -124,6 +128,7 @@ export default function StudioAvatarPage() {
         if (typeof s.personPrompt === "string") setPersonPrompt(s.personPrompt);
         if (typeof s.imageModel === "string") setImageModel(s.imageModel);
         if (typeof s.videoUrl === "string") { setVideoUrl(s.videoUrl); setSavedToLibrary(Boolean(s.savedToLibrary)); }
+        if (typeof s.pendingPredictionId === "string") setPendingPredictionId(s.pendingPredictionId); // #19/#20
         if (Array.isArray(s.clonedVoices)) setClonedVoices(s.clonedVoices); // #19 — voix clonées conservées
       }
     } catch { /* stockage indisponible */ }
@@ -135,10 +140,36 @@ export default function StudioAvatarPage() {
     if (!hydrated.current) { hydrated.current = true; return; }
     try {
       localStorage.setItem(`avatar_studio_${company.id}`, JSON.stringify({
-        faceUrl, topic, language, voiceId, seconds, script, environment, lipsyncModel, personPrompt, imageModel, videoUrl, savedToLibrary, clonedVoices,
+        faceUrl, topic, language, voiceId, seconds, script, environment, lipsyncModel, personPrompt, imageModel, videoUrl, savedToLibrary, clonedVoices, pendingPredictionId,
       }));
     } catch { /* quota / mode privé */ }
-  }, [company.id, faceUrl, topic, language, voiceId, seconds, script, environment, lipsyncModel, personPrompt, imageModel, videoUrl, savedToLibrary, clonedVoices]);
+  }, [company.id, faceUrl, topic, language, voiceId, seconds, script, environment, lipsyncModel, personPrompt, imageModel, videoUrl, savedToLibrary, clonedVoices, pendingPredictionId]);
+
+  // #19/#20 — Reprise d'un rendu en cours après rechargement / retour sur la page :
+  // tant qu'une prédiction est en attente et qu'aucune vidéo n'est affichée, on
+  // ré-interroge son statut. Le rendu finit donc par arriver dans la Médiathèque
+  // même si l'utilisateur a quitté l'onglet — indépendamment du webhook serveur.
+  useEffect(() => {
+    if (resumed.current || !pendingPredictionId || videoUrl || rendering) return;
+    resumed.current = true;
+    setRendering(true);
+    setNote(t("Reprise du rendu vidéo en cours…", "Resuming the video render in progress…"));
+    (async () => {
+      const res = await pollAvatar(pendingPredictionId);
+      if (res.ok) {
+        await finalizeVideo(res.url);
+        setNote(t("Vidéo prête ✓", "Video ready ✓"));
+        setPendingPredictionId(null);
+      } else if (res.reason === "failed") {
+        setError(t(`La génération a échoué${res.error ? ` : ${res.error}` : "."}`, `Generation failed${res.error ? `: ${res.error}` : "."}`));
+        setPendingPredictionId(null);
+      } else {
+        setNote(t("Le rendu est toujours en cours côté serveur. Revenez plus tard : il reprendra automatiquement.", "The render is still running server-side. Come back later: it will resume automatically."));
+      }
+      setRendering(false);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingPredictionId, videoUrl]);
 
   async function uploadFace(files: FileList | null) {
     if (!files || files.length === 0) return;
@@ -355,14 +386,19 @@ export default function StudioAvatarPage() {
       } else if (d.videoUrl) {
         finalUrl = d.videoUrl;
       } else if (d.pending && d.predictionId) {
-        // Lip-sync long → on interroge le statut jusqu'au résultat (≤ 12 min).
+        // Lip-sync long → on interroge le statut jusqu'au résultat (≤ 20 min).
+        // On mémorise l'id : si le poll dépasse le délai (modèles très lents type
+        // OmniHuman), la reprise automatique au prochain affichage finira le suivi.
+        setPendingPredictionId(d.predictionId);
         const res = await pollAvatar(d.predictionId);
         if (res.ok) {
           finalUrl = res.url;
+          setPendingPredictionId(null);
         } else if (res.reason === "failed") {
           // Échec réel du modèle : on montre la cause exacte. Cas fréquent :
           // un modèle « doublage vidéo » (HeyGen Lipsync Precision, Sync Lipsync 2 Pro)
           // nourri d'une simple photo → choisir OmniHuman ou VEED Fabric.
+          setPendingPredictionId(null);
           setError(
             t(
               `La génération a échoué${res.error ? ` : ${res.error}` : "."} Astuce : certains modèles exigent une vidéo source — pour une photo, utilisez « OmniHuman » ou « VEED Fabric ».`,
@@ -370,7 +406,8 @@ export default function StudioAvatarPage() {
             )
           );
         } else {
-          setError(t("Le rendu est long : il continue côté serveur et apparaîtra dans la Médiathèque dès qu'il est prêt. Réessayez ou changez de modèle d'avatar si besoin.", "The render is taking long: it continues server-side and will appear in the Media library once ready. Retry or switch avatar model if needed."));
+          // Délai dépassé : on GARDE l'id en attente → reprise auto au retour.
+          setNote(t("Le rendu est plus long que prévu : laissez cette page ouverte ou revenez plus tard, il reprend automatiquement et la vidéo ira dans la Médiathèque.", "The render is taking longer than expected: keep this page open or come back later — it resumes automatically and the video will land in the Media library."));
         }
       } else {
         setError(t("Aucune vidéo renvoyée.", "No video returned."));
@@ -397,17 +434,20 @@ export default function StudioAvatarPage() {
           }
         } catch { setNote(t("Vidéo prête (sous-titres indisponibles).", "Video ready (subtitles unavailable).")); }
       }
-      if (finalUrl) {
-        setVideoUrl(finalUrl);
-        // Persiste la vidéo (URL Replicate éphémère) sur le stockage durable.
-        const permanent = await persistVideo(finalUrl);
-        const keep = permanent || finalUrl;
-        setVideoUrl(keep);
-        await saveToLibrary(keep);
-      }
+      if (finalUrl) await finalizeVideo(finalUrl);
     } catch (e) {
       setError(e instanceof Error ? e.message : t("Échec.", "Failed."));
     } finally { setRendering(false); }
+  }
+
+  // Affiche, persiste durablement (URL Replicate éphémère → stockage) et
+  // enregistre la vidéo en Médiathèque. Partagé par genVideo et la reprise.
+  async function finalizeVideo(url: string) {
+    setVideoUrl(url);
+    const permanent = await persistVideo(url);
+    const keep = permanent || url;
+    setVideoUrl(keep);
+    await saveToLibrary(keep);
   }
 
   // Télécharge la vidéo Replicate (URL éphémère) et la stocke durablement.
@@ -442,7 +482,7 @@ export default function StudioAvatarPage() {
     | { ok: true; url: string }
     | { ok: false; reason: "failed" | "timeout"; error?: string };
   async function pollAvatar(id: string): Promise<PollResult> {
-    const deadline = Date.now() + 12 * 60_000;
+    const deadline = Date.now() + 20 * 60_000;
     while (Date.now() < deadline) {
       await new Promise((r) => setTimeout(r, 5000));
       try {
@@ -570,7 +610,7 @@ export default function StudioAvatarPage() {
             )}
 
             <StudioStep n={2} title={t("Script", "Script")} hint={t("1) Le texte que l'avatar va dire — généré par l'IA ou écrit à la main.", "1) The text the avatar will say — AI-generated or written by hand.")}>
-              <input value={topic} onChange={(e) => setTopic(e.target.value)} placeholder={t("Sujet (ex. « Notre nouvelle offre minceur »)", "Topic (e.g. \"Our new weight-loss offer\")")} className="input" />
+              <textarea value={topic} onChange={(e) => setTopic(e.target.value)} rows={2} placeholder={t("Sujet (ex. « Notre nouvelle offre minceur »)", "Topic (e.g. \"Our new weight-loss offer\")")} className="input resize-y" />
               <div className="flex flex-wrap items-center gap-2">
                 <select value={language} onChange={(e) => setLanguage(e.target.value)} className="input w-auto">
                   {AVATAR_LANGS.map((l) => <option key={l.code} value={l.code}>{l.label}</option>)}
@@ -669,7 +709,7 @@ export default function StudioAvatarPage() {
             <button onClick={genVideo} disabled={rendering} className="btn-primary w-full justify-center py-3 text-sm disabled:opacity-50">
               {rendering ? <span className="inline-flex items-center gap-2"><Spinner size={16} className="text-white" />{t("Génération de l'avatar…", "Generating avatar…")}</span> : t("🎬 Générer la vidéo avatar", "🎬 Generate avatar video")}
             </button>
-            {rendering && <BusyHint label={t("Voix + lip-sync en cours… cela peut prendre 1–3 min.", "Voice + lip-sync in progress… this can take 1–3 min.")} eta="~1–3 min" />}
+            {rendering && <BusyHint label={t("Voix + lip-sync en cours… selon le modèle, cela peut prendre de 3 à 15 min. Vous pouvez quitter la page : le rendu reprend tout seul à votre retour.", "Voice + lip-sync in progress… depending on the model, this can take 3 to 15 min. You can leave the page: the render resumes on your own when you come back.")} eta="~3–15 min" />}
             {note && <p className="rounded-lg bg-canvas px-3 py-2 text-xs text-muted">{note}</p>}
             {error && <p className="rounded-lg bg-danger-50 px-3 py-2 text-xs text-danger-700">{error}</p>}
           </div>

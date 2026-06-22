@@ -76,13 +76,31 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
-function drawCover(ctx: CanvasRenderingContext2D, img: HTMLImageElement, W: number, H: number) {
+function drawCover(ctx: CanvasRenderingContext2D, img: HTMLImageElement, W: number, H: number, scale = 1) {
   const ir = img.width / img.height;
   const fr = W / H;
-  let dw: number, dh: number, dx: number, dy: number;
-  if (ir > fr) { dh = H; dw = H * ir; dx = (W - dw) / 2; dy = 0; }
-  else { dw = W; dh = W / ir; dx = 0; dy = (H - dh) / 2; }
-  ctx.drawImage(img, dx, dy, dw, dh);
+  let dw: number, dh: number;
+  if (ir > fr) { dh = H * scale; dw = dh * ir; }
+  else { dw = W * scale; dh = dw / ir; }
+  ctx.drawImage(img, (W - dw) / 2, (H - dh) / 2, dw, dh);
+}
+
+// Adapte une image à un format SANS la couper (« décliner ») : l'image entière est
+// affichée (contain), et le cadre est rempli par une version floutée et zoomée de
+// la même image — rendu premium, aucun élément coupé, quel que soit le format.
+function drawFitBlur(ctx: CanvasRenderingContext2D, img: HTMLImageElement, W: number, H: number) {
+  // 1) Fond flouté qui remplit tout le cadre (pas de bandes vides).
+  ctx.save();
+  ctx.filter = `blur(${Math.max(8, Math.round(Math.min(W, H) * 0.05))}px)`;
+  drawCover(ctx, img, W, H, 1.15);
+  ctx.restore();
+  ctx.fillStyle = "rgba(15,23,42,0.18)"; // léger voile d'homogénéisation
+  ctx.fillRect(0, 0, W, H);
+  // 2) Image complète, centrée, jamais coupée.
+  const ir = img.width / img.height, fr = W / H;
+  let dw: number, dh: number;
+  if (ir > fr) { dw = W; dh = W / ir; } else { dh = H; dw = H * ir; }
+  ctx.drawImage(img, (W - dw) / 2, (H - dh) / 2, dw, dh);
 }
 
 function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
@@ -203,7 +221,7 @@ export default function StudioAffichePage() {
   // ── Rendu canvas ────────────────────────────────────────────────────────────
   // `paint` dessine l'affiche sur N'IMPORTE QUEL canvas, pour un format donné —
   // réutilisé par l'aperçu live ET par la déclinaison multi-formats (hors écran).
-  const paint = useCallback((canvas: HTMLCanvasElement, fmt: Format) => {
+  const paint = useCallback((canvas: HTMLCanvasElement, fmt: Format, fit: "cover" | "fit" = "cover") => {
     const { w: W, h: H } = fmt;
     canvas.width = W; canvas.height = H;
     const ctx = canvas.getContext("2d");
@@ -211,7 +229,8 @@ export default function StudioAffichePage() {
 
     // Fond
     if (bgImg) {
-      drawCover(ctx, bgImg, W, H);
+      if (fit === "fit") drawFitBlur(ctx, bgImg, W, H);
+      else drawCover(ctx, bgImg, W, H);
     } else {
       // État vide = page neutre (PAS un aplat de couleur) + invite, pour qu'on
       // voie tout de suite une « page blanche » prête à composer.
@@ -354,7 +373,8 @@ export default function StudioAffichePage() {
   // que l'aperçu, mais aux dimensions du format demandé.
   async function renderFormatBlob(fmt: Format): Promise<Blob | null> {
     const off = document.createElement("canvas");
-    paint(off, fmt);
+    // « fit » : l'image est adaptée au format sans être coupée (déclinaison).
+    paint(off, fmt, "fit");
     return new Promise((res) => off.toBlob((b) => res(b), "image/png"));
   }
 
@@ -472,7 +492,7 @@ export default function StudioAffichePage() {
                   : t(`⚡ Décliner tout le jeu réseaux (${declineSet.length} formats)`, `⚡ Decline the whole network set (${declineSet.length} formats)`)}
               </button>
               <p className="mt-1 text-2xs text-muted">
-                {t("Génère l'affiche dans tous les formats Instagram / Facebook / LinkedIn d'un coup, enregistrés dans la bibliothèque — prêts à publier ou à décliner en pub.", "Renders the poster in every Instagram / Facebook / LinkedIn format at once, saved to the library — ready to publish or turn into ads.")}
+                {t("Adapte l'affiche à chaque format Instagram / Facebook / LinkedIn SANS rien couper (l'image entière est conservée), enregistrés dans la bibliothèque — prêts à publier ou à décliner en pub.", "Adapts the poster to every Instagram / Facebook / LinkedIn format WITHOUT cropping (the whole image is kept), saved to the library — ready to publish or turn into ads.")}
               </p>
             </div>
           </StudioStep>

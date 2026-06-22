@@ -207,11 +207,11 @@ export default function MediaLibraryPage() {
                 {a.type === "video" ? (
                   // eslint-disable-next-line jsx-a11y/media-has-caption
                   <video src={a.url} controls className="max-h-full max-w-full object-contain"
-                    onLoadedMetadata={(e) => setDims((d) => ({ ...d, [a.url]: `${e.currentTarget.videoWidth}×${e.currentTarget.videoHeight}` }))} />
+                    onLoadedMetadata={(e) => { const w = e.currentTarget.videoWidth, h = e.currentTarget.videoHeight; setDims((d) => ({ ...d, [a.url]: `${w}×${h}` })); }} />
                 ) : (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={a.url} alt="" className="max-h-full max-w-full object-contain"
-                    onLoad={(e) => setDims((d) => ({ ...d, [a.url]: `${e.currentTarget.naturalWidth}×${e.currentTarget.naturalHeight}` }))} />
+                    onLoad={(e) => { const w = e.currentTarget.naturalWidth, h = e.currentTarget.naturalHeight; setDims((d) => ({ ...d, [a.url]: `${w}×${h}` })); }} />
                 )}
                 <span className="absolute left-1.5 top-1.5 rounded-full bg-black/55 px-2 py-0.5 text-[10px] font-semibold text-white">
                   {a.type === "video" ? "▶ " + t("vidéo", "video") : (a.format || "image")}

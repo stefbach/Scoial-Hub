@@ -107,6 +107,9 @@ export default function MediaLibraryPage() {
   const shown = assets.filter((a) => filter === "all" || a.type === filter);
   const campaignHref = (a: Asset) => `/campaigns/new?${a.type === "video" ? "video" : "image"}=${encodeURIComponent(a.url)}`;
   const composeHref = (a: Asset) => `/compose?media=${encodeURIComponent(a.url)}&kind=${a.type}`;
+  // Téléchargement réel (forcé) via proxy même-origine — fonctionne en cross-origin.
+  const downloadHref = (a: Asset) =>
+    `/api/media/download?url=${encodeURIComponent(a.url)}&name=${encodeURIComponent(`${(company.name || "media").replace(/\s+/g, "-").toLowerCase()}-${a.format || a.type}`)}`;
 
   return (
     <div className="animate-fade-in">
@@ -212,7 +215,10 @@ export default function MediaLibraryPage() {
               </div>
               <div className="flex flex-col gap-1.5 p-2.5">
                 <Link href={composeHref(a)} className="btn-primary w-full justify-center text-2xs">{t("Publier", "Publish")}</Link>
-                <Link href={campaignHref(a)} className="btn-secondary w-full justify-center text-2xs">{t("Créer une pub", "Create ad")}</Link>
+                <div className="flex gap-1.5">
+                  <Link href={campaignHref(a)} className="btn-secondary flex-1 justify-center text-2xs">{t("Créer une pub", "Create ad")}</Link>
+                  <a href={downloadHref(a)} className="btn-secondary shrink-0 justify-center px-2 text-2xs" title={t("Télécharger", "Download")} aria-label={t("Télécharger", "Download")}>⬇</a>
+                </div>
                 {a.type === "image" && (
                   <button onClick={() => { setDerivingFrom(a.url); setDerivePrompt(""); window.scrollTo({ top: 0, behavior: "smooth" }); }}
                     className="btn-secondary w-full justify-center text-2xs">{t("⤳ Décliner", "⤳ Derive")}</button>

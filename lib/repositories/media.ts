@@ -81,18 +81,19 @@ export async function saveMediaAsset(
 }
 
 /** Liste la bibliothèque (assets stockés) + le logo/charte du brand kit. */
-export async function listMediaAssets(companyId: string, limit = 60): Promise<MediaAsset[]> {
+export async function listMediaAssets(companyId: string, limit = 1000): Promise<MediaAsset[]> {
   const sb = createAdminClient();
   if (!sb) return [];
   const uuid = await resolveCompanyUuid(companyId);
   const out: MediaAsset[] = [];
+  const cap = Math.min(Math.max(limit, 1), 2000);
 
   const { data } = await sb
     .from("sh_media_assets")
     .select("url, type, format, source, prompt, created_at")
     .eq("company_id", uuid)
     .order("created_at", { ascending: false })
-    .limit(limit);
+    .limit(cap);
   for (const r of data ?? []) {
     out.push({
       url: String(r.url),

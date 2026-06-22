@@ -23,19 +23,46 @@ import { IconFrame } from "@/components/visual/Icons";
 import { SafeBoundary } from "@/components/ui/SafeBoundary";
 import type { BrandKit } from "@/lib/brand-kit/types";
 
-interface Format { id: string; label: string; w: number; h: number; print?: boolean; ar: string; }
+type FormatGroup = "print" | "universel" | "instagram" | "facebook" | "linkedin";
+interface Format { id: string; label: string; w: number; h: number; print?: boolean; ar: string; group: FormatGroup; }
+
+// Libellés des groupes de formats (impression + un set par réseau).
+const GROUPS: { id: FormatGroup; fr: string; en: string }[] = [
+  { id: "universel", fr: "Universel", en: "Universal" },
+  { id: "instagram", fr: "Instagram", en: "Instagram" },
+  { id: "facebook", fr: "Facebook", en: "Facebook" },
+  { id: "linkedin", fr: "LinkedIn", en: "LinkedIn" },
+  { id: "print", fr: "Impression", en: "Print" },
+];
 
 // Dimensions print à ~150 dpi (bon compromis qualité/poids) ; réseaux en px standard.
 const FORMATS: Format[] = [
-  { id: "a4p", label: "A4 portrait", w: 1240, h: 1754, print: true, ar: "4:5" },
-  { id: "a4l", label: "A4 paysage", w: 1754, h: 1240, print: true, ar: "16:9" },
-  { id: "a3p", label: "A3 portrait", w: 1754, h: 2480, print: true, ar: "4:5" },
-  { id: "a3l", label: "A3 paysage", w: 2480, h: 1754, print: true, ar: "16:9" },
-  { id: "sq", label: "Carré 1:1", w: 1080, h: 1080, ar: "1:1" },
-  { id: "story", label: "Story 9:16", w: 1080, h: 1920, ar: "9:16" },
-  { id: "portrait", label: "Portrait 4:5", w: 1080, h: 1350, ar: "4:5" },
-  { id: "wide", label: "Paysage 16:9", w: 1920, h: 1080, ar: "16:9" },
+  // Universel (formats génériques)
+  { id: "sq", label: "Carré 1:1", w: 1080, h: 1080, ar: "1:1", group: "universel" },
+  { id: "story", label: "Story 9:16", w: 1080, h: 1920, ar: "9:16", group: "universel" },
+  { id: "portrait", label: "Portrait 4:5", w: 1080, h: 1350, ar: "4:5", group: "universel" },
+  { id: "wide", label: "Paysage 16:9", w: 1920, h: 1080, ar: "16:9", group: "universel" },
+  // Instagram
+  { id: "ig-pt", label: "IG portrait 4:5", w: 1080, h: 1350, ar: "4:5", group: "instagram" },
+  { id: "ig-sq", label: "IG carré 1:1", w: 1080, h: 1080, ar: "1:1", group: "instagram" },
+  { id: "ig-story", label: "IG story / Reel 9:16", w: 1080, h: 1920, ar: "9:16", group: "instagram" },
+  // Facebook
+  { id: "fb-feed", label: "FB fil 4:5", w: 1080, h: 1350, ar: "4:5", group: "facebook" },
+  { id: "fb-land", label: "FB lien / paysage", w: 1200, h: 630, ar: "16:9", group: "facebook" },
+  { id: "fb-story", label: "FB story 9:16", w: 1080, h: 1920, ar: "9:16", group: "facebook" },
+  // LinkedIn
+  { id: "li-land", label: "LinkedIn paysage", w: 1200, h: 627, ar: "16:9", group: "linkedin" },
+  { id: "li-sq", label: "LinkedIn carré 1:1", w: 1080, h: 1080, ar: "1:1", group: "linkedin" },
+  { id: "li-pt", label: "LinkedIn portrait 4:5", w: 1080, h: 1350, ar: "4:5", group: "linkedin" },
+  // Impression
+  { id: "a4p", label: "A4 portrait", w: 1240, h: 1754, print: true, ar: "4:5", group: "print" },
+  { id: "a4l", label: "A4 paysage", w: 1754, h: 1240, print: true, ar: "16:9", group: "print" },
+  { id: "a3p", label: "A3 portrait", w: 1754, h: 2480, print: true, ar: "4:5", group: "print" },
+  { id: "a3l", label: "A3 paysage", w: 2480, h: 1754, print: true, ar: "16:9", group: "print" },
 ];
+
+// Jeu de formats réseaux décliné « en un clic » (un par forme utile et par réseau).
+const SOCIAL_DECLINE_IDS = ["ig-pt", "ig-sq", "ig-story", "fb-feed", "fb-land", "fb-story", "li-land", "li-sq", "li-pt"];
 
 const TEXT_COLORS = ["#ffffff", "#0f172a", "#60a5fa", "#5b2d8e", "#be123c", "#f59e0b"];
 
@@ -77,7 +104,7 @@ export default function StudioAffichePage() {
   const canEdit = access.canEdit;
   const companyId = company.id;
 
-  const [formatId, setFormatId] = useState("a4p");
+  const [formatId, setFormatId] = useState("ig-pt");
   const format = useMemo(() => FORMATS.find((f) => f.id === formatId)!, [formatId]);
 
   const [prompt, setPrompt] = useState("");
@@ -174,10 +201,10 @@ export default function StudioAffichePage() {
   }
 
   // ── Rendu canvas ────────────────────────────────────────────────────────────
-  const render = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const { w: W, h: H } = format;
+  // `paint` dessine l'affiche sur N'IMPORTE QUEL canvas, pour un format donné —
+  // réutilisé par l'aperçu live ET par la déclinaison multi-formats (hors écran).
+  const paint = useCallback((canvas: HTMLCanvasElement, fmt: Format) => {
+    const { w: W, h: H } = fmt;
     canvas.width = W; canvas.height = H;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
@@ -250,7 +277,12 @@ export default function StudioAffichePage() {
       const ly = logoCorner.includes("t") ? m : H - lh - m;
       ctx.drawImage(logoImg, lx, ly, lw, lh);
     }
-  }, [format, bgImg, logoImg, headline, subtitle, color, pos, scrim, logoCorner, company.accent, company.name]);
+  }, [bgImg, logoImg, headline, subtitle, color, pos, scrim, logoCorner, t]);
+
+  // Aperçu live : dessine le format courant sur le canvas visible.
+  const render = useCallback(() => {
+    if (canvasRef.current) paint(canvasRef.current, format);
+  }, [paint, format]);
 
   // Re-render aussi au retour sur l'onglet « Affiche » (le canvas est remonté).
   useEffect(() => { if (previewTab === "affiche") render(); }, [render, previewTab]);
@@ -299,8 +331,35 @@ export default function StudioAffichePage() {
   useEffect(() => { setHostedUrl(null); setSavedToLibrary(false); },
     [bgImg, logoImg, headline, subtitle, color, pos, scrim, logoCorner, formatId]);
 
-  // Enregistre l'affiche (PNG du canvas) dans la bibliothèque média, réutilisable
-  // partout (campagnes, etc.), ET conserve l'URL publique pour la diffusion.
+  // Héberge un PNG (Supabase) et l'enregistre dans la bibliothèque. Renvoie l'URL
+  // publique, ou null en cas d'échec. Réutilisé par l'enregistrement simple ET la
+  // déclinaison multi-formats.
+  async function hostBlob(blob: Blob, fmtId: string): Promise<string | null> {
+    const sb = createClient();
+    if (!sb) return null;
+    const path = `${companyId}/affiche-${Date.now()}-${Math.random().toString(36).slice(2, 7)}-${fmtId}.png`;
+    const { error } = await sb.storage.from("sh-videos").upload(path, blob, { contentType: "image/png", upsert: true });
+    if (error) return null;
+    const { data } = sb.storage.from("sh-videos").getPublicUrl(path);
+    const url = data?.publicUrl;
+    if (!url) return null;
+    await fetch("/api/media", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ companyId, url, type: "image", format: fmtId, source: "studio-affiche" }),
+    }).catch(() => {});
+    return url;
+  }
+
+  // Rend un format donné (hors écran) en PNG. Réutilise exactement le même dessin
+  // que l'aperçu, mais aux dimensions du format demandé.
+  async function renderFormatBlob(fmt: Format): Promise<Blob | null> {
+    const off = document.createElement("canvas");
+    paint(off, fmt);
+    return new Promise((res) => off.toBlob((b) => res(b), "image/png"));
+  }
+
+  // Enregistre l'affiche (PNG du canvas courant) dans la bibliothèque média ET
+  // conserve l'URL publique pour la diffusion.
   async function saveToLibrary() {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -308,24 +367,39 @@ export default function StudioAffichePage() {
     try {
       const blob: Blob | null = await new Promise((res) => canvas.toBlob((b) => res(b), "image/png"));
       if (!blob) { setNote(t("Enregistrement impossible (image protégée). Régénérez le fond via l'IA.", "Save failed (protected image). Regenerate the background via AI.")); return; }
-      const sb = createClient();
-      if (!sb) { setNote(t("Stockage indisponible.", "Storage unavailable.")); return; }
-      const path = `${companyId}/affiche-${Date.now()}-${format.id}.png`;
-      const { error } = await sb.storage.from("sh-videos").upload(path, blob, { contentType: "image/png", upsert: true });
-      if (error) { setNote(t("Échec de l'envoi au stockage.", "Upload to storage failed.")); return; }
-      const { data } = sb.storage.from("sh-videos").getPublicUrl(path);
-      const url = data?.publicUrl;
-      if (!url) { setNote(t("URL publique indisponible.", "Public URL unavailable.")); return; }
-      await fetch("/api/media", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyId, url, type: "image", format: format.id, source: "studio-affiche" }),
-      });
+      const url = await hostBlob(blob, format.id);
+      if (!url) { setNote(t("Échec de l'envoi au stockage.", "Upload to storage failed.")); return; }
       setHostedUrl(url);
       setSavedToLibrary(true);
       setNote(t("✓ Enregistré — vous pouvez maintenant le publier, le programmer ou en faire une pub.", "✓ Saved — you can now publish, schedule or turn it into an ad."));
     } catch {
       setNote(t("Échec de l'enregistrement.", "Save failed."));
     } finally { setSavingLib(false); }
+  }
+
+  // ── Déclinaison « tout le jeu de formats » (réseaux) en un clic ──────────────
+  // Re-dessine l'affiche courante sur CHAQUE format réseau et enregistre tout dans
+  // la bibliothèque, prêt à publier ou à décliner en pub.
+  const [declining, setDeclining] = useState(false);
+  const [declineDone, setDeclineDone] = useState(0);
+  const declineSet = FORMATS.filter((f) => SOCIAL_DECLINE_IDS.includes(f.id));
+  async function declineAll() {
+    if (declining) return;
+    if (!bgImg && !headline && !subtitle) { setNote(t("Composez d'abord l'affiche (fond ou texte).", "Compose the poster first (background or text).")); return; }
+    setDeclining(true); setDeclineDone(0); setNote(null);
+    let ok = 0;
+    try {
+      for (const fmt of declineSet) {
+        const blob = await renderFormatBlob(fmt);
+        if (blob) { const url = await hostBlob(blob, fmt.id); if (url) ok += 1; }
+        setDeclineDone((n) => n + 1);
+      }
+      setNote(ok > 0
+        ? t(`✓ ${ok} formats réseaux enregistrés dans la bibliothèque — prêts à publier ou décliner en pub.`, `✓ ${ok} network formats saved to the library — ready to publish or turn into ads.`)
+        : t("Échec de la déclinaison (image protégée ?). Régénérez le fond via l'IA.", "Declension failed (protected image?). Regenerate the background via AI."));
+    } catch {
+      setNote(t("Échec de la déclinaison.", "Declension failed."));
+    } finally { setDeclining(false); }
   }
 
   const inputCls = "w-full rounded-lg border border-hair bg-canvas px-3 py-2 text-sm text-ink outline-none focus:border-primary-400";
@@ -366,15 +440,40 @@ export default function StudioAffichePage() {
               if (s.prompt && canEdit) void generateBackground({ prompt: s.prompt, model: validModel, ar });
             }}
           />
-          {/* Format */}
+          {/* Format — groupé par réseau (Instagram / Facebook / LinkedIn) + impression */}
           <StudioStep n={1} title={t("Format", "Format")}>
-            <div className="grid grid-cols-2 gap-2">
-              {FORMATS.map((f) => (
-                <button key={f.id} onClick={() => setFormatId(f.id)}
-                  className={`rounded-lg border px-2.5 py-2 text-left text-xs ${formatId === f.id ? "border-primary-400 bg-primary-50 text-primary-700 font-semibold" : "border-hair text-muted hover:bg-canvas"}`}>
-                  {f.label}{f.print && <span className="ml-1 text-2xs opacity-70">{t("(impression)", "(print)")}</span>}
-                </button>
-              ))}
+            <div className="space-y-3">
+              {GROUPS.map((g) => {
+                const items = FORMATS.filter((f) => f.group === g.id);
+                if (items.length === 0) return null;
+                return (
+                  <div key={g.id}>
+                    <p className="mb-1 text-2xs font-semibold uppercase tracking-wide text-muted">{t(g.fr, g.en)}</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {items.map((f) => (
+                        <button key={f.id} onClick={() => setFormatId(f.id)}
+                          className={`rounded-lg border px-2.5 py-2 text-left text-xs ${formatId === f.id ? "border-primary-400 bg-primary-50 text-primary-700 font-semibold" : "border-hair text-muted hover:bg-canvas"}`}>
+                          {f.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {/* Décliner tout le jeu de formats réseaux en un clic */}
+            <div className="mt-3 border-t border-hair pt-3">
+              <button onClick={declineAll} disabled={declining || !canEdit}
+                title={!canEdit ? t("Lecture seule", "View only") : undefined}
+                className="btn-secondary inline-flex w-full items-center justify-center gap-1.5 text-xs disabled:opacity-50">
+                {declining && <Spinner size={14} className="text-current" />}
+                {declining
+                  ? t(`Déclinaison… ${declineDone}/${declineSet.length}`, `Declining… ${declineDone}/${declineSet.length}`)
+                  : t(`⚡ Décliner tout le jeu réseaux (${declineSet.length} formats)`, `⚡ Decline the whole network set (${declineSet.length} formats)`)}
+              </button>
+              <p className="mt-1 text-2xs text-muted">
+                {t("Génère l'affiche dans tous les formats Instagram / Facebook / LinkedIn d'un coup, enregistrés dans la bibliothèque — prêts à publier ou à décliner en pub.", "Renders the poster in every Instagram / Facebook / LinkedIn format at once, saved to the library — ready to publish or turn into ads.")}
+              </p>
             </div>
           </StudioStep>
 

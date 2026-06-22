@@ -221,16 +221,17 @@ export default function StudioAffichePage() {
   // ── Rendu canvas ────────────────────────────────────────────────────────────
   // `paint` dessine l'affiche sur N'IMPORTE QUEL canvas, pour un format donné —
   // réutilisé par l'aperçu live ET par la déclinaison multi-formats (hors écran).
-  const paint = useCallback((canvas: HTMLCanvasElement, fmt: Format, fit: "cover" | "fit" = "cover") => {
+  const paint = useCallback((canvas: HTMLCanvasElement, fmt: Format, fit: "cover" | "fit" = "cover", bgOverride?: HTMLImageElement | null) => {
     const { w: W, h: H } = fmt;
     canvas.width = W; canvas.height = H;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    // Fond
-    if (bgImg) {
-      if (fit === "fit") drawFitBlur(ctx, bgImg, W, H);
-      else drawCover(ctx, bgImg, W, H);
+    // Fond (un fond spécifique au format peut être imposé : déclinaison pub IA).
+    const bg = bgOverride ?? bgImg;
+    if (bg) {
+      if (fit === "fit") drawFitBlur(ctx, bg, W, H);
+      else drawCover(ctx, bg, W, H);
     } else {
       // État vide = page neutre (PAS un aplat de couleur) + invite, pour qu'on
       // voie tout de suite une « page blanche » prête à composer.
@@ -422,6 +423,59 @@ export default function StudioAffichePage() {
     } finally { setDeclining(false); }
   }
 
+  // ── Déclinaison « PUB » : recomposition IA plein cadre par format ────────────
+  // Pour les pubs : on RECOMPOSE le fond par IA (Flux Kontext) à chaque ratio —
+  // même visuel, mais réétendu pour remplir le cadre (aucune coupe, aucun flou).
+  const [decliningAds, setDecliningAds] = useState(false);
+  const [adsDone, setAdsDone] = useState(0);
+  const declineAspects = Array.from(new Set(declineSet.map((f) => f.ar)));
+  async function declineAds() {
+    if (decliningAds || declining) return;
+    if (!bgUrl) { setNote(t("Générez d'abord un fond (IA) pour décliner en pub plein cadre.", "Generate a background (AI) first to create full-frame ads.")); return; }
+    setDecliningAds(true); setAdsDone(0); setNote(null);
+    let ok = 0;
+    try {
+      // 1) Recompose le fond par IA pour chaque ratio (plein cadre, sans couper).
+      const bgByAspect: Record<string, HTMLImageElement> = {};
+      for (const ar of declineAspects) {
+        try {
+          const r = await fetch("/api/ai/generate-image", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              imageUrl: bgUrl,
+              format: ar,
+              prompt: [prompt, `Recompose harmonieusement ce visuel au format ${ar} en gardant exactement le même sujet, style et ambiance. Étends naturellement le décor pour remplir tout le cadre, sans déformer ni couper le sujet principal. Rendu publicitaire premium, haute définition.`].filter(Boolean).join(". "),
+            }),
+          });
+          const d = await r.json();
+          const url: string | null = Array.isArray(d.images)
+            ? d.images.map((i: string | { url?: string }) => (typeof i === "string" ? i : i?.url ?? "")).find(Boolean) ?? null
+            : null;
+          if (url) bgByAspect[ar] = await loadImage(`/api/proxy-image?url=${encodeURIComponent(url)}`);
+        } catch { /* ratio suivant */ }
+        setAdsDone((n) => n + 1);
+      }
+      if (Object.keys(bgByAspect).length === 0) {
+        setNote(t("Recomposition IA indisponible (REPLICATE_API_TOKEN ?). Essayez « Décliner sans coupe ».", "AI recomposition unavailable (REPLICATE_API_TOKEN?). Try 'Decline without cropping'."));
+        return;
+      }
+      // 2) Compose texte + logo sur chaque fond recomposé, plein cadre, et enregistre.
+      for (const fmt of declineSet) {
+        const bg = bgByAspect[fmt.ar];
+        if (!bg) continue;
+        const off = document.createElement("canvas");
+        paint(off, fmt, "cover", bg);
+        const blob = await new Promise<Blob | null>((res) => off.toBlob((b) => res(b), "image/png"));
+        if (blob) { const u = await hostBlob(blob, fmt.id); if (u) ok += 1; }
+      }
+      setNote(ok > 0
+        ? t(`✓ ${ok} visuels de pub recomposés par IA (plein cadre) enregistrés dans la bibliothèque.`, `✓ ${ok} ad visuals recomposed by AI (full-frame) saved to the library.`)
+        : t("Échec de la déclinaison pub.", "Ad declension failed."));
+    } catch {
+      setNote(t("Échec de la déclinaison pub.", "Ad declension failed."));
+    } finally { setDecliningAds(false); }
+  }
+
   const inputCls = "w-full rounded-lg border border-hair bg-canvas px-3 py-2 text-sm text-ink outline-none focus:border-primary-400";
 
   return (
@@ -481,18 +535,34 @@ export default function StudioAffichePage() {
                 );
               })}
             </div>
-            {/* Décliner tout le jeu de formats réseaux en un clic */}
-            <div className="mt-3 border-t border-hair pt-3">
-              <button onClick={declineAll} disabled={declining || !canEdit}
+            {/* Décliner tout le jeu de formats réseaux en un clic — deux modes */}
+            <div className="mt-3 space-y-2 border-t border-hair pt-3">
+              <p className="text-2xs font-semibold uppercase tracking-wide text-muted">{t("Décliner tout le jeu réseaux", "Decline the whole network set")}</p>
+
+              {/* Mode PUB : recomposition IA plein cadre (le but pour les pubs) */}
+              <button onClick={declineAds} disabled={declining || decliningAds || !canEdit}
+                title={!canEdit ? t("Lecture seule", "View only") : undefined}
+                className="btn-primary inline-flex w-full items-center justify-center gap-1.5 text-xs disabled:opacity-50">
+                {decliningAds && <Spinner size={14} className="text-white" />}
+                {decliningAds
+                  ? t(`Recomposition IA… ${adsDone}/${declineAspects.length}`, `AI recomposition… ${adsDone}/${declineAspects.length}`)
+                  : t(`✨ Décliner en pub — IA plein cadre (${declineSet.length} formats)`, `✨ Decline as ads — full-frame AI (${declineSet.length} formats)`)}
+              </button>
+              <p className="text-2xs text-muted">
+                {t("Recompose le visuel par IA pour chaque format (même sujet, étendu pour remplir le cadre) — qualité pub, aucune coupe, aucun flou. Nécessite un fond généré par IA.", "AI-recomposes the visual for each format (same subject, extended to fill the frame) — ad quality, no crop, no blur. Requires an AI-generated background.")}
+              </p>
+
+              {/* Mode rapide : adaptation sans coupe (flou), instantané, tout type d'image */}
+              <button onClick={declineAll} disabled={declining || decliningAds || !canEdit}
                 title={!canEdit ? t("Lecture seule", "View only") : undefined}
                 className="btn-secondary inline-flex w-full items-center justify-center gap-1.5 text-xs disabled:opacity-50">
                 {declining && <Spinner size={14} className="text-current" />}
                 {declining
                   ? t(`Déclinaison… ${declineDone}/${declineSet.length}`, `Declining… ${declineDone}/${declineSet.length}`)
-                  : t(`⚡ Décliner tout le jeu réseaux (${declineSet.length} formats)`, `⚡ Decline the whole network set (${declineSet.length} formats)`)}
+                  : t(`⚡ Décliner sans coupe — instantané (${declineSet.length} formats)`, `⚡ Decline without cropping — instant (${declineSet.length} formats)`)}
               </button>
-              <p className="mt-1 text-2xs text-muted">
-                {t("Adapte l'affiche à chaque format Instagram / Facebook / LinkedIn SANS rien couper (l'image entière est conservée), enregistrés dans la bibliothèque — prêts à publier ou à décliner en pub.", "Adapts the poster to every Instagram / Facebook / LinkedIn format WITHOUT cropping (the whole image is kept), saved to the library — ready to publish or turn into ads.")}
+              <p className="text-2xs text-muted">
+                {t("Conserve l'image entière (rempli par un fond flouté) — instantané, fonctionne aussi avec une image importée.", "Keeps the whole image (filled with a blurred backdrop) — instant, also works with an uploaded image.")}
               </p>
             </div>
           </StudioStep>

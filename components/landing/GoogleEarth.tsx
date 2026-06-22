@@ -506,9 +506,9 @@ export function GoogleEarth() {
         </button>
       )}
 
-      {/* Simulateur de vol : disponible UNIQUEMENT en plein écran */}
-      {ready && full && !flying && (
-        <button type="button" className="fsim-launch" onClick={() => setFlying(true)}>
+      {/* Simulateur de vol — un clic : passe en plein écran ET démarre le vol */}
+      {ready && !flying && (
+        <button type="button" className="fsim-launch" onClick={() => { setFull(true); setFlying(true); }}>
           🛩️ Piloter le monde
         </button>
       )}

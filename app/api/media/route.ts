@@ -13,7 +13,8 @@ export async function GET(req: NextRequest) {
     if (!companyId) return NextResponse.json({ error: "companyId requis" }, { status: 400 });
     const guard = await requireCompanyAccess(companyId);
     if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
-    const assets = await listMediaAssets(companyId);
+    const limitParam = Number(req.nextUrl.searchParams.get("limit"));
+    const assets = await listMediaAssets(companyId, Number.isFinite(limitParam) && limitParam > 0 ? limitParam : undefined);
     return NextResponse.json({ assets });
   } catch (e) {
     console.error("[GET /api/media]", e);

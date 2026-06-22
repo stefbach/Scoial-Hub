@@ -26,6 +26,8 @@ export default function MediaLibraryPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<Filter>("all");
   const [note, setNote] = useState<string | null>(null);
+  // Dimensions réelles (px) de chaque média, mesurées au chargement → preuve du format.
+  const [dims, setDims] = useState<Record<string, string>>({});
 
   // Ajout par URL
   const [addUrl, setAddUrl] = useState("");
@@ -107,6 +109,9 @@ export default function MediaLibraryPage() {
   const shown = assets.filter((a) => filter === "all" || a.type === filter);
   const campaignHref = (a: Asset) => `/campaigns/new?${a.type === "video" ? "video" : "image"}=${encodeURIComponent(a.url)}`;
   const composeHref = (a: Asset) => `/compose?media=${encodeURIComponent(a.url)}&kind=${a.type}`;
+  // Téléchargement réel (forcé) via proxy même-origine — fonctionne en cross-origin.
+  const downloadHref = (a: Asset) =>
+    `/api/media/download?url=${encodeURIComponent(a.url)}&name=${encodeURIComponent(`${(company.name || "media").replace(/\s+/g, "-").toLowerCase()}-${a.format || a.type}`)}`;
 
   return (
     <div className="animate-fade-in">
@@ -198,21 +203,29 @@ export default function MediaLibraryPage() {
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           {shown.map((a) => (
             <div key={a.url} className="card overflow-hidden p-0">
-              <div className="relative aspect-square bg-canvas">
+              <div className="relative flex aspect-square items-center justify-center bg-[repeating-conic-gradient(#f1f1f4_0%_25%,#fafafb_0%_50%)] bg-[length:18px_18px]">
                 {a.type === "video" ? (
                   // eslint-disable-next-line jsx-a11y/media-has-caption
-                  <video src={a.url} controls preload="none" className="h-full w-full object-cover" />
+                  <video src={a.url} controls preload="metadata" className="max-h-full max-w-full object-contain"
+                    onLoadedMetadata={(e) => { const w = e.currentTarget.videoWidth, h = e.currentTarget.videoHeight; setDims((d) => ({ ...d, [a.url]: `${w}×${h}` })); }} />
                 ) : (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={a.url} alt="" loading="lazy" className="h-full w-full object-cover" />
+                  <img src={a.url} alt="" loading="lazy" className="max-h-full max-w-full object-contain"
+                    onLoad={(e) => { const w = e.currentTarget.naturalWidth, h = e.currentTarget.naturalHeight; setDims((d) => ({ ...d, [a.url]: `${w}×${h}` })); }} />
                 )}
                 <span className="absolute left-1.5 top-1.5 rounded-full bg-black/55 px-2 py-0.5 text-[10px] font-semibold text-white">
                   {a.type === "video" ? "▶ " + t("vidéo", "video") : (a.format || "image")}
                 </span>
+                {dims[a.url] && (
+                  <span className="absolute bottom-1.5 right-1.5 rounded bg-black/55 px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-white">{dims[a.url]}</span>
+                )}
               </div>
               <div className="flex flex-col gap-1.5 p-2.5">
                 <Link href={composeHref(a)} className="btn-primary w-full justify-center text-2xs">{t("Publier", "Publish")}</Link>
-                <Link href={campaignHref(a)} className="btn-secondary w-full justify-center text-2xs">{t("Créer une pub", "Create ad")}</Link>
+                <div className="flex gap-1.5">
+                  <Link href={campaignHref(a)} className="btn-secondary flex-1 justify-center text-2xs">{t("Créer une pub", "Create ad")}</Link>
+                  <a href={downloadHref(a)} className="btn-secondary shrink-0 justify-center px-2 text-2xs" title={t("Télécharger", "Download")} aria-label={t("Télécharger", "Download")}>⬇</a>
+                </div>
                 {a.type === "image" && (
                   <button onClick={() => { setDerivingFrom(a.url); setDerivePrompt(""); window.scrollTo({ top: 0, behavior: "smooth" }); }}
                     className="btn-secondary w-full justify-center text-2xs">{t("⤳ Décliner", "⤳ Derive")}</button>

@@ -18,22 +18,9 @@ import { StudioHero, StudioStep } from "@/components/studio/StudioUI";
 import { StudioCopilot, type CopilotSuggestion } from "@/components/studio/StudioCopilot";
 import { ImageEditor } from "@/components/studio/ImageEditor";
 import { StudioDistribution } from "@/components/studio/StudioDistribution";
+import { FORMATS, GROUPS, SOCIAL_DECLINE_IDS, coverRect, containRect, type Format } from "@/lib/affiche/layout";
 import { IconFrame } from "@/components/visual/Icons";
 import type { BrandKit } from "@/lib/brand-kit/types";
-
-interface Format { id: string; label: string; w: number; h: number; print?: boolean; ar: string; }
-
-// Dimensions print à ~150 dpi (bon compromis qualité/poids) ; réseaux en px standard.
-const FORMATS: Format[] = [
-  { id: "a4p", label: "A4 portrait", w: 1240, h: 1754, print: true, ar: "4:5" },
-  { id: "a4l", label: "A4 paysage", w: 1754, h: 1240, print: true, ar: "16:9" },
-  { id: "a3p", label: "A3 portrait", w: 1754, h: 2480, print: true, ar: "4:5" },
-  { id: "a3l", label: "A3 paysage", w: 2480, h: 1754, print: true, ar: "16:9" },
-  { id: "sq", label: "Carré 1:1", w: 1080, h: 1080, ar: "1:1" },
-  { id: "story", label: "Story 9:16", w: 1080, h: 1920, ar: "9:16" },
-  { id: "portrait", label: "Portrait 4:5", w: 1080, h: 1350, ar: "4:5" },
-  { id: "wide", label: "Paysage 16:9", w: 1920, h: 1080, ar: "16:9" },
-];
 
 const TEXT_COLORS = ["#ffffff", "#0f172a", "#60a5fa", "#5b2d8e", "#be123c", "#f59e0b"];
 
@@ -47,13 +34,25 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
-function drawCover(ctx: CanvasRenderingContext2D, img: HTMLImageElement, W: number, H: number) {
-  const ir = img.width / img.height;
-  const fr = W / H;
-  let dw: number, dh: number, dx: number, dy: number;
-  if (ir > fr) { dh = H; dw = H * ir; dx = (W - dw) / 2; dy = 0; }
-  else { dw = W; dh = W / ir; dx = 0; dy = (H - dh) / 2; }
-  ctx.drawImage(img, dx, dy, dw, dh);
+function drawCover(ctx: CanvasRenderingContext2D, img: HTMLImageElement, W: number, H: number, scale = 1) {
+  const r = coverRect(img.width, img.height, W, H, scale);
+  ctx.drawImage(img, r.dx, r.dy, r.dw, r.dh);
+}
+
+// Adapte une image à un format SANS la couper (« décliner ») : l'image entière est
+// affichée (contain), et le cadre est rempli par une version floutée et zoomée de
+// la même image — rendu premium, aucun élément coupé, quel que soit le format.
+function drawFitBlur(ctx: CanvasRenderingContext2D, img: HTMLImageElement, W: number, H: number) {
+  // 1) Fond flouté qui remplit tout le cadre (pas de bandes vides).
+  ctx.save();
+  ctx.filter = `blur(${Math.max(8, Math.round(Math.min(W, H) * 0.05))}px)`;
+  drawCover(ctx, img, W, H, 1.15);
+  ctx.restore();
+  ctx.fillStyle = "rgba(15,23,42,0.18)"; // léger voile d'homogénéisation
+  ctx.fillRect(0, 0, W, H);
+  // 2) Image complète, centrée, jamais coupée.
+  const r = containRect(img.width, img.height, W, H);
+  ctx.drawImage(img, r.dx, r.dy, r.dw, r.dh);
 }
 
 function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
@@ -75,7 +74,7 @@ export default function StudioAffichePage() {
   const canEdit = access.canEdit;
   const companyId = company.id;
 
-  const [formatId, setFormatId] = useState("a4p");
+  const [formatId, setFormatId] = useState("ig-pt");
   const format = useMemo(() => FORMATS.find((f) => f.id === formatId)!, [formatId]);
 
   const [prompt, setPrompt] = useState("");
@@ -171,17 +170,19 @@ export default function StudioAffichePage() {
   }
 
   // ── Rendu canvas ────────────────────────────────────────────────────────────
-  const render = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const { w: W, h: H } = format;
+  // `paint` dessine l'affiche sur N'IMPORTE QUEL canvas, pour un format donné —
+  // réutilisé par l'aperçu live ET par la déclinaison multi-formats (hors écran).
+  const paint = useCallback((canvas: HTMLCanvasElement, fmt: Format, fit: "cover" | "fit" = "cover", bgOverride?: HTMLImageElement | null) => {
+    const { w: W, h: H } = fmt;
     canvas.width = W; canvas.height = H;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    // Fond
-    if (bgImg) {
-      drawCover(ctx, bgImg, W, H);
+    // Fond (un fond spécifique au format peut être imposé : déclinaison pub IA).
+    const bg = bgOverride ?? bgImg;
+    if (bg) {
+      if (fit === "fit") drawFitBlur(ctx, bg, W, H);
+      else drawCover(ctx, bg, W, H);
     } else {
       // État vide = page neutre (PAS un aplat de couleur) + invite, pour qu'on
       // voie tout de suite une « page blanche » prête à composer.
@@ -247,7 +248,12 @@ export default function StudioAffichePage() {
       const ly = logoCorner.includes("t") ? m : H - lh - m;
       ctx.drawImage(logoImg, lx, ly, lw, lh);
     }
-  }, [format, bgImg, logoImg, headline, subtitle, color, pos, scrim, logoCorner, company.accent, company.name]);
+  }, [bgImg, logoImg, headline, subtitle, color, pos, scrim, logoCorner, t]);
+
+  // Aperçu live : dessine le format courant sur le canvas visible.
+  const render = useCallback(() => {
+    if (canvasRef.current) paint(canvasRef.current, format);
+  }, [paint, format]);
 
   // Re-render du canvas dès qu'un paramètre change (le canvas peut être remonté).
   useEffect(() => { render(); }, [render]);
@@ -286,11 +292,44 @@ export default function StudioAffichePage() {
   }
 
   const [savingLib, setSavingLib] = useState(false);
-  // URL publique de l'affiche enregistrée → débloque la publication / programmation
-  // / utilisation dans une pub (le canvas seul n'a pas d'URL partageable).
+  // URL publique (https) de l'affiche une fois hébergée → débloque la diffusion
+  // (publier / programmer / utiliser en pub). Invalidée si le design change pour
+  // ne jamais diffuser une version périmée.
   const [posterUrl, setPosterUrl] = useState<string | null>(null);
-  // Enregistre l'affiche (PNG du canvas) dans la bibliothèque média, réutilisable
-  // partout (campagnes, etc.).
+
+  useEffect(() => { setPosterUrl(null); },
+    [bgImg, logoImg, headline, subtitle, color, pos, scrim, logoCorner, formatId]);
+
+  // Héberge un PNG (Supabase) et l'enregistre dans la bibliothèque. Renvoie l'URL
+  // publique, ou null en cas d'échec. Réutilisé par l'enregistrement simple ET la
+  // déclinaison multi-formats.
+  async function hostBlob(blob: Blob, fmtId: string): Promise<string | null> {
+    const sb = createClient();
+    if (!sb) return null;
+    const path = `${companyId}/affiche-${Date.now()}-${Math.random().toString(36).slice(2, 7)}-${fmtId}.png`;
+    const { error } = await sb.storage.from("sh-videos").upload(path, blob, { contentType: "image/png", upsert: true });
+    if (error) return null;
+    const { data } = sb.storage.from("sh-videos").getPublicUrl(path);
+    const url = data?.publicUrl;
+    if (!url) return null;
+    await fetch("/api/media", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ companyId, url, type: "image", format: fmtId, source: "studio-affiche" }),
+    }).catch(() => {});
+    return url;
+  }
+
+  // Rend un format donné (hors écran) en PNG. Réutilise exactement le même dessin
+  // que l'aperçu, mais aux dimensions du format demandé.
+  async function renderFormatBlob(fmt: Format): Promise<Blob | null> {
+    const off = document.createElement("canvas");
+    // « fit » : l'image est adaptée au format sans être coupée (déclinaison).
+    paint(off, fmt, "fit");
+    return new Promise((res) => off.toBlob((b) => res(b), "image/png"));
+  }
+
+  // Enregistre l'affiche (PNG du canvas courant) dans la bibliothèque média ET
+  // conserve l'URL publique pour la diffusion.
   async function saveToLibrary() {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -298,23 +337,91 @@ export default function StudioAffichePage() {
     try {
       const blob: Blob | null = await new Promise((res) => canvas.toBlob((b) => res(b), "image/png"));
       if (!blob) { setNote(t("Enregistrement impossible (image protégée). Régénérez le fond via l'IA.", "Save failed (protected image). Regenerate the background via AI.")); return; }
-      const sb = createClient();
-      if (!sb) { setNote(t("Stockage indisponible.", "Storage unavailable.")); return; }
-      const path = `${companyId}/affiche-${Date.now()}-${format.id}.png`;
-      const { error } = await sb.storage.from("sh-videos").upload(path, blob, { contentType: "image/png", upsert: true });
-      if (error) { setNote(t("Échec de l'envoi au stockage.", "Upload to storage failed.")); return; }
-      const { data } = sb.storage.from("sh-videos").getPublicUrl(path);
-      const url = data?.publicUrl;
-      if (!url) { setNote(t("URL publique indisponible.", "Public URL unavailable.")); return; }
-      await fetch("/api/media", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyId, url, type: "image", format: format.id, source: "studio-affiche" }),
-      });
+      const url = await hostBlob(blob, format.id);
+      if (!url) { setNote(t("Échec de l'envoi au stockage.", "Upload to storage failed.")); return; }
       setPosterUrl(url); // débloque le bloc Publier / programmer / utiliser en pub
-      setNote(t("✓ Enregistré dans la bibliothèque — réutilisable dans une pub.", "✓ Saved to the library — reusable in an ad."));
+      setNote(t("✓ Enregistré — vous pouvez maintenant le publier, le programmer ou en faire une pub.", "✓ Saved — you can now publish, schedule or turn it into an ad."));
     } catch {
       setNote(t("Échec de l'enregistrement.", "Save failed."));
     } finally { setSavingLib(false); }
+  }
+
+  // ── Déclinaison « tout le jeu de formats » (réseaux) en un clic ──────────────
+  // Re-dessine l'affiche courante sur CHAQUE format réseau et enregistre tout dans
+  // la bibliothèque, prêt à publier ou à décliner en pub.
+  const [declining, setDeclining] = useState(false);
+  const [declineDone, setDeclineDone] = useState(0);
+  const declineSet = FORMATS.filter((f) => SOCIAL_DECLINE_IDS.includes(f.id));
+  async function declineAll() {
+    if (declining) return;
+    if (!bgImg && !headline && !subtitle) { setNote(t("Composez d'abord l'affiche (fond ou texte).", "Compose the poster first (background or text).")); return; }
+    setDeclining(true); setDeclineDone(0); setNote(null);
+    let ok = 0;
+    try {
+      for (const fmt of declineSet) {
+        const blob = await renderFormatBlob(fmt);
+        if (blob) { const url = await hostBlob(blob, fmt.id); if (url) ok += 1; }
+        setDeclineDone((n) => n + 1);
+      }
+      setNote(ok > 0
+        ? t(`✓ ${ok} formats réseaux enregistrés dans la bibliothèque — prêts à publier ou décliner en pub.`, `✓ ${ok} network formats saved to the library — ready to publish or turn into ads.`)
+        : t("Échec de la déclinaison (image protégée ?). Régénérez le fond via l'IA.", "Declension failed (protected image?). Regenerate the background via AI."));
+    } catch {
+      setNote(t("Échec de la déclinaison.", "Declension failed."));
+    } finally { setDeclining(false); }
+  }
+
+  // ── Déclinaison « PUB » : recomposition IA plein cadre par format ────────────
+  // Pour les pubs : on RECOMPOSE le fond par IA (Flux Kontext) à chaque ratio —
+  // même visuel, mais réétendu pour remplir le cadre (aucune coupe, aucun flou).
+  const [decliningAds, setDecliningAds] = useState(false);
+  const [adsDone, setAdsDone] = useState(0);
+  const declineAspects = Array.from(new Set(declineSet.map((f) => f.ar)));
+  async function declineAds() {
+    if (decliningAds || declining) return;
+    if (!bgUrl) { setNote(t("Générez d'abord un fond (IA) pour décliner en pub plein cadre.", "Generate a background (AI) first to create full-frame ads.")); return; }
+    setDecliningAds(true); setAdsDone(0); setNote(null);
+    let ok = 0;
+    try {
+      // 1) Recompose le fond par IA pour chaque ratio (plein cadre, sans couper).
+      const bgByAspect: Record<string, HTMLImageElement> = {};
+      for (const ar of declineAspects) {
+        try {
+          const r = await fetch("/api/ai/generate-image", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              imageUrl: bgUrl,
+              format: ar,
+              prompt: [prompt, `Recompose harmonieusement ce visuel au format ${ar} en gardant exactement le même sujet, style et ambiance. Étends naturellement le décor pour remplir tout le cadre, sans déformer ni couper le sujet principal. Rendu publicitaire premium, haute définition.`].filter(Boolean).join(". "),
+            }),
+          });
+          const d = await r.json();
+          const url: string | null = Array.isArray(d.images)
+            ? d.images.map((i: string | { url?: string }) => (typeof i === "string" ? i : i?.url ?? "")).find(Boolean) ?? null
+            : null;
+          if (url) bgByAspect[ar] = await loadImage(`/api/proxy-image?url=${encodeURIComponent(url)}`);
+        } catch { /* ratio suivant */ }
+        setAdsDone((n) => n + 1);
+      }
+      if (Object.keys(bgByAspect).length === 0) {
+        setNote(t("Recomposition IA indisponible (REPLICATE_API_TOKEN ?). Essayez « Décliner sans coupe ».", "AI recomposition unavailable (REPLICATE_API_TOKEN?). Try 'Decline without cropping'."));
+        return;
+      }
+      // 2) Compose texte + logo sur chaque fond recomposé, plein cadre, et enregistre.
+      for (const fmt of declineSet) {
+        const bg = bgByAspect[fmt.ar];
+        if (!bg) continue;
+        const off = document.createElement("canvas");
+        paint(off, fmt, "cover", bg);
+        const blob = await new Promise<Blob | null>((res) => off.toBlob((b) => res(b), "image/png"));
+        if (blob) { const u = await hostBlob(blob, fmt.id); if (u) ok += 1; }
+      }
+      setNote(ok > 0
+        ? t(`✓ ${ok} visuels de pub recomposés par IA (plein cadre) enregistrés dans la bibliothèque.`, `✓ ${ok} ad visuals recomposed by AI (full-frame) saved to the library.`)
+        : t("Échec de la déclinaison pub.", "Ad declension failed."));
+    } catch {
+      setNote(t("Échec de la déclinaison pub.", "Ad declension failed."));
+    } finally { setDecliningAds(false); }
   }
 
   const inputCls = "w-full rounded-lg border border-hair bg-canvas px-3 py-2 text-sm text-ink outline-none focus:border-primary-400";
@@ -355,15 +462,56 @@ export default function StudioAffichePage() {
               if (s.prompt && canEdit) void generateBackground({ prompt: s.prompt, model: validModel, ar });
             }}
           />
-          {/* Format */}
+          {/* Format — groupé par réseau (Instagram / Facebook / LinkedIn) + impression */}
           <StudioStep n={1} title={t("Format", "Format")}>
-            <div className="grid grid-cols-2 gap-2">
-              {FORMATS.map((f) => (
-                <button key={f.id} onClick={() => setFormatId(f.id)}
-                  className={`rounded-lg border px-2.5 py-2 text-left text-xs ${formatId === f.id ? "border-primary-400 bg-primary-50 text-primary-700 font-semibold" : "border-hair text-muted hover:bg-canvas"}`}>
-                  {f.label}{f.print && <span className="ml-1 text-2xs opacity-70">{t("(impression)", "(print)")}</span>}
-                </button>
-              ))}
+            <div className="space-y-3">
+              {GROUPS.map((g) => {
+                const items = FORMATS.filter((f) => f.group === g.id);
+                if (items.length === 0) return null;
+                return (
+                  <div key={g.id}>
+                    <p className="mb-1 text-2xs font-semibold uppercase tracking-wide text-muted">{t(g.fr, g.en)}</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {items.map((f) => (
+                        <button key={f.id} onClick={() => setFormatId(f.id)}
+                          className={`rounded-lg border px-2.5 py-2 text-left text-xs ${formatId === f.id ? "border-primary-400 bg-primary-50 text-primary-700 font-semibold" : "border-hair text-muted hover:bg-canvas"}`}>
+                          {f.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {/* Décliner tout le jeu de formats réseaux en un clic — deux modes */}
+            <div className="mt-3 space-y-2 border-t border-hair pt-3">
+              <p className="text-2xs font-semibold uppercase tracking-wide text-muted">{t("Décliner tout le jeu réseaux", "Decline the whole network set")}</p>
+
+              {/* Mode PUB : recomposition IA plein cadre (le but pour les pubs) */}
+              <button onClick={declineAds} disabled={declining || decliningAds || !canEdit}
+                title={!canEdit ? t("Lecture seule", "View only") : undefined}
+                className="btn-primary inline-flex w-full items-center justify-center gap-1.5 text-xs disabled:opacity-50">
+                {decliningAds && <Spinner size={14} className="text-white" />}
+                {decliningAds
+                  ? t(`Recomposition IA… ${adsDone}/${declineAspects.length}`, `AI recomposition… ${adsDone}/${declineAspects.length}`)
+                  : t(`✨ Décliner en pub — IA plein cadre (${declineSet.length} formats)`, `✨ Decline as ads — full-frame AI (${declineSet.length} formats)`)}
+              </button>
+              <p className="text-2xs text-muted">
+                {t("Recompose le visuel par IA pour chaque format (même sujet, étendu pour remplir le cadre) — qualité pub, aucune coupe, aucun flou. Nécessite un fond généré par IA.", "AI-recomposes the visual for each format (same subject, extended to fill the frame) — ad quality, no crop, no blur. Requires an AI-generated background.")}
+              </p>
+
+              {/* Mode rapide : adaptation sans coupe (flou), instantané, tout type d'image */}
+              <button onClick={declineAll} disabled={declining || decliningAds || !canEdit}
+                title={!canEdit ? t("Lecture seule", "View only") : undefined}
+                className="btn-secondary inline-flex w-full items-center justify-center gap-1.5 text-xs disabled:opacity-50">
+                {declining && <Spinner size={14} className="text-current" />}
+                {declining
+                  ? t(`Déclinaison… ${declineDone}/${declineSet.length}`, `Declining… ${declineDone}/${declineSet.length}`)
+                  : t(`⚡ Décliner sans coupe — instantané (${declineSet.length} formats)`, `⚡ Decline without cropping — instant (${declineSet.length} formats)`)}
+              </button>
+              <p className="text-2xs text-muted">
+                {t("Conserve l'image entière (rempli par un fond flouté) — instantané, fonctionne aussi avec une image importée.", "Keeps the whole image (filled with a blurred backdrop) — instant, also works with an uploaded image.")}
+              </p>
             </div>
           </StudioStep>
 
@@ -458,6 +606,7 @@ export default function StudioAffichePage() {
           />
 
           <button onClick={exportPng} className="btn-primary w-full">{t("⬇︎ Télécharger (PNG haute déf)", "⬇︎ Download (high-res PNG)")}</button>
+
           <button onClick={saveToLibrary} disabled={savingLib || !canEdit} className="btn-secondary inline-flex w-full items-center justify-center gap-1.5 disabled:opacity-50">
             {savingLib && <Spinner size={14} className="text-current" />}
             {savingLib ? t("Enregistrement…", "Saving…") : t("📚 Enregistrer dans la bibliothèque", "📚 Save to library")}

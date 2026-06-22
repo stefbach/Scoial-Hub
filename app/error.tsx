@@ -53,6 +53,16 @@ export default function GlobalError({
           </p>
         )}
 
+        {/* Détail technique repliable — aide au diagnostic (message d'erreur client). */}
+        {error?.message && (
+          <details className="mt-3 text-left">
+            <summary className="cursor-pointer text-2xs text-muted/70">{t("Détails techniques", "Technical details")}</summary>
+            <pre className="mt-1.5 max-h-40 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-canvas px-3 py-2 text-2xs text-muted ring-1 ring-hair">
+              {error.message}
+            </pre>
+          </details>
+        )}
+
         <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-center">
           <button
             onClick={() => reset()}

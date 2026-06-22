@@ -308,7 +308,18 @@ export default function NewMetaAdPage() {
   // Convertit une date (ISO ou yyyy-mm-dd) au format input datetime-local.
   function toLocalInput(d?: string): string {
     if (!d) return "";
-    if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return `${d}T09:00`;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(d)) {
+      // Pour une date sans heure : si c'est aujourd'hui, propose une heure
+      // POSTÉRIEURE à maintenant (≈ +1 h arrondie) plutôt qu'un 9 h figé déjà passé.
+      const now = new Date();
+      const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+      if (d === todayStr) {
+        const later = new Date(now.getTime() + 60 * 60 * 1000);
+        later.setMinutes(0, 0, 0);
+        return `${d}T${String(later.getHours()).padStart(2, "0")}:00`;
+      }
+      return `${d}T09:00`;
+    }
     const dt = new Date(d);
     return isNaN(dt.getTime()) ? "" : dt.toISOString().slice(0, 16);
   }
@@ -391,7 +402,7 @@ export default function NewMetaAdPage() {
     if (interestQuery.trim().length < 2) return;
     setSearchingInt(true);
     try {
-      const r = await fetch(`/api/meta/ad-interests?companyId=${encodeURIComponent(companyId)}&q=${encodeURIComponent(interestQuery.trim())}`);
+      const r = await fetch(`/api/meta/ad-interests?companyId=${encodeURIComponent(companyId)}&q=${encodeURIComponent(interestQuery.trim())}&locale=${lang}`);
       const d = await r.json();
       setInterestResults(Array.isArray(d.interests) ? d.interests : []);
     } catch {
@@ -405,6 +416,26 @@ export default function NewMetaAdPage() {
     const u = newExtraUrl.trim();
     if (u && /^https?:\/\//i.test(u)) { setExtraImages((a) => [...a, u]); setNewExtraUrl(""); }
   }
+  // Destinations connectées (réelles) pour suggérer l'URL de destination (#4).
+  const [destinations, setDestinations] = useState<{ label: string; url: string }[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/connectors?companyId=${encodeURIComponent(companyId)}`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((list) => {
+        if (cancelled || !Array.isArray(list)) return;
+        const out: { label: string; url: string }[] = [];
+        for (const s of list) {
+          for (const a of s.accounts ?? []) {
+            if (a.url && /^https?:\/\//i.test(a.url)) out.push({ label: `${s.platform} — ${a.accountName}`, url: a.url });
+          }
+        }
+        setDestinations(out);
+      })
+      .catch(() => { /* silencieux */ });
+    return () => { cancelled = true; };
+  }, [companyId]);
+
   async function loadAudiences() {
     setLoadingAud(true);
     try {
@@ -789,7 +820,7 @@ export default function NewMetaAdPage() {
           <p className="text-2xs text-muted">{t("Laissez vide pour une audience large (recommandé au début, l'IA de Meta optimise).", "Leave empty for a broad audience (recommended at first — Meta's AI optimizes).")}</p>
 
           {/* Audiences personnalisées / similaires */}
-          <div className="border-t border-hair pt-3">
+          <div className="border-t pt-3">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-ink">{t("Audiences personnalisées / similaires", "Custom / lookalike audiences")}</span>
               <button type="button" onClick={loadAudiences} disabled={loadingAud} className="btn-secondary inline-flex items-center gap-1.5 text-2xs disabled:opacity-50">
@@ -825,7 +856,7 @@ export default function NewMetaAdPage() {
           </div>
 
           {/* Intérêts exclus — réutilise les résultats de recherche ci-dessus */}
-          <div className="border-t border-hair pt-3">
+          <div className="border-t pt-3">
             <span className="text-xs font-semibold text-ink">{t("Centres d'intérêt exclus", "Excluded interests")}</span>
             {interestResults.length > 0 && (
               <div className="mt-2 flex flex-wrap gap-1.5">
@@ -856,7 +887,7 @@ export default function NewMetaAdPage() {
 
           {/* Audiences exclues — réutilise la liste chargée ci-dessus */}
           {audiences.length > 0 && (
-            <div className="border-t border-hair pt-3">
+            <div className="border-t pt-3">
               <span className="text-xs font-semibold text-ink">{t("Audiences exclues", "Excluded audiences")}</span>
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {audiences.map((a) => {
@@ -905,7 +936,7 @@ export default function NewMetaAdPage() {
           <span className="section-label">{t("Visuel & message", "Creative & copy")}</span>
           <div>
             <label className="mb-1 block text-xs font-medium text-muted">{t("Texte principal", "Primary text")}</label>
-            <textarea value={primaryText} onChange={(e) => setPrimaryText(e.target.value)} rows={3} placeholder={t("Le message qui accompagne la publicité…", "The message shown with the ad…")} className={inputCls} />
+            <textarea value={primaryText} onChange={(e) => setPrimaryText(e.target.value)} rows={6} placeholder={t("Le message qui accompagne la publicité…", "The message shown with the ad…")} className={`${inputCls} resize-y min-h-[8rem]`} />
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
@@ -930,7 +961,23 @@ export default function NewMetaAdPage() {
             <label className="mb-1 block text-xs font-medium text-muted">
               {adType === "lead" ? t("Lien (optionnel — sinon l'URL de confidentialité)", "Link (optional — falls back to privacy URL)") : t("URL de destination", "Destination URL")}
             </label>
-            <input value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://…" className={inputCls} />
+            <input value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://…" list="connected-destinations" className={inputCls} />
+            {destinations.length > 0 && (
+              <>
+                <datalist id="connected-destinations">
+                  {destinations.map((d) => <option key={d.url} value={d.url}>{d.label}</option>)}
+                </datalist>
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  <span className="text-2xs text-muted">{t("Destinations connectées :", "Connected destinations:")}</span>
+                  {destinations.map((d) => (
+                    <button key={d.url} type="button" onClick={() => setLink(d.url)}
+                      className={`rounded-full px-2.5 py-0.5 text-2xs font-medium ${link === d.url ? "bg-page text-white" : "bg-canvas text-muted ring-1 ring-hair hover:text-ink"}`}>
+                      {d.label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-muted">{t("Prompt du visuel (IA)", "Visual prompt (AI)")}</label>
@@ -1037,9 +1084,15 @@ export default function NewMetaAdPage() {
 
             <label className="mt-3 mb-1 block text-2xs font-medium text-muted">{t("…ou coller une URL d'image publique", "…or paste a public image URL")}</label>
             <input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://…/image.jpg" className={inputCls} />
-            {imageUrl && !generatedVisuals.some((g) => g.url === imageUrl) && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={imageUrl} alt="aperçu" className="mt-3 max-h-56 w-auto rounded-lg border border-hair object-contain" />
+            {/* Grand aperçu du visuel SÉLECTIONNÉ — assez grand pour être analysé, cliquable pour l'ouvrir en taille réelle. */}
+            {imageUrl && (
+              <div className="mt-3">
+                <a href={imageUrl} target="_blank" rel="noopener noreferrer" title={t("Ouvrir en taille réelle", "Open full size")} className="block">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={imageUrl} alt={t("Aperçu du visuel sélectionné", "Selected visual preview")} className="max-h-[28rem] w-full rounded-lg border border-hair bg-canvas object-contain" />
+                </a>
+                <p className="mt-1 text-2xs text-muted">{t("🔍 Cliquez l'image pour l'ouvrir en taille réelle.", "🔍 Click the image to open it full size.")}</p>
+              </div>
             )}
             <p className="mt-1 text-2xs text-muted">{t("Le visuel sélectionné (✓) est celui de l'annonce. Générez plusieurs formats pour couvrir fil, portrait et stories.", "The selected (✓) visual is used for the ad. Generate several formats to cover feed, portrait and stories.")}</p>
           </div>

@@ -92,7 +92,11 @@ export async function POST(req: NextRequest) {
     const today = new Date().toISOString().slice(0, 10);
     const transcript = messages.map((m) => `${m.role === "user" ? "UTILISATEUR" : "ASSISTANT"} : ${m.content}`).join("\n");
 
-    const prompt = `Tu es un media buyer Meta (Facebook/Instagram) senior et pédagogue. Tu construis une campagne AVEC l'utilisateur via une conversation. Date du jour : ${today}.
+    const prompt = `${body.language === "en"
+      ? "CRITICAL: The user's language is ENGLISH. You MUST write everything you output — \"reply\" and ALL ad copy (primaryText, headline, cta, variants…) — in ENGLISH ONLY, even though these instructions are in French. Never answer in French."
+      : "IMPORTANT : La langue de l'utilisateur est le FRANÇAIS. Rédige tout en français."}
+
+Tu es un media buyer Meta (Facebook/Instagram) senior et pédagogue. Tu construis une campagne AVEC l'utilisateur via une conversation. Date du jour : ${today}.
 
 MARQUE : ${brandName || "(non précisée)"}${brandVoice ? ` — voix : ${brandVoice}` : ""}${site ? ` — site : ${site}` : ""}
 
@@ -127,7 +131,7 @@ Réponds STRICTEMENT en JSON :
  }
 }
 
-${body.language === "en" ? "Write \"reply\" and all ad copy (primaryText, headline, cta…) in ENGLISH." : "Rédige \"reply\" et tous les textes de l'annonce en français."}`;
+${body.language === "en" ? "REMINDER: write \"reply\" and ALL ad copy (primaryText, headline, cta…) in ENGLISH ONLY." : "RAPPEL : rédige \"reply\" et tous les textes de l'annonce en français."}`;
 
     const result = await callClaudeJSON<{ done?: boolean; reply?: string; plan?: AdPlan | null }>(prompt, { maxTokens: 1900 });
     if (!result) return NextResponse.json({ error: "L'IA n'a pas pu répondre. Reformulez." }, { status: 502 });

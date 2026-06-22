@@ -135,17 +135,22 @@ function AudiencesContent() {
                   {t("Synchroniser depuis Meta", "Sync from Meta")}
                 </span>
               </Button>
-              {/* Infobulle accessible au survol même sur un bouton désactivé */}
-              <div className="pointer-events-none absolute right-0 top-full z-20 mt-1.5 hidden w-56 rounded-lg border border-hair bg-card px-3 py-2 shadow-lg group-hover:block">
-                <p className="text-2xs text-ink">
-                  {t("Connectez Meta pour synchroniser vos audiences.", "Connect Meta to sync your audiences.")}
-                </p>
-                <a
-                  href="/parametres-connecteurs"
-                  className="pointer-events-auto mt-1 block text-2xs font-medium text-primary-600 hover:underline"
-                >
-                  {t("Connecter Meta →", "Connect Meta →")}
-                </a>
+              {/* Infobulle accessible au survol, même sur un bouton désactivé.
+                  Le `pt-1.5` fait office de pont (sans trou) entre le bouton et la
+                  bulle, et l'absence de `pointer-events-none` garde le survol actif
+                  le temps d'atteindre le lien (corrige la disparition au déplacement). */}
+              <div className="absolute right-0 top-full z-20 hidden w-56 pt-1.5 group-hover:block hover:block">
+                <div className="rounded-lg border border-hair bg-card px-3 py-2 shadow-lg">
+                  <p className="text-2xs text-ink">
+                    {t("Connectez Meta pour synchroniser vos audiences.", "Connect Meta to sync your audiences.")}
+                  </p>
+                  <a
+                    href="/parametres-connecteurs"
+                    className="mt-1 block text-2xs font-medium text-primary-600 hover:underline"
+                  >
+                    {t("Connecter Meta →", "Connect Meta →")}
+                  </a>
+                </div>
               </div>
             </div>
             {/* Créer une nouvelle campagne (POST /api/campaigns). */}
@@ -362,7 +367,7 @@ function AudienceCard({ aud, onClick }: { aud: Audience; onClick: () => void }) 
       <div className="w-full break-words text-sm font-semibold text-ink">{aud.name}</div>
       <div className="mt-0.5 w-full break-words text-2xs text-muted">{aud.description}</div>
       {aud.detail && <div className="mt-0.5 w-full break-words text-2xs text-muted">{aud.detail}</div>}
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-1 border-t border-hair pt-2.5 text-2xs text-muted">
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-1 border-t pt-2.5 text-2xs text-muted">
         <span className="font-medium text-ink">{aud.reach}</span>
         <span>{aud.created}</span>
       </div>

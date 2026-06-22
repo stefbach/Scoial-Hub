@@ -15,6 +15,9 @@ export async function GET(req: NextRequest) {
   try {
     const companyId = req.nextUrl.searchParams.get("companyId");
     const q = (req.nextUrl.searchParams.get("q") ?? "").trim();
+    // Locale Meta → noms d'intérêts dans la langue de l'UI (en_US / fr_FR).
+    const localeParam = (req.nextUrl.searchParams.get("locale") ?? "").trim();
+    const locale = localeParam === "en" ? "en_US" : localeParam === "fr" ? "fr_FR" : "";
     if (!companyId) return NextResponse.json({ error: "companyId requis" }, { status: 400 });
     if (q.length < 2) return NextResponse.json({ interests: [] });
 
@@ -24,7 +27,7 @@ export async function GET(req: NextRequest) {
     const ctx = await getMetaContext(companyId);
     if (!ctx.userToken) return NextResponse.json({ interests: [], connected: false });
 
-    const url = `https://graph.facebook.com/${V}/search?type=adinterest&q=${encodeURIComponent(q)}&limit=15&access_token=${encodeURIComponent(ctx.userToken)}`;
+    const url = `https://graph.facebook.com/${V}/search?type=adinterest&q=${encodeURIComponent(q)}${locale ? `&locale=${locale}` : ""}&limit=15&access_token=${encodeURIComponent(ctx.userToken)}`;
     const res = await fetch(url, { cache: "no-store" });
     const json = (await res.json()) as { data?: Array<Record<string, unknown>>; error?: { message?: string } };
     if (json.error) return NextResponse.json({ error: json.error.message ?? "Erreur recherche intérêts" }, { status: 502 });

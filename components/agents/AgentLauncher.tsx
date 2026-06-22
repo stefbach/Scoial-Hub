@@ -61,8 +61,11 @@ export function AgentLauncher({
   if (!open) {
     return (
       <button type="button" onClick={() => setOpen(true)}
-        className={compact ? "inline-flex items-center gap-1.5 text-sm font-medium text-ai-text hover:underline" : "btn-secondary inline-flex items-center gap-1.5 text-sm"}>
-        {label ?? t("🤖 Lancer un agent", "🤖 Run an agent")}
+        className={compact
+          ? "inline-flex items-center gap-1.5 text-sm font-medium text-ai-text hover:underline"
+          : "inline-flex items-center gap-1.5 rounded-lg bg-ai-textbg px-3.5 py-2 text-sm font-semibold text-ai-text ring-1 ring-ai-text/30 transition-colors hover:bg-ai-textbg/70"}>
+        <span aria-hidden="true">✦</span>
+        {label ?? t("Lancer un agent IA", "Run an AI agent")}
       </button>
     );
   }

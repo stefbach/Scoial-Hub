@@ -145,6 +145,8 @@ export interface ConnectorStatus {
     accountName: string;
     externalId?: string;
     status: "active" | "expired" | "revoked";
+    /** URL publique du compte/Page (destination réelle), si connue. */
+    url?: string;
   }[];
 }
 

@@ -366,9 +366,11 @@ export function GoogleEarth() {
             else if (K.arrowdown) FLY.pitch = Math.max(FLY.pitch - pitchRate * dt, -pitchMax);
             else FLY.pitch *= Math.max(0, 1 - 0.9 * dt);
             // Gaz (W/S)
-            if (K.w) FLY.throttle = Math.min(1, FLY.throttle + 0.45 * dt);
-            if (K.s) FLY.throttle = Math.max(0.12, FLY.throttle - 0.45 * dt);
-            const targetSpeed = 55 + FLY.throttle * 545; // ~55..600 m/s
+            if (K.w) FLY.throttle = Math.min(1, FLY.throttle + 0.4 * dt);
+            if (K.s) FLY.throttle = Math.max(0.06, FLY.throttle - 0.4 * dt);
+            // Plage lente→rapide : ~35..420 m/s (≈125..1500 km/h). Démarre lent
+            // pour survoler tranquillement, accélère avec les gaz (W).
+            const targetSpeed = 35 + FLY.throttle * 385;
             FLY.speed += (targetSpeed - FLY.speed) * Math.min(1, 1.3 * dt);
             // Virage coordonné : g·tan(roulis)/vitesse
             FLY.heading += (9.81 * Math.tan(FLY.roll) / Math.max(FLY.speed, 40)) * dt;
@@ -408,9 +410,11 @@ export function GoogleEarth() {
             const carto = viewer.camera.positionCartographic;
             FLY.lon = Cesium.Math.toDegrees(carto.longitude);
             FLY.lat = Cesium.Math.toDegrees(carto.latitude);
-            FLY.alt = Math.min(Math.max(carto.height, 2000), 8000);
+            // Décolle À L'ALTITUDE EXPLORÉE (la zone choisie) : bas si on s'est
+            // approché d'une ville → on voit vraiment ce qu'on survole.
+            FLY.alt = Math.min(Math.max(carto.height, 350), 6000);
             FLY.heading = viewer.camera.heading || 0;
-            FLY.pitch = 0; FLY.roll = 0; FLY.speed = 160; FLY.throttle = 0.55; FLY.keys = {};
+            FLY.pitch = 0; FLY.roll = 0; FLY.speed = 80; FLY.throttle = 0.22; FLY.keys = {};
             FLY.active = true;
             scene.screenSpaceCameraController.enableInputs = false;
             FLY.plane = viewer.entities.add({
@@ -506,10 +510,11 @@ export function GoogleEarth() {
         </button>
       )}
 
-      {/* Simulateur de vol — un clic : passe en plein écran ET démarre le vol */}
-      {ready && !flying && (
-        <button type="button" className="fsim-launch" onClick={() => { setFull(true); setFlying(true); }}>
-          🛩️ Piloter le monde
+      {/* Simulateur de vol : en plein écran, on navigue d'abord vers une zone,
+          puis on décolle AU-DESSUS de cette zone (on voit ce qu'on survole). */}
+      {ready && full && !flying && (
+        <button type="button" className="fsim-launch" onClick={() => setFlying(true)}>
+          🛩️ Survoler cette zone
         </button>
       )}
 

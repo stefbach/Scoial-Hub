@@ -19,50 +19,10 @@ import { StudioHero, StudioStep } from "@/components/studio/StudioUI";
 import { StudioCopilot, type CopilotSuggestion } from "@/components/studio/StudioCopilot";
 import { ImageEditor } from "@/components/studio/ImageEditor";
 import { StudioDiffusion } from "@/components/studio/StudioDiffusion";
+import { FORMATS, GROUPS, SOCIAL_DECLINE_IDS, coverRect, containRect, type Format } from "@/lib/affiche/layout";
 import { IconFrame } from "@/components/visual/Icons";
 import { SafeBoundary } from "@/components/ui/SafeBoundary";
 import type { BrandKit } from "@/lib/brand-kit/types";
-
-type FormatGroup = "print" | "universel" | "instagram" | "facebook" | "linkedin";
-interface Format { id: string; label: string; w: number; h: number; print?: boolean; ar: string; group: FormatGroup; }
-
-// Libellés des groupes de formats (impression + un set par réseau).
-const GROUPS: { id: FormatGroup; fr: string; en: string }[] = [
-  { id: "universel", fr: "Universel", en: "Universal" },
-  { id: "instagram", fr: "Instagram", en: "Instagram" },
-  { id: "facebook", fr: "Facebook", en: "Facebook" },
-  { id: "linkedin", fr: "LinkedIn", en: "LinkedIn" },
-  { id: "print", fr: "Impression", en: "Print" },
-];
-
-// Dimensions print à ~150 dpi (bon compromis qualité/poids) ; réseaux en px standard.
-const FORMATS: Format[] = [
-  // Universel (formats génériques)
-  { id: "sq", label: "Carré 1:1", w: 1080, h: 1080, ar: "1:1", group: "universel" },
-  { id: "story", label: "Story 9:16", w: 1080, h: 1920, ar: "9:16", group: "universel" },
-  { id: "portrait", label: "Portrait 4:5", w: 1080, h: 1350, ar: "4:5", group: "universel" },
-  { id: "wide", label: "Paysage 16:9", w: 1920, h: 1080, ar: "16:9", group: "universel" },
-  // Instagram
-  { id: "ig-pt", label: "IG portrait 4:5", w: 1080, h: 1350, ar: "4:5", group: "instagram" },
-  { id: "ig-sq", label: "IG carré 1:1", w: 1080, h: 1080, ar: "1:1", group: "instagram" },
-  { id: "ig-story", label: "IG story / Reel 9:16", w: 1080, h: 1920, ar: "9:16", group: "instagram" },
-  // Facebook
-  { id: "fb-feed", label: "FB fil 4:5", w: 1080, h: 1350, ar: "4:5", group: "facebook" },
-  { id: "fb-land", label: "FB lien / paysage", w: 1200, h: 630, ar: "16:9", group: "facebook" },
-  { id: "fb-story", label: "FB story 9:16", w: 1080, h: 1920, ar: "9:16", group: "facebook" },
-  // LinkedIn
-  { id: "li-land", label: "LinkedIn paysage", w: 1200, h: 627, ar: "16:9", group: "linkedin" },
-  { id: "li-sq", label: "LinkedIn carré 1:1", w: 1080, h: 1080, ar: "1:1", group: "linkedin" },
-  { id: "li-pt", label: "LinkedIn portrait 4:5", w: 1080, h: 1350, ar: "4:5", group: "linkedin" },
-  // Impression
-  { id: "a4p", label: "A4 portrait", w: 1240, h: 1754, print: true, ar: "4:5", group: "print" },
-  { id: "a4l", label: "A4 paysage", w: 1754, h: 1240, print: true, ar: "16:9", group: "print" },
-  { id: "a3p", label: "A3 portrait", w: 1754, h: 2480, print: true, ar: "4:5", group: "print" },
-  { id: "a3l", label: "A3 paysage", w: 2480, h: 1754, print: true, ar: "16:9", group: "print" },
-];
-
-// Jeu de formats réseaux décliné « en un clic » (un par forme utile et par réseau).
-const SOCIAL_DECLINE_IDS = ["ig-pt", "ig-sq", "ig-story", "fb-feed", "fb-land", "fb-story", "li-land", "li-sq", "li-pt"];
 
 const TEXT_COLORS = ["#ffffff", "#0f172a", "#60a5fa", "#5b2d8e", "#be123c", "#f59e0b"];
 
@@ -77,12 +37,8 @@ function loadImage(src: string): Promise<HTMLImageElement> {
 }
 
 function drawCover(ctx: CanvasRenderingContext2D, img: HTMLImageElement, W: number, H: number, scale = 1) {
-  const ir = img.width / img.height;
-  const fr = W / H;
-  let dw: number, dh: number;
-  if (ir > fr) { dh = H * scale; dw = dh * ir; }
-  else { dw = W * scale; dh = dw / ir; }
-  ctx.drawImage(img, (W - dw) / 2, (H - dh) / 2, dw, dh);
+  const r = coverRect(img.width, img.height, W, H, scale);
+  ctx.drawImage(img, r.dx, r.dy, r.dw, r.dh);
 }
 
 // Adapte une image à un format SANS la couper (« décliner ») : l'image entière est
@@ -97,10 +53,8 @@ function drawFitBlur(ctx: CanvasRenderingContext2D, img: HTMLImageElement, W: nu
   ctx.fillStyle = "rgba(15,23,42,0.18)"; // léger voile d'homogénéisation
   ctx.fillRect(0, 0, W, H);
   // 2) Image complète, centrée, jamais coupée.
-  const ir = img.width / img.height, fr = W / H;
-  let dw: number, dh: number;
-  if (ir > fr) { dw = W; dh = W / ir; } else { dh = H; dw = H * ir; }
-  ctx.drawImage(img, (W - dw) / 2, (H - dh) / 2, dw, dh);
+  const r = containRect(img.width, img.height, W, H);
+  ctx.drawImage(img, r.dx, r.dy, r.dw, r.dh);
 }
 
 function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {

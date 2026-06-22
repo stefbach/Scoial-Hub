@@ -26,6 +26,8 @@ export default function MediaLibraryPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<Filter>("all");
   const [note, setNote] = useState<string | null>(null);
+  // Dimensions réelles (px) de chaque média, mesurées au chargement → preuve du format.
+  const [dims, setDims] = useState<Record<string, string>>({});
 
   // Ajout par URL
   const [addUrl, setAddUrl] = useState("");
@@ -201,17 +203,22 @@ export default function MediaLibraryPage() {
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           {shown.map((a, i) => (
             <div key={i} className="card overflow-hidden p-0">
-              <div className="relative aspect-square bg-canvas">
+              <div className="relative flex aspect-square items-center justify-center bg-[repeating-conic-gradient(#f1f1f4_0%_25%,#fafafb_0%_50%)] bg-[length:18px_18px]">
                 {a.type === "video" ? (
                   // eslint-disable-next-line jsx-a11y/media-has-caption
-                  <video src={a.url} controls className="h-full w-full object-cover" />
+                  <video src={a.url} controls className="max-h-full max-w-full object-contain"
+                    onLoadedMetadata={(e) => setDims((d) => ({ ...d, [a.url]: `${e.currentTarget.videoWidth}×${e.currentTarget.videoHeight}` }))} />
                 ) : (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={a.url} alt="" className="h-full w-full object-cover" />
+                  <img src={a.url} alt="" className="max-h-full max-w-full object-contain"
+                    onLoad={(e) => setDims((d) => ({ ...d, [a.url]: `${e.currentTarget.naturalWidth}×${e.currentTarget.naturalHeight}` }))} />
                 )}
                 <span className="absolute left-1.5 top-1.5 rounded-full bg-black/55 px-2 py-0.5 text-[10px] font-semibold text-white">
                   {a.type === "video" ? "▶ " + t("vidéo", "video") : (a.format || "image")}
                 </span>
+                {dims[a.url] && (
+                  <span className="absolute bottom-1.5 right-1.5 rounded bg-black/55 px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-white">{dims[a.url]}</span>
+                )}
               </div>
               <div className="flex flex-col gap-1.5 p-2.5">
                 <Link href={composeHref(a)} className="btn-primary w-full justify-center text-2xs">{t("Publier", "Publish")}</Link>

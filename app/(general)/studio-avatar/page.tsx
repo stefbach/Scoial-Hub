@@ -4,12 +4,13 @@
 // Visage + sujet → script (Claude) → voix (TTS) → lip-sync (Replicate) → vidéo
 // d'avatar parlant. Téléchargeable et publiable.
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useCompany } from "@/lib/company-context";
 import { StudioHero, StudioStep, Segmented } from "@/components/studio/StudioUI";
 import { StudioCopilot, type CopilotSuggestion } from "@/components/studio/StudioCopilot";
 import { ImageEditor } from "@/components/studio/ImageEditor";
-import { StudioDiffusion } from "@/components/studio/StudioDiffusion";
+import { StudioDistribution } from "@/components/studio/StudioDistribution";
+import { MediaLibraryButton } from "@/components/studio/MediaLibrary";
 import { Tilt3D } from "@/components/visual/Tilt3D";
 import { IconMask, IconClapper } from "@/components/visual/Icons";
 import { Spinner, BusyHint } from "@/components/ui/Spinner";
@@ -78,7 +79,97 @@ export default function StudioAvatarPage() {
   const [savedToLibrary, setSavedToLibrary] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [savingAvatar, setSavingAvatar] = useState(false);
+  // #19/#20 — id de la prédiction lip-sync en cours : persisté pour reprendre le
+  // suivi après un rechargement / une navigation, sans dépendre du webhook serveur.
+  const [pendingPredictionId, setPendingPredictionId] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const hydrated = useRef(false); // #16 — évite d'écraser le stockage au montage
+  const resumed = useRef(false);  // #19/#20 — garde contre une double reprise
+
+  // #18 — Enregistre l'avatar courant dans la bibliothèque (réutilisable ensuite
+  // via « Mes avatars enregistrés »).
+  async function saveAvatar() {
+    if (!faceUrl.trim() || savingAvatar) return;
+    setSavingAvatar(true); setError(null); setNote(null);
+    try {
+      const r = await fetch("/api/media", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyId: company.id, url: faceUrl, type: "image", source: "avatar-face" }),
+      });
+      setNote(r.ok ? t("Avatar enregistré ✓ — retrouvez-le via « Mes avatars enregistrés ».", "Avatar saved ✓ — find it via “My saved avatars”.") : t("Échec de l'enregistrement.", "Save failed."));
+    } catch {
+      setError(t("Erreur réseau.", "Network error."));
+    } finally { setSavingAvatar(false); }
+  }
+
+  // Nettoyage au démontage : stoppe le minuteur d'enregistrement et le micro
+  // s'ils tournent encore (évite une fuite + des setState post-démontage).
+  useEffect(() => () => {
+    if (recTimerRef.current) clearInterval(recTimerRef.current);
+    try { if (mediaRecRef.current && mediaRecRef.current.state !== "inactive") mediaRecRef.current.stop(); } catch { /* ignore */ }
+  }, []);
+
+  // #16 — Persistance par société : la création d'avatar survit au rechargement.
+  useEffect(() => {
+    hydrated.current = false;
+    try {
+      const raw = localStorage.getItem(`avatar_studio_${company.id}`);
+      if (raw) {
+        const s = JSON.parse(raw) as Record<string, unknown>;
+        if (typeof s.faceUrl === "string") setFaceUrl(s.faceUrl);
+        if (typeof s.topic === "string") setTopic(s.topic);
+        if (typeof s.language === "string") setLanguage(s.language);
+        if (typeof s.voiceId === "string") setVoiceId(s.voiceId);
+        if (typeof s.seconds === "number") setSeconds(s.seconds);
+        if (typeof s.script === "string") setScript(s.script);
+        if (typeof s.environment === "string") setEnvironment(s.environment);
+        if (typeof s.lipsyncModel === "string") setLipsyncModel(s.lipsyncModel);
+        if (typeof s.personPrompt === "string") setPersonPrompt(s.personPrompt);
+        if (typeof s.imageModel === "string") setImageModel(s.imageModel);
+        if (typeof s.videoUrl === "string") { setVideoUrl(s.videoUrl); setSavedToLibrary(Boolean(s.savedToLibrary)); }
+        if (typeof s.pendingPredictionId === "string") setPendingPredictionId(s.pendingPredictionId); // #19/#20
+        if (Array.isArray(s.clonedVoices)) setClonedVoices(s.clonedVoices); // #19 — voix clonées conservées
+      }
+    } catch { /* stockage indisponible */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [company.id]);
+
+  // Sauvegarde (ignore le 1er passage pour ne pas écraser avec l'état initial).
+  useEffect(() => {
+    if (!hydrated.current) { hydrated.current = true; return; }
+    try {
+      localStorage.setItem(`avatar_studio_${company.id}`, JSON.stringify({
+        faceUrl, topic, language, voiceId, seconds, script, environment, lipsyncModel, personPrompt, imageModel, videoUrl, savedToLibrary, clonedVoices, pendingPredictionId,
+      }));
+    } catch { /* quota / mode privé */ }
+  }, [company.id, faceUrl, topic, language, voiceId, seconds, script, environment, lipsyncModel, personPrompt, imageModel, videoUrl, savedToLibrary, clonedVoices, pendingPredictionId]);
+
+  // #19/#20 — Reprise d'un rendu en cours après rechargement / retour sur la page :
+  // tant qu'une prédiction est en attente et qu'aucune vidéo n'est affichée, on
+  // ré-interroge son statut. Le rendu finit donc par arriver dans la Médiathèque
+  // même si l'utilisateur a quitté l'onglet — indépendamment du webhook serveur.
+  useEffect(() => {
+    if (resumed.current || !pendingPredictionId || videoUrl || rendering) return;
+    resumed.current = true;
+    setRendering(true);
+    setNote(t("Reprise du rendu vidéo en cours…", "Resuming the video render in progress…"));
+    (async () => {
+      const res = await pollAvatar(pendingPredictionId);
+      if (res.ok) {
+        await finalizeVideo(res.url);
+        setNote(t("Vidéo prête ✓", "Video ready ✓"));
+        setPendingPredictionId(null);
+      } else if (res.reason === "failed") {
+        setError(t(`La génération a échoué${res.error ? ` : ${res.error}` : "."}`, `Generation failed${res.error ? `: ${res.error}` : "."}`));
+        setPendingPredictionId(null);
+      } else {
+        setNote(t("Le rendu est toujours en cours côté serveur. Revenez plus tard : il reprendra automatiquement.", "The render is still running server-side. Come back later: it will resume automatically."));
+      }
+      setRendering(false);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingPredictionId, videoUrl]);
 
   async function uploadFace(files: FileList | null) {
     if (!files || files.length === 0) return;
@@ -295,9 +386,29 @@ export default function StudioAvatarPage() {
       } else if (d.videoUrl) {
         finalUrl = d.videoUrl;
       } else if (d.pending && d.predictionId) {
-        // Lip-sync long → on interroge le statut jusqu'au résultat (≤ 8 min).
-        finalUrl = await pollAvatar(d.predictionId);
-        if (!finalUrl) setError(t("La génération a échoué ou dépassé le temps imparti.", "Generation failed or timed out."));
+        // Lip-sync long → on interroge le statut jusqu'au résultat (≤ 20 min).
+        // On mémorise l'id : si le poll dépasse le délai (modèles très lents type
+        // OmniHuman), la reprise automatique au prochain affichage finira le suivi.
+        setPendingPredictionId(d.predictionId);
+        const res = await pollAvatar(d.predictionId);
+        if (res.ok) {
+          finalUrl = res.url;
+          setPendingPredictionId(null);
+        } else if (res.reason === "failed") {
+          // Échec réel du modèle : on montre la cause exacte. Cas fréquent :
+          // un modèle « doublage vidéo » (HeyGen Lipsync Precision, Sync Lipsync 2 Pro)
+          // nourri d'une simple photo → choisir OmniHuman ou VEED Fabric.
+          setPendingPredictionId(null);
+          setError(
+            t(
+              `La génération a échoué${res.error ? ` : ${res.error}` : "."} Astuce : certains modèles exigent une vidéo source — pour une photo, utilisez « OmniHuman » ou « VEED Fabric ».`,
+              `Generation failed${res.error ? `: ${res.error}` : "."} Tip: some models require a source video — for a photo, use “OmniHuman” or “VEED Fabric”.`
+            )
+          );
+        } else {
+          // Délai dépassé : on GARDE l'id en attente → reprise auto au retour.
+          setNote(t("Le rendu est plus long que prévu : laissez cette page ouverte ou revenez plus tard, il reprend automatiquement et la vidéo ira dans la Médiathèque.", "The render is taking longer than expected: keep this page open or come back later — it resumes automatically and the video will land in the Media library."));
+        }
       } else {
         setError(t("Aucune vidéo renvoyée.", "No video returned."));
       }
@@ -313,23 +424,30 @@ export default function StudioAvatarPage() {
           });
           const sd = await sr.json();
           if (sr.ok) {
-            const subUrl = sd.videoUrl || (sd.pending && sd.predictionId ? await pollAvatar(sd.predictionId) : null);
+            let subUrl: string | null = typeof sd.videoUrl === "string" ? sd.videoUrl : null;
+            if (!subUrl && sd.pending && sd.predictionId) {
+              const sub = await pollAvatar(sd.predictionId);
+              subUrl = sub.ok ? sub.url : null;
+            }
             if (subUrl) { finalUrl = subUrl; setNote(t("Sous-titres ajoutés ✓", "Subtitles added ✓")); }
             else setNote(t("Vidéo prête (sous-titres indisponibles).", "Video ready (subtitles unavailable)."));
           }
         } catch { setNote(t("Vidéo prête (sous-titres indisponibles).", "Video ready (subtitles unavailable).")); }
       }
-      if (finalUrl) {
-        setVideoUrl(finalUrl);
-        // Persiste la vidéo (URL Replicate éphémère) sur le stockage durable.
-        const permanent = await persistVideo(finalUrl);
-        const keep = permanent || finalUrl;
-        setVideoUrl(keep);
-        await saveToLibrary(keep);
-      }
+      if (finalUrl) await finalizeVideo(finalUrl);
     } catch (e) {
       setError(e instanceof Error ? e.message : t("Échec.", "Failed."));
     } finally { setRendering(false); }
+  }
+
+  // Affiche, persiste durablement (URL Replicate éphémère → stockage) et
+  // enregistre la vidéo en Médiathèque. Partagé par genVideo et la reprise.
+  async function finalizeVideo(url: string) {
+    setVideoUrl(url);
+    const permanent = await persistVideo(url);
+    const keep = permanent || url;
+    setVideoUrl(keep);
+    await saveToLibrary(keep);
   }
 
   // Télécharge la vidéo Replicate (URL éphémère) et la stocke durablement.
@@ -356,19 +474,25 @@ export default function StudioAvatarPage() {
     } catch { /* non bloquant */ }
   }
 
-  // Interroge GET /api/ai/avatar?id=… jusqu'à succès/échec (poll 5s, max ~8 min).
-  async function pollAvatar(id: string): Promise<string | null> {
-    const deadline = Date.now() + 8 * 60_000;
+  // Interroge GET /api/ai/avatar?id=… jusqu'à succès/échec (poll 5s, max 12 min).
+  // Résultat discriminé : on distingue un ÉCHEC réel (modèle qui plante, ex. un
+  // modèle « vidéo source » nourri d'une photo) d'un simple DÉPASSEMENT de délai
+  // — sinon l'utilisateur reçoit le même message trompeur dans les deux cas.
+  type PollResult =
+    | { ok: true; url: string }
+    | { ok: false; reason: "failed" | "timeout"; error?: string };
+  async function pollAvatar(id: string): Promise<PollResult> {
+    const deadline = Date.now() + 20 * 60_000;
     while (Date.now() < deadline) {
       await new Promise((r) => setTimeout(r, 5000));
       try {
         const res = await fetch(`/api/ai/avatar?id=${encodeURIComponent(id)}`);
         const d = await res.json();
-        if (d.status === "succeeded" && d.videoUrl) return d.videoUrl;
-        if (d.status === "failed") return null;
+        if (d.status === "succeeded" && d.videoUrl) return { ok: true, url: d.videoUrl };
+        if (d.status === "failed") return { ok: false, reason: "failed", error: typeof d.error === "string" ? d.error : undefined };
       } catch { /* on retente */ }
     }
-    return null;
+    return { ok: false, reason: "timeout" };
   }
 
   return (
@@ -428,7 +552,7 @@ export default function StudioAvatarPage() {
                 </div>
               ) : (
                 <div className="space-y-2">
-                  <input value={personPrompt} onChange={(e) => setPersonPrompt(e.target.value)} placeholder={t("Décrivez la personne (ex. « femme médecin, 40 ans, blouse blanche, souriante »)", "Describe the person (e.g. \"female doctor, 40s, white coat, smiling\")")} className="input" />
+                  <textarea value={personPrompt} onChange={(e) => setPersonPrompt(e.target.value)} rows={4} placeholder={t("Décrivez la personne (ex. « femme médecin, 40 ans, blouse blanche, souriante »)", "Describe the person (e.g. \"female doctor, 40s, white coat, smiling\")")} className="input resize-y min-h-[6rem]" />
                   <div className="flex gap-2">
                     <select value={imageModel} onChange={(e) => setImageModel(e.target.value)} className="input flex-1">
                       {IMAGE_MODELS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
@@ -461,6 +585,23 @@ export default function StudioAvatarPage() {
                   <img src={faceUrl} alt="" className="max-h-48 rounded-xl object-contain ring-1 ring-hair" onError={(e) => { e.currentTarget.style.display = "none"; }} />
                 </div>
               )}
+
+              {/* #18 — enregistrer / réutiliser un avatar */}
+              <div className="flex flex-wrap items-center gap-2 border-t border-hair pt-2">
+                <MediaLibraryButton
+                  companyId={company.id}
+                  accept="image"
+                  label={t("📚 Mes avatars enregistrés", "📚 My saved avatars")}
+                  className="btn-secondary text-xs"
+                  onPick={(a) => setFaceUrl(a.url)}
+                />
+                {faceUrl.trim() && (
+                  <button onClick={saveAvatar} disabled={savingAvatar} className="btn-secondary inline-flex items-center gap-1.5 text-xs disabled:opacity-50">
+                    {savingAvatar && <Spinner size={12} className="text-current" />}
+                    {savingAvatar ? t("Enregistrement…", "Saving…") : t("💾 Enregistrer cet avatar", "💾 Save this avatar")}
+                  </button>
+                )}
+              </div>
             </StudioStep>
 
             {/* Retouche IA du portrait (tenue, décor, lumière… versions conservées) */}
@@ -468,8 +609,8 @@ export default function StudioAvatarPage() {
               <ImageEditor imageUrl={faceUrl} aspect="4:5" onResult={(u) => setFaceUrl(u)} />
             )}
 
-            <StudioStep n={2} title={t("Script", "Script")}>
-              <input value={topic} onChange={(e) => setTopic(e.target.value)} placeholder={t("Sujet (ex. « Notre nouvelle offre minceur »)", "Topic (e.g. \"Our new weight-loss offer\")")} className="input" />
+            <StudioStep n={2} title={t("Script", "Script")} hint={t("1) Le texte que l'avatar va dire — généré par l'IA ou écrit à la main.", "1) The text the avatar will say — AI-generated or written by hand.")}>
+              <textarea value={topic} onChange={(e) => setTopic(e.target.value)} rows={2} placeholder={t("Sujet (ex. « Notre nouvelle offre minceur »)", "Topic (e.g. \"Our new weight-loss offer\")")} className="input resize-y" />
               <div className="flex flex-wrap items-center gap-2">
                 <select value={language} onChange={(e) => setLanguage(e.target.value)} className="input w-auto">
                   {AVATAR_LANGS.map((l) => <option key={l.code} value={l.code}>{l.label}</option>)}
@@ -486,7 +627,7 @@ export default function StudioAvatarPage() {
               <textarea value={script} onChange={(e) => setScript(e.target.value)} rows={6} placeholder={t("Le script parlé apparaîtra ici (éditable)…", "The spoken script will appear here (editable)…")} className="input" />
             </StudioStep>
 
-            <StudioStep n={3} title={t("Voix & rendu", "Voice & render")}>
+            <StudioStep n={3} title={t("Voix & rendu", "Voice & render")} hint={t("2) La voix choisie lit le script · 3) cochez les sous-titres pour les incruster automatiquement.", "2) The chosen voice reads the script · 3) tick subtitles to burn them in automatically.")}>
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <div>
                   <label className="text-2xs text-muted">{t("Voix", "Voice")}</label>
@@ -547,8 +688,16 @@ export default function StudioAvatarPage() {
                 <div>
                   <label className="text-2xs text-muted">{t("Avatar (modèle)", "Avatar (model)")}</label>
                   <select value={lipsyncModel} onChange={(e) => setLipsyncModel(e.target.value)} className="input mt-1">
-                    {AVATAR_MODELS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+                    {AVATAR_MODELS.map((m) => <option key={m.id} value={m.id}>{t(m.label, m.labelEn)}</option>)}
                   </select>
+                  {AVATAR_MODELS.find((m) => m.id === lipsyncModel)?.needsVideo && (
+                    <p className="mt-1 text-2xs text-warning-600">
+                      {t(
+                        "⚠ Ce modèle exige une vidéo source (doublage). À partir d'une photo, choisissez « OmniHuman » ou « VEED Fabric ».",
+                        "⚠ This model requires a source video (dubbing). From a photo, pick “OmniHuman” or “VEED Fabric”."
+                      )}
+                    </p>
+                  )}
                 </div>
               </div>
               <label className="flex cursor-pointer items-center gap-2 text-xs text-muted">
@@ -560,7 +709,7 @@ export default function StudioAvatarPage() {
             <button onClick={genVideo} disabled={rendering} className="btn-primary w-full justify-center py-3 text-sm disabled:opacity-50">
               {rendering ? <span className="inline-flex items-center gap-2"><Spinner size={16} className="text-white" />{t("Génération de l'avatar…", "Generating avatar…")}</span> : t("🎬 Générer la vidéo avatar", "🎬 Generate avatar video")}
             </button>
-            {rendering && <BusyHint label={t("Voix + lip-sync en cours… cela peut prendre 1–3 min.", "Voice + lip-sync in progress… this can take 1–3 min.")} eta="~1–3 min" />}
+            {rendering && <BusyHint label={t("Voix + lip-sync en cours… selon le modèle, cela peut prendre de 3 à 15 min. Vous pouvez quitter la page : le rendu reprend tout seul à votre retour.", "Voice + lip-sync in progress… depending on the model, this can take 3 to 15 min. You can leave the page: the render resumes on your own when you come back.")} eta="~3–15 min" />}
             {note && <p className="rounded-lg bg-canvas px-3 py-2 text-xs text-muted">{note}</p>}
             {error && <p className="rounded-lg bg-danger-50 px-3 py-2 text-xs text-danger-700">{error}</p>}
           </div>
@@ -583,22 +732,35 @@ export default function StudioAvatarPage() {
             </Tilt3D>
             {videoUrl && (
               <div className="space-y-2">
+                {savedToLibrary && (
+                  <p className="rounded-lg bg-success-50 px-3 py-1.5 text-2xs font-medium text-success-700">
+                    {t("✓ Enregistrée dans la Médiathèque", "✓ Saved to the Media library")}
+                  </p>
+                )}
                 <a href={videoUrl} target="_blank" rel="noopener noreferrer" download className="btn-secondary inline-flex w-full justify-center text-sm">
                   {t("⬇︎ Télécharger la vidéo", "⬇︎ Download video")}
                 </a>
-                <a href={`/compose?media=${encodeURIComponent(videoUrl)}&kind=video`} className="btn-ghost inline-flex w-full justify-center text-xs">{t("Ouvrir dans Composer", "Open in Composer")}</a>
-
-                {/* Diffusion unifiée : bibliothèque · pub Meta · publier / programmer */}
-                <StudioDiffusion
-                  companyId={company.id}
-                  mediaUrl={videoUrl}
-                  mediaKind="video"
-                  defaultText={script.split("\n")[0]?.slice(0, 180) ?? ""}
-                  savedToLibrary={savedToLibrary}
-                  onSaveToLibrary={() => videoUrl && saveToLibrary(videoUrl)}
-                />
+                <div className="flex gap-2">
+                  <a href="/media" className="btn-ghost flex-1 justify-center text-xs">{t("📚 Médiathèque", "📚 Media library")}</a>
+                  <a href={`/compose?media=${encodeURIComponent(videoUrl)}&kind=video`} className="btn-secondary flex-1 justify-center text-xs">{t("Ouvrir dans Composer", "Open in Composer")}</a>
+                </div>
+                {!savedToLibrary && (
+                  <button onClick={() => videoUrl && saveToLibrary(videoUrl)} className="btn-ghost w-full justify-center text-2xs text-muted">
+                    {t("Réessayer l'enregistrement en médiathèque", "Retry saving to library")}
+                  </button>
+                )}
               </div>
             )}
+
+            {/* Diffusion (organique / pub) — toujours disponible : la vidéo
+                générée est sélectionnée d'office, sinon on pioche dans la
+                bibliothèque (plus besoin d'attendre un rendu réussi). */}
+            <StudioDistribution
+              companyId={company.id}
+              producedUrl={videoUrl}
+              producedKind="video"
+              defaultText={script.split("\n")[0]?.slice(0, 180) ?? ""}
+            />
           </div>
         </div>
       )}

@@ -17,12 +17,16 @@ export interface VoiceModel {
 export interface AvatarModel {
   id: string;
   label: string;
+  /** Libellé anglais (i18n). */
+  labelEn: string;
   /** clé de l'image/vidéo du visage. */
   faceKey: string;
   /** clé de l'audio. */
   audioKey: string;
   /** entrées additionnelles fixes. */
   extra?: Record<string, unknown>;
+  /** true = exige une VIDÉO source (doublage) ; échoue avec une simple photo. */
+  needsVideo?: boolean;
   note?: string;
 }
 
@@ -35,11 +39,11 @@ export const VOICE_MODELS: VoiceModel[] = [
 // Modèles haut de gamme de la collection Replicate « lipsync » (clés d'entrée
 // auto-détectées côté serveur, donc faceKey/audioKey ne sont qu'indicatifs).
 export const AVATAR_MODELS: AvatarModel[] = [
-  { id: "bytedance/omni-human", label: "OmniHuman (ByteDance) — qualité studio · photo", faceKey: "image", audioKey: "audio", note: "Photo + voix → vidéo professionnelle. Recommandé." },
-  { id: "veed/fabric-1.0", label: "VEED Fabric 1.0 — photo → vidéo parlante", faceKey: "image", audioKey: "audio", note: "Transforme une image en avatar parlant." },
-  { id: "sync/lipsync-2-pro", label: "Sync Lipsync 2 Pro — studio (idéal vidéo source)", faceKey: "video", audioKey: "audio", note: "Top qualité ; idéalement une vidéo source." },
-  { id: "heygen/lipsync-precision", label: "HeyGen Lipsync Precision — doublage vidéo", faceKey: "video", audioKey: "audio", note: "Haute précision ; source vidéo recommandée." },
-  { id: "cjwbw/sadtalker", label: "SadTalker — basique (photo, rapide)", faceKey: "source_image", audioKey: "driven_audio", extra: { preprocess: "full" }, note: "Repli léger." },
+  { id: "bytedance/omni-human", label: "OmniHuman (ByteDance) — qualité studio · photo", labelEn: "OmniHuman (ByteDance) — studio quality · photo", faceKey: "image", audioKey: "audio", note: "Photo + voix → vidéo professionnelle. Recommandé." },
+  { id: "veed/fabric-1.0", label: "VEED Fabric 1.0 — photo → vidéo parlante", labelEn: "VEED Fabric 1.0 — photo → talking video", faceKey: "image", audioKey: "audio", note: "Transforme une image en avatar parlant." },
+  { id: "sync/lipsync-2-pro", label: "Sync Lipsync 2 Pro — studio (vidéo source requise)", labelEn: "Sync Lipsync 2 Pro — studio (source video required)", faceKey: "video", audioKey: "audio", needsVideo: true, note: "Top qualité ; nécessite une vidéo source." },
+  { id: "heygen/lipsync-precision", label: "HeyGen Lipsync Precision — doublage vidéo", labelEn: "HeyGen Lipsync Precision — video dubbing", faceKey: "video", audioKey: "audio", needsVideo: true, note: "Haute précision ; nécessite une vidéo source." },
+  { id: "cjwbw/sadtalker", label: "SadTalker — basique (photo, rapide)", labelEn: "SadTalker — basic (photo, fast)", faceKey: "source_image", audioKey: "driven_audio", extra: { preprocess: "full" }, note: "Repli léger." },
 ];
 
 export const DEFAULT_VOICE_MODEL = VOICE_MODELS[0].id;
@@ -60,6 +64,9 @@ export interface AvatarLang {
 export const AVATAR_LANGS: AvatarLang[] = [
   { code: "fr", label: "Français", claude: "français", xtts: "fr", boost: "French", native: true },
   { code: "en", label: "English", claude: "anglais", xtts: "en", boost: "English", native: true },
+  // Créole mauricien : script rédigé en kreol morisien ; prononciation via la
+  // voix française (base lexicale francophone) — utile notamment pour Tibok.
+  { code: "mfe", label: "Kreol morisien", claude: "créole mauricien (kreol morisien)", xtts: "fr", boost: "French" },
   { code: "es", label: "Español", claude: "espagnol", xtts: "es" },
   { code: "de", label: "Deutsch", claude: "allemand", xtts: "de" },
   { code: "it", label: "Italiano", claude: "italien", xtts: "it" },

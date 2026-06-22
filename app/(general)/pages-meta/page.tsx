@@ -66,6 +66,9 @@ export default function PagesMetaPage() {
   const [loading, setLoading] = useState(true);
   const [switching, setSwitching] = useState<string | null>(null);
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
+  // Langue dans laquelle l'analyse affichée a été générée (#6) : si l'utilisateur
+  // change de langue ensuite, on propose de la régénérer.
+  const [analysisLang, setAnalysisLang] = useState<"fr" | "en" | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [pageError, setPageError] = useState<string | null>(null);
   const [pubTab, setPubTab] = useState<"organic" | "ads">("organic");
@@ -89,6 +92,7 @@ export default function PagesMetaPage() {
   async function selectPage(pageId: string) {
     setSwitching(pageId);
     setAnalysis(null);
+    setAnalysisLang(null);
     setPageError(null);
     try {
       const res = await fetch("/api/meta/pages", {
@@ -141,6 +145,7 @@ export default function PagesMetaPage() {
       }
       if (data?.analysis) {
         setAnalysis(data.analysis as Analysis);
+        setAnalysisLang(lang === "en" ? "en" : "fr");
       } else {
         setPageError(
           t(
@@ -278,6 +283,17 @@ export default function PagesMetaPage() {
               </div>
               {analyzing && (
                 <BusyHint label={t("Analyse de votre Page en cours…", "Analyzing your Page…")} eta={t("~30–60 s", "~30–60 s")} />
+              )}
+              {/* #6 — la langue a changé depuis la génération → régénérer en 1 clic */}
+              {analysis && !analyzing && analysisLang && analysisLang !== lang && (
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary-200 bg-primary-50/60 px-3 py-2">
+                  <span className="text-xs text-ink">
+                    {t("Les résultats sont rédigés en anglais.", "These results are written in French.")}
+                  </span>
+                  <button onClick={runAnalyze} className="btn-secondary text-xs">
+                    {lang === "en" ? "Regenerate in English" : "Régénérer en français"}
+                  </button>
+                </div>
               )}
               {analysis && <AnalysisReport a={analysis} t={t} />}
             </section>

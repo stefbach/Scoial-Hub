@@ -14,14 +14,12 @@ import { useT } from "@/lib/i18n";
 import { Spinner, BusyHint } from "@/components/ui/Spinner";
 import { IMAGE_MODELS, DEFAULT_IMAGE_MODEL_ID } from "@/lib/ai/model-catalog";
 import BrandKitPanel from "@/components/studio/BrandKitPanel";
-import BrandChartView from "@/components/studio/BrandChartView";
 import { StudioHero, StudioStep } from "@/components/studio/StudioUI";
 import { StudioCopilot, type CopilotSuggestion } from "@/components/studio/StudioCopilot";
 import { ImageEditor } from "@/components/studio/ImageEditor";
-import { StudioDiffusion } from "@/components/studio/StudioDiffusion";
+import { StudioDistribution } from "@/components/studio/StudioDistribution";
 import { FORMATS, GROUPS, SOCIAL_DECLINE_IDS, coverRect, containRect, type Format } from "@/lib/affiche/layout";
 import { IconFrame } from "@/components/visual/Icons";
-import { SafeBoundary } from "@/components/ui/SafeBoundary";
 import type { BrandKit } from "@/lib/brand-kit/types";
 
 const TEXT_COLORS = ["#ffffff", "#0f172a", "#60a5fa", "#5b2d8e", "#be123c", "#f59e0b"];
@@ -91,7 +89,6 @@ export default function StudioAffichePage() {
   // ── Identité de marque (brand kit persistant, géré par BrandKitPanel) ───────
   const [promptHints, setPromptHints] = useState<string>("");
   const [brandKit, setBrandKit] = useState<BrandKit | null>(null);
-  const [previewTab, setPreviewTab] = useState<"affiche" | "charte">("affiche");
 
   const [headline, setHeadline] = useState("");
   const [subtitle, setSubtitle] = useState("");
@@ -258,8 +255,8 @@ export default function StudioAffichePage() {
     if (canvasRef.current) paint(canvasRef.current, format);
   }, [paint, format]);
 
-  // Re-render aussi au retour sur l'onglet « Affiche » (le canvas est remonté).
-  useEffect(() => { if (previewTab === "affiche") render(); }, [render, previewTab]);
+  // Re-render du canvas dès qu'un paramètre change (le canvas peut être remonté).
+  useEffect(() => { render(); }, [render]);
 
   function exportPng() {
     const canvas = canvasRef.current;
@@ -291,18 +288,16 @@ export default function StudioAffichePage() {
     setPos("bottom");
     setScrim(true);
     setNote(null);
-    setPreviewTab("affiche");
+    setPosterUrl(null);
   }
 
   const [savingLib, setSavingLib] = useState(false);
-  // URL publique (https) de l'affiche une fois hébergée — base de la diffusion
-  // (publier / programmer / intégrer dans une pub). Invalidée si le design change.
-  const [hostedUrl, setHostedUrl] = useState<string | null>(null);
-  const [savedToLibrary, setSavedToLibrary] = useState(false);
+  // URL publique (https) de l'affiche une fois hébergée → débloque la diffusion
+  // (publier / programmer / utiliser en pub). Invalidée si le design change pour
+  // ne jamais diffuser une version périmée.
+  const [posterUrl, setPosterUrl] = useState<string | null>(null);
 
-  // Le design a changé → la version hébergée n'est plus à jour : on réinitialise
-  // la diffusion pour ne jamais publier une affiche périmée.
-  useEffect(() => { setHostedUrl(null); setSavedToLibrary(false); },
+  useEffect(() => { setPosterUrl(null); },
     [bgImg, logoImg, headline, subtitle, color, pos, scrim, logoCorner, formatId]);
 
   // Héberge un PNG (Supabase) et l'enregistre dans la bibliothèque. Renvoie l'URL
@@ -344,8 +339,7 @@ export default function StudioAffichePage() {
       if (!blob) { setNote(t("Enregistrement impossible (image protégée). Régénérez le fond via l'IA.", "Save failed (protected image). Regenerate the background via AI.")); return; }
       const url = await hostBlob(blob, format.id);
       if (!url) { setNote(t("Échec de l'envoi au stockage.", "Upload to storage failed.")); return; }
-      setHostedUrl(url);
-      setSavedToLibrary(true);
+      setPosterUrl(url); // débloque le bloc Publier / programmer / utiliser en pub
       setNote(t("✓ Enregistré — vous pouvez maintenant le publier, le programmer ou en faire une pub.", "✓ Saved — you can now publish, schedule or turn it into an ad."));
     } catch {
       setNote(t("Échec de l'enregistrement.", "Save failed."));
@@ -608,75 +602,47 @@ export default function StudioAffichePage() {
             onPickColor={setColor}
             onLogo={onBrandLogo}
             onPromptHints={setPromptHints}
-            onKit={(k) => { setBrandKit(k); if (k.chart && k.chart.palette?.length) setPreviewTab("charte"); }}
+            onKit={(k) => setBrandKit(k)}
           />
 
           <button onClick={exportPng} className="btn-primary w-full">{t("⬇︎ Télécharger (PNG haute déf)", "⬇︎ Download (high-res PNG)")}</button>
 
-          {/* Diffusion : enregistrer puis publier / programmer / intégrer dans une pub */}
-          {hostedUrl ? (
-            <StudioDiffusion
-              companyId={companyId}
-              mediaUrl={hostedUrl}
-              mediaKind="image"
-              defaultText={[headline, subtitle].filter(Boolean).join(" — ")}
-              savedToLibrary={savedToLibrary}
-              onSaveToLibrary={saveToLibrary}
-              saving={savingLib}
-            />
-          ) : (
-            <>
-              <button onClick={saveToLibrary} disabled={savingLib || !canEdit} className="btn-secondary inline-flex w-full items-center justify-center gap-1.5 disabled:opacity-50">
-                {savingLib && <Spinner size={14} className="text-current" />}
-                {savingLib ? t("Enregistrement…", "Saving…") : t("📚 Enregistrer — puis publier / programmer / pub", "📚 Save — then publish / schedule / ad")}
-              </button>
-              <p className="text-2xs text-muted">
-                {t("Enregistrez l'affiche pour pouvoir la publier, la programmer (Facebook / Instagram / TikTok) ou l'intégrer dans une pub Meta.", "Save the poster to publish it, schedule it (Facebook / Instagram / TikTok) or use it in a Meta ad.")}
-              </p>
-            </>
-          )}
+          <button onClick={saveToLibrary} disabled={savingLib || !canEdit} className="btn-secondary inline-flex w-full items-center justify-center gap-1.5 disabled:opacity-50">
+            {savingLib && <Spinner size={14} className="text-current" />}
+            {savingLib ? t("Enregistrement…", "Saving…") : t("📚 Enregistrer dans la bibliothèque", "📚 Save to library")}
+          </button>
           {note && <p className="rounded-lg bg-warning-50 px-3 py-2 text-xs text-warning-700">{note}</p>}
+
+          {/* Diffusion (organique / pub) — toujours disponible : l'affiche
+              enregistrée est sélectionnée d'office, sinon on peut piocher dans
+              la bibliothèque. */}
+          {canEdit && (
+            <StudioDistribution
+              companyId={companyId}
+              producedUrl={posterUrl}
+              producedKind="image"
+              defaultText={[headline, subtitle].filter(Boolean).join(" — ")}
+            />
+          )}
+          {!posterUrl && (
+            <p className="text-2xs text-muted">
+              {t("Astuce : « Enregistrer dans la bibliothèque » pour diffuser l'affiche en cours, ou choisissez un visuel existant ci-dessus.", "Tip: \"Save to library\" to distribute the current poster, or pick an existing visual above.")}
+            </p>
+          )}
         </div>
 
-        {/* ── Grand aperçu ── */}
+        {/* ── Grand aperçu (uniquement l'affiche : #21) ── */}
         <div className="lg:sticky lg:top-20">
-          {/* Bascule Affiche / Charte (visualisation directe à l'écran) */}
-          <div className="mb-3 inline-flex rounded-lg border border-hair bg-canvas p-0.5">
-            {(["affiche", "charte"] as const).map((tab) => {
-              const on = previewTab === tab;
-              const disabled = tab === "charte" && !(brandKit?.chart && brandKit.chart.palette?.length);
-              return (
-                <button
-                  key={tab}
-                  onClick={() => !disabled && setPreviewTab(tab)}
-                  disabled={disabled}
-                  className={`rounded-md px-3.5 py-1.5 text-sm font-semibold transition-colors ${on ? "bg-primary-50 text-primary-700 ring-1 ring-primary-200" : "text-muted hover:text-ink"} ${disabled ? "opacity-40" : ""}`}
-                  title={disabled ? t("Générez d'abord la charte (Brand kit)", "Generate the chart first (Brand kit)") : undefined}
-                >
-                  {tab === "affiche" ? t("Affiche", "Poster") : t("Charte graphique", "Brand guidelines")}
-                </button>
-              );
-            })}
+          <div className="card flex items-center justify-center bg-[repeating-conic-gradient(#f1f1f4_0%_25%,#fafafb_0%_50%)] bg-[length:24px_24px] p-4 sm:p-6">
+            <canvas
+              ref={canvasRef}
+              className="max-h-[70vh] w-auto max-w-full rounded-lg shadow-lg ring-1 ring-hair"
+              style={{ aspectRatio: `${format.w} / ${format.h}` }}
+            />
           </div>
-
-          {previewTab === "charte" && brandKit?.chart ? (
-            <SafeBoundary label="BrandChartView/preview">
-              <BrandChartView chart={brandKit.chart} logoSrc={brandKit.logoUrl} brandName={company.name} />
-            </SafeBoundary>
-          ) : (
-            <>
-              <div className="card flex items-center justify-center bg-[repeating-conic-gradient(#f1f1f4_0%_25%,#fafafb_0%_50%)] bg-[length:24px_24px] p-4 sm:p-6">
-                <canvas
-                  ref={canvasRef}
-                  className="max-h-[70vh] w-auto max-w-full rounded-lg shadow-lg ring-1 ring-hair"
-                  style={{ aspectRatio: `${format.w} / ${format.h}` }}
-                />
-              </div>
-              <p className="mt-2 text-center text-2xs text-muted">
-                {format.label} · {format.w}×{format.h}px{format.print ? t(" · ~150 dpi (impression)", " · ~150 dpi (print)") : ""}
-              </p>
-            </>
-          )}
+          <p className="mt-2 text-center text-2xs text-muted">
+            {format.label} · {format.w}×{format.h}px{format.print ? t(" · ~150 dpi (impression)", " · ~150 dpi (print)") : ""}
+          </p>
         </div>
       </div>
     </div>

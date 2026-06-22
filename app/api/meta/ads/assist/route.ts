@@ -63,7 +63,7 @@ interface ChatMsg { role: "user" | "assistant"; content: string }
 
 export async function POST(req: NextRequest) {
   try {
-    const body = (await req.json()) as { companyId?: string; brief?: string; messages?: ChatMsg[] };
+    const body = (await req.json()) as { companyId?: string; brief?: string; messages?: ChatMsg[]; language?: "fr" | "en" };
     const companyId = body.companyId;
     // Conversation : on accepte une liste de messages OU un brief unique (legacy).
     const messages: ChatMsg[] = Array.isArray(body.messages) && body.messages.length
@@ -125,7 +125,9 @@ Réponds STRICTEMENT en JSON :
    "primaryText","headline","cta","link","visualPrompt","variants":[],
    "conversionEvent","leadForm":{...}|null,"rationale":""
  }
-}`;
+}
+
+${body.language === "en" ? "Write \"reply\" and all ad copy (primaryText, headline, cta…) in ENGLISH." : "Rédige \"reply\" et tous les textes de l'annonce en français."}`;
 
     const result = await callClaudeJSON<{ done?: boolean; reply?: string; plan?: AdPlan | null }>(prompt, { maxTokens: 1900 });
     if (!result) return NextResponse.json({ error: "L'IA n'a pas pu répondre. Reformulez." }, { status: 502 });

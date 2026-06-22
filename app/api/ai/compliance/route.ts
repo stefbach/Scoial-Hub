@@ -3,6 +3,7 @@ export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { env, isAiConfigured } from "@/lib/env";
+import { requireUser } from "@/lib/auth/guard";
 
 type Platform = "facebook" | "instagram" | "linkedin";
 type Verdict = "pass" | "warn" | "block";
@@ -65,6 +66,9 @@ If there are no issues, return: {"verdict": "pass", "issues": []}
 
 export async function POST(req: NextRequest) {
   try {
+    const guard = await requireUser();
+    if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 401 });
+
     const body: RequestBody = await req.json();
     const { text, platform } = body;
 

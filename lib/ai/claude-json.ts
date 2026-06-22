@@ -44,6 +44,10 @@ export interface CallClaudeJSONOptions {
   system?: string;
   /** Température d'échantillonnage optionnelle. */
   temperature?: number;
+  /** Timeout de l'appel en ms (défaut : 30000). À augmenter pour les
+   *  générations lourdes/lentes, tout en restant SOUS la limite de durée de la
+   *  fonction serverless pour éviter un 504. */
+  timeoutMs?: number;
 }
 
 /**
@@ -59,15 +63,22 @@ export async function callClaudeJSON<T>(
 
   try {
     const Anthropic = (await import("@anthropic-ai/sdk")).default;
-    const client = new Anthropic({ apiKey: env.anthropicKey });
+    // maxRetries 0 : pas de ré-essai interne du SDK qui cumulerait les délais.
+    const client = new Anthropic({ apiKey: env.anthropicKey, maxRetries: 0 });
 
-    const message = await client.messages.create({
-      model: opts.model ?? env.anthropicModel,
-      max_tokens: opts.maxTokens ?? 1500,
-      ...(opts.system ? { system: opts.system } : {}),
-      ...(opts.temperature !== undefined ? { temperature: opts.temperature } : {}),
-      messages: [{ role: "user", content: prompt }],
-    });
+    // timeout par appel : un appel qui « pend » (latence/surcharge côté API) doit
+    // échouer pour rester SOUS la limite de durée de la fonction serverless
+    // (sinon 504). 30s par défaut ; surchargeable pour les générations lourdes.
+    const message = await client.messages.create(
+      {
+        model: opts.model ?? env.anthropicModel,
+        max_tokens: opts.maxTokens ?? 1500,
+        ...(opts.system ? { system: opts.system } : {}),
+        ...(opts.temperature !== undefined ? { temperature: opts.temperature } : {}),
+        messages: [{ role: "user", content: prompt }],
+      },
+      { timeout: opts.timeoutMs ?? 30_000 }
+    );
 
     // Concatène les blocs texte de la réponse, en retirant les éventuelles
     // clôtures Markdown (```json … ```).
@@ -81,22 +92,81 @@ export async function callClaudeJSON<T>(
 
     // Extrait le premier objet JSON présent dans la réponse.
     const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) return null;
-
-    try {
-      return JSON.parse(jsonMatch[0]) as T;
-    } catch {
-      // Réponse probablement tronquée (max_tokens) → tente une réparation simple
-      // en fermant les structures ouvertes après le dernier élément complet.
-      const repaired = repairTruncatedJson(jsonMatch[0]);
-      if (repaired) {
-        try { return JSON.parse(repaired) as T; } catch { /* abandon */ }
-      }
+    if (!jsonMatch) {
+      const stop = (message as { stop_reason?: string }).stop_reason;
+      console.warn(`[callClaudeJSON] aucun JSON (stop_reason=${stop}):`, rawText.slice(0, 160));
       return null;
     }
-  } catch {
+
+    // Tentatives en cascade, de la plus fidèle à la plus permissive :
+    //  1) tel quel ;
+    //  2) caractères de contrôle bruts (retours à la ligne non échappés dans les
+    //     chaînes) corrigés — cause n°1 d'échec de parsing des réponses LLM ;
+    //  3) réparation d'une troncature (max_tokens) sur la version échappée.
+    const candidate = jsonMatch[0];
+    const escaped = escapeRawControlChars(candidate);
+    const attempts = [candidate, escaped, repairTruncatedJson(escaped) ?? ""];
+    for (const attempt of attempts) {
+      if (!attempt) continue;
+      try {
+        return JSON.parse(attempt) as T;
+      } catch {
+        /* tentative suivante */
+      }
+    }
+    const stop = (message as { stop_reason?: string }).stop_reason;
+    console.warn(`[callClaudeJSON] JSON non parsable (stop_reason=${stop}):`, candidate.slice(0, 220));
+    return null;
+  } catch (e) {
+    console.error("[callClaudeJSON] appel IA échoué:", e instanceof Error ? e.message : e);
     return null;
   }
+}
+
+/**
+ * Échappe les caractères de contrôle bruts (retour à la ligne, tabulation, etc.)
+ * présents À L'INTÉRIEUR des chaînes JSON. Les LLM insèrent souvent des sauts de
+ * ligne littéraux dans les valeurs textuelles, ce qui rend le JSON invalide.
+ * On ne touche pas aux caractères hors chaînes (mise en forme du JSON).
+ */
+function escapeRawControlChars(s: string): string {
+  let out = "";
+  let inStr = false;
+  let esc = false;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (esc) { out += ch; esc = false; continue; }
+    if (ch === "\\") { out += ch; esc = true; continue; }
+    if (ch === '"') { inStr = !inStr; out += ch; continue; }
+    if (inStr) {
+      if (ch === "\n") { out += "\\n"; continue; }
+      if (ch === "\r") { out += "\\r"; continue; }
+      if (ch === "\t") { out += "\\t"; continue; }
+      const code = ch.charCodeAt(0);
+      if (code < 0x20) { out += "\\u" + code.toString(16).padStart(4, "0"); continue; }
+    }
+    out += ch;
+  }
+  return out;
+}
+
+/**
+ * Comme `callClaudeJSON`, mais réessaie après un court délai si le résultat est
+ * `null` — utile contre les échecs TRANSITOIRES du modèle (surcharge 529, limite
+ * de débit, réponse occasionnellement non parsable). `retries` = nombre de
+ * tentatives supplémentaires (1 par défaut → 2 appels au total au pire).
+ */
+export async function callClaudeJSONRetry<T>(
+  prompt: string,
+  opts: CallClaudeJSONOptions = {},
+  retries = 1
+): Promise<T | null> {
+  for (let i = 0; i <= retries; i++) {
+    const result = await callClaudeJSON<T>(prompt, opts);
+    if (result) return result;
+    if (i < retries) await new Promise((res) => setTimeout(res, 700 * (i + 1)));
+  }
+  return null;
 }
 
 /**

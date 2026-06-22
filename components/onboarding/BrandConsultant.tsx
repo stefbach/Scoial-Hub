@@ -94,6 +94,10 @@ export function BrandConsultant({
   const [error, setError] = useState<string | null>(null);
 
   const [dna, setDna] = useState<BrandDna>({});
+  // Langue dans laquelle l'ADN actuel a été rédigé (#4) : permet de proposer une
+  // régénération quand l'utilisateur change la langue après coup.
+  const [dnaLang, setDnaLang] = useState<string | null>(null);
+  const [retranslating, setRetranslating] = useState(false);
   const [readyToLock, setReadyToLock] = useState(false);
   const [visualPrompts, setVisualPrompts] = useState<string[]>([]);
 
@@ -133,6 +137,7 @@ export function BrandConsultant({
     kicked.current = false;
     setMessages([]);
     setDna({});
+    setDnaLang(null);
     setReadyToLock(false);
     setVisualPrompts([]);
     setVisuals([]);
@@ -143,12 +148,14 @@ export function BrandConsultant({
         const saved = JSON.parse(raw) as {
           messages?: ChatMsg[];
           dna?: BrandDna;
+          dnaLang?: string;
           visualPrompts?: string[];
           readyToLock?: boolean;
         };
         if (Array.isArray(saved.messages) && saved.messages.length) {
           setMessages(saved.messages);
           if (saved.dna) setDna(saved.dna);
+          if (typeof saved.dnaLang === "string") setDnaLang(saved.dnaLang);
           if (Array.isArray(saved.visualPrompts)) setVisualPrompts(saved.visualPrompts);
           if (typeof saved.readyToLock === "boolean") setReadyToLock(saved.readyToLock);
           kicked.current = true; // historique présent : pas de message d'accueil
@@ -157,13 +164,51 @@ export function BrandConsultant({
     } catch { /* stockage indisponible : on repart à vide */ }
   }, [storageKey]);
 
+  // #5 — Hydratation depuis le serveur : si aucun fil local n'existe (cache vidé
+  // ou autre appareil), on recharge l'ADN enregistré/verrouillé pour qu'il ne
+  // disparaisse pas au rechargement. Le fil local, s'il existe, reste prioritaire.
+  useEffect(() => {
+    let alive = true;
+    try { if (localStorage.getItem(storageKey)) return; } catch { /* continue */ }
+    fetch(`/api/onboarding/state?companyId=${encodeURIComponent(companyId)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!alive || !d?.profile) return;
+        const p = d.profile as BrandProfile;
+        const hasDna = Boolean(p.summary || p.positioning || p.mission || (p.values?.length));
+        if (!hasDna) return;
+        setDna({
+          summary: p.summary || undefined,
+          positioning: p.positioning || undefined,
+          mission: p.mission || undefined,
+          values: p.values?.length ? p.values : undefined,
+          keyMessage: p.keyMessage || undefined,
+          personality: p.personality?.length ? p.personality : undefined,
+          tone: p.tone || undefined,
+          audience: p.audience || undefined,
+          themes: p.themes?.length ? p.themes : undefined,
+          visualDirection: p.visualDirection || undefined,
+          keywords: p.keywords?.length ? p.keywords : undefined,
+          networkStrategies: (p.networkStrategies as unknown as NetStrategy[]) ?? undefined,
+        });
+        setReadyToLock(true);
+        if (p.philosophyLocked) setLocked(true);
+        kicked.current = true; // pas de message d'accueil : on a déjà un ADN
+        setMessages([{ role: "assistant", content: p.philosophyLocked
+          ? t("Votre identité de marque verrouillée est chargée ci-dessous. Vous pouvez l'affiner ou la reverrouiller.", "Your locked brand identity is loaded below. You can refine or re-lock it.")
+          : t("Votre identité de marque enregistrée est chargée ci-dessous. Reprenez l'entretien pour la compléter.", "Your saved brand identity is loaded below. Resume the interview to complete it.") }]);
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [companyId, storageKey, t]);
+
   // Persistance locale de la conversation (ne jamais écraser avec du vide).
   useEffect(() => {
     if (!restored.current || messages.length === 0) return;
     try {
-      localStorage.setItem(storageKey, JSON.stringify({ messages, dna, visualPrompts, readyToLock }));
+      localStorage.setItem(storageKey, JSON.stringify({ messages, dna, dnaLang, visualPrompts, readyToLock }));
     } catch { /* ignore */ }
-  }, [messages, dna, visualPrompts, readyToLock, storageKey]);
+  }, [messages, dna, dnaLang, visualPrompts, readyToLock, storageKey]);
 
   // ── Appel d'un tour de conversation ────────────────────────────────────────
   const turn = useCallback(
@@ -191,6 +236,7 @@ export function BrandConsultant({
             }
             return next;
           });
+          setDnaLang(lang); // l'ADN reçu est rédigé dans la langue courante (#4)
         }
         setReadyToLock(Boolean(data.readyToLock));
         if (Array.isArray(data.visualPrompts) && data.visualPrompts.length) {
@@ -213,6 +259,45 @@ export function BrandConsultant({
     setInput("");
     turn(next);
   }, [input, sending, messages, turn]);
+
+  // ── Régénération de l'ADN dans la langue courante (#4) ─────────────────────
+  // Quand l'utilisateur change de langue après avoir généré l'ADN, on propose de
+  // le réexprimer dans la nouvelle langue, SANS polluer le fil de conversation.
+  const retranslateDna = useCallback(async () => {
+    if (retranslating || sending) return;
+    setRetranslating(true);
+    setError(null);
+    try {
+      const target = lang === "en" ? "English" : "français";
+      const instruction =
+        `Réexprime INTÉGRALEMENT l'ADN de marque suivant en ${target}, en conservant exactement le même sens et la même structure. ` +
+        `Renvoie uniquement l'ADN structuré traduit (champ "dna").\nADN actuel :\n${JSON.stringify(dna)}`;
+      const history = [...messages, { role: "user" as const, content: instruction }];
+      const res = await fetch("/api/ai/consultant", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyId, messages: history, language: lang }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || `Erreur ${res.status}`);
+      if (data.dna) {
+        setDna((prev) => {
+          const next: BrandDna = { ...prev };
+          const d = data.dna as Record<string, unknown>;
+          for (const [k, v] of Object.entries(d)) {
+            const empty = v == null || v === "" || (Array.isArray(v) && v.length === 0);
+            if (!empty) (next as Record<string, unknown>)[k] = v;
+          }
+          return next;
+        });
+      }
+      setDnaLang(lang);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t("Régénération impossible.", "Couldn't regenerate."));
+    } finally {
+      setRetranslating(false);
+    }
+  }, [retranslating, sending, lang, dna, messages, companyId, t]);
 
   // ── Génération des tests visuels (moodboard) ───────────────────────────────
   const generateVisuals = useCallback(async () => {
@@ -309,6 +394,7 @@ export function BrandConsultant({
     try { localStorage.removeItem(storageKey); } catch { /* ignore */ }
     setMessages([]);
     setDna({});
+    setDnaLang(null);
     setReadyToLock(false);
     setVisualPrompts([]);
     setVisuals([]);
@@ -417,6 +503,28 @@ export function BrandConsultant({
             )}
             {locked && <span className="chip text-success-600">✓ {t("Verrouillé", "Locked")}</span>}
           </div>
+
+          {/* #4 — l'ADN a été rédigé dans une autre langue que celle sélectionnée */}
+          {hasDna && dnaLang && dnaLang !== lang && (
+            <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-warning-200 bg-warning-50 px-3 py-2 text-2xs text-warning-700">
+              <span className="flex-1">
+                {t(
+                  "Cet ADN a été rédigé dans une autre langue. Régénérez-le dans la langue sélectionnée ?",
+                  "This DNA was written in another language. Regenerate it in the selected language?"
+                )}
+              </span>
+              <button
+                type="button"
+                onClick={retranslateDna}
+                disabled={retranslating}
+                className="btn-secondary shrink-0 text-2xs disabled:opacity-50"
+              >
+                {retranslating
+                  ? t("Régénération…", "Regenerating…")
+                  : t(`Régénérer en ${lang === "en" ? "anglais" : "français"}`, `Regenerate in ${lang === "en" ? "English" : "French"}`)}
+              </button>
+            </div>
+          )}
 
           {!hasDna ? (
             <p className="mt-3 text-sm text-muted">

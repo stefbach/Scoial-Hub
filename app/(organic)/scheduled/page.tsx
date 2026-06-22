@@ -36,6 +36,14 @@ function ScheduledContent() {
   // ── Fusion des posts réels Supabase ──────────────────────────────────────
   const [apiPosts, setApiPosts] = useState<ScheduledPost[]>([]);
   const fetchedForCompany = useRef<string | null>(null);
+  // Mises à jour optimistes : un post supprimé/replanifié doit disparaître ou se
+  // mettre à jour IMMÉDIATEMENT, sans attendre un rechargement (les données de
+  // contexte `data.scheduled` ne sont pas rafraîchies et ré-affichaient l'ancien).
+  const [removedIds, setRemovedIds] = useState<Set<string>>(new Set());
+  const [overrides, setOverrides] = useState<Record<string, { date?: string; time?: string }>>({});
+  const markRemoved = useCallback((id: string) => setRemovedIds((prev) => new Set(prev).add(id)), []);
+  const markRescheduled = useCallback((id: string, date: string, time: string) =>
+    setOverrides((prev) => ({ ...prev, [id]: { date, time } })), []);
 
   const fetchPosts = useCallback(async () => {
     if (!company.id) return;
@@ -54,16 +62,24 @@ function ScheduledContent() {
 
   useEffect(() => {
     fetchPosts();
-    const handleFocus = () => { fetchPosts(); };
+    // Refetch au retour sur l'onglet — anti-rebond pour éviter une rafale de
+    // requêtes si on alt-tab plusieurs fois rapidement.
+    let t: ReturnType<typeof setTimeout> | null = null;
+    const handleFocus = () => {
+      if (t) clearTimeout(t);
+      t = setTimeout(() => { fetchPosts(); }, 1000);
+    };
     window.addEventListener("focus", handleFocus);
-    return () => { window.removeEventListener("focus", handleFocus); };
+    return () => { if (t) clearTimeout(t); window.removeEventListener("focus", handleFocus); };
   }, [fetchPosts]);
 
   const mergedScheduled = useMemo(() => {
     const apiIds = new Set(apiPosts.map((p) => p.id));
     const localOnly = data.scheduled.filter((p) => !apiIds.has(p.id));
-    return [...apiPosts, ...localOnly];
-  }, [apiPosts, data.scheduled]);
+    return [...apiPosts, ...localOnly]
+      .filter((p) => !removedIds.has(p.id)) // supprimés → masqués tout de suite
+      .map((p) => (overrides[p.id] ? { ...p, ...overrides[p.id] } : p)); // date/heure replanifiées
+  }, [apiPosts, data.scheduled, removedIds, overrides]);
 
   const param = params.get("tab");
   const tab: TabId = param === "scheduled" || param === "drafts" ? param : "all";
@@ -79,12 +95,13 @@ function ScheduledContent() {
     if (typeof window !== "undefined" && !window.confirm(
       t("Supprimer cette publication ? Cette action est irréversible.", "Delete this post? This cannot be undone.")
     )) return;
+    markRemoved(post.id); // disparaît immédiatement de la liste
     try {
       await fetch(`/api/scheduled-posts/${post.id}`, { method: "DELETE" });
     } catch { /* repli store local */ }
     deletePost(company.id, post.id);
     await fetchPosts();
-  }, [company.id, fetchPosts, t]);
+  }, [company.id, fetchPosts, t, markRemoved]);
 
   const isScheduledStatus = (p: ScheduledPost) => !isDraft(p);
   const counts = {
@@ -224,6 +241,8 @@ function ScheduledContent() {
         post={openPost}
         onClose={() => setOpenPost(null)}
         onChanged={fetchPosts}
+        onOptimisticDelete={markRemoved}
+        onOptimisticReschedule={markRescheduled}
       />
     </div>
   );

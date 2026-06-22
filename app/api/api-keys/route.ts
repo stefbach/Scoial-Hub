@@ -9,12 +9,15 @@ export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
 import { createApiKey, listApiKeys } from "@/lib/api-keys";
 import { resolveCompanyUuid } from "@/lib/repositories/resolve-company";
+import { requireCompanyAccess } from "@/lib/auth/guard";
 
 export async function GET(req: NextRequest) {
   const companyId = req.nextUrl.searchParams.get("companyId");
   if (!companyId) {
     return NextResponse.json({ error: "companyId requis" }, { status: 400 });
   }
+  const guard = await requireCompanyAccess(companyId);
+  if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
   const keys = await listApiKeys(await resolveCompanyUuid(companyId));
   return NextResponse.json(keys);
 }
@@ -25,6 +28,8 @@ export async function POST(req: NextRequest) {
     if (!body.companyId) {
       return NextResponse.json({ error: "companyId requis" }, { status: 400 });
     }
+    const guard = await requireCompanyAccess(body.companyId, { mode: "edit" });
+    if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
     const created = await createApiKey(await resolveCompanyUuid(body.companyId), body.name ?? "Clé MCP");
     if (!created) {
       return NextResponse.json({ error: "Échec de la création" }, { status: 500 });

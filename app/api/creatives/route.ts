@@ -15,6 +15,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/env";
 import { resolveCompanyUuid } from "@/lib/repositories/resolve-company";
+import { requireCompanyAccess } from "@/lib/auth/guard";
 import { fetchAdsScrapeCreators, isScrapeCreatorsConfigured } from "@/lib/scraping/ad-library";
 import type { CompetitorContent } from "@/lib/scraping/types";
 
@@ -38,6 +39,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   if (!companyId) {
     return NextResponse.json({ error: "companyId requis" }, { status: 400 });
   }
+  const guard = await requireCompanyAccess(companyId);
+  if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
 
   const creatives: CreativeItem[] = [];
 

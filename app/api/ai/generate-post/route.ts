@@ -3,6 +3,7 @@ export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { env, isAiConfigured } from "@/lib/env";
+import { requireUser, requireCompanyAccess } from "@/lib/auth/guard";
 
 type Action = "generate" | "rewrite" | "shorten" | "hashtags";
 type Platform = "facebook" | "instagram" | "linkedin" | "tiktok";
@@ -88,6 +89,10 @@ export async function POST(req: NextRequest) {
   try {
     const body: RequestBody = await req.json();
     const { prompt, platform, brandVoice, action, objective, companyId, language, useMemory } = body;
+
+    // Auth : si une société est ciblée (mémoire RAG), exiger l'accès ; sinon session.
+    const guard = companyId ? await requireCompanyAccess(companyId, { mode: "edit" }) : await requireUser();
+    if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 401 });
 
     if (!prompt || !platform || !action) {
       return NextResponse.json(

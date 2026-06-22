@@ -10,7 +10,6 @@ import { useT } from "@/lib/i18n";
 import { Spinner, BusyHint } from "@/components/ui/Spinner";
 import { DatePicker, TimePicker } from "@/components/ui/DateTimePicker";
 import { ArticleStudio } from "@/components/linkedin/ArticleStudio";
-import { LinkedInScheduler } from "@/components/linkedin/LinkedInScheduler";
 import { ConnectGuide } from "@/components/connect/ConnectGuide";
 
 interface Account {
@@ -60,34 +59,28 @@ export default function LinkedInPage() {
   const [analyzing, setAnalyzing] = useState(false);
 
   const [guide, setGuide] = useState(false);
-  const [tab, setTab] = useState<"publish" | "article" | "schedule">("publish");
+  // Graine « Utiliser cette idée » → préremplit le studio (espace unique).
+  const [seed, setSeed] = useState<{ nonce: number; text: string } | undefined>();
 
   // Planification d'un post unique (onglet Publication)
   const [schedDate, setSchedDate] = useState<Date>(() => addDays(new Date(), 1));
   const [schedTime, setSchedTime] = useState("09:00");
   const [scheduling, setScheduling] = useState(false);
 
-  // Onglet initial depuis l'URL (?tab=article|schedule) — ex. lien/redirection.
-  useEffect(() => {
-    try {
-      const q = new URLSearchParams(window.location.search).get("tab");
-      if (q === "article" || q === "schedule") setTab(q);
-    } catch { /* ignore */ }
-  }, []);
-
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await fetch(`/api/linkedin/account?companyId=${encodeURIComponent(companyId)}`);
+      // Les deux appels sont indépendants → en parallèle (au lieu de séquentiel).
+      const [r, tr] = await Promise.all([
+        fetch(`/api/linkedin/account?companyId=${encodeURIComponent(companyId)}`),
+        fetch(`/api/linkedin/targets?companyId=${encodeURIComponent(companyId)}`),
+      ]);
       const acc = r.ok ? await r.json() : { connected: false };
       setAccount(acc);
-      if (acc.connected) {
-        const tr = await fetch(`/api/linkedin/targets?companyId=${encodeURIComponent(companyId)}`);
-        if (tr.ok) {
-          const tg = (await tr.json()) as Targets;
-          setTargets(tg);
-          setSelected(tg.selected || tg.person?.urn || "");
-        }
+      if (acc.connected && tr.ok) {
+        const tg = (await tr.json()) as Targets;
+        setTargets(tg);
+        setSelected(tg.selected || tg.person?.urn || "");
       }
     } catch {
       setAccount({ connected: false });
@@ -193,7 +186,7 @@ export default function LinkedInPage() {
         <p className="section-label text-primary-500">LinkedIn</p>
         <h1 className="mt-1 text-2xl font-bold tracking-tight text-ink">{t("Votre espace LinkedIn", "Your LinkedIn space")}</h1>
         <p className="mt-1 max-w-2xl text-sm text-muted">
-          {t("Compte connecté, publication, stratégie, et studio d'articles & visuels LinkedIn.", "Connected account, publishing, strategy, and LinkedIn article & visuals studio.")}
+          {t("Un seul espace « Articles & visuels » : écrivez, publiez ou programmez, gérez la file d'attente et continuez à écrire — tout au même endroit.", "One “Articles & visuals” space: write, publish or schedule, manage the queue and keep writing — all in one place.")}
         </p>
       </header>
 
@@ -226,35 +219,10 @@ export default function LinkedInPage() {
         </div>
       )}
 
-      {/* Onglets : Publication & stratégie | Programmation | Article & visuels */}
-      <div className="flex gap-1 rounded-xl border border-hair bg-card p-1">
-        {([
-          { id: "publish", label: t("Publication & stratégie", "Publishing & strategy") },
-          { id: "schedule", label: t("Programmation", "Scheduling") },
-          { id: "article", label: t("Article & visuels", "Article & visuals") },
-        ] as const).map((tb) => (
-          <button
-            key={tb.id}
-            onClick={() => setTab(tb.id)}
-            className={`flex-1 rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
-              tab === tb.id ? "bg-page text-white" : "text-muted hover:text-ink"
-            }`}
-          >
-            {tb.label}
-          </button>
-        ))}
-      </div>
-
-      {tab === "article" && <ArticleStudio />}
-
-      {tab === "schedule" && <LinkedInScheduler />}
-
-      {tab === "publish" && (
-      <>
-      {/* Publication */}
+      {/* Espace unique « Articles & visuels » — connexion + cible LinkedIn */}
       <section className="card p-5 space-y-3">
         <div className="flex items-center justify-between">
-          <span className="section-label">{t("Publier sur LinkedIn", "Publish to LinkedIn")}</span>
+          <span className="section-label">{t("Connexion LinkedIn", "LinkedIn connection")}</span>
         </div>
 
         {/* CONNECT-FIRST : si non connecté, message clair + CTA avant toute saisie */}
@@ -310,48 +278,12 @@ export default function LinkedInPage() {
           </div>
         )}
 
-        <textarea value={text} onChange={(e) => setText(e.target.value)} rows={5} placeholder={t("Votre publication LinkedIn… (ou laissez l'IA écrire)", "Your LinkedIn post… (or let the AI write it)")} className={inputCls} />
-        <input value={link} onChange={(e) => setLink(e.target.value)} placeholder={t("Lien à partager (optionnel)", "Link to share (optional)")} className={inputCls} />
-        <div className="flex flex-wrap items-center gap-2">
-          <button onClick={writeWithAI} disabled={writing} className="btn-secondary inline-flex items-center gap-1.5 text-xs disabled:opacity-50">
-            {writing && <Spinner size={14} className="text-current" />}
-            {writing ? t("Rédaction…", "Writing…") : t("✨ Rédiger avec l'IA", "✨ Write with AI")}
-          </button>
-          <label className="inline-flex cursor-pointer items-center gap-1.5 text-2xs text-muted" title={t("S'appuyer sur votre marque et votre veille (RAG). Décoché : rédaction libre.", "Ground in your brand & insights (RAG). Unchecked: free writing.")}>
-            <input type="checkbox" checked={useMemory} onChange={(e) => setUseMemory(e.target.checked)} className="h-3.5 w-3.5 accent-primary-600" />
-            {t("S'appuyer sur la marque (RAG)", "Ground in brand (RAG)")}
-          </label>
-          <button onClick={publish} disabled={publishing || scheduling || !canEdit} title={!canEdit ? t("Lecture seule", "View only") : undefined} className="btn-primary ml-auto inline-flex items-center gap-1.5 text-sm disabled:opacity-50">
-            {publishing && <Spinner size={16} className="text-white" />}
-            {publishing ? t("Publication…", "Publishing…") : t("Publier maintenant", "Publish now")}
-          </button>
         </div>
-
-        {/* Planifier pour plus tard */}
-        <div className="mt-3 flex flex-wrap items-end gap-3 rounded-xl border border-hair bg-canvas p-3">
-          <div className="w-44">
-            <p className="section-label">{t("Date", "Date")}</p>
-            <div className="mt-1"><DatePicker value={schedDate} onChange={setSchedDate} /></div>
-          </div>
-          <div className="w-24">
-            <p className="section-label">{t("Heure", "Time")}</p>
-            <div className="mt-1"><TimePicker value={schedTime} onChange={setSchedTime} /></div>
-          </div>
-          <button onClick={schedule} disabled={scheduling || publishing || !canEdit} title={!canEdit ? t("Lecture seule", "View only") : undefined} className="btn-secondary ml-auto inline-flex items-center gap-1.5 text-sm disabled:opacity-50">
-            {scheduling && <Spinner size={16} className="text-current" />}
-            {scheduling ? t("Planification…", "Scheduling…") : t("📅 Planifier", "📅 Schedule")}
-          </button>
-          <p className="w-full text-2xs text-muted">
-            {t(
-              "Les publications programmées partent automatiquement (vérification toutes les 10 min). File d'attente dans l'onglet Programmation.",
-              "Scheduled posts go out automatically (checked every 10 min). Queue in the Scheduling tab."
-            )}
-          </p>
-        </div>
-        {publishing && <BusyHint label={t("Publication sur LinkedIn…", "Publishing to LinkedIn…")} eta="~5 s" />}
-        {pubMsg && <p className="rounded-lg bg-canvas px-3 py-2 text-xs text-ink">{pubMsg}</p>}
-        </div>
+        <p className="text-2xs text-muted">{t("La cible choisie s'applique à toutes vos publications & programmations LinkedIn.", "The chosen target applies to all your LinkedIn posts & scheduled posts.")}</p>
       </section>
+
+      {/* Le studio = écrire · publier tout de suite · programmer · file d'attente */}
+      <ArticleStudio seed={seed} />
 
       {/* Stratégie */}
       <section className="space-y-3">
@@ -403,7 +335,7 @@ export default function LinkedInPage() {
                         <p className="break-words text-sm font-semibold text-ink">{idea.title}</p>
                         <p className="break-words text-xs text-muted">{idea.hook}</p>
                       </div>
-                      <button onClick={() => { setText(`${idea.hook}\n\n`); window.scrollTo({ top: 0, behavior: "smooth" }); }} className="btn-secondary shrink-0 self-start text-2xs">
+                      <button onClick={() => { setSeed({ nonce: Date.now(), text: `${idea.title} — ${idea.hook}` }); window.scrollTo({ top: 0, behavior: "smooth" }); }} className="btn-secondary shrink-0 self-start text-2xs">
                         {t("Utiliser", "Use")}
                       </button>
                     </li>
@@ -433,8 +365,6 @@ export default function LinkedInPage() {
           </div>
         )}
       </section>
-      </>
-      )}
 
       <ConnectGuide
         open={guide}

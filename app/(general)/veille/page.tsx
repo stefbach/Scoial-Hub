@@ -42,6 +42,17 @@ interface RunResult {
   finishedAt: string;
 }
 
+// #3 — sauvegarde locale du dernier résultat de veille (par société), pour le
+// restaurer au rechargement de la page.
+function saveVeilleResult(companyId: string, result: RunResult | null) {
+  try {
+    if (typeof window === "undefined") return;
+    const key = `veille_result_${companyId}`;
+    if (result) localStorage.setItem(key, JSON.stringify(result));
+    else localStorage.removeItem(key);
+  } catch { /* quota / mode privé : non bloquant */ }
+}
+
 const NETWORKS: { value: ScrapeNetwork; label: string }[] = [
   { value: "instagram", label: "Instagram" },
   { value: "tiktok",    label: "TikTok" },
@@ -141,6 +152,10 @@ export default function VeillePage() {
   const [runError, setRunError] = useState<string | null>(null);
   // Incrémenté après une analyse → force le StrategyPanel à recharger le brief.
   const [memoryRefresh, setMemoryRefresh] = useState(0);
+  // #5 — langue dans laquelle l'analyse IA a été rédigée (pour proposer une
+  // régénération si l'utilisateur change la langue après coup).
+  const [analysisLang, setAnalysisLang] = useState<string | null>(null);
+  const [reanalyzing, setReanalyzing] = useState(false);
 
   // Onglets résultats
   const [activeTab, setActiveTab] = useState<"contenus" | "analyse">("analyse");
@@ -185,7 +200,23 @@ export default function VeillePage() {
     };
   }, [company.id]);
 
-  /* ── Ajout d'un compétiteur ── */
+  // #3 — Persistance de l'analyse : on restaure le dernier résultat au montage
+  // (et à chaque changement de société) pour qu'il survive à un rechargement.
+  // Le résultat complet (contenus + analyse) est gardé en localStorage par
+  // société — l'endpoint serveur /latest ne renvoyant qu'un résumé.
+  useEffect(() => {
+    let saved: RunResult | null = null;
+    try {
+      const raw = typeof window !== "undefined" ? localStorage.getItem(`veille_result_${company.id}`) : null;
+      if (raw) saved = JSON.parse(raw) as RunResult;
+    } catch { saved = null; }
+    if (saved && saved.analysis) { setResult(saved); setActiveTab("analyse"); }
+    else setResult(null);
+    try {
+      const l = typeof window !== "undefined" ? localStorage.getItem(`veille_analysis_lang_${company.id}`) : null;
+      setAnalysisLang(l || null);
+    } catch { setAnalysisLang(null); }
+  }, [company.id]);
   async function handleAddCompetitor() {
     if (!addHandle.trim()) return;
     setAdding(true);
@@ -265,7 +296,7 @@ export default function VeillePage() {
       const res = await fetch("/api/veille/identify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyId: company.id, theme, keywords, geo }),
+        body: JSON.stringify({ companyId: company.id, theme, keywords, geo, language: lang }),
       });
       if (res.ok) {
         const data = await res.json() as { competitors: IdentifiedCompetitor[] };
@@ -305,6 +336,7 @@ export default function VeillePage() {
       // Étape 1 : afficher tout de suite les contenus collectés.
       setResult(data);
       setActiveTab("analyse");
+      saveVeilleResult(company.id, data); // #3 — persiste (survit au reload)
 
       // Étape 2 : analyse IA (Claude) séparée → ne dépasse jamais 60 s.
       setAnalyzing(true);
@@ -323,7 +355,13 @@ export default function VeillePage() {
         });
         if (ares.ok) {
           const adata = await ares.json() as { analysis: RunResult["analysis"] };
-          setResult((prev) => (prev ? { ...prev, analysis: adata.analysis } : prev));
+          setResult((prev) => {
+            const next = prev ? { ...prev, analysis: adata.analysis } : prev;
+            if (next) saveVeilleResult(company.id, next); // #3 — persiste l'analyse enrichie
+            return next;
+          });
+          setAnalysisLang(lang); // #5 — mémorise la langue de rédaction
+          try { localStorage.setItem(`veille_analysis_lang_${company.id}`, lang); } catch { /* non bloquant */ }
           // L'analyse vient d'être persistée en mémoire stratégique → on
           // régénère le brief IA en tâche de fond (fire-and-forget). À l'issue de
           // la synthèse, on signale au StrategyPanel de se rafraîchir (sans clic).
@@ -347,6 +385,35 @@ export default function VeillePage() {
       console.error("[veille run]", err);
     } finally {
       setRunning(false);
+    }
+  }
+
+  // #5 — Régénère l'analyse IA dans la langue courante en réutilisant les contenus
+  // déjà collectés (pas de nouveau scraping), quand la langue a changé après coup.
+  async function reanalyzeInLang() {
+    const contents = result?.scrape?.contents ?? [];
+    if (reanalyzing || contents.length === 0) return;
+    setReanalyzing(true);
+    try {
+      const ares = await fetch("/api/veille/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyId: company.id, contents, geo, keywords, theme, language: lang }),
+      });
+      if (ares.ok) {
+        const adata = await ares.json() as { analysis: RunResult["analysis"] };
+        setResult((prev) => {
+          const next = prev ? { ...prev, analysis: adata.analysis } : prev;
+          if (next) saveVeilleResult(company.id, next);
+          return next;
+        });
+        setAnalysisLang(lang);
+        try { localStorage.setItem(`veille_analysis_lang_${company.id}`, lang); } catch { /* non bloquant */ }
+      }
+    } catch (e) {
+      console.warn("[veille reanalyze]", e);
+    } finally {
+      setReanalyzing(false);
     }
   }
 
@@ -709,7 +776,41 @@ export default function VeillePage() {
                 {activeTab === "analyse" && (
                   <div>
                     {result.analysis ? (
-                      <AnalysisPanel analysis={result.analysis} />
+                      <>
+                        {/* #5 — l'analyse a été rédigée dans une autre langue */}
+                        {analysisLang && analysisLang !== lang && (
+                          <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-warning-200 bg-warning-50 px-3 py-2 text-2xs text-warning-700">
+                            <span className="flex-1">
+                              {t(
+                                "Cette analyse a été rédigée dans une autre langue. La régénérer dans la langue sélectionnée ?",
+                                "This analysis was written in another language. Regenerate it in the selected language?"
+                              )}
+                            </span>
+                            <button type="button" onClick={reanalyzeInLang} disabled={reanalyzing} className="btn-secondary shrink-0 text-2xs disabled:opacity-50">
+                              {reanalyzing
+                                ? t("Régénération…", "Regenerating…")
+                                : t(`Régénérer en ${lang === "en" ? "anglais" : "français"}`, `Regenerate in ${lang === "en" ? "English" : "French"}`)}
+                            </button>
+                          </div>
+                        )}
+                        <AnalysisPanel analysis={result.analysis} />
+                        {/* #16 — passer directement de l'analyse à une campagne (préremplie) */}
+                        <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-hair pt-4">
+                          <a
+                            href={`/campaigns/new?${new URLSearchParams({
+                              name: t("Campagne — enseignements veille", "Campaign — watch insights"),
+                              text: [result.analysis.resume, result.analysis.recommandations?.[0]?.action]
+                                .filter(Boolean).join(" ").slice(0, 600),
+                            }).toString()}`}
+                            className="btn-primary text-sm"
+                          >
+                            {t("🎯 Créer une campagne avec ces enseignements", "🎯 Create a campaign with these insights")}
+                          </a>
+                          <p className="min-w-0 flex-1 text-2xs text-muted">
+                            {t("Le résumé et la recommandation prioritaire préremplissent la création de campagne.", "The summary and top recommendation pre-fill the campaign creation.")}
+                          </p>
+                        </div>
+                      </>
                     ) : analyzing ? (
                       <div className="card flex items-center justify-center gap-3 p-8">
                         <Spinner />
@@ -747,7 +848,7 @@ function FlowBanner({ t }: { t: (fr: string, en: string) => string }) {
       <div className="flex flex-wrap items-stretch gap-2">
         {steps.map((s, i) => (
           <div key={s.en} className="flex items-center gap-2 min-w-0">
-            <div className="flex items-center gap-2 rounded-lg border border-hair bg-card px-3 py-1.5 min-w-0">
+            <div className="flex items-center gap-2 rounded-lg bg-canvas px-3 py-1.5 min-w-0">
               <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary-100 text-2xs font-bold text-primary-700">
                 {i + 1}
               </span>

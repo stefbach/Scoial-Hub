@@ -23,7 +23,10 @@ import BrandKitPanel from "@/components/studio/BrandKitPanel";
 import { StudioHero, StudioStep } from "@/components/studio/StudioUI";
 import { StudioCopilot, type CopilotSuggestion } from "@/components/studio/StudioCopilot";
 import { AudioStudio } from "@/components/studio/AudioStudio";
-import { StudioDiffusion } from "@/components/studio/StudioDiffusion";
+import { PublishScheduler } from "@/components/studio/PublishScheduler";
+import { StudioDistribution } from "@/components/studio/StudioDistribution";
+import { MediaLibraryButton } from "@/components/studio/MediaLibrary";
+import { BusyHint } from "@/components/ui/Spinner";
 import { IconFilm } from "@/components/visual/Icons";
 import { IMAGE_MODELS, VIDEO_MODELS } from "@/lib/ai/model-catalog";
 
@@ -65,6 +68,8 @@ export default function StudioPage() {
   const [toast, setToast] = useState<{ message: string; key: number } | null>(null);
   // Onglet du panneau « Créer avec l'IA » : copilote / visuel / audio.
   const [genTab, setGenTab] = useState<"copilot" | "visual" | "audio">("copilot");
+  // Plan en cours de glisser-déposer (montage).
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const notify = (m: string) => setToast({ message: m, key: Date.now() });
@@ -91,6 +96,17 @@ export default function StudioPage() {
       const j = index + dir;
       if (j < 0 || j >= next.length) return prev;
       [next[index], next[j]] = [next[j], next[index]];
+      return next;
+    });
+  }
+  // Glisser-déposer : réordonne le plan `from` à la position `to`.
+  function reorderAsset(from: number, to: number) {
+    if (from === to || from < 0 || to < 0) return;
+    setAssets((prev) => {
+      if (from >= prev.length || to >= prev.length) return prev;
+      const next = [...prev];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
       return next;
     });
   }
@@ -285,9 +301,18 @@ export default function StudioPage() {
         >
           <svg width="26" height="26" viewBox="0 0 24 24" fill="none" className="text-muted"><path d="M12 16V4m0 0L7 9m5-5 5 5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/><path d="M4 16v2.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V16" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/></svg>
           <p className="text-sm text-ink">{uploading ? t("Import en cours…", "Uploading…") : t("Glissez-déposez vos photos et vidéos", "Drag & drop your photos and videos")}</p>
-          <button className="btn-secondary text-xs" onClick={() => fileRef.current?.click()} disabled={uploading}>{t("Choisir des fichiers", "Choose files")}</button>
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <button className="btn-secondary text-xs" onClick={() => fileRef.current?.click()} disabled={uploading}>{t("Choisir des fichiers", "Choose files")}</button>
+            <MediaLibraryButton
+              companyId={company.id}
+              accept="all"
+              onPick={(a) => setAssets((prev) => prev.some((x) => x.url === a.url) ? prev : [...prev, { url: a.url, kind: a.type, name: a.url.split("/").pop() }])}
+              label={t("📚 Bibliothèque", "📚 Library")}
+              className="btn-secondary text-xs"
+            />
+          </div>
           <input ref={fileRef} type="file" accept="image/*,video/*" multiple className="hidden" onChange={(e) => e.target.files && onFiles(e.target.files)} />
-          <p className="text-2xs text-muted">{t("JPG, PNG, MP4, MOV… plusieurs fichiers acceptés", "JPG, PNG, MP4, MOV… multiple files accepted")}</p>
+          <p className="text-2xs text-muted">{t("JPG, PNG, MP4, MOV… plusieurs fichiers, ou piochez dans la bibliothèque", "JPG, PNG, MP4, MOV… multiple files, or pick from the library")}</p>
         </div>
 
         {/* Ajouter par URL */}
@@ -306,31 +331,43 @@ export default function StudioPage() {
           <button className="btn-secondary shrink-0 text-xs" onClick={addUrl}>{t("Ajouter", "Add")}</button>
         </div>
 
-        {/* Liste des médias */}
+        {/* Montage : ordre des plans (glisser-déposer + flèches) */}
         {assets.length > 0 && (
           <div className="mt-3">
-            <div className="mb-2 text-2xs text-muted">{imageCount} {t("image(s)", "image(s)")} · {videoCount} {t("vidéo(s)", "video(s)")}</div>
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <span className="text-2xs font-semibold uppercase tracking-wide text-muted">{t("Ordre du montage", "Edit order")}</span>
+              <span className="text-2xs text-muted">{imageCount} {t("image(s)", "image(s)")} · {videoCount} {t("vidéo(s)", "video(s)")} · {t("glissez pour réorganiser", "drag to reorder")}</span>
+            </div>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
               {assets.map((a, ai) => (
-                <div key={a.url} className="group relative overflow-hidden rounded-lg border border-hair bg-canvas">
-                  {/* Ordre de montage (timeline) */}
+                <div
+                  key={a.url}
+                  draggable
+                  onDragStart={() => setDragIndex(ai)}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => { e.preventDefault(); if (dragIndex !== null) reorderAsset(dragIndex, ai); setDragIndex(null); }}
+                  onDragEnd={() => setDragIndex(null)}
+                  className={`group relative cursor-grab overflow-hidden rounded-lg border bg-canvas transition-all active:cursor-grabbing ${dragIndex === ai ? "border-primary-400 opacity-50 ring-2 ring-primary-200" : "border-hair"}`}
+                >
+                  {/* Numéro du plan dans le montage */}
                   <span className="absolute bottom-1 left-1 z-10 rounded bg-page px-1.5 py-0.5 text-2xs font-bold text-white">{ai + 1}</span>
-                  <div className="absolute bottom-1 right-1 z-10 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                    <button onClick={() => moveAsset(ai, -1)} disabled={ai === 0} aria-label={t("Avancer dans la timeline", "Move earlier")} className="rounded bg-ink/70 px-1.5 py-0.5 text-2xs text-white disabled:opacity-30">◀</button>
-                    <button onClick={() => moveAsset(ai, 1)} disabled={ai === assets.length - 1} aria-label={t("Reculer dans la timeline", "Move later")} className="rounded bg-ink/70 px-1.5 py-0.5 text-2xs text-white disabled:opacity-30">▶</button>
+                  {/* Flèches d'ordre — toujours visibles (mobile-friendly) */}
+                  <div className="absolute bottom-1 right-1 z-10 flex gap-1">
+                    <button onClick={() => moveAsset(ai, -1)} disabled={ai === 0} aria-label={t("Avancer dans le montage", "Move earlier")} className="rounded bg-ink/70 px-1.5 py-0.5 text-2xs text-white disabled:opacity-30 hover:bg-ink">◀</button>
+                    <button onClick={() => moveAsset(ai, 1)} disabled={ai === assets.length - 1} aria-label={t("Reculer dans le montage", "Move later")} className="rounded bg-ink/70 px-1.5 py-0.5 text-2xs text-white disabled:opacity-30 hover:bg-ink">▶</button>
                   </div>
                   {a.kind === "image" ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={a.url} alt={a.name ?? ""} className="h-24 w-full object-cover" />
+                    <img src={a.url} alt={a.name ?? ""} className="pointer-events-none h-24 w-full object-cover" />
                   ) : (
-                    <video src={a.url} className="h-24 w-full object-cover" muted />
+                    <video src={a.url} className="pointer-events-none h-24 w-full object-cover" muted />
                   )}
                   <span className="absolute left-1 top-1 rounded bg-ink/70 px-1.5 py-0.5 text-2xs font-semibold text-white">
                     {a.kind === "image" ? "IMG" : "VID"}
                   </span>
                   <button
                     onClick={() => removeAsset(a.url)}
-                    className="absolute right-1 top-1 rounded-full bg-ink/70 p-1 text-white opacity-0 transition-opacity group-hover:opacity-100"
+                    className="absolute right-1 top-1 rounded-full bg-ink/70 p-1 text-white transition-opacity hover:bg-danger-500"
                     aria-label={t("Retirer", "Remove")}
                   >
                     <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
@@ -395,13 +432,27 @@ export default function StudioPage() {
       >
         {working ? t("Le studio travaille…", "The studio is working…") : t("✨ Assembler & marketer", "✨ Assemble & market")}
       </button>
-      {canEdit && (assets.length === 0 || platforms.length === 0) && (
+      {/* Feedback explicite : la création est bien lancée. */}
+      {working && (
+        <BusyHint
+          label={t("Assemblage et marketing en cours — déclinaisons par réseau, accroches, sous-titres…", "Assembling and marketing — per-network cuts, hooks, subtitles…")}
+          eta={t("~15–40 s", "~15–40 s")}
+        />
+      )}
+      {canEdit && !working && (assets.length === 0 || platforms.length === 0) && (
         <p className="-mt-2 text-center text-2xs text-muted">
           {assets.length === 0
-            ? t("Ajoutez au moins un média (import ou génération IA).", "Add at least one media item (import or AI generation).")
+            ? t("Ajoutez au moins un média (import, bibliothèque ou génération IA).", "Add at least one media item (import, library or AI generation).")
             : t("Choisissez au moins un réseau.", "Choose at least one network.")}
         </p>
       )}
+
+      {/* Diffusion (organique / pub) — toujours disponible : diffusez la
+          création produite OU un visuel/vidéo de la bibliothèque, sans dépendre
+          d'un rendu réussi. */}
+      <StudioStep n={4} title={t("Diffuser (organique / pub)", "Distribute (organic / ad)")} hint={t("Publier, programmer ou transformer en pub — votre création ou un média de la bibliothèque.", "Publish, schedule or turn into an ad — your creation or a library media.")}>
+        <StudioDistribution companyId={company.id} producedKind="video" defaultText={objective} />
+      </StudioStep>
 
       {/* Résultat */}
       {pkg && (
@@ -768,6 +819,7 @@ function CutCard({
           {rState === "done" && rUrl && (
             <div className="space-y-2">
               <video src={rUrl} controls preload="metadata" className="w-full rounded-lg border border-hair" />
+              <p className="text-2xs text-success-600">{t("✓ Enregistrée dans la Médiathèque", "✓ Saved to the Media library")}</p>
               <div className="flex gap-2">
                 <a href={rUrl} target="_blank" rel="noopener noreferrer" download className="btn-secondary flex-1 justify-center text-2xs">
                   ⬇ {t("Télécharger", "Download")}
@@ -780,8 +832,8 @@ function CutCard({
                 </button>
               </div>
 
-              {/* Diffusion unifiée : bibliothèque (auto) · pub Meta · publier / programmer */}
-              <StudioDiffusion companyId={companyId} mediaUrl={rUrl} mediaKind="video" defaultText={(caption || hook || "").trim()} savedToLibrary />
+              {/* Publier maintenant / programmer — directement depuis le studio */}
+              <PublishScheduler companyId={companyId} mediaUrl={rUrl} mediaKind="video" defaultText={(caption || hook || "").trim()} />
             </div>
           )}
           {rState === "unsupported" && (
@@ -825,8 +877,9 @@ function CutCard({
                 ↻ {t("Régénérer avec mes textes", "Re-generate with my texts")}
               </button>
 
-              {/* Diffusion unifiée du visuel : bibliothèque (auto) · pub Meta · publier / programmer */}
-              <StudioDiffusion companyId={companyId} mediaUrl={images[0]} mediaKind="image" defaultText={(caption || hook || "").trim()} savedToLibrary />
+              {/* Publier maintenant / programmer / utiliser dans une pub — comme
+                  pour les vidéos, directement depuis le studio. */}
+              <PublishScheduler companyId={companyId} mediaUrl={images[0]} mediaKind="image" defaultText={(caption || hook || "").trim()} />
             </div>
           )}
           {imgState === "failed" && (

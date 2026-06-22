@@ -510,12 +510,21 @@ export function GoogleEarth() {
         </button>
       )}
 
-      {/* Simulateur de vol : en plein écran, on navigue d'abord vers une zone,
-          puis on décolle AU-DESSUS de cette zone (on voit ce qu'on survole). */}
-      {ready && full && !flying && (
-        <button type="button" className="fsim-launch" onClick={() => setFlying(true)}>
-          🛩️ Survoler cette zone
+      {/* Simulateur de vol — toujours visible (sauf en vol).
+          Sur la home : ouvre le plein écran pour explorer & choisir une zone.
+          En plein écran : décolle AU-DESSUS de la zone affichée (on voit ce qu'on survole). */}
+      {ready && !flying && (
+        <button
+          type="button"
+          className="fsim-launch"
+          onClick={() => { if (!full) setFull(true); else setFlying(true); }}
+        >
+          {full ? "🛩️ Survoler cette zone" : "🛩️ Piloter le monde"}
         </button>
+      )}
+      {/* Aide à la prise en main en plein écran (avant le décollage). */}
+      {ready && full && !flying && (
+        <div className="fsim-tip">🔍 Approche-toi d'un lieu (clic ville · recherche · molette), puis « Survoler cette zone »</div>
       )}
 
       {/* HUD du simulateur de vol */}

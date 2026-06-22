@@ -130,12 +130,12 @@ export function NewAudienceModal({
 
   const stepHeader =
     step === 1 ? (
-      <div className="border-b-hair border-hair px-4 py-3">
+      <div className="border-b-hair px-4 py-3">
         <div className="text-sm font-semibold text-ink">{t("Nouvelle audience", "New audience")}</div>
         <div className="text-2xs text-muted">{t("Étape 1 sur 2 — Choisir le type d'audience", "Step 1 of 2 — Choose audience type")}</div>
       </div>
     ) : (
-      <div className="flex items-center justify-between gap-2 border-b-hair border-hair px-4 py-3">
+      <div className="flex items-center justify-between gap-2 border-b-hair px-4 py-3">
         <div className="flex items-center gap-3">
           <button
             onClick={() => setStep(1)}
@@ -225,7 +225,7 @@ export function NewAudienceModal({
               onClick={() => choose("lookalike")}
             />
           </div>
-          <div className="mt-4 flex justify-end border-t-hair border-hair pt-3">
+          <div className="mt-4 flex justify-end border-t-hair pt-3">
             <Button variant="secondary" onClick={onClose}>{t("Annuler", "Cancel")}</Button>
           </div>
         </div>
@@ -372,7 +372,7 @@ function Step2({
         </div>
 
         {/* Right column — info / estimator */}
-        <div className="border-t border-hair p-4 lg:border-l lg:border-t-0 bg-canvas/40">
+        <div className="border-t p-4 lg:border-l lg:border-t-0 bg-canvas/40">
           {type === "saved" && (
             <ReachEstimator
               reach={estimateSavedReach(savedConfig)}
@@ -403,7 +403,7 @@ function Step2({
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-hair px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-t px-4 py-3">
         <Button variant="secondary" onClick={onBack} disabled={submitting}>← {t("Retour", "Back")}</Button>
         <div className="flex items-center gap-2">
           {error && <span className="text-2xs text-red-600">{error}</span>}

@@ -25,6 +25,17 @@ const CITIES = [
   { name: "Sydney", lat: -33.8688, lon: 151.2093 },
 ];
 
+// Messages diffusés pendant le vol — le but : montrer qu'on maîtrise TOUT,
+// et que nos clients vont pouvoir tout maîtriser eux aussi.
+const FLY_MESSAGES = [
+  "Pilotez le monde — comme vous piloterez vos réseaux.",
+  "Vous maîtrisez tout. Vos clients aussi.",
+  "De Paris à Port-Louis : votre marque, partout.",
+  "Le contrôle total, entre vos mains.",
+  "Survolez vos marchés. Décidez. Diffusez.",
+  "Une équipe d'agents IA aux commandes — vous gardez le cap.",
+];
+
 /* eslint-disable @typescript-eslint/no-explicit-any */
 let cesiumPromise: Promise<any> | null = null;
 function loadCesium(): Promise<any> {
@@ -103,6 +114,7 @@ export function GoogleEarth() {
   const startFlightRef = useRef<() => void>(() => {});
   const stopFlightRef = useRef<() => void>(() => {});
   const [hud, setHud] = useState({ speed: 150, alt: 4000, heading: 0, pitch: 0, roll: 0, throttle: 0.55 });
+  const [msgIdx, setMsgIdx] = useState(0); // message marketing courant (pendant le vol)
   const resizeKick = useRef<() => void>(() => {});
   const flyRef = useRef<(lat: number, lon: number) => void>(() => {});
   const searchRef = useRef<(q: string) => void>(() => {});
@@ -345,7 +357,7 @@ export function GoogleEarth() {
           const onFlyKeyDown = (e: KeyboardEvent) => {
             if (!FLY.active) return;
             const k = e.key.toLowerCase();
-            if (k === "escape") { setFlying(false); return; }
+            if (k === "escape") { setFlying(false); setFull(false); return; } // sortie → home + globe
             if (FLY_KEYS.includes(k)) { e.preventDefault(); FLY.keys[k] = true; }
           };
           const onFlyKeyUp = (e: KeyboardEvent) => { FLY.keys[e.key.toLowerCase()] = false; };
@@ -355,8 +367,8 @@ export function GoogleEarth() {
             const now = performance.now();
             const dt = Math.min((now - FLY.last) / 1000, 0.05); FLY.last = now;
             const K = FLY.keys;
-            // Roulis (←/→ ou A/D) avec retour à plat
-            const rollMax = Cesium.Math.toRadians(62), rollRate = Cesium.Math.toRadians(75);
+            // Roulis (←/→ ou A/D) avec retour à plat — incliné jusqu'à ~80°
+            const rollMax = Cesium.Math.toRadians(80), rollRate = Cesium.Math.toRadians(100);
             if (K.arrowleft || K.a) FLY.roll = Math.max(FLY.roll - rollRate * dt, -rollMax);
             else if (K.arrowright || K.d) FLY.roll = Math.min(FLY.roll + rollRate * dt, rollMax);
             else FLY.roll *= Math.max(0, 1 - 2.4 * dt);
@@ -372,8 +384,10 @@ export function GoogleEarth() {
             // pour survoler tranquillement, accélère avec les gaz (W).
             const targetSpeed = 35 + FLY.throttle * 385;
             FLY.speed += (targetSpeed - FLY.speed) * Math.min(1, 1.3 * dt);
-            // Virage coordonné : g·tan(roulis)/vitesse
-            FLY.heading += (9.81 * Math.tan(FLY.roll) / Math.max(FLY.speed, 40)) * dt;
+            // Virage franc : le cap suit directement le roulis (on peut virer à
+            // fond et boucler un 360°), avec un léger appui de la vitesse.
+            const turnGain = 1.15 + Math.min(FLY.speed, 400) / 900; // ~1.15..1.6 rad/s à plein roulis
+            FLY.heading += FLY.roll * turnGain * dt;
             FLY.heading = ((FLY.heading % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
             // Déplacement dans le repère local (Est-Nord-Haut)
             const pos = Cesium.Cartesian3.fromDegrees(FLY.lon, FLY.lat, FLY.alt);
@@ -435,6 +449,14 @@ export function GoogleEarth() {
             try { if (FLY.plane) viewer.entities.remove(FLY.plane); } catch { /* ignore */ }
             FLY.plane = null;
             try { scene.screenSpaceCameraController.enableInputs = true; } catch { /* ignore */ }
+            // Restaure la vue « globe » de l'accueil (joli plan large).
+            try {
+              viewer.camera.flyTo({
+                destination: Cesium.Cartesian3.fromDegrees(20, 16, 13_500_000),
+                orientation: { heading: 0, pitch: Cesium.Math.toRadians(-90), roll: 0 },
+                duration: 1.4,
+              });
+            } catch { /* ignore */ }
             lastInteract = Date.now();
           };
 
@@ -496,6 +518,14 @@ export function GoogleEarth() {
     return () => { stopFlightRef.current(); };
   }, [flying]);
 
+  // Messages marketing qui défilent pendant le vol (« on maîtrise tout »).
+  useEffect(() => {
+    if (!flying) return;
+    setMsgIdx(0);
+    const id = setInterval(() => setMsgIdx((i) => (i + 1) % FLY_MESSAGES.length), 4200);
+    return () => clearInterval(id);
+  }, [flying]);
+
   if (failed) return <GlobeHero />;
 
   return (
@@ -524,13 +554,19 @@ export function GoogleEarth() {
       )}
       {/* Aide à la prise en main en plein écran (avant le décollage). */}
       {ready && full && !flying && (
-        <div className="fsim-tip">🔍 Approche-toi d'un lieu (clic ville · recherche · molette), puis « Survoler cette zone »</div>
+        <div className="fsim-tip">
+          <b>1.</b> Approche-toi d'un lieu (clic ville · recherche · molette) &nbsp; <b>2.</b> Clique <b>« 🛩️ Survoler cette zone »</b> (en bas à droite)
+          <span className="fsim-tip-keys">En vol : <kbd>↑</kbd><kbd>↓</kbd> monter/descendre · <kbd>←</kbd><kbd>→</kbd> virer · <kbd>W</kbd><kbd>S</kbd> vitesse · <kbd>Échap</kbd> revenir à l'accueil</span>
+        </div>
       )}
 
       {/* HUD du simulateur de vol */}
       {flying && (
         <div className="fsim">
-          <button type="button" className="fsim-exit" onClick={() => setFlying(false)}>✕ Quitter le pilotage</button>
+          <button type="button" className="fsim-exit" onClick={() => { setFlying(false); setFull(false); }}>✕ Quitter — revenir à l'accueil</button>
+
+          {/* Message marketing qui défile (le but : « on maîtrise tout ») */}
+          <div key={msgIdx} className="fsim-msg">{FLY_MESSAGES[msgIdx]}</div>
 
           {/* Horizon artificiel + cap/vitesse/altitude */}
           <div className="fsim-hud">

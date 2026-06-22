@@ -60,12 +60,49 @@ function logoDataUrl(kind: "fb" | "ig" | "li" | "tt"): string {
   return c.toDataURL();
 }
 
+/** Avion vu de dessus (billboard du simulateur de vol). */
+function planeDataUrl(): string {
+  const c = document.createElement("canvas"); c.width = c.height = 128;
+  const g = c.getContext("2d")!;
+  g.translate(64, 64);
+  g.fillStyle = "#f4f0ff";
+  g.strokeStyle = "#7c3aed"; g.lineWidth = 3; g.lineJoin = "round";
+  g.beginPath();
+  g.moveTo(0, -52);                 // nez
+  g.lineTo(7, -16);
+  g.lineTo(7, 6);
+  g.lineTo(52, 26);                 // aile droite
+  g.lineTo(52, 36);
+  g.lineTo(7, 26);
+  g.lineTo(7, 44);
+  g.lineTo(20, 54);                 // empennage droit
+  g.lineTo(20, 60);
+  g.lineTo(0, 52);
+  g.lineTo(-20, 60);
+  g.lineTo(-20, 54);
+  g.lineTo(-7, 44);
+  g.lineTo(-7, 26);
+  g.lineTo(-52, 36);                // aile gauche
+  g.lineTo(-52, 26);
+  g.lineTo(-7, 6);
+  g.lineTo(-7, -16);
+  g.closePath();
+  g.fill(); g.stroke();
+  return c.toDataURL();
+}
+
 export function GoogleEarth() {
   const ref = useRef<HTMLDivElement>(null);
   const [failed, setFailed] = useState(false);
   const [ready, setReady] = useState(false);
   const [full, setFull] = useState(false);            // mode plein écran (exploration libre)
   const fullRef = useRef(false); fullRef.current = full;
+  // ── Simulateur de vol (plein écran uniquement) ───────────────────────────────
+  const [flying, setFlying] = useState(false);
+  const flyingRef = useRef(false); flyingRef.current = flying;
+  const startFlightRef = useRef<() => void>(() => {});
+  const stopFlightRef = useRef<() => void>(() => {});
+  const [hud, setHud] = useState({ speed: 150, alt: 4000, heading: 0, pitch: 0, roll: 0, throttle: 0.55 });
   const resizeKick = useRef<() => void>(() => {});
   const flyRef = useRef<(lat: number, lon: number) => void>(() => {});
   const searchRef = useRef<(q: string) => void>(() => {});
@@ -294,11 +331,115 @@ export function GoogleEarth() {
             lastInteract = Date.now();
           }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 
-          // Auto-rotation douce quand inactif.
+          // ── Simulateur de vol RÉALISTE (tangage / roulis / cap) ──────────
+          // Modèle de vol : virage coordonné (le cap suit le roulis & la vitesse),
+          // tangage = montée/descente, gaz = vitesse. Caméra à la poursuite,
+          // l'horizon s'incline avec le roulis → vraie sensation de pilotage.
+          const FLY = {
+            active: false, lon: 0, lat: 0, alt: 4000,
+            heading: 0, pitch: 0, roll: 0, speed: 150, throttle: 0.55,
+            raf: 0, last: 0, hudLast: 0, plane: null as any,
+            keys: {} as Record<string, boolean>,
+          };
+          const FLY_KEYS = ["arrowup", "arrowdown", "arrowleft", "arrowright", "w", "a", "s", "d"];
+          const onFlyKeyDown = (e: KeyboardEvent) => {
+            if (!FLY.active) return;
+            const k = e.key.toLowerCase();
+            if (k === "escape") { setFlying(false); return; }
+            if (FLY_KEYS.includes(k)) { e.preventDefault(); FLY.keys[k] = true; }
+          };
+          const onFlyKeyUp = (e: KeyboardEvent) => { FLY.keys[e.key.toLowerCase()] = false; };
+
+          function flyTick() {
+            if (!FLY.active) return;
+            const now = performance.now();
+            const dt = Math.min((now - FLY.last) / 1000, 0.05); FLY.last = now;
+            const K = FLY.keys;
+            // Roulis (←/→ ou A/D) avec retour à plat
+            const rollMax = Cesium.Math.toRadians(62), rollRate = Cesium.Math.toRadians(75);
+            if (K.arrowleft || K.a) FLY.roll = Math.max(FLY.roll - rollRate * dt, -rollMax);
+            else if (K.arrowright || K.d) FLY.roll = Math.min(FLY.roll + rollRate * dt, rollMax);
+            else FLY.roll *= Math.max(0, 1 - 2.4 * dt);
+            // Tangage (↑/↓) avec léger rappel
+            const pitchMax = Cesium.Math.toRadians(34), pitchRate = Cesium.Math.toRadians(42);
+            if (K.arrowup) FLY.pitch = Math.min(FLY.pitch + pitchRate * dt, pitchMax);
+            else if (K.arrowdown) FLY.pitch = Math.max(FLY.pitch - pitchRate * dt, -pitchMax);
+            else FLY.pitch *= Math.max(0, 1 - 0.9 * dt);
+            // Gaz (W/S)
+            if (K.w) FLY.throttle = Math.min(1, FLY.throttle + 0.45 * dt);
+            if (K.s) FLY.throttle = Math.max(0.12, FLY.throttle - 0.45 * dt);
+            const targetSpeed = 55 + FLY.throttle * 545; // ~55..600 m/s
+            FLY.speed += (targetSpeed - FLY.speed) * Math.min(1, 1.3 * dt);
+            // Virage coordonné : g·tan(roulis)/vitesse
+            FLY.heading += (9.81 * Math.tan(FLY.roll) / Math.max(FLY.speed, 40)) * dt;
+            FLY.heading = ((FLY.heading % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+            // Déplacement dans le repère local (Est-Nord-Haut)
+            const pos = Cesium.Cartesian3.fromDegrees(FLY.lon, FLY.lat, FLY.alt);
+            const enu = Cesium.Transforms.eastNorthUpToFixedFrame(pos);
+            const rot = Cesium.Matrix4.getMatrix3(enu, new Cesium.Matrix3());
+            const cp = Math.cos(FLY.pitch);
+            const dir = new Cesium.Cartesian3(Math.sin(FLY.heading) * cp, Math.cos(FLY.heading) * cp, Math.sin(FLY.pitch));
+            Cesium.Cartesian3.multiplyByScalar(dir, FLY.speed * dt, dir);
+            const disp = Cesium.Matrix3.multiplyByVector(rot, dir, new Cesium.Cartesian3());
+            const np = Cesium.Cartographic.fromCartesian(Cesium.Cartesian3.add(pos, disp, new Cesium.Cartesian3()));
+            FLY.lon = Cesium.Math.toDegrees(np.longitude);
+            FLY.lat = Cesium.Math.toDegrees(np.latitude);
+            FLY.alt = Math.min(Math.max(np.height, 120), 130000);
+            if (FLY.plane) FLY.plane.position = Cesium.Cartesian3.fromDegrees(FLY.lon, FLY.lat, FLY.alt);
+            // Caméra à la poursuite : derrière + au-dessus, inclinée avec le roulis
+            const back = 230 + FLY.speed * 0.7, up = 60 + FLY.speed * 0.14;
+            const camPos = Cesium.Cartesian3.fromDegrees(FLY.lon, FLY.lat, FLY.alt);
+            const enu2 = Cesium.Matrix4.getMatrix3(Cesium.Transforms.eastNorthUpToFixedFrame(camPos), new Cesium.Matrix3());
+            const camLocal = new Cesium.Cartesian3(-Math.sin(FLY.heading) * back, -Math.cos(FLY.heading) * back, up);
+            const camDisp = Cesium.Matrix3.multiplyByVector(enu2, camLocal, new Cesium.Cartesian3());
+            viewer.camera.setView({
+              destination: Cesium.Cartesian3.add(camPos, camDisp, new Cesium.Cartesian3()),
+              orientation: { heading: FLY.heading, pitch: FLY.pitch - 0.14, roll: FLY.roll },
+            });
+            if (now - FLY.hudLast > 80) {
+              FLY.hudLast = now;
+              setHud({ speed: FLY.speed, alt: FLY.alt, heading: Cesium.Math.toDegrees(FLY.heading), pitch: Cesium.Math.toDegrees(FLY.pitch), roll: Cesium.Math.toDegrees(FLY.roll), throttle: FLY.throttle });
+            }
+            FLY.raf = requestAnimationFrame(flyTick);
+          }
+
+          startFlightRef.current = () => {
+            if (FLY.active) return;
+            const carto = viewer.camera.positionCartographic;
+            FLY.lon = Cesium.Math.toDegrees(carto.longitude);
+            FLY.lat = Cesium.Math.toDegrees(carto.latitude);
+            FLY.alt = Math.min(Math.max(carto.height, 2000), 8000);
+            FLY.heading = viewer.camera.heading || 0;
+            FLY.pitch = 0; FLY.roll = 0; FLY.speed = 160; FLY.throttle = 0.55; FLY.keys = {};
+            FLY.active = true;
+            scene.screenSpaceCameraController.enableInputs = false;
+            FLY.plane = viewer.entities.add({
+              position: Cesium.Cartesian3.fromDegrees(FLY.lon, FLY.lat, FLY.alt),
+              billboard: { image: planeDataUrl(), width: 52, height: 52, disableDepthTestDistance: Number.POSITIVE_INFINITY },
+            });
+            window.addEventListener("keydown", onFlyKeyDown);
+            window.addEventListener("keyup", onFlyKeyUp);
+            FLY.last = performance.now();
+            FLY.raf = requestAnimationFrame(flyTick);
+          };
+          stopFlightRef.current = () => {
+            if (!FLY.active) return;
+            FLY.active = false;
+            cancelAnimationFrame(FLY.raf);
+            window.removeEventListener("keydown", onFlyKeyDown);
+            window.removeEventListener("keyup", onFlyKeyUp);
+            try { if (FLY.plane) viewer.entities.remove(FLY.plane); } catch { /* ignore */ }
+            FLY.plane = null;
+            try { scene.screenSpaceCameraController.enableInputs = true; } catch { /* ignore */ }
+            lastInteract = Date.now();
+          };
+
+          // Auto-rotation douce quand inactif (jamais pendant un vol).
           let lastInteract = Date.now();
           scene.canvas.addEventListener("pointerdown", () => { lastInteract = Date.now(); });
           scene.canvas.addEventListener("wheel", () => { lastInteract = Date.now(); });
           scene.postRender.addEventListener(() => {
+            if (FLY.active) return;
             if (Date.now() - lastInteract > 4500 && viewer.camera.positionCartographic.height > 5_000_000) {
               viewer.camera.rotate(Cesium.Cartesian3.UNIT_Z, -0.00045);
             }
@@ -333,15 +474,23 @@ export function GoogleEarth() {
     document.body.style.overflow = "hidden";
     const t1 = setTimeout(() => resizeKick.current(), 60);
     const t2 = setTimeout(() => resizeKick.current(), 360);
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setFull(false); };
+    // Échap : quitte d'abord le pilotage s'il est actif, sinon le plein écran.
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { if (flyingRef.current) setFlying(false); else setFull(false); } };
     window.addEventListener("keydown", onKey);
     return () => {
       document.body.style.overflow = prev;
       clearTimeout(t1); clearTimeout(t2);
       window.removeEventListener("keydown", onKey);
+      setFlying(false); // on ne pilote jamais hors plein écran
       setTimeout(() => resizeKick.current(), 60);
     };
   }, [full]);
+
+  // Démarre / arrête le simulateur de vol selon l'état (et à la sortie).
+  useEffect(() => {
+    if (flying) startFlightRef.current();
+    return () => { stopFlightRef.current(); };
+  }, [flying]);
 
   if (failed) return <GlobeHero />;
 
@@ -351,42 +500,77 @@ export function GoogleEarth() {
       {!ready && <div className="earth3d-loading">Chargement de la Terre…</div>}
 
       {/* Bouton plein écran / sortie : l'exploration libre (molette = zoom) */}
-      {ready && (
+      {ready && !flying && (
         <button type="button" className="globe-full-btn" onClick={() => setFull((f) => !f)}>
           {full ? "✕ Quitter" : "⛶ Explorer en plein écran"}
         </button>
+      )}
+
+      {/* Simulateur de vol : disponible UNIQUEMENT en plein écran */}
+      {ready && full && !flying && (
+        <button type="button" className="fsim-launch" onClick={() => setFlying(true)}>
+          🛩️ Piloter le monde
+        </button>
+      )}
+
+      {/* HUD du simulateur de vol */}
+      {flying && (
+        <div className="fsim">
+          <button type="button" className="fsim-exit" onClick={() => setFlying(false)}>✕ Quitter le pilotage</button>
+
+          {/* Horizon artificiel + cap/vitesse/altitude */}
+          <div className="fsim-hud">
+            <div className="fsim-adi" aria-hidden>
+              <div className="fsim-adi-sky" style={{ transform: `rotate(${-hud.roll}deg) translateY(${Math.max(-46, Math.min(46, hud.pitch * 1.6))}px)` }} />
+              <div className="fsim-adi-grid" />
+              <div className="fsim-adi-plane" />
+            </div>
+            <div className="fsim-gauge fsim-spd"><b>{Math.round(hud.speed * 3.6)}</b><span>km/h</span></div>
+            <div className="fsim-gauge fsim-alt"><b>{hud.alt >= 1000 ? (hud.alt / 1000).toFixed(1) : Math.round(hud.alt)}</b><span>{hud.alt >= 1000 ? "km alt" : "m alt"}</span></div>
+            <div className="fsim-gauge fsim-hdg"><b>{String(Math.round((hud.heading + 360) % 360)).padStart(3, "0")}°</b><span>cap</span></div>
+            <div className="fsim-thr"><div className="fsim-thr-fill" style={{ height: `${Math.round(hud.throttle * 100)}%` }} /><span>gaz</span></div>
+          </div>
+
+          <div className="fsim-help">
+            <b>Pilotage</b> · <kbd>↑</kbd><kbd>↓</kbd> tangage · <kbd>←</kbd><kbd>→</kbd> roulis (virage) · <kbd>W</kbd><kbd>S</kbd> gaz · <kbd>Échap</kbd> quitter
+          </div>
+        </div>
       )}
 
       {/* Invitation (mode intégré uniquement) */}
       {ready && !full && (
         <div className="globe-invite">
           <span className="globe-invite-dot" />
-          {"Cliquez une ville, ou « Explorer en plein écran » pour zoomer à la molette jusqu'à votre rue"}
+          {"Cliquez une ville, ou « Explorer en plein écran » pour zoomer jusqu'à votre rue — ou piloter le monde 🛩️"}
         </div>
       )}
 
-      {/* Commandes de zoom (toujours visibles) */}
-      {ready && (
+      {/* Commandes de zoom (masquées en vol) */}
+      {ready && !flying && (
         <div className="globe-zoom">
           <button type="button" aria-label="Zoomer" onClick={() => zoomRef.current(1)}>+</button>
           <button type="button" aria-label="Dézoomer" onClick={() => zoomRef.current(-1)}>−</button>
         </div>
       )}
 
-      <form className="globe-search" onSubmit={(e) => { e.preventDefault(); if (search.trim()) searchRef.current(search.trim()); }}>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
-          <circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" />
-        </svg>
-        <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Atterrir sur un lieu : Pékin, New York, Flic-en-Flac…" aria-label="Rechercher un lieu" />
-        <button type="submit">Aller</button>
-      </form>
+      {!flying && (
+        <form className="globe-search" onSubmit={(e) => { e.preventDefault(); if (search.trim()) searchRef.current(search.trim()); }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+            <circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" />
+          </svg>
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Atterrir sur un lieu : Pékin, New York, Flic-en-Flac…" aria-label="Rechercher un lieu" />
+          <button type="submit">Aller</button>
+        </form>
+      )}
 
-      <div className="globe-chips">
-        <span className="globe-hint">{full ? "Molette = zoom · glissez = tourner · double-clic = plonger" : "Cliquez une ville pour la survoler · zoom avec +/−"}</span>
-        {CITIES.map((c) => (
-          <button key={c.name} type="button" className="globe-chip" onClick={() => flyRef.current(c.lat, c.lon)}>{c.name}</button>
-        ))}
-      </div>
+      {!flying && (
+        <div className="globe-chips">
+          <span className="globe-hint">{full ? "Molette = zoom · glissez = tourner · double-clic = plonger" : "Cliquez une ville pour la survoler · zoom avec +/−"}</span>
+          {CITIES.map((c) => (
+            <button key={c.name} type="button" className="globe-chip" onClick={() => flyRef.current(c.lat, c.lon)}>{c.name}</button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

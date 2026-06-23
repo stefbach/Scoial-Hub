@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { TagInput } from "@/components/ui/TagInput";
+import { useCompany } from "@/lib/company-context";
 import { useT } from "@/lib/i18n";
 import type { Audience } from "@/lib/types";
 
@@ -196,6 +197,7 @@ export function CustomFields({
   editing?: boolean;
 }) {
   const t = useT();
+  const { company } = useCompany();
   const set = <K extends keyof CustomConfig>(k: K, v: CustomConfig[K]) =>
     onChange({ ...config, [k]: v });
 
@@ -244,7 +246,7 @@ export function CustomFields({
         <input
           value={config.name}
           onChange={(e) => set("name", e.target.value)}
-          placeholder="e.g. OCC past patients"
+          placeholder={t(`ex. anciens clients de ${company.name}`, `e.g. ${company.name} past customers`)}
           className="mt-1 w-full rounded-md border-hair border-hair bg-card px-3 py-2 text-sm text-ink placeholder:text-muted focus:outline-none"
         />
       </div>
@@ -254,7 +256,7 @@ export function CustomFields({
         <input
           value={config.source}
           onChange={(e) => set("source", e.target.value)}
-          placeholder="e.g. Past OCC patients — bariatric program"
+          placeholder={t(`ex. anciens clients de ${company.name} — programme de fidélité`, `e.g. Past ${company.name} customers — loyalty program`)}
           className="mt-1 w-full rounded-md border-hair border-hair bg-card px-3 py-2 text-sm text-ink placeholder:text-muted focus:outline-none"
         />
         <div className="mt-1 text-2xs text-muted">
@@ -365,6 +367,7 @@ export function LookalikeFields({
   sourceOptions: Audience[];
 }) {
   const t = useT();
+  const { company } = useCompany();
   const set = <K extends keyof LookalikeConfig>(k: K, v: LookalikeConfig[K]) =>
     onChange({ ...config, [k]: v });
 
@@ -377,7 +380,7 @@ export function LookalikeFields({
         <input
           value={config.name}
           onChange={(e) => set("name", e.target.value)}
-          placeholder="e.g. Lookalike — OCC patients (1%)"
+          placeholder={t(`ex. Sosie — clients de ${company.name} (1%)`, `e.g. Lookalike — ${company.name} customers (1%)`)}
           className="mt-1 w-full rounded-md border-hair border-hair bg-card px-3 py-2 text-sm text-ink placeholder:text-muted focus:outline-none"
         />
       </div>

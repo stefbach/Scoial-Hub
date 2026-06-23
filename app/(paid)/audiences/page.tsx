@@ -259,8 +259,27 @@ function AudiencesContent() {
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-canvas text-muted">
             <UsersIcon />
           </div>
-          <p className="mt-4 text-sm font-medium text-ink">{t("Aucune audience ne correspond à ces filtres", "No audiences match these filters")}</p>
-          <p className="mt-1 text-sm text-muted">{t("Essayez d'ajuster le filtre de type ou de statut.", "Try adjusting the type or status filter.")}</p>
+          {total === 0 ? (
+            <>
+              <p className="mt-4 text-sm font-medium text-ink">{t("Aucune audience pour le moment", "No audiences yet")}</p>
+              <p className="mt-1 text-sm text-muted">
+                {t(
+                  "Vos audiences apparaîtront ici dès que vous en créerez une.",
+                  "Your audiences will appear here as soon as you create one."
+                )}
+              </p>
+              <div className="mt-4">
+                <Button variant="primary" onClick={() => setNewModalOpen(true)}>
+                  {t("Nouvelle audience", "New audience")}
+                </Button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="mt-4 text-sm font-medium text-ink">{t("Aucune audience ne correspond à ces filtres", "No audiences match these filters")}</p>
+              <p className="mt-1 text-sm text-muted">{t("Essayez d'ajuster le filtre de type ou de statut.", "Try adjusting the type or status filter.")}</p>
+            </>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-3">
@@ -268,7 +287,7 @@ function AudiencesContent() {
             <AudienceCard key={aud.id} aud={aud} onClick={() => setOpenAudience(aud)} />
           ))}
           <div
-            title={t("Les suggestions IA seront disponibles une fois le backend connecté.", "AI audience suggestions will be enabled when the backend is connected.")}
+            title={t("Les suggestions d'audience par IA arrivent bientôt.", "AI audience suggestions are coming soon.")}
             className="flex cursor-not-allowed flex-col items-center justify-center rounded-xl border border-dashed border-ai-visual/40 bg-ai-visualbg/30 p-6 text-center opacity-60"
           >
             <div className="mb-2 flex h-9 w-9 items-center justify-center rounded-lg bg-ai-visualbg text-ai-visual">

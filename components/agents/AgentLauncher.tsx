@@ -7,8 +7,15 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useCompany } from "@/lib/company-context";
-import { useT } from "@/lib/i18n";
+import { useT, useLang } from "@/lib/i18n";
 import { Spinner, BusyHint } from "@/components/ui/Spinner";
+
+// Description courte de chaque niveau d'autonomie (affichée sous les boutons).
+const LEVELS: Record<1 | 2 | 3, { fr: string; en: string }> = {
+  1: { fr: "Recommandation — les agents proposent, vous décidez de tout. Rien n'est publié.", en: "Recommendation — the agents suggest, you decide everything. Nothing is published." },
+  2: { fr: "Semi-auto — les agents préparent tout (posts, pub) et attendent votre validation avant publication.", en: "Semi-auto — the agents prepare everything (posts, ad) and wait for your approval before publishing." },
+  3: { fr: "Auto — les agents exécutent automatiquement ce qui est conforme à vos règles ; le reste passe en validation.", en: "Auto — the agents automatically run what complies with your rules; the rest goes to review." },
+};
 
 export function AgentLauncher({
   defaultObjective = "",
@@ -24,6 +31,7 @@ export function AgentLauncher({
   compact?: boolean;
 }) {
   const t = useT();
+  const { lang } = useLang();
   const { company } = useCompany();
   const [open, setOpen] = useState(false);
   const [objective, setObjective] = useState(defaultObjective);
@@ -43,6 +51,7 @@ export function AgentLauncher({
           objective: context ? `${objective} (${context})` : objective,
           brandVoice: company.brandVoice ?? "",
           autonomy,
+          language: lang,
         }),
       });
       const raw = await r.text();
@@ -84,7 +93,7 @@ export function AgentLauncher({
           {([1, 2, 3] as const).map((a) => (
             <button key={a} onClick={() => setAutonomy(a)}
               className={`rounded-md px-2.5 py-1 text-2xs font-semibold ${autonomy === a ? "bg-page text-white" : "text-muted hover:text-ink"}`}
-              title={a === 1 ? t("Recommandation", "Recommendation") : a === 2 ? t("Semi-auto (validation)", "Semi-auto (review)") : t("Auto (si conforme)", "Auto (if compliant)")}>
+              title={t(LEVELS[a].fr, LEVELS[a].en)}>
               {t("Niveau", "Level")} {a}
             </button>
           ))}
@@ -95,9 +104,24 @@ export function AgentLauncher({
         </button>
         <Link href="/agents" className="text-2xs text-primary-600 hover:underline">{t("Voir tous les agents →", "All agents →")}</Link>
       </div>
+      {/* Description du niveau sélectionné (apparaît sous les boutons). */}
+      <p className="mt-1.5 text-2xs leading-snug text-muted">
+        <span className="font-semibold text-ai-text">{t("Niveau", "Level")} {autonomy} :</span> {t(LEVELS[autonomy].fr, LEVELS[autonomy].en)}
+      </p>
       {running && <BusyHint className="mt-2" label={t("Les agents travaillent (stratégie, texte, conformité…)", "Agents working (strategy, copy, compliance…)")} eta={t("~20–60 s", "~20–60 s")} />}
       {error && <p className="mt-2 rounded-lg bg-danger-50 px-3 py-2 text-xs text-danger-700">{error}</p>}
-      {result && <p className="mt-2 whitespace-pre-wrap rounded-lg bg-canvas px-3 py-2 text-xs text-ink ring-1 ring-hair">{result}</p>}
+      {result && (
+        <div className="mt-2 space-y-2">
+          <p className="whitespace-pre-wrap rounded-lg bg-canvas px-3 py-2 text-xs text-ink ring-1 ring-hair">{result}</p>
+          {/* Bouton(s) d'action pour guider l'utilisateur vers l'étape suivante. */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-2xs text-muted">{t("Étape suivante :", "Next step:")}</span>
+            <Link href="/compose" className="btn-secondary text-2xs">{t("✍️ Composer un post", "✍️ Compose a post")}</Link>
+            <Link href="/campaigns/new" className="btn-secondary text-2xs">{t("📣 Créer une pub", "📣 Create an ad")}</Link>
+            <Link href="/scheduled" className="btn-secondary text-2xs">{t("🗓️ Voir les programmés", "🗓️ View scheduled")}</Link>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

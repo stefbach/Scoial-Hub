@@ -4,7 +4,7 @@
 // compte publicitaire connecté. Chaîne complète Campagne → Ad set → Créative →
 // Ad créée EN PAUSE (aucune dépense), puis activable explicitement (= dépense).
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useCompany } from "@/lib/company-context";
 import { useT, useLang } from "@/lib/i18n";
@@ -55,6 +55,12 @@ const VISUAL_FORMATS: { id: string; fr: string; en: string }[] = [
   { id: "1.91:1", fr: "Paysage", en: "Landscape" },
 ];
 
+// Date locale au format input datetime-local (YYYY-MM-DDTHH:MM).
+function toLocalDT(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
 export default function NewMetaAdPage() {
   const t = useT();
   const { lang } = useLang();
@@ -103,6 +109,10 @@ export default function NewMetaAdPage() {
   const [selInterests, setSelInterests] = useState<{ id: string; name: string }[]>([]);
   // Exclusions de ciblage (intérêts, audiences, localisations).
   const [exInterests, setExInterests] = useState<{ id: string; name: string }[]>([]);
+  // Recherche DÉDIÉE pour les centres d'intérêt à EXCLURE (#6).
+  const [exQuery, setExQuery] = useState("");
+  const [exResults, setExResults] = useState<{ id: string; name: string; audienceSize?: number }[]>([]);
+  const [searchingEx, setSearchingEx] = useState(false);
   const [exAudiences, setExAudiences] = useState<{ id: string; name: string }[]>([]);
   const [exGeoLocs, setExGeoLocs] = useState<GeoLoc[]>([]);
 
@@ -412,10 +422,36 @@ export default function NewMetaAdPage() {
   function toggleInterest(it: { id: string; name: string }) {
     setSelInterests((cur) => cur.some((x) => x.id === it.id) ? cur.filter((x) => x.id !== it.id) : [...cur, { id: it.id, name: it.name }]);
   }
+  async function searchExInterests() {
+    if (exQuery.trim().length < 2) return;
+    setSearchingEx(true);
+    try {
+      const r = await fetch(`/api/meta/ad-interests?companyId=${encodeURIComponent(companyId)}&q=${encodeURIComponent(exQuery.trim())}&locale=${lang}`);
+      const d = await r.json();
+      setExResults(Array.isArray(d.interests) ? d.interests : []);
+    } catch {
+      setExResults([]);
+    } finally { setSearchingEx(false); }
+  }
+  function toggleExInterest(it: { id: string; name: string }) {
+    setExInterests((cur) => cur.some((x) => x.id === it.id) ? cur.filter((x) => x.id !== it.id) : [...cur, { id: it.id, name: it.name }]);
+  }
   function addExtraImage() {
     const u = newExtraUrl.trim();
     if (u && /^https?:\/\//i.test(u)) { setExtraImages((a) => [...a, u]); setNewExtraUrl(""); }
   }
+  // Heure mini = maintenant (on n'autorise pas une diffusion dans le passé) ;
+  // l'heure suggérée par défaut est l'heure pleine SUIVANTE.
+  const minDateTime = useMemo(() => toLocalDT(new Date()), []);
+  useEffect(() => {
+    if (!startDate) {
+      const next = new Date(Date.now() + 60 * 60 * 1000);
+      next.setMinutes(0, 0, 0);
+      setStartDate(toLocalDT(next));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Destinations connectées (réelles) pour suggérer l'URL de destination (#4).
   const [destinations, setDestinations] = useState<{ label: string; url: string }[]>([]);
   useEffect(() => {
@@ -435,6 +471,58 @@ export default function NewMetaAdPage() {
       .catch(() => { /* silencieux */ });
     return () => { cancelled = true; };
   }, [companyId]);
+
+  // ── #10 — Sauvegarde automatique du brouillon (par société) ─────────────────
+  // On ne perd plus la saisie en quittant la page : restauration au retour.
+  const draftKey = `sh_campaign_draft_${companyId}`;
+  const [draftRestored, setDraftRestored] = useState(false);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(draftKey);
+      if (!raw) return;
+      const d = JSON.parse(raw) as Record<string, unknown>;
+      if (typeof d.name === "string") setName(d.name);
+      if (d.adType === "lead" || d.adType === "traffic") setAdType(d.adType);
+      if (typeof d.objective === "string") setObjective(d.objective);
+      if (d.budgetType === "daily" || d.budgetType === "lifetime") setBudgetType(d.budgetType);
+      if (Number(d.budget) > 0) setBudget(Number(d.budget));
+      if (Number(d.lifetimeBudget) > 0) setLifetimeBudget(Number(d.lifetimeBudget));
+      if (typeof d.startDate === "string") setStartDate(d.startDate);
+      if (typeof d.endDate === "string") setEndDate(d.endDate);
+      if (typeof d.primaryText === "string") setPrimaryText(d.primaryText);
+      if (typeof d.headline === "string") setHeadline(d.headline);
+      if (typeof d.link === "string") setLink(d.link);
+      if (typeof d.cta === "string") setCta(d.cta);
+      if (typeof d.visualPrompt === "string") setVisualPrompt(d.visualPrompt);
+      if (typeof d.imageUrl === "string") setImageUrl(d.imageUrl);
+      if (typeof d.videoUrl === "string") setVideoUrl(d.videoUrl);
+      if (Number(d.ageMin)) setAgeMin(Number(d.ageMin));
+      if (Number(d.ageMax)) setAgeMax(Number(d.ageMax));
+      if (d.gender === "all" || d.gender === "male" || d.gender === "female") setGender(d.gender);
+      if (Array.isArray(d.selInterests)) setSelInterests(d.selInterests as { id: string; name: string }[]);
+      if (Array.isArray(d.exInterests)) setExInterests(d.exInterests as { id: string; name: string }[]);
+      setDraftRestored(true);
+    } catch { /* brouillon illisible — ignoré */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftKey]);
+
+  useEffect(() => {
+    const id = setTimeout(() => {
+      try {
+        localStorage.setItem(draftKey, JSON.stringify({
+          name, adType, objective, budgetType, budget, lifetimeBudget, startDate, endDate,
+          primaryText, headline, link, cta, visualPrompt, imageUrl, videoUrl, ageMin, ageMax, gender, selInterests, exInterests,
+        }));
+      } catch { /* quota/indispo — non bloquant */ }
+    }, 600);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [name, adType, objective, budgetType, budget, lifetimeBudget, startDate, endDate, primaryText, headline, link, cta, visualPrompt, imageUrl, videoUrl, ageMin, ageMax, gender, selInterests, exInterests]);
+
+  function clearDraft() {
+    try { localStorage.removeItem(draftKey); } catch { /* ignore */ }
+    setDraftRestored(false);
+  }
 
   async function loadAudiences() {
     setLoadingAud(true);
@@ -561,6 +649,7 @@ export default function NewMetaAdPage() {
       }
       if (!r.ok) { setError(d.error || t("Échec de la création.", "Creation failed.")); return; }
       setResult({ campaignId: d.campaignId, adSetId: d.adSetId, creativeId: d.creativeId, adId: d.adId, adIds: d.adIds, leadFormId: d.leadFormId, status: d.status });
+      clearDraft(); // annonce créée → on jette le brouillon
       setLeads(null);
       setTimeout(() => window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" }), 150);
     } catch (e) {
@@ -605,6 +694,14 @@ export default function NewMetaAdPage() {
         )}
         actions={<Link href="/campaigns" className="btn-secondary text-sm">{t("← Campagnes", "← Campaigns")}</Link>}
       />
+
+      {/* #10 — Brouillon restauré : la saisie a été conservée automatiquement. */}
+      {draftRestored && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-primary-50 px-3 py-2 text-xs text-primary-700 ring-1 ring-primary-200">
+          <span>{t("✓ Brouillon restauré — votre saisie a été sauvegardée automatiquement.", "✓ Draft restored — your progress was saved automatically.")}</span>
+          <button type="button" onClick={clearDraft} className="font-semibold underline hover:no-underline">{t("Effacer le brouillon", "Discard draft")}</button>
+        </div>
+      )}
 
       {/* État de connexion Meta */}
       {loadingConn ? (
@@ -734,12 +831,12 @@ export default function NewMetaAdPage() {
           {/* Calendrier */}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
-              <label className="mb-1 block text-xs font-medium text-muted">{t("Début (optionnel)", "Start (optional)")}</label>
-              <input type="datetime-local" value={startDate} onChange={(e) => setStartDate(e.target.value)} className={inputCls} />
+              <label className="mb-1 block text-xs font-medium text-muted">{t("Début (heure pleine suivante par défaut)", "Start (defaults to the next full hour)")}</label>
+              <input type="datetime-local" min={minDateTime} value={startDate} onChange={(e) => setStartDate(e.target.value)} className={inputCls} />
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-muted">{budgetType === "lifetime" ? t("Fin (obligatoire)", "End (required)") : t("Fin (optionnel)", "End (optional)")}</label>
-              <input type="datetime-local" value={endDate} onChange={(e) => setEndDate(e.target.value)} className={inputCls} />
+              <input type="datetime-local" min={startDate || minDateTime} value={endDate} onChange={(e) => setEndDate(e.target.value)} className={inputCls} />
             </div>
           </div>
 
@@ -855,16 +952,28 @@ export default function NewMetaAdPage() {
             <MetaGeoPicker companyId={companyId} value={exGeoLocs} onChange={setExGeoLocs} disabled={!conn?.connected} />
           </div>
 
-          {/* Intérêts exclus — réutilise les résultats de recherche ci-dessus */}
+          {/* Intérêts exclus — recherche DÉDIÉE (#6) */}
           <div className="border-t pt-3">
             <span className="text-xs font-semibold text-ink">{t("Centres d'intérêt exclus", "Excluded interests")}</span>
-            {interestResults.length > 0 && (
+            <div className="mt-1.5 flex gap-2">
+              <input
+                value={exQuery}
+                onChange={(e) => setExQuery(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); searchExInterests(); } }}
+                placeholder={t("Rechercher un intérêt à exclure…", "Search an interest to exclude…")}
+                className={inputCls}
+              />
+              <button type="button" onClick={searchExInterests} disabled={searchingEx} className="btn-secondary inline-flex shrink-0 items-center gap-1.5 text-xs disabled:opacity-50">
+                {searchingEx && <Spinner size={14} className="text-current" />}
+                {t("Rechercher", "Search")}
+              </button>
+            </div>
+            {exResults.length > 0 && (
               <div className="mt-2 flex flex-wrap gap-1.5">
-                {interestResults.map((it) => {
+                {exResults.map((it) => {
                   const on = exInterests.some((x) => x.id === it.id);
                   return (
-                    <button key={`ex-${it.id}`} type="button"
-                      onClick={() => setExInterests((cur) => cur.some((x) => x.id === it.id) ? cur.filter((x) => x.id !== it.id) : [...cur, { id: it.id, name: it.name }])}
+                    <button key={`ex-${it.id}`} type="button" onClick={() => toggleExInterest(it)}
                       className={`rounded-full px-3 py-1 text-2xs font-medium ${on ? "bg-danger-500 text-white" : "bg-canvas text-muted ring-1 ring-hair hover:text-ink"}`}>
                       {on ? "− " : ""}{it.name}
                     </button>
@@ -881,7 +990,7 @@ export default function NewMetaAdPage() {
                 ))}
               </div>
             ) : (
-              <p className="mt-1 text-2xs text-muted">{t("Recherchez un intérêt ci-dessus, puis cliquez-le ici pour l'exclure.", "Search an interest above, then click it here to exclude it.")}</p>
+              <p className="mt-1 text-2xs text-muted">{t("Recherchez un intérêt ci-dessus, puis cliquez un résultat pour l'exclure.", "Search an interest above, then click a result to exclude it.")}</p>
             )}
           </div>
 

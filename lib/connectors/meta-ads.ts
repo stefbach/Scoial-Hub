@@ -32,6 +32,15 @@ function metaError(json: Record<string, unknown>): Error {
   const human = [title, userMsg].filter(Boolean).join(" — ");
   const parts = [human || baseMsg];
   if (field) parts.push(`(champ concerné : ${field})`);
+  // Explications claires pour les paramètres Meta réputés obscurs (ex. #9).
+  const blob = `${baseMsg} ${field} ${userMsg}`.toLowerCase();
+  const HINTS: { match: RegExp; hint: string }[] = [
+    { match: /is_adset_budget_sharing_enabled|campaign_budget_optimization|advantage.*budget/, hint: "Conflit de budget : il est défini à la fois au niveau de la campagne (budget optimisé / Advantage) et au niveau de l'ensemble de publicités. Définissez le budget à UN seul niveau, ou désactivez le budget de campagne dans votre compte Meta." },
+    { match: /special_ad_categor/, hint: "Catégorie de publicité spéciale requise (logement, emploi, crédit, politique). À régler dans les paramètres de la campagne sur Meta." },
+    { match: /daily_budget|lifetime_budget|min.*budget/, hint: "Budget trop bas pour ce ciblage : augmentez le budget quotidien ou à vie." },
+  ];
+  const found = HINTS.find((h) => h.match.test(blob));
+  if (found) parts.push(`→ ${found.hint}`);
   return new Error(parts.join(" "));
 }
 

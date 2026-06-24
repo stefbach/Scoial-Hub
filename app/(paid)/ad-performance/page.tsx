@@ -551,7 +551,7 @@ function AdPerformanceContent() {
         <MetaAdAccountsPanel />
         <AdStrategyBrain />
         <AdPilot />
-        <AgentLauncher context={t("page Performance Ads", "Ad Performance page")} defaultObjective={t("Analyser la performance et proposer des optimisations", "Analyze performance and propose optimizations")} />
+        <AgentLauncher adOnly context={t("page Performance Ads", "Ad Performance page")} defaultObjective={t("Analyser la performance et proposer des optimisations", "Analyze performance and propose optimizations")} />
       </div>
 
       {range === "custom" && (

@@ -61,6 +61,19 @@ function toLocalDT(d: Date): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
+// Nettoie un message d'erreur : retire les phrases répétées (#7) pour le rendre
+// plus court et lisible.
+function cleanError(msg: string): string {
+  const parts = msg.split(/(?<=[.!?])\s+|\s+→\s+/).map((s) => s.trim()).filter(Boolean);
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const p of parts) {
+    const k = p.toLowerCase().replace(/[.!?]+$/, "");
+    if (!seen.has(k)) { seen.add(k); out.push(p); }
+  }
+  return out.join(" ");
+}
+
 export default function NewMetaAdPage() {
   const t = useT();
   const { lang } = useLang();
@@ -1316,7 +1329,21 @@ export default function NewMetaAdPage() {
           </section>
         )}
 
-        {error && <p className="rounded-lg bg-danger-50 px-3 py-2 text-sm text-danger-700">{error}</p>}
+        {error && (
+          <div className="rounded-lg bg-danger-50 px-3 py-2.5 ring-1 ring-danger-200">
+            <p className="text-xs font-semibold text-danger-700">{t("La création n'a pas abouti", "Creation didn't go through")}</p>
+            <p className="mt-1 text-2xs leading-relaxed text-danger-700/90">{cleanError(error)}</p>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {/budget/i.test(error) && (
+                <button type="button" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} className="btn-secondary text-2xs">
+                  {t("↑ Revoir le budget & les réglages", "↑ Review budget & settings")}
+                </button>
+              )}
+              <a href="https://www.facebook.com/business/help" target="_blank" rel="noopener noreferrer" className="btn-secondary text-2xs">{t("Aide Meta", "Meta help")}</a>
+              <button type="button" onClick={() => setError(null)} className="btn-ghost text-2xs text-danger-700">{t("Fermer", "Dismiss")}</button>
+            </div>
+          </div>
+        )}
 
         <button type="button" onClick={publish} disabled={publishing} className="btn-primary inline-flex w-full items-center justify-center gap-2 disabled:opacity-50">
           {publishing && <Spinner size={16} className="text-white" />}

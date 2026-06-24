@@ -22,6 +22,7 @@ export function AgentLauncher({
   context,
   label,
   compact = false,
+  adOnly = false,
 }: {
   /** Objectif pré-rempli (selon la page d'où on lance). */
   defaultObjective?: string;
@@ -29,6 +30,8 @@ export function AgentLauncher({
   context?: string;
   label?: string;
   compact?: boolean;
+  /** Pages payantes : ne proposer QUE « Créer une pub » comme étape suivante. */
+  adOnly?: boolean;
 }) {
   const t = useT();
   const { lang } = useLang();
@@ -113,12 +116,22 @@ export function AgentLauncher({
       {result && (
         <div className="mt-2 space-y-2">
           <p className="whitespace-pre-wrap rounded-lg bg-canvas px-3 py-2 text-xs text-ink ring-1 ring-hair">{result}</p>
-          {/* Bouton(s) d'action pour guider l'utilisateur vers l'étape suivante. */}
+          {/* Étape suivante : sur les pages payantes, uniquement « Créer une pub »,
+              avec le texte de l'agent PRÉ-REMPLI dans le formulaire (#3/#13). */}
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="text-2xs text-muted">{t("Étape suivante :", "Next step:")}</span>
-            <Link href="/compose" className="btn-secondary text-2xs">{t("✍️ Composer un post", "✍️ Compose a post")}</Link>
-            <Link href="/campaigns/new" className="btn-secondary text-2xs">{t("📣 Créer une pub", "📣 Create an ad")}</Link>
-            <Link href="/scheduled" className="btn-secondary text-2xs">{t("🗓️ Voir les programmés", "🗓️ View scheduled")}</Link>
+            <Link
+              href={`/campaigns/new?name=${encodeURIComponent(objective.trim().slice(0, 80))}&text=${encodeURIComponent(result.replace(/^\s*\[[^\]]*\]\s*/, "").trim().slice(0, 600))}`}
+              className="btn-primary text-2xs"
+            >
+              {t("📣 Créer une pub (pré-remplie)", "📣 Create an ad (prefilled)")}
+            </Link>
+            {!adOnly && (
+              <>
+                <Link href="/compose" className="btn-secondary text-2xs">{t("✍️ Composer un post", "✍️ Compose a post")}</Link>
+                <Link href="/scheduled" className="btn-secondary text-2xs">{t("🗓️ Voir les programmés", "🗓️ View scheduled")}</Link>
+              </>
+            )}
           </div>
         </div>
       )}

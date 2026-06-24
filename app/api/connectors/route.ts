@@ -38,8 +38,11 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         if (connected && r?.config) {
           const c = r.config as Record<string, string>;
           const direct = c.url || c.link || c.profile_url || c.page_url || c.website;
+          const handle = c.username || c.ig_username;
           if (direct && /^https?:\/\//i.test(direct)) url = direct;
-          else if (c.username) url = p === "instagram" ? `https://instagram.com/${c.username}` : p === "facebook" ? `https://facebook.com/${c.username}` : undefined;
+          else if (p === "facebook" && c.page_id) url = `https://facebook.com/${c.page_id}`;          // Page FB connectée (réelle)
+          else if (p === "instagram" && handle) url = `https://instagram.com/${handle}`;
+          else if (p === "facebook" && handle) url = `https://facebook.com/${handle}`;
         }
         return {
           platform: p,

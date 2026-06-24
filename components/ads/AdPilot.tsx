@@ -26,22 +26,24 @@ export function AdPilot() {
 
   const [actions, setActions] = useState<PilotAction[] | null>(null);
   const [fallback, setFallback] = useState(false);
+  const [noCampaigns, setNoCampaigns] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [applying, setApplying] = useState<number | null>(null);
   const [done, setDone] = useState<Record<number, string>>({});
 
   async function analyze() {
-    setLoading(true); setError(null); setActions(null); setFallback(false); setDone({});
+    setLoading(true); setError(null); setActions(null); setFallback(false); setNoCampaigns(false); setDone({});
     try {
       // BUG #15 : on transmet la langue de l'UI pour des propositions traduites.
       const r = await fetch(`/api/meta/ads/pilot?companyId=${encodeURIComponent(companyId)}&language=${lang}`);
       const raw = await r.text();
-      let d: { actions?: PilotAction[]; error?: string; connected?: boolean; fallback?: boolean } = {};
+      let d: { actions?: PilotAction[]; error?: string; connected?: boolean; fallback?: boolean; noCampaigns?: boolean } = {};
       try { d = raw ? JSON.parse(raw) : {}; } catch { setError(t("Réponse inattendue.", "Unexpected response.")); return; }
       if (!r.ok) { setError(d.error || t("Échec de l'analyse.", "Analysis failed.")); return; }
       setActions(d.actions ?? []);
       setFallback(!!d.fallback);
+      setNoCampaigns(!!d.noCampaigns);
     } catch (e) {
       setError(e instanceof Error ? e.message : t("Échec de l'analyse.", "Analysis failed."));
     } finally { setLoading(false); }
@@ -101,16 +103,21 @@ export function AdPilot() {
         {loading && <BusyHint label={t("Analyse de la performance et des optimisations…", "Analyzing performance and optimizations…")} eta={t("~15–40 s", "~15–40 s")} />}
         {error && <p className="rounded-lg bg-danger-50 px-3 py-2 text-sm text-danger-700">{error}</p>}
         {actions && actions.length === 0 && !loading && (
-          <p className="text-sm text-muted">{t("Aucune action proposée (compte sain, ou pas assez de données).", "No action proposed (account healthy, or not enough data).")}</p>
+          <p className="text-sm text-muted">
+            {noCampaigns
+              ? t("Aucune campagne active à optimiser pour l'instant. Lancez une campagne, puis revenez ici.", "No active campaigns to optimize yet. Launch a campaign, then come back here.")
+              : t("Aucune action proposée (compte sain, ou pas assez de données).", "No action proposed (account healthy, or not enough data).")}
+          </p>
         )}
 
-        {/* BUG #14 : l'IA n'a pas pu analyser → on bascule sur des suggestions
-            génériques, en l'indiquant clairement plutôt qu'une impasse. */}
+        {/* BUG #9 : si l'analyse IA détaillée n'aboutit pas, on bascule sur des
+            optimisations déterministes basées sur les chiffres réels — message
+            calme et utile, pas une erreur. */}
         {actions && actions.length > 0 && fallback && !loading && (
-          <p className="rounded-lg bg-warning-50 px-3 py-2 text-2xs leading-relaxed text-warning-700">
+          <p className="rounded-lg bg-primary-50 px-3 py-2 text-2xs leading-relaxed text-primary-700">
             {t(
-              "L'analyse IA détaillée n'a pas abouti — voici des optimisations génériques basées sur vos chiffres. Relancez « Ré-analyser » pour réessayer.",
-              "Detailed AI analysis was unavailable — here are generic optimizations based on your figures. Use “Re-analyze” to try again."
+              "Voici des optimisations calculées directement à partir de vos chiffres réels. Vous pouvez les appliquer telles quelles, ou relancer « Ré-analyser » pour une analyse IA plus détaillée.",
+              "Here are optimizations computed directly from your real figures. You can apply them as-is, or use “Re-analyze” for a more detailed AI analysis."
             )}
           </p>
         )}
@@ -119,7 +126,7 @@ export function AdPilot() {
         {actions && actions.length > 0 && (
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-2xs text-muted">
             <span className="inline-flex items-center gap-1.5">
-              <span className="inline-block h-2.5 w-2.5 rounded-sm bg-page" />
+              <span className="inline-block h-2.5 w-2.5 rounded-sm bg-primary-400" />
               {t("Action sûre — sans dépense supplémentaire (pause, baisse de budget)", "Safe action — no extra spend (pause, budget cut)")}
             </span>
             <span className="inline-flex items-center gap-1.5">
@@ -157,11 +164,16 @@ export function AdPilot() {
                 disabled={applying === i || !!done[i]}
                 title={applyTitle}
                 aria-label={applyTitle}
-                // BUG #16 : contraste lisible — amber vif (#f59e0b) avec texte
-                // quasi-noir (canvas), ou améthyste vif avec texte blanc.
-                className={`inline-flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold disabled:opacity-50 ${spend ? "bg-warning-500 text-canvas ring-1 ring-warning-600" : "bg-page text-white ring-1 ring-primary-300/40"}`}
+                // BUG #10/#11 : contraste lisible dans LES DEUX thèmes.
+                //  • Action « dépense » : fond ambre vif (#f59e0b) → texte
+                //    quasi-noir FIXE (#1c152e). On n'utilise plus `text-canvas`,
+                //    qui devient blanc en thème clair et rendait le libellé
+                //    illisible sur l'ambre.
+                //  • Action « sûre » : améthyste CLAIR (#9b6eff) au lieu du
+                //    violet trop sombre, avec texte blanc bien contrasté.
+                className={`inline-flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold disabled:opacity-50 ${spend ? "bg-warning-500 text-[#1c152e] ring-1 ring-warning-600" : "bg-primary-400 text-white ring-1 ring-primary-300/50"}`}
               >
-                {applying === i && <Spinner size={12} className={spend ? "text-canvas" : "text-white"} />}
+                {applying === i && <Spinner size={12} className={spend ? "text-[#1c152e]" : "text-white"} />}
                 {done[i] ?? (applying === i ? t("Application…", "Applying…") : t("Appliquer", "Apply"))}
               </button>
             </div>

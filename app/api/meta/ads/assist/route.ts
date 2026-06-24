@@ -45,11 +45,13 @@ interface AdPlan {
   rationale: string;
 }
 
-async function resolveInterests(keywords: string[], token: string): Promise<{ id: string; name: string }[]> {
+async function resolveInterests(keywords: string[], token: string, language?: "fr" | "en"): Promise<{ id: string; name: string }[]> {
+  // Locale Meta → noms d'intérêts dans la langue de l'UI (corrige #4).
+  const locale = language === "en" ? "en_US" : language === "fr" ? "fr_FR" : "";
   const out: { id: string; name: string }[] = [];
   for (const kw of keywords.slice(0, 6)) {
     try {
-      const url = `https://graph.facebook.com/${V}/search?type=adinterest&q=${encodeURIComponent(kw)}&limit=1&access_token=${encodeURIComponent(token)}`;
+      const url = `https://graph.facebook.com/${V}/search?type=adinterest&q=${encodeURIComponent(kw)}${locale ? `&locale=${locale}` : ""}&limit=1&access_token=${encodeURIComponent(token)}`;
       const r = await fetch(url, { cache: "no-store" });
       const j = (await r.json()) as { data?: Array<{ id?: string; name?: string }> };
       const top = j.data?.[0];
@@ -141,7 +143,7 @@ ${body.language === "en" ? "REMINDER: write \"reply\" and ALL ad copy (primaryTe
 
     // Résout les intérêts en vrais ids Meta quand le plan est finalisé.
     if (plan && ctx.userToken && Array.isArray(plan.interestKeywords) && plan.interestKeywords.length) {
-      plan.interests = await resolveInterests(plan.interestKeywords, ctx.userToken);
+      plan.interests = await resolveInterests(plan.interestKeywords, ctx.userToken, body.language);
     }
 
     return NextResponse.json({

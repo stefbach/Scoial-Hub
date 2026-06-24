@@ -484,7 +484,7 @@ function AdPerformanceContent() {
   const hasNoData = data.campaigns.list.length === 0 && !hasRealMeta;
 
   return (
-    <div className="animate-fade-in">
+    <div className="animate-fade-in space-y-5">
       <StudioHero
         icon={<IconBars size={24} />}
         subtitle={t("Suivez les résultats réels de vos publicités Meta : dépense, portée, clics, conversions.", "Track real results of your Meta ads: spend, reach, clicks, conversions.")}
@@ -547,7 +547,7 @@ function AdPerformanceContent() {
       />
 
       {/* Accès aux comptes publicitaires Meta présents + cerveau IA */}
-      <div className="mb-6 space-y-4">
+      <div className="space-y-4">
         <MetaAdAccountsPanel />
         <AdStrategyBrain />
         <AdPilot />

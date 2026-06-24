@@ -89,6 +89,39 @@ function fallbackActions(campaigns: CampaignPerf[], lang: Lang): PilotAction[] {
         ),
         impact: "spend",
       });
+      continue;
+    }
+
+    // Campagne en pause clairement rentable → la réactiver (dépense).
+    if (!active && c.conversions >= 2 && c.ctr >= 1) {
+      out.push({
+        type: "activate",
+        campaignId: c.id,
+        campaignName: c.name,
+        reason: tr(
+          `En pause mais rentable par le passé (${c.conversions} conv., CTR ${c.ctr.toFixed(2)}%) : la réactiver peut relancer les résultats.`,
+          `Paused but profitable historically (${c.conversions} conv., ${c.ctr.toFixed(2)}% CTR): reactivating it can revive results.`
+        ),
+        impact: "spend",
+      });
+      continue;
+    }
+
+    // Catch-all : aucune règle franche ne s'applique. On propose tout de même un
+    // ajustement de budget léger et SÛR (-10 %) pour ne JAMAIS laisser l'utilisateur
+    // sans suggestion exploitable (BUG #9 : jamais d'impasse « rien à proposer »).
+    if (active) {
+      out.push({
+        type: "budget",
+        campaignId: c.id,
+        campaignName: c.name,
+        factor: 0.9,
+        reason: tr(
+          `Performance moyenne (CTR ${c.ctr.toFixed(2)}%, ${c.conversions} conv.) : réduire légèrement le budget (-10 %) et tester un nouveau créatif avant de scaler.`,
+          `Average performance (${c.ctr.toFixed(2)}% CTR, ${c.conversions} conv.): trim budget slightly (-10%) and test a fresh creative before scaling.`
+        ),
+        impact: "safe",
+      });
     }
   }
 
@@ -116,7 +149,10 @@ export async function GET(req: NextRequest) {
         id: c.id, name: c.name, status: c.status, spend: c.spend, impressions: c.impressions,
         clicks: c.clicks, ctr: c.ctr, cpc: c.cpc, conversions: c.conversions,
       }));
-    if (campaigns.length === 0) return NextResponse.json({ connected: true, actions: [] });
+    // Aucune campagne à optimiser : message clair et calme (pas une erreur).
+    if (campaigns.length === 0) {
+      return NextResponse.json({ connected: true, actions: [], noCampaigns: true });
+    }
 
     const validIds = new Set(campaigns.map((c) => c.id));
     const normalize = (raw: PilotAction[]): PilotAction[] =>
@@ -165,14 +201,14 @@ ${langDirective}`;
     const parsed = await callClaudeJSONRetry<{ actions?: PilotAction[] }>(prompt, { maxTokens: 1500 }, 1);
     let actions = normalize(parsed?.actions ?? []);
 
-    // BUG #14 : réponse IA inexploitable (null) ou vide → filet de sécurité.
+    // BUG #9 : réponse IA inexploitable (null) ou vide → filet de sécurité
+    // déterministe. Le fallback propose désormais TOUJOURS au moins une action
+    // sensée par campagne active, donc l'utilisateur n'aboutit jamais à une
+    // impasse « l'IA n'a pas pu analyser ».
     let fallback = false;
     if (!parsed || actions.length === 0) {
-      const heuristics = normalize(fallbackActions(campaigns, lang));
-      if (heuristics.length > 0) {
-        actions = heuristics;
-        fallback = true;
-      }
+      actions = normalize(fallbackActions(campaigns, lang));
+      fallback = true;
     }
 
     return NextResponse.json({ connected: true, actions, fallback, account: data.account ?? null });

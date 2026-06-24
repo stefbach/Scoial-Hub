@@ -181,6 +181,34 @@ function AnalyticsContent() {
     return false;
   }, [inScope]);
 
+  // Statut RÉEL de connexion des réseaux pour les sociétés de la portée.
+  // Conditionne le message d'état vide : on n'invite pas à « connecter vos
+  // réseaux » s'ils le sont déjà. null = encore inconnu (chargement).
+  const [networksConnected, setNetworksConnected] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (hasData) return; // statut inutile quand des données existent déjà
+    let cancelled = false;
+    (async () => {
+      try {
+        const results = await Promise.all(
+          inScope.map(async (c) => {
+            const res = await fetch(`/api/connectors?companyId=${encodeURIComponent(c.id)}`);
+            if (!res.ok) return false;
+            const arr: Array<{ connectedAccounts?: number }> = await res.json();
+            return Array.isArray(arr) && arr.some((s) => (s.connectedAccounts ?? 0) > 0);
+          })
+        );
+        if (!cancelled) setNetworksConnected(results.some(Boolean));
+      } catch {
+        if (!cancelled) setNetworksConnected(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scope, hasData]);
+
   // Overview totals + trend (vs previous equivalent window).
   const totals = useMemo(() => {
     const acc: Record<MetricId, number> = {
@@ -447,19 +475,33 @@ function AnalyticsContent() {
               <path d="M3 20h18M3 14l5-5 4 4 5-7 4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           </div>
-          <h3 className="mb-1 text-sm font-semibold text-ink">{t("Pas encore de données analytiques — connectez vos réseaux", "No analytics data yet — connect your networks")}</h3>
-          <p className="max-w-sm text-xs text-muted">
-            {t(
-              "Les graphiques et indicateurs apparaîtront dès que vos réseaux seront connectés et que vos premières publications ou campagnes génèreront de l'activité.",
-              "Charts and metrics will appear once your networks are connected and your first posts or campaigns generate activity."
-            )}
-          </p>
-          <a
-            href="/accounts"
-            className="mt-5 inline-flex items-center gap-1.5 rounded-lg bg-page px-4 py-2 text-xs font-semibold text-white shadow-xs hover:opacity-90 transition-colors"
-          >
-            {t("Connecter mes réseaux", "Connect my networks")}
-          </a>
+          {networksConnected ? (
+            <>
+              <h3 className="mb-1 text-sm font-semibold text-ink">{t("Pas encore de données", "No data yet")}</h3>
+              <p className="max-w-sm text-xs text-muted">
+                {t(
+                  "Vos graphiques apparaîtront dès que vos posts ou campagnes génèrent de l'activité.",
+                  "Your charts will appear once your posts or campaigns generate activity."
+                )}
+              </p>
+            </>
+          ) : (
+            <>
+              <h3 className="mb-1 text-sm font-semibold text-ink">{t("Pas encore de données analytiques — connectez vos réseaux", "No analytics data yet — connect your networks")}</h3>
+              <p className="max-w-sm text-xs text-muted">
+                {t(
+                  "Les graphiques et indicateurs apparaîtront dès que vos réseaux seront connectés et que vos premières publications ou campagnes génèreront de l'activité.",
+                  "Charts and metrics will appear once your networks are connected and your first posts or campaigns generate activity."
+                )}
+              </p>
+              <a
+                href="/accounts"
+                className="mt-5 inline-flex items-center gap-1.5 rounded-lg bg-page px-4 py-2 text-xs font-semibold text-white shadow-xs hover:opacity-90 transition-colors"
+              >
+                {t("Connecter mes réseaux", "Connect my networks")}
+              </a>
+            </>
+          )}
         </div>
       )}
 

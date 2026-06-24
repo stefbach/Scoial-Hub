@@ -100,11 +100,10 @@ export default function ClientMcpPage() {
 
   return (
     <div className="animate-fade-in space-y-5">
-      {/* Bandeau */}
-      <div className="flex items-start gap-3 rounded-2xl border border-primary-200 bg-gradient-to-br from-primary-50 to-card px-5 py-4">
+      {/* En-tête */}
+      <div className="flex items-start gap-3">
         <span
-          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-white shadow-sm"
-          style={{ background: "linear-gradient(135deg,#5b2d8e,#7c3aed)" }}
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary text-white"
           aria-hidden
         >
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
@@ -115,7 +114,7 @@ export default function ClientMcpPage() {
           <h1 className="text-xl font-bold tracking-tight text-ink">
             {t(`Connecter « ${company.name} » à Claude Desktop`, `Connect “${company.name}” to Claude Desktop`)}
           </h1>
-          <p className="mt-0.5 text-sm text-primary-700">
+          <p className="mt-0.5 text-sm text-muted">
             {t("Générez votre clé, lancez une commande, c'est fini.", "Generate your key, run one command, done.")}
           </p>
         </div>

@@ -421,12 +421,13 @@ export default function StudioPage() {
             );
           })}
         </div>
-        {/* Durée cible du montage (timeline) */}
+        {/* Durée cible du diaporama / vidéo (timeline) */}
         <label className="mt-4 flex items-center gap-3 text-xs text-muted">
-          {t("Durée cible du montage", "Target edit duration")}
-          <input type="range" min={6} max={60} step={2} value={durationHint} onChange={(e) => setDurationHint(Number(e.target.value))} className="flex-1 accent-page" />
-          <span className="w-10 text-right font-semibold text-ink">{durationHint}s</span>
+          {t("Durée cible (diaporama / vidéo)", "Target duration (slideshow / video)")}
+          <input type="range" min={6} max={300} step={2} value={durationHint} onChange={(e) => setDurationHint(Number(e.target.value))} className="flex-1 accent-page" />
+          <span className="w-12 text-right font-semibold text-ink">{durationHint}s</span>
         </label>
+        <p className="mt-1 text-2xs text-muted">{t("Le montage vidéo (plusieurs clips) joue tous vos plans bout à bout — durée illimitée, indépendante de ce curseur.", "Video montage (multiple clips) plays all your shots end-to-end — unlimited length, independent of this slider.")}</p>
       </StudioStep>
 
       <button

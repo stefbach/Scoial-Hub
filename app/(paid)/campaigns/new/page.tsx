@@ -230,6 +230,9 @@ export default function NewMetaAdPage() {
     if (vid) setVideoUrl(vid);
     if (txt) setPrimaryText(txt);
     if (nm) setName(nm);
+    // #1/#10 : si le formulaire arrive pré-rempli (depuis l'agent IA), on ouvre
+    // directement l'onglet « Réglages avancés » où les champs sont visibles.
+    if (img || vid || txt || nm) setMode("manual");
   }, []);
 
   // Génération vidéo IA (asynchrone) pour la créative de campagne.
@@ -618,7 +621,7 @@ export default function NewMetaAdPage() {
       const r = await fetch("/api/meta/ads/publish", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          companyId, name,
+          companyId, name, language: lang,
           objective: adType === "lead" ? "leads" : objective,
           budgetType,
           dailyBudgetCents: Math.round(budget * 100),
@@ -1332,7 +1335,7 @@ export default function NewMetaAdPage() {
         {error && (
           <div className="rounded-lg bg-danger-50 px-3 py-2.5 ring-1 ring-danger-200">
             <p className="text-xs font-semibold text-danger-700">{t("La création n'a pas abouti", "Creation didn't go through")}</p>
-            <p className="mt-1 text-2xs leading-relaxed text-danger-700/90">{cleanError(error)}</p>
+            <p className="mt-1 text-xs leading-relaxed font-medium text-danger-700">{cleanError(error)}</p>
             <div className="mt-2 flex flex-wrap gap-1.5">
               {/budget/i.test(error) && (
                 <button type="button" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} className="btn-secondary text-2xs">

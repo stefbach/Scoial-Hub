@@ -155,7 +155,11 @@ export function AdPilot() {
                 <div className="flex flex-wrap items-center gap-2">
                   <span className={`rounded-full px-2 py-0.5 text-2xs font-semibold ${b.cls}`}>{b.label}</span>
                   <span className="text-sm font-semibold text-ink">{a.campaignName}</span>
-                  {spend && <span className="rounded-full bg-warning-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-warning-700">{t("dépense", "spend")}</span>}
+                  {/* BUG #8 : bg-warning-100 n'est PAS remappé en thème clair
+                      (reste brun foncé) → texte foncé illisible. bg-warning-50
+                      donne tuile claire/texte foncé en clair, tuile foncée/texte
+                      clair en sombre. */}
+                  {spend && <span className="rounded-full bg-warning-50 px-1.5 py-0.5 text-[10px] font-bold uppercase text-warning-700">{t("dépense", "spend")}</span>}
                 </div>
                 <p className="mt-1 text-xs text-muted">{a.reason}</p>
               </div>
@@ -164,16 +168,18 @@ export function AdPilot() {
                 disabled={applying === i || !!done[i]}
                 title={applyTitle}
                 aria-label={applyTitle}
-                // BUG #10/#11 : contraste lisible dans LES DEUX thèmes.
+                // BUG #10/#11/#9 : contraste lisible dans LES DEUX thèmes.
                 //  • Action « dépense » : fond ambre vif (#f59e0b) → texte
                 //    quasi-noir FIXE (#1c152e). On n'utilise plus `text-canvas`,
                 //    qui devient blanc en thème clair et rendait le libellé
                 //    illisible sur l'ambre.
-                //  • Action « sûre » : améthyste CLAIR (#9b6eff) au lieu du
-                //    violet trop sombre, avec texte blanc bien contrasté.
-                className={`inline-flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold disabled:opacity-50 ${spend ? "bg-warning-500 text-[#1c152e] ring-1 ring-warning-600" : "bg-primary-400 text-white ring-1 ring-primary-300/50"}`}
+                //  • Action « sûre » : améthyste CLAIR (#9b6eff). Le texte BLANC
+                //    sur cet améthyste moyen restait limite (≈2.6:1) ; on passe
+                //    à un texte quasi-noir FIXE (#1c152e, ≈6:1) parfaitement
+                //    lisible — cohérent avec le bouton « dépense ».
+                className={`inline-flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold disabled:opacity-50 ${spend ? "bg-warning-500 text-[#1c152e] ring-1 ring-warning-600" : "bg-primary-400 text-[#1c152e] ring-1 ring-primary-300/50"}`}
               >
-                {applying === i && <Spinner size={12} className={spend ? "text-[#1c152e]" : "text-white"} />}
+                {applying === i && <Spinner size={12} className="text-[#1c152e]" />}
                 {done[i] ?? (applying === i ? t("Application…", "Applying…") : t("Appliquer", "Apply"))}
               </button>
             </div>

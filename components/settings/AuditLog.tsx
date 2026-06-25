@@ -14,13 +14,15 @@ type RangeId = "7d" | "30d" | "90d" | "1y" | "all" | "custom";
 const ENTITY_VALUES: (AuditEntity | "all")[] = ["all", "post", "campaign", "audience", "ad_safety", "team", "settings"];
 const RANGE_VALUES = new Set<RangeId>(["7d", "30d", "90d", "1y", "all", "custom"]);
 
-const NOW = new Date("2026-05-30T00:00:00");
+// UAT #18 — la borne « maintenant » doit suivre la date réelle. Une date figée
+// dans le passé masquait les événements récents (fenêtre « 30 derniers jours »
+// se terminant avant les vrais événements). On la calcule au montage.
 const PAGE_SIZE = 12;
 
-function rangeStart(r: RangeId, customFrom: Date | null): Date | null {
+function rangeStart(r: RangeId, customFrom: Date | null, now: Date): Date | null {
   if (r === "all") return null;
   if (r === "custom") return customFrom;
-  const d = new Date(NOW);
+  const d = new Date(now);
   if (r === "7d") d.setDate(d.getDate() - 7);
   else if (r === "30d") d.setDate(d.getDate() - 30);
   else if (r === "90d") d.setDate(d.getDate() - 90);
@@ -80,16 +82,38 @@ export function AuditLog({
   const [expanded, setExpanded] = useState<string | null>(null);
   const [page, setPage] = useState(1);
 
+  // « Maintenant » réel, figé au montage (stable entre rendus).
+  const [NOW] = useState(() => new Date());
+
+  // UAT #18 — événements RÉELS depuis /api/audit (table sh_audit_log).
+  // `null` = pas encore chargé ; tableau = source de vérité (vide ou non).
+  const [realEvents, setRealEvents] = useState<AuditEvent[] | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/audit")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (cancelled) return;
+        setRealEvents(Array.isArray(d?.events) ? (d.events as AuditEvent[]) : []);
+      })
+      .catch(() => { if (!cancelled) setRealEvents([]); });
+    return () => { cancelled = true; };
+  }, []);
+
+  // Source affichée : événements réels si disponibles, sinon repli mock (démo).
+  const source: AuditEvent[] = realEvents && realEvents.length > 0 ? realEvents : AUDIT_LOG;
+  const loading = realEvents === null;
+
   // Reset page when filters change.
   useEffect(() => {
     setPage(1);
   }, [search, entityFilter, userFilter, companyFilter, range, customFrom, customTo]);
 
-  const start = rangeStart(range, customFrom);
+  const start = rangeStart(range, customFrom, NOW);
   const end = range === "custom" ? customTo : null;
 
   const filtered = useMemo(() => {
-    return AUDIT_LOG.filter((e) => {
+    return source.filter((e) => {
       if (entityFilter !== "all" && e.entity !== entityFilter) return false;
       if (userFilter !== "all" && e.userId !== userFilter) return false;
       if (companyFilter !== "all" && e.companyId !== companyFilter) return false;
@@ -99,7 +123,7 @@ export function AuditLog({
       if (end && ts > end) return false;
       return true;
     });
-  }, [search, entityFilter, userFilter, companyFilter, start, end]);
+  }, [source, search, entityFilter, userFilter, companyFilter, start, end]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageRows = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -245,8 +269,19 @@ export function AuditLog({
       )}
 
       <div className="card divide-y divide-hair">
-        {pageRows.length === 0 ? (
-          <div className="px-3 py-8 text-center text-sm text-muted">{t("Aucun événement ne correspond à ces filtres.", "No events match these filters.")}</div>
+        {loading ? (
+          <div className="px-3 py-8 text-center text-sm text-muted">{t("Chargement du journal d'audit…", "Loading audit log…")}</div>
+        ) : pageRows.length === 0 ? (
+          source.length === 0 ? (
+            <div className="px-3 py-8 text-center text-sm text-muted">
+              {t(
+                "Aucun événement d'audit enregistré pour le moment. Les actions sensibles (publications, campagnes, équipe, paramètres) apparaîtront ici dès qu'elles seront tracées.",
+                "No audit events recorded yet. Sensitive actions (posts, campaigns, team, settings) will appear here once they're logged.",
+              )}
+            </div>
+          ) : (
+            <div className="px-3 py-8 text-center text-sm text-muted">{t("Aucun événement ne correspond à ces filtres.", "No events match these filters.")}</div>
+          )
         ) : (
           pageRows.map((e) => (
             <div key={e.id}>

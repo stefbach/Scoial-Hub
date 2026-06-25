@@ -50,3 +50,19 @@ Réutiliser la fixture de `e2e/helpers.ts` (`import { test, expect } from "./hel
 qui applique déjà la langue anglaise + le cookie de bypass. Pour figer un parcours
 validé manuellement, écrire un test déterministe ici ; pour la découverte de
 nouveaux bugs, une exploration IA reste complémentaire (non bloquante).
+
+## Diagnostic ponctuel (`scripts/diagnose.ts`)
+
+Crawl non bloquant qui parcourt toutes les routes en anglais et **remonte** (sans
+faire échouer) : erreurs/avertissements console, erreurs JS, fuites de français en
+mode EN, images cassées, frontières d'erreur. Utile pour une chasse aux bugs.
+
+```bash
+npm run build
+E2E_BYPASS_SECRET=local-e2e-secret PORT=3000 npm run start &   # serveur local
+E2E_CHROMIUM_PATH=/opt/pw-browsers/chromium E2E_BYPASS_SECRET=local-e2e-secret npm run diagnose
+
+# ou contre un preview authentifié :
+E2E_BASE_URL=https://<preview>.vercel.app E2E_BYPASS_SECRET=<secret> npm run diagnose
+```
+

@@ -1,25 +1,72 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { Toast } from "@/components/ui/Toast";
 import { ImageUpload, type UploadedImage } from "@/components/ui/ImageUpload";
 import { SubHeader, SectionLabel } from "./shared";
-import { COMPANIES, ORG_NAME, TEAM } from "@/lib/mock-data";
+import { useCompany } from "@/lib/company-context";
+import { createClient } from "@/lib/supabase/client";
+import { isSupabaseConfigured } from "@/lib/env";
 import { useT } from "@/lib/i18n";
 
 const INDUSTRIES = ["Healthcare", "Marketing", "Retail", "Education", "Other"];
 
 export function Organization({ onNavigate }: { onNavigate: (section: string) => void }) {
   const t = useT();
-  const [name, setName] = useState(ORG_NAME);
+  // UAT #14 — sociétés RÉELLES de l'utilisateur (jamais les marques de démo).
+  const { companies } = useCompany();
+  // Nom d'organisation : vide tant qu'on n'a pas la vraie valeur de session,
+  // puis hydraté depuis sh_organizations (jamais un nom d'org fictif).
+  const [name, setName] = useState("");
+  const [teamCount, setTeamCount] = useState<number | null>(null);
   const [pendingName, setPendingName] = useState<string | null>(null);
   const [industry, setIndustry] = useState("Healthcare");
   const [logo, setLogo] = useState<UploadedImage | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteText, setDeleteText] = useState("");
   const [toast, setToast] = useState<string | null>(null);
+
+  // Hydrate le nom réel de l'organisation depuis la session Supabase.
+  useEffect(() => {
+    if (!isSupabaseConfigured) return;
+    const supabase = createClient();
+    if (!supabase) return;
+    let cancelled = false;
+    (async () => {
+      const { data: auth } = await supabase.auth.getUser();
+      if (!auth.user) return;
+      const { data: membership } = await supabase
+        .from("sh_memberships")
+        .select("org_id")
+        .eq("user_id", auth.user.id)
+        .limit(1)
+        .maybeSingle();
+      const orgId = membership?.org_id as string | undefined;
+      if (!orgId) return;
+      const { data: org } = await supabase
+        .from("sh_organizations")
+        .select("name")
+        .eq("id", orgId)
+        .maybeSingle();
+      if (!cancelled && typeof org?.name === "string") setName(org.name);
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Nombre de membres réel (route admin) — silencieux si non autorisé/non configuré.
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/team")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (cancelled || !d || !Array.isArray(d.members)) return;
+        setTeamCount(d.members.length + (Array.isArray(d.invitations) ? d.invitations.length : 0));
+      })
+      .catch(() => { /* garde null : on n'affiche pas de compte fictif */ });
+    return () => { cancelled = true; };
+  }, []);
 
   const orgInitials = name
     .split(" ")
@@ -42,9 +89,10 @@ export function Organization({ onNavigate }: { onNavigate: (section: string) => 
           <label className="text-2xs font-medium text-muted">{t("Nom de l'organisation", "Organization name")}</label>
           <div className="mt-1 flex min-w-0 items-center gap-2">
             <input
-              defaultValue={name}
+              value={pendingName ?? name}
               onChange={(e) => setPendingName(e.target.value)}
-              className="block min-w-0 flex-1 rounded-md border border-hair bg-card px-3 py-2 text-sm text-ink focus:outline-none"
+              placeholder={t("Nom de votre organisation", "Your organization name")}
+              className="block min-w-0 flex-1 rounded-md border border-hair bg-card px-3 py-2 text-sm text-ink placeholder:text-muted focus:outline-none"
             />
             <Button
               variant="secondary"
@@ -81,15 +129,19 @@ export function Organization({ onNavigate }: { onNavigate: (section: string) => 
           onClick={() => onNavigate("companies")}
           className="cursor-pointer rounded-md border border-hair bg-canvas p-3 text-left hover:bg-canvas/60"
         >
-          <div className="text-sm font-medium text-ink">{t("Entreprises", "Companies")} ({COMPANIES.length})</div>
-          <div className="text-2xs text-muted">{COMPANIES.map((c) => c.code).join(", ")}</div>
+          <div className="text-sm font-medium text-ink">{t("Entreprises", "Companies")} ({companies.length})</div>
+          <div className="text-2xs text-muted">
+            {companies.length ? companies.map((c) => c.code).join(", ") : t("Aucune entreprise pour le moment.", "No companies yet.")}
+          </div>
         </button>
         <button
           onClick={() => onNavigate("team")}
           className="cursor-pointer rounded-md border border-hair bg-canvas p-3 text-left hover:bg-canvas/60"
         >
-          <div className="text-sm font-medium text-ink">{t("Membres de l'équipe", "Team members")} ({TEAM.length})</div>
-          <div className="text-2xs text-muted">{TEAM.map((t) => t.name.split(" ")[0]).join(", ")}</div>
+          <div className="text-sm font-medium text-ink">
+            {t("Membres de l'équipe", "Team members")}{teamCount != null ? ` (${teamCount})` : ""}
+          </div>
+          <div className="text-2xs text-muted">{t("Gérer les rôles et les accès", "Manage roles and access")}</div>
         </button>
       </div>
 

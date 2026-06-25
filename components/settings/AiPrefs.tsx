@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import { Modal } from "@/components/ui/Modal";
 import { Toggle } from "@/components/ui/Toggle";
@@ -11,6 +11,15 @@ import { AI_GENERATION_LOGS, type AiGenLog } from "@/lib/mock-data";
 import { useCompany } from "@/lib/company-context";
 import { eur } from "@/lib/format";
 import { useT } from "@/lib/i18n";
+
+interface MediaAssetRow {
+  url: string;
+  type: "image" | "video";
+  format?: string;
+  source?: string;
+  prompt?: string;
+  createdAt?: string;
+}
 
 const IMAGE_MODELS = ["Flux 2 Pro", "Ideogram v3", "GPT Image Mini"];
 const VIDEO_MODELS = ["Kling 3.0", "Veo 3.1 Fast"];
@@ -25,23 +34,66 @@ export function AiPrefs() {
 
   // Spend caps (auto-save acceptable per spec).
   const [textCap, setTextCap] = useState(10);
-  const [imageCap, setImageCap] = useState(data.library.aiBudgetCap > 0 ? 25 : 25);
+  const [imageCap, setImageCap] = useState(25);
   const [videoCap, setVideoCap] = useState(40);
   const [toast, setToast] = useState<string | null>(null);
   const [openLog, setOpenLog] = useState<AiGenLog | null>(null);
 
-  // Current usage from existing mock data.
-  const textSpend = 1.5; // placeholder — no per-type breakdown in mock
+  // Dépenses IA RÉELLES de la société (depuis les données hydratées). Pas de
+  // placeholder fictif : le suivi par-type texte n'existe pas encore → 0 honnête.
+  const textSpend = 0;
   const imageSpend = data.library.imageSpend;
   const videoSpend = data.library.videoSpend;
 
-  // Filter generation history to this company.
-  const history = useMemo(
+  // UAT #17 — l'historique IA lisait un mock vide, d'où « Aucune génération »
+  // alors que des centaines existaient. On lit désormais la VRAIE source
+  // (sh_media_assets via /api/media) : visuels et vidéos réellement générés.
+  // `realLoaded` distingue « pas encore chargé » de « réellement vide ».
+  const [realAssets, setRealAssets] = useState<MediaAssetRow[] | null>(null);
+
+  useEffect(() => {
+    if (!company.id) { setRealAssets([]); return; }
+    let cancelled = false;
+    setRealAssets(null);
+    fetch(`/api/media?companyId=${encodeURIComponent(company.id)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (cancelled) return;
+        setRealAssets(Array.isArray(d?.assets) ? (d.assets as MediaAssetRow[]) : []);
+      })
+      .catch(() => { if (!cancelled) setRealAssets([]); });
+    return () => { cancelled = true; };
+  }, [company.id]);
+
+  // Convertit les assets média (générés par IA) en lignes d'historique IA.
+  // On exclut les éléments du brand kit (logo/charte) qui ne sont pas des générations.
+  const realHistory = useMemo<AiGenLog[]>(() => {
+    if (!realAssets) return [];
+    return realAssets
+      .filter((a) => !(a.source ?? "").startsWith("brand-kit"))
+      .map<AiGenLog>((a, i) => ({
+        id: `${a.url}-${i}`,
+        companyId: company.id,
+        type: a.type === "video" ? "video" : "image",
+        description: a.prompt || (a.type === "video" ? t("Vidéo générée", "Generated video") : t("Image générée", "Generated image")),
+        model: a.source || (a.type === "video" ? t("Vidéo IA", "AI video") : t("Image IA", "AI image")),
+        prompt: a.prompt || "",
+        costEur: 0,
+        createdAt: a.createdAt || new Date().toISOString(),
+      }))
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }, [realAssets, company.id, t]);
+
+  // Source affichée : réelle si disponible, sinon repli sur le mock (mode démo).
+  const mockHistory = useMemo(
     () => AI_GENERATION_LOGS.filter((g) => g.companyId === company.id).sort(
       (a, b) => b.createdAt.localeCompare(a.createdAt)
     ),
     [company.id]
   );
+  const history = realHistory.length > 0 ? realHistory : mockHistory;
+  const usageLoading = realAssets === null;
+  const totalGenerations = realHistory.length > 0 ? realHistory.length : mockHistory.length;
 
   const saveCap = (kind: "text" | "image" | "video", v: number) => {
     if (kind === "text") setTextCap(v);
@@ -95,10 +147,22 @@ export function AiPrefs() {
         <Toggle key={String(brandVoiceDefault)} defaultOn={brandVoiceDefault} onChange={setBrandVoiceDefault} />
       </div>
 
-      <SectionLabel>{t("Générations IA récentes", "Recent AI generations")}</SectionLabel>
+      <SectionLabel>
+        {t("Générations IA récentes", "Recent AI generations")}
+        {!usageLoading && totalGenerations > 0 && (
+          <span className="ml-1 font-normal text-muted">({totalGenerations})</span>
+        )}
+      </SectionLabel>
       <div className="card divide-y divide-hair">
-        {history.length === 0 ? (
-          <div className="px-3 py-6 text-center text-sm text-muted">{t("Aucune génération IA.", "No AI generations yet.")}</div>
+        {usageLoading ? (
+          <div className="px-3 py-6 text-center text-sm text-muted">{t("Chargement de l'activité IA…", "Loading AI activity…")}</div>
+        ) : history.length === 0 ? (
+          <div className="px-3 py-6 text-center text-sm text-muted">
+            {t(
+              "Aucune génération d'image ou de vidéo enregistrée pour le moment.",
+              "No image or video generations recorded yet.",
+            )}
+          </div>
         ) : (
           history.slice(0, 8).map((g) => (
             <button

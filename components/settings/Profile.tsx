@@ -1,13 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Toggle } from "@/components/ui/Toggle";
 import { Modal } from "@/components/ui/Modal";
 import { Toast } from "@/components/ui/Toast";
 import { ImageUpload, type UploadedImage } from "@/components/ui/ImageUpload";
 import { SubHeader, SectionLabel } from "./shared";
-import { ORG_NAME } from "@/lib/mock-data";
+import { useCompany } from "@/lib/company-context";
+import { createClient } from "@/lib/supabase/client";
+import { isSupabaseConfigured } from "@/lib/env";
 import { useT } from "@/lib/i18n";
 
 const TIMEZONES = [
@@ -21,8 +23,11 @@ const TIMEZONES = [
 
 export function Profile() {
   const t = useT();
-  const [name, setName] = useState("Younes O.");
-  const [email, setEmail] = useState("younes@ddsgroup.mu");
+  const { company } = useCompany();
+  // UAT #14 — on n'affiche JAMAIS de profil fictif (« Younes O. »). On part de
+  // champs vides puis on hydrate avec le VRAI utilisateur de la session Supabase.
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
   const [tz, setTz] = useState(TIMEZONES[0]);
   const [lang, setLang] = useState("English");
   const [avatar, setAvatar] = useState<UploadedImage | null>(null);
@@ -33,8 +38,29 @@ export function Profile() {
   const [twoFaOpen, setTwoFaOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
-  const initials = name
-    .split(" ")
+  // Hydrate le profil depuis l'utilisateur réellement connecté. Email = source
+  // de vérité de la session ; nom = métadonnées si renseignées (sinon laissé
+  // éditable, jamais rempli avec les données d'un autre compte).
+  useEffect(() => {
+    if (!isSupabaseConfigured) return;
+    const supabase = createClient();
+    if (!supabase) return;
+    supabase.auth.getUser().then(({ data }) => {
+      const u = data.user;
+      if (!u) return;
+      if (u.email) setEmail(u.email);
+      const meta = (u.user_metadata ?? {}) as Record<string, unknown>;
+      const metaName =
+        (typeof meta.full_name === "string" && meta.full_name) ||
+        (typeof meta.name === "string" && meta.name) ||
+        "";
+      if (metaName) setName(metaName);
+    });
+  }, []);
+
+  const initials = (name || email)
+    .split(/[\s@.]+/)
+    .filter(Boolean)
     .map((p) => p[0])
     .slice(0, 2)
     .join("")
@@ -52,7 +78,7 @@ export function Profile() {
 
   return (
     <div>
-      <SubHeader title={t("Profil", "Profile")} scope="org" scopeLabel={ORG_NAME} />
+      <SubHeader title={t("Profil", "Profile")} scope="org" scopeLabel={company.name} />
 
       {/* Avatar */}
       <div className="mb-5">
@@ -70,7 +96,8 @@ export function Profile() {
           <input
             value={name}
             onChange={(e) => mark(setName)(e.target.value)}
-            className="mt-1 block w-full rounded-md border-hair border-hair bg-card px-3 py-2 text-sm text-ink focus:outline-none"
+            placeholder={t("Votre nom", "Your name")}
+            className="mt-1 block w-full rounded-md border-hair border-hair bg-card px-3 py-2 text-sm text-ink placeholder:text-muted focus:outline-none"
           />
         </div>
         <div>

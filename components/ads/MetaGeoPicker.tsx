@@ -6,7 +6,7 @@
 // rayon (km) ajustable. Indispensable pour cibler des villes (clé Meta requise).
 
 import { useEffect, useRef, useState } from "react";
-import { useT } from "@/lib/i18n";
+import { useT, useLang } from "@/lib/i18n";
 
 export interface GeoLoc {
   key: string;
@@ -46,6 +46,7 @@ export function MetaGeoPicker({
   disabled?: boolean;
 }) {
   const t = useT();
+  const { lang } = useLang();
   const [q, setQ] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [open, setOpen] = useState(false);
@@ -62,7 +63,7 @@ export function MetaGeoPicker({
       setLoading(true);
       try {
         const res = await fetch(
-          `/api/meta/geo?companyId=${encodeURIComponent(companyId)}&q=${encodeURIComponent(term)}`,
+          `/api/meta/geo?companyId=${encodeURIComponent(companyId)}&q=${encodeURIComponent(term)}&locale=${lang}`,
           { signal: ctrl.signal }
         );
         const data = await res.json();
@@ -73,7 +74,7 @@ export function MetaGeoPicker({
       finally { setLoading(false); }
     }, 250);
     return () => { clearTimeout(id); ctrl.abort(); };
-  }, [q, companyId]);
+  }, [q, companyId, lang]);
 
   // Ferme la liste au clic extérieur.
   useEffect(() => {

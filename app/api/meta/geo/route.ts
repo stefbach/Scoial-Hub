@@ -26,6 +26,9 @@ export async function GET(req: NextRequest) {
     const companyId = req.nextUrl.searchParams.get("companyId");
     const q = (req.nextUrl.searchParams.get("q") ?? "").trim();
     const typesParam = (req.nextUrl.searchParams.get("types") ?? "country,city,region").trim();
+    // Locale Meta → noms de lieux dans la langue de l'UI (corrige #3).
+    const localeParam = (req.nextUrl.searchParams.get("locale") ?? "").trim();
+    const locale = localeParam === "en" ? "en_US" : localeParam === "fr" ? "fr_FR" : "";
     if (!companyId) return NextResponse.json({ error: "companyId requis" }, { status: 400 });
     if (q.length < 2) return NextResponse.json({ results: [] });
 
@@ -39,6 +42,7 @@ export async function GET(req: NextRequest) {
     const url =
       `https://graph.facebook.com/${V}/search?type=adgeolocation` +
       `&location_types=${encodeURIComponent(locationTypes)}` +
+      (locale ? `&locale=${locale}` : "") +
       `&q=${encodeURIComponent(q)}&limit=15&access_token=${encodeURIComponent(ctx.userToken)}`;
 
     const res = await fetch(url, { cache: "no-store" });

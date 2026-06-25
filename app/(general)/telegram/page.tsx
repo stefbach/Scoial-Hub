@@ -76,12 +76,12 @@ export default function ClientTelegramPage() {
   const linked = pairing?.linked ?? false;
 
   // Nom du bot nettoyé (sans « @ ») et lien réel vers la conversation du bot.
-  // On ne fabrique JAMAIS un lien si le bot est inconnu (pas de telegram.org bidon).
+  // On ne fabrique JAMAIS un lien si le bot est inconnu : aucun repli vers
+  // telegram.org. Le bouton « Ouvrir le bot » n'est rendu actif QUE si un vrai
+  // botUsername existe ; sinon il reste désactivé et on guide la configuration.
   const botUsername = (pairing?.botUsername ?? "").replace(/^@+/, "").trim();
   const botUrl = botUsername
-    ? pairing?.code
-      ? `https://t.me/${botUsername}?start=${pairing.code}`
-      : `https://t.me/${botUsername}`
+    ? `https://t.me/${botUsername}${pairing?.code ? `?start=${pairing.code}` : ""}`
     : null;
 
   return (
@@ -148,15 +148,19 @@ export default function ClientTelegramPage() {
               </div>
             </>
           ) : (
-            /* Bot central non configuré → message d'accompagnement (admin) */
+            /* Bot central non configuré → bouton désactivé + guide (admin) */
             <div className="rounded-lg border border-warning-200 bg-warning-50 p-4">
               <p className="text-sm font-semibold text-warning-700">{t("Le bot AXON-AI doit d'abord être activé", "The AXON-AI bot must be activated first")}</p>
               <p className="mt-1.5 text-sm leading-relaxed text-warning-700">
                 {t(
-                  "La connexion par code utilise un bot Telegram central, partagé par tous les comptes. L'administrateur doit le configurer une seule fois dans Vercel :",
-                  "Code pairing uses a central Telegram bot, shared by all accounts. The administrator must configure it once in Vercel:"
+                  "Tant que le bot n'est pas configuré, le bouton « Ouvrir le bot » reste indisponible. La connexion par code utilise un bot Telegram central, partagé par tous les comptes. L'administrateur doit le configurer une seule fois dans Vercel :",
+                  "Until the bot is configured, the “Open the bot” button stays unavailable. Code pairing uses a central Telegram bot, shared by all accounts. The administrator must configure it once in Vercel:"
                 )}
               </p>
+              <button type="button" disabled aria-disabled className="btn-primary mt-3 inline-flex items-center gap-2">
+                <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.96 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48z" /></svg>
+                {t("Ouvrir le bot & connecter", "Open the bot & connect")}
+              </button>
               <ol className="mt-2 space-y-1 text-xs text-warning-700">
                 <li>1. {t("Créer un bot via ", "Create a bot via ")}<a href="https://t.me/BotFather" target="_blank" rel="noopener noreferrer" className="underline">@BotFather</a> ({t("commande ", "command ")}<code className="font-mono">/newbot</code>).</li>
                 <li>2. {t("Dans Vercel → Settings → Environment Variables, ajouter ", "In Vercel → Settings → Environment Variables, add ")}<code className="font-mono">TELEGRAM_BOT_TOKEN</code> {t("et ", "and ")}<code className="font-mono">TELEGRAM_BOT_USERNAME</code>.</li>
@@ -203,12 +207,12 @@ export default function ClientTelegramPage() {
               "Copy one of these messages into Telegram (or take inspiration) — the bot handles the rest."
             )}
           </p>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {EXAMPLE_GROUPS.map((g) => (
-              <div key={g.titleEn}>
-                <div className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-ink">
-                  <span aria-hidden>{g.icon}</span>
-                  {t(g.titleFr, g.titleEn)}
+              <div key={g.titleEn} className="rounded-lg border border-hair bg-canvas p-3">
+                <div className="mb-1.5 flex items-center gap-2">
+                  <span aria-hidden className="text-base">{g.icon}</span>
+                  <p className="text-sm font-medium text-ink">{t(g.titleFr, g.titleEn)}</p>
                 </div>
                 <ul className="space-y-1.5">
                   {g.items.map((it) => (

@@ -15,3 +15,7 @@ __pycache__/
 # MCP server package
 mcp/node_modules
 mcp/dist
+
+# Playwright run artifacts
+/test-results/
+/playwright-report/

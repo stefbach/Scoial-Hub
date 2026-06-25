@@ -16,3 +16,9 @@ __pycache__/
 mcp/node_modules
 mcp/dist
 .claude/worktrees/
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/

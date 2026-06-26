@@ -57,6 +57,8 @@ const NAV_TR: Record<string, [string, string]> = {
   "Analyse & Stratégie": ["Analyse & Stratégie", "Insights & Strategy"],
   "Publicité": ["Publicité", "Paid Ads"],
   "Connexions & réglages": ["Connexions & réglages", "Connections & settings"],
+  "Replier le menu": ["Replier le menu", "Collapse menu"],
+  "Déplier le menu": ["Déplier le menu", "Expand menu"],
 };
 
 /* ── Icônes SVG inline ─────────────────────────────────────────────── */
@@ -389,8 +391,16 @@ const GROUPS: NavGroup[] = [
 ];
 
 const NAV_GROUPS_KEY = "sh_nav_groups";
+const NAV_COLLAPSED_KEY = "sh_nav_collapsed";
 
-export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
+export function Sidebar({
+  onNavigate,
+  collapsible = false,
+}: {
+  onNavigate?: () => void;
+  /** Active le mode « rail » repliable (desktop). Désactivé dans le tiroir mobile. */
+  collapsible?: boolean;
+} = {}) {
   const pathname = usePathname();
   const t = useT();
   const { access } = useCompany();
@@ -434,12 +444,56 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
   const toggleGroup = (id: string) =>
     setOpenMap((m) => ({ ...m, [id]: !(m[id] ?? id === activeGroupId) }));
 
+  // ── Mode « rail » : repli de TOUTE la barre en icônes (desktop), persistant.
+  const [collapsed, setCollapsed] = useState(false);
+  const [collapsedReady, setCollapsedReady] = useState(false);
+  useEffect(() => {
+    if (!collapsible) return;
+    try {
+      const v = window.localStorage.getItem(NAV_COLLAPSED_KEY);
+      if (v) setCollapsed(v === "1");
+    } catch { /* ignore */ }
+    setCollapsedReady(true);
+  }, [collapsible]);
+  useEffect(() => {
+    if (!collapsible || !collapsedReady) return;
+    try { window.localStorage.setItem(NAV_COLLAPSED_KEY, collapsed ? "1" : "0"); } catch { /* ignore */ }
+  }, [collapsed, collapsible, collapsedReady]);
+  const rail = collapsible && collapsed;
+
   // Rendu d'un lien de navigation. `entry` met en avant la porte d'entrée
   // (Démarrage) avec une teinte d'accent permanente.
   const renderItem = (item: NavItem, opts?: { entry?: boolean }) => {
     const active = isActive(item.href);
     const icon = ICONS[item.href];
     const entry = opts?.entry;
+
+    // Rail (icônes seules) : libellé en infobulle, état actif conservé.
+    if (rail) {
+      return (
+        <li key={item.href}>
+          <Link
+            href={item.href}
+            onClick={onNavigate}
+            aria-current={active ? "page" : undefined}
+            title={tr(item.label)}
+            className={[
+              "group relative mx-auto flex h-9 w-9 items-center justify-center rounded-lg",
+              "transition-all duration-[120ms]",
+              active
+                ? "bg-page/20 text-ink"
+                : entry
+                ? "bg-page/15 text-ink"
+                : "text-muted hover:bg-white/[0.06] hover:text-ink",
+            ].join(" ")}
+          >
+            {active && <span aria-hidden="true" className="absolute inset-y-1.5 left-0 w-[2px] rounded-full bg-page" />}
+            <span className={active || entry ? "opacity-100" : "opacity-55 group-hover:opacity-80"}>{icon}</span>
+          </Link>
+        </li>
+      );
+    }
+
     return (
       <li key={item.href}>
         <Link
@@ -478,76 +532,120 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
     );
   };
 
+  const logout = (
+    <a
+      href="/api/auth/logout"
+      onClick={() => { try { window.localStorage.removeItem("sh_company_id"); } catch { /* ignore */ } }}
+      className={[
+        "flex items-center justify-center rounded-lg bg-danger-500 font-semibold text-white shadow-sm transition-all duration-[120ms] hover:bg-[#e11d48] active:scale-[0.98]",
+        rail ? "mx-auto h-9 w-9" : "w-full gap-2.5 px-3 py-[0.45rem] text-sm",
+      ].join(" ")}
+      title={tr("Se déconnecter")}
+      aria-label={tr("Se déconnecter")}
+    >
+      <span className="shrink-0">
+        <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+          <path d="M6 2H3a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h3M10 10l3-3-3-3M13 7H5.5" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </span>
+      {!rail && <span>{tr("Se déconnecter")}</span>}
+    </a>
+  );
+
   return (
     <nav
       aria-label="Navigation principale"
-      className="w-[13.5rem] shrink-0 border-r border-hair py-5 pl-3 pr-2"
+      className={[
+        "shrink-0 border-r border-hair py-5 transition-[width] duration-200",
+        rail ? "w-[3.75rem] px-2" : "w-[13.5rem] pl-3 pr-2",
+      ].join(" ")}
     >
-      {/* Sélecteur de société — accès & changement de société depuis la barre */}
-      <div className="mb-4 pr-1">
-        <CompanyIndicator />
-      </div>
+      {/* Bouton de repli de TOUTE la barre (rail) — desktop uniquement. */}
+      {collapsible && (
+        <div className={rail ? "mb-3 flex justify-center" : "mb-2 flex justify-end pr-1"}>
+          <button
+            type="button"
+            onClick={() => setCollapsed((v) => !v)}
+            aria-expanded={!rail}
+            aria-label={rail ? tr("Déplier le menu") : tr("Replier le menu")}
+            title={rail ? tr("Déplier le menu") : tr("Replier le menu")}
+            className="flex h-7 w-7 items-center justify-center rounded-md text-muted transition-colors hover:bg-white/[0.06] hover:text-ink"
+          >
+            <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true"
+              className={`transition-transform duration-200 ${rail ? "rotate-180" : ""}`}>
+              <path d="M9.5 3.5l-4 4 4 4M12 3.5l-4 4 4 4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+        </div>
+      )}
 
-      {/* Colonne vertébrale : la porte d'entrée du produit */}
+      {/* Sélecteur de société — masqué en mode rail (icônes seules). */}
+      {!rail && (
+        <div className="mb-4 pr-1">
+          <CompanyIndicator />
+        </div>
+      )}
+
+      {/* Colonne vertébrale : le cockpit quotidien, toujours visible */}
       <ul className="space-y-px" role="list">
         {SPINE.map((item) => renderItem(item, { entry: item.href === "/demarrage" }))}
       </ul>
 
-      {/* Séparateur entre la colonne vertébrale et les modules — simple filet,
-          sans cadre (cf. retour #8 : on retire le rectangle gris). */}
-      <div className="mt-5 mb-4 h-px bg-hair" />
+      {/* Séparateur colonne vertébrale / sections */}
+      <div className={rail ? "mx-auto my-3 h-px w-6 bg-hair" : "mt-5 mb-4 h-px bg-hair"} />
 
-      {GROUPS.map((group, i) => {
-        const open = isGroupOpen(group);
-        const items = group.items.filter(canSee);
-        if (items.length === 0) return null;
-        const hasActive = items.some((it) => isActive(it.href));
-        const panelId = `nav-group-${group.id}`;
-        return (
-          <div key={group.id} className={i > 0 ? "mt-3" : ""}>
-            {/* En-tête de section CLIQUABLE : déplie/replie (accordéon). */}
-            <button
-              type="button"
-              onClick={() => toggleGroup(group.id)}
-              aria-expanded={open}
-              aria-controls={panelId}
-              className="group/sec flex w-full items-center justify-between gap-2 rounded-md px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted/60 transition-colors hover:text-muted"
-            >
-              <span className="flex items-center gap-1.5 select-none">
-                {tr(group.label)}
-                {/* Pastille discrète si la page active est dans une section repliée. */}
-                {!open && hasActive && <span aria-hidden="true" className="h-1 w-1 rounded-full bg-page" />}
-              </span>
-              <svg
-                width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden="true"
-                className={`shrink-0 opacity-50 transition-transform duration-150 ${open ? "rotate-90" : ""}`}
-              >
-                <path d="M4.5 3l3 3-3 3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </button>
-            <ul id={panelId} role="list" className={`space-y-px overflow-hidden ${open ? "mt-0.5" : "hidden"}`}>
-              {items.map((item) => renderItem(item))}
-            </ul>
-          </div>
-        );
-      })}
+      {rail
+        ? /* Rail : toutes les entrées en icônes, séparées par section. */
+          GROUPS.map((group, i) => {
+            const items = group.items.filter(canSee);
+            if (items.length === 0) return null;
+            return (
+              <div key={group.id}>
+                {i > 0 && <div className="mx-auto my-2 h-px w-6 bg-hair" />}
+                <ul className="space-y-px" role="list" aria-label={tr(group.label)}>
+                  {items.map((item) => renderItem(item))}
+                </ul>
+              </div>
+            );
+          })
+        : /* Déployé : sections repliables (accordéon). */
+          GROUPS.map((group, i) => {
+            const open = isGroupOpen(group);
+            const items = group.items.filter(canSee);
+            if (items.length === 0) return null;
+            const hasActive = items.some((it) => isActive(it.href));
+            const panelId = `nav-group-${group.id}`;
+            return (
+              <div key={group.id} className={i > 0 ? "mt-3" : ""}>
+                {/* En-tête de section CLIQUABLE : déplie/replie (accordéon). */}
+                <button
+                  type="button"
+                  onClick={() => toggleGroup(group.id)}
+                  aria-expanded={open}
+                  aria-controls={panelId}
+                  className="group/sec flex w-full items-center justify-between gap-2 rounded-md px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted/60 transition-colors hover:text-muted"
+                >
+                  <span className="flex items-center gap-1.5 select-none">
+                    {tr(group.label)}
+                    {/* Pastille discrète si la page active est dans une section repliée. */}
+                    {!open && hasActive && <span aria-hidden="true" className="h-1 w-1 rounded-full bg-page" />}
+                  </span>
+                  <svg
+                    width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden="true"
+                    className={`shrink-0 opacity-50 transition-transform duration-150 ${open ? "rotate-90" : ""}`}
+                  >
+                    <path d="M4.5 3l3 3-3 3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </button>
+                <ul id={panelId} role="list" className={`space-y-px overflow-hidden ${open ? "mt-0.5" : "hidden"}`}>
+                  {items.map((item) => renderItem(item))}
+                </ul>
+              </div>
+            );
+          })}
 
-      {/* Déconnexion — bouton plein (solide), sans cadre gris (cf. retours #8/#9). */}
-      <div className="mt-5">
-        <a
-          href="/api/auth/logout"
-          onClick={() => { try { window.localStorage.removeItem("sh_company_id"); } catch { /* ignore */ } }}
-          className="flex w-full items-center justify-center gap-2.5 rounded-lg bg-danger-500 px-3 py-[0.45rem] text-sm font-semibold text-white shadow-sm transition-all duration-[120ms] hover:bg-[#e11d48] active:scale-[0.98]"
-          title={tr("Se déconnecter")}
-        >
-          <span className="shrink-0">
-            <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
-              <path d="M6 2H3a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h3M10 10l3-3-3-3M13 7H5.5" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </span>
-          <span>{tr("Se déconnecter")}</span>
-        </a>
-      </div>
+      {/* Déconnexion */}
+      <div className="mt-5">{logout}</div>
     </nav>
   );
 }

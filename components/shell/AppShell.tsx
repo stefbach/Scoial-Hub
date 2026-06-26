@@ -232,9 +232,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       {/* Corps : sidebar + contenu */}
       <div className="flex">
-        {/* Sidebar fixe sur desktop */}
+        {/* Sidebar fixe sur desktop — repliable en rail d'icônes */}
         <div className="hidden lg:block">
-          <Sidebar />
+          <Sidebar collapsible />
         </div>
 
         {/* Tiroir mobile (overlay) */}

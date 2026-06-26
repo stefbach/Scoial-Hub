@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import { useT } from "@/lib/i18n";
 import { useCompany } from "@/lib/company-context";
 import { CompanyIndicator } from "./CompanyIndicator";
@@ -50,6 +51,14 @@ const NAV_TR: Record<string, [string, string]> = {
   "Pilotage & Bots": ["Pilotage & Bots", "Pilot & Bots"],
   "Telegram": ["Telegram", "Telegram"],
   "MCP Claude": ["Connecteur MCP", "MCP Connector"],
+  // Sections restructurées (regroupement cohérent par tâche).
+  "Création": ["Création", "Create"],
+  "Publication": ["Publication", "Publishing"],
+  "Analyse & Stratégie": ["Analyse & Stratégie", "Insights & Strategy"],
+  "Publicité": ["Publicité", "Paid Ads"],
+  "Connexions & réglages": ["Connexions & réglages", "Connections & settings"],
+  "Replier le menu": ["Replier le menu", "Collapse menu"],
+  "Déplier le menu": ["Déplier le menu", "Expand menu"],
 };
 
 /* ── Icônes SVG inline ─────────────────────────────────────────────── */
@@ -284,60 +293,84 @@ const ICONS: Record<string, React.ReactNode> = {
       <path d="M12.2 3.2c.8.8.8 2.1 0 2.9M13.6 1.9c1.5 1.5 1.5 3.9 0 5.4" stroke="currentColor" strokeWidth="1" strokeLinecap="round" opacity="0.6"/>
     </svg>
   ),
+  "/media": (
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+      <rect x="2" y="2.5" width="11" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.2" fill="none"/>
+      <circle cx="5.3" cy="5.8" r="1.1" stroke="currentColor" strokeWidth="1.1" fill="none"/>
+      <path d="M2.5 11l3.2-3 2.3 2 2-1.8 2.5 2.3" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+    </svg>
+  ),
 };
 
 type NavItem = { href: string; label: string; adminOnly?: boolean };
+type NavGroup = { id: string; label: string; items: NavItem[] };
 
 /* ── Colonne vertébrale ────────────────────────────────────────────────
-   La porte d'entrée du produit : on démarre par le parcours assisté, on
-   pilote depuis le tableau de bord et le centre de pilotage. Le reste
-   (ci-dessous) ce sont des « Modules » où l'on plonge pour approfondir. */
+   Le cockpit quotidien, toujours visible : on démarre, on pilote depuis le
+   tableau de bord et le centre de pilotage. Le reste est rangé dans des
+   sections repliables (« fermeture »), regroupées par tâche. */
 const SPINE: NavItem[] = [
-  { href: "/identite",  label: "Identité de marque" },
   { href: "/demarrage", label: "Get started" },
   { href: "/dashboard", label: "Dashboard" },
   { href: "/pilotage",  label: "Centre de pilotage" },
 ];
 
-/* ── Modules (secondaires) ─────────────────────────────────────────── */
-const GROUPS: { label?: string; items: NavItem[] }[] = [
+/* ── Sections repliables — regroupement cohérent par tâche ──────────────
+   1. Organisation : la marque, les sociétés, l'équipe.
+   2. Création : tous les studios qui produisent du contenu.
+   3. Publication : programmer, automatiser, publier, échanger.
+   4. Analyse & Stratégie : mesurer, surveiller, prédire.
+   5. Publicité : campagnes payantes Meta.
+   6. Connexions & réglages : comptes, connecteurs, bots, paramètres. */
+const GROUPS: NavGroup[] = [
   {
+    id: "org",
     label: "Organisation",
     items: [
+      { href: "/identite",     label: "Identité de marque" },
       { href: "/mes-societes", label: "Mes sociétés" },
-      { href: "/mon-equipe", label: "Mon équipe", adminOnly: true },
+      { href: "/mon-equipe",   label: "Mon équipe", adminOnly: true },
     ],
   },
   {
-    label: "Pilotage IA",
+    id: "create",
+    label: "Création",
     items: [
-      { href: "/pages-meta",  label: "Mes Pages" },
-      { href: "/linkedin",    label: "Mon LinkedIn" },
-      { href: "/agents",      label: "Agents" },
-      { href: "/inbox",       label: "Inbox" },
-      { href: "/veille",      label: "Veille & Marché" },
-      { href: "/publicites",  label: "Competitor Ads" },
-      { href: "/simulateur",  label: "Simulateur" },
-      { href: "/benchmark",   label: "Benchmark" },
-      { href: "/parametres-connecteurs", label: "Connecteurs" },
-    ],
-  },
-  {
-    label: "Organic",
-    items: [
-      { href: "/compose",      label: "Compose" },
-      { href: "/studio-video", label: "Video Studio" },
+      { href: "/compose",       label: "Compose" },
+      { href: "/studio-video",  label: "Video Studio" },
       { href: "/studio-avatar", label: "Studio Avatar" },
       { href: "/studio-affiche", label: "Studio Affiches" },
-      { href: "/media",       label: "Médiathèque" },
-      { href: "/scheduled",   label: "Scheduled" },
-      { href: "/library",     label: "Modèles" },
-      { href: "/automations", label: "Automations" },
-      { href: "/history",     label: "History" },
+      { href: "/media",         label: "Médiathèque" },
+      { href: "/library",       label: "Modèles" },
     ],
   },
   {
-    label: "Paid Ads",
+    id: "publish",
+    label: "Publication",
+    items: [
+      { href: "/scheduled",   label: "Scheduled" },
+      { href: "/automations", label: "Automations" },
+      { href: "/history",     label: "History" },
+      { href: "/inbox",       label: "Inbox" },
+      { href: "/linkedin",    label: "Mon LinkedIn" },
+      { href: "/pages-meta",  label: "Mes Pages" },
+    ],
+  },
+  {
+    id: "intel",
+    label: "Analyse & Stratégie",
+    items: [
+      { href: "/analytics",  label: "Analytics" },
+      { href: "/veille",     label: "Veille & Marché" },
+      { href: "/publicites", label: "Competitor Ads" },
+      { href: "/benchmark",  label: "Benchmark" },
+      { href: "/simulateur", label: "Simulateur" },
+      { href: "/agents",     label: "Agents" },
+    ],
+  },
+  {
+    id: "paid",
+    label: "Publicité",
     items: [
       { href: "/campaigns",      label: "Campaigns" },
       { href: "/audiences",      label: "Audiences" },
@@ -345,23 +378,29 @@ const GROUPS: { label?: string; items: NavItem[] }[] = [
     ],
   },
   {
-    label: "Pilotage & Bots",
+    id: "settings",
+    label: "Connexions & réglages",
     items: [
-      { href: "/telegram", label: "Telegram" },
-      { href: "/mcp",      label: "MCP Claude" },
-    ],
-  },
-  {
-    label: "General",
-    items: [
-      { href: "/analytics", label: "Analytics" },
-      { href: "/accounts",  label: "Accounts" },
-      { href: "/settings",  label: "Settings" },
+      { href: "/accounts",               label: "Accounts" },
+      { href: "/parametres-connecteurs", label: "Connecteurs" },
+      { href: "/telegram",               label: "Telegram" },
+      { href: "/mcp",                    label: "MCP Claude" },
+      { href: "/settings",               label: "Settings" },
     ],
   },
 ];
 
-export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
+const NAV_GROUPS_KEY = "sh_nav_groups";
+const NAV_COLLAPSED_KEY = "sh_nav_collapsed";
+
+export function Sidebar({
+  onNavigate,
+  collapsible = false,
+}: {
+  onNavigate?: () => void;
+  /** Active le mode « rail » repliable (desktop). Désactivé dans le tiroir mobile. */
+  collapsible?: boolean;
+} = {}) {
   const pathname = usePathname();
   const t = useT();
   const { access } = useCompany();
@@ -371,12 +410,90 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
 
   const isActive = (href: string) => pathname.startsWith(href);
 
+  // Section contenant la page courante (toujours ouverte par défaut).
+  const activeGroupId = GROUPS.find((g) => g.items.some((it) => isActive(it.href)))?.id;
+
+  // ── Sections repliables (« fermeture ») — état persistant par utilisateur.
+  // Défaut (déterministe SSR) : seule la section active est ouverte → barre
+  // compacte. Le choix de l'utilisateur (clic) est mémorisé dans localStorage.
+  const [openMap, setOpenMap] = useState<Record<string, boolean>>({});
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(NAV_GROUPS_KEY);
+      if (raw) setOpenMap(JSON.parse(raw) as Record<string, boolean>);
+    } catch { /* ignore */ }
+    setReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!ready) return;
+    try { window.localStorage.setItem(NAV_GROUPS_KEY, JSON.stringify(openMap)); } catch { /* ignore */ }
+  }, [openMap, ready]);
+
+  // À la navigation, garde la section de la page courante ouverte.
+  useEffect(() => {
+    if (!ready || !activeGroupId) return;
+    setOpenMap((m) => (m[activeGroupId] ? m : { ...m, [activeGroupId]: true }));
+  }, [pathname, ready, activeGroupId]);
+
+  // Une section est ouverte si l'utilisateur l'a ouverte, sinon par défaut
+  // si elle contient la page courante.
+  const isGroupOpen = (g: NavGroup) => openMap[g.id] ?? g.id === activeGroupId;
+  const toggleGroup = (id: string) =>
+    setOpenMap((m) => ({ ...m, [id]: !(m[id] ?? id === activeGroupId) }));
+
+  // ── Mode « rail » : repli de TOUTE la barre en icônes (desktop), persistant.
+  const [collapsed, setCollapsed] = useState(false);
+  const [collapsedReady, setCollapsedReady] = useState(false);
+  useEffect(() => {
+    if (!collapsible) return;
+    try {
+      const v = window.localStorage.getItem(NAV_COLLAPSED_KEY);
+      if (v) setCollapsed(v === "1");
+    } catch { /* ignore */ }
+    setCollapsedReady(true);
+  }, [collapsible]);
+  useEffect(() => {
+    if (!collapsible || !collapsedReady) return;
+    try { window.localStorage.setItem(NAV_COLLAPSED_KEY, collapsed ? "1" : "0"); } catch { /* ignore */ }
+  }, [collapsed, collapsible, collapsedReady]);
+  const rail = collapsible && collapsed;
+
   // Rendu d'un lien de navigation. `entry` met en avant la porte d'entrée
   // (Démarrage) avec une teinte d'accent permanente.
   const renderItem = (item: NavItem, opts?: { entry?: boolean }) => {
     const active = isActive(item.href);
     const icon = ICONS[item.href];
     const entry = opts?.entry;
+
+    // Rail (icônes seules) : libellé en infobulle, état actif conservé.
+    if (rail) {
+      return (
+        <li key={item.href}>
+          <Link
+            href={item.href}
+            onClick={onNavigate}
+            aria-current={active ? "page" : undefined}
+            title={tr(item.label)}
+            className={[
+              "group relative mx-auto flex h-9 w-9 items-center justify-center rounded-lg",
+              "transition-all duration-[120ms]",
+              active
+                ? "bg-page/20 text-ink"
+                : entry
+                ? "bg-page/15 text-ink"
+                : "text-muted hover:bg-white/[0.06] hover:text-ink",
+            ].join(" ")}
+          >
+            {active && <span aria-hidden="true" className="absolute inset-y-1.5 left-0 w-[2px] rounded-full bg-page" />}
+            <span className={active || entry ? "opacity-100" : "opacity-55 group-hover:opacity-80"}>{icon}</span>
+          </Link>
+        </li>
+      );
+    }
+
     return (
       <li key={item.href}>
         <Link
@@ -415,56 +532,120 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
     );
   };
 
+  const logout = (
+    <a
+      href="/api/auth/logout"
+      onClick={() => { try { window.localStorage.removeItem("sh_company_id"); } catch { /* ignore */ } }}
+      className={[
+        "flex items-center justify-center rounded-lg bg-danger-500 font-semibold text-white shadow-sm transition-all duration-[120ms] hover:bg-[#e11d48] active:scale-[0.98]",
+        rail ? "mx-auto h-9 w-9" : "w-full gap-2.5 px-3 py-[0.45rem] text-sm",
+      ].join(" ")}
+      title={tr("Se déconnecter")}
+      aria-label={tr("Se déconnecter")}
+    >
+      <span className="shrink-0">
+        <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+          <path d="M6 2H3a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h3M10 10l3-3-3-3M13 7H5.5" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </span>
+      {!rail && <span>{tr("Se déconnecter")}</span>}
+    </a>
+  );
+
   return (
     <nav
       aria-label="Navigation principale"
-      className="w-[13.5rem] shrink-0 border-r border-hair py-5 pl-3 pr-2"
+      className={[
+        "shrink-0 border-r border-hair py-5 transition-[width] duration-200",
+        rail ? "w-[3.75rem] px-2" : "w-[13.5rem] pl-3 pr-2",
+      ].join(" ")}
     >
-      {/* Sélecteur de société — accès & changement de société depuis la barre */}
-      <div className="mb-4 pr-1">
-        <CompanyIndicator />
-      </div>
+      {/* Bouton de repli de TOUTE la barre (rail) — desktop uniquement. */}
+      {collapsible && (
+        <div className={rail ? "mb-3 flex justify-center" : "mb-2 flex justify-end pr-1"}>
+          <button
+            type="button"
+            onClick={() => setCollapsed((v) => !v)}
+            aria-expanded={!rail}
+            aria-label={rail ? tr("Déplier le menu") : tr("Replier le menu")}
+            title={rail ? tr("Déplier le menu") : tr("Replier le menu")}
+            className="flex h-7 w-7 items-center justify-center rounded-md text-muted transition-colors hover:bg-white/[0.06] hover:text-ink"
+          >
+            <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true"
+              className={`transition-transform duration-200 ${rail ? "rotate-180" : ""}`}>
+              <path d="M9.5 3.5l-4 4 4 4M12 3.5l-4 4 4 4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+        </div>
+      )}
 
-      {/* Colonne vertébrale : la porte d'entrée du produit */}
+      {/* Sélecteur de société — masqué en mode rail (icônes seules). */}
+      {!rail && (
+        <div className="mb-4 pr-1">
+          <CompanyIndicator />
+        </div>
+      )}
+
+      {/* Colonne vertébrale : le cockpit quotidien, toujours visible */}
       <ul className="space-y-px" role="list">
         {SPINE.map((item) => renderItem(item, { entry: item.href === "/demarrage" }))}
       </ul>
 
-      {/* Séparateur entre la colonne vertébrale et les modules — simple filet,
-          sans cadre (cf. retour #8 : on retire le rectangle gris). */}
-      <div className="mt-5 mb-4 h-px bg-hair" />
+      {/* Séparateur colonne vertébrale / sections */}
+      <div className={rail ? "mx-auto my-3 h-px w-6 bg-hair" : "mt-5 mb-4 h-px bg-hair"} />
 
-      {GROUPS.map((group, i) => (
-        <div key={i} className={i > 0 ? "mt-4" : ""}>
-          {group.label && (
-            // Libellé de section : clairement non cliquable et distinct des items
-            // (plus petit, davantage espacé, couleur atténuée).
-            <div className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted/60 select-none">
-              {tr(group.label)}
-            </div>
-          )}
-          <ul className="space-y-px" role="list">
-            {group.items.filter(canSee).map((item) => renderItem(item))}
-          </ul>
-        </div>
-      ))}
+      {rail
+        ? /* Rail : toutes les entrées en icônes, séparées par section. */
+          GROUPS.map((group, i) => {
+            const items = group.items.filter(canSee);
+            if (items.length === 0) return null;
+            return (
+              <div key={group.id}>
+                {i > 0 && <div className="mx-auto my-2 h-px w-6 bg-hair" />}
+                <ul className="space-y-px" role="list" aria-label={tr(group.label)}>
+                  {items.map((item) => renderItem(item))}
+                </ul>
+              </div>
+            );
+          })
+        : /* Déployé : sections repliables (accordéon). */
+          GROUPS.map((group, i) => {
+            const open = isGroupOpen(group);
+            const items = group.items.filter(canSee);
+            if (items.length === 0) return null;
+            const hasActive = items.some((it) => isActive(it.href));
+            const panelId = `nav-group-${group.id}`;
+            return (
+              <div key={group.id} className={i > 0 ? "mt-3" : ""}>
+                {/* En-tête de section CLIQUABLE : déplie/replie (accordéon). */}
+                <button
+                  type="button"
+                  onClick={() => toggleGroup(group.id)}
+                  aria-expanded={open}
+                  aria-controls={panelId}
+                  className="group/sec flex w-full items-center justify-between gap-2 rounded-md px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted/60 transition-colors hover:text-muted"
+                >
+                  <span className="flex items-center gap-1.5 select-none">
+                    {tr(group.label)}
+                    {/* Pastille discrète si la page active est dans une section repliée. */}
+                    {!open && hasActive && <span aria-hidden="true" className="h-1 w-1 rounded-full bg-page" />}
+                  </span>
+                  <svg
+                    width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden="true"
+                    className={`shrink-0 opacity-50 transition-transform duration-150 ${open ? "rotate-90" : ""}`}
+                  >
+                    <path d="M4.5 3l3 3-3 3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </button>
+                <ul id={panelId} role="list" className={`space-y-px overflow-hidden ${open ? "mt-0.5" : "hidden"}`}>
+                  {items.map((item) => renderItem(item))}
+                </ul>
+              </div>
+            );
+          })}
 
-      {/* Déconnexion — bouton plein (solide), sans cadre gris (cf. retours #8/#9). */}
-      <div className="mt-5">
-        <a
-          href="/api/auth/logout"
-          onClick={() => { try { window.localStorage.removeItem("sh_company_id"); } catch { /* ignore */ } }}
-          className="flex w-full items-center justify-center gap-2.5 rounded-lg bg-danger-500 px-3 py-[0.45rem] text-sm font-semibold text-white shadow-sm transition-all duration-[120ms] hover:bg-[#e11d48] active:scale-[0.98]"
-          title={tr("Se déconnecter")}
-        >
-          <span className="shrink-0">
-            <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
-              <path d="M6 2H3a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h3M10 10l3-3-3-3M13 7H5.5" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </span>
-          <span>{tr("Se déconnecter")}</span>
-        </a>
-      </div>
+      {/* Déconnexion */}
+      <div className="mt-5">{logout}</div>
     </nav>
   );
 }

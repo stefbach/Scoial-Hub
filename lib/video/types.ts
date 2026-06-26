@@ -103,6 +103,8 @@ export interface PlatformCut {
   assemblyType: AssemblyMode;
   /** Durée cible (vidéo/diaporama). 0 pour les formats statiques. */
   targetDurationSec: number;
+  /** Montage : durée de chaque plan (s). Le film = somme des plans → durée illimitée. */
+  secondsPerClip?: number;
   hook: string;
   hookVariants: string[];
   /** Slides pour carrousel / diaporama / collage. */

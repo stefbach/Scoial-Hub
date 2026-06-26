@@ -23,6 +23,7 @@ import BrandKitPanel from "@/components/studio/BrandKitPanel";
 import { StudioHero, StudioStep } from "@/components/studio/StudioUI";
 import { StudioCopilot, type CopilotSuggestion } from "@/components/studio/StudioCopilot";
 import { AudioStudio } from "@/components/studio/AudioStudio";
+import { VideoDirector } from "@/components/studio/VideoDirector";
 import { PublishScheduler } from "@/components/studio/PublishScheduler";
 import { StudioDistribution } from "@/components/studio/StudioDistribution";
 import { MediaLibraryButton } from "@/components/studio/MediaLibrary";
@@ -67,7 +68,7 @@ export default function StudioPage() {
   const [durationHint, setDurationHint] = useState(20);
   const [toast, setToast] = useState<{ message: string; key: number } | null>(null);
   // Onglet du panneau « Créer avec l'IA » : copilote / visuel / audio.
-  const [genTab, setGenTab] = useState<"copilot" | "visual" | "audio">("copilot");
+  const [genTab, setGenTab] = useState<"copilot" | "director" | "visual" | "audio">("copilot");
   // Plan en cours de glisser-déposer (montage).
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -251,7 +252,8 @@ export default function StudioPage() {
           </div>
           <div className="studio-seg w-full sm:w-auto">
             <button type="button" data-active={genTab === "copilot"} onClick={() => setGenTab("copilot")} className="studio-seg-btn whitespace-nowrap">✦ {t("Copilote", "Copilot")}</button>
-            <button type="button" data-active={genTab === "visual"} onClick={() => setGenTab("visual")} className="studio-seg-btn whitespace-nowrap">🎬 {t("Visuel", "Visual")}</button>
+            <button type="button" data-active={genTab === "director"} onClick={() => setGenTab("director")} className="studio-seg-btn whitespace-nowrap">🎬 {t("Réalisateur", "Director")}</button>
+            <button type="button" data-active={genTab === "visual"} onClick={() => setGenTab("visual")} className="studio-seg-btn whitespace-nowrap">🎞️ {t("Visuel", "Visual")}</button>
             <button type="button" data-active={genTab === "audio"} onClick={() => setGenTab("audio")} className="studio-seg-btn whitespace-nowrap">♪ {t("Musique & voix", "Music & voice")}</button>
           </div>
         </div>
@@ -273,6 +275,9 @@ export default function StudioPage() {
                 });
               }}
             />
+          </div>
+          <div className={genTab === "director" ? "" : "hidden"}>
+            <VideoDirector onClip={(a) => setAssets((prev) => [...prev, a])} defaultObjective={objective} brandHints={brandHints} />
           </div>
           <div className={genTab === "visual" ? "" : "hidden"}>
             <PromptStudio onGenerated={(a) => setAssets((prev) => [...prev, a])} brandHints={brandHints} seed={seed} />
@@ -416,12 +421,13 @@ export default function StudioPage() {
             );
           })}
         </div>
-        {/* Durée cible du montage (timeline) */}
+        {/* Durée cible du diaporama / vidéo (timeline) */}
         <label className="mt-4 flex items-center gap-3 text-xs text-muted">
-          {t("Durée cible du montage", "Target edit duration")}
-          <input type="range" min={6} max={60} step={2} value={durationHint} onChange={(e) => setDurationHint(Number(e.target.value))} className="flex-1 accent-page" />
-          <span className="w-10 text-right font-semibold text-ink">{durationHint}s</span>
+          {t("Durée cible (diaporama / vidéo)", "Target duration (slideshow / video)")}
+          <input type="range" min={6} max={300} step={2} value={durationHint} onChange={(e) => setDurationHint(Number(e.target.value))} className="flex-1 accent-page" />
+          <span className="w-12 text-right font-semibold text-ink">{durationHint}s</span>
         </label>
+        <p className="mt-1 text-2xs text-muted">{t("Le montage vidéo (plusieurs clips) joue tous vos plans bout à bout — durée illimitée, indépendante de ce curseur.", "Video montage (multiple clips) plays all your shots end-to-end — unlimited length, independent of this slider.")}</p>
       </StudioStep>
 
       <button

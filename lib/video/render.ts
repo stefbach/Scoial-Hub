@@ -46,12 +46,14 @@ function safeHex(c: string | undefined, fallback: string): string {
   return c && /^#[0-9a-fA-F]{3,8}$/.test(c) ? c : fallback;
 }
 
-/** Construit le timeline Shotstack pour un cut + ses médias. */
-function buildEdit(cut: PlatformCut, assets: MediaAsset[], captions: CaptionSegment[], logoUrl?: string, brandColors?: BrandColors, callback?: string) {
+/** Construit le timeline Shotstack pour un cut + ses médias. Exporté pour les tests. */
+export function buildEdit(cut: PlatformCut, assets: MediaAsset[], captions: CaptionSegment[], logoUrl?: string, brandColors?: BrandColors, callback?: string) {
   const size = SIZE[cut.aspect] ?? SIZE["9:16"];
   const videos = assets.filter((a) => a.kind === "video");
   const images = assets.filter((a) => a.kind === "image");
-  const duration = cut.targetDurationSec > 0 ? cut.targetDurationSec : 20;
+  // `duration` = durée cible du diaporama / de la vidéo simple. Pour un MONTAGE,
+  // la durée réelle est la somme des plans (calculée plus bas) → illimitée.
+  let duration = cut.targetDurationSec > 0 ? cut.targetDurationSec : 20;
 
   // Couleurs de marque (défauts neutres si non fournies).
   const textColor = safeHex(brandColors?.text, "#ffffff");
@@ -76,18 +78,39 @@ function buildEdit(cut: PlatformCut, assets: MediaAsset[], captions: CaptionSegm
   } else {
     // Vidéo / montage : clips vidéo en séquence.
     const clips = videos.length > 0 ? videos : assets;
-    const per = clips.length > 1 ? Math.max(3, Math.round(duration / clips.length)) : duration;
-    let cursor = 0;
-    clips.forEach((a) => {
-      mediaClips.push({
-        asset: { type: "video", src: a.url },
-        start: cursor,
-        length: per,
-        fit: "cover",
-        transition: { in: "fade", out: "fade" },
+    const isMontage = cut.assemblyType === "video_montage";
+    if (isMontage) {
+      // MONTAGE : chaque plan joue `per` secondes ; le film = somme des plans.
+      // Aucun plafond sur le nombre de clips → assemblage de durée illimitée.
+      const per = cut.secondsPerClip && cut.secondsPerClip > 0 ? cut.secondsPerClip : 5;
+      let cursor = 0;
+      clips.forEach((a) => {
+        mediaClips.push({
+          asset: { type: "video", src: a.url },
+          start: cursor,
+          length: per,
+          fit: "cover",
+          transition: { in: "fade", out: "fade" },
+        });
+        cursor += per;
       });
-      cursor += per;
-    });
+      // La durée réelle du film est la somme des plans, pas la cible.
+      duration = cursor > 0 ? cursor : duration;
+    } else {
+      // Vidéo simple (ré-édition) : on répartit la durée cible sur les plans.
+      const per = clips.length > 1 ? Math.max(3, Math.round(duration / clips.length)) : duration;
+      let cursor = 0;
+      clips.forEach((a) => {
+        mediaClips.push({
+          asset: { type: "video", src: a.url },
+          start: cursor,
+          length: per,
+          fit: "cover",
+          transition: { in: "fade", out: "fade" },
+        });
+        cursor += per;
+      });
+    }
   }
 
   // Track texte : hook (0-3s) + sous-titres — colorés aux couleurs de la marque.

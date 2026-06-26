@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "test:affiche": "tsx scripts/verify-affiche-layout.ts",
+    "test:montage": "tsx scripts/verify-montage-duration.ts",
     "test:e2e": "playwright test",
     "diagnose": "tsx scripts/diagnose.ts"
   },

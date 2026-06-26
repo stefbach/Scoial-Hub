@@ -13,8 +13,10 @@ import { getMetaContext, fetchAdAccountData } from "@/lib/connectors/meta-pages"
 import { createAdminClient } from "@/lib/supabase/server";
 import { resolveCompanyUuid } from "@/lib/repositories/resolve-company";
 import { getMemoryContext, appendMemory } from "@/lib/memory";
-import { callClaudeJSON } from "@/lib/ai/claude-json";
+import { callClaudeJSONRetry } from "@/lib/ai/claude-json";
 import { isAiConfigured } from "@/lib/env";
+
+type Lang = "fr" | "en";
 
 interface Analysis {
   diagnostic: string;
@@ -29,23 +31,157 @@ interface Analysis {
   aiGenerated: boolean;
 }
 
+interface CampaignPerf {
+  name: string;
+  status: string;
+  objective: string;
+  spend: number;
+  impressions: number;
+  clicks: number;
+  ctr: number;
+  cpc: number;
+  conversions: number;
+  currency: string;
+}
+
+/**
+ * Filet de sécurité (BUG #7) : analyse stratégique DÉTERMINISTE bâtie à partir
+ * des métriques réelles, lorsque l'IA n'est pas configurée ou renvoie une
+ * réponse inexploitable. Garantit que le « Cerveau Pub » ne débouche JAMAIS sur
+ * une impasse « réponse non exploitable » : on identifie les meilleures/pires
+ * campagnes (CTR / dépense / conversions) et on propose des recommandations
+ * concrètes. Le champ `fallback` permet à l'UI d'afficher une note calme.
+ */
+function fallbackAnalysis(campaigns: CampaignPerf[], lang: Lang): Analysis {
+  const tr = (fr: string, en: string) => (lang === "en" ? en : fr);
+  const cur = campaigns[0]?.currency || "";
+
+  if (campaigns.length === 0) {
+    return {
+      diagnostic: tr(
+        "Aucune campagne lue. Sélectionnez un compte publicitaire Meta (section Publicité → Comptes) pour analyser la performance réelle.",
+        "No campaigns read. Select a Meta ad account (Advertising → Accounts) to analyze real performance."
+      ),
+      winners: [], toFix: [], budgetMoves: [], audienceIdeas: [], creativeAngles: [],
+      competitorInsights: [], nextActions: [], kpiWatch: [], aiGenerated: false,
+    };
+  }
+
+  const withClicks = campaigns.filter((c) => c.clicks > 0);
+  const byCtr = [...campaigns].sort((a, b) => b.ctr - a.ctr);
+  const bySpend = [...campaigns].sort((a, b) => b.spend - a.spend);
+  const best = byCtr[0];
+  const worst = [...withClicks].sort((a, b) => a.ctr - b.ctr)[0] ?? byCtr[byCtr.length - 1];
+  const topSpender = bySpend[0];
+  const totalSpend = campaigns.reduce((s, c) => s + c.spend, 0);
+  const totalConv = campaigns.reduce((s, c) => s + c.conversions, 0);
+  const avgCtr = campaigns.length ? campaigns.reduce((s, c) => s + c.ctr, 0) / campaigns.length : 0;
+
+  const diagnostic = tr(
+    `${campaigns.length} campagne(s) analysée(s). Dépense cumulée ${totalSpend.toFixed(0)} ${cur}, ${totalConv} conversion(s), CTR moyen ${avgCtr.toFixed(2)}%. Meilleure campagne au CTR : « ${best?.name} » (${best?.ctr.toFixed(2)}%). À surveiller : « ${worst?.name} » (CTR ${worst?.ctr.toFixed(2)}%). Synthèse calculée directement à partir de vos chiffres réels.`,
+    `${campaigns.length} campaign(s) analyzed. Total spend ${totalSpend.toFixed(0)} ${cur}, ${totalConv} conversion(s), average CTR ${avgCtr.toFixed(2)}%. Best campaign by CTR: "${best?.name}" (${best?.ctr.toFixed(2)}%). Watch out: "${worst?.name}" (CTR ${worst?.ctr.toFixed(2)}%). Summary computed directly from your real figures.`
+  );
+
+  const winners = best
+    ? [{
+        name: best.name,
+        why: tr(
+          `CTR le plus élevé du compte (${best.ctr.toFixed(2)}%), ${best.conversions} conversion(s) — angle à conserver et décliner.`,
+          `Highest CTR on the account (${best.ctr.toFixed(2)}%), ${best.conversions} conversion(s) — angle to keep and replicate.`
+        ),
+      }]
+    : [];
+
+  const toFix: Analysis["toFix"] = [];
+  if (worst && worst !== best) {
+    toFix.push({
+      name: worst.name,
+      issue: tr(
+        `CTR faible (${worst.ctr.toFixed(2)}%) pour ${worst.spend.toFixed(0)} ${cur} dépensés, ${worst.conversions} conversion(s).`,
+        `Low CTR (${worst.ctr.toFixed(2)}%) for ${worst.spend.toFixed(0)} ${cur} spent, ${worst.conversions} conversion(s).`
+      ),
+      action: tr(
+        "Tester un nouveau créatif/accroche et réduire le budget de 20–30 % en attendant l'amélioration.",
+        "Test a fresh creative/hook and cut budget by 20–30% until it improves."
+      ),
+    });
+  }
+  const waster = campaigns.find((c) => c.spend >= 20 && c.conversions === 0);
+  if (waster && !toFix.some((f) => f.name === waster.name)) {
+    toFix.push({
+      name: waster.name,
+      issue: tr(
+        `${waster.spend.toFixed(0)} ${cur} dépensés sans conversion.`,
+        `${waster.spend.toFixed(0)} ${cur} spent with zero conversions.`
+      ),
+      action: tr("Mettre en pause ou revoir le ciblage avant de relancer.", "Pause or revisit targeting before re-launching."),
+    });
+  }
+
+  const budgetMoves: string[] = [];
+  if (best && best.conversions > 0) {
+    budgetMoves.push(tr(
+      `+20–30 % sur « ${best.name} » (meilleur CTR, conversions présentes).`,
+      `+20–30% on "${best.name}" (best CTR, has conversions).`
+    ));
+  }
+  if (worst && worst !== best) {
+    budgetMoves.push(tr(
+      `-20–30 % sur « ${worst.name} » (CTR sous la moyenne).`,
+      `-20–30% on "${worst.name}" (below-average CTR).`
+    ));
+  }
+
+  return {
+    diagnostic,
+    winners,
+    toFix,
+    budgetMoves,
+    audienceIdeas: [
+      tr("Lookalike 1–3 % bâti sur vos derniers convertisseurs.", "Lookalike 1–3% built on your latest converters."),
+      tr("Retargeting des visiteurs 7–14 jours non convertis.", "Retargeting 7–14 day visitors who didn't convert."),
+    ],
+    creativeAngles: [
+      tr(`Décliner l'accroche de « ${best?.name} » en nouveaux formats (vidéo courte, UGC).`, `Repurpose the hook from "${best?.name}" into new formats (short video, UGC).`),
+    ],
+    competitorInsights: [],
+    nextActions: [
+      { priority: "haute", action: tr(`Réallouer le budget de « ${worst?.name} » vers « ${best?.name} ».`, `Reallocate budget from "${worst?.name}" to "${best?.name}".`) },
+      { priority: "moyenne", action: tr(`Tester 2 nouveaux créatifs sur la campagne au plus gros budget (« ${topSpender?.name} »).`, `Test 2 new creatives on the top-spending campaign ("${topSpender?.name}").`) },
+    ],
+    kpiWatch: [
+      tr("CTR > 1 % par campagne.", "CTR > 1% per campaign."),
+      tr("CPA / coût par conversion stable ou en baisse.", "CPA / cost per conversion stable or decreasing."),
+    ],
+    aiGenerated: false,
+  };
+}
+
 export async function POST(req: NextRequest) {
   try {
-    const { companyId } = await req.json();
+    const body = await req.json();
+    const companyId = body?.companyId;
     if (!companyId) return NextResponse.json({ error: "companyId requis" }, { status: 400 });
     const guard = await requireCompanyAccess(companyId);
     if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
+
+    // BUG #7 : la langue de l'UI pilote la langue de l'analyse (IA + fallback).
+    const lang: Lang = body?.language === "en" ? "en" : "fr";
 
     const uuid = await resolveCompanyUuid(companyId);
 
     // 1) Performance réelle du compte publicitaire sélectionné.
     const ctx = await getMetaContext(companyId);
     let account: { name: string; currency: string; amountSpent: number } | undefined;
-    let campaigns: Array<{ name: string; status: string; objective: string; spend: number; impressions: number; clicks: number; currency: string }> = [];
+    let campaigns: CampaignPerf[] = [];
     if (ctx.userToken && ctx.adAccountId) {
       const d = await fetchAdAccountData(ctx.userToken, ctx.adAccountId);
       account = d.account ? { name: d.account.name, currency: d.account.currency, amountSpent: d.account.amountSpent } : undefined;
-      campaigns = d.campaigns;
+      campaigns = d.campaigns.map((c) => ({
+        name: c.name, status: c.status, objective: c.objective,
+        spend: c.spend, impressions: c.impressions, clicks: c.clicks,
+        ctr: c.ctr, cpc: c.cpc, conversions: c.conversions, currency: c.currency,
+      }));
     }
 
     // 2) Contexte de marque + RAG (veille concurrents, pubs, Page).
@@ -59,16 +195,14 @@ export async function POST(req: NextRequest) {
     } catch { /* ignore */ }
     const memory = await getMemoryContext(companyId, 18).catch(() => "");
 
-    const empty: Analysis = {
-      diagnostic: campaigns.length === 0
-        ? "Aucune campagne lue. Sélectionnez un compte publicitaire Meta (section Publicité → Comptes) pour analyser la performance réelle."
-        : `${campaigns.length} campagne(s) lue(s). Analyse IA en attente.`,
-      winners: [], toFix: [], budgetMoves: [], audienceIdeas: [], creativeAngles: [],
-      competitorInsights: [], nextActions: [], kpiWatch: [], aiGenerated: false,
-    };
-
+    // IA non configurée → analyse déterministe utile (BUG #7 : jamais d'impasse).
     if (!isAiConfigured) {
-      return NextResponse.json({ analysis: empty, account, campaignsCount: campaigns.length });
+      return NextResponse.json({
+        analysis: fallbackAnalysis(campaigns, lang),
+        account,
+        campaignsCount: campaigns.length,
+        fallback: true,
+      });
     }
 
     // 3) LLM stratège.
@@ -77,9 +211,18 @@ export async function POST(req: NextRequest) {
       depense: c.spend, impressions: c.impressions, clics: c.clicks,
       ctr: c.impressions ? +(c.clicks / c.impressions * 100).toFixed(2) : 0,
       cpc: c.clicks ? +(c.spend / c.clicks).toFixed(2) : 0,
+      conversions: c.conversions,
     }));
 
-    const prompt = `Tu es un media buyer / growth strategist senior spécialiste Meta Ads. Analyse la performance RÉELLE du compte publicitaire et propose une stratégie d'optimisation actionnable et chiffrée.
+    // BUG #7 : directive de langue forte EN TÊTE et EN FIN du prompt.
+    const langDirective =
+      lang === "en"
+        ? `ABSOLUTE LANGUAGE RULE: write ALL output (every "diagnostic", "why", "issue", "action", and every list item) in ENGLISH ONLY. Never use French. This overrides any other instruction below.`
+        : `RÈGLE DE LANGUE ABSOLUE : rédige TOUTE la sortie (chaque "diagnostic", "why", "issue", "action" et chaque élément de liste) en FRANÇAIS uniquement.`;
+
+    const prompt = `${langDirective}
+
+Tu es un media buyer / growth strategist senior spécialiste Meta Ads. Analyse la performance RÉELLE du compte publicitaire et propose une stratégie d'optimisation actionnable et chiffrée.
 
 MARQUE : ${brandName || "(non précisée)"}${brandVoice ? `\nVOIX : ${brandVoice}` : ""}
 COMPTE : ${account ? `${account.name} — devise ${account.currency}, dépense cumulée ${account.amountSpent / 100} ${account.currency}` : "(compte non sélectionné)"}
@@ -90,7 +233,7 @@ ${perf.length ? JSON.stringify(perf, null, 2) : "(aucune campagne)"}
 MÉMOIRE STRATÉGIQUE (RAG — veille concurrents, pubs, Page) :
 ${memory || "(vide)"}
 
-Retourne STRICTEMENT ce JSON (français, concret, chiffré quand possible) :
+Retourne STRICTEMENT ce JSON (concret, chiffré quand possible) :
 {
   "diagnostic": "3-4 phrases : santé du compte, ce qui ressort (CTR/CPC/dépense), opportunités",
   "winners": [{"name":"campagne ou angle","why":"pourquoi ça marche"}],
@@ -102,25 +245,25 @@ Retourne STRICTEMENT ce JSON (français, concret, chiffré quand possible) :
   "nextActions": [{"priority":"haute|moyenne|basse","action":"action priorisée"}],
   "kpiWatch": ["KPIs à surveiller et seuils"]
 }
-Max 5 éléments par liste. Base-toi sur les données réelles ; si peu de données, dis-le et propose un plan de test.`;
+Max 5 éléments par liste. Base-toi sur les données réelles ; si peu de données, dis-le et propose un plan de test.
 
-    const parsed = await callClaudeJSON<Partial<Analysis>>(prompt, { maxTokens: 3500 });
+${langDirective}`;
+
+    const parsed = await callClaudeJSONRetry<Partial<Analysis>>(prompt, { maxTokens: 3500 }, 1);
     if (!parsed) {
-      // L'IA est configurée mais n'a pas renvoyé d'analyse exploitable.
+      // BUG #7 : l'IA est configurée mais n'a pas renvoyé d'analyse exploitable
+      // → on bascule sur l'analyse déterministe bâtie sur les chiffres réels.
+      // Plus JAMAIS d'impasse « réponse non exploitable ».
       return NextResponse.json({
-        analysis: {
-          ...empty,
-          diagnostic: campaigns.length === 0
-            ? empty.diagnostic
-            : "L'analyse IA n'a pas abouti cette fois (réponse non exploitable). Cliquez sur « Ré-analyser » pour réessayer.",
-        },
+        analysis: fallbackAnalysis(campaigns, lang),
         account,
         campaignsCount: campaigns.length,
+        fallback: true,
       });
     }
 
     const analysis: Analysis = {
-      diagnostic: parsed.diagnostic ?? empty.diagnostic,
+      diagnostic: parsed.diagnostic ?? fallbackAnalysis(campaigns, lang).diagnostic,
       winners: (parsed.winners ?? []).slice(0, 5),
       toFix: (parsed.toFix ?? []).slice(0, 5),
       budgetMoves: (parsed.budgetMoves ?? []).slice(0, 5),

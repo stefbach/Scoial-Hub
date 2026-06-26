@@ -1304,11 +1304,12 @@ export async function runOrchestration(
 
   // ── Calcul du finalOutput ────────────────────────────────────────────────────
   let finalOutput: string | undefined;
+  const en = input.language === "en";
 
   if (input.autonomy === 1) {
-    finalOutput = isBlocked ? undefined : `[RECOMMANDATION — non publié] ${copyText}`;
+    finalOutput = isBlocked ? undefined : `${en ? "[RECOMMENDATION — not published]" : "[RECOMMANDATION — non publié]"} ${copyText}`;
   } else if (input.autonomy === 2) {
-    finalOutput = isBlocked ? undefined : `[EN ATTENTE DE VALIDATION] ${copyText}`;
+    finalOutput = isBlocked ? undefined : `${en ? "[PENDING APPROVAL]" : "[EN ATTENTE DE VALIDATION]"} ${copyText}`;
   } else {
     const budgetMatch = input.objective.match(/(\d+)\s*€\s*\/?\s*j/i);
     const dailyBudget = budgetMatch ? parseInt(budgetMatch[1], 10) : 50;

@@ -135,8 +135,8 @@ function CampaignsContent() {
       />
 
       {/* Agent IA — lançable directement depuis la page Campagnes */}
-      <div className="mb-4">
-        <AgentLauncher context={t("page Campagnes", "Campaigns page")} defaultObjective={t("Concevoir et préparer une campagne publicitaire", "Design and prepare an ad campaign")} />
+      <div className="mb-5 mt-6">
+        <AgentLauncher adOnly context={t("page Campagnes", "Campaigns page")} defaultObjective={t("Concevoir et préparer une campagne publicitaire", "Design and prepare an ad campaign")} />
       </div>
 
       {/* Comptes publicitaires Meta présents (données réelles) */}

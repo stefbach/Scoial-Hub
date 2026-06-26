@@ -73,6 +73,20 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
+  // ── Bypass de TEST (E2E) ──────────────────────────────────────────────────
+  // Permet à Playwright de tester les pages protégées sans vraie session.
+  // Triple garde-fou : (1) le secret E2E_BYPASS_SECRET doit être défini,
+  // (2) JAMAIS en production (VERCEL_ENV !== "production"), (3) cookie présent
+  // et égal au secret. Inactif en prod et sans le cookie → aucun risque.
+  const e2eSecret = process.env.E2E_BYPASS_SECRET;
+  if (
+    e2eSecret &&
+    process.env.VERCEL_ENV !== "production" &&
+    request.cookies.get("e2e_bypass")?.value === e2eSecret
+  ) {
+    return response;
+  }
+
   // Verrou d'accès : l'application N'EST PAS accessible sans connexion.
   // Activé par défaut dès que Supabase est configuré. Échappatoire d'urgence :
   // AUTH_DISABLED=true rouvre l'accès (ex : dépannage).

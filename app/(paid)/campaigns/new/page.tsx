@@ -4,7 +4,7 @@
 // compte publicitaire connecté. Chaîne complète Campagne → Ad set → Créative →
 // Ad créée EN PAUSE (aucune dépense), puis activable explicitement (= dépense).
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useCompany } from "@/lib/company-context";
 import { useT, useLang } from "@/lib/i18n";
@@ -55,6 +55,25 @@ const VISUAL_FORMATS: { id: string; fr: string; en: string }[] = [
   { id: "1.91:1", fr: "Paysage", en: "Landscape" },
 ];
 
+// Date locale au format input datetime-local (YYYY-MM-DDTHH:MM).
+function toLocalDT(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+// Nettoie un message d'erreur : retire les phrases répétées (#7) pour le rendre
+// plus court et lisible.
+function cleanError(msg: string): string {
+  const parts = msg.split(/(?<=[.!?])\s+|\s+→\s+/).map((s) => s.trim()).filter(Boolean);
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const p of parts) {
+    const k = p.toLowerCase().replace(/[.!?]+$/, "");
+    if (!seen.has(k)) { seen.add(k); out.push(p); }
+  }
+  return out.join(" ");
+}
+
 export default function NewMetaAdPage() {
   const t = useT();
   const { lang } = useLang();
@@ -103,6 +122,10 @@ export default function NewMetaAdPage() {
   const [selInterests, setSelInterests] = useState<{ id: string; name: string }[]>([]);
   // Exclusions de ciblage (intérêts, audiences, localisations).
   const [exInterests, setExInterests] = useState<{ id: string; name: string }[]>([]);
+  // Recherche DÉDIÉE pour les centres d'intérêt à EXCLURE (#6).
+  const [exQuery, setExQuery] = useState("");
+  const [exResults, setExResults] = useState<{ id: string; name: string; audienceSize?: number }[]>([]);
+  const [searchingEx, setSearchingEx] = useState(false);
   const [exAudiences, setExAudiences] = useState<{ id: string; name: string }[]>([]);
   const [exGeoLocs, setExGeoLocs] = useState<GeoLoc[]>([]);
 
@@ -207,6 +230,9 @@ export default function NewMetaAdPage() {
     if (vid) setVideoUrl(vid);
     if (txt) setPrimaryText(txt);
     if (nm) setName(nm);
+    // #1/#10 : si le formulaire arrive pré-rempli (depuis l'agent IA), on ouvre
+    // directement l'onglet « Réglages avancés » où les champs sont visibles.
+    if (img || vid || txt || nm) setMode("manual");
   }, []);
 
   // Génération vidéo IA (asynchrone) pour la créative de campagne.
@@ -308,7 +334,18 @@ export default function NewMetaAdPage() {
   // Convertit une date (ISO ou yyyy-mm-dd) au format input datetime-local.
   function toLocalInput(d?: string): string {
     if (!d) return "";
-    if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return `${d}T09:00`;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(d)) {
+      // Pour une date sans heure : si c'est aujourd'hui, propose une heure
+      // POSTÉRIEURE à maintenant (≈ +1 h arrondie) plutôt qu'un 9 h figé déjà passé.
+      const now = new Date();
+      const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+      if (d === todayStr) {
+        const later = new Date(now.getTime() + 60 * 60 * 1000);
+        later.setMinutes(0, 0, 0);
+        return `${d}T${String(later.getHours()).padStart(2, "0")}:00`;
+      }
+      return `${d}T09:00`;
+    }
     const dt = new Date(d);
     return isNaN(dt.getTime()) ? "" : dt.toISOString().slice(0, 16);
   }
@@ -391,7 +428,7 @@ export default function NewMetaAdPage() {
     if (interestQuery.trim().length < 2) return;
     setSearchingInt(true);
     try {
-      const r = await fetch(`/api/meta/ad-interests?companyId=${encodeURIComponent(companyId)}&q=${encodeURIComponent(interestQuery.trim())}`);
+      const r = await fetch(`/api/meta/ad-interests?companyId=${encodeURIComponent(companyId)}&q=${encodeURIComponent(interestQuery.trim())}&locale=${lang}`);
       const d = await r.json();
       setInterestResults(Array.isArray(d.interests) ? d.interests : []);
     } catch {
@@ -401,10 +438,108 @@ export default function NewMetaAdPage() {
   function toggleInterest(it: { id: string; name: string }) {
     setSelInterests((cur) => cur.some((x) => x.id === it.id) ? cur.filter((x) => x.id !== it.id) : [...cur, { id: it.id, name: it.name }]);
   }
+  async function searchExInterests() {
+    if (exQuery.trim().length < 2) return;
+    setSearchingEx(true);
+    try {
+      const r = await fetch(`/api/meta/ad-interests?companyId=${encodeURIComponent(companyId)}&q=${encodeURIComponent(exQuery.trim())}&locale=${lang}`);
+      const d = await r.json();
+      setExResults(Array.isArray(d.interests) ? d.interests : []);
+    } catch {
+      setExResults([]);
+    } finally { setSearchingEx(false); }
+  }
+  function toggleExInterest(it: { id: string; name: string }) {
+    setExInterests((cur) => cur.some((x) => x.id === it.id) ? cur.filter((x) => x.id !== it.id) : [...cur, { id: it.id, name: it.name }]);
+  }
   function addExtraImage() {
     const u = newExtraUrl.trim();
     if (u && /^https?:\/\//i.test(u)) { setExtraImages((a) => [...a, u]); setNewExtraUrl(""); }
   }
+  // Heure mini = maintenant (on n'autorise pas une diffusion dans le passé) ;
+  // l'heure suggérée par défaut est l'heure pleine SUIVANTE.
+  const minDateTime = useMemo(() => toLocalDT(new Date()), []);
+  useEffect(() => {
+    if (!startDate) {
+      const next = new Date(Date.now() + 60 * 60 * 1000);
+      next.setMinutes(0, 0, 0);
+      setStartDate(toLocalDT(next));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Destinations connectées (réelles) pour suggérer l'URL de destination (#4).
+  const [destinations, setDestinations] = useState<{ label: string; url: string }[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/connectors?companyId=${encodeURIComponent(companyId)}`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((list) => {
+        if (cancelled || !Array.isArray(list)) return;
+        const out: { label: string; url: string }[] = [];
+        for (const s of list) {
+          for (const a of s.accounts ?? []) {
+            if (a.url && /^https?:\/\//i.test(a.url)) out.push({ label: `${s.platform} — ${a.accountName}`, url: a.url });
+          }
+        }
+        setDestinations(out);
+      })
+      .catch(() => { /* silencieux */ });
+    return () => { cancelled = true; };
+  }, [companyId]);
+
+  // ── #10 — Sauvegarde automatique du brouillon (par société) ─────────────────
+  // On ne perd plus la saisie en quittant la page : restauration au retour.
+  const draftKey = `sh_campaign_draft_${companyId}`;
+  const [draftRestored, setDraftRestored] = useState(false);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(draftKey);
+      if (!raw) return;
+      const d = JSON.parse(raw) as Record<string, unknown>;
+      if (typeof d.name === "string") setName(d.name);
+      if (d.adType === "lead" || d.adType === "traffic") setAdType(d.adType);
+      if (typeof d.objective === "string") setObjective(d.objective);
+      if (d.budgetType === "daily" || d.budgetType === "lifetime") setBudgetType(d.budgetType);
+      if (Number(d.budget) > 0) setBudget(Number(d.budget));
+      if (Number(d.lifetimeBudget) > 0) setLifetimeBudget(Number(d.lifetimeBudget));
+      if (typeof d.startDate === "string") setStartDate(d.startDate);
+      if (typeof d.endDate === "string") setEndDate(d.endDate);
+      if (typeof d.primaryText === "string") setPrimaryText(d.primaryText);
+      if (typeof d.headline === "string") setHeadline(d.headline);
+      if (typeof d.link === "string") setLink(d.link);
+      if (typeof d.cta === "string") setCta(d.cta);
+      if (typeof d.visualPrompt === "string") setVisualPrompt(d.visualPrompt);
+      if (typeof d.imageUrl === "string") setImageUrl(d.imageUrl);
+      if (typeof d.videoUrl === "string") setVideoUrl(d.videoUrl);
+      if (Number(d.ageMin)) setAgeMin(Number(d.ageMin));
+      if (Number(d.ageMax)) setAgeMax(Number(d.ageMax));
+      if (d.gender === "all" || d.gender === "male" || d.gender === "female") setGender(d.gender);
+      if (Array.isArray(d.selInterests)) setSelInterests(d.selInterests as { id: string; name: string }[]);
+      if (Array.isArray(d.exInterests)) setExInterests(d.exInterests as { id: string; name: string }[]);
+      setDraftRestored(true);
+    } catch { /* brouillon illisible — ignoré */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftKey]);
+
+  useEffect(() => {
+    const id = setTimeout(() => {
+      try {
+        localStorage.setItem(draftKey, JSON.stringify({
+          name, adType, objective, budgetType, budget, lifetimeBudget, startDate, endDate,
+          primaryText, headline, link, cta, visualPrompt, imageUrl, videoUrl, ageMin, ageMax, gender, selInterests, exInterests,
+        }));
+      } catch { /* quota/indispo — non bloquant */ }
+    }, 600);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [name, adType, objective, budgetType, budget, lifetimeBudget, startDate, endDate, primaryText, headline, link, cta, visualPrompt, imageUrl, videoUrl, ageMin, ageMax, gender, selInterests, exInterests]);
+
+  function clearDraft() {
+    try { localStorage.removeItem(draftKey); } catch { /* ignore */ }
+    setDraftRestored(false);
+  }
+
   async function loadAudiences() {
     setLoadingAud(true);
     try {
@@ -486,7 +621,7 @@ export default function NewMetaAdPage() {
       const r = await fetch("/api/meta/ads/publish", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          companyId, name,
+          companyId, name, language: lang,
           objective: adType === "lead" ? "leads" : objective,
           budgetType,
           dailyBudgetCents: Math.round(budget * 100),
@@ -530,6 +665,7 @@ export default function NewMetaAdPage() {
       }
       if (!r.ok) { setError(d.error || t("Échec de la création.", "Creation failed.")); return; }
       setResult({ campaignId: d.campaignId, adSetId: d.adSetId, creativeId: d.creativeId, adId: d.adId, adIds: d.adIds, leadFormId: d.leadFormId, status: d.status });
+      clearDraft(); // annonce créée → on jette le brouillon
       setLeads(null);
       setTimeout(() => window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" }), 150);
     } catch (e) {
@@ -574,6 +710,14 @@ export default function NewMetaAdPage() {
         )}
         actions={<Link href="/campaigns" className="btn-secondary text-sm">{t("← Campagnes", "← Campaigns")}</Link>}
       />
+
+      {/* #10 — Brouillon restauré : la saisie a été conservée automatiquement. */}
+      {draftRestored && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-primary-50 px-3 py-2 text-xs text-primary-700 ring-1 ring-primary-200">
+          <span>{t("✓ Brouillon restauré — votre saisie a été sauvegardée automatiquement.", "✓ Draft restored — your progress was saved automatically.")}</span>
+          <button type="button" onClick={clearDraft} className="font-semibold underline hover:no-underline">{t("Effacer le brouillon", "Discard draft")}</button>
+        </div>
+      )}
 
       {/* État de connexion Meta */}
       {loadingConn ? (
@@ -703,12 +847,12 @@ export default function NewMetaAdPage() {
           {/* Calendrier */}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
-              <label className="mb-1 block text-xs font-medium text-muted">{t("Début (optionnel)", "Start (optional)")}</label>
-              <input type="datetime-local" value={startDate} onChange={(e) => setStartDate(e.target.value)} className={inputCls} />
+              <label className="mb-1 block text-xs font-medium text-muted">{t("Début (heure pleine suivante par défaut)", "Start (defaults to the next full hour)")}</label>
+              <input type="datetime-local" min={minDateTime} value={startDate} onChange={(e) => setStartDate(e.target.value)} className={inputCls} />
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-muted">{budgetType === "lifetime" ? t("Fin (obligatoire)", "End (required)") : t("Fin (optionnel)", "End (optional)")}</label>
-              <input type="datetime-local" value={endDate} onChange={(e) => setEndDate(e.target.value)} className={inputCls} />
+              <input type="datetime-local" min={startDate || minDateTime} value={endDate} onChange={(e) => setEndDate(e.target.value)} className={inputCls} />
             </div>
           </div>
 
@@ -789,7 +933,7 @@ export default function NewMetaAdPage() {
           <p className="text-2xs text-muted">{t("Laissez vide pour une audience large (recommandé au début, l'IA de Meta optimise).", "Leave empty for a broad audience (recommended at first — Meta's AI optimizes).")}</p>
 
           {/* Audiences personnalisées / similaires */}
-          <div className="border-t border-hair pt-3">
+          <div className="border-t pt-3">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-ink">{t("Audiences personnalisées / similaires", "Custom / lookalike audiences")}</span>
               <button type="button" onClick={loadAudiences} disabled={loadingAud} className="btn-secondary inline-flex items-center gap-1.5 text-2xs disabled:opacity-50">
@@ -824,16 +968,28 @@ export default function NewMetaAdPage() {
             <MetaGeoPicker companyId={companyId} value={exGeoLocs} onChange={setExGeoLocs} disabled={!conn?.connected} />
           </div>
 
-          {/* Intérêts exclus — réutilise les résultats de recherche ci-dessus */}
-          <div className="border-t border-hair pt-3">
+          {/* Intérêts exclus — recherche DÉDIÉE (#6) */}
+          <div className="border-t pt-3">
             <span className="text-xs font-semibold text-ink">{t("Centres d'intérêt exclus", "Excluded interests")}</span>
-            {interestResults.length > 0 && (
+            <div className="mt-1.5 flex gap-2">
+              <input
+                value={exQuery}
+                onChange={(e) => setExQuery(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); searchExInterests(); } }}
+                placeholder={t("Rechercher un intérêt à exclure…", "Search an interest to exclude…")}
+                className={inputCls}
+              />
+              <button type="button" onClick={searchExInterests} disabled={searchingEx} className="btn-secondary inline-flex shrink-0 items-center gap-1.5 text-xs disabled:opacity-50">
+                {searchingEx && <Spinner size={14} className="text-current" />}
+                {t("Rechercher", "Search")}
+              </button>
+            </div>
+            {exResults.length > 0 && (
               <div className="mt-2 flex flex-wrap gap-1.5">
-                {interestResults.map((it) => {
+                {exResults.map((it) => {
                   const on = exInterests.some((x) => x.id === it.id);
                   return (
-                    <button key={`ex-${it.id}`} type="button"
-                      onClick={() => setExInterests((cur) => cur.some((x) => x.id === it.id) ? cur.filter((x) => x.id !== it.id) : [...cur, { id: it.id, name: it.name }])}
+                    <button key={`ex-${it.id}`} type="button" onClick={() => toggleExInterest(it)}
                       className={`rounded-full px-3 py-1 text-2xs font-medium ${on ? "bg-danger-500 text-white" : "bg-canvas text-muted ring-1 ring-hair hover:text-ink"}`}>
                       {on ? "− " : ""}{it.name}
                     </button>
@@ -850,13 +1006,13 @@ export default function NewMetaAdPage() {
                 ))}
               </div>
             ) : (
-              <p className="mt-1 text-2xs text-muted">{t("Recherchez un intérêt ci-dessus, puis cliquez-le ici pour l'exclure.", "Search an interest above, then click it here to exclude it.")}</p>
+              <p className="mt-1 text-2xs text-muted">{t("Recherchez un intérêt ci-dessus, puis cliquez un résultat pour l'exclure.", "Search an interest above, then click a result to exclude it.")}</p>
             )}
           </div>
 
           {/* Audiences exclues — réutilise la liste chargée ci-dessus */}
           {audiences.length > 0 && (
-            <div className="border-t border-hair pt-3">
+            <div className="border-t pt-3">
               <span className="text-xs font-semibold text-ink">{t("Audiences exclues", "Excluded audiences")}</span>
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {audiences.map((a) => {
@@ -905,7 +1061,7 @@ export default function NewMetaAdPage() {
           <span className="section-label">{t("Visuel & message", "Creative & copy")}</span>
           <div>
             <label className="mb-1 block text-xs font-medium text-muted">{t("Texte principal", "Primary text")}</label>
-            <textarea value={primaryText} onChange={(e) => setPrimaryText(e.target.value)} rows={3} placeholder={t("Le message qui accompagne la publicité…", "The message shown with the ad…")} className={inputCls} />
+            <textarea value={primaryText} onChange={(e) => setPrimaryText(e.target.value)} rows={6} placeholder={t("Le message qui accompagne la publicité…", "The message shown with the ad…")} className={`${inputCls} resize-y min-h-[8rem]`} />
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
@@ -930,7 +1086,23 @@ export default function NewMetaAdPage() {
             <label className="mb-1 block text-xs font-medium text-muted">
               {adType === "lead" ? t("Lien (optionnel — sinon l'URL de confidentialité)", "Link (optional — falls back to privacy URL)") : t("URL de destination", "Destination URL")}
             </label>
-            <input value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://…" className={inputCls} />
+            <input value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://…" list="connected-destinations" className={inputCls} />
+            {destinations.length > 0 && (
+              <>
+                <datalist id="connected-destinations">
+                  {destinations.map((d) => <option key={d.url} value={d.url}>{d.label}</option>)}
+                </datalist>
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  <span className="text-2xs text-muted">{t("Destinations connectées :", "Connected destinations:")}</span>
+                  {destinations.map((d) => (
+                    <button key={d.url} type="button" onClick={() => setLink(d.url)}
+                      className={`rounded-full px-2.5 py-0.5 text-2xs font-medium ${link === d.url ? "bg-page text-white" : "bg-canvas text-muted ring-1 ring-hair hover:text-ink"}`}>
+                      {d.label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-muted">{t("Prompt du visuel (IA)", "Visual prompt (AI)")}</label>
@@ -1037,9 +1209,15 @@ export default function NewMetaAdPage() {
 
             <label className="mt-3 mb-1 block text-2xs font-medium text-muted">{t("…ou coller une URL d'image publique", "…or paste a public image URL")}</label>
             <input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://…/image.jpg" className={inputCls} />
-            {imageUrl && !generatedVisuals.some((g) => g.url === imageUrl) && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={imageUrl} alt="aperçu" className="mt-3 max-h-56 w-auto rounded-lg border border-hair object-contain" />
+            {/* Grand aperçu du visuel SÉLECTIONNÉ — assez grand pour être analysé, cliquable pour l'ouvrir en taille réelle. */}
+            {imageUrl && (
+              <div className="mt-3">
+                <a href={imageUrl} target="_blank" rel="noopener noreferrer" title={t("Ouvrir en taille réelle", "Open full size")} className="block">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={imageUrl} alt={t("Aperçu du visuel sélectionné", "Selected visual preview")} className="max-h-[28rem] w-full rounded-lg border border-hair bg-canvas object-contain" />
+                </a>
+                <p className="mt-1 text-2xs text-muted">{t("🔍 Cliquez l'image pour l'ouvrir en taille réelle.", "🔍 Click the image to open it full size.")}</p>
+              </div>
             )}
             <p className="mt-1 text-2xs text-muted">{t("Le visuel sélectionné (✓) est celui de l'annonce. Générez plusieurs formats pour couvrir fil, portrait et stories.", "The selected (✓) visual is used for the ad. Generate several formats to cover feed, portrait and stories.")}</p>
           </div>
@@ -1154,7 +1332,21 @@ export default function NewMetaAdPage() {
           </section>
         )}
 
-        {error && <p className="rounded-lg bg-danger-50 px-3 py-2 text-sm text-danger-700">{error}</p>}
+        {error && (
+          <div className="rounded-lg bg-danger-50 px-3 py-2.5 ring-1 ring-danger-200">
+            <p className="text-xs font-semibold text-danger-700">{t("La création n'a pas abouti", "Creation didn't go through")}</p>
+            <p className="mt-1 text-xs leading-relaxed font-medium text-danger-700">{cleanError(error)}</p>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {/budget/i.test(error) && (
+                <button type="button" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} className="btn-secondary text-2xs">
+                  {t("↑ Revoir le budget & les réglages", "↑ Review budget & settings")}
+                </button>
+              )}
+              <a href="https://www.facebook.com/business/help" target="_blank" rel="noopener noreferrer" className="btn-secondary text-2xs">{t("Aide Meta", "Meta help")}</a>
+              <button type="button" onClick={() => setError(null)} className="btn-ghost text-2xs text-danger-700">{t("Fermer", "Dismiss")}</button>
+            </div>
+          </div>
+        )}
 
         <button type="button" onClick={publish} disabled={publishing} className="btn-primary inline-flex w-full items-center justify-center gap-2 disabled:opacity-50">
           {publishing && <Spinner size={16} className="text-white" />}

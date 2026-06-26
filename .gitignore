@@ -15,7 +15,10 @@ __pycache__/
 # MCP server package
 mcp/node_modules
 mcp/dist
+.claude/worktrees/
 
-# Playwright run artifacts
+# Playwright
 /test-results/
 /playwright-report/
+/blob-report/
+/playwright/.cache/

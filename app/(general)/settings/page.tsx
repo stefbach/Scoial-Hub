@@ -174,8 +174,10 @@ function SettingsContent() {
           </div>
         </nav>
 
-        {/* Content area */}
-        <div className="min-w-0 flex-1 overflow-auto p-4 sm:p-5">
+        {/* Content area — extra left/right breathing room so the scrollable
+            content (and its scrollbar) isn't flush against the tabs/sidebar
+            above-left (UAT #13). */}
+        <div className="min-w-0 flex-1 overflow-auto p-4 sm:p-5 lg:pl-6 lg:pr-6">
           {section === "profile" && <Profile />}
           {section === "notifications" && <Notifications />}
           {section === "organization" && <Organization onNavigate={navigate} />}

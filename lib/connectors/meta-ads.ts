@@ -13,14 +13,43 @@ const MAX_DAILY_BUDGET_CENTS = Number(process.env.META_ADS_MAX_DAILY_CENTS ?? 50
 
 type Params = Record<string, unknown>;
 
+// Construit un message d'erreur Meta ACTIONNABLE : privilégie le titre + message
+// destinés à l'utilisateur (error_user_title / error_user_msg) et, si Meta indique
+// le champ fautif (error_data / blame_field_specs), on le précise — bien plus
+// utile qu'un « Paramètre invalide » opaque.
+function metaError(json: Record<string, unknown>): Error {
+  const e = (json as { error?: Record<string, unknown> }).error ?? {};
+  const title = typeof e.error_user_title === "string" ? e.error_user_title : "";
+  const userMsg = typeof e.error_user_msg === "string" ? e.error_user_msg : "";
+  const baseMsg = typeof e.message === "string" ? e.message : "Erreur Marketing API";
+  // Champ incriminé éventuel (Meta renvoie parfois blame_field_specs).
+  let field = "";
+  const data = e.error_data as { blame_field_specs?: unknown } | undefined;
+  const specs = data?.blame_field_specs;
+  if (Array.isArray(specs)) {
+    field = (specs as unknown[]).flat(Infinity).filter((x): x is string => typeof x === "string").join(", ");
+  }
+  const human = [title, userMsg].filter(Boolean).join(" — ");
+  const parts = [human || baseMsg];
+  if (field) parts.push(`(champ concerné : ${field})`);
+  // Explications claires pour les paramètres Meta réputés obscurs (ex. #9).
+  const blob = `${baseMsg} ${field} ${userMsg}`.toLowerCase();
+  const HINTS: { match: RegExp; hint: string }[] = [
+    { match: /is_adset_budget_sharing_enabled|campaign_budget_optimization|advantage.*budget/, hint: "Conflit de budget : il est défini à la fois au niveau de la campagne (budget optimisé / Advantage) et au niveau de l'ensemble de publicités. Définissez le budget à UN seul niveau, ou désactivez le budget de campagne dans votre compte Meta." },
+    { match: /special_ad_categor/, hint: "Catégorie de publicité spéciale requise (logement, emploi, crédit, politique). À régler dans les paramètres de la campagne sur Meta." },
+    { match: /daily_budget|lifetime_budget|min.*budget/, hint: "Budget trop bas pour ce ciblage : augmentez le budget quotidien ou à vie." },
+  ];
+  const found = HINTS.find((h) => h.match.test(blob));
+  if (found) parts.push(`→ ${found.hint}`);
+  return new Error(parts.join(" "));
+}
+
 async function graphGet(path: string, fields: string, token: string): Promise<Record<string, unknown>> {
   const sep = path.includes("?") ? "&" : "?";
   const url = `${BASE}/${path}${sep}fields=${encodeURIComponent(fields)}&access_token=${encodeURIComponent(token)}`;
   const res = await fetch(url, { cache: "no-store" });
   const json = (await res.json()) as Record<string, unknown>;
-  if (json && (json as { error?: { message?: string } }).error) {
-    throw new Error((json as { error: { message?: string } }).error.message || "Erreur Marketing API");
-  }
+  if (json && (json as { error?: unknown }).error) throw metaError(json);
   return json;
 }
 
@@ -38,9 +67,7 @@ async function graphPost(path: string, params: Params, token: string): Promise<R
     cache: "no-store",
   });
   const json = (await res.json()) as Record<string, unknown>;
-  if (json && (json as { error?: { message?: string } }).error) {
-    throw new Error((json as { error: { message?: string } }).error.message || "Erreur Marketing API");
-  }
+  if (json && (json as { error?: unknown }).error) throw metaError(json);
   return json;
 }
 

@@ -6,7 +6,7 @@
 
 import { useState } from "react";
 import { useCompany } from "@/lib/company-context";
-import { useT } from "@/lib/i18n";
+import { useLang, useT } from "@/lib/i18n";
 import { Spinner, BusyHint } from "@/components/ui/Spinner";
 
 interface PilotAction {
@@ -20,24 +20,30 @@ interface PilotAction {
 
 export function AdPilot() {
   const t = useT();
+  const { lang } = useLang();
   const { company } = useCompany();
   const companyId = company.id;
 
   const [actions, setActions] = useState<PilotAction[] | null>(null);
+  const [fallback, setFallback] = useState(false);
+  const [noCampaigns, setNoCampaigns] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [applying, setApplying] = useState<number | null>(null);
   const [done, setDone] = useState<Record<number, string>>({});
 
   async function analyze() {
-    setLoading(true); setError(null); setActions(null); setDone({});
+    setLoading(true); setError(null); setActions(null); setFallback(false); setNoCampaigns(false); setDone({});
     try {
-      const r = await fetch(`/api/meta/ads/pilot?companyId=${encodeURIComponent(companyId)}`);
+      // BUG #15 : on transmet la langue de l'UI pour des propositions traduites.
+      const r = await fetch(`/api/meta/ads/pilot?companyId=${encodeURIComponent(companyId)}&language=${lang}`);
       const raw = await r.text();
-      let d: { actions?: PilotAction[]; error?: string; connected?: boolean } = {};
+      let d: { actions?: PilotAction[]; error?: string; connected?: boolean; fallback?: boolean; noCampaigns?: boolean } = {};
       try { d = raw ? JSON.parse(raw) : {}; } catch { setError(t("Réponse inattendue.", "Unexpected response.")); return; }
       if (!r.ok) { setError(d.error || t("Échec de l'analyse.", "Analysis failed.")); return; }
       setActions(d.actions ?? []);
+      setFallback(!!d.fallback);
+      setNoCampaigns(!!d.noCampaigns);
     } catch (e) {
       setError(e instanceof Error ? e.message : t("Échec de l'analyse.", "Analysis failed."));
     } finally { setLoading(false); }
@@ -64,10 +70,20 @@ export function AdPilot() {
     } finally { setApplying(null); }
   }
 
+  // BUG #21 : badge « Pause »/budget réduit -> fond plus clair + texte clair (ink)
+  // au lieu du couple bg-canvas/text-muted illisible sur fond sombre.
   const badge = (a: PilotAction) => {
-    if (a.type === "pause") return { fr: "Pause", cls: "bg-canvas text-muted ring-1 ring-hair" };
-    if (a.type === "activate") return { fr: "Activer", cls: "bg-success-50 text-success-700" };
-    return { fr: (a.factor ?? 1) > 1 ? `Budget ×${a.factor}` : `Budget ×${a.factor}`, cls: (a.factor ?? 1) > 1 ? "bg-warning-50 text-warning-700" : "bg-canvas text-muted ring-1 ring-hair" };
+    const label = a.type === "pause"
+      ? t("Pause", "Pause")
+      : a.type === "activate"
+        ? t("Activer", "Activate")
+        : t(`Budget ×${a.factor}`, `Budget ×${a.factor}`);
+    if (a.type === "pause") return { label, cls: "bg-card text-ink ring-1 ring-hair" };
+    if (a.type === "activate") return { label, cls: "bg-success-50 text-success-700" };
+    return {
+      label,
+      cls: (a.factor ?? 1) > 1 ? "bg-warning-50 text-warning-700" : "bg-card text-ink ring-1 ring-hair",
+    };
   };
 
   return (
@@ -87,26 +103,83 @@ export function AdPilot() {
         {loading && <BusyHint label={t("Analyse de la performance et des optimisations…", "Analyzing performance and optimizations…")} eta={t("~15–40 s", "~15–40 s")} />}
         {error && <p className="rounded-lg bg-danger-50 px-3 py-2 text-sm text-danger-700">{error}</p>}
         {actions && actions.length === 0 && !loading && (
-          <p className="text-sm text-muted">{t("Aucune action proposée (compte sain, ou pas assez de données).", "No action proposed (account healthy, or not enough data).")}</p>
+          <p className="text-sm text-muted">
+            {noCampaigns
+              ? t("Aucune campagne active à optimiser pour l'instant. Lancez une campagne, puis revenez ici.", "No active campaigns to optimize yet. Launch a campaign, then come back here.")
+              : t("Aucune action proposée (compte sain, ou pas assez de données).", "No action proposed (account healthy, or not enough data).")}
+          </p>
         )}
+
+        {/* BUG #9 : si l'analyse IA détaillée n'aboutit pas, on bascule sur des
+            optimisations déterministes basées sur les chiffres réels — message
+            calme et utile, pas une erreur. */}
+        {actions && actions.length > 0 && fallback && !loading && (
+          <p className="rounded-lg bg-primary-50 px-3 py-2 text-2xs leading-relaxed text-primary-700">
+            {t(
+              "Voici des optimisations calculées directement à partir de vos chiffres réels. Vous pouvez les appliquer telles quelles, ou relancer « Ré-analyser » pour une analyse IA plus détaillée.",
+              "Here are optimizations computed directly from your real figures. You can apply them as-is, or use “Re-analyze” for a more detailed AI analysis."
+            )}
+          </p>
+        )}
+
+        {/* BUG #17 : légende expliquant les deux couleurs de bouton « Appliquer ». */}
+        {actions && actions.length > 0 && (
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-2xs text-muted">
+            <span className="inline-flex items-center gap-1.5">
+              <span className="inline-block h-2.5 w-2.5 rounded-sm bg-primary-400" />
+              {t("Action sûre — sans dépense supplémentaire (pause, baisse de budget)", "Safe action — no extra spend (pause, budget cut)")}
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="inline-block h-2.5 w-2.5 rounded-sm bg-warning-500" />
+              {t("Engage une dépense réelle (activation, hausse de budget) — confirmation requise", "Triggers real spend (activate, budget increase) — confirmation required")}
+            </span>
+          </div>
+        )}
+
         {actions && actions.map((a, i) => {
           const b = badge(a);
+          const spend = a.impact === "spend";
+          // BUG #17 : info-bulle expliquant la couleur du bouton.
+          const applyTitle = spend
+            ? t(
+                "Bouton orange : cette action engage une dépense réelle (activation ou hausse de budget). Une confirmation vous sera demandée.",
+                "Orange button: this action triggers real spend (activate or budget increase). You will be asked to confirm."
+              )
+            : t(
+                "Bouton améthyste : action sûre, sans dépense supplémentaire (mise en pause ou baisse de budget).",
+                "Amethyst button: safe action with no extra spend (pause or budget decrease)."
+              );
           return (
             <div key={i} className="flex flex-wrap items-start justify-between gap-2 rounded-xl border border-hair p-3">
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className={`rounded-full px-2 py-0.5 text-2xs font-semibold ${b.cls}`}>{b.fr}</span>
+                  <span className={`rounded-full px-2 py-0.5 text-2xs font-semibold ${b.cls}`}>{b.label}</span>
                   <span className="text-sm font-semibold text-ink">{a.campaignName}</span>
-                  {a.impact === "spend" && <span className="rounded-full bg-warning-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-warning-700">{t("dépense", "spend")}</span>}
+                  {/* BUG #8 : bg-warning-100 n'est PAS remappé en thème clair
+                      (reste brun foncé) → texte foncé illisible. bg-warning-50
+                      donne tuile claire/texte foncé en clair, tuile foncée/texte
+                      clair en sombre. */}
+                  {spend && <span className="rounded-full bg-warning-50 px-1.5 py-0.5 text-[10px] font-bold uppercase text-warning-700">{t("dépense", "spend")}</span>}
                 </div>
                 <p className="mt-1 text-xs text-muted">{a.reason}</p>
               </div>
               <button
                 onClick={() => apply(a, i)}
                 disabled={applying === i || !!done[i]}
-                className={`inline-flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold disabled:opacity-50 ${a.impact === "spend" ? "bg-warning-500 text-white" : "bg-page text-white"}`}
+                title={applyTitle}
+                aria-label={applyTitle}
+                // BUG #10/#11/#9 : contraste lisible dans LES DEUX thèmes.
+                //  • Action « dépense » : fond ambre vif (#f59e0b) → texte
+                //    quasi-noir FIXE (#1c152e). On n'utilise plus `text-canvas`,
+                //    qui devient blanc en thème clair et rendait le libellé
+                //    illisible sur l'ambre.
+                //  • Action « sûre » : améthyste CLAIR (#9b6eff). Le texte BLANC
+                //    sur cet améthyste moyen restait limite (≈2.6:1) ; on passe
+                //    à un texte quasi-noir FIXE (#1c152e, ≈6:1) parfaitement
+                //    lisible — cohérent avec le bouton « dépense ».
+                className={`inline-flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold disabled:opacity-50 ${spend ? "bg-warning-500 text-[#1c152e] ring-1 ring-warning-600" : "bg-primary-400 text-[#1c152e] ring-1 ring-primary-300/50"}`}
               >
-                {applying === i && <Spinner size={12} className="text-white" />}
+                {applying === i && <Spinner size={12} className="text-[#1c152e]" />}
                 {done[i] ?? (applying === i ? t("Application…", "Applying…") : t("Appliquer", "Apply"))}
               </button>
             </div>

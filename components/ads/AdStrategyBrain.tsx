@@ -6,7 +6,7 @@
 
 import { useState } from "react";
 import { useCompany } from "@/lib/company-context";
-import { useT } from "@/lib/i18n";
+import { useLang, useT } from "@/lib/i18n";
 import { Spinner, BusyHint } from "@/components/ui/Spinner";
 
 interface Analysis {
@@ -22,10 +22,14 @@ interface Analysis {
   aiGenerated: boolean;
 }
 
+// BUG #8/#9 : la pastille « basse » utilisait bg-canvas (#0a0710, quasi-noir)
+// + text-muted (gris-violet) → fond trop sombre et texte faiblement contrasté.
+// On bascule sur la surface carte + encre lisible (même langage que le badge
+// « Pause » du Pilote Pub), lisible dans LES DEUX thèmes.
 const prio: Record<string, string> = {
   haute: "bg-danger-50 text-danger-700 ring-danger-200",
   moyenne: "bg-warning-50 text-warning-700 ring-warning-200",
-  basse: "bg-canvas text-muted ring-hair",
+  basse: "bg-card text-ink ring-hair",
 };
 
 function Chips({ title, items, accent = "primary" }: { title: string; items: string[]; accent?: "primary" | "ai" }) {
@@ -43,24 +47,27 @@ function Chips({ title, items, accent = "primary" }: { title: string; items: str
 
 export function AdStrategyBrain() {
   const t = useT();
+  const { lang } = useLang();
   const { company } = useCompany();
   const companyId = company.id;
 
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
+  const [fallback, setFallback] = useState(false);
   const [meta, setMeta] = useState<{ campaignsCount: number; account?: { name: string } } | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function run() {
-    setLoading(true); setError(null);
+    setLoading(true); setError(null); setFallback(false);
     try {
+      // BUG #7 : on transmet la langue de l'UI pour une analyse traduite.
       const r = await fetch("/api/meta/ads-strategy", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyId }),
+        body: JSON.stringify({ companyId, language: lang }),
       });
       // Lecture tolérante : en cas de 504/erreur, la réponse n'est pas du JSON.
       const raw = await r.text();
-      let d: { error?: string; analysis?: Analysis; campaignsCount?: number; account?: { name: string } } = {};
+      let d: { error?: string; analysis?: Analysis; campaignsCount?: number; account?: { name: string }; fallback?: boolean } = {};
       try { d = raw ? JSON.parse(raw) : {}; }
       catch {
         setError(
@@ -72,6 +79,7 @@ export function AdStrategyBrain() {
       }
       if (!r.ok) { setError(d.error || t("Échec de l'analyse.", "Analysis failed.")); return; }
       setAnalysis(d.analysis ?? null);
+      setFallback(!!d.fallback);
       setMeta({ campaignsCount: d.campaignsCount ?? 0, account: d.account });
     } catch (e) {
       setError(e instanceof Error ? e.message : t("Échec de l'analyse.", "Analysis failed."));
@@ -115,6 +123,19 @@ export function AdStrategyBrain() {
               </div>
               <p className="mt-2 text-sm leading-relaxed text-ink">{analysis.diagnostic}</p>
             </div>
+
+            {/* BUG #7 : si l'analyse IA détaillée n'aboutit pas (IA non
+                configurée ou réponse inexploitable), on bascule sur une synthèse
+                déterministe bâtie sur les chiffres réels — note calme et utile,
+                jamais une impasse « réponse non exploitable ». */}
+            {fallback && (
+              <p className="rounded-lg bg-primary-50 px-3 py-2 text-2xs leading-relaxed text-primary-700">
+                {t(
+                  "Voici une synthèse calculée directement à partir de vos chiffres réels. Vous pouvez l'exploiter telle quelle, ou relancer « Ré-analyser » pour une analyse IA plus détaillée.",
+                  "Here is a summary computed directly from your real figures. You can use it as-is, or use “Re-analyze” for a more detailed AI analysis."
+                )}
+              </p>
+            )}
 
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               {analysis.winners.length > 0 && (

@@ -62,6 +62,7 @@ export function AudienceDetailModal({
   const [savedConfig, setSavedConfig] = useState<SavedConfig>(makeSavedConfig());
   const [customConfig, setCustomConfig] = useState<CustomConfig>(makeCustomConfig());
   const [lookConfig, setLookConfig] = useState<LookalikeConfig>(makeLookalikeConfig());
+  const [deleting, setDeleting] = useState(false);
 
   const TYPE_LABEL: Record<AudienceType, string> = {
     saved: t("Enregistrée", "Saved"),
@@ -110,8 +111,6 @@ export function AudienceDetailModal({
     onChanged();
     onClose();
   };
-
-  const [deleting, setDeleting] = useState(false);
 
   const handleDelete = async () => {
     if (deleting) return;

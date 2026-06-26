@@ -75,6 +75,15 @@ export default function ClientTelegramPage() {
 
   const linked = pairing?.linked ?? false;
 
+  // Nom du bot nettoyé (sans « @ ») et lien réel vers la conversation du bot.
+  // On ne fabrique JAMAIS un lien si le bot est inconnu : aucun repli vers
+  // telegram.org. Le bouton « Ouvrir le bot » n'est rendu actif QUE si un vrai
+  // botUsername existe ; sinon il reste désactivé et on guide la configuration.
+  const botUsername = (pairing?.botUsername ?? "").replace(/^@+/, "").trim();
+  const botUrl = botUsername
+    ? `https://t.me/${botUsername}${pairing?.code ? `?start=${pairing.code}` : ""}`
+    : null;
+
   return (
     <div className="animate-fade-in space-y-5">
       {/* En-tête */}
@@ -115,7 +124,7 @@ export default function ClientTelegramPage() {
         <div className="card p-5">
           <div className="section-label mb-3">{t("Connexion en 1 clic", "1-click connection")}</div>
 
-          {pairing?.isBotConfigured && pairing.deepLink ? (
+          {pairing?.isBotConfigured && botUrl ? (
             <>
               <p className="mb-3 text-sm leading-relaxed text-muted">
                 {t(
@@ -123,13 +132,13 @@ export default function ClientTelegramPage() {
                   "Click the button below: Telegram opens on the AXON-AI bot. Press “Start” and this account is linked automatically. No install, no bot to create."
                 )}
               </p>
-              <a href={pairing.deepLink} target="_blank" rel="noopener noreferrer" className="btn-primary inline-flex items-center gap-2">
+              <a href={botUrl} target="_blank" rel="noopener noreferrer" className="btn-primary inline-flex items-center gap-2">
                 <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.96 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48z" /></svg>
                 {t("Ouvrir le bot & connecter", "Open the bot & connect")}
               </a>
               <p className="mt-3 text-xs text-muted">
                 {t("Ou, dans Telegram, cherchez ", "Or, in Telegram, search for ")}
-                <code className="rounded bg-canvas px-1 py-0.5 font-mono">@{pairing.botUsername}</code>
+                <code className="rounded bg-canvas px-1 py-0.5 font-mono">@{botUsername}</code>
                 {t(" et envoyez ", " and send ")}
                 <code className="rounded bg-canvas px-1 py-0.5 font-mono">/start {pairing.code}</code>.
               </p>
@@ -139,15 +148,19 @@ export default function ClientTelegramPage() {
               </div>
             </>
           ) : (
-            /* Bot central non configuré → message d'accompagnement (admin) */
+            /* Bot central non configuré → bouton désactivé + guide (admin) */
             <div className="rounded-lg border border-warning-200 bg-warning-50 p-4">
               <p className="text-sm font-semibold text-warning-700">{t("Le bot AXON-AI doit d'abord être activé", "The AXON-AI bot must be activated first")}</p>
               <p className="mt-1.5 text-sm leading-relaxed text-warning-700">
                 {t(
-                  "La connexion par code utilise un bot Telegram central, partagé par tous les comptes. L'administrateur doit le configurer une seule fois dans Vercel :",
-                  "Code pairing uses a central Telegram bot, shared by all accounts. The administrator must configure it once in Vercel:"
+                  "Tant que le bot n'est pas configuré, le bouton « Ouvrir le bot » reste indisponible. La connexion par code utilise un bot Telegram central, partagé par tous les comptes. L'administrateur doit le configurer une seule fois dans Vercel :",
+                  "Until the bot is configured, the “Open the bot” button stays unavailable. Code pairing uses a central Telegram bot, shared by all accounts. The administrator must configure it once in Vercel:"
                 )}
               </p>
+              <button type="button" disabled aria-disabled className="btn-primary mt-3 inline-flex items-center gap-2">
+                <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.96 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48z" /></svg>
+                {t("Ouvrir le bot & connecter", "Open the bot & connect")}
+              </button>
               <ol className="mt-2 space-y-1 text-xs text-warning-700">
                 <li>1. {t("Créer un bot via ", "Create a bot via ")}<a href="https://t.me/BotFather" target="_blank" rel="noopener noreferrer" className="underline">@BotFather</a> ({t("commande ", "command ")}<code className="font-mono">/newbot</code>).</li>
                 <li>2. {t("Dans Vercel → Settings → Environment Variables, ajouter ", "In Vercel → Settings → Environment Variables, add ")}<code className="font-mono">TELEGRAM_BOT_TOKEN</code> {t("et ", "and ")}<code className="font-mono">TELEGRAM_BOT_USERNAME</code>.</li>
@@ -183,6 +196,35 @@ export default function ClientTelegramPage() {
               <p className="mt-1.5 text-2xs italic text-muted/80">{t(u.exFr, u.exEn)}</p>
             </div>
           ))}
+        </div>
+
+        {/* Exemples concrets à envoyer au bot — en langage naturel, par thème */}
+        <div className="mt-5 border-t border-hair pt-4">
+          <div className="section-label mb-1">{t("Exemples de messages à envoyer", "Examples of messages to send")}</div>
+          <p className="mb-3 text-xs text-muted">
+            {t(
+              "Copiez l'un de ces messages dans Telegram (ou inspirez-vous-en) — le bot s'occupe du reste.",
+              "Copy one of these messages into Telegram (or take inspiration) — the bot handles the rest."
+            )}
+          </p>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {EXAMPLE_GROUPS.map((g) => (
+              <div key={g.titleEn} className="rounded-lg border border-hair bg-canvas p-3">
+                <div className="mb-1.5 flex items-center gap-2">
+                  <span aria-hidden className="text-base">{g.icon}</span>
+                  <p className="text-sm font-medium text-ink">{t(g.titleFr, g.titleEn)}</p>
+                </div>
+                <ul className="space-y-1.5">
+                  {g.items.map((it) => (
+                    <li key={it.en} className="flex items-start gap-1.5 text-xs leading-relaxed text-muted">
+                      <span aria-hidden className="mt-1 h-1 w-1 shrink-0 rounded-full bg-primary/50" />
+                      <span>“{t(it.fr, it.en)}”</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -240,5 +282,55 @@ const USE_CASES: {
     descFr: "Affiche toutes les commandes disponibles et des exemples concrets.",
     descEn: "Shows all available commands and concrete examples.",
     exFr: "Ex : /aide", exEn: "E.g. /aide",
+  },
+];
+
+// ── Exemples concrets de messages, groupés par thème ────────────────────────────
+// Tournés vers ce que le produit sait réellement faire (publier, programmer,
+// analyser, piloter les pubs). Rédigés en langage naturel, bilingues.
+
+const EXAMPLE_GROUPS: {
+  icon: string; titleFr: string; titleEn: string;
+  items: { fr: string; en: string }[];
+}[] = [
+  {
+    icon: "✍️", titleFr: "Publier", titleEn: "Publish",
+    items: [
+      { fr: "Publie sur Instagram : « Nouvelle collection disponible en boutique 🎉 »", en: "Post on Instagram: “New collection now available in store 🎉”" },
+      { fr: "Crée un post LinkedIn pour annoncer notre levée de fonds", en: "Create a LinkedIn post to announce our funding round" },
+      { fr: "Génère 3 idées de posts pour cette semaine", en: "Generate 3 post ideas for this week" },
+      { fr: "Rédige une légende avec des hashtags pour cette photo produit", en: "Write a caption with hashtags for this product photo" },
+      { fr: "Décline ce post en version Facebook, Instagram et LinkedIn", en: "Adapt this post into Facebook, Instagram and LinkedIn versions" },
+    ],
+  },
+  {
+    icon: "🗓️", titleFr: "Programmer", titleEn: "Schedule",
+    items: [
+      { fr: "Programme un post demain à 9h sur Facebook", en: "Schedule a post tomorrow at 9am on Facebook" },
+      { fr: "Planifie 3 publications cette semaine aux meilleures heures", en: "Plan 3 posts this week at the best times" },
+      { fr: "Liste mes posts programmés", en: "List my scheduled posts" },
+      { fr: "Décale le post de vendredi à lundi 8h", en: "Move Friday's post to Monday 8am" },
+      { fr: "Annule la publication prévue ce soir", en: "Cancel the post scheduled for tonight" },
+    ],
+  },
+  {
+    icon: "📈", titleFr: "Analyser", titleEn: "Analyse",
+    items: [
+      { fr: "Quelles sont mes stats de la semaine ?", en: "What are my stats for this week?" },
+      { fr: "Analyse la performance de mes pubs", en: "Analyse the performance of my ads" },
+      { fr: "Quel post a le mieux marché ce mois-ci ?", en: "Which post performed best this month?" },
+      { fr: "Résume mes messages et commentaires non lus", en: "Summarise my unread messages and comments" },
+      { fr: "Compare mon engagement à celui du mois dernier", en: "Compare my engagement to last month" },
+    ],
+  },
+  {
+    icon: "🎯", titleFr: "Piloter les pubs", titleEn: "Manage ads",
+    items: [
+      { fr: "Crée une publicité Meta à 20 €/jour pour promouvoir la boutique", en: "Create a Meta ad at €20/day to promote the store" },
+      { fr: "Mets en pause la campagne « Soldes d'été »", en: "Pause the “Summer Sale” campaign" },
+      { fr: "Augmente le budget de ma meilleure campagne de 10 €/jour", en: "Increase my best campaign's budget by €10/day" },
+      { fr: "Rédige une réponse au dernier commentaire reçu", en: "Draft a reply to the latest comment" },
+      { fr: "Quel est mon coût par conversion en ce moment ?", en: "What is my cost per conversion right now?" },
+    ],
   },
 ];

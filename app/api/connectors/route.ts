@@ -33,6 +33,17 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       const statuses: ConnectorStatus[] = platforms.map((p) => {
         const r = byChannel.get(p);
         const connected = r?.status === "connected";
+        // URL de destination RÉELLE si la config en contient une (jamais fabriquée).
+        let url: string | undefined;
+        if (connected && r?.config) {
+          const c = r.config as Record<string, string>;
+          const direct = c.url || c.link || c.profile_url || c.page_url || c.website;
+          const handle = c.username || c.ig_username;
+          if (direct && /^https?:\/\//i.test(direct)) url = direct;
+          else if (p === "facebook" && c.page_id) url = `https://facebook.com/${c.page_id}`;          // Page FB connectée (réelle)
+          else if (p === "instagram" && handle) url = `https://instagram.com/${handle}`;
+          else if (p === "facebook" && handle) url = `https://facebook.com/${handle}`;
+        }
         return {
           platform: p,
           configured: true,
@@ -43,6 +54,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
                   id: r!.id,
                   accountName: r!.config?.account_name || p,
                   status: "active" as const,
+                  url,
                 },
               ]
             : [],

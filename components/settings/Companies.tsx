@@ -6,7 +6,7 @@ import { Modal } from "@/components/ui/Modal";
 import { Toast } from "@/components/ui/Toast";
 import { ImageUpload, type UploadedImage } from "@/components/ui/ImageUpload";
 import { SubHeader } from "./shared";
-import { ORG_NAME } from "@/lib/mock-data";
+import { COMPANIES } from "@/lib/mock-data";
 import { useCompany } from "@/lib/company-context";
 import type { Company } from "@/lib/types";
 import { useT } from "@/lib/i18n";
@@ -30,14 +30,19 @@ export function Companies() {
   const { companies, addCompany, updateCompany } = useCompany();
   const [open, setOpen] = useState<{ mode: "new" | "edit"; company?: Company } | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  // UAT #15 — la suppression était un simple toast fictif. On reflète désormais
+  // la VRAIE liste (synchronisée avec le contexte) et on retire la société
+  // localement après une suppression confirmée côté serveur.
+  const [removedIds, setRemovedIds] = useState<Set<string>>(new Set());
+  const visibleCompanies = companies.filter((c) => !removedIds.has(c.id));
 
   return (
     <div>
-      <SubHeader title={t("Entreprises", "Companies")} scope="org" scopeLabel={ORG_NAME} />
+      <SubHeader title={t("Entreprises", "Companies")} scope="org" scopeLabel={t("Votre organisation", "Your organization")} />
       <p className="mb-4 text-sm text-muted">{t("Chaque entreprise a ses propres comptes sociaux, bibliothèque et campagnes.", "Each company has its own social accounts, library, and campaigns.")}</p>
 
       <div className="space-y-2">
-        {companies.map((c) => (
+        {visibleCompanies.map((c) => (
           <button
             key={c.id}
             onClick={() => setOpen({ mode: "edit", company: c })}
@@ -101,9 +106,40 @@ export function Companies() {
             setToast(t(`Modifications enregistrées pour ${payload.name}.`, `Saved changes to ${payload.name}.`));
             setOpen(null);
           }}
-          onDelete={(name) => {
-            setToast(t(`Suppression fictive — ${name} est conservée.`, `Company deletion is a mock action — ${name} is preserved.`));
-            setOpen(null);
+          onDelete={async (id, name) => {
+            // Garde-fou : on ne supprime jamais la dernière entreprise (l'org
+            // doit en garder au moins une pour rester exploitable).
+            if (visibleCompanies.length <= 1) {
+              setToast(t(
+                "Impossible de supprimer la dernière entreprise. Créez-en une autre d'abord.",
+                "Can't delete the last company. Create another one first.",
+              ));
+              setOpen(null);
+              return false;
+            }
+            try {
+              const res = await fetch(`/api/companies/${encodeURIComponent(id)}`, { method: "DELETE" });
+              if (!res.ok) {
+                let reason = "";
+                try { reason = ((await res.json()) as { error?: string }).error ?? ""; } catch { /* ignore */ }
+                if (res.status === 401) reason = t("Vous devez être connecté pour supprimer une entreprise.", "You must be signed in to delete a company.");
+                else if (res.status === 403) reason = reason || t("Seul un administrateur du compte peut supprimer une entreprise.", "Only an account admin can delete a company.");
+                setToast(reason || t(`Suppression impossible (erreur ${res.status}).`, `Couldn't delete (error ${res.status}).`));
+                setOpen(null);
+                return false;
+              }
+              // Succès serveur : retire la société de la liste affichée + du store partagé.
+              setRemovedIds((prev) => new Set(prev).add(id));
+              const idx = COMPANIES.findIndex((c) => c.id === id);
+              if (idx >= 0) COMPANIES.splice(idx, 1);
+              setToast(t(`Entreprise ${name} supprimée.`, `Company ${name} deleted.`));
+              setOpen(null);
+              return true;
+            } catch {
+              setToast(t("Suppression impossible : serveur injoignable.", "Couldn't delete: server unreachable."));
+              setOpen(null);
+              return false;
+            }
           }}
         />
       )}
@@ -135,7 +171,7 @@ function CompanyModal({
   onClose: () => void;
   onCreate: (payload: CompanyPayload) => void;
   onSave: (id: string, payload: CompanyPayload) => void;
-  onDelete: (name: string) => void;
+  onDelete: (id: string, name: string) => Promise<boolean> | void;
 }) {
   const t = useT();
   const [name, setName] = useState(company?.name ?? "");
@@ -152,6 +188,7 @@ function CompanyModal({
   const [needsReviewDefault, setNeedsReviewDefault] = useState(company?.defaultNeedsReview ?? false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteText, setDeleteText] = useState("");
+  const [deleting, setDeleting] = useState(false);
 
   const editing = mode === "edit";
   const canSave = !!name.trim();
@@ -290,10 +327,14 @@ function CompanyModal({
               <Button variant="secondary" onClick={() => setDeleteOpen(false)}>{t("Annuler", "Cancel")}</Button>
               <Button
                 variant="danger"
-                disabled={deleteText !== company.name}
-                onClick={() => onDelete(company.name)}
+                disabled={deleteText !== company.name || deleting}
+                onClick={async () => {
+                  setDeleting(true);
+                  await onDelete(company.id, company.name);
+                  setDeleting(false);
+                }}
               >
-                {t("Supprimer définitivement", "Delete forever")}
+                {deleting ? t("Suppression…", "Deleting…") : t("Supprimer définitivement", "Delete forever")}
               </Button>
             </div>
           </div>

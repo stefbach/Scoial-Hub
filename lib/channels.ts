@@ -3,7 +3,9 @@
 // dans public.sh_channel_connections (config jsonb).
 
 export type ChannelId =
-  | "facebook" | "instagram" | "linkedin" | "tiktok" | "meta_pixel" | "ga4" | "meta_app" | "telegram";
+  | "facebook" | "instagram" | "linkedin" | "tiktok"
+  | "twitter" | "pinterest" | "threads"
+  | "meta_pixel" | "ga4" | "meta_app" | "telegram";
 
 export interface ChannelField {
   key: string;
@@ -58,6 +60,30 @@ export const CHANNELS: ChannelDef[] = [
     fields: [
       { key: "advertiser_id", label: "Advertiser ID", placeholder: "70123..." },
       { key: "access_token", label: "Access Token", secret: true },
+    ],
+  },
+  {
+    id: "twitter", label: "Twitter / X", group: "social", color: "#000000",
+    description: "Publication de tweets via l'API v2 (OAuth 2.0). Connexion sécurisée — aucun token à coller.",
+    where: "Connexion automatique : bouton « Connecter » (OAuth). Sinon developer.twitter.com → Project → App (OAuth 2.0).",
+    fields: [
+      { key: "external_id", label: "User ID (optionnel)", placeholder: "rempli automatiquement après connexion" },
+    ],
+  },
+  {
+    id: "pinterest", label: "Pinterest", group: "social", color: "#E60023",
+    description: "Création de Pins via l'API v5 (OAuth 2.0). Un board cible est requis pour publier.",
+    where: "Connexion automatique : bouton « Connecter » (OAuth). Sinon developers.pinterest.com → App.",
+    fields: [
+      { key: "external_id", label: "Board ID cible", placeholder: "id du board où publier les Pins" },
+    ],
+  },
+  {
+    id: "threads", label: "Threads", group: "social", color: "#000000",
+    description: "Publication sur Threads via la Threads Graph API (OAuth 2.0).",
+    where: "Connexion automatique : bouton « Connecter » (OAuth). Compte Threads professionnel lié à Meta.",
+    fields: [
+      { key: "external_id", label: "Threads User ID (optionnel)", placeholder: "rempli automatiquement après connexion" },
     ],
   },
   {

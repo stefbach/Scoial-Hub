@@ -17,6 +17,7 @@ const SENSITIVE_KEYS = [
   "page_access_token",
   "access_token",
   "user_access_token",
+  "refresh_token",
   "capi_token",
   "api_secret",
   "bot_token",

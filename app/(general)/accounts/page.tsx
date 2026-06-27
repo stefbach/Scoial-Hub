@@ -9,6 +9,7 @@ import { Toast } from "@/components/ui/Toast";
 import { Spinner } from "@/components/ui/Spinner";
 import { ConnectGuide } from "@/components/connect/ConnectGuide";
 import type { ConnectorStatus } from "@/lib/connectors/types";
+import type { ConnectHelpKey } from "@/lib/connect-help";
 import { useT } from "@/lib/i18n";
 
 // ---------------------------------------------------------------------------
@@ -23,7 +24,7 @@ import { useT } from "@/lib/i18n";
 // GET /api/connectors?companyId=… (branché sur sh_channel_connections).
 // ---------------------------------------------------------------------------
 
-type PlatformId = "facebook" | "instagram" | "linkedin";
+type PlatformId = "facebook" | "instagram" | "linkedin" | "twitter" | "pinterest" | "threads";
 
 interface PlatformView {
   platform: PlatformId;
@@ -55,7 +56,8 @@ const PLATFORM_META: Record<
     bg: string;
     ring: string;
     dot: string;
-    connectVia: "meta" | "linkedin";
+    /** Clé de l'assistant guidé (cf. lib/connect-help). Meta regroupe FB+IG. */
+    connectVia: ConnectHelpKey;
   }
 > = {
   facebook: {
@@ -82,9 +84,40 @@ const PLATFORM_META: Record<
     dot: "bg-[#0A66C2]",
     connectVia: "linkedin",
   },
+  twitter: {
+    label: "Twitter / X",
+    color: "text-[#000000]",
+    bg: "bg-[#000000]/10",
+    ring: "ring-[#000000]/20",
+    dot: "bg-[#000000]",
+    connectVia: "twitter",
+  },
+  pinterest: {
+    label: "Pinterest",
+    color: "text-[#E60023]",
+    bg: "bg-[#E60023]/10",
+    ring: "ring-[#E60023]/20",
+    dot: "bg-[#E60023]",
+    connectVia: "pinterest",
+  },
+  threads: {
+    label: "Threads",
+    color: "text-[#000000]",
+    bg: "bg-[#000000]/10",
+    ring: "ring-[#000000]/20",
+    dot: "bg-[#000000]",
+    connectVia: "threads",
+  },
 };
 
-const PLATFORMS: PlatformId[] = ["facebook", "instagram", "linkedin"];
+const PLATFORMS: PlatformId[] = [
+  "facebook",
+  "instagram",
+  "linkedin",
+  "twitter",
+  "pinterest",
+  "threads",
+];
 
 // ---------------------------------------------------------------------------
 // Main page
@@ -105,8 +138,8 @@ function AccountsPageInner() {
 
   const [toast, setToast] = useState<string | null>(null);
 
-  // Assistant guidé : on mémorise quelle plateforme (meta | linkedin) ouvrir.
-  const [guidePlatform, setGuidePlatform] = useState<"meta" | "linkedin" | null>(null);
+  // Assistant guidé : on mémorise quelle plateforme ouvrir (clé d'aide).
+  const [guidePlatform, setGuidePlatform] = useState<ConnectHelpKey | null>(null);
 
   // Statut connecteurs — SEULE source de vérité (GET /api/connectors).
   const [connectorStatuses, setConnectorStatuses] = useState<ConnectorStatus[] | null>(null);
@@ -200,8 +233,8 @@ function AccountsPageInner() {
         <InfoIcon className="mt-0.5 shrink-0" />
         <span>
           {t(
-            "Connectez vos réseaux en un clic. La connexion Meta couvre Facebook et Instagram ensemble ; LinkedIn est séparé. Aucun token à copier.",
-            "Connect your networks in one click. The Meta connection covers Facebook and Instagram together; LinkedIn is separate. No token to copy."
+            "Connectez vos réseaux en un clic : Facebook, Instagram, LinkedIn, Twitter/X, Pinterest, Threads. La connexion Meta couvre Facebook et Instagram ensemble. Chaque réseau a un guide pas-à-pas — aucun token à copier.",
+            "Connect your networks in one click: Facebook, Instagram, LinkedIn, Twitter/X, Pinterest, Threads. The Meta connection covers Facebook and Instagram together. Each network has a step-by-step guide — no token to copy."
           )}
         </span>
       </div>
@@ -320,7 +353,7 @@ function ConnectorCard({
 }: {
   platform: PlatformId;
   view: PlatformView | undefined;
-  onConnect: (via: "meta" | "linkedin") => void;
+  onConnect: (via: ConnectHelpKey) => void;
 }) {
   const t = useT();
   const meta = PLATFORM_META[platform];
@@ -384,9 +417,14 @@ function ConnectorCard({
                     "Connexion Meta : Facebook et Instagram d'un seul clic.",
                     "Meta connection: Facebook and Instagram in one click."
                   )
-                : t(
+                : platform === "linkedin"
+                ? t(
                     "Connectez LinkedIn pour publier sur votre profil ou Page.",
                     "Connect LinkedIn to publish on your profile or Page."
+                  )
+                : t(
+                    `Connectez ${meta.label} en un clic — aucun token à copier.`,
+                    `Connect ${meta.label} in one click — no token to copy.`
                   )}
             </p>
           )}

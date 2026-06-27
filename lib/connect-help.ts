@@ -126,19 +126,18 @@ export const CONNECT_HELP: Record<ConnectHelpKey, ConnectHelp> = {
   },
 
   tiktok: {
-    title: { fr: "Préparer TikTok", en: "Prepare TikTok" },
+    title: { fr: "Connecter TikTok", en: "Connect TikTok" },
     secure: SECURE_DEFAULT,
     steps: [
-      { fr: "Composez et programmez votre contenu TikTok dans le hub.", en: "Compose and schedule your TikTok content in the hub." },
-      { fr: "L'API TikTok exige une app approuvée : la publication 100 % automatique arrive bientôt.", en: "TikTok's API requires an approved app: fully automatic posting is coming soon." },
-      { fr: "En attendant, publiez le contenu prêt depuis l'app TikTok en un geste.", en: "Meanwhile, post the ready content from the TikTok app in one tap." },
+      { fr: "Cliquez « Continuer » : vous êtes redirigé vers TikTok.", en: "Click “Continue”: you'll be redirected to TikTok." },
+      { fr: "Connectez-vous et autorisez la publication de vidéos en votre nom.", en: "Sign in and authorize posting videos on your behalf." },
+      { fr: "Vous revenez ici, connecté — prêt à publier vos vidéos.", en: "You come back here, connected — ready to post your videos." },
     ],
     tip: {
-      fr: "Le contenu est préparé et programmé ici — aucune perte de travail.",
-      en: "Content is prepared and scheduled here — no work is lost.",
+      fr: "TikTok est une plateforme vidéo : une vidéo est requise. La publication PUBLIQUE nécessite une app TikTok auditée (sinon, publication privée).",
+      en: "TikTok is a video platform: a video is required. PUBLIC posting requires an audited TikTok app (otherwise, private posting).",
     },
-    authPath: "",
-    cta: { fr: "Compris", en: "Got it" },
+    authPath: "/api/connectors/tiktok/auth",
   },
 };
 

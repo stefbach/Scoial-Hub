@@ -43,7 +43,7 @@ async function main() {
 
   console.log("\n— 3) Providers déclaratifs : dégradation gracieuse (mode simulé) —");
   // Sans credentials d'env, les nouveaux réseaux doivent simuler, jamais throw.
-  for (const p of ["twitter", "pinterest", "threads"] as const) {
+  for (const p of ["twitter", "pinterest", "threads", "tiktok"] as const) {
     const c = getConnector(p);
     check(`${p} non configuré hors env`, c.isConfigured() === false);
     const token = await c.exchangeCode("fake_code", "fake_state");

@@ -24,7 +24,7 @@ import { useT } from "@/lib/i18n";
 // GET /api/connectors?companyId=… (branché sur sh_channel_connections).
 // ---------------------------------------------------------------------------
 
-type PlatformId = "facebook" | "instagram" | "linkedin" | "twitter" | "pinterest" | "threads";
+type PlatformId = "facebook" | "instagram" | "linkedin" | "twitter" | "pinterest" | "threads" | "tiktok";
 
 interface PlatformView {
   platform: PlatformId;
@@ -108,6 +108,14 @@ const PLATFORM_META: Record<
     dot: "bg-[#000000]",
     connectVia: "threads",
   },
+  tiktok: {
+    label: "TikTok",
+    color: "text-[#000000]",
+    bg: "bg-[#000000]/10",
+    ring: "ring-[#000000]/20",
+    dot: "bg-[#000000]",
+    connectVia: "tiktok",
+  },
 };
 
 const PLATFORMS: PlatformId[] = [
@@ -117,6 +125,7 @@ const PLATFORMS: PlatformId[] = [
   "twitter",
   "pinterest",
   "threads",
+  "tiktok",
 ];
 
 // ---------------------------------------------------------------------------

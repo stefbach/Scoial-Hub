@@ -17,23 +17,7 @@ import { linkedinConnector } from "@/lib/connectors/linkedin";
 import { twitterConnector } from "@/lib/connectors/providers/twitter";
 import { pinterestConnector } from "@/lib/connectors/providers/pinterest";
 import { threadsConnector } from "@/lib/connectors/providers/threads";
-
-// ── TikTok : connecteur « honnête » ──────────────────────────────────────────
-// L'API TikTok Content Posting exige une app approuvée par TikTok. Tant que ce
-// n'est pas branché, le contenu TikTok se PRÉPARE et se PROGRAMME dans le hub,
-// mais la publication automatique renvoie une erreur claire (pas de faux succès).
-const tiktokConnector: SocialConnector = {
-  platform: "tiktok",
-  isConfigured: () => false,
-  getAuthUrl: () => "",
-  exchangeCode: async () => { throw new Error("Connecteur TikTok non configuré."); },
-  publishPost: async () => {
-    throw new Error(
-      "Publication TikTok non disponible : l'API TikTok exige une app approuvée. Le contenu est prêt — publiez-le depuis l'app TikTok."
-    );
-  },
-  getMetrics: async () => ({ reactions: 0, comments: 0, shares: 0, linkClicks: 0, reach: 0, impressions: 0 }),
-};
+import { tiktokConnector } from "@/lib/connectors/providers/tiktok";
 
 // ---------------------------------------------------------------------------
 // Registre

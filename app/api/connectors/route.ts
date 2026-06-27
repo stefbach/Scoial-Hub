@@ -37,6 +37,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         "twitter",
         "pinterest",
         "threads",
+        "tiktok",
       ];
       const statuses: ConnectorStatus[] = platforms.map((p) => {
         const r = byChannel.get(p);

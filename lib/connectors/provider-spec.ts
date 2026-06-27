@@ -17,6 +17,7 @@
  * Aucun appel réseau au chargement du module.
  */
 
+import crypto from "crypto";
 import type {
   SocialConnector,
   ConnectorPlatform,
@@ -65,18 +66,25 @@ export interface OAuth2ProviderSpec {
   scopeSeparator?: string;
 
   /**
+   * Nom du paramètre portant l'identifiant client (défaut : "client_id").
+   * TikTok utilise "client_key" — d'où cette option.
+   */
+  clientIdParam?: string;
+
+  /**
    * Mode d'authentification au token endpoint :
-   * - "body"  : client_id + client_secret dans le corps (défaut)
+   * - "body"  : client id + client_secret dans le corps (défaut)
    * - "basic" : en-tête Authorization: Basic base64(id:secret)
    */
   tokenAuth?: "body" | "basic";
 
   /**
-   * Active PKCE en méthode "plain". Le `code_verifier` est porté par le
-   * paramètre `state` (opaque, déjà anti-CSRF) — suffisant pour la méthode
-   * plain où challenge === verifier. Requis par Twitter/X.
+   * Active PKCE. Le `code_verifier` est dérivé du paramètre `state` (opaque,
+   * déjà anti-CSRF) — pas de stockage serveur nécessaire.
+   * - "plain" : challenge === verifier (ex. Twitter/X).
+   * - "S256"  : challenge === base64url(sha256(verifier)) (ex. TikTok).
    */
-  pkce?: "plain";
+  pkce?: "plain" | "S256";
 
   /** Préfixe des identifiants simulés (mode mock). */
   simPrefix: string;
@@ -123,10 +131,23 @@ function redirectUri(platform: ConnectorPlatform): string {
   return `${APP_URL}/api/connectors/${platform}/callback`;
 }
 
-/** Le `state` OAuth porte aussi le code_verifier PKCE (méthode plain). */
+/** Le `state` OAuth porte aussi le code_verifier PKCE. */
 function verifierFromState(state: string): string {
   // Borne à 128 caractères (limite RFC 7636) et nettoie les caractères hors set.
-  return state.replace(/[^A-Za-z0-9._~-]/g, "").slice(0, 128) || "verifier";
+  // On garantit ≥ 43 caractères (minimum RFC) en complétant si besoin.
+  const cleaned = state.replace(/[^A-Za-z0-9._~-]/g, "").slice(0, 128);
+  return (cleaned + "verifier_padding_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").slice(0, Math.max(43, cleaned.length));
+}
+
+/** Encodage base64url (sans padding) — pour le code_challenge S256. */
+function base64url(buf: Buffer): string {
+  return buf.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+/** Calcule le code_challenge PKCE selon la méthode. */
+function pkceChallenge(verifier: string, method: "plain" | "S256"): string {
+  if (method === "plain") return verifier;
+  return base64url(crypto.createHash("sha256").update(verifier).digest());
 }
 
 // ---------------------------------------------------------------------------
@@ -140,6 +161,7 @@ function verifierFromState(state: string): string {
 export function makeOAuth2Connector(spec: OAuth2ProviderSpec): SocialConnector {
   const sep = spec.scopeSeparator ?? " ";
 
+  const clientIdParam = spec.clientIdParam ?? "client_id";
   const clientId = () => (process.env[spec.clientIdEnv] ?? "").trim();
   const clientSecret = () => (process.env[spec.clientSecretEnv] ?? "").trim();
   const configured = () => Boolean(clientId()) && Boolean(clientSecret());
@@ -156,15 +178,15 @@ export function makeOAuth2Connector(spec: OAuth2ProviderSpec): SocialConnector {
 
       const params = new URLSearchParams({
         response_type: "code",
-        client_id: clientId(),
+        [clientIdParam]: clientId(),
         redirect_uri: redirectUri(spec.platform),
         scope: spec.scopes.join(sep),
         state,
       });
 
-      if (spec.pkce === "plain") {
-        params.set("code_challenge", verifierFromState(state));
-        params.set("code_challenge_method", "plain");
+      if (spec.pkce) {
+        params.set("code_challenge", pkceChallenge(verifierFromState(state), spec.pkce));
+        params.set("code_challenge_method", spec.pkce);
       }
 
       return `${spec.authorizeUrl}?${params.toString()}`;
@@ -186,7 +208,7 @@ export function makeOAuth2Connector(spec: OAuth2ProviderSpec): SocialConnector {
         code,
         redirect_uri: redirectUri(spec.platform),
       });
-      if (spec.pkce === "plain") form.set("code_verifier", verifierFromState(state ?? ""));
+      if (spec.pkce) form.set("code_verifier", verifierFromState(state ?? ""));
 
       const headers: Record<string, string> = {
         "Content-Type": "application/x-www-form-urlencoded",
@@ -196,7 +218,7 @@ export function makeOAuth2Connector(spec: OAuth2ProviderSpec): SocialConnector {
         const basic = Buffer.from(`${clientId()}:${clientSecret()}`).toString("base64");
         headers.Authorization = `Basic ${basic}`;
       } else {
-        form.set("client_id", clientId());
+        form.set(clientIdParam, clientId());
         form.set("client_secret", clientSecret());
       }
 

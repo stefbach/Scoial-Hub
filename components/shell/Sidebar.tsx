@@ -33,6 +33,7 @@ const NAV_TR: Record<string, [string, string]> = {
   "Connecteurs": ["Connecteurs", "Connectors"],
   "Organic": ["Organique", "Organic"],
   "Compose": ["Composer", "Compose"],
+  "Series": ["Séries", "Post series"],
   "Article LinkedIn": ["Article LinkedIn", "LinkedIn Article"],
   "Video Studio": ["Studio Créatif", "Creative Studio"],
   "Studio Affiches": ["Studio Affiches", "Poster Studio"],
@@ -349,6 +350,7 @@ const GROUPS: NavGroup[] = [
     label: "Publication",
     items: [
       { href: "/scheduled",   label: "Scheduled" },
+      { href: "/series",      label: "Series" },
       { href: "/automations", label: "Automations" },
       { href: "/history",     label: "History" },
       { href: "/inbox",       label: "Inbox" },

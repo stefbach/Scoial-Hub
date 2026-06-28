@@ -249,6 +249,28 @@ export function LinkedInScheduler() {
     }
   }
 
+  const [genAll, setGenAll] = useState(false);
+
+  /** Génère le visuel de TOUS les éléments sans visuel (séquentiel). */
+  async function genAllVisuals() {
+    setGenAll(true);
+    setBatchMsg(null);
+    const targets = drafts.map((d, i) => ({ d, i })).filter(({ d }) => d.body.trim() && !d.media);
+    if (targets.length === 0) {
+      setBatchMsg(t("Tous les éléments ont déjà un visuel.", "Every item already has a visual."));
+      setGenAll(false);
+      return;
+    }
+    let done = 0;
+    for (const { i } of targets) {
+      setBatchMsg(t(`Génération des visuels… (${done + 1}/${targets.length})`, `Generating visuals… (${done + 1}/${targets.length})`));
+      await genVisual(i);
+      done++;
+    }
+    setBatchMsg(t(`Visuels générés ✓ (${done})`, `Visuals generated ✓ (${done})`));
+    setGenAll(false);
+  }
+
   /** Génère un visuel IA pour un brouillon (à partir de son prompt visuel). */
   async function genVisual(i: number) {
     const item = drafts[i];
@@ -512,6 +534,15 @@ export function LinkedInScheduler() {
             >
               {generating && <Spinner size={14} className="text-current" />}
               {generating ? t("Génération…", "Generating…") : t("Générer", "Generate")}
+            </button>
+            <button
+              onClick={genAllVisuals}
+              disabled={genAll || generating || !canEdit || filledDrafts.length === 0}
+              title={t("Génère un visuel pour chaque élément sans image", "Generate a visual for each item without an image")}
+              className="btn-secondary inline-flex items-center gap-1.5 text-xs disabled:opacity-50"
+            >
+              {genAll && <Spinner size={14} className="text-current" />}
+              {genAll ? t("Visuels…", "Visuals…") : t("✨ Générer tous les visuels", "✨ Generate all visuals")}
             </button>
           </div>
 

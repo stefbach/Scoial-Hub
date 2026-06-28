@@ -14,6 +14,7 @@ export const maxDuration = 300;
 
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { createClaudeMessage } from "@/lib/ai/anthropic";
 import { env, isAiConfigured } from "@/lib/env";
 import { requireCompanyAccess } from "@/lib/auth/guard";
 import { createAdminClient } from "@/lib/supabase/server";
@@ -172,7 +173,7 @@ Le prompt que tu produis doit préciser : l'objectif éditorial, l'angle unique,
 
   try {
     const client = new Anthropic({ apiKey: env.anthropicKey });
-    const res = await client.messages.create({
+    const res = await createClaudeMessage(client, {
       model: env.anthropicModel,
       max_tokens: 900,
       messages: [{ role: "user", content: meta }],
@@ -251,7 +252,7 @@ Réponds UNIQUEMENT en JSON (même schéma) :
 Post actuel à condenser :
 ${JSON.stringify({ title: a.title, hook: a.hook, body: a.body, keyTakeaways: a.keyTakeaways, cta: a.cta, hashtags: a.hashtags })}`;
   try {
-    const res = await client.messages.create({
+    const res = await createClaudeMessage(client, {
       model: env.anthropicModel,
       max_tokens: 1600,
       system: SYSTEM,
@@ -306,7 +307,7 @@ TYPOGRAPHIE : n'utilise JAMAIS de tiret cadratin (—) ni demi-cadratin (–).
 IMPÉRATIF : réponds UNIQUEMENT par un objet JSON valide complet (même schéma), AUCUN texte autour, pas de bloc \`\`\`, échappe les guillemets et sauts de ligne :
 {"title":"...","hook":"...","body":"...","keyTakeaways":["..."],"hashtags":["..."],"cta":"..."}`;
 
-  const res = await client.messages.create({
+  const res = await createClaudeMessage(client, {
     model: env.anthropicModel,
     max_tokens: 3800,
     temperature: 0.5,
@@ -369,7 +370,7 @@ IMPÉRATIF DE SORTIE — quelles que soient les instructions du brief ci-dessus 
 
   try {
     const client = new Anthropic({ apiKey: env.anthropicKey });
-    const res = await client.messages.create({
+    const res = await createClaudeMessage(client, {
       model: env.anthropicModel,
       max_tokens: 3500,
       system: SYSTEM,

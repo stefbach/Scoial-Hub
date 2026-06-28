@@ -118,6 +118,7 @@ export async function analyzeMetaContent(
 
   try {
     const Anthropic = (await import("@anthropic-ai/sdk")).default;
+    const { createClaudeMessage } = await import("@/lib/ai/anthropic");
     const client = new Anthropic({ apiKey: env.anthropicKey });
 
     const samples = [...summarizePosts(ins.instagramPosts, "instagram"), ...summarizePosts(ins.facebookPosts, "facebook")];
@@ -143,7 +144,7 @@ Retourne STRICTEMENT ce JSON (aucun texte autour), ${language === "en" ? "with A
 }
 Règles : max 4 pointsForts, 4 aAmeliorer, 4 formatsGagnants, 5 ideesContenu, 5 actions. Base-toi sur les chiffres réels.`;
 
-    const message = await client.messages.create({
+    const message = await createClaudeMessage(client, {
       model: env.anthropicModel,
       max_tokens: 3000,
       messages: [{ role: "user", content: prompt }],

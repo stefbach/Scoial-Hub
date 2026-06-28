@@ -34,6 +34,7 @@
  */
 
 import { isAiConfigured, env } from "@/lib/env";
+import { createClaudeMessage } from "@/lib/ai/anthropic";
 
 export interface CallClaudeJSONOptions {
   /** Modèle Anthropic à utiliser (défaut : `env.anthropicModel`). */
@@ -88,7 +89,10 @@ export async function callClaudeJSONResult<T>(
     // timeout par appel : un appel qui « pend » (latence/surcharge côté API) doit
     // échouer pour rester SOUS la limite de durée de la fonction serverless
     // (sinon 504). 30s par défaut ; surchargeable pour les générations lourdes.
-    const message = await client.messages.create(
+    // `createClaudeMessage` essaie le modèle configuré puis des replis connus :
+    // un ID de modèle inaccessible à la clé ne fait plus échouer toute l'IA.
+    const message = await createClaudeMessage(
+      client,
       {
         model: opts.model ?? env.anthropicModel,
         max_tokens: opts.maxTokens ?? 1500,

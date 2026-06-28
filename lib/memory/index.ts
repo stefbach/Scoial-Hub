@@ -223,6 +223,7 @@ export async function synthesizeBrief(companyId: string, companyName = "la marqu
 
   try {
     const Anthropic = (await import("@anthropic-ai/sdk")).default;
+    const { createClaudeMessage } = await import("@/lib/ai/anthropic");
     const client = new Anthropic({ apiKey: env.anthropicKey });
     const compact = mem.map((m) => ({ source: m.source, kind: m.kind, title: m.title, content: m.content.slice(0, 200) }));
     const prompt = `Tu es directeur de la stratégie social media. À partir de la MÉMOIRE d'analyses accumulée pour ${companyName}, produis un brief stratégique actionnable.
@@ -240,7 +241,7 @@ Retourne STRICTEMENT ce JSON (français, concret) :
   "recommandations": ["actions stratégiques priorisées pour les prochaines campagnes"]
 }
 Max 5 éléments par liste. Base-toi UNIQUEMENT sur la mémoire fournie.`;
-    const msg = await client.messages.create({ model: env.anthropicModel, max_tokens: 1600, messages: [{ role: "user", content: prompt }] });
+    const msg = await createClaudeMessage(client, { model: env.anthropicModel, max_tokens: 1600, messages: [{ role: "user", content: prompt }] });
     const raw = msg.content.filter((b) => b.type === "text").map((b) => (b as { type: "text"; text: string }).text).join("");
     const match = raw.match(/\{[\s\S]*\}/);
     if (!match) throw new Error("no json");

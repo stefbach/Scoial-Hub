@@ -71,6 +71,7 @@ export async function POST(req: NextRequest) {
 
     try {
       const Anthropic = (await import("@anthropic-ai/sdk")).default;
+      const { createClaudeMessage } = await import("@/lib/ai/anthropic");
       const client = new Anthropic({ apiKey: env.anthropicKey });
 
       const prompt = `Tu es un expert en veille concurrentielle social media.
@@ -96,7 +97,7 @@ Réponds UNIQUEMENT avec ce JSON (aucun texte avant ou après) :
 
 ${lang === "en" ? "Write the \"name\" and \"rationale\" values in ENGLISH." : "Réponds en français."}`;
 
-      const message = await client.messages.create({
+      const message = await createClaudeMessage(client, {
         model: env.anthropicModel,
         max_tokens: 1000,
         messages: [{ role: "user", content: prompt }],

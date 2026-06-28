@@ -47,6 +47,7 @@ export async function analyzeAds(
 
   try {
     const Anthropic = (await import("@anthropic-ai/sdk")).default;
+    const { createClaudeMessage } = await import("@/lib/ai/anthropic");
     const client = new Anthropic({ apiKey: env.anthropicKey });
 
     const sample = ads.slice(0, 20).map((a) => ({
@@ -75,7 +76,7 @@ Produis UNIQUEMENT ce JSON strict (aucun texte autour) :
 
 Règles : max 4 anglesDominants, max 5 offres, max 5 ctas, max 5 pourquoiPerformantes, max 4 recommandations. ${language === "en" ? "Write ALL textual values in ENGLISH" : "Réponds en français"}, concret et actionnable.`;
 
-    const message = await client.messages.create({
+    const message = await createClaudeMessage(client, {
       model: env.anthropicModel,
       max_tokens: 2500,
       messages: [{ role: "user", content: prompt }],

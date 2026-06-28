@@ -3,6 +3,7 @@ export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { env, isAiConfigured } from "@/lib/env";
+import { createClaudeMessage } from "@/lib/ai/anthropic";
 import { requireUser, requireCompanyAccess } from "@/lib/auth/guard";
 
 type Action = "generate" | "rewrite" | "shorten" | "hashtags";
@@ -109,7 +110,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const client = new Anthropic({ apiKey: env.anthropicKey });
+    const client = new Anthropic({ apiKey: env.anthropicKey, maxRetries: 0 });
 
     // RAG opt-in : injecte la mémoire stratégique (veille, pubs, Page) pour
     // fonder le contenu sur les insights accumulés, UNIQUEMENT si l'utilisateur
@@ -129,7 +130,9 @@ export async function POST(req: NextRequest) {
       ? `${ACTION_INSTRUCTIONS[action]}\n\n[Mémoire stratégique — insights de veille/pubs/Page à exploiter]\n${memoryContext}\n\nUser input: ${prompt}`
       : `${ACTION_INSTRUCTIONS[action]}\n\nUser input: ${prompt}`;
 
-    const response = await client.messages.create({
+    // Repli de modèle automatique : un ID inaccessible à la clé ne fait plus
+    // échouer la génération (cf. lib/ai/anthropic).
+    const response = await createClaudeMessage(client, {
       model: env.anthropicModel,
       max_tokens: 1024,
       system: SYSTEM_PROMPT(platform, brandVoice, objective, language),
@@ -144,9 +147,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ text: firstContent.text });
   } catch (err) {
     console.error("[ai/generate-post] Error:", err);
+    // On REMONTE la vraie cause (modèle invalide, clé refusée, quota, réseau)
+    // au lieu d'un message générique : sinon « la clé est là mais rien ne
+    // marche » reste indébogable côté utilisateur.
+    const detail = err instanceof Error ? err.message : String(err);
     return NextResponse.json(
-      { error: "Failed to generate content. Please try again." },
-      { status: 500 }
+      {
+        error: `La génération IA a échoué. Détail : ${detail}. Vérifiez la clé ANTHROPIC_API_KEY et le modèle ANTHROPIC_MODEL.`,
+        aiError: true,
+      },
+      { status: 502 }
     );
   }
 }

@@ -66,6 +66,9 @@ export function SeriesPlanner({ platform }: { platform: SeriesPlatform }) {
   const [useMemory, setUseMemory] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [imgModel, setImgModel] = useState(VISUAL_MODELS[0].id);
+  // Format des visuels générés. Défaut 4:5 (portrait) : c'est le format qui
+  // occupe LE PLUS de place dans le fil, donc le moins « petit ».
+  const [imgFormat, setImgFormat] = useState("4:5");
   const [genImgIdx, setGenImgIdx] = useState<number | null>(null);
   const [startDate, setStartDate] = useState<Date>(() => addDays(new Date(), 1));
   const [cadence, setCadence] = useState<Cadence>("daily");
@@ -131,7 +134,7 @@ export function SeriesPlanner({ platform }: { platform: SeriesPlatform }) {
     try {
       const r = await fetch("/api/ai/generate-image", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: vp.slice(0, 400), platform, n: 1, model: imgModel, companyId }),
+        body: JSON.stringify({ prompt: vp.slice(0, 400), platform, format: imgFormat, n: 1, model: imgModel, companyId }),
       });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) { setMsg((d.error as string) ?? t("Échec de génération d'image.", "Image generation failed.")); return; }
@@ -251,6 +254,22 @@ export function SeriesPlanner({ platform }: { platform: SeriesPlatform }) {
                 {VISUAL_MODELS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
               </select>
             </label>
+          )}
+          {!isVideo && (
+            <div className="inline-flex items-center gap-1">
+              <span className="text-2xs text-muted">{t("Format :", "Format:")}</span>
+              {[
+                { id: "4:5", fr: "Portrait 4:5", en: "Portrait 4:5" },
+                { id: "1:1", fr: "Carré 1:1", en: "Square 1:1" },
+                { id: "9:16", fr: "Story 9:16", en: "Story 9:16" },
+                { id: "1.91:1", fr: "Paysage 1.91:1", en: "Landscape 1.91:1" },
+              ].map((f) => (
+                <button key={f.id} type="button" onClick={() => setImgFormat(f.id)} title={t(f.fr, f.en)}
+                  className={`rounded-full px-2.5 py-1 text-2xs font-medium ${imgFormat === f.id ? "bg-ink text-white" : "bg-card text-muted ring-1 ring-hair hover:text-ink"}`}>
+                  {f.id}
+                </button>
+              ))}
+            </div>
           )}
           <label className="inline-flex cursor-pointer items-center gap-1.5 text-2xs text-muted">
             <input type="checkbox" checked={useMemory} onChange={(e) => setUseMemory(e.target.checked)} className="h-3.5 w-3.5 accent-primary-600" />

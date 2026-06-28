@@ -65,16 +65,26 @@ export async function POST(req: NextRequest) {
       visualPrompt: p.visualPrompt ? clean(p.visualPrompt).slice(0, 400) : undefined,
     });
 
+    // Démo : vrai texte rédigé (prose finie), borné à la limite du réseau.
     function mockSeries(): SeriesPost[] {
       const tag = theme.replace(/\s+/g, "");
-      return Array.from({ length: count }, (_, i) => ({
-        title: `${theme} (${i + 1}/${count})`,
-        body: (fr
-          ? `${theme} — idée ${i + 1}/${count}. Un angle concret pour ${cfg.label} : conseil actionnable, retour d'expérience ou question à l'audience.\n\n#${tag}`
-          : `${theme} — idea ${i + 1}/${count}. A concrete angle for ${cfg.label}: actionable tip, lesson learned or a question to the audience.\n\n#${tag}`
-        ).slice(0, max),
-        visualPrompt: `Professional ${cfg.label} visual illustrating "${theme}", clean modern style, part ${i + 1}, high quality, no text`,
-      }));
+      const anglesFr = ["retour d'expérience", "erreur à éviter", "conseil actionnable", "chiffre clé", "question ouverte"];
+      const anglesEn = ["lesson learned", "mistake to avoid", "actionable tip", "key figure", "open question"];
+      return Array.from({ length: count }, (_, i) => {
+        const angle = (fr ? anglesFr : anglesEn)[i % 5];
+        const long = article
+          ? (fr
+            ? `${theme} : ${angle}.\n\nOn complique souvent ${theme}, alors que l'essentiel tient en peu de choses. Le constat : commencer petit bat la perfection. Ce qui marche : un seul indicateur clair, mesuré chaque semaine. L'erreur fréquente : tout vouloir d'un coup.\n\nÀ retenir : avancez par petits pas, gardez l'humain au centre.\n\nEt vous, où en êtes-vous ?\n\n#${tag}`
+            : `${theme}: ${angle}.\n\nWe often overcomplicate ${theme}, when the essentials are simple. The reality: starting small beats chasing perfection. What works: one clear metric, measured weekly. The common mistake: wanting it all at once.\n\nKey takeaway: move in small steps, keep people at the center.\n\nWhere are you with it?\n\n#${tag}`)
+          : (fr
+            ? `${theme} : ${angle}. On simplifie souvent à l'excès, mais l'essentiel tient en une idée : commencez petit, mesurez, ajustez. Et vous ? #${tag}`
+            : `${theme}: ${angle}. We tend to overthink it, yet the essentials fit in one idea: start small, measure, adjust. You? #${tag}`);
+        return {
+          title: `${theme} (${i + 1}/${count})`,
+          body: long.slice(0, max),
+          visualPrompt: `Professional ${cfg.label} visual illustrating "${theme}", clean modern style, part ${i + 1}, high quality, no text`,
+        };
+      });
     }
 
     let memoryContext = "";

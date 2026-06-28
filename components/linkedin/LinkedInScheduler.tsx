@@ -15,6 +15,7 @@ import { useCompany } from "@/lib/company-context";
 import { useT, useLang } from "@/lib/i18n";
 import { Spinner } from "@/components/ui/Spinner";
 import { DatePicker, TimePicker } from "@/components/ui/DateTimePicker";
+import { MediaLibraryButton } from "@/components/studio/MediaLibrary";
 import type { ScheduledPost } from "@/lib/types";
 
 type Cadence = "daily" | "every2" | "weekly";
@@ -72,6 +73,7 @@ export function LinkedInScheduler() {
   const [editBody, setEditBody] = useState("");
   const [editDate, setEditDate] = useState<Date>(new Date());
   const [editTime, setEditTime] = useState("09:00");
+  const [editMedia, setEditMedia] = useState<string | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
 
   function startEdit(p: ScheduledPost) {
@@ -79,6 +81,7 @@ export function LinkedInScheduler() {
     setEditBody(p.body || p.title || "");
     setEditDate(p.date ? new Date(`${p.date}T12:00:00`) : new Date());
     setEditTime(p.time || "09:00");
+    setEditMedia(p.media?.url ?? null);
     setQueueMsg(null);
   }
 
@@ -94,6 +97,8 @@ export function LinkedInScheduler() {
           body: editBody,
           date: format(editDate, "yyyy-MM-dd"),
           time: editTime,
+          // `null` retire le visuel ; un objet l'attache/le remplace.
+          media: editMedia ? { kind: "image", url: editMedia } : null,
         }),
       });
       if (!r.ok) {
@@ -158,6 +163,7 @@ export function LinkedInScheduler() {
   const [startDate, setStartDate] = useState<Date>(() => addDays(new Date(), 1));
   const [cadence, setCadence] = useState<Cadence>("daily");
   const [batchTime, setBatchTime] = useState("09:00");
+  const [seriesImage, setSeriesImage] = useState<string | null>(null);
   const [schedulingAll, setSchedulingAll] = useState(false);
   const [batchMsg, setBatchMsg] = useState<string | null>(null);
 
@@ -235,6 +241,8 @@ export function LinkedInScheduler() {
             time: batchTime,
             status: "scheduled",
             source: "manual",
+            // Visuel commun à toute la série (optionnel).
+            media: seriesImage ? { kind: "image", url: seriesImage } : undefined,
           }),
         });
         if (r.ok) ok++;
@@ -313,12 +321,47 @@ export function LinkedInScheduler() {
                         {t("Annuler", "Cancel")}
                       </button>
                     </div>
+                    {/* Visuel de la publication (bibliothèque) */}
+                    <div className="flex flex-wrap items-center gap-2">
+                      {editMedia ? (
+                        <span className="relative inline-block">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={editMedia} alt="" className="h-14 w-14 rounded-lg border border-hair object-cover" />
+                          <button
+                            type="button"
+                            onClick={() => setEditMedia(null)}
+                            title={t("Retirer le visuel", "Remove visual")}
+                            className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-ink text-2xs text-white"
+                          >
+                            ✕
+                          </button>
+                        </span>
+                      ) : (
+                        <span className="text-2xs text-muted">{t("Aucun visuel", "No visual")}</span>
+                      )}
+                      <MediaLibraryButton
+                        companyId={companyId}
+                        accept="image"
+                        label={editMedia ? t("📚 Changer le visuel", "📚 Change visual") : t("📚 Ajouter un visuel", "📚 Add a visual")}
+                        className="btn-secondary text-2xs"
+                        onPick={(a) => setEditMedia(a.url)}
+                      />
+                    </div>
                   </div>
                 ) : (
                   <div className="flex flex-wrap items-start gap-3">
+                    {p.media?.url && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={p.media.url}
+                        alt=""
+                        className="h-12 w-12 shrink-0 rounded-lg border border-hair object-cover"
+                      />
+                    )}
                     <div className="min-w-0 flex-1">
                       <p className="text-2xs font-semibold text-primary-700">
                         📅 {p.date || t("Sans date", "No date")} · {p.time || "—"}
+                        {p.media?.url && <span className="ml-1.5 text-muted">· 🖼️ {t("visuel", "visual")}</span>}
                       </p>
                       <p className="mt-0.5 truncate text-sm font-semibold text-ink">{p.title}</p>
                       {p.body && (
@@ -451,6 +494,35 @@ export function LinkedInScheduler() {
           <button onClick={() => setDrafts((arr) => [...arr, ""])} className="btn-secondary text-2xs">
             {t("+ Ajouter un post", "+ Add a post")}
           </button>
+        </div>
+
+        {/* Visuel commun à la série (optionnel) */}
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-hair bg-canvas p-3">
+          <span className="section-label">{t("Visuel de la série", "Series visual")}</span>
+          {seriesImage ? (
+            <span className="relative inline-block">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={seriesImage} alt="" className="h-14 w-14 rounded-lg border border-hair object-cover" />
+              <button
+                type="button"
+                onClick={() => setSeriesImage(null)}
+                title={t("Retirer le visuel", "Remove visual")}
+                className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-ink text-2xs text-white"
+              >
+                ✕
+              </button>
+            </span>
+          ) : (
+            <span className="text-2xs text-muted">{t("Aucun — posts en texte seul", "None — text-only posts")}</span>
+          )}
+          <MediaLibraryButton
+            companyId={companyId}
+            accept="image"
+            label={seriesImage ? t("📚 Changer le visuel", "📚 Change visual") : t("📚 Choisir un visuel", "📚 Pick a visual")}
+            className="btn-secondary text-2xs"
+            onPick={(a) => setSeriesImage(a.url)}
+          />
+          <span className="text-2xs text-muted">{t("Appliqué à tous les posts de la série.", "Applied to every post in the series.")}</span>
         </div>
 
         {/* Cadence + programmation */}

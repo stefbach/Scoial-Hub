@@ -43,7 +43,11 @@ export function resolveCreds(
     case "instagram":
       return { externalAccountId: cfg.ig_business_account_id ?? "", accessToken: cfg.page_access_token ?? "" };
     case "linkedin":
-      return { externalAccountId: cfg.external_id ?? "", accessToken: cfg.access_token ?? "" };
+      // Cible de publication : la Page/profil choisi (publish_as) en priorité,
+      // sinon le profil par défaut — comme la publication immédiate
+      // (/api/linkedin/publish). Sans cela, un post programmé pour une Page
+      // entreprise partait en réalité sur le profil personnel.
+      return { externalAccountId: cfg.publish_as || cfg.external_id || "", accessToken: cfg.access_token ?? "" };
     default:
       return { externalAccountId: "", accessToken: "" };
   }

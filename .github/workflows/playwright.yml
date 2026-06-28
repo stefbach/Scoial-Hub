@@ -19,20 +19,20 @@ jobs:
       run: npm ci || npm install
 
     - name: Install Playwright Browsers
-      run: npx playwright install --with-deps
+      run: npx playwright install --with-deps chromium
 
+    # L'app tourne en MODE DÉMO (données mock) quand Supabase n'est pas
+    # configuré : on NE passe AUCUNE variable Supabase, sinon l'app croit
+    # Supabase actif et les appels (ex. /api/connectors) échouent contre une
+    # URL invalide. Cohérent avec le workflow e2e.yml (qui passe).
     - name: Build Next.js Application
       run: npm run build
-      env:
-        # On passe des variables fictives ou de test pour que le build Next.js réussisse sans bloquer
-        NEXT_PUBLIC_SUPABASE_URL: https://supabase.co
-        NEXT_PUBLIC_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.placeholder
 
     - name: Run Playwright tests
       run: npx playwright test
       env:
-        NEXT_PUBLIC_SUPABASE_URL: https://supabase.co
-        NEXT_PUBLIC_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.placeholder
+        E2E_BYPASS_SECRET: ci-e2e-secret
+        CI: "true"
 
     - name: Upload Playwright report
       uses: actions/upload-artifact@v4

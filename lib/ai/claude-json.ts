@@ -202,6 +202,10 @@ export async function callClaudeJSONRetryResult<T>(
   for (let i = 0; i <= retries; i++) {
     last = await callClaudeJSONResult<T>(prompt, opts);
     if (last.data) return last;
+    // Un timeout = génération trop lourde/lente (pas un échec transitoire) :
+    // réessayer ne ferait que doubler la latence et re-timeouter, et risque de
+    // dépasser la durée max de la fonction serverless. On remonte la cause.
+    if (last.error && /tim(e|ed)?\s*-?\s*out|timeout/i.test(last.error)) return last;
     if (i < retries) await new Promise((res) => setTimeout(res, 700 * (i + 1)));
   }
   return last;

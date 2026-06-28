@@ -22,9 +22,6 @@ import { findDraft, findPost } from "@/lib/draft-store";
 import { findTemplate } from "@/lib/template-store";
 import { findHistoryItem } from "@/lib/history-store";
 
-const PLACEHOLDER =
-  "Rédigez le contenu de votre publication ici…";
-
 /** Langues de diffusion proposées pour la rédaction du contenu par l'IA. */
 const DIFFUSION_LANGUAGES = [
   "Français",

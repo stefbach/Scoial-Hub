@@ -243,7 +243,7 @@ export function BrandConsultant({
           setVisualPrompts(data.visualPrompts);
         }
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Le consultant n'a pas répondu.");
+        setError(e instanceof Error ? e.message : t("Le consultant n'a pas répondu.", "The consultant did not respond."));
       } finally {
         setSending(false);
       }

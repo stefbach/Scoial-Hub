@@ -382,7 +382,7 @@ export function CreativeInspiration({
                             <video src={g.url} controls className="mt-2 w-32 rounded-lg border border-hair" />
                           ) : (
                             // eslint-disable-next-line @next/next/no-img-element
-                            <img src={g.url} alt="visuel généré" className="mt-2 w-32 rounded-lg border border-hair" />
+                            <img src={g.url} alt={t("visuel généré", "generated visual")} className="mt-2 w-32 rounded-lg border border-hair" />
                           )
                         )}
                         {g?.note && <p className="mt-1 text-2xs text-muted">{g.note}</p>}

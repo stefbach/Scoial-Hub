@@ -16,6 +16,7 @@ export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { createClaudeMessage } from "@/lib/ai/anthropic";
 import { env, isAiConfigured } from "@/lib/env";
 
 interface Body {
@@ -111,7 +112,7 @@ Réponds STRICTEMENT en JSON (français), un tableau de ${n} objets :
   ]
 }`;
 
-    const msg = await client.messages.create({
+    const msg = await createClaudeMessage(client, {
       model: env.anthropicModel,
       max_tokens: 2500,
       messages: [{ role: "user", content: prompt }],

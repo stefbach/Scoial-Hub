@@ -3,7 +3,9 @@
 import { useState } from "react";
 import { Pills } from "./Tabs";
 import { Toggle } from "./Toggle";
-import { useT } from "@/lib/i18n";
+import { PublishLanguageSelect } from "./PublishLanguageSelect";
+import { useT, useLang } from "@/lib/i18n";
+import { isKnownLanguageCode } from "@/lib/publish-languages";
 import { useCompany } from "@/lib/company-context";
 import { generateVideoPolling } from "@/lib/ai/generate-video-client";
 
@@ -54,7 +56,11 @@ export function AiTextPanel({
   language?: string;
 }) {
   const t = useT();
+  const { lang } = useLang();
   const { company } = useCompany();
+  // Langue de PUBLICATION : initialisée depuis la prop si c'est un code connu,
+  // sinon la langue de l'interface. L'utilisateur peut en changer via le menu.
+  const [pubLang, setPubLang] = useState<string>(isKnownLanguageCode(language) ? (language as string) : lang);
   const [useBrandVoice, setUseBrandVoice] = useState(true);
   const [prompt, setPrompt] = useState("");
   const [result, setResult] = useState("");
@@ -86,7 +92,7 @@ export function AiTextPanel({
           brandVoice: useBrandVoice ? brandVoiceLabel : "neutral, professional",
           action,
           companyId: company?.id,
-          language,
+          language: pubLang,
         }),
       });
       if (!res.ok) {
@@ -117,12 +123,15 @@ export function AiTextPanel({
   return (
     <div className="rounded-lg border-hair border-ai-text/20 bg-ai-textbg p-3">
       {/* Header */}
-      <div className="mb-2 flex items-center justify-between">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <span className="text-xs font-medium text-ai-text">{t("AI assist · Text", "AI assist · Text")}</span>
-        <label className="flex cursor-pointer items-center gap-1.5 text-2xs text-ai-text">
-          {t(`Use ${brandVoiceLabel} brand voice`, `Use ${brandVoiceLabel} brand voice`)}
-          <Toggle defaultOn onChange={setUseBrandVoice} />
-        </label>
+        <div className="flex flex-wrap items-center gap-3">
+          <PublishLanguageSelect value={pubLang} onChange={setPubLang} />
+          <label className="flex cursor-pointer items-center gap-1.5 text-2xs text-ai-text">
+            {t(`Use ${brandVoiceLabel} brand voice`, `Use ${brandVoiceLabel} brand voice`)}
+            <Toggle defaultOn onChange={setUseBrandVoice} />
+          </label>
+        </div>
       </div>
 
       {/* Prompt */}

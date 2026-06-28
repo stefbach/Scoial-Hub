@@ -194,6 +194,7 @@ async function analyzeWithClaude(
   language: "fr" | "en" = "fr"
 ): Promise<AnalysisResult> {
   const Anthropic = (await import("@anthropic-ai/sdk")).default;
+    const { createClaudeMessage } = await import("@/lib/ai/anthropic");
   const client = new Anthropic({ apiKey: env.anthropicKey });
 
   // Profils agrégés (chiffres réels) classés par puissance
@@ -247,7 +248,7 @@ Produis UNIQUEMENT ce JSON strict (aucun texte autour) :
 
 Règles : max 3 formatsGagnants, max 3 anglesThematiques, max 4 recommandations. Un objet "competiteurs" par profil fourni, du plus puissant au moins puissant. ${language === "en" ? "Write ALL textual values (resume, descriptions, angles, titres, details, actions, strategie, pourquoiPuissant…) in ENGLISH" : "Réponds en français"}, concret.`;
 
-  const message = await client.messages.create({
+  const message = await createClaudeMessage(client, {
     model: env.anthropicModel,
     max_tokens: 4000,
     messages: [{ role: "user", content: prompt }],

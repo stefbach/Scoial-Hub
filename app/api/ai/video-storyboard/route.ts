@@ -14,6 +14,7 @@ export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { createClaudeMessage } from "@/lib/ai/anthropic";
 import { env, isAiConfigured } from "@/lib/env";
 
 interface Body {
@@ -54,7 +55,7 @@ Contraintes pour CHAQUE prompt de scène :
 
 Réponds STRICTEMENT en JSON : {"scenes": ["prompt scène 1", "prompt scène 2", ...]} (exactement ${n} éléments, en français).`;
 
-    const msg = await client.messages.create({
+    const msg = await createClaudeMessage(client, {
       model: env.anthropicModel,
       max_tokens: 1500,
       messages: [{ role: "user", content: prompt }],

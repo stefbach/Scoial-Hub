@@ -63,9 +63,10 @@ export async function POST(req: NextRequest) {
 
   try {
     const Anthropic = (await import("@anthropic-ai/sdk")).default;
+    const { createClaudeMessage } = await import("@/lib/ai/anthropic");
     const client = new Anthropic({ apiKey: env.anthropicKey });
 
-    const message = await client.messages.create({
+    const message = await createClaudeMessage(client, {
       model: env.anthropicModel,
       max_tokens: 400,
       messages: [

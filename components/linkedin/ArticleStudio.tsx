@@ -6,7 +6,8 @@
 
 import { useState, useEffect } from "react";
 import { useCompany } from "@/lib/company-context";
-import { useT } from "@/lib/i18n";
+import { useT, useLang } from "@/lib/i18n";
+import { PUBLISH_LANGUAGES } from "@/lib/publish-languages";
 import { Spinner, BusyHint } from "@/components/ui/Spinner";
 import { LinkedInScheduler } from "@/components/linkedin/LinkedInScheduler";
 import { MediaLibraryButton } from "@/components/studio/MediaLibrary";
@@ -99,6 +100,7 @@ export function ArticleStudio({ seed }: { seed?: { nonce: number; text: string }
   const canEdit = access.canEdit;
   const companyId = company.id;
   const t = useT();
+  const { lang } = useLang();
 
   // Saisie
   const [source, setSource] = useState<"keywords" | "text">("keywords");
@@ -107,7 +109,8 @@ export function ArticleStudio({ seed }: { seed?: { nonce: number; text: string }
   const [audience, setAudience] = useState("");
   const [tone, setTone] = useState("");
   const [length, setLength] = useState<"post" | "article" | "long">("article");
-  const [language, setLanguage] = useState<"fr" | "en">("fr");
+  // Langue de PUBLICATION de l'article (toute langue du registre, plus FR/EN).
+  const [language, setLanguage] = useState<string>("fr");
   // RAG opt-in : écrire librement par défaut ; s'appuyer sur la marque/veille à la demande.
   const [useMemory, setUseMemory] = useState(false);
 
@@ -414,9 +417,10 @@ export function ArticleStudio({ seed }: { seed?: { nonce: number; text: string }
               <option value="article">{t("Article", "Article")}</option>
               <option value="long">{t("Article long", "Long article")}</option>
             </select>
-            <select value={language} onChange={(e) => setLanguage(e.target.value as typeof language)} className={inputCls}>
-              <option value="fr">Français</option>
-              <option value="en">English</option>
+            <select value={language} onChange={(e) => setLanguage(e.target.value)} className={inputCls} aria-label={t("Langue de publication", "Publishing language")}>
+              {PUBLISH_LANGUAGES.map((l) => (
+                <option key={l.code} value={l.code}>{lang === "en" ? l.en : l.fr}</option>
+              ))}
             </select>
           </div>
         </div>

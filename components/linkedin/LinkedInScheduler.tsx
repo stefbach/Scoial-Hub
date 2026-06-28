@@ -16,6 +16,7 @@ import { useT, useLang } from "@/lib/i18n";
 import { Spinner } from "@/components/ui/Spinner";
 import { DatePicker, TimePicker } from "@/components/ui/DateTimePicker";
 import { MediaLibraryButton } from "@/components/studio/MediaLibrary";
+import { PublishLanguageSelect } from "@/components/ui/PublishLanguageSelect";
 import type { ScheduledPost } from "@/lib/types";
 
 type Cadence = "daily" | "every2" | "weekly";
@@ -181,6 +182,8 @@ export function LinkedInScheduler() {
   const [theme, setTheme] = useState("");
   const [count, setCount] = useState(5);
   const [seriesFormat, setSeriesFormat] = useState<"post" | "article">("post");
+  // Langue de PUBLICATION (≠ langue de l'interface) ; défaut = langue de l'app.
+  const [pubLang, setPubLang] = useState<string>(lang);
   const [useMemory, setUseMemory] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [imgModel, setImgModel] = useState(SERIES_VISUAL_MODELS[0].id);
@@ -221,7 +224,7 @@ export function LinkedInScheduler() {
           companyId,
           theme,
           count,
-          language: lang,
+          language: pubLang,
           brandVoice: company.brandVoice ?? "",
           useMemory,
           format: seriesFormat,
@@ -548,6 +551,7 @@ export function LinkedInScheduler() {
 
           {/* Type de contenu (posts courts ou articles) + modèle de visuel */}
           <div className="flex flex-wrap items-center gap-3">
+            <PublishLanguageSelect value={pubLang} onChange={setPubLang} />
             <div className="inline-flex items-center gap-1">
               <span className="text-2xs text-muted">{t("Type :", "Type:")}</span>
               {(["post", "article"] as const).map((f) => (

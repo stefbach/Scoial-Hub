@@ -25,6 +25,7 @@
  */
 
 import Anthropic from "@anthropic-ai/sdk";
+import { createClaudeMessage } from "@/lib/ai/anthropic";
 import { env, isAiConfigured } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/server";
 import { isReplicateConfigured, generateImageModel } from "@/lib/ai/replicate";
@@ -509,7 +510,7 @@ Cadence éditoriale retenue : ${formatCadence(cadence)}`;
 
   try {
     const client = new Anthropic({ apiKey: env.anthropicKey });
-    const resp = await client.messages.create({
+    const resp = await createClaudeMessage(client, {
       model: env.anthropicModel,
       max_tokens: 700,
       system: buildStrategistSystemPrompt(profile) + langDirective(input.language === "en" ? "en" : "fr"),
@@ -608,7 +609,7 @@ ${profile.semanticField.slice(0, 4).map((s) => `#${s.replace(/\s+/g, "")}`).join
 
   try {
     const client = new Anthropic({ apiKey: env.anthropicKey });
-    const resp = await client.messages.create({
+    const resp = await createClaudeMessage(client, {
       model: env.anthropicModel,
       max_tokens: 500,
       system: buildCopywriterSystemPrompt(profile, voice, Boolean(input.healthcareCompliance)) + langDirective(input.language === "en" ? "en" : "fr"),
@@ -776,7 +777,7 @@ async function runCompliance(
     const client = new Anthropic({ apiKey: env.anthropicKey });
     const profileConstraints = profile.complianceConstraints.join("\n");
 
-    const resp = await client.messages.create({
+    const resp = await createClaudeMessage(client, {
       model: env.anthropicModel,
       max_tokens: 420,
       system: buildComplianceSystemPrompt(profile, healthcareMode) + langDirective(input.language === "en" ? "en" : "fr"),
@@ -1150,7 +1151,7 @@ async function runAnalyst(
 
   try {
     const client = new Anthropic({ apiKey: env.anthropicKey });
-    const resp = await client.messages.create({
+    const resp = await createClaudeMessage(client, {
       model: env.anthropicModel,
       max_tokens: 700,
       system: buildAnalystSystemPrompt(profile, cadence) + langDirective(input.language === "en" ? "en" : "fr"),

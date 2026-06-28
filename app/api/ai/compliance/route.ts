@@ -2,6 +2,7 @@ export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { createClaudeMessage } from "@/lib/ai/anthropic";
 import { env, isAiConfigured } from "@/lib/env";
 import { requireUser } from "@/lib/auth/guard";
 
@@ -93,7 +94,7 @@ export async function POST(req: NextRequest) {
 
     const userMessage = `Please evaluate this ${platform} post for healthcare advertising compliance:\n\n---\n${text}\n---`;
 
-    const response = await client.messages.create({
+    const response = await createClaudeMessage(client, {
       model: env.anthropicModel,
       max_tokens: 1024,
       system: COMPLIANCE_SYSTEM_PROMPT,

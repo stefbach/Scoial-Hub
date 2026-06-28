@@ -317,6 +317,7 @@ export async function analyzeBrand(input: {
   // 4. Appel à Claude
   try {
     const Anthropic = (await import("@anthropic-ai/sdk")).default;
+    const { createClaudeMessage } = await import("@/lib/ai/anthropic");
     const client = new Anthropic({ apiKey: env.anthropicKey });
 
     const prompt = buildPrompt(
@@ -328,7 +329,7 @@ export async function analyzeBrand(input: {
       input.language === "en" ? "en" : "fr"
     );
 
-    const message = await client.messages.create({
+    const message = await createClaudeMessage(client, {
       model: env.anthropicModel,
       max_tokens: 1500,
       messages: [{ role: "user", content: prompt }],

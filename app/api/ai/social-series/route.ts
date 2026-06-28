@@ -11,6 +11,9 @@
  */
 
 export const runtime = "nodejs";
+// Génération lourde (jusqu'à ~8000 tokens pour une série d'articles) : on laisse
+// la fonction tourner longtemps pour ne pas couper une génération en cours.
+export const maxDuration = 300;
 
 import { NextRequest, NextResponse } from "next/server";
 import { callClaudeJSONRetryResult } from "@/lib/ai/claude-json";
@@ -18,6 +21,7 @@ import { requireCompanyAccess } from "@/lib/auth/guard";
 import { isAiConfigured } from "@/lib/env";
 import { SERIES_CONFIG, isSeriesPlatform } from "@/lib/social-series";
 import { buildMockSeries } from "@/lib/mock-series";
+import { resolvePublishLanguageName, isFrenchLanguage } from "@/lib/publish-languages";
 
 interface SeriesPost {
   title: string;
@@ -43,8 +47,10 @@ export async function POST(req: NextRequest) {
     const platform = body.platform ?? "";
     const theme = (body.theme ?? "").trim();
     const count = Math.min(10, Math.max(1, Math.round(body.count ?? 5)));
-    const fr = (body.language ?? "fr") !== "en";
-    const langName = fr ? "French" : "English";
+    // Langue de publication choisie par l'utilisateur (n'importe quelle langue
+    // du registre, plus seulement FR/EN). `fr` ne sert qu'au fallback démo.
+    const langName = resolvePublishLanguageName(body.language);
+    const fr = isFrenchLanguage(body.language);
 
     if (!companyId || !theme || !isSeriesPlatform(platform)) {
       return NextResponse.json(
@@ -103,6 +109,10 @@ The "posts" array must contain exactly ${count} items.
     const { data, error: aiErr } = await callClaudeJSONRetryResult<{ posts: SeriesPost[] }>(prompt, {
       maxTokens: Math.min(8000, 800 + count * (article ? 1100 : 500)),
       system: "You return only valid JSON. No markdown fences, no commentary.",
+      // Une série d'articles peut produire des milliers de tokens : le défaut de
+      // 30s coupait la génération (« Request timed out »). On laisse 4 min, sous
+      // la durée max de la fonction (maxDuration = 300s).
+      timeoutMs: 240_000,
     });
 
     const aiFailed = () =>

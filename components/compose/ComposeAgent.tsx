@@ -9,6 +9,7 @@
 import { useRef, useState } from "react";
 import { useCompany } from "@/lib/company-context";
 import { useT, useLang } from "@/lib/i18n";
+import { PublishLanguageSelect } from "@/components/ui/PublishLanguageSelect";
 import { generateVideoPolling } from "@/lib/ai/generate-video-client";
 
 export type ComposeNet = "facebook" | "instagram" | "tiktok";
@@ -44,6 +45,8 @@ export function ComposeAgent({
   const { company } = useCompany();
   const t = useT();
   const { lang } = useLang();
+  // Langue de PUBLICATION (≠ langue de l'interface) ; défaut = langue de l'app.
+  const [pubLang, setPubLang] = useState<string>(lang);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [genBusy, setGenBusy] = useState<string | null>(null);
@@ -60,7 +63,7 @@ export function ComposeAgent({
     try {
       const r = await fetch("/api/ai/compose-agent", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyId: company.id, message: m, networks, useMemory, language: lang, history, currentTexts, hasMedia }),
+        body: JSON.stringify({ companyId: company.id, message: m, networks, useMemory, language: pubLang, history, currentTexts, hasMedia }),
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d?.error || t("L'agent a échoué.", "The agent failed."));
@@ -148,6 +151,10 @@ export function ComposeAgent({
             ))}
           </div>
         )}
+
+        <div className="mb-2 flex items-center justify-end">
+          <PublishLanguageSelect value={pubLang} onChange={setPubLang} />
+        </div>
 
         <div className="flex items-end gap-2">
           <textarea

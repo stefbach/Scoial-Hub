@@ -15,6 +15,7 @@ import { useT, useLang } from "@/lib/i18n";
 import { Spinner } from "@/components/ui/Spinner";
 import { DatePicker, TimePicker } from "@/components/ui/DateTimePicker";
 import { MediaLibraryButton } from "@/components/studio/MediaLibrary";
+import { PublishLanguageSelect } from "@/components/ui/PublishLanguageSelect";
 import { SERIES_CONFIG, type SeriesPlatform } from "@/lib/social-series";
 
 type Cadence = "daily" | "every2" | "weekly";
@@ -60,6 +61,8 @@ export function SeriesPlanner({ platform }: { platform: SeriesPlatform }) {
   const [theme, setTheme] = useState("");
   const [count, setCount] = useState(5);
   const [seriesFormat, setSeriesFormat] = useState<"post" | "article">("post");
+  // Langue de PUBLICATION (≠ langue de l'interface) ; défaut = langue de l'app.
+  const [pubLang, setPubLang] = useState<string>(lang);
   const [useMemory, setUseMemory] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [imgModel, setImgModel] = useState(VISUAL_MODELS[0].id);
@@ -89,7 +92,7 @@ export function SeriesPlanner({ platform }: { platform: SeriesPlatform }) {
     try {
       const r = await fetch("/api/ai/social-series", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyId, platform, theme, count, language: lang, brandVoice: company.brandVoice ?? "", useMemory, format: seriesFormat }),
+        body: JSON.stringify({ companyId, platform, theme, count, language: pubLang, brandVoice: company.brandVoice ?? "", useMemory, format: seriesFormat }),
       });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) { setMsg(d.error ?? t("Échec de la génération.", "Generation failed.")); return; }
@@ -228,6 +231,7 @@ export function SeriesPlanner({ platform }: { platform: SeriesPlatform }) {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
+          <PublishLanguageSelect value={pubLang} onChange={setPubLang} />
           {cfg.formats.includes("article") && (
             <div className="inline-flex items-center gap-1">
               <span className="text-2xs text-muted">{t("Type :", "Type:")}</span>

@@ -21,4 +21,9 @@ test("espace LinkedIn : studio chargé + visuel de série disponible au planific
   // Le planificateur de série propose désormais un visuel (bibliothèque).
   await expect(page.getByText(/Series visual/i)).toBeVisible();
   await expect(page.getByRole("button", { name: /Pick a visual/i })).toBeVisible();
+
+  // Nouveau : choix du type (posts courts / articles) et génération de visuel par élément.
+  await expect(page.getByRole("button", { name: "Short posts", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Articles", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Generate visual/i }).first()).toBeVisible();
 });

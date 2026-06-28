@@ -5,8 +5,9 @@
 
 import { useState } from "react";
 import { useCompany } from "@/lib/company-context";
-import { useT } from "@/lib/i18n";
+import { useT, useLang } from "@/lib/i18n";
 import { Spinner, BusyHint } from "@/components/ui/Spinner";
+import { PublishLanguageSelect } from "@/components/ui/PublishLanguageSelect";
 
 function extractImageUrls(data: unknown): string[] {
   const d = data as { images?: Array<string | { url?: string }> };
@@ -16,9 +17,12 @@ function extractImageUrls(data: unknown): string[] {
 
 export function OrganicPublisher() {
   const t = useT();
+  const { lang } = useLang();
   const { company } = useCompany();
   const companyId = company.id;
 
+  // Langue de PUBLICATION (≠ langue de l'interface) ; défaut = langue de l'app.
+  const [pubLang, setPubLang] = useState<string>(lang);
   const [text, setText] = useState("");
   const [imageUrl, setImageUrl] = useState("");
   const [toFb, setToFb] = useState(true);
@@ -35,7 +39,7 @@ export function OrganicPublisher() {
     try {
       const r = await fetch("/api/ai/generate-post", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: text || t("Rédige un post engageant pour notre Page.", "Write an engaging post for our Page."), platform: "facebook", brandVoice: company.brandVoice ?? "", action: text ? "rewrite" : "generate", companyId }),
+        body: JSON.stringify({ prompt: text || t("Rédige un post engageant pour notre Page.", "Write an engaging post for our Page."), platform: "facebook", brandVoice: company.brandVoice ?? "", action: text ? "rewrite" : "generate", companyId, language: pubLang }),
       });
       const d = await r.json();
       if (d.text) setText(d.text);
@@ -97,6 +101,7 @@ export function OrganicPublisher() {
         <button onClick={imageWithAI} disabled={imaging} className="btn-secondary inline-flex items-center gap-1.5 text-xs disabled:opacity-50">
           {imaging ? <><Spinner size={14} className="text-primary-600" /> {t("Visuel…", "Visual…")}</> : t("🖼 Générer un visuel", "🖼 Generate a visual")}
         </button>
+        <PublishLanguageSelect value={pubLang} onChange={setPubLang} />
       </div>
 
       {imaging && <BusyHint label={t("Génération de votre visuel…", "Generating your visual…")} eta={t("~15–30 s", "~15–30 s")} />}

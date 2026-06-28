@@ -21,6 +21,7 @@ import { requireCompanyAccess } from "@/lib/auth/guard";
 import { isAiConfigured } from "@/lib/env";
 import { SERIES_CONFIG, isSeriesPlatform } from "@/lib/social-series";
 import { buildMockSeries } from "@/lib/mock-series";
+import { resolvePublishLanguageName, isFrenchLanguage } from "@/lib/publish-languages";
 
 interface SeriesPost {
   title: string;
@@ -46,8 +47,10 @@ export async function POST(req: NextRequest) {
     const platform = body.platform ?? "";
     const theme = (body.theme ?? "").trim();
     const count = Math.min(10, Math.max(1, Math.round(body.count ?? 5)));
-    const fr = (body.language ?? "fr") !== "en";
-    const langName = fr ? "French" : "English";
+    // Langue de publication choisie par l'utilisateur (n'importe quelle langue
+    // du registre, plus seulement FR/EN). `fr` ne sert qu'au fallback démo.
+    const langName = resolvePublishLanguageName(body.language);
+    const fr = isFrenchLanguage(body.language);
 
     if (!companyId || !theme || !isSeriesPlatform(platform)) {
       return NextResponse.json(

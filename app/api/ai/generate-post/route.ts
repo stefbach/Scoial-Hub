@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { env, isAiConfigured } from "@/lib/env";
 import { createClaudeMessage } from "@/lib/ai/anthropic";
+import { resolvePublishLanguageName } from "@/lib/publish-languages";
 import { requireUser, requireCompanyAccess } from "@/lib/auth/guard";
 
 type Action = "generate" | "rewrite" | "shorten" | "hashtags";
@@ -132,10 +133,14 @@ export async function POST(req: NextRequest) {
 
     // Repli de modèle automatique : un ID inaccessible à la clé ne fait plus
     // échouer la génération (cf. lib/ai/anthropic).
+    // La langue reçue peut être un code ("es") ou un nom ("Spanish") : on résout
+    // toujours vers un nom anglais clair pour le prompt.
+    const writeLanguage = language ? resolvePublishLanguageName(language) : undefined;
+
     const response = await createClaudeMessage(client, {
       model: env.anthropicModel,
       max_tokens: 1024,
-      system: SYSTEM_PROMPT(platform, brandVoice, objective, language),
+      system: SYSTEM_PROMPT(platform, brandVoice, objective, writeLanguage),
       messages: [{ role: "user", content: userMessage }],
     });
 

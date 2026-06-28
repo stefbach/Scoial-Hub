@@ -20,6 +20,7 @@ import { requireCompanyAccess } from "@/lib/auth/guard";
 import { createAdminClient } from "@/lib/supabase/server";
 import { resolveCompanyUuid } from "@/lib/repositories/resolve-company";
 import { getMemoryContext } from "@/lib/memory";
+import { resolvePublishLanguageName } from "@/lib/publish-languages";
 
 interface Body {
   companyId: string;
@@ -32,7 +33,8 @@ interface Body {
   tone?: string;
   /** "post" (court) | "article" (moyen) | "long" (article complet). */
   length?: "post" | "article" | "long";
-  language?: "fr" | "en";
+  /** Code de langue de publication (cf. lib/publish-languages), pas seulement FR/EN. */
+  language?: string;
   /** En mode "article" : le prompt (éventuellement édité) à utiliser. */
   customPrompt?: string;
   /** En mode "revise" : l'article courant + la consigne d'ajustement + l'historique. */
@@ -112,7 +114,8 @@ const LENGTH_GUIDE: Record<string, string> = {
 const LINKEDIN_CHAR_BUDGET = 2900;
 
 function langName(language: string): string {
-  return language === "en" ? "English" : "français";
+  // Toute langue du registre de publication (plus seulement FR/EN).
+  return resolvePublishLanguageName(language);
 }
 
 // Lignes de contexte de marque (vide si RAG désactivé). NE contient PAS la

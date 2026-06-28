@@ -21,6 +21,7 @@ import { callClaudeJSONRetryResult } from "@/lib/ai/claude-json";
 import { requireCompanyAccess } from "@/lib/auth/guard";
 import { isAiConfigured } from "@/lib/env";
 import { buildMockSeries } from "@/lib/mock-series";
+import { resolvePublishLanguageName, isFrenchLanguage } from "@/lib/publish-languages";
 
 interface RequestBody {
   companyId?: string;
@@ -62,8 +63,10 @@ export async function POST(req: NextRequest) {
     const companyId = body.companyId;
     const theme = (body.theme ?? "").trim();
     const count = Math.min(10, Math.max(1, Math.round(body.count ?? 5)));
-    const fr = (body.language ?? "fr") !== "en";
-    const langName = fr ? "French" : "English";
+    // Langue de publication choisie (toute langue du registre, plus seulement
+    // FR/EN). `fr` ne sert qu'au fallback démo (buildMockSeries).
+    const langName = resolvePublishLanguageName(body.language);
+    const fr = isFrenchLanguage(body.language);
     const article = body.format === "article";
 
     if (!companyId || !theme) {

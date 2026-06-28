@@ -15,6 +15,7 @@ import { isAiConfigured } from "@/lib/env";
 import { getMemoryContext } from "@/lib/memory";
 import { createAdminClient } from "@/lib/supabase/server";
 import { resolveCompanyUuid } from "@/lib/repositories/resolve-company";
+import { resolvePublishLanguageName } from "@/lib/publish-languages";
 
 type Net = "facebook" | "instagram" | "tiktok";
 
@@ -40,7 +41,8 @@ export async function POST(req: NextRequest) {
       message?: string;
       networks?: Net[];
       useMemory?: boolean;
-      language?: "fr" | "en";
+      /** Code de langue de publication (cf. lib/publish-languages), pas seulement FR/EN. */
+      language?: string;
       history?: { role: "user" | "assistant"; content: string }[];
       currentTexts?: Partial<Record<Net, string>>;
       hasMedia?: boolean;
@@ -48,7 +50,9 @@ export async function POST(req: NextRequest) {
     const companyId = body.companyId;
     const message = (body.message ?? "").trim();
     const networks = (body.networks?.length ? body.networks : ["facebook", "instagram", "tiktok"]) as Net[];
-    const lang = body.language === "en" ? "en" : "fr";
+    // Langue de publication choisie (toute langue du registre, plus seulement
+    // FR/EN) : on injecte son nom dans le prompt de rédaction.
+    const langLabel = resolvePublishLanguageName(body.language);
     if (!companyId) return NextResponse.json({ error: "companyId requis" }, { status: 400 });
     if (!message) return NextResponse.json({ error: "message requis" }, { status: 400 });
 
@@ -95,11 +99,11 @@ ${body.hasMedia ? "\n(Un visuel est déjà attaché au post : ne propose un nouv
 ${rules}
 
 # CE QUE TU PRODUIS
-1. "reply" : réponse courte et humaine (1-3 phrases, langue : ${lang === "en" ? "anglais" : "français"}) — ce que tu as fait et un conseil.
-2. "texts" : UN texte par réseau demandé, ADAPTÉ à ses codes (pas un copier-coller). Langue : ${lang === "en" ? "anglais" : "français"}. Jamais de tiret cadratin (—).
+1. "reply" : réponse courte et humaine (1-3 phrases, langue : ${langLabel}) — ce que tu as fait et un conseil.
+2. "texts" : UN texte par réseau demandé, ADAPTÉ à ses codes (pas un copier-coller). Langue : ${langLabel}. Jamais de tiret cadratin (—).
 3. "visualPrompt" : prompt EN ANGLAIS, très détaillé et premium, pour générer le visuel idéal (sujet, composition, lumière, style, HD, AUCUN texte incrusté).
 4. "visualKind" : "image" ou "video" (video si TikTok est central ou si le sujet s'y prête).
-5. "visualAdvice" : 1 phrase (${lang === "en" ? "anglais" : "français"}) de conseil sur le visuel (cadrage, ambiance, pourquoi).
+5. "visualAdvice" : 1 phrase (${langLabel}) de conseil sur le visuel (cadrage, ambiance, pourquoi).
 6. "tips" : 1-2 conseils brefs (meilleure heure, angle, CTA…).
 
 # FORMAT — STRICTEMENT du JSON :

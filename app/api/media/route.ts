@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireCompanyAccess } from "@/lib/auth/guard";
-import { listMediaAssets, saveMediaAsset } from "@/lib/repositories/media";
+import { listMediaAssets, saveMediaAsset, deleteMediaAsset } from "@/lib/repositories/media";
 
 export async function GET(req: NextRequest) {
   try {
@@ -32,6 +32,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error("[POST /api/media]", e);
+    return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
+  }
+}
+
+// DELETE /api/media { companyId, url } → supprime définitivement un média.
+export async function DELETE(req: NextRequest) {
+  try {
+    const body = (await req.json().catch(() => ({}))) as { companyId?: string; url?: string };
+    if (!body.companyId || !body.url) return NextResponse.json({ error: "companyId et url requis" }, { status: 400 });
+    const guard = await requireCompanyAccess(body.companyId, { mode: "edit" });
+    if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
+    const ok = await deleteMediaAsset(body.companyId, body.url);
+    return NextResponse.json({ ok });
+  } catch (e) {
+    console.error("[DELETE /api/media]", e);
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
 }

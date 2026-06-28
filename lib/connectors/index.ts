@@ -11,47 +11,52 @@
  * Aucun appel réseau au chargement du module.
  */
 
-import type { Platform } from "@/lib/types";
-import type { SocialConnector, ConnectorStatus } from "@/lib/connectors/types";
+import type { SocialConnector, ConnectorStatus, ConnectorPlatform } from "@/lib/connectors/types";
 import { facebookConnector, instagramConnector } from "@/lib/connectors/meta";
 import { linkedinConnector } from "@/lib/connectors/linkedin";
-
-// ── TikTok : connecteur « honnête » ──────────────────────────────────────────
-// L'API TikTok Content Posting exige une app approuvée par TikTok. Tant que ce
-// n'est pas branché, le contenu TikTok se PRÉPARE et se PROGRAMME dans le hub,
-// mais la publication automatique renvoie une erreur claire (pas de faux succès).
-const tiktokConnector: SocialConnector = {
-  platform: "tiktok",
-  isConfigured: () => false,
-  getAuthUrl: () => "",
-  exchangeCode: async () => { throw new Error("Connecteur TikTok non configuré."); },
-  publishPost: async () => {
-    throw new Error(
-      "Publication TikTok non disponible : l'API TikTok exige une app approuvée. Le contenu est prêt — publiez-le depuis l'app TikTok."
-    );
-  },
-  getMetrics: async () => ({ reactions: 0, comments: 0, shares: 0, linkClicks: 0, reach: 0, impressions: 0 }),
-};
+import { twitterConnector } from "@/lib/connectors/providers/twitter";
+import { pinterestConnector } from "@/lib/connectors/providers/pinterest";
+import { threadsConnector } from "@/lib/connectors/providers/threads";
+import { tiktokConnector } from "@/lib/connectors/providers/tiktok";
 
 // ---------------------------------------------------------------------------
 // Registre
 // ---------------------------------------------------------------------------
+//
+// Source unique de vérité. Ajouter un réseau social = ajouter UNE entrée ici
+// (les nouveaux réseaux OAuth 2.0 standards sont eux-mêmes de simples objets de
+// config, cf. lib/connectors/providers/*). Aucune route ni aucun branchement à
+// modifier ailleurs : les routes /api/connectors/[platform]/* sont génériques.
 
-/** Map interne plateforme → instance connecteur. */
-const REGISTRY: Record<Platform, SocialConnector> = {
-  facebook: facebookConnector,
-  instagram: instagramConnector,
-  linkedin: linkedinConnector,
-  tiktok: tiktokConnector,
-};
+const CONNECTORS: readonly SocialConnector[] = [
+  facebookConnector,
+  instagramConnector,
+  linkedinConnector,
+  tiktokConnector,
+  twitterConnector,
+  pinterestConnector,
+  threadsConnector,
+];
+
+/** Map interne plateforme → instance connecteur (dérivée de CONNECTORS). */
+const REGISTRY = new Map<ConnectorPlatform, SocialConnector>(
+  CONNECTORS.map((c) => [c.platform, c])
+);
+
+/** Liste ordonnée des plateformes gérées par un connecteur. */
+export const SUPPORTED_PLATFORMS: ConnectorPlatform[] = CONNECTORS.map((c) => c.platform);
+
+/** Vrai si une plateforme dispose d'un connecteur enregistré. */
+export function isSupportedPlatform(value: string): value is ConnectorPlatform {
+  return REGISTRY.has(value as ConnectorPlatform);
+}
 
 /**
  * Retourne le connecteur correspondant à la plateforme donnée.
- * Lance une erreur si la plateforme n'est pas reconnue (ne devrait pas
- * arriver en pratique grâce au typage strict de `Platform`).
+ * Lance une erreur si la plateforme n'est pas reconnue.
  */
-export function getConnector(platform: Platform): SocialConnector {
-  const connector = REGISTRY[platform];
+export function getConnector(platform: ConnectorPlatform): SocialConnector {
+  const connector = REGISTRY.get(platform);
   if (!connector) {
     throw new Error(`Connecteur inconnu pour la plateforme : ${platform}`);
   }
@@ -70,19 +75,21 @@ export function getConnector(platform: Platform): SocialConnector {
  * retourne connectedAccounts = 0 et accounts = [].
  */
 export async function listConnectorStatus(): Promise<ConnectorStatus[]> {
-  // Import dynamique pour éviter un import circulaire et ne pas forcer
-  // la présence de Supabase au chargement du module.
-  let accountsByPlatform: Record<
-    Platform,
-    { id: string; accountName: string; externalId?: string; status: "active" | "expired" | "revoked" }[]
-  > = {
-    facebook: [],
-    instagram: [],
-    linkedin: [],
-    tiktok: [],
+  type AccountRow = {
+    id: string;
+    accountName: string;
+    externalId?: string;
+    status: "active" | "expired" | "revoked";
   };
 
+  // Une liste par plateforme enregistrée (pas de liste codée en dur).
+  const accountsByPlatform = new Map<ConnectorPlatform, AccountRow[]>(
+    SUPPORTED_PLATFORMS.map((p) => [p, []])
+  );
+
   try {
+    // Import dynamique pour éviter un import circulaire et ne pas forcer
+    // la présence de Supabase au chargement du module.
     const { createAdminClient } = await import("@/lib/supabase/server");
     const supabase = createAdminClient();
 
@@ -94,13 +101,14 @@ export async function listConnectorStatus(): Promise<ConnectorStatus[]> {
 
       if (!error && data) {
         for (const row of data) {
-          const platform = row.platform as Platform;
-          if (platform in accountsByPlatform) {
-            accountsByPlatform[platform].push({
+          const platform = row.platform as ConnectorPlatform;
+          const bucket = accountsByPlatform.get(platform);
+          if (bucket) {
+            bucket.push({
               id: row.id as string,
               accountName: (row.account_name as string) ?? "",
               externalId: (row.external_id as string) ?? undefined,
-              status: (row.status as "active" | "expired" | "revoked"),
+              status: row.status as "active" | "expired" | "revoked",
             });
           }
         }
@@ -110,14 +118,10 @@ export async function listConnectorStatus(): Promise<ConnectorStatus[]> {
     // Supabase non disponible ou erreur réseau → on continue avec des listes vides.
   }
 
-  const platforms: Platform[] = ["facebook", "instagram", "linkedin"];
-
-  return platforms.map((platform) => {
-    const connector = REGISTRY[platform];
-    const accounts = accountsByPlatform[platform];
-
+  return CONNECTORS.map((connector) => {
+    const accounts = accountsByPlatform.get(connector.platform) ?? [];
     return {
-      platform,
+      platform: connector.platform,
       configured: connector.isConfigured(),
       connectedAccounts: accounts.filter((a) => a.status === "active").length,
       accounts,
@@ -131,4 +135,6 @@ export async function listConnectorStatus(): Promise<ConnectorStatus[]> {
 
 export { facebookConnector, instagramConnector } from "@/lib/connectors/meta";
 export { linkedinConnector } from "@/lib/connectors/linkedin";
-export type { SocialConnector, ConnectorStatus } from "@/lib/connectors/types";
+export { makeOAuth2Connector } from "@/lib/connectors/provider-spec";
+export type { OAuth2ProviderSpec } from "@/lib/connectors/provider-spec";
+export type { SocialConnector, ConnectorStatus, ConnectorPlatform } from "@/lib/connectors/types";

@@ -8,6 +8,22 @@
 import type { Platform } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
+// Plateformes gérées par la couche connecteurs
+// ---------------------------------------------------------------------------
+
+/**
+ * Surensemble de `Platform` réservé au sous-système de connecteurs.
+ *
+ * `Platform` (lib/types) est volontairement laissé inchangé : il est utilisé
+ * dans des dizaines de `Record<Platform, …>` exhaustifs à travers l'app. Les
+ * nouveaux réseaux (Twitter/X, Pinterest, Threads…) n'existent QUE dans la
+ * couche publication/connexion : on les ajoute donc ici sans rien casser
+ * ailleurs. Ajouter un réseau = étendre cette union + 1 objet de config
+ * (aucune nouvelle route, aucun nouveau connecteur écrit à la main).
+ */
+export type ConnectorPlatform = Platform | "twitter" | "pinterest" | "threads";
+
+// ---------------------------------------------------------------------------
 // Token OAuth
 // ---------------------------------------------------------------------------
 
@@ -134,7 +150,7 @@ export interface CampaignInput {
 /** Statut de configuration et connexion d'un connecteur. */
 export interface ConnectorStatus {
   /** Identifiant de la plateforme. */
-  platform: Platform;
+  platform: ConnectorPlatform;
   /** True si les variables d'env requises (app credentials) sont présentes. */
   configured: boolean;
   /** Nombre de comptes actifs enregistrés dans social_accounts. */
@@ -161,7 +177,7 @@ export interface ConnectorStatus {
  */
 export interface SocialConnector {
   /** Identifiant de la plateforme gérée par ce connecteur. */
-  readonly platform: Platform;
+  readonly platform: ConnectorPlatform;
 
   /**
    * Indique si les variables d'environnement minimales sont présentes
@@ -177,9 +193,11 @@ export interface SocialConnector {
 
   /**
    * Échange le code d'autorisation OAuth contre un jeu de tokens.
-   * @param code  Code reçu dans le callback OAuth.
+   * @param code   Code reçu dans le callback OAuth.
+   * @param state  Valeur `state` reçue au callback (porte le code_verifier PKCE
+   *               pour les providers qui l'exigent, ex. Twitter/X). Optionnel.
    */
-  exchangeCode(code: string): Promise<TokenSet>;
+  exchangeCode(code: string, state?: string): Promise<TokenSet>;
 
   /**
    * Publie un post organique sur la plateforme.

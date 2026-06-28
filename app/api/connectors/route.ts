@@ -16,8 +16,7 @@ import { listConnectorStatus } from "@/lib/connectors/index";
 import { listConnections } from "@/lib/repositories/channel-connections";
 import { resolveCompanyUuid } from "@/lib/repositories/resolve-company";
 import { requireCompanyAccess } from "@/lib/auth/guard";
-import type { ConnectorStatus } from "@/lib/connectors/types";
-import type { Platform } from "@/lib/types";
+import type { ConnectorStatus, ConnectorPlatform } from "@/lib/connectors/types";
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   try {
@@ -29,7 +28,17 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
       const rows = await listConnections(await resolveCompanyUuid(companyId));
       const byChannel = new Map(rows.map((r) => [r.channel, r]));
-      const platforms: Platform[] = ["facebook", "instagram", "linkedin"];
+      // Réseaux sociaux exposés au client (statut par société). Inclut les
+      // réseaux déclaratifs récents — alignés sur les connecteurs enregistrés.
+      const platforms: ConnectorPlatform[] = [
+        "facebook",
+        "instagram",
+        "linkedin",
+        "twitter",
+        "pinterest",
+        "threads",
+        "tiktok",
+      ];
       const statuses: ConnectorStatus[] = platforms.map((p) => {
         const r = byChannel.get(p);
         const connected = r?.status === "connected";

@@ -83,6 +83,44 @@ export async function saveMediaAsset(
   );
 }
 
+/**
+ * Supprime DÉFINITIVEMENT un média de la bibliothèque : la ligne en base
+ * (sh_media_assets) ET, si le fichier est hébergé sur notre bucket Storage, le
+ * fichier lui-même. Les visuels du brand kit (logo/charte) ne sont pas stockés
+ * ici → non concernés. Ne throw jamais ; renvoie true si la ligne a été retirée.
+ */
+export async function deleteMediaAsset(companyId: string, url: string): Promise<boolean> {
+  if (!url) return false;
+  const sb = createAdminClient();
+  if (!sb) return false;
+  const uuid = await resolveCompanyUuid(companyId);
+
+  // 1) Retire l'entrée de la bibliothèque (table).
+  const { error } = await sb
+    .from("sh_media_assets")
+    .delete()
+    .eq("company_id", uuid)
+    .eq("url", url);
+  if (error) console.error("[media] deleteMediaAsset row:", error);
+
+  // 2) Supprime le fichier du Storage s'il est hébergé chez nous, et UNIQUEMENT
+  //    dans le dossier de cette société (garde-fou anti-suppression croisée).
+  try {
+    const marker = `/storage/v1/object/public/${STORAGE_BUCKET}/`;
+    const idx = url.indexOf(marker);
+    if (idx !== -1) {
+      const path = decodeURIComponent(url.slice(idx + marker.length).split("?")[0]);
+      if (path.startsWith(`${uuid}/`)) {
+        await sb.storage.from(STORAGE_BUCKET).remove([path]);
+      }
+    }
+  } catch (e) {
+    console.warn("[media] deleteMediaAsset storage:", e);
+  }
+
+  return !error;
+}
+
 /** Liste la bibliothèque (assets stockés) + le logo/charte du brand kit. */
 export async function listMediaAssets(companyId: string, limit = 1000): Promise<MediaAsset[]> {
   const sb = createAdminClient();

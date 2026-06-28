@@ -9,6 +9,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { GlobeHero } from "./GlobeHero";
+import { useT, useLang } from "@/lib/i18n";
 
 const VER = "1.118";
 const BASE = `https://cdn.jsdelivr.net/npm/cesium@${VER}/Build/Cesium/`;
@@ -27,13 +28,14 @@ const CITIES = [
 
 // Messages diffusés pendant le vol — le but : montrer qu'on maîtrise TOUT,
 // et que nos clients vont pouvoir tout maîtriser eux aussi.
-const FLY_MESSAGES = [
-  "Pilotez le monde — comme vous piloterez vos réseaux.",
-  "Vous maîtrisez tout. Vos clients aussi.",
-  "De Paris à Port-Louis : votre marque, partout.",
-  "Le contrôle total, entre vos mains.",
-  "Survolez vos marchés. Décidez. Diffusez.",
-  "Une équipe d'agents IA aux commandes — vous gardez le cap.",
+// Paires bilingues [fr, en] résolues via t() au moment de l'affichage.
+const FLY_MESSAGES: [string, string][] = [
+  ["Pilotez le monde — comme vous piloterez vos réseaux.", "Pilot the world — like you'll pilot your networks."],
+  ["Vous maîtrisez tout. Vos clients aussi.", "You control everything. So do your clients."],
+  ["De Paris à Port-Louis : votre marque, partout.", "From Paris to Port-Louis: your brand, everywhere."],
+  ["Le contrôle total, entre vos mains.", "Total control, in your hands."],
+  ["Survolez vos marchés. Décidez. Diffusez.", "Fly over your markets. Decide. Publish."],
+  ["Une équipe d'agents IA aux commandes — vous gardez le cap.", "A team of AI agents at the controls — you stay on course."],
 ];
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -103,6 +105,9 @@ function planeDataUrl(): string {
 }
 
 export function GoogleEarth() {
+  const t = useT();
+  const { lang } = useLang();
+  const en = lang === "en";
   const ref = useRef<HTMLDivElement>(null);
   const [failed, setFailed] = useState(false);
   const [ready, setReady] = useState(false);
@@ -531,12 +536,12 @@ export function GoogleEarth() {
   return (
     <div className={`globe-hero${full ? " earth-full" : ""}`}>
       <div ref={ref} className="globe-canvas earth3d-canvas" />
-      {!ready && <div className="earth3d-loading">Chargement de la Terre…</div>}
+      {!ready && <div className="earth3d-loading">{t("Chargement de la Terre…", "Loading Earth…")}</div>}
 
       {/* Bouton plein écran / sortie : l'exploration libre (molette = zoom) */}
       {ready && !flying && (
         <button type="button" className="globe-full-btn" onClick={() => setFull((f) => !f)}>
-          {full ? "✕ Quitter" : "⛶ Explorer en plein écran"}
+          {full ? t("✕ Quitter", "✕ Exit") : t("⛶ Explorer en plein écran", "⛶ Explore in fullscreen")}
         </button>
       )}
 
@@ -549,24 +554,34 @@ export function GoogleEarth() {
           className="fsim-launch"
           onClick={() => { if (!full) setFull(true); else setFlying(true); }}
         >
-          {full ? "🛩️ Survoler cette zone" : "🛩️ Piloter le monde"}
+          {full ? t("🛩️ Survoler cette zone", "🛩️ Fly over this area") : t("🛩️ Piloter le monde", "🛩️ Pilot the world")}
         </button>
       )}
       {/* Aide à la prise en main en plein écran (avant le décollage). */}
       {ready && full && !flying && (
         <div className="fsim-tip">
-          <b>1.</b> Approche-toi d'un lieu (clic ville · recherche · molette) &nbsp; <b>2.</b> Clique <b>« 🛩️ Survoler cette zone »</b> (en bas à droite)
-          <span className="fsim-tip-keys">En vol : <kbd>↑</kbd><kbd>↓</kbd> monter/descendre · <kbd>←</kbd><kbd>→</kbd> virer · <kbd>W</kbd><kbd>S</kbd> vitesse · <kbd>Échap</kbd> revenir à l'accueil</span>
+          {en ? (
+            <><b>1.</b> Get close to a place (click a city · search · scroll) &nbsp; <b>2.</b> Click <b>“🛩️ Fly over this area”</b> (bottom right)</>
+          ) : (
+            <><b>1.</b> Approche-toi d'un lieu (clic ville · recherche · molette) &nbsp; <b>2.</b> Clique <b>« 🛩️ Survoler cette zone »</b> (en bas à droite)</>
+          )}
+          <span className="fsim-tip-keys">
+            {en ? (
+              <>In flight: <kbd>↑</kbd><kbd>↓</kbd> climb/descend · <kbd>←</kbd><kbd>→</kbd> turn · <kbd>W</kbd><kbd>S</kbd> speed · <kbd>Esc</kbd> back to home</>
+            ) : (
+              <>En vol : <kbd>↑</kbd><kbd>↓</kbd> monter/descendre · <kbd>←</kbd><kbd>→</kbd> virer · <kbd>W</kbd><kbd>S</kbd> vitesse · <kbd>Échap</kbd> revenir à l'accueil</>
+            )}
+          </span>
         </div>
       )}
 
       {/* HUD du simulateur de vol */}
       {flying && (
         <div className="fsim">
-          <button type="button" className="fsim-exit" onClick={() => { setFlying(false); setFull(false); }}>✕ Quitter — revenir à l'accueil</button>
+          <button type="button" className="fsim-exit" onClick={() => { setFlying(false); setFull(false); }}>{t("✕ Quitter — revenir à l'accueil", "✕ Exit — back to home")}</button>
 
           {/* Message marketing qui défile (le but : « on maîtrise tout ») */}
-          <div key={msgIdx} className="fsim-msg">{FLY_MESSAGES[msgIdx]}</div>
+          <div key={msgIdx} className="fsim-msg">{t(FLY_MESSAGES[msgIdx][0], FLY_MESSAGES[msgIdx][1])}</div>
 
           {/* Horizon artificiel + cap/vitesse/altitude */}
           <div className="fsim-hud">
@@ -577,12 +592,16 @@ export function GoogleEarth() {
             </div>
             <div className="fsim-gauge fsim-spd"><b>{Math.round(hud.speed * 3.6)}</b><span>km/h</span></div>
             <div className="fsim-gauge fsim-alt"><b>{hud.alt >= 1000 ? (hud.alt / 1000).toFixed(1) : Math.round(hud.alt)}</b><span>{hud.alt >= 1000 ? "km alt" : "m alt"}</span></div>
-            <div className="fsim-gauge fsim-hdg"><b>{String(Math.round((hud.heading + 360) % 360)).padStart(3, "0")}°</b><span>cap</span></div>
-            <div className="fsim-thr"><div className="fsim-thr-fill" style={{ height: `${Math.round(hud.throttle * 100)}%` }} /><span>gaz</span></div>
+            <div className="fsim-gauge fsim-hdg"><b>{String(Math.round((hud.heading + 360) % 360)).padStart(3, "0")}°</b><span>{t("cap", "hdg")}</span></div>
+            <div className="fsim-thr"><div className="fsim-thr-fill" style={{ height: `${Math.round(hud.throttle * 100)}%` }} /><span>{t("gaz", "thr")}</span></div>
           </div>
 
           <div className="fsim-help">
-            <b>Pilotage</b> · <kbd>↑</kbd><kbd>↓</kbd> tangage · <kbd>←</kbd><kbd>→</kbd> roulis (virage) · <kbd>W</kbd><kbd>S</kbd> gaz · <kbd>Échap</kbd> quitter
+            {en ? (
+              <><b>Piloting</b> · <kbd>↑</kbd><kbd>↓</kbd> pitch · <kbd>←</kbd><kbd>→</kbd> roll (turn) · <kbd>W</kbd><kbd>S</kbd> throttle · <kbd>Esc</kbd> exit</>
+            ) : (
+              <><b>Pilotage</b> · <kbd>↑</kbd><kbd>↓</kbd> tangage · <kbd>←</kbd><kbd>→</kbd> roulis (virage) · <kbd>W</kbd><kbd>S</kbd> gaz · <kbd>Échap</kbd> quitter</>
+            )}
           </div>
         </div>
       )}
@@ -591,15 +610,18 @@ export function GoogleEarth() {
       {ready && !full && (
         <div className="globe-invite">
           <span className="globe-invite-dot" />
-          {"Cliquez une ville, ou « Explorer en plein écran » pour zoomer jusqu'à votre rue — ou piloter le monde 🛩️"}
+          {t(
+            "Cliquez une ville, ou « Explorer en plein écran » pour zoomer jusqu'à votre rue — ou piloter le monde 🛩️",
+            "Click a city, or “Explore in fullscreen” to zoom down to your street — or pilot the world 🛩️"
+          )}
         </div>
       )}
 
       {/* Commandes de zoom (masquées en vol) */}
       {ready && !flying && (
         <div className="globe-zoom">
-          <button type="button" aria-label="Zoomer" onClick={() => zoomRef.current(1)}>+</button>
-          <button type="button" aria-label="Dézoomer" onClick={() => zoomRef.current(-1)}>−</button>
+          <button type="button" aria-label={t("Zoomer", "Zoom in")} onClick={() => zoomRef.current(1)}>+</button>
+          <button type="button" aria-label={t("Dézoomer", "Zoom out")} onClick={() => zoomRef.current(-1)}>−</button>
         </div>
       )}
 
@@ -608,14 +630,14 @@ export function GoogleEarth() {
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
             <circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" />
           </svg>
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Atterrir sur un lieu : Pékin, New York, Flic-en-Flac…" aria-label="Rechercher un lieu" />
-          <button type="submit">Aller</button>
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t("Atterrir sur un lieu : Pékin, New York, Flic-en-Flac…", "Land on a place: Beijing, New York, Flic-en-Flac…")} aria-label={t("Rechercher un lieu", "Search a place")} />
+          <button type="submit">{t("Aller", "Go")}</button>
         </form>
       )}
 
       {!flying && (
         <div className="globe-chips">
-          <span className="globe-hint">{full ? "Molette = zoom · glissez = tourner · double-clic = plonger" : "Cliquez une ville pour la survoler · zoom avec +/−"}</span>
+          <span className="globe-hint">{full ? t("Molette = zoom · glissez = tourner · double-clic = plonger", "Scroll = zoom · drag = rotate · double-click = dive") : t("Cliquez une ville pour la survoler · zoom avec +/−", "Click a city to fly over it · zoom with +/−")}</span>
           {CITIES.map((c) => (
             <button key={c.name} type="button" className="globe-chip" onClick={() => flyRef.current(c.lat, c.lon)}>{c.name}</button>
           ))}

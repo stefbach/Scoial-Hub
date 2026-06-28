@@ -50,6 +50,13 @@ export interface CallClaudeJSONOptions {
   timeoutMs?: number;
 }
 
+/** Résultat enrichi : la donnée parsée ET la raison d'un éventuel échec. */
+export interface CallClaudeJSONResult<T> {
+  data: T | null;
+  /** Message d'erreur lisible si `data` est null (modèle invalide, JSON…). */
+  error?: string;
+}
+
 /**
  * Appelle Claude avec `prompt`, extrait le premier bloc JSON `{ ... }` de la
  * réponse et le parse en `T`. Retourne `null` si l'IA n'est pas configurée, en
@@ -59,7 +66,19 @@ export async function callClaudeJSON<T>(
   prompt: string,
   opts: CallClaudeJSONOptions = {}
 ): Promise<T | null> {
-  if (!isAiConfigured) return null;
+  return (await callClaudeJSONResult<T>(prompt, opts)).data;
+}
+
+/**
+ * Variante de `callClaudeJSON` qui expose AUSSI la raison de l'échec (`error`),
+ * afin que l'appelant puisse remonter une vraie cause à l'utilisateur
+ * (ex. « model not found: … ») plutôt qu'un message générique.
+ */
+export async function callClaudeJSONResult<T>(
+  prompt: string,
+  opts: CallClaudeJSONOptions = {}
+): Promise<CallClaudeJSONResult<T>> {
+  if (!isAiConfigured) return { data: null, error: "AI not configured" };
 
   try {
     const Anthropic = (await import("@anthropic-ai/sdk")).default;
@@ -95,7 +114,7 @@ export async function callClaudeJSON<T>(
     if (!jsonMatch) {
       const stop = (message as { stop_reason?: string }).stop_reason;
       console.warn(`[callClaudeJSON] aucun JSON (stop_reason=${stop}):`, rawText.slice(0, 160));
-      return null;
+      return { data: null, error: `no JSON in response (stop_reason=${stop})` };
     }
 
     // Tentatives en cascade, de la plus fidèle à la plus permissive :
@@ -109,17 +128,18 @@ export async function callClaudeJSON<T>(
     for (const attempt of attempts) {
       if (!attempt) continue;
       try {
-        return JSON.parse(attempt) as T;
+        return { data: JSON.parse(attempt) as T };
       } catch {
         /* tentative suivante */
       }
     }
     const stop = (message as { stop_reason?: string }).stop_reason;
     console.warn(`[callClaudeJSON] JSON non parsable (stop_reason=${stop}):`, candidate.slice(0, 220));
-    return null;
+    return { data: null, error: `unparsable JSON (stop_reason=${stop})` };
   } catch (e) {
-    console.error("[callClaudeJSON] appel IA échoué:", e instanceof Error ? e.message : e);
-    return null;
+    const message = e instanceof Error ? e.message : String(e);
+    console.error("[callClaudeJSON] appel IA échoué:", message);
+    return { data: null, error: message };
   }
 }
 
@@ -161,12 +181,26 @@ export async function callClaudeJSONRetry<T>(
   opts: CallClaudeJSONOptions = {},
   retries = 1
 ): Promise<T | null> {
+  return (await callClaudeJSONRetryResult<T>(prompt, opts, retries)).data;
+}
+
+/**
+ * Comme `callClaudeJSONRetry`, mais conserve la RAISON du dernier échec
+ * (`error`) — pour la remonter à l'utilisateur quand l'IA est configurée mais
+ * que la génération échoue malgré tout (ex. modèle invalide).
+ */
+export async function callClaudeJSONRetryResult<T>(
+  prompt: string,
+  opts: CallClaudeJSONOptions = {},
+  retries = 1
+): Promise<CallClaudeJSONResult<T>> {
+  let last: CallClaudeJSONResult<T> = { data: null };
   for (let i = 0; i <= retries; i++) {
-    const result = await callClaudeJSON<T>(prompt, opts);
-    if (result) return result;
+    last = await callClaudeJSONResult<T>(prompt, opts);
+    if (last.data) return last;
     if (i < retries) await new Promise((res) => setTimeout(res, 700 * (i + 1)));
   }
-  return null;
+  return last;
 }
 
 /**

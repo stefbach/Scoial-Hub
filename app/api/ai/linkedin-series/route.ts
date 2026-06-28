@@ -14,7 +14,7 @@
 export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from "next/server";
-import { callClaudeJSONRetry } from "@/lib/ai/claude-json";
+import { callClaudeJSONRetryResult } from "@/lib/ai/claude-json";
 import { requireCompanyAccess } from "@/lib/auth/guard";
 import { isAiConfigured } from "@/lib/env";
 import { buildMockSeries } from "@/lib/mock-series";
@@ -109,7 +109,7 @@ Return ONLY valid JSON, no commentary, with this exact shape:
 The "posts" array must contain exactly ${count} items.
 `.trim();
 
-    const data = await callClaudeJSONRetry<{ posts: SeriesPost[] }>(prompt, {
+    const { data, error: aiErr } = await callClaudeJSONRetryResult<{ posts: SeriesPost[] }>(prompt, {
       maxTokens: Math.min(8000, 800 + count * (article ? 1200 : 700)),
       system: "You return only valid JSON. No markdown fences, no commentary.",
     });
@@ -121,7 +121,10 @@ The "posts" array must contain exactly ${count} items.
         return NextResponse.json({ posts: buildMockSeries(theme, count, fr, article, MAX_BODY), mock: true });
       }
       return NextResponse.json(
-        { error: "La génération IA a échoué (réponse vide ou modèle indisponible). Réessayez ; si ça persiste, vérifiez le modèle ANTHROPIC_MODEL.", aiError: true },
+        {
+          error: `La génération IA a échoué. Détail : ${aiErr ?? "réponse vide"}. Vérifiez le modèle ANTHROPIC_MODEL et la clé.`,
+          aiError: true,
+        },
         { status: 502 }
       );
     }

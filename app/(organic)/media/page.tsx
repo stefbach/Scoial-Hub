@@ -38,6 +38,38 @@ export default function MediaLibraryPage() {
   const [deriveFormat, setDeriveFormat] = useState("match");
   const [deriving, setDeriving] = useState(false);
 
+  // Suppression définitive
+  const [deleting, setDeleting] = useState<string | null>(null);
+
+  async function deleteAsset(a: Asset) {
+    // Les visuels du brand kit (logo/charte) ne sont pas stockés ici.
+    if ((a.source ?? "").startsWith("brand-kit")) {
+      setNote(t("Les visuels du brand kit ne se suppriment pas ici.", "Brand-kit visuals can't be deleted here."));
+      return;
+    }
+    if (!window.confirm(t("Supprimer définitivement ce média ? Cette action est irréversible.", "Permanently delete this media? This cannot be undone."))) return;
+    setDeleting(a.url);
+    setNote(null);
+    try {
+      const r = await fetch("/api/media", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyId, url: a.url }),
+      });
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}));
+        setNote(d.error ?? t("Échec de la suppression.", "Delete failed."));
+        return;
+      }
+      setAssets((arr) => arr.filter((x) => x.url !== a.url));
+      setNote(t("Média supprimé ✓", "Media deleted ✓"));
+    } catch {
+      setNote(t("Erreur réseau.", "Network error."));
+    } finally {
+      setDeleting(null);
+    }
+  }
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -229,6 +261,16 @@ export default function MediaLibraryPage() {
                 {a.type === "image" && (
                   <button onClick={() => { setDerivingFrom(a.url); setDerivePrompt(""); window.scrollTo({ top: 0, behavior: "smooth" }); }}
                     className="btn-secondary w-full justify-center text-2xs">{t("⤳ Décliner", "⤳ Derive")}</button>
+                )}
+                {canEdit && !(a.source ?? "").startsWith("brand-kit") && (
+                  <button
+                    onClick={() => deleteAsset(a)}
+                    disabled={deleting === a.url}
+                    className="btn-secondary w-full justify-center text-2xs text-danger-700 disabled:opacity-50"
+                    title={t("Supprimer définitivement", "Delete permanently")}
+                  >
+                    {deleting === a.url ? t("Suppression…", "Deleting…") : t("🗑 Supprimer", "🗑 Delete")}
+                  </button>
                 )}
               </div>
             </div>

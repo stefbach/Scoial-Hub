@@ -23,6 +23,10 @@ export function OrganicPublisher() {
 
   // Langue de PUBLICATION (≠ langue de l'interface) ; défaut = langue de l'app.
   const [pubLang, setPubLang] = useState<string>(lang);
+  // Format du visuel généré. Défaut 4:5 (portrait) : c'est le format qui occupe
+  // LE PLUS de place dans le fil Facebook ET Instagram (1080x1350), donc le
+  // moins « petit ». 1:1 carré et 1.91:1 bannière restent disponibles.
+  const [imgFormat, setImgFormat] = useState("4:5");
   const [text, setText] = useState("");
   const [imageUrl, setImageUrl] = useState("");
   const [toFb, setToFb] = useState(true);
@@ -54,7 +58,15 @@ export function OrganicPublisher() {
     try {
       const r = await fetch("/api/ai/generate-image", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: text || "social media brand visual, professional, high quality", platform: "facebook", n: 1 }),
+        body: JSON.stringify({
+          prompt: text || "social media brand visual, professional, high quality",
+          // Cible le bon réseau (Instagram seul → ratios IG) et un FORMAT explicite
+          // (plein cadrage), et enregistre le visuel dans la bibliothèque média.
+          platform: toIg && !toFb ? "instagram" : "facebook",
+          format: imgFormat,
+          n: 1,
+          companyId,
+        }),
       });
       const d = await r.json();
       if (!r.ok) { setError(d.error || t("Échec de génération d'image.", "Image generation failed.")); return; }
@@ -104,12 +116,28 @@ export function OrganicPublisher() {
         <PublishLanguageSelect value={pubLang} onChange={setPubLang} />
       </div>
 
+      {/* Format du visuel — par défaut 4:5 (plein cadrage, le moins « petit »). */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="text-2xs text-muted">{t("Format du visuel :", "Visual format:")}</span>
+        {[
+          { id: "4:5", fr: "Portrait 4:5", en: "Portrait 4:5" },
+          { id: "1:1", fr: "Carré 1:1", en: "Square 1:1" },
+          { id: "9:16", fr: "Story 9:16", en: "Story 9:16" },
+          { id: "1.91:1", fr: "Paysage 1.91:1", en: "Landscape 1.91:1" },
+        ].map((f) => (
+          <button key={f.id} type="button" onClick={() => setImgFormat(f.id)}
+            className={`rounded-full px-2.5 py-1 text-2xs font-medium ${imgFormat === f.id ? "bg-ink text-white" : "bg-card text-muted ring-1 ring-hair hover:text-ink"}`}>
+            {t(f.fr, f.en)}
+          </button>
+        ))}
+      </div>
+
       {imaging && <BusyHint label={t("Génération de votre visuel…", "Generating your visual…")} eta={t("~15–30 s", "~15–30 s")} />}
 
       <input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder={t("URL d'image (optionnel — requis pour Instagram)", "Image URL (optional — required for Instagram)")} className={inputCls} />
       {imageUrl && (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={imageUrl} alt="" className="max-h-48 rounded-lg border border-hair object-contain" />
+        <img src={imageUrl} alt="" className="max-h-80 w-auto rounded-lg border border-hair object-contain" />
       )}
 
       <div className="flex flex-wrap items-center gap-4">

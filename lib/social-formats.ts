@@ -15,8 +15,11 @@ export interface MediaFormat {
 
 export const SOCIAL_FORMATS: Record<SocialPlatform, MediaFormat[]> = {
   facebook: [
-    { id: "fb_feed", label: "Feed paysage 1.91:1", aspect: "1.91:1", width: 1200, height: 628, kind: "image", placement: "feed" },
+    // Carré 1:1 en PREMIER (= défaut) : une photo organique carrée occupe bien
+    // plus de place dans le fil qu'une bannière 1.91:1 (qui paraît « toute petite »).
     { id: "fb_square", label: "Feed carré 1:1", aspect: "1:1", width: 1080, height: 1080, kind: "image", placement: "feed" },
+    { id: "fb_portrait", label: "Feed portrait 4:5", aspect: "4:5", width: 1080, height: 1350, kind: "image", placement: "feed" },
+    { id: "fb_feed", label: "Lien paysage 1.91:1", aspect: "1.91:1", width: 1200, height: 628, kind: "image", placement: "link" },
     { id: "fb_story", label: "Story 9:16", aspect: "9:16", width: 1080, height: 1920, kind: "image", placement: "story" },
     { id: "fb_video", label: "Vidéo 16:9", aspect: "16:9", width: 1280, height: 720, kind: "video", placement: "feed" },
     { id: "fb_reel", label: "Reel 9:16", aspect: "9:16", width: 1080, height: 1920, kind: "video", placement: "reel" },

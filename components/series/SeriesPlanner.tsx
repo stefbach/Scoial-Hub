@@ -271,8 +271,8 @@ export function SeriesPlanner({ platform }: { platform: SeriesPlatform }) {
                 <span className="mt-2 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary-100 text-2xs font-bold text-primary-700">{i + 1}</span>
                 <div className="min-w-0 flex-1">
                   <textarea value={d.body} onChange={(e) => patchDraft(i, { body: e.target.value })}
-                    rows={seriesFormat === "article" ? 6 : 3}
-                    placeholder={t(`Élément ${i + 1}…`, `Item ${i + 1}…`)} className={inputCls} />
+                    rows={seriesFormat === "article" ? 12 : 6}
+                    placeholder={t(`Élément ${i + 1}…`, `Item ${i + 1}…`)} className={`${inputCls} resize-y leading-relaxed`} />
                   {len > 0 && (
                     <p className={`mt-0.5 text-2xs ${overChars(len) ? "font-semibold text-danger-600" : "text-muted"}`}>
                       {cfg.delivery === "schedule" && <>📅 {format(draftDate(filledDrafts.findIndex((f) => f.index === i)), "yyyy-MM-dd")} · {batchTime} · </>}

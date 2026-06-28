@@ -13,9 +13,11 @@
 export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from "next/server";
-import { callClaudeJSON } from "@/lib/ai/claude-json";
+import { callClaudeJSONRetry } from "@/lib/ai/claude-json";
 import { requireCompanyAccess } from "@/lib/auth/guard";
+import { isAiConfigured } from "@/lib/env";
 import { SERIES_CONFIG, isSeriesPlatform } from "@/lib/social-series";
+import { buildMockSeries } from "@/lib/mock-series";
 
 interface SeriesPost {
   title: string;
@@ -65,28 +67,6 @@ export async function POST(req: NextRequest) {
       visualPrompt: p.visualPrompt ? clean(p.visualPrompt).slice(0, 400) : undefined,
     });
 
-    // Démo : vrai texte rédigé (prose finie), borné à la limite du réseau.
-    function mockSeries(): SeriesPost[] {
-      const tag = theme.replace(/\s+/g, "");
-      const anglesFr = ["retour d'expérience", "erreur à éviter", "conseil actionnable", "chiffre clé", "question ouverte"];
-      const anglesEn = ["lesson learned", "mistake to avoid", "actionable tip", "key figure", "open question"];
-      return Array.from({ length: count }, (_, i) => {
-        const angle = (fr ? anglesFr : anglesEn)[i % 5];
-        const long = article
-          ? (fr
-            ? `${theme} : ${angle}.\n\nOn complique souvent ${theme}, alors que l'essentiel tient en peu de choses. Le constat : commencer petit bat la perfection. Ce qui marche : un seul indicateur clair, mesuré chaque semaine. L'erreur fréquente : tout vouloir d'un coup.\n\nÀ retenir : avancez par petits pas, gardez l'humain au centre.\n\nEt vous, où en êtes-vous ?\n\n#${tag}`
-            : `${theme}: ${angle}.\n\nWe often overcomplicate ${theme}, when the essentials are simple. The reality: starting small beats chasing perfection. What works: one clear metric, measured weekly. The common mistake: wanting it all at once.\n\nKey takeaway: move in small steps, keep people at the center.\n\nWhere are you with it?\n\n#${tag}`)
-          : (fr
-            ? `${theme} : ${angle}. On simplifie souvent à l'excès, mais l'essentiel tient en une idée : commencez petit, mesurez, ajustez. Et vous ? #${tag}`
-            : `${theme}: ${angle}. We tend to overthink it, yet the essentials fit in one idea: start small, measure, adjust. You? #${tag}`);
-        return {
-          title: `${theme} (${i + 1}/${count})`,
-          body: long.slice(0, max),
-          visualPrompt: `Professional ${cfg.label} visual illustrating "${theme}", clean modern style, part ${i + 1}, high quality, no text`,
-        };
-      });
-    }
-
     let memoryContext = "";
     if (body.useMemory) {
       try {
@@ -120,21 +100,27 @@ Return ONLY valid JSON with this exact shape:
 The "posts" array must contain exactly ${count} items.
 `.trim();
 
-    const data = await callClaudeJSON<{ posts: SeriesPost[] }>(prompt, {
+    const data = await callClaudeJSONRetry<{ posts: SeriesPost[] }>(prompt, {
       maxTokens: Math.min(8000, 800 + count * (article ? 1100 : 500)),
       system: "You return only valid JSON. No markdown fences, no commentary.",
     });
 
-    if (!data || !Array.isArray(data.posts) || data.posts.length === 0) {
-      return NextResponse.json({ posts: mockSeries(), mock: true });
-    }
+    const aiFailed = () =>
+      isAiConfigured
+        ? NextResponse.json(
+            { error: "La génération IA a échoué (réponse vide ou modèle indisponible). Réessayez ; si ça persiste, vérifiez le modèle ANTHROPIC_MODEL.", aiError: true },
+            { status: 502 }
+          )
+        : NextResponse.json({ posts: buildMockSeries(theme, count, fr, article, max), mock: true });
+
+    if (!data || !Array.isArray(data.posts) || data.posts.length === 0) return aiFailed();
 
     const posts = data.posts
       .filter((p) => p && typeof p.body === "string" && p.body.trim())
       .slice(0, count)
       .map(sanitize);
 
-    if (posts.length === 0) return NextResponse.json({ posts: mockSeries(), mock: true });
+    if (posts.length === 0) return aiFailed();
     return NextResponse.json({ posts });
   } catch (err) {
     console.error("[ai/social-series] Error:", err);

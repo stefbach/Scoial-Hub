@@ -14,8 +14,10 @@
 export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from "next/server";
-import { callClaudeJSON } from "@/lib/ai/claude-json";
+import { callClaudeJSONRetry } from "@/lib/ai/claude-json";
 import { requireCompanyAccess } from "@/lib/auth/guard";
+import { isAiConfigured } from "@/lib/env";
+import { buildMockSeries } from "@/lib/mock-series";
 
 interface RequestBody {
   companyId?: string;
@@ -49,45 +51,6 @@ function sanitize(p: SeriesPost): SeriesPost {
     body: clean(p.body).slice(0, MAX_BODY),
     visualPrompt: p.visualPrompt ? clean(p.visualPrompt).slice(0, 400) : undefined,
   };
-}
-
-/**
- * Série de démonstration quand l'IA n'est pas configurée. Le contenu est un
- * VRAI texte rédigé (prose finie), pas un gabarit de consignes — pour que la
- * démo reflète fidèlement ce que produit l'IA une fois configurée.
- */
-function mockSeries(theme: string, count: number, fr: boolean, article: boolean): SeriesPost[] {
-  const tag = theme.replace(/\s+/g, "");
-  const anglesFr = [
-    "un retour d'expérience concret",
-    "l'erreur que tout le monde commet",
-    "la méthode qui a vraiment fonctionné",
-    "un chiffre qui change la perspective",
-    "une question pour votre audience",
-  ];
-  const anglesEn = [
-    "a concrete lesson learned",
-    "the mistake everyone makes",
-    "the method that actually worked",
-    "a figure that shifts the perspective",
-    "a question for your audience",
-  ];
-
-  return Array.from({ length: count }, (_, i) => {
-    const angle = (fr ? anglesFr : anglesEn)[i % 5];
-    const body = article
-      ? (fr
-        ? `${theme} : ${angle}.\n\nOn parle beaucoup de ${theme}, mais rarement de ce que ça change concrètement. Voici un point clair, sans jargon.\n\nLe constat : la plupart des équipes sous-estiment l'effort de départ et abandonnent trop tôt. En pratique, les premiers résultats arrivent en quelques semaines, pas en quelques jours.\n\nCe qui a fonctionné chez nous : commencer petit, suivre un seul indicateur utile, puis ajuster. Nous avons gagné près de 18 % d'efficacité simplement en retirant les étapes inutiles.\n\nL'erreur à éviter : vouloir tout automatiser d'un coup. La technologie aide, mais c'est la clarté du processus qui fait la différence.\n\nÀ retenir : commencez petit, mesurez ce qui compte, et gardez l'humain au centre.\n\nEt vous, où en êtes-vous sur ${theme} ? Partagez votre expérience en commentaire.\n\n#${tag} #LinkedIn #Stratégie`
-        : `${theme}: ${angle}.\n\nEveryone talks about ${theme}, but rarely about what it actually changes day to day. Here is a clear, jargon-free take.\n\nThe reality: most teams underestimate the upfront effort and give up too soon. In practice, the first results show up in a few weeks, not a few days.\n\nWhat worked for us: start small, track a single useful metric, then adjust. We gained nearly 18% efficiency simply by removing unnecessary steps.\n\nThe mistake to avoid: trying to automate everything at once. Technology helps, but it is the clarity of the process that makes the difference.\n\nKey takeaway: start small, measure what matters, and keep people at the center.\n\nWhere are you with ${theme}? Share your experience in the comments.\n\n#${tag} #LinkedIn #Strategy`)
-      : (fr
-        ? `${theme} : ${angle}.\n\nUn constat rapide : on complique souvent ${theme} alors que l'essentiel tient en une idée. Commencez petit, mesurez, ajustez. C'est tout.\n\nEt vous, quel est votre prochain pas ?\n\n#${tag} #LinkedIn`
-        : `${theme}: ${angle}.\n\nQuick take: we often overcomplicate ${theme} when the essentials fit in one idea. Start small, measure, adjust. That's it.\n\nWhat's your next step?\n\n#${tag} #LinkedIn`);
-    return {
-      title: `${theme} (${i + 1}/${count})`,
-      body: body.slice(0, MAX_BODY),
-      visualPrompt: `Professional, modern LinkedIn visual illustrating "${theme}", clean corporate style, part ${i + 1}, high quality, no text`,
-    };
-  });
 }
 
 export async function POST(req: NextRequest) {
@@ -146,14 +109,21 @@ Return ONLY valid JSON, no commentary, with this exact shape:
 The "posts" array must contain exactly ${count} items.
 `.trim();
 
-    const data = await callClaudeJSON<{ posts: SeriesPost[] }>(prompt, {
+    const data = await callClaudeJSONRetry<{ posts: SeriesPost[] }>(prompt, {
       maxTokens: Math.min(8000, 800 + count * (article ? 1200 : 700)),
       system: "You return only valid JSON. No markdown fences, no commentary.",
     });
 
     if (!data || !Array.isArray(data.posts) || data.posts.length === 0) {
-      // IA non configurée ou réponse invalide → série de démonstration.
-      return NextResponse.json({ posts: mockSeries(theme, count, fr, article), mock: true });
+      // Distingue « IA non configurée » (démo honnête) de « l'appel IA a échoué »
+      // (clé présente mais erreur réelle : on ne masque PAS l'échec derrière la démo).
+      if (!isAiConfigured) {
+        return NextResponse.json({ posts: buildMockSeries(theme, count, fr, article, MAX_BODY), mock: true });
+      }
+      return NextResponse.json(
+        { error: "La génération IA a échoué (réponse vide ou modèle indisponible). Réessayez ; si ça persiste, vérifiez le modèle ANTHROPIC_MODEL.", aiError: true },
+        { status: 502 }
+      );
     }
 
     const posts = data.posts
@@ -162,7 +132,13 @@ The "posts" array must contain exactly ${count} items.
       .map(sanitize);
 
     if (posts.length === 0) {
-      return NextResponse.json({ posts: mockSeries(theme, count, fr, article), mock: true });
+      if (!isAiConfigured) {
+        return NextResponse.json({ posts: buildMockSeries(theme, count, fr, article, MAX_BODY), mock: true });
+      }
+      return NextResponse.json(
+        { error: "La génération IA n'a renvoyé aucun contenu exploitable. Réessayez.", aiError: true },
+        { status: 502 }
+      );
     }
 
     return NextResponse.json({ posts });

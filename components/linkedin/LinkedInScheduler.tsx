@@ -598,9 +598,9 @@ export function LinkedInScheduler() {
                   <textarea
                     value={d.body}
                     onChange={(e) => patchDraft(i, { body: e.target.value })}
-                    rows={seriesFormat === "article" ? 6 : 3}
+                    rows={seriesFormat === "article" ? 12 : 6}
                     placeholder={seriesFormat === "article" ? t(`Article ${i + 1} de la série…`, `Article ${i + 1} of the series…`) : t(`Post ${i + 1} de la série…`, `Post ${i + 1} of the series…`)}
-                    className={inputCls}
+                    className={`${inputCls} resize-y leading-relaxed`}
                   />
                   {d.body.trim() && (
                     <p className="mt-0.5 text-2xs text-muted">

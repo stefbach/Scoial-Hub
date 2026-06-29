@@ -156,18 +156,18 @@ export function ScheduledDetailModal({
           </div>
         </div>
 
-        {/* Source */}
-        <div className="mb-3 flex items-center gap-1.5 text-2xs text-muted">
-          {post.source === "automation" ? (
-            <>
-              <RefreshIcon />
-              <span>{t("Depuis l'automatisation", "From automation")}: {post.automationName ?? t("Règle récurrente", "Recurring rule")}</span>
-            </>
+        {/* Mode de publication — un post « planifié » PART AUTOMATIQUEMENT à
+            l'heure prévue (cron). « Publier maintenant » sert juste à l'envoyer
+            en avance. On le dit explicitement pour lever toute ambiguïté. */}
+        <div className="mb-3 flex items-center gap-1.5 text-2xs">
+          {post.status === "draft" ? (
+            <span className="flex items-center gap-1.5 text-muted">
+              <EditIcon /> {t("Brouillon — non programmé", "Draft — not scheduled")}
+            </span>
           ) : (
-            <>
-              <EditIcon />
-              <span>{t("Publication manuelle", "Manual post")}</span>
-            </>
+            <span className="flex items-center gap-1.5 text-success-700">
+              <ClockIcon /> {t("Se publie automatiquement à l'heure prévue", "Publishes automatically at the scheduled time")}
+            </span>
           )}
         </div>
 
@@ -233,10 +233,16 @@ export function ScheduledDetailModal({
             {t("Modifier dans Compose", "Edit in Compose")}
           </Button>
           <Button variant="primary" onClick={() => setConfirm("publish")}>
-            <span className="flex items-center gap-1.5"><PlayIcon /> {t("Publier maintenant", "Publish now")}</span>
+            <span className="flex items-center gap-1.5"><PlayIcon /> {t("Publier en avance", "Publish early")}</span>
           </Button>
         </div>
       </div>
+      {post.status !== "draft" && (
+        <p className="px-4 pb-3 -mt-1 text-2xs text-muted">
+          {t("Inutile de cliquer : ce post part seul à l'heure prévue. « Publier en avance » l'envoie tout de suite.",
+             "No need to click: this post goes out on its own at the scheduled time. “Publish early” sends it right now.")}
+        </p>
+      )}
 
       {/* Confirmation overlay */}
       {confirm && (
@@ -285,10 +291,11 @@ function ConfirmDialog({
   );
 }
 
-function RefreshIcon() {
+function ClockIcon() {
   return (
     <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
-      <path d="M3 12a9 9 0 0115-6.7L21 7M21 3v4h-4M21 12a9 9 0 01-15 6.7L3 17m0 4v-4h4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" />
+      <path d="M12 7v5l3 2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

@@ -373,7 +373,6 @@ const GROUPS: NavGroup[] = [
       { href: "/veille",     label: "Veille & Marché" },
       { href: "/publicites", label: "Competitor Ads" },
       { href: "/benchmark",  label: "Benchmark" },
-      { href: "/simulateur", label: "Simulateur" },
       { href: "/agents",     label: "Agents" },
     ],
   },

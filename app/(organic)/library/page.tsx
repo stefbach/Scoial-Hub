@@ -66,6 +66,7 @@ function LibraryContent() {
     instagram: "Instagram",
     linkedin: "LinkedIn",
     tiktok: "TikTok",
+    twitter: "Twitter/X",
   };
   const STATUS_LABEL: Record<StatusFilter, string> = {
     all: t("Tout", "All"),

@@ -5,6 +5,7 @@ const MAP: Record<Platform, { short: string; bg: string; text: string }> = {
   instagram: { short: "IG", bg: "#fce7f1", text: "#d62976" },
   linkedin: { short: "in", bg: "#e6f0f9", text: "#0a66c2" },
   tiktok: { short: "TT", bg: "#111111", text: "#ffffff" },
+  twitter: { short: "X", bg: "#111111", text: "#ffffff" },
 };
 
 export function PlatformTag({ platform }: { platform: Platform }) {

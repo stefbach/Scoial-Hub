@@ -26,6 +26,7 @@ const PLATFORM_NAME = {
   instagram: "Instagram",
   linkedin: "LinkedIn",
   tiktok: "TikTok",
+  twitter: "Twitter/X",
 } as const;
 
 export function HistoryDetailModal({

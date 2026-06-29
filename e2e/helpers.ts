@@ -32,7 +32,6 @@ export const ROUTES = [
   "/media",
   "/library",
   "/agents",
-  "/automations",
   "/inbox",
   "/benchmark",
   "/veille",

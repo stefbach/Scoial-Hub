@@ -86,6 +86,41 @@ async function graphFetch<T = Record<string, unknown>>(
   return data;
 }
 
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+/**
+ * Attend qu'un conteneur média Instagram soit prêt à être publié.
+ *
+ * Instagram traite le conteneur de façon ASYNCHRONE (récupération de l'image/
+ * vidéo depuis l'URL, transcodage…). Appeler `media_publish` avant la fin du
+ * traitement renvoie « [9007] Media ID is not available ». On interroge donc
+ * `status_code` jusqu'à `FINISHED`, dans une fenêtre compatible avec la durée
+ * max d'une route serverless (~45 s : couvre images et vidéos courtes).
+ */
+async function waitForIgContainerReady(containerId: string, accessToken: string): Promise<void> {
+  const deadline = Date.now() + 45_000;
+  let delay = 1200;
+  let last = "";
+  while (Date.now() < deadline) {
+    const s = await graphFetch<{ status_code?: string; status?: string }>(
+      `/${containerId}?fields=status_code,status&access_token=${encodeURIComponent(accessToken)}`
+    );
+    last = s.status_code ?? s.status ?? "";
+    if (last === "FINISHED") return;
+    if (last === "ERROR" || last === "EXPIRED") {
+      throw new Error(
+        `Instagram n'a pas pu préparer le média (${last}). Vérifiez que l'URL du média est publique et au bon format.`
+      );
+    }
+    // IN_PROGRESS → on patiente (backoff plafonné).
+    await sleep(delay);
+    delay = Math.min(Math.round(delay * 1.5), 5000);
+  }
+  throw new Error(
+    "Instagram met trop de temps à préparer le média (délai dépassé). Réessayez dans un instant — le visuel est peut-être encore en cours de traitement."
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Valeurs simulées
 // ---------------------------------------------------------------------------
@@ -466,6 +501,11 @@ class InstagramConnector implements SocialConnector {
         body: JSON.stringify(containerParams),
       }
     );
+
+    // Étape 1bis : ATTENDRE que le conteneur soit prêt. Instagram traite le
+    // média de façon asynchrone (téléchargement de l'URL, transcodage vidéo) ;
+    // publier trop tôt renvoie « [9007] Media ID is not available ».
+    await waitForIgContainerReady(container.id, input.accessToken);
 
     // Étape 2 : publier le container.
     const publish = await graphFetch<{ id: string }>(

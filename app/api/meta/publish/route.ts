@@ -26,6 +26,34 @@ async function metaPost(path: string, params: Record<string, string>) {
   return (await res.json()) as { id?: string; post_id?: string; error?: { message?: string } };
 }
 
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+/**
+ * Attend qu'un conteneur média Instagram soit prêt (status_code = FINISHED)
+ * avant `media_publish`. Sans cette attente, Instagram renvoie « [9007] Media
+ * ID is not available » car le conteneur est encore traité de façon asynchrone.
+ * Renvoie un message d'erreur clair, ou null si le média est prêt.
+ */
+async function waitForIgContainerReady(containerId: string, token: string): Promise<string | null> {
+  const deadline = Date.now() + 45_000;
+  let delay = 1200;
+  while (Date.now() < deadline) {
+    const res = await fetch(
+      `https://graph.facebook.com/${V}/${containerId}?fields=status_code,status&access_token=${encodeURIComponent(token)}`,
+      { cache: "no-store" }
+    );
+    const s = (await res.json()) as { status_code?: string; status?: string; error?: { message?: string } };
+    if (s.error) return s.error.message ?? "Statut du conteneur indisponible.";
+    if (s.status_code === "FINISHED") return null;
+    if (s.status_code === "ERROR" || s.status_code === "EXPIRED") {
+      return `Instagram n'a pas pu préparer le média (${s.status_code}). Vérifiez que l'image est publique et au bon format.`;
+    }
+    await sleep(delay);
+    delay = Math.min(Math.round(delay * 1.5), 5000);
+  }
+  return "Instagram met trop de temps à préparer le média (délai dépassé). Réessayez dans un instant.";
+}
+
 /** Trace une publication réussie dans l'Historique (vérifiable côté /history). */
 async function logPublished(companyId: string, platform: string, body: string, url?: string) {
   try {
@@ -101,11 +129,17 @@ export async function POST(req: NextRequest) {
           if (c.error || !c.id) {
             out.instagram = { ok: false, error: c.error?.message ?? "Conteneur IG refusé." };
           } else {
-            const pub = await metaPost(`${ctx.igId}/media_publish`, { creation_id: c.id, access_token: ctx.pageToken });
-            if (pub.error) out.instagram = { ok: false, error: pub.error.message };
-            else {
-              out.instagram = { ok: true };
-              await logPublished(companyId, "instagram", text ?? "", undefined);
+            // Attendre que le conteneur soit prêt avant de publier (évite [9007]).
+            const notReady = await waitForIgContainerReady(c.id, ctx.pageToken);
+            if (notReady) {
+              out.instagram = { ok: false, error: notReady };
+            } else {
+              const pub = await metaPost(`${ctx.igId}/media_publish`, { creation_id: c.id, access_token: ctx.pageToken });
+              if (pub.error) out.instagram = { ok: false, error: pub.error.message };
+              else {
+                out.instagram = { ok: true };
+                await logPublished(companyId, "instagram", text ?? "", undefined);
+              }
             }
           }
         } catch (e) {

@@ -277,14 +277,18 @@ function PostRow({
           {t("Brouillon", "Draft")}
         </span>
       ) : (
+        // Tout post planifié part AUTOMATIQUEMENT à l'heure prévue (cron),
+        // qu'il ait été composé à la main ou non → badge « Auto » cohérent
+        // avec le détail (fini le « Manuel » trompeur).
         <span
-          className={`rounded-full px-2 py-0.5 text-2xs font-medium ${
-            p.source === "automation"
-              ? "bg-ai-textbg text-ai-text"
-              : "bg-canvas text-muted"
-          }`}
+          className="inline-flex items-center gap-1 rounded-full bg-success-50 px-2 py-0.5 text-2xs font-semibold text-success-700"
+          title={t("Se publie automatiquement à l'heure prévue", "Publishes automatically at the scheduled time")}
         >
-          {p.source === "automation" ? t("Automatisation", "Automation") : t("Manuel", "Manual")}
+          <svg viewBox="0 0 24 24" fill="none" className="h-2.5 w-2.5">
+            <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2.4" />
+            <path d="M12 7v5l3 2" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          {t("Auto", "Auto")}
         </span>
       )}
       {p.automationName === "Agent IA" && (

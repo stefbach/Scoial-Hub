@@ -11,10 +11,13 @@
 import { useState } from "react";
 import { useT } from "@/lib/i18n";
 
+// Réseaux à publication AUTOMATIQUE (immédiate ou programmée via le cron).
+// TikTok est exclu : son API exige une app approuvée → pas d'auto-publication
+// (le contenu se prépare ici mais se publie depuis l'app TikTok).
 const NETS = [
   { id: "facebook", label: "Facebook" },
   { id: "instagram", label: "Instagram" },
-  { id: "tiktok", label: "TikTok" },
+  { id: "linkedin", label: "LinkedIn" },
 ] as const;
 
 export function PublishScheduler({

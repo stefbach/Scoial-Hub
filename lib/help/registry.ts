@@ -454,7 +454,6 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
     ],
     related: [
       { label: { fr: "Centre de pilotage", en: "Piloting center" }, href: "/pilotage" },
-      { label: { fr: "Automations", en: "Automations" }, href: "/automations" },
       { label: { fr: "Connecteurs", en: "Connectors" }, href: "/parametres-connecteurs" },
     ],
   },
@@ -894,7 +893,6 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
     ],
     related: [
       { label: { fr: "Composer un post", en: "Compose a post" }, href: "/compose" },
-      { label: { fr: "Automations", en: "Automations" }, href: "/automations" },
       { label: { fr: "Historique", en: "History" }, href: "/history" },
     ],
   },
@@ -1606,7 +1604,6 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
     related: [
       { label: { fr: "Connecteurs", en: "Connectors" }, href: "/parametres-connecteurs" },
       { label: { fr: "Paramètres", en: "Settings" }, href: "/settings" },
-      { label: { fr: "Automations", en: "Automations" }, href: "/automations" },
     ],
   },
 

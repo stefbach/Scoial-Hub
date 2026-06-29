@@ -175,17 +175,22 @@ function ComposeContent() {
   // Crée un post par plateforme sélectionnée via l'API.
   // `now` planifie à l'instant courant (la publication réelle n'est pas branchée),
   // `schedule` à la date/heure choisie, `draft` enregistre un brouillon.
-  const createPosts = async (mode: "now" | "schedule" | "draft"): Promise<boolean> => {
+  // Crée les publications et renvoie les identifiants créés (par réseau).
+  // - draft  → enregistré (statut "draft", non publié).
+  // - schedule → statut "scheduled" : publié AUTOMATIQUEMENT par le cron à l'heure.
+  // - now    → statut "scheduled" daté maintenant, PUIS publié immédiatement
+  //            (voir handleSubmit) au lieu d'attendre le prochain passage du cron.
+  const createPosts = async (mode: "now" | "schedule" | "draft"): Promise<{ ok: boolean; ids: string[] }> => {
     const status = mode === "draft" ? "draft" : "scheduled";
     const now = new Date();
     const postDate = mode === "now" ? format(now, "yyyy-MM-dd") : format(date, "yyyy-MM-dd");
     const postTime = mode === "now" ? format(now, "HH:mm") : time;
 
-    const results = await Promise.all(
-      selectedPlatforms.map((platform) => {
+    const created = await Promise.all(
+      selectedPlatforms.map(async (platform) => {
         // Texte ADAPTÉ au réseau si l'agent/l'utilisateur en a produit un.
         const netBody = (bodies[platform as ComposeNet] ?? "").trim() || body;
-        return fetch("/api/scheduled-posts", {
+        const res = await fetch("/api/scheduled-posts", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -202,21 +207,47 @@ function ComposeContent() {
             media: upload ? { kind: upload.kind, url: upload.url } : undefined,
           }),
         });
+        if (!res.ok) return null;
+        const d = (await res.json().catch(() => ({}))) as { id?: string };
+        return d.id ?? null;
       })
     );
-    return results.every((res) => res.ok);
+    const ids = created.filter((id): id is string => Boolean(id));
+    return { ok: created.every(Boolean), ids };
   };
 
   const handleSubmit = async () => {
     if (noneSelected || submitting) return;
     setSubmitting(true);
     try {
-      const ok = await createPosts(when);
-      if (ok) {
-        router.push("/scheduled");
-      } else {
+      const { ok, ids } = await createPosts(when);
+      if (!ok) {
         setToast(t("Échec de l'enregistrement. Réessayez.", "Save failed. Please retry."));
+        return;
       }
+      // « Publier maintenant » : déclenche la publication réelle tout de suite
+      // (sinon le post attendrait le prochain passage du cron, jusqu'à 10 min).
+      if (when === "now") {
+        const pubs = await Promise.all(
+          ids.map((id) =>
+            fetch(`/api/scheduled-posts/${id}/publish`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ companyId: company.id }),
+            })
+              .then((r) => r.json().catch(() => ({ ok: false })))
+              .catch(() => ({ ok: false as const }))
+          )
+        );
+        const failed = pubs.filter((p) => p && (p as { error?: string }).error).length;
+        if (failed > 0) {
+          setToast(t(
+            `${failed} publication(s) ont échoué — voir Programmés pour le détail.`,
+            `${failed} post(s) failed to publish — see Scheduled for details.`
+          ));
+        }
+      }
+      router.push("/scheduled");
     } catch {
       setToast(t("Échec de l'enregistrement. Réessayez.", "Save failed. Please retry."));
     } finally {
@@ -228,7 +259,7 @@ function ComposeContent() {
     if (noneSelected || submitting) return;
     setSubmitting(true);
     try {
-      const ok = await createPosts("draft");
+      const { ok } = await createPosts("draft");
       if (ok) {
         router.push("/scheduled?tab=drafts");
       } else {

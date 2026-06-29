@@ -30,6 +30,7 @@ export const PLATFORM_LABEL: Record<Platform, string> = {
   instagram: "Instagram",
   linkedin: "LinkedIn",
   tiktok: "TikTok",
+  twitter: "Twitter/X",
 };
 
 /** Identifiant de compte + token requis par le connecteur, selon la plateforme. */
@@ -48,6 +49,11 @@ export function resolveCreds(
       // (/api/linkedin/publish). Sans cela, un post programmé pour une Page
       // entreprise partait en réalité sur le profil personnel.
       return { externalAccountId: cfg.publish_as || cfg.external_id || "", accessToken: cfg.access_token ?? "" };
+    case "tiktok":
+    case "twitter":
+      // Connecteurs déclaratifs (OAuth2) : compte + token stockés tels quels
+      // (sh_social_accounts.access_token / external_id).
+      return { externalAccountId: cfg.external_id ?? "", accessToken: cfg.access_token ?? "" };
     default:
       return { externalAccountId: "", accessToken: "" };
   }

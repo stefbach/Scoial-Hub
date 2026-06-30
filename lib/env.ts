@@ -9,6 +9,11 @@ export const env = {
   anthropicKey: process.env.ANTHROPIC_API_KEY ?? "",
   anthropicModel: process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-6",
   appUrl: process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
+  // Fuseau horaire de RÉFÉRENCE pour la programmation des publications.
+  // Les heures saisies (« 09:00 ») sont interprétées dans cette zone, et le cron
+  // (qui tourne en UTC) y compare l'heure courante. Nom IANA (ex. "Indian/Mauritius",
+  // "Europe/Paris", "UTC"). Par défaut : Maurice (UTC+4).
+  scheduleTimezone: process.env.SCHEDULE_TIMEZONE ?? "Indian/Mauritius",
   // Secret partagé pour authentifier les webhooks providers (Replicate/Shotstack)
   // qui « réveillent » nos jobs de rendu quand le résultat est prêt.
   webhookSecret: process.env.WEBHOOK_SECRET ?? "",

@@ -1,0 +1,56 @@
+# Déclencheur d'auto-publication INDÉPENDANT du plan Vercel.
+#
+# SÉCURITÉ : ce workflow n'utilise QUE des secrets de dépôt (secrets.*) passés
+# via env:. AUCUNE donnée d'événement non fiable (github.event.*, titres,
+# messages de commit, refs…) n'est interpolée dans une commande run → aucun
+# risque d'injection de commande.
+#
+# Pourquoi ce workflow : les Vercel Cron Jobs ne tournent qu'en Production et,
+# sur le plan Hobby, au plus 1×/jour — donc la publication programmée ne partait
+# pas à l'heure. Ce workflow appelle l'endpoint /api/cron/publish-due toutes les
+# ~10 min, quel que soit le plan Vercel.
+#
+# Secrets de dépôt requis (Settings → Secrets and variables → Actions) :
+#   - CRON_PING_URL : URL complète de prod, ex. https://ton-domaine.com/api/cron/publish-due
+#   - CRON_SECRET   : la même valeur que la variable CRON_SECRET de Vercel (si définie)
+#
+# Sans CRON_PING_URL configuré, le job se termine proprement (no-op).
+
+name: publish-cron
+
+on:
+  schedule:
+    # Toutes les 10 minutes (GitHub peut décaler de quelques minutes en charge).
+    - cron: "*/10 * * * *"
+  workflow_dispatch: {} # bouton « Run workflow » pour tester à la demande
+
+concurrency:
+  group: publish-cron
+  cancel-in-progress: false
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Appeler l'endpoint d'auto-publication
+        env:
+          CRON_PING_URL: ${{ secrets.CRON_PING_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$CRON_PING_URL" ]; then
+            echo "CRON_PING_URL non configuré -> no-op (rien a faire)."
+            exit 0
+          fi
+          echo "Appel de l'endpoint d'auto-publication..."
+          code=$(curl -sS -o /tmp/resp.json -w "%{http_code}" \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            --max-time 120 \
+            "$CRON_PING_URL") || { echo "Echec reseau curl"; exit 1; }
+          echo "HTTP $code"
+          echo "Reponse :"
+          cat /tmp/resp.json || true
+          echo
+          case "$code" in
+            2*) echo "OK" ;;
+            *) echo "Reponse non-2xx ($code)"; exit 1 ;;
+          esac

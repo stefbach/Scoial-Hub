@@ -12,7 +12,31 @@ export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
 import { getConnection, upsertConnection } from "@/lib/repositories/channel-connections";
 import { resolveCompanyUuid } from "@/lib/repositories/resolve-company";
-import { env, isTelegramBotConfigured } from "@/lib/env";
+import { env } from "@/lib/env";
+import { getMe } from "@/lib/telegram/client";
+
+// Cache du username RÉEL du bot (immuable tant que le token ne change pas).
+let cachedUsername = "";
+
+/**
+ * Résout le username du bot de façon AUTORITAIRE : on le demande à Telegram
+ * (getMe) à partir du token, au lieu de faire confiance à TELEGRAM_BOT_USERNAME
+ * saisi à la main (qui pouvait contenir une faute → « le bot n'existe pas »).
+ * - Pas de token → "" (la page affiche le guide de configuration).
+ * - Token valide → vrai username Telegram (mis en cache).
+ * - Token présent mais getMe en échec → repli sur l'env (best effort).
+ */
+async function resolveBotUsername(): Promise<string> {
+  const token = env.telegramBotToken;
+  if (!token) return "";
+  if (cachedUsername) return cachedUsername;
+  const me = await getMe(token);
+  if (me.ok && me.data?.username) {
+    cachedUsername = me.data.username.replace(/^@+/, "").trim();
+    return cachedUsername;
+  }
+  return (env.telegramBotUsername ?? "").replace(/^@+/, "").trim();
+}
 
 function genCode(): string {
   // 8 caractères lisibles (sans 0/O/1/I)
@@ -45,7 +69,9 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const botUsername = env.telegramBotUsername;
+  // Username AUTORITAIRE (vérifié auprès de Telegram) → le lien pointe toujours
+  // vers le bot réel rattaché au token.
+  const botUsername = await resolveBotUsername();
   const deepLink = botUsername ? `https://t.me/${botUsername}?start=${code}` : "";
 
   return NextResponse.json({
@@ -54,6 +80,7 @@ export async function GET(req: NextRequest) {
     deepLink,
     linked,
     status: linked ? "connected" : "pending",
-    isBotConfigured: isTelegramBotConfigured,
+    // Configuré = on a pu résoudre un vrai username via le token.
+    isBotConfigured: Boolean(botUsername),
   });
 }

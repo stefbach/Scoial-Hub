@@ -11,7 +11,8 @@
     "test:montage": "tsx scripts/verify-montage-duration.ts",
     "test:connectors": "tsx scripts/verify-connectors.ts",
     "test:e2e": "playwright test",
-    "diagnose": "tsx scripts/diagnose.ts"
+    "diagnose": "tsx scripts/diagnose.ts",
+    "test:tz": "tsx scripts/verify-schedule-timezone.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.100.1",

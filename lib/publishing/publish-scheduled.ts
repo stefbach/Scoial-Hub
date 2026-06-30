@@ -19,11 +19,40 @@ import { updateScheduledPost } from "@/lib/repositories/scheduled-posts";
 import { resolveCompanyUuid } from "@/lib/repositories/resolve-company";
 import { getConnector } from "@/lib/connectors/index";
 import { createAdminClient } from "@/lib/supabase/server";
-import { isSupabaseConfigured } from "@/lib/env";
+import { env, isSupabaseConfigured } from "@/lib/env";
 import { COMPANY_DATA } from "@/lib/mock-data";
 import type { PublishInput } from "@/lib/connectors/types";
 import type { Platform, ScheduledPost } from "@/lib/types";
 import type { DbScheduledPost } from "@/lib/supabase/db-types";
+
+/**
+ * Exprime un instant comme heure « murale » (date + HH:MM) dans un fuseau IANA
+ * donné, via Intl (aucune dépendance). Sert à comparer l'heure programmée
+ * (saisie dans ce fuseau) à l'heure courante DANS LE MÊME fuseau, quel que soit
+ * le fuseau du serveur (UTC sur Vercel).
+ */
+export function wallClockInZone(now: Date, timeZone: string): { date: string; key: string } {
+  let parts: Intl.DateTimeFormatPart[];
+  try {
+    parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone,
+      year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit", hour12: false,
+    }).formatToParts(now);
+  } catch {
+    // Fuseau invalide → repli UTC (jamais de crash du cron).
+    parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "UTC",
+      year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit", hour12: false,
+    }).formatToParts(now);
+  }
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "00";
+  const date = `${get("year")}-${get("month")}-${get("day")}`;
+  // Intl peut renvoyer "24" à minuit selon l'environnement → normaliser en "00".
+  const hour = get("hour") === "24" ? "00" : get("hour");
+  return { date, key: `${date}T${hour}:${get("minute")}` };
+}
 
 export const PLATFORM_LABEL: Record<Platform, string> = {
   facebook: "Facebook",
@@ -283,9 +312,11 @@ export async function listDueScheduledPosts(
   now: Date = new Date(),
   limit = 100
 ): Promise<DueScheduledPost[]> {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  const todayStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-  const nowKey = `${todayStr}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  // Heure courante exprimée comme heure « murale » dans le fuseau de référence
+  // (env.scheduleTimezone). Sans ça, le cron (UTC sur Vercel) comparait l'heure
+  // saisie « 09:00 » à l'heure UTC → publication décalée du fuseau (ex. +4h à
+  // Maurice). On compare désormais dans le MÊME fuseau que la saisie.
+  const { date: todayStr, key: nowKey } = wallClockInZone(now, env.scheduleTimezone);
   const isDue = (p: ScheduledPost) =>
     Boolean(p.date) && `${p.date}T${p.time || "00:00"}` <= nowKey;
 

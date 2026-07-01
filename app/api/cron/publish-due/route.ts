@@ -21,6 +21,9 @@
  */
 
 export const runtime = "nodejs";
+// CRITIQUE : sans force-dynamic, Next.js pré-rend cette route GET AU BUILD et
+// sert ensuite la réponse en cache → le cron « répondait » sans jamais publier.
+export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import {

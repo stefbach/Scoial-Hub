@@ -13,6 +13,8 @@
  */
 
 export const runtime = "nodejs";
+// Empêche la mise en cache statique de cette route GET (cron → doit s'exécuter à chaque appel).
+export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { listCompanies } from "@/lib/repositories/companies";

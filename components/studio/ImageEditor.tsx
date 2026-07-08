@@ -53,6 +53,17 @@ export function ImageEditor({
     setBusy(mode); setNote(null);
     try {
       const current = versions[versions.length - 1] ?? imageUrl;
+      // Un data-URI volumineux dépasse la limite de requête (~4,5 Mo → HTTP 413).
+      // Cas de repli uniquement (l'import héberge normalement le fichier) :
+      // on explique clairement au lieu de laisser échouer en silence.
+      if (current.startsWith("data:") && current.length > 3_500_000) {
+        setNote(t(
+          "Image trop lourde pour la retouche (> 3,5 Mo). Réimportez le visuel — il sera hébergé automatiquement — ou générez-le par IA.",
+          "Image too large to edit (> 3.5 MB). Re-upload the visual — it will be hosted automatically — or generate it with AI."
+        ));
+        setBusy(null);
+        return;
+      }
       const r = await fetch("/api/ai/edit-image", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

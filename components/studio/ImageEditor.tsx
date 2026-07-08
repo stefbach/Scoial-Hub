@@ -7,7 +7,7 @@
 // l'améliore (upscale Real-ESRGAN / Clarity). Historique de versions : chaque
 // résultat s'empile, on peut revenir à n'importe quelle version d'un clic.
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useCompany } from "@/lib/company-context";
 import { useT } from "@/lib/i18n";
 import { EDIT_MODELS, UPSCALE_MODELS } from "@/lib/ai/model-catalog";
@@ -31,12 +31,18 @@ export function ImageEditor({
   const [busy, setBusy] = useState<"edit" | "upscale" | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [versions, setVersions] = useState<string[]>([]);
+  // Dernière URL que NOUS avons émise via onResult. Quand le parent l'applique,
+  // elle nous revient en écho par la prop `imageUrl` : il ne faut alors PAS
+  // réinitialiser l'historique (c'était le bug « la retouche s'efface
+  // immédiatement » : chaque retouche appliquée effaçait ses propres versions).
+  const emittedRef = useRef<string | null>(null);
 
-  // Nouveau visuel de base (généré/uploadé ailleurs) → on repart de lui.
+  // Nouveau visuel de base réellement EXTERNE (généré/uploadé ailleurs)
+  // → on repart de lui. L'écho de notre propre résultat est ignoré.
   useEffect(() => {
-    setVersions((v) => (v[0] === imageUrl ? v : [imageUrl]));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [imageUrl.slice(0, 80)]);
+    if (imageUrl === emittedRef.current) return; // écho de notre onResult
+    setVersions((v) => (v.includes(imageUrl) ? v : [imageUrl]));
+  }, [imageUrl]);
 
   async function run(mode: "edit" | "upscale") {
     if (busy) return;
@@ -62,6 +68,7 @@ export function ImageEditor({
       if (d.simulated) { setNote(t("Édition IA non configurée (REPLICATE_API_TOKEN).", "AI editing not configured (REPLICATE_API_TOKEN).")); return; }
       if (!r.ok || !d.url) { setNote((d.error as string) || t("Échec de la retouche.", "Edit failed.")); return; }
       setVersions((v) => [...v, d.url]);
+      emittedRef.current = d.url; // l'écho de cette URL ne réinitialisera pas l'historique
       onResult(d.url);
       if (mode === "edit") setInstruction("");
     } catch {
@@ -73,6 +80,7 @@ export function ImageEditor({
     const url = versions[i];
     if (!url) return;
     setVersions((v) => v.slice(0, i + 1));
+    emittedRef.current = url; // idem : restauration = notre propre émission
     onResult(url);
   }
 

@@ -109,7 +109,10 @@ export default function StudioAffichePage() {
       const effPrompt = o?.prompt ?? prompt;
       const r = await fetch("/api/ai/generate-image", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: [effPrompt || `affiche professionnelle pour ${company.name}`, promptHints].filter(Boolean).join(". "), format: o?.ar ?? format.ar, n: 1, model: o?.model ?? modelId }),
+        // companyId → l'image générée est PERSISTÉE (stockage durable + médiathèque).
+        // Sans lui, le fond restait une URL Replicate éphémère (~1 h) : la retouche
+        // qui la prend en entrée échouait dès l'expiration.
+        body: JSON.stringify({ companyId, prompt: [effPrompt || `affiche professionnelle pour ${company.name}`, promptHints].filter(Boolean).join(". "), format: o?.ar ?? format.ar, n: 1, model: o?.model ?? modelId }),
       });
       const d = await r.json();
       if (!r.ok) { setNote(d.error || t("Échec de génération.", "Generation failed.")); return; }

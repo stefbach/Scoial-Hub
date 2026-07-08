@@ -173,6 +173,105 @@ async function uploadLinkedInImage(author: string, imageUrl: string, token: stri
   return imageUrn;
 }
 
+/** Vrai si le média est une vidéo (mimeType prioritaire, sinon extension). */
+function isVideoMedia(media: { url: string; mimeType?: string }): boolean {
+  if (media.mimeType?.startsWith("video")) return true;
+  return /\.(mp4|mov|m4v|webm|avi)(\?|$)/i.test(media.url);
+}
+
+/**
+ * Upload d'une VIDÉO vers LinkedIn (Videos API) et renvoi de son URN
+ * (`urn:li:video:...`). Flux officiel :
+ *   1) initializeUpload (fileSizeBytes) → { video, uploadInstructions[], uploadToken }
+ *   2) PUT de chaque tranche d'octets vers son uploadUrl (ETag par partie)
+ *   3) finalizeUpload avec les ETags
+ *   4) courte attente du traitement (poll), puis l'URN se référence dans le post.
+ */
+async function uploadLinkedInVideo(author: string, videoUrl: string, token: string): Promise<string> {
+  const restHeaders = {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
+    "LinkedIn-Version": LINKEDIN_VERSION,
+    "X-Restli-Protocol-Version": "2.0.0",
+  } as const;
+
+  // 0) Octets de la vidéo source (URL publique — nos médias sont hébergés).
+  const vidRes = await fetch(videoUrl);
+  if (!vidRes.ok) throw new Error(`Téléchargement de la vidéo échoué (HTTP ${vidRes.status}).`);
+  const bytes = Buffer.from(await vidRes.arrayBuffer());
+  if (bytes.length < 75 * 1024) throw new Error("Vidéo trop courte pour LinkedIn (minimum ~75 Ko).");
+  if (bytes.length > 200 * 1024 * 1024) throw new Error("Vidéo trop lourde (> 200 Mo). Compressez-la avant publication.");
+
+  // 1) initializeUpload
+  const init = await fetch(`${LI_API_REST}/videos?action=initializeUpload`, {
+    method: "POST",
+    headers: restHeaders,
+    body: JSON.stringify({
+      initializeUploadRequest: {
+        owner: author,
+        fileSizeBytes: bytes.length,
+        uploadCaptions: false,
+        uploadThumbnail: false,
+      },
+    }),
+  });
+  if (!init.ok) throw new Error(`LinkedIn videos initializeUpload → HTTP ${init.status}`);
+  const initJson = (await init.json()) as {
+    value?: {
+      video?: string;
+      uploadToken?: string;
+      uploadInstructions?: { uploadUrl: string; firstByte: number; lastByte: number }[];
+    };
+  };
+  const videoUrn = initJson.value?.video;
+  const instructions = initJson.value?.uploadInstructions ?? [];
+  if (!videoUrn || instructions.length === 0) {
+    throw new Error("LinkedIn videos: réponse initializeUpload incomplète.");
+  }
+
+  // 2) Upload de chaque tranche (ordre préservé — les ETags servent au finalize).
+  const etags: string[] = [];
+  for (const part of instructions) {
+    const slice = bytes.subarray(part.firstByte, part.lastByte + 1);
+    const up = await fetch(part.uploadUrl, {
+      method: "PUT",
+      headers: { "Content-Type": "application/octet-stream" },
+      body: slice,
+    });
+    if (!up.ok) throw new Error(`LinkedIn video upload (octets ${part.firstByte}-${part.lastByte}) → HTTP ${up.status}`);
+    const etag = up.headers.get("etag");
+    if (etag) etags.push(etag);
+  }
+
+  // 3) finalizeUpload
+  const fin = await fetch(`${LI_API_REST}/videos?action=finalizeUpload`, {
+    method: "POST",
+    headers: restHeaders,
+    body: JSON.stringify({
+      finalizeUploadRequest: {
+        video: videoUrn,
+        uploadToken: initJson.value?.uploadToken ?? "",
+        uploadedPartIds: etags,
+      },
+    }),
+  });
+  if (!fin.ok) throw new Error(`LinkedIn videos finalizeUpload → HTTP ${fin.status}`);
+
+  // 4) Attente courte du traitement (le post exige une vidéo AVAILABLE ; si le
+  //    traitement dépasse la fenêtre, l'appelant réessaiera — jamais de faux succès).
+  for (let i = 0; i < 7; i++) {
+    await new Promise((r) => setTimeout(r, 5000));
+    const st = await fetch(`${LI_API_REST}/videos/${encodeURIComponent(videoUrn)}`, { headers: restHeaders });
+    if (!st.ok) continue;
+    const stJson = (await st.json()) as { status?: string };
+    if (stJson.status === "AVAILABLE") return videoUrn;
+    if (stJson.status === "PROCESSING_FAILED") {
+      throw new Error("LinkedIn n'a pas pu traiter la vidéo (format non supporté ?). Réessayez en MP4 H.264.");
+    }
+  }
+  throw new Error("LinkedIn traite encore la vidéo — nouvelle tentative au prochain passage.");
+}
+
 // ---------------------------------------------------------------------------
 // Valeurs simulées
 // ---------------------------------------------------------------------------
@@ -327,18 +426,29 @@ class LinkedInConnector implements SocialConnector {
       isReshareDisabledByAuthor: false,
     };
 
-    // Ajout d'un média image (upload réel via Images API), sinon partage de lien.
+    // Ajout du média : VIDÉO (Videos API) ou image (Images API), sinon lien.
     let mediaAttached = false;
     if (input.media?.url) {
-      try {
-        const imageUrn = await uploadLinkedInImage(author, input.media.url, input.accessToken);
+      if (isVideoMedia(input.media)) {
+        // Vidéo : pas de repli texte silencieux — un échec doit se voir et être
+        // retenté (le cron re-tente les échecs transitoires), jamais publier
+        // le post sans sa vidéo à l'insu de l'utilisateur.
+        const videoUrn = await uploadLinkedInVideo(author, input.media.url, input.accessToken);
         postBody.content = {
-          media: { id: imageUrn, ...(input.linkTitle ? { title: input.linkTitle } : {}) },
+          media: { id: videoUrn, ...(input.linkTitle ? { title: input.linkTitle } : {}) },
         };
         mediaAttached = true;
-      } catch (e) {
-        // Repli : si l'upload de l'image échoue, on publie au moins le texte.
-        console.warn("[linkedin] upload image échoué, publication en texte seul :", (e as Error).message);
+      } else {
+        try {
+          const imageUrn = await uploadLinkedInImage(author, input.media.url, input.accessToken);
+          postBody.content = {
+            media: { id: imageUrn, ...(input.linkTitle ? { title: input.linkTitle } : {}) },
+          };
+          mediaAttached = true;
+        } catch (e) {
+          // Repli : si l'upload de l'image échoue, on publie au moins le texte.
+          console.warn("[linkedin] upload image échoué, publication en texte seul :", (e as Error).message);
+        }
       }
     }
     if (!mediaAttached && input.link) {

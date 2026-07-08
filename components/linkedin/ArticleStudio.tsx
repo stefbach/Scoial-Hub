@@ -134,6 +134,8 @@ export function ArticleStudio({ seed }: { seed?: { nonce: number; text: string }
   const [imgLoading, setImgLoading] = useState<number | null>(null);
   const [imgModel, setImgModel] = useState(VISUAL_MODELS[0].id);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  // Type du média choisi (le connecteur LinkedIn publie images ET vidéos).
+  const [selectedKind, setSelectedKind] = useState<"image" | "video">("image");
 
   // Chatbot d'ajustement (révision conversationnelle de l'article)
   const [chat, setChat] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
@@ -294,10 +296,11 @@ export function ArticleStudio({ seed }: { seed?: { nonce: number; text: string }
       // Filet de sécurité ultime (≤ 3000, coupe à une frontière de phrase, sans « … »).
       const text = finalText.length > LINKEDIN_MAX ? clampClean(finalText, LINKEDIN_MAX) : finalText;
       const chosenImg = selectedImage || Object.values(images).flat()[0];
+      const chosenIsVideo = Boolean(selectedImage) && selectedKind === "video";
       // Route réelle (par société + cible profil/Page), comme l'Espace LinkedIn.
       const r = await fetch("/api/linkedin/publish", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyId, text, imageUrl: chosenImg || undefined }),
+        body: JSON.stringify({ companyId, text, ...(chosenIsVideo ? { videoUrl: chosenImg } : { imageUrl: chosenImg || undefined }) }),
       });
       const d = await readJson(r);
       if (d.connected === false) {
@@ -322,6 +325,7 @@ export function ArticleStudio({ seed }: { seed?: { nonce: number; text: string }
     setScheduling(true); setPublishMsg(null);
     try {
       const chosenImg = selectedImage || Object.values(images).flat()[0];
+      const chosenIsVideo = Boolean(selectedImage) && selectedKind === "video";
       const body = postText.trim();
       const r = await fetch("/api/scheduled-posts", {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -329,7 +333,7 @@ export function ArticleStudio({ seed }: { seed?: { nonce: number; text: string }
           companyId, platform: "linkedin",
           title: body.slice(0, 48) + (body.length > 48 ? "…" : ""),
           body, date: schedDate, time: schedTime, status: "scheduled", source: "manual",
-          media: chosenImg ? { kind: "image", url: chosenImg } : undefined,
+          media: chosenImg ? { kind: (Boolean(selectedImage) && selectedKind === "video") ? "video" : "image", url: chosenImg } : undefined,
         }),
       });
       if (!r.ok) { setPublishMsg(t("Échec de la programmation.", "Scheduling failed.")); return; }
@@ -687,12 +691,16 @@ export function ArticleStudio({ seed }: { seed?: { nonce: number; text: string }
 
             {/* Visuel choisi */}
             {(selectedImage || Object.values(images).flat()[0]) && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={selectedImage || Object.values(images).flat()[0]}
-                alt="visuel de la publication"
-                className="mt-3 w-full rounded-lg border border-hair object-cover"
-              />
+              selectedImage && selectedKind === "video" ? (
+                <video src={selectedImage} controls className="mt-3 w-full rounded-lg border border-hair" />
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={selectedImage || Object.values(images).flat()[0]}
+                  alt="visuel de la publication"
+                  className="mt-3 w-full rounded-lg border border-hair object-cover"
+                />
+              )
             )}
           </div>
           {publishMsg && <p className="mt-3 rounded-lg bg-canvas px-3 py-2 text-xs text-ink">{publishMsg}</p>}

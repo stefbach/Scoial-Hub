@@ -58,6 +58,10 @@ export function SeriesPlanner({ platform }: { platform: SeriesPlatform }) {
     "w-full rounded-lg border border-hair bg-canvas px-3 py-2 text-sm text-ink outline-none focus:border-primary-400";
 
   const isVideo = cfg.media === "video";
+  // Facebook et Instagram acceptent AUSSI les vidéos (connecteurs : /videos et
+  // conteneur VIDEO) — on ouvre donc image + vidéo sur ces réseaux.
+  const allowVideo = isVideo || platform === "facebook" || platform === "instagram";
+  const attachAccept: "image" | "video" | "all" = isVideo ? "video" : allowVideo ? "all" : "image";
   const mediaRequired = cfg.media === "image" || cfg.media === "video";
 
   const [drafts, setDrafts] = useState<DraftItem[]>([{ body: "" }, { body: "" }, { body: "" }]);
@@ -327,7 +331,7 @@ export function SeriesPlanner({ platform }: { platform: SeriesPlatform }) {
                     </span>
                   ) : (
                     <span className={`text-2xs ${mediaRequired ? "font-semibold text-warning-700" : "text-muted"}`}>
-                      {mediaRequired ? (isVideo ? t("Vidéo requise", "Video required") : t("Image requise", "Image required")) : t("Pas de visuel", "No visual")}
+                      {mediaRequired ? (isVideo ? t("Vidéo requise", "Video required") : allowVideo ? t("Image ou vidéo requise", "Image or video required") : t("Image requise", "Image required")) : t("Pas de visuel", "No visual")}
                     </span>
                   )}
                   {!isVideo && (
@@ -337,12 +341,12 @@ export function SeriesPlanner({ platform }: { platform: SeriesPlatform }) {
                       {genImgIdx === i ? t("Génération…", "Generating…") : t("✨ Générer le visuel", "✨ Generate visual")}
                     </button>
                   )}
-                  <MediaLibraryButton companyId={companyId} accept={isVideo ? "video" : "image"}
+                  <MediaLibraryButton companyId={companyId} accept={attachAccept}
                     label={isVideo ? t("📚 Vidéo bibliothèque", "📚 Library video") : t("📚 Bibliothèque", "📚 Library")}
                     className="btn-secondary text-2xs" onPick={(a) => patchDraft(i, { media: a.url, mediaKind: a.type })} />
                   {/* Import direct : VOTRE visuel ou vidéo, depuis l'ordinateur. */}
-                  <UploadMediaButton companyId={companyId} accept={isVideo ? "video" : "image"}
-                    label={isVideo ? t("📤 Importer ma vidéo", "📤 Upload my video") : t("📤 Importer mon visuel", "📤 Upload my visual")}
+                  <UploadMediaButton companyId={companyId} accept={attachAccept}
+                    label={isVideo ? t("📤 Importer ma vidéo", "📤 Upload my video") : allowVideo ? t("📤 Importer (image/vidéo)", "📤 Upload (image/video)") : t("📤 Importer mon visuel", "📤 Upload my visual")}
                     className="btn-secondary text-2xs"
                     onUploaded={(url, kind) => patchDraft(i, { media: url, mediaKind: kind })} />
                 </div>

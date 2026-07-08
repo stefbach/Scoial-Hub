@@ -401,48 +401,71 @@ export default function StudioAffichePage() {
   const [decliningAds, setDecliningAds] = useState(false);
   const [adsDone, setAdsDone] = useState(0);
   const declineAspects = Array.from(new Set(declineSet.map((f) => f.ar)));
+  /** Recompose le fond par IA pour UN ratio. 2 tentatives (les échecs Replicate
+      ponctuels — rate-limit, filtre — faisaient perdre 2 formats sur 9). */
+  async function recomposeAspect(ar: string): Promise<HTMLImageElement | null> {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const r = await fetch("/api/ai/generate-image", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            companyId, // persiste la recomposition (URL stable + médiathèque)
+            imageUrl: bgUrl,
+            format: ar,
+            prompt: [prompt, `Recompose harmonieusement ce visuel au format ${ar} en gardant exactement le même sujet, style et ambiance. Étends naturellement le décor pour remplir tout le cadre, sans déformer ni couper le sujet principal. Rendu publicitaire premium, haute définition.`].filter(Boolean).join(". "),
+          }),
+        });
+        const d = await r.json();
+        const url: string | null = Array.isArray(d.images)
+          ? d.images.map((i: string | { url?: string }) => (typeof i === "string" ? i : i?.url ?? "")).find(Boolean) ?? null
+          : null;
+        if (url) return await loadImage(`/api/proxy-image?url=${encodeURIComponent(url)}`);
+      } catch { /* nouvelle tentative */ }
+    }
+    return null;
+  }
+
   async function declineAds() {
     if (decliningAds || declining) return;
     if (!bgUrl) { setNote(t("Générez d'abord un fond (IA) pour décliner en pub plein cadre.", "Generate a background (AI) first to create full-frame ads.")); return; }
     setDecliningAds(true); setAdsDone(0); setNote(null);
-    let ok = 0;
+    let okIA = 0;
+    let okFit = 0;
     try {
-      // 1) Recompose le fond par IA pour chaque ratio (plein cadre, sans couper).
+      // 1) Recompose le fond par IA pour chaque ratio (plein cadre, sans couper),
+      //    avec 2 tentatives par ratio.
       const bgByAspect: Record<string, HTMLImageElement> = {};
       for (const ar of declineAspects) {
-        try {
-          const r = await fetch("/api/ai/generate-image", {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              imageUrl: bgUrl,
-              format: ar,
-              prompt: [prompt, `Recompose harmonieusement ce visuel au format ${ar} en gardant exactement le même sujet, style et ambiance. Étends naturellement le décor pour remplir tout le cadre, sans déformer ni couper le sujet principal. Rendu publicitaire premium, haute définition.`].filter(Boolean).join(". "),
-            }),
-          });
-          const d = await r.json();
-          const url: string | null = Array.isArray(d.images)
-            ? d.images.map((i: string | { url?: string }) => (typeof i === "string" ? i : i?.url ?? "")).find(Boolean) ?? null
-            : null;
-          if (url) bgByAspect[ar] = await loadImage(`/api/proxy-image?url=${encodeURIComponent(url)}`);
-        } catch { /* ratio suivant */ }
+        const img = await recomposeAspect(ar);
+        if (img) bgByAspect[ar] = img;
         setAdsDone((n) => n + 1);
       }
-      if (Object.keys(bgByAspect).length === 0) {
-        setNote(t("Recomposition IA indisponible (REPLICATE_API_TOKEN ?). Essayez « Décliner sans coupe ».", "AI recomposition unavailable (REPLICATE_API_TOKEN?). Try 'Decline without cropping'."));
-        return;
-      }
-      // 2) Compose texte + logo sur chaque fond recomposé, plein cadre, et enregistre.
+      // 2) Compose texte + logo sur chaque format et enregistre. AUCUN format
+      //    n'est sauté : si la recomposition IA d'un ratio a échoué, on replie
+      //    sur le rendu « sans coupe » (fit) — l'utilisateur obtient TOUJOURS
+      //    ses 9 formats (avant : `continue` silencieux → 7/9 sans explication).
       for (const fmt of declineSet) {
-        const bg = bgByAspect[fmt.ar];
-        if (!bg) continue;
+        const bg = bgByAspect[fmt.ar] ?? null;
         const off = document.createElement("canvas");
-        paint(off, fmt, "cover", bg);
+        paint(off, fmt, bg ? "cover" : "fit", bg);
         const blob = await new Promise<Blob | null>((res) => off.toBlob((b) => res(b), "image/png"));
-        if (blob) { const u = await hostBlob(blob, fmt.id); if (u) ok += 1; }
+        if (blob) {
+          const u = await hostBlob(blob, fmt.id);
+          if (u) { if (bg) okIA += 1; else okFit += 1; }
+        }
       }
-      setNote(ok > 0
-        ? t(`✓ ${ok} visuels de pub recomposés par IA (plein cadre) enregistrés dans la bibliothèque.`, `✓ ${ok} ad visuals recomposed by AI (full-frame) saved to the library.`)
-        : t("Échec de la déclinaison pub.", "Ad declension failed."));
+      const total = okIA + okFit;
+      if (total === 0) {
+        setNote(t("Échec de la déclinaison pub (image protégée ?). Régénérez le fond via l'IA.", "Ad declension failed (protected image?). Regenerate the background via AI."));
+      } else if (okFit === 0) {
+        setNote(t(`✓ ${okIA} visuels de pub recomposés par IA (plein cadre) enregistrés dans la bibliothèque.`, `✓ ${okIA} ad visuals recomposed by AI (full-frame) saved to the library.`));
+      } else {
+        // Message HONNÊTE : on dit ce qui est plein cadre IA et ce qui est en repli.
+        setNote(t(
+          `✓ ${total} formats enregistrés — ${okIA} recomposés par IA (plein cadre) et ${okFit} en repli « sans coupe » (recomposition IA momentanément indisponible pour leur ratio ; relancez pour réessayer).`,
+          `✓ ${total} formats saved — ${okIA} AI-recomposed (full-frame) and ${okFit} in no-crop fallback (AI recomposition temporarily unavailable for their ratio; run again to retry).`
+        ));
+      }
     } catch {
       setNote(t("Échec de la déclinaison pub.", "Ad declension failed."));
     } finally { setDecliningAds(false); }

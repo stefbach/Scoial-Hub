@@ -158,9 +158,30 @@ export default function StudioAffichePage() {
     const reader = new FileReader();
     reader.onload = async () => {
       try {
-        const img = await loadImage(String(reader.result));
-        if (kind === "bg") { setBgImg(img); setBgUrl(String(reader.result)); }
-        else setLogoImg(img);
+        const dataUrl = String(reader.result);
+        const img = await loadImage(dataUrl);
+        if (kind === "bg") {
+          setBgImg(img);
+          setBgUrl(dataUrl); // affichage immédiat (repli si l'hébergement échoue)
+          // Héberge le fichier importé → URL https stable. Sans cela, la retouche
+          // IA envoyait le data-URI complet dans le corps JSON → HTTP 413
+          // (limite ~4,5 Mo de Vercel) dès qu'une photo dépassait ~3 Mo.
+          void (async () => {
+            try {
+              const sb = createClient();
+              if (!sb) return;
+              const ext = (file.name.split(".").pop() || "png").toLowerCase().replace(/[^a-z0-9]/g, "") || "png";
+              const path = `${companyId}/affiche-bg-${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
+              const { error } = await sb.storage.from("sh-videos").upload(path, file, {
+                contentType: file.type || "image/png",
+                upsert: true,
+              });
+              if (error) return; // data-URI reste le repli
+              const { data } = sb.storage.from("sh-videos").getPublicUrl(path);
+              if (data?.publicUrl) setBgUrl(data.publicUrl);
+            } catch { /* data-URI reste le repli */ }
+          })();
+        } else setLogoImg(img);
       } catch { setNote(t("Image illisible.", "Unreadable image.")); }
     };
     reader.readAsDataURL(file);

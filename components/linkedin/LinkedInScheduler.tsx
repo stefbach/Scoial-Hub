@@ -16,6 +16,7 @@ import { useT, useLang } from "@/lib/i18n";
 import { Spinner } from "@/components/ui/Spinner";
 import { DatePicker, TimePicker } from "@/components/ui/DateTimePicker";
 import { MediaLibraryButton } from "@/components/studio/MediaLibrary";
+import { UploadMediaButton } from "@/components/studio/UploadMediaButton";
 import { PublishLanguageSelect } from "@/components/ui/PublishLanguageSelect";
 import type { ScheduledPost } from "@/lib/types";
 
@@ -660,6 +661,14 @@ export function LinkedInScheduler() {
                   className="btn-secondary text-2xs"
                   onPick={(a) => patchDraft(i, { media: a.url })}
                 />
+                {/* Import direct : VOTRE visuel, depuis l'ordinateur. */}
+                <UploadMediaButton
+                  companyId={companyId}
+                  accept="image"
+                  label={t("📤 Importer mon visuel", "📤 Upload my visual")}
+                  className="btn-secondary text-2xs"
+                  onUploaded={(url) => patchDraft(i, { media: url })}
+                />
               </div>
             </div>
           ))}
@@ -693,6 +702,13 @@ export function LinkedInScheduler() {
             label={seriesImage ? t("📚 Changer le visuel", "📚 Change visual") : t("📚 Choisir un visuel", "📚 Pick a visual")}
             className="btn-secondary text-2xs"
             onPick={(a) => setSeriesImage(a.url)}
+          />
+          <UploadMediaButton
+            companyId={companyId}
+            accept="image"
+            label={t("📤 Importer mon visuel", "📤 Upload my visual")}
+            className="btn-secondary text-2xs"
+            onUploaded={(url) => setSeriesImage(url)}
           />
           <span className="text-2xs text-muted">{t("Visuel par défaut — utilisé pour les éléments sans visuel propre.", "Default visual — used for items without their own.")}</span>
         </div>

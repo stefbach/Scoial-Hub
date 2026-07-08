@@ -15,6 +15,7 @@ import { useT, useLang } from "@/lib/i18n";
 import { Spinner } from "@/components/ui/Spinner";
 import { DatePicker, TimePicker } from "@/components/ui/DateTimePicker";
 import { MediaLibraryButton } from "@/components/studio/MediaLibrary";
+import { UploadMediaButton } from "@/components/studio/UploadMediaButton";
 import { PublishLanguageSelect } from "@/components/ui/PublishLanguageSelect";
 import { SERIES_CONFIG, type SeriesPlatform } from "@/lib/social-series";
 
@@ -31,6 +32,8 @@ interface DraftItem {
   body: string;
   visualPrompt?: string;
   media?: string | null;
+  /** Type du média attaché (image/vidéo) — propagé à la programmation. */
+  mediaKind?: "image" | "video" | null;
 }
 
 function extractImageUrls(data: unknown): string[] {
@@ -139,7 +142,7 @@ export function SeriesPlanner({ platform }: { platform: SeriesPlatform }) {
       const d = await r.json().catch(() => ({}));
       if (!r.ok) { setMsg((d.error as string) ?? t("Échec de génération d'image.", "Image generation failed.")); return; }
       const urls = extractImageUrls(d);
-      if (urls.length > 0) patchDraft(i, { media: urls[0] });
+      if (urls.length > 0) patchDraft(i, { media: urls[0], mediaKind: "image" });
       else if (d.simulated) setMsg(t("Génération d'images non configurée (REPLICATE_API_TOKEN).", "Image generation not configured (REPLICATE_API_TOKEN)."));
       else setMsg(t("Aucune image renvoyée. Réessayez.", "No image returned. Try again."));
     } catch (e) {
@@ -179,7 +182,7 @@ export function SeriesPlanner({ platform }: { platform: SeriesPlatform }) {
               companyId, platform, title: titleFromBody(bodyText), body: bodyText,
               date: format(draftDate(i), "yyyy-MM-dd"), time: batchTime,
               status: "scheduled", source: "manual",
-              media: imgUrl ? { kind: "image", url: imgUrl } : undefined,
+              media: imgUrl ? { kind: item.mediaKind ?? (isVideo ? "video" : "image"), url: imgUrl } : undefined,
             }),
           });
           r.ok ? ok++ : failed++;
@@ -313,7 +316,7 @@ export function SeriesPlanner({ platform }: { platform: SeriesPlatform }) {
                 <div className="mt-2 flex flex-wrap items-center gap-2 pl-7">
                   {d.media ? (
                     <span className="relative inline-block">
-                      {isVideo ? (
+                      {(d.mediaKind ?? (isVideo ? "video" : "image")) === "video" ? (
                         <video src={d.media} className="h-12 w-12 rounded-lg border border-hair object-cover" muted />
                       ) : (
                         // eslint-disable-next-line @next/next/no-img-element
@@ -336,7 +339,12 @@ export function SeriesPlanner({ platform }: { platform: SeriesPlatform }) {
                   )}
                   <MediaLibraryButton companyId={companyId} accept={isVideo ? "video" : "image"}
                     label={isVideo ? t("📚 Vidéo bibliothèque", "📚 Library video") : t("📚 Bibliothèque", "📚 Library")}
-                    className="btn-secondary text-2xs" onPick={(a) => patchDraft(i, { media: a.url })} />
+                    className="btn-secondary text-2xs" onPick={(a) => patchDraft(i, { media: a.url, mediaKind: a.type })} />
+                  {/* Import direct : VOTRE visuel ou vidéo, depuis l'ordinateur. */}
+                  <UploadMediaButton companyId={companyId} accept={isVideo ? "video" : "image"}
+                    label={isVideo ? t("📤 Importer ma vidéo", "📤 Upload my video") : t("📤 Importer mon visuel", "📤 Upload my visual")}
+                    className="btn-secondary text-2xs"
+                    onUploaded={(url, kind) => patchDraft(i, { media: url, mediaKind: kind })} />
                 </div>
               )}
             </div>

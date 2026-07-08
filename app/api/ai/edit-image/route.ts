@@ -10,6 +10,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireCompanyAccess } from "@/lib/auth/guard";
 import { runReplicateUrl, isReplicateConfigured } from "@/lib/ai/replicate";
 import { EDIT_MODELS, UPSCALE_MODELS, DEFAULT_EDIT_MODEL_ID } from "@/lib/ai/model-catalog";
+import { persistRemoteMedia } from "@/lib/repositories/media";
 
 export async function POST(req: NextRequest) {
   try {
@@ -46,7 +47,10 @@ export async function POST(req: NextRequest) {
     if (!url) {
       return NextResponse.json({ error: "Aucune image renvoyée par le modèle. Réessayez." }, { status: 502 });
     }
-    return NextResponse.json({ url, model: modelId, mode });
+    // Persiste le résultat sur notre stockage (les URLs Replicate expirent ~1 h) :
+    // sans cela, la retouche « disparaissait » à la prochaine ouverture/retouche.
+    const durable = await persistRemoteMedia(companyId, url, "image");
+    return NextResponse.json({ url: durable, model: modelId, mode });
   } catch (e) {
     console.error("[POST /api/ai/edit-image]", e);
     const msg = e instanceof Error ? e.message : "Erreur serveur";

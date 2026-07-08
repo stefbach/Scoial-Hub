@@ -621,18 +621,18 @@ export function ArticleStudio({ seed }: { seed?: { nonce: number; text: string }
               {/* Réutiliser un visuel déjà créé ailleurs (Studios, etc.) */}
               <MediaLibraryButton
                 companyId={companyId}
-                accept="image"
-                label={t("📚 Visuel de la bibliothèque", "📚 Library visual")}
+                accept="all"
+                label={t("📚 Bibliothèque (image/vidéo)", "📚 Library (image/video)")}
                 className="btn-secondary text-xs"
-                onPick={(a) => setSelectedImage(a.url)}
+                onPick={(a) => { setSelectedImage(a.url); setSelectedKind(a.type); }}
               />
               {/* Import direct : VOTRE visuel, depuis l'ordinateur (hébergé + médiathèque). */}
               <UploadMediaButton
                 companyId={companyId}
-                accept="image"
-                label={t("📤 Importer mon visuel", "📤 Upload my visual")}
+                accept="all"
+                label={t("📤 Importer (image/vidéo)", "📤 Upload (image/video)")}
                 className="btn-secondary text-xs"
-                onUploaded={(url) => setSelectedImage(url)}
+                onUploaded={(url, kind) => { setSelectedImage(url); setSelectedKind(kind); }}
               />
               <button onClick={copyArticle} className="btn-secondary text-xs">{copied ? t("Copié ✓", "Copied ✓") : t("Copier le texte", "Copy text")}</button>
               <button onClick={publish} disabled={publishing || !canEdit} title={!canEdit ? t("Lecture seule", "View only") : undefined} className="btn-primary inline-flex items-center gap-1.5 text-xs disabled:opacity-50">

@@ -11,6 +11,7 @@ import { PUBLISH_LANGUAGES } from "@/lib/publish-languages";
 import { Spinner, BusyHint } from "@/components/ui/Spinner";
 import { LinkedInScheduler } from "@/components/linkedin/LinkedInScheduler";
 import { MediaLibraryButton } from "@/components/studio/MediaLibrary";
+import { UploadMediaButton } from "@/components/studio/UploadMediaButton";
 
 // Modèles visuels de qualité proposés sur cet écran (du plus net au plus rapide).
 const VISUAL_MODELS: { id: string; label: string }[] = [
@@ -624,6 +625,14 @@ export function ArticleStudio({ seed }: { seed?: { nonce: number; text: string }
                 label={t("📚 Visuel de la bibliothèque", "📚 Library visual")}
                 className="btn-secondary text-xs"
                 onPick={(a) => setSelectedImage(a.url)}
+              />
+              {/* Import direct : VOTRE visuel, depuis l'ordinateur (hébergé + médiathèque). */}
+              <UploadMediaButton
+                companyId={companyId}
+                accept="image"
+                label={t("📤 Importer mon visuel", "📤 Upload my visual")}
+                className="btn-secondary text-xs"
+                onUploaded={(url) => setSelectedImage(url)}
               />
               <button onClick={copyArticle} className="btn-secondary text-xs">{copied ? t("Copié ✓", "Copied ✓") : t("Copier le texte", "Copy text")}</button>
               <button onClick={publish} disabled={publishing || !canEdit} title={!canEdit ? t("Lecture seule", "View only") : undefined} className="btn-primary inline-flex items-center gap-1.5 text-xs disabled:opacity-50">

@@ -412,7 +412,11 @@ export default function StudioAffichePage() {
             companyId, // persiste la recomposition (URL stable + médiathèque)
             imageUrl: bgUrl,
             format: ar,
-            prompt: [prompt, `Recompose harmonieusement ce visuel au format ${ar} en gardant exactement le même sujet, style et ambiance. Étends naturellement le décor pour remplir tout le cadre, sans déformer ni couper le sujet principal. Rendu publicitaire premium, haute définition.`].filter(Boolean).join(". "),
+            // Consignes STRICTES : la déclinaison coupait le bas des affiches et
+            // ré-écrivait/mutilait les textes incrustés (« follow-uµr »…). On impose
+            // l'OUTPAINTING (étendre le décor, jamais recadrer) et la préservation
+            // pixel-perfect de tous les textes et blocs existants.
+            prompt: [prompt, `Adapte ce visuel au format ${ar} par EXTENSION du décor (outpainting) uniquement. RÈGLES ABSOLUES : 1) Ne recadre RIEN — chaque élément existant (titres, textes, listes, boutons, logos, badges, personnes) doit rester ENTIÈREMENT visible dans le cadre, avec une marge de sécurité. 2) Ne modifie, ne réécris, ne redessine et ne coupe AUCUN texte : tous les textes doivent rester strictement identiques, nets et lisibles, lettre pour lettre. 3) Étends seulement l'arrière-plan (décor, murs, ambiance) au-dessus, en dessous ou sur les côtés pour remplir le format ${ar}. 4) Conserve le même sujet, style, couleurs et ambiance. Rendu publicitaire premium, haute définition.`].filter(Boolean).join(". "),
           }),
         });
         const d = await r.json();

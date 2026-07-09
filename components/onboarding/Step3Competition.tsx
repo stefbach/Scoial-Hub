@@ -429,9 +429,11 @@ export default function Step3Competition() {
                 </ol>
               </div>
             ) : (
-              /* Pas de données concurrents */
-              <div className="flex flex-col gap-3 rounded-xl border border-dashed border-primary-200 bg-primary-50/30 px-5 py-5 text-center">
-                <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl border border-primary-200 bg-primary-50">
+              /* Pas de données concurrents — bg-primary-50 plein (et non /30) :
+                 la variante avec opacité échappe au remap thème clair de
+                 globals.css et rendait un gris terne (#31). */
+              <div className="flex flex-col gap-3 rounded-xl border border-dashed border-primary-200 bg-primary-50 px-5 py-5 text-center">
+                <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl border border-primary-200 bg-card shadow-sm">
                   {/* Icône loupe */}
                   <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden className="text-primary-500">
                     <circle cx="8" cy="8" r="5.5" stroke="currentColor" strokeWidth="1.5" />

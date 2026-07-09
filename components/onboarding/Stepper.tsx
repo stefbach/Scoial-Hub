@@ -40,7 +40,15 @@ export function Stepper({ steps }: { steps: StepMeta[] }) {
           const done = current > s.n;
           const active = current === s.n;
           return (
-            <li key={s.key} className="flex min-w-0 shrink-0 items-center gap-1.5 sm:flex-1 sm:shrink lg:gap-2">
+            <li
+              key={s.key}
+              // L'étape active garde sa largeur naturelle (shrink-0) sous lg :
+              // son titre reste lisible en écran étroit/partagé au lieu d'être
+              // tronqué à 2-3 caractères ; le rail défile si nécessaire (#32).
+              className={`flex min-w-0 shrink-0 items-center gap-1.5 lg:gap-2 ${
+                active ? "lg:flex-1 lg:shrink" : "sm:flex-1 sm:shrink"
+              }`}
+            >
               <button
                 type="button"
                 onClick={() => goTo(s.n)}

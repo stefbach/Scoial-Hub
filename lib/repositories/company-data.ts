@@ -9,6 +9,7 @@ import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/env";
 import { resolveCompanyUuid } from "@/lib/repositories/resolve-company";
 import { makeEmptyCompanyData } from "@/lib/mock-data";
+import { isCampaignActive } from "@/lib/campaigns/active";
 import type {
   CompanyData,
   Campaign,
@@ -216,12 +217,21 @@ export async function getCompanyData(companyId: string): Promise<CompanyData> {
     const now = Date.now();
     const within7d = (iso?: string) =>
       iso ? now - new Date(iso).getTime() <= 7 * 24 * 3600 * 1000 : false;
+    // Échéance dépassée ? (date seule → fin de journée pour ne pas exclure
+    // un post daté d'aujourd'hui sans heure). Date invalide/absente → false.
+    const isPastDue = (p: ScheduledPost): boolean => {
+      if (!p.date) return false;
+      const ts = new Date(`${p.date}T${p.time || "23:59"}`).getTime();
+      return !Number.isNaN(ts) && ts < now;
+    };
 
     const published7d = history.filter(
       (h) => h.status === "published" && within7d(h.publishedAt)
     ).length;
     const failed = history.filter((h) => h.status === "failed").length;
-    const activeCampaigns = campaigns.filter((c) => c.status === "active").length;
+    // UAT #13 — même prédicat que la page Campagnes (badge « Actif » = toggle
+    // de diffusion), pour que les deux comptes soient toujours identiques.
+    const activeCampaigns = campaigns.filter(isCampaignActive).length;
     const spendMtd = campaigns.reduce((acc, c) => acc + c.spend, 0);
 
     data.accounts = accounts;
@@ -280,8 +290,11 @@ export async function getCompanyData(companyId: string): Promise<CompanyData> {
         activeCampaigns,
         spendMtd,
       },
+      // UAT #17 — un post programmé dont l'échéance est passée n'est plus
+      // « à venir » : il relève de l'historique (publié) ou des posts en
+      // retard/échec. On n'affiche que les échéances futures (ou sans date).
       upcomingPosts: scheduled
-        .filter((p) => p.status !== "published")
+        .filter((p) => p.status !== "published" && !isPastDue(p))
         .slice(0, 5)
         .map((p) => ({ platform: p.platform, title: p.title, when: `${p.date} ${p.time}`.trim() })),
     };

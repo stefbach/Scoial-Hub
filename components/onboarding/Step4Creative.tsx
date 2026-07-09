@@ -152,6 +152,17 @@ function extractImageUrl(data: GenerateImageResult): string | null {
 
 // ── Panneaux d'action contextuels ───────────────────────────────────────────
 
+// Modèle image le plus qualitatif du catalogue (cf. lib/ai/model-catalog.ts)
+// pour le visuel test — le défaut de la route (Flux 1.1 Pro) rendait des
+// maquettes au texte charabia (retour UAT #5).
+const TEST_VISUAL_MODEL_ID = "google/nano-banana";
+
+// Les modèles image ratent le texte incrusté : on cadre le rendu (photo de
+// marque, sans texte) en annexant cette directive au prompt de l'utilisateur.
+const TEST_VISUAL_STYLE_SUFFIX =
+  "Professional brand photography for social media, clean composition, natural lighting. " +
+  "No text, no words, no letters, no captions, no logos, no UI mockups or app screenshots.";
+
 /** Panneau mode autonome : prompt + génération d'un visuel test */
 function AutonomousPanel() {
   const t = useT();
@@ -173,7 +184,10 @@ function AutonomousPanel() {
       const res = await fetch("/api/ai/generate-image", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: prompt.trim() }),
+        body: JSON.stringify({
+          prompt: `${prompt.trim()} — ${TEST_VISUAL_STYLE_SUFFIX}`,
+          model: TEST_VISUAL_MODEL_ID,
+        }),
       });
       // Réponse défensive : on accepte toutes les formes connues
       const data = (await res.json()) as GenerateImageResult & { error?: string };
@@ -469,18 +483,8 @@ export default function Step4Creative() {
           className="animate-fade-in space-y-4"
           aria-label={t("Options du mode sélectionné", "Selected mode options")}
         >
-          {/* En-tête du panneau */}
-          <div className="flex items-center gap-2 border-b border-hair pb-3">
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary-50 text-primary-600">
-              {MODES.find((m) => m.id === activeMode)?.icon}
-            </span>
-            <p className="text-sm font-semibold text-ink">
-              {t(
-                MODES.find((m) => m.id === activeMode)?.titleFr ?? "",
-                MODES.find((m) => m.id === activeMode)?.titleEn ?? ""
-              )}
-            </p>
-          </div>
+          {/* Pas d'en-tête répétant le titre du mode : le choix est déjà
+              visible dans la carte sélectionnée ci-dessus (retour UAT #4). */}
 
           {/* Panneau spécifique au mode */}
           {activeMode === "autonomous" && <AutonomousPanel />}

@@ -141,7 +141,7 @@ function PilotageActiveStrip({ companyName }: { companyName: string }) {
         </Link>
         <Link
           href="/demarrage"
-          className="btn-ghost text-sm text-success-700 hover:bg-success-100"
+          className="btn-secondary text-sm"
         >
           {t("Revoir mon parcours", "Review setup")}
         </Link>

@@ -19,6 +19,7 @@ import {
   hydrateCampaigns,
   toggleCampaign,
 } from "@/lib/campaign-store";
+import { isCampaignActive } from "@/lib/campaigns/active";
 import { eur } from "@/lib/format";
 import { useT } from "@/lib/i18n";
 import { Spinner } from "@/components/ui/Spinner";
@@ -106,7 +107,14 @@ function CampaignsContent() {
   const c = {
     ...data.campaigns,
     list: mergedCampaigns,
-    activeCampaigns: mergedCampaigns.filter((camp) => camp.status === "active").length || data.campaigns.activeCampaigns,
+    // UAT #13 — même prédicat que le tableau de bord (isCampaignActive), sur
+    // les seules campagnes RÉELLES : un brouillon local non publié ne peut pas
+    // être « actif ». Tant que l'API n'a pas répondu, on garde le compte serveur
+    // (calculé avec le même prédicat).
+    activeCampaigns:
+      realCampaigns.length > 0
+        ? realCampaigns.filter(isCampaignActive).length
+        : data.campaigns.activeCampaigns,
   };
 
   const [draftsOpen, setDraftsOpen] = useState(true);

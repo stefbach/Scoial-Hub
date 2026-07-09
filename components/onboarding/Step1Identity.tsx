@@ -534,9 +534,11 @@ function ProfileResult({
         </div>
       )}
 
-      {/* Teaser des objectifs suggérés */}
+      {/* Teaser des objectifs suggérés — bg-primary-50 plein (et non /30) :
+          la variante avec opacité échappe au remap thème clair de globals.css
+          et rendait un gris terne (#31). */}
       {profile.suggestedObjectives.length > 0 && (
-        <div className="card p-4 sm:p-5 space-y-3 border-primary-100 bg-primary-50/30">
+        <div className="card p-4 sm:p-5 space-y-3 border-primary-100 bg-primary-50">
           <div className="flex items-center justify-between gap-2">
             <p className="section-label text-primary-600">
               {t("Objectifs suggérés pour vous", "Suggested objectives for you")}

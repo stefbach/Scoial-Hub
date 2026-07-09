@@ -65,6 +65,7 @@ const config: Config = {
           50:  "#2c1417",   // tuile rouge profonde
           100: "#3a181e",
           200: "#5a2730",   // bordures discrètes
+          300: "#7a3340",   // bordures accentuées (hover)
           500: "#f43f5e",   // solide
           600: "#fb7185",   // TEXTE clair
           700: "#fda4af",   // TEXTE très clair

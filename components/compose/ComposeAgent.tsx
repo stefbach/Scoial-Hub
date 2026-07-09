@@ -50,6 +50,9 @@ export function ComposeAgent({
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [genBusy, setGenBusy] = useState<string | null>(null);
+  // #20 : prompt du dernier visuel généré avec succès — affiche un message
+  // près du bouton (le média est attaché plus bas dans la page).
+  const [genDone, setGenDone] = useState<string | null>(null);
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -80,10 +83,11 @@ export function ComposeAgent({
   async function generateVisual(out: AgentOutput) {
     if (!out.visualPrompt || genBusy) return;
     setGenBusy(out.visualPrompt);
+    setGenDone(null);
     try {
       if (out.visualKind === "video") {
         const r = await generateVideoPolling({ prompt: out.visualPrompt, aspect: "9:16", companyId: company.id });
-        if (r.url) { onMedia({ url: r.url, kind: "video" }); return; }
+        if (r.url) { onMedia({ url: r.url, kind: "video" }); setGenDone(out.visualPrompt); return; }
         setMsgs((p) => [...p, { role: "assistant", content: t("La vidéo n'a pas pu être générée — réessayez ou passez en image.", "Video couldn't be generated — retry or switch to image.") }]);
         return;
       }
@@ -93,7 +97,7 @@ export function ComposeAgent({
       });
       const d = await r.json();
       const url = Array.isArray(d.images) ? (typeof d.images[0] === "string" ? d.images[0] : d.images[0]?.url) : null;
-      if (url) onMedia({ url, kind: "image" });
+      if (url) { onMedia({ url, kind: "image" }); setGenDone(out.visualPrompt); }
       else setMsgs((p) => [...p, { role: "assistant", content: (d.error as string) || t("Visuel indisponible (IA images non configurée ?).", "Visual unavailable (image AI not configured?).") }]);
     } finally { setGenBusy(null); }
   }
@@ -131,6 +135,12 @@ export function ComposeAgent({
                           ? (m.out.visualKind === "video" ? t("Vidéo en cours… (1-3 min)", "Video in progress… (1-3 min)") : t("Génération…", "Generating…"))
                           : (m.out.visualKind === "video" ? t("🎬 Générer la vidéo proposée", "🎬 Generate suggested video") : t("✨ Générer le visuel proposé", "✨ Generate suggested visual"))}
                       </button>
+                      {/* #20 : le média est attaché plus bas — on le dit ici. */}
+                      {genDone === m.out.visualPrompt && (
+                        <p className="font-medium text-success-600">
+                          ✓ {t("Visuel créé — affiché plus bas, dans la zone média.", "Visual created — shown below, in the media area.")}
+                        </p>
+                      )}
                       {(m.out.tips ?? []).length > 0 && <ul className="list-disc pl-4 text-muted">{m.out.tips!.slice(0, 2).map((tp, k) => <li key={k}>{tp}</li>)}</ul>}
                     </div>
                   )}

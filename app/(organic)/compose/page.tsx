@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { format } from "date-fns";
 import { useCompany } from "@/lib/company-context";
@@ -121,6 +121,9 @@ function ComposeContent() {
   const [submitting, setSubmitting] = useState(false);
   const [savingLibrary, setSavingLibrary] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  // #20 : ancre de la zone média — cible du défilement doux quand l'agent
+  // vient de générer un visuel (attaché tout en bas de la page).
+  const mediaRef = useRef<HTMLDivElement>(null);
 
   const toggle = (id: string) =>
     setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
@@ -339,7 +342,11 @@ function ComposeContent() {
               aria-hidden="true"
               className="hidden h-4 w-px shrink-0 rounded-full bg-hair sm:block"
             />
-            <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-hair bg-canvas px-2.5 py-0.5 text-2xs text-muted shadow-xs">
+            {/* #15 : initiales de la société active — infobulle explicative au survol. */}
+            <span
+              title={t(`Société active : ${company.name}`, `Active company: ${company.name}`)}
+              className="inline-flex shrink-0 cursor-help items-center gap-1.5 rounded-full border border-hair bg-canvas px-2.5 py-0.5 text-2xs text-muted shadow-xs"
+            >
               <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-primary-400" />
               <span className="font-semibold text-ink">{company.code}</span>
             </span>
@@ -347,14 +354,33 @@ function ComposeContent() {
           <p className="mt-0.5 w-full text-2xs text-muted">{modeSub}</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="secondary" onClick={handleSaveDraft} disabled={noneSelected || submitting || !canEdit}>
-            {t("Enregistrer comme brouillon", "Save as draft")}
-          </Button>
-          <Button variant="secondary" onClick={handleSaveToLibrary} disabled={savingLibrary || !canEdit}>
-            {savingLibrary
-              ? t("Enregistrement…", "Saving…")
-              : t("Enregistrer dans la bibliothèque", "Save to library")}
-          </Button>
+          {/* #16 : le brouillon est enregistré PAR réseau (contrairement à la
+              bibliothèque, indépendante des réseaux) — d'où sa condition
+              supplémentaire. Le span porte l'infobulle car un bouton désactivé
+              (pointer-events-none) n'affiche pas son title. */}
+          <span
+            title={
+              !canEdit
+                ? t("Lecture seule", "View only")
+                : noneSelected
+                ? t(
+                    "Sélectionnez au moins un réseau : le brouillon est enregistré pour chaque réseau choisi.",
+                    "Select at least one network: the draft is saved for each selected network."
+                  )
+                : undefined
+            }
+          >
+            <Button variant="secondary" onClick={handleSaveDraft} disabled={noneSelected || submitting || !canEdit}>
+              {t("Enregistrer comme brouillon", "Save as draft")}
+            </Button>
+          </span>
+          <span title={!canEdit ? t("Lecture seule", "View only") : undefined}>
+            <Button variant="secondary" onClick={handleSaveToLibrary} disabled={savingLibrary || !canEdit}>
+              {savingLibrary
+                ? t("Enregistrement…", "Saving…")
+                : t("Enregistrer dans la bibliothèque", "Save to library")}
+            </Button>
+          </span>
         </div>
       </div>
 
@@ -446,7 +472,7 @@ function ComposeContent() {
               ]}
             />
             <p className="mt-1.5 text-2xs text-muted">
-              {t("L'agent IA remplit automatiquement un texte adapté à chaque réseau ; vous pouvez tout retoucher.", "The AI agent fills a tailored text per network; you can edit everything.")}
+              {t("✦ L'agent IA ci-dessous remplit automatiquement un texte adapté à chaque réseau ; vous pouvez tout retoucher.", "✦ The AI agent below automatically fills a tailored text per network; you can edit everything.")}
             </p>
           </div>
 
@@ -499,7 +525,11 @@ function ComposeContent() {
               const first = texts.facebook ?? texts.instagram ?? texts.tiktok;
               if (first) setBody(first);
             }}
-            onMedia={(m) => setUpload({ url: m.url, name: m.kind === "video" ? "ai-video" : "ai-visual", size: 0, kind: m.kind })}
+            onMedia={(m) => {
+              setUpload({ url: m.url, name: m.kind === "video" ? "ai-video" : "ai-visual", size: 0, kind: m.kind });
+              // #20 : le visuel s'affiche plus bas — on y défile en douceur.
+              setTimeout(() => mediaRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 150);
+            }}
           />
           <label className="-mt-3 flex items-center gap-2 px-1 text-2xs text-muted">
             <input type="checkbox" checked={useMemory} onChange={(e) => setUseMemory(e.target.checked)} className="h-3.5 w-3.5 accent-page" />
@@ -536,8 +566,10 @@ function ComposeContent() {
             onUse={(m) => setUpload({ url: m.url, name: m.kind === "video" ? "ai-video" : "ai-visual", size: 0, kind: m.kind })}
           />
 
-          {/* Media upload */}
-          <MediaUpload media={upload} onChange={setUpload} companyId={company.id} />
+          {/* Media upload — ancre du défilement doux après génération (#20) */}
+          <div ref={mediaRef}>
+            <MediaUpload media={upload} onChange={setUpload} companyId={company.id} />
+          </div>
           {upload && (
             <button
               type="button"
@@ -561,8 +593,9 @@ function ComposeContent() {
             onTimeChange={setTime}
           />
 
-          {/* Footer actions */}
-          <div className="flex justify-end gap-2 border-t border-hair pt-4">
+          {/* Footer actions — pas de conteneur bordé : le contour dessinait un
+              rectangle vide au-dessus/autour des boutons (#24). */}
+          <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => router.push("/scheduled")}>
               {t("Annuler", "Cancel")}
             </Button>
@@ -626,16 +659,43 @@ function ComposeContent() {
           />
         </div>
       </div>
+
+      {/* Retours d'enregistrement — toast flottant, affiché UNIQUEMENT quand il
+          y a un message (jamais de conteneur vide dans la page) (#24). */}
+      {toast && <Toast message={toast} onDismiss={() => setToast(null)} />}
     </div>
   );
 }
 
 function ContentBox({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder?: string }) {
+  const t = useT();
+  // #18 : tant que la zone est vide, on explique que l'IA la remplira
+  // (placeholder explicite) et on lui donne un habillage « univers IA »
+  // (tuile primaire pleine + étiquette ✦ IA — pas de variante d'opacité,
+  // pour rester lisible dans les deux thèmes).
+  const empty = value.trim() === "";
   return (
-    <textarea
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className="input h-28 resize-none"
-    />
+    <div className="relative">
+      <textarea
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={
+          placeholder ??
+          t(
+            "✦ L'IA remplira ce texte automatiquement quand vous lancerez l'agent ci-dessous — vous pourrez tout retoucher.",
+            "✦ The AI will fill this text automatically when you run the agent below — you can edit everything."
+          )
+        }
+        className={`input h-28 resize-none ${empty ? "border-primary-200 bg-primary-50" : ""}`}
+      />
+      {empty && (
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute right-2 top-2 rounded-full bg-primary-100 px-2 py-0.5 text-2xs font-semibold text-primary-600"
+        >
+          ✦ IA
+        </span>
+      )}
+    </div>
   );
 }

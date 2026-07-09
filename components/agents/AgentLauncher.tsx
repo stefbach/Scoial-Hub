@@ -75,7 +75,7 @@ export function AgentLauncher({
       <button type="button" onClick={() => setOpen(true)}
         className={compact
           ? "inline-flex items-center gap-1.5 text-sm font-medium text-ai-text hover:underline"
-          : "inline-flex items-center gap-1.5 rounded-lg bg-ai-textbg px-3.5 py-2 text-sm font-semibold text-ai-text ring-1 ring-ai-text/30 transition-colors hover:bg-ai-textbg/70"}>
+          : "inline-flex items-center gap-1.5 rounded-lg bg-ai-textbg px-3.5 py-2 text-sm font-semibold text-ai-text ring-1 ring-ai-text/30 transition-all hover:opacity-80"}>
         <span aria-hidden="true">✦</span>
         {label ?? t("Lancer un agent IA", "Run an AI agent")}
       </button>
@@ -83,7 +83,9 @@ export function AgentLauncher({
   }
 
   return (
-    <div className="rounded-xl border-l-4 border-ai-text bg-ai-textbg/30 p-4">
+    // Tuile PLEINE `bg-ai-textbg` (jamais de variante d'opacité type /30 : elle
+    // échappe au remap du thème clair et rend la carte grise et sombre).
+    <div className="rounded-xl border-l-4 border-ai-text bg-ai-textbg p-4">
       <div className="flex items-center justify-between">
         <span className="section-label text-ai-text">{t("Agent IA", "AI agent")}</span>
         <button onClick={() => setOpen(false)} className="text-2xs text-muted hover:text-ink">{t("Fermer", "Close")}</button>

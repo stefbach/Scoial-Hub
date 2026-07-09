@@ -22,6 +22,9 @@ export interface PublishLanguage {
 /** Langues proposées à la publication (couvre les principaux marchés). */
 export const PUBLISH_LANGUAGES: PublishLanguage[] = [
   { code: "fr", fr: "Français", en: "French", name: "French" },
+  // Créole mauricien — même libellé que le sélecteur « Langue de diffusion »
+  // de Compose ; « mfe » (ISO 639-3) est résolu en "Mauritian Creole" côté IA.
+  { code: "mfe", fr: "Kreol Morisien", en: "Kreol Morisien", name: "Mauritian Creole" },
   { code: "en", fr: "Anglais", en: "English", name: "English" },
   { code: "es", fr: "Espagnol", en: "Spanish", name: "Spanish" },
   { code: "de", fr: "Allemand", en: "German", name: "German" },

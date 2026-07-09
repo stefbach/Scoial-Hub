@@ -185,8 +185,9 @@ export default function MonEquipePage() {
             load();
             if (res?.invited && res.email) {
               copyInvite(res.email);
-              // Un e-mail d'invitation est envoyé via Supabase Auth quand c'est
-              // possible ; sinon on retombe sur le texte copié (lien-relais).
+              // #12 — Un e-mail d'invitation est envoyé (Supabase Auth, sinon
+              // service e-mail applicatif). En cas d'échec réel : message honnête
+              // + le lien d'invitation copiable reste disponible. Aucun succès simulé.
               setNote(
                 res.emailSent
                   ? t(
@@ -194,8 +195,8 @@ export default function MonEquipePage() {
                       `Invitation emailed to ${res.email} ✓ (the text was also copied, as a backup). Their access activates on first sign-in.`
                     )
                   : t(
-                      `Invitation créée pour ${res.email}, mais l'e-mail n'a pas pu être envoyé (SMTP non configuré côté Supabase). Le texte d'invitation a été copié — envoyez-le-lui vous-même pour finaliser la création de son compte.`,
-                      `Invitation created for ${res.email}, but the email could not be sent (SMTP not configured in Supabase). The invitation text was copied — send it to them yourself so they can finish creating their account.`
+                      `Invitation créée pour ${res.email} — e-mail non envoyé (service e-mail non configuré). Le texte d'invitation a été copié : envoyez-le-lui vous-même pour finaliser la création de son compte.`,
+                      `Invitation created for ${res.email} — email not sent (email service not configured). The invitation text was copied: send it to them yourself so they can finish creating their account.`
                     )
               );
             } else if (res?.added) {

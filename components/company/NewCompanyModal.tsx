@@ -13,7 +13,10 @@ import { useCompany } from "@/lib/company-context";
 import { useT } from "@/lib/i18n";
 import type { Company } from "@/lib/types";
 
-const ACCENTS = ["#60a5fa", "#5b2d8e", "#0f766e", "#b45309", "#be123c", "#1f2937"];
+// #10 — Palette d'accents VIVE (tons 500 saturés, mêmes familles qu'avant :
+// bleu, violet, teal, orange, rouge, indigo). Utilisées en aplat (avatar de
+// société, pastilles) avec texte blanc : contraste préservé sur fond clair.
+const ACCENTS = ["#3b82f6", "#8b5cf6", "#14b8a6", "#f97316", "#f43f5e", "#6366f1"];
 
 export function NewCompanyModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const t = useT();
@@ -103,7 +106,9 @@ export function NewCompanyModal({ open, onClose }: { open: boolean; onClose: () 
           </div>
         </div>
 
-        <div className="rounded-lg bg-ai-textbg/40 px-3 py-2.5 text-2xs text-ai-text">
+        {/* #11 — tuile pleine (pas de variante d'opacité : `bg-ai-textbg/40`
+            échappait au remap du thème clair et restait sombre/illisible). */}
+        <div className="rounded-lg bg-ai-textbg px-3 py-2.5 text-2xs text-ai-text">
           {t(
             "Étape suivante : on vous demandera votre site web, vos comptes Meta / LinkedIn / TikTok et un descriptif — l'IA en déduira le profil de la marque.",
             "Next step: we'll ask for your website, your Meta / LinkedIn / TikTok accounts and a description — the AI will infer the brand profile."

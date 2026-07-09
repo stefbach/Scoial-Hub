@@ -3,7 +3,7 @@
 // ── Étape 6 : Diffusion & pilotage (étape finale) ─────────────────────────────
 // • Type de campagne (organique / payant / mixte)
 // • Confirmation de la zone géographique (lecture seule + modifier)
-// • Programmation (cadence + date de démarrage + heures de publication)
+// • Programmation (cadence + jours plafonnés + date de démarrage + heure unique)
 // • Récapitulatif complet du parcours
 // • CTA final : activation → POST /api/campaigns + ctx.complete() + succès
 
@@ -58,13 +58,30 @@ function PlusIcon() {
   );
 }
 
-/** Icône "×" — supprimer */
-function CloseIcon() {
-  return (
-    <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
-      <path d="M2 2l6 6M8 2L2 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-    </svg>
-  );
+// ── Helpers de programmation ──────────────────────────────────────────────────
+
+/** Jours de la semaine (0=Dim … 6=Sam), dans l'ordre d'affichage Lun→Dim. */
+const WEEK_DAYS: { d: number; fr: string; en: string }[] = [
+  { d: 1, fr: "Lun", en: "Mon" }, { d: 2, fr: "Mar", en: "Tue" },
+  { d: 3, fr: "Mer", en: "Wed" }, { d: 4, fr: "Jeu", en: "Thu" },
+  { d: 5, fr: "Ven", en: "Fri" }, { d: 6, fr: "Sam", en: "Sat" },
+  { d: 0, fr: "Dim", en: "Sun" },
+];
+
+/** Nombre maximum de jours sélectionnables selon la cadence. */
+function maxDaysForCadence(cadence: CadenceId | undefined): number {
+  return cadence === "daily" ? 7 : cadence === "weekly" ? 1 : 3;
+}
+
+/** Heure de publication par défaut (HH:mm). */
+const DEFAULT_TIME = "09:00";
+
+/** Date du jour au format YYYY-MM-DD, fuseau local. */
+function todayISO(): string {
+  const d = new Date();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${mm}-${dd}`;
 }
 
 // ── Couleurs de plateforme ─────────────────────────────────────────────────────
@@ -258,38 +275,57 @@ function ProgrammationSection() {
   const { state, patchState } = useOnboardingCtx();
   const schedule = state.schedule;
 
-  // Ajout d'une nouvelle heure (format HH:mm)
-  const [newTime, setNewTime] = useState("09:00");
+  // Erreur de date (tentative de date passée).
+  const [dateError, setDateError] = useState<string | null>(null);
 
-  // Nombre de jours attendus selon la cadence (pour guider la sélection).
-  const expectedDays = schedule.cadence === "daily" ? 7 : schedule.cadence === "weekly" ? 1 : 3;
+  const today = todayISO();
+
+  // Plafond de jours sélectionnables selon la cadence.
+  const expectedDays = maxDaysForCadence(schedule.cadence);
+  const selectedDays = schedule.days ?? [];
+  const limitReached = selectedDays.length >= expectedDays;
+
+  // Heure unique de publication (rétro-compat : on lit la 1re heure du tableau).
+  const publishTime = schedule.times?.[0] ?? DEFAULT_TIME;
 
   function setCadence(cadence: CadenceId) {
-    patchState({ schedule: { ...schedule, cadence } });
+    // Changement de cadence : on tronque proprement les jours au nouveau plafond
+    // (les jours les plus tôt dans la semaine sont conservés).
+    const days = selectedDays.slice(0, maxDaysForCadence(cadence));
+    patchState({ schedule: { ...schedule, cadence, days } });
   }
 
   function setStartDate(startDate: string) {
+    // Garde : aucune date antérieure à aujourd'hui (fuseau local).
+    if (startDate && startDate < today) {
+      setDateError(
+        t(
+          "La date de démarrage ne peut pas être antérieure à aujourd'hui.",
+          "The start date cannot be earlier than today."
+        )
+      );
+      return;
+    }
+    setDateError(null);
     patchState({ schedule: { ...schedule, startDate } });
   }
 
   function toggleDay(day: number) {
     const cur = schedule.days ?? [];
-    const next = cur.includes(day)
-      ? cur.filter((d) => d !== day)
-      : [...cur, day].sort((a, b) => a - b);
-    patchState({ schedule: { ...schedule, days: next } });
+    if (cur.includes(day)) {
+      patchState({ schedule: { ...schedule, days: cur.filter((d) => d !== day) } });
+      return;
+    }
+    // Plafond atteint : on ignore (les boutons sont désactivés par ailleurs).
+    if (cur.length >= expectedDays) return;
+    patchState({ schedule: { ...schedule, days: [...cur, day].sort((a, b) => a - b) } });
   }
 
-  function addTime() {
-    if (!newTime) return;
-    const existing = schedule.times ?? [];
-    if (existing.includes(newTime)) return;
-    patchState({ schedule: { ...schedule, times: [...existing, newTime] } });
-  }
-
-  function removeTime(time: string) {
-    const times = (schedule.times ?? []).filter((t) => t !== time);
-    patchState({ schedule: { ...schedule, times } });
+  function setTime(time: string) {
+    if (!time) return;
+    // Le type persiste un tableau : on envoie un tableau à 1 élément pour
+    // rester compatible avec l'aval (persistance / programmation).
+    patchState({ schedule: { ...schedule, times: [time] } });
   }
 
   return (
@@ -337,26 +373,31 @@ function ProgrammationSection() {
             <p className="text-xs font-semibold text-muted">
               {t("Jours de publication", "Posting days")}
               <span className="ml-1 font-normal text-muted">
-                {t(`(choisissez ${expectedDays} jour${expectedDays > 1 ? "s" : ""})`, `(pick ${expectedDays} day${expectedDays > 1 ? "s" : ""})`)}
+                {t(
+                  `(choisissez ${expectedDays} jour${expectedDays > 1 ? "s" : ""} — ${selectedDays.length}/${expectedDays})`,
+                  `(pick ${expectedDays} day${expectedDays > 1 ? "s" : ""} — ${selectedDays.length}/${expectedDays})`
+                )}
               </span>
             </p>
             <div className="flex flex-wrap gap-1.5">
-              {[
-                { d: 1, fr: "Lun", en: "Mon" }, { d: 2, fr: "Mar", en: "Tue" },
-                { d: 3, fr: "Mer", en: "Wed" }, { d: 4, fr: "Jeu", en: "Thu" },
-                { d: 5, fr: "Ven", en: "Fri" }, { d: 6, fr: "Sam", en: "Sat" },
-                { d: 0, fr: "Dim", en: "Sun" },
-              ].map(({ d, fr, en }) => {
-                const on = (schedule.days ?? []).includes(d);
+              {WEEK_DAYS.map(({ d, fr, en }) => {
+                const on = selectedDays.includes(d);
+                // Plafond atteint : les jours non cochés deviennent non sélectionnables.
+                const blocked = !on && limitReached;
                 return (
                   <button
                     key={d}
                     type="button"
                     onClick={() => toggleDay(d)}
                     aria-pressed={on}
+                    disabled={blocked}
                     className={[
                       "rounded-lg border px-3 py-1.5 text-xs font-semibold transition-all",
-                      on ? "border-primary-400 bg-page text-white shadow-sm" : "border-hair bg-card text-muted hover:border-primary-300 hover:text-ink",
+                      on
+                        ? "border-primary-400 bg-page text-white shadow-sm"
+                        : blocked
+                        ? "border-hair bg-card text-muted opacity-40 cursor-not-allowed"
+                        : "border-hair bg-card text-muted hover:border-primary-300 hover:text-ink",
                     ].join(" ")}
                   >
                     {t(fr, en)}
@@ -384,64 +425,37 @@ function ProgrammationSection() {
           <input
             id="step6-start-date"
             type="date"
+            min={today}
             value={schedule.startDate ?? ""}
             onChange={(e) => setStartDate(e.target.value)}
             className="input w-full max-w-xs text-sm"
             aria-label={t("Date de démarrage de la campagne", "Campaign start date")}
+            aria-describedby={dateError ? "step6-start-date-error" : undefined}
           />
+          {dateError && (
+            <p id="step6-start-date-error" className="text-2xs font-medium text-danger-600" role="alert">
+              {dateError}
+            </p>
+          )}
         </div>
 
-        {/* Heures de publication */}
+        {/* Heure de publication — une seule heure, appliquée aux jours sélectionnés */}
         <div className="space-y-2">
-          <p className="text-xs font-semibold text-muted">
-            {t("Heures de publication (optionnel)", "Posting times (optional)")}
-          </p>
-
-          {/* Chips des heures existantes */}
-          {(schedule.times ?? []).length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {(schedule.times ?? []).map((time) => (
-                <span
-                  key={time}
-                  className="inline-flex items-center gap-1.5 rounded-full bg-primary-50 px-3 py-1 text-xs font-semibold text-primary-700 ring-1 ring-primary-200"
-                >
-                  {time}
-                  <button
-                    type="button"
-                    onClick={() => removeTime(time)}
-                    className="flex h-4 w-4 items-center justify-center rounded-full text-primary-400 transition-colors hover:bg-primary-200 hover:text-primary-700"
-                    aria-label={t(`Supprimer l'heure ${time}`, `Remove time ${time}`)}
-                  >
-                    <CloseIcon />
-                  </button>
-                </span>
-              ))}
-            </div>
-          )}
-
-          {/* Ajout d'une heure */}
-          <div className="flex items-center gap-2">
-            <input
-              type="time"
-              value={newTime}
-              onChange={(e) => setNewTime(e.target.value)}
-              className="input w-32 text-sm"
-              aria-label={t("Nouvelle heure de publication", "New posting time")}
-            />
-            <button
-              type="button"
-              onClick={addTime}
-              disabled={!newTime}
-              className="btn-secondary inline-flex items-center gap-1.5 text-xs disabled:pointer-events-none disabled:opacity-40"
-            >
-              <PlusIcon />
-              {t("Ajouter", "Add")}
-            </button>
-          </div>
+          <label htmlFor="step6-publish-time" className="block text-xs font-semibold text-muted">
+            {t("Heure de publication", "Posting time")}
+          </label>
+          <input
+            id="step6-publish-time"
+            type="time"
+            value={publishTime}
+            onChange={(e) => setTime(e.target.value)}
+            className="input w-32 text-sm"
+            aria-label={t("Heure de publication", "Posting time")}
+          />
           <p className="text-2xs text-muted">
             {t(
-              "Les agents publieront aux heures définies. Par défaut : 08:00 et 19:00.",
-              "Agents will post at the defined times. Default: 08:00 and 19:00."
+              "Les agents publieront à cette heure les jours sélectionnés.",
+              "Agents will post at this time on the selected days."
             )}
           </p>
         </div>
@@ -479,6 +493,15 @@ function RecapSection() {
     const cfg = { daily: { fr: "Quotidien", en: "Daily" }, "3x_week": { fr: "3×/semaine", en: "3×/week" }, weekly: { fr: "Hebdomadaire", en: "Weekly" }, custom: { fr: "Personnalisé", en: "Custom" } };
     const c = cfg[state.schedule.cadence];
     return c ? t(c.fr, c.en) : state.schedule.cadence;
+  })();
+
+  // Heure de publication (unique) + jours sélectionnés
+  const publishTime = state.schedule.times?.[0] ?? DEFAULT_TIME;
+  const daysSummary = (() => {
+    if (state.schedule.cadence === "daily") return t("tous les jours", "every day");
+    const days = state.schedule.days ?? [];
+    if (days.length === 0) return null;
+    return WEEK_DAYS.filter((w) => days.includes(w.d)).map((w) => t(w.fr, w.en)).join(", ");
   })();
 
   // Label mode créatif
@@ -568,6 +591,18 @@ function RecapSection() {
         </span>
       ),
     }] : []),
+    {
+      labelFr: "Heure",
+      labelEn: "Time",
+      content: (
+        <span className="text-sm text-ink">
+          {publishTime}
+          {daysSummary && (
+            <span className="ml-2 text-xs text-muted">— {daysSummary}</span>
+          )}
+        </span>
+      ),
+    },
   ];
 
   // Suppression de l'avertissement TypeScript sur primaryObjLabel non utilisé directement
@@ -619,6 +654,14 @@ export default function Step6Diffusion() {
       const primaryObjLabel = getPrimaryObjectiveLabel();
       const campaignName = `${companyName} — ${primaryObjLabel}`;
 
+      // Garde : une date de démarrage passée (ex. état persisté avant le
+      // correctif) est ramenée à aujourd'hui.
+      const today = todayISO();
+      const startDate =
+        state.schedule.startDate && state.schedule.startDate < today
+          ? today
+          : state.schedule.startDate;
+
       const res = await fetch("/api/campaigns", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -629,7 +672,7 @@ export default function Step6Diffusion() {
           platforms: state.networks,
           status: state.campaignType === "organic" ? "active" : "paused",
           enabled: true,
-          startDate: state.schedule.startDate,
+          startDate,
         }),
       });
 

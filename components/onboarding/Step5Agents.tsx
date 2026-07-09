@@ -3,7 +3,8 @@
 // ── Étape 5 : Lancer les agents IA ────────────────────────────────────────────
 // Récapitulatif de ce que les agents vont utiliser, lancement de l'orchestration
 // POST /api/agents/run, affichage riche du résultat par étapes (cards agents),
-// contenu final, briefs créatifs. Transition vers l'étape 6 (Diffusion).
+// contenu final, briefs créatifs. La transition vers l'étape 6 (Diffusion)
+// passe par la barre de navigation globale du parcours (« Continuer → »).
 
 import { useState } from "react";
 import { useOnboardingCtx } from "@/components/onboarding/context";
@@ -45,15 +46,6 @@ function ChevronIcon({ open }: { open: boolean }) {
       className={`transition-transform duration-200 ${open ? "rotate-180" : ""}`}
     >
       <path d="M3 5l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-/** Flèche vers la droite — bouton suivant */
-function ArrowRightIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-      <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -429,7 +421,7 @@ function CreativeBriefCard({ imagePrompt, videoPrompt }: { imagePrompt?: string;
 
 export default function Step5Agents() {
   const t = useT();
-  const { state, profile, companyId, companyName, next } = useOnboardingCtx();
+  const { state, profile, companyId, companyName } = useOnboardingCtx();
 
   const [running, setRunning]   = useState(false);
   const [result, setResult]     = useState<AgentRunResult | null>(null);
@@ -659,17 +651,9 @@ export default function Step5Agents() {
           {/* Briefs créatifs */}
           <CreativeBriefCard imagePrompt={result.imagePrompt} videoPrompt={result.videoPrompt} />
 
-          {/* CTA — passer à la diffusion */}
-          <div className="flex justify-end pt-1">
-            <button
-              type="button"
-              onClick={next}
-              className="btn-primary inline-flex items-center gap-2"
-            >
-              {t("Passer à la diffusion", "Move to distribution")}
-              <ArrowRightIcon />
-            </button>
-          </div>
+          {/* La navigation vers l'étape 6 (Diffusion) est assurée par la barre
+              d'actions globale du parcours (« Continuer → ») — on évite un
+              second bouton redondant qui déroutait l'utilisateur. */}
 
         </div>
       )}

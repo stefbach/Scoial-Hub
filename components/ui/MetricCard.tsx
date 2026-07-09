@@ -56,19 +56,22 @@ export function MetricCard({
     </>
   );
 
-  /* Styles de base — hover améthyste au lieu du gris chaud précédent */
+  /* Styles de base — hover améthyste au lieu du gris chaud précédent.
+     UAT #16 : fond `bg-card` (surface, comme .card) et non `bg-canvas`
+     (fond de page) — sinon les cartes se fondent dans la page et rien
+     n'indique qu'elles sont cliquables. */
   const base = [
     "block rounded-xl px-4 py-3 transition-all duration-[150ms]",
     alert
       ? "border border-danger-200 bg-danger-50/60"
       : active
       ? "border-2 border-ai-text bg-ai-textbg shadow-xs"
-      : "border border-hair bg-canvas shadow-xs",
+      : "border border-hair bg-card shadow-sm",
   ].join(" ");
 
   /* Hover avec bordure améthyste légère #bb9fff */
   const interactive =
-    "cursor-pointer hover:shadow-sm hover:border-[#bb9fff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/30";
+    "cursor-pointer hover:shadow-md hover:border-[#bb9fff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/30";
 
   if (href) {
     return (

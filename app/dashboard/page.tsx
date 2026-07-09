@@ -17,6 +17,13 @@ export default function DashboardPage() {
   const t = useT();
   const d = data.dashboard;
 
+  // UAT #18 — le topAd « vide » (sentinelle name "—", zéros partout) ne doit
+  // pas s'afficher comme une vraie publicité : on montre un état vide honnête.
+  const hasTopAd =
+    Boolean(d.topAd.name) &&
+    d.topAd.name !== "—" &&
+    (d.topAd.spend > 0 || d.topAd.conversions > 0);
+
   // Le tableau de bord ne s'affiche qu'une fois le démarrage assisté terminé.
   // Tant que le setup n'est pas fait, on ne montre QUE le démarrage guidé
   // (pas de widgets vides qui « mélangent » l'écran).
@@ -99,9 +106,11 @@ export default function DashboardPage() {
             href="/ad-performance"
           />
           <MetricCard label={t("Conversions", "Conversions")} value={d.paid.conversions} href="/ad-performance" />
+          {/* UAT #15 — renvoie vers Paramètres → Préférences IA (plafonds de dépenses IA) */}
           <MetricCard
             label={t("Budget IA", "AI budget")}
             value={`${eur(d.paid.aiBudgetUsed).replace("EUR ", "EUR ")}/${d.paid.aiBudgetCap}`}
+            href="/settings?section=ai"
           />
         </div>
       </section>
@@ -145,9 +154,27 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        {/* Top performing ad */}
+        {/* Top performing ad — UAT #18 : état vide honnête quand aucune pub n'a de données */}
         <section className="animate-slide-up" style={{ animationDelay: "40ms" }}>
           <h2 className="mb-3 text-sm font-semibold text-ink">{t("Publicité la plus performante", "Top performing ad")}</h2>
+          {!hasTopAd ? (
+            <div className="card flex flex-col items-center gap-3 px-4 py-12 text-center">
+              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-canvas text-2xl shadow-xs">
+                📣
+              </span>
+              <div>
+                <p className="text-sm font-medium text-ink">
+                  {t("Aucune publicité diffusée pour l'instant", "No ads running yet")}
+                </p>
+                <p className="mt-0.5 text-2xs text-muted">
+                  {t("Lancez une campagne pour voir vos meilleures publicités ici.", "Launch a campaign to see your top ads here.")}
+                </p>
+              </div>
+              <Button variant="secondary" onClick={() => router.push("/campaigns")}>
+                {t("Voir les campagnes", "View campaigns")}
+              </Button>
+            </div>
+          ) : (
           <Link
             href="/ad-performance"
             className="card block cursor-pointer p-4 transition-shadow hover:shadow-md"
@@ -171,6 +198,7 @@ export default function DashboardPage() {
               </div>
             </div>
           </Link>
+          )}
         </section>
       </div>
     </div>

@@ -196,7 +196,9 @@ export function HelpDrawer({ open, onClose }: HelpDrawerProps) {
               <h3 id="help-what" className="section-label mb-2 text-ink">
                 {ui.whatFor}
               </h3>
-              <p className="rounded-lg bg-primary-50/70 px-3.5 py-3 text-sm leading-relaxed text-ink ring-1 ring-primary-100">
+              {/* #13 — tuile pleine : `bg-primary-50/70` (variante d'opacité) échappait
+                  au remap du thème clair et restait sombre/illisible. Idem ring. */}
+              <p className="rounded-lg bg-primary-50 px-3.5 py-3 text-sm leading-relaxed text-ink ring-1 ring-primary-200">
                 {entry.whatFor}
               </p>
             </section>

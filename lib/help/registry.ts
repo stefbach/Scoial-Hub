@@ -2111,6 +2111,377 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
       { label: { fr: "Campagnes", en: "Campaigns" }, href: "/campaigns" },
     ],
   },
+
+  // ── /mes-societes ───────────────────────────────────────────────────────────
+  "/mes-societes": {
+    title: { fr: "Mes sociétés", en: "My companies" },
+    tagline: { fr: "Choisissez la société active et gérez vos comptes.", en: "Pick the active company and manage your accounts." },
+    whatFor: {
+      fr: "Mes sociétés est la surface de sélection et de gestion de vos sociétés (comptes). C'est ici que se verrouille votre périmètre de travail : la société active filtre toutes les données de l'application. Les administrateurs du compte peuvent créer, modifier (nom, voix de marque, couleur d'accent) et supprimer des sociétés, et accéder à leurs connexions.",
+      en: "My companies is where you select and manage your companies (accounts). This is where your working scope is locked: the active company filters all data in the app. Account administrators can create, edit (name, brand voice, accent colour) and delete companies, and access their connections.",
+    },
+    actions: [
+      {
+        label: { fr: "Choisir la société active", en: "Select the active company" },
+        detail: {
+          fr: "Cliquez sur une carte pour verrouiller le périmètre sur cette société, ou « Choisir & ouvrir » pour basculer directement sur son tableau de bord.",
+          en: "Click a card to lock the scope on that company, or 'Select & open' to jump straight to its dashboard.",
+        },
+      },
+      {
+        label: { fr: "Créer une société", en: "Create a company" },
+        detail: {
+          fr: "« + Nouvelle société » (admins) : donnez un nom et une couleur d'accent, puis le profil de marque est construit à l'étape suivante (Démarrage assisté).",
+          en: "'+ New company' (admins): give a name and an accent colour, then the brand profile is built in the next step (assisted start).",
+        },
+      },
+      {
+        label: { fr: "Modifier ou supprimer", en: "Edit or delete" },
+        detail: {
+          fr: "« Modifier » ajuste nom, voix de marque et couleur d'accent. « Supprimer » ouvre une confirmation — l'action est définitive.",
+          en: "'Edit' adjusts name, brand voice and accent colour. 'Delete' opens a confirmation — the action is permanent.",
+        },
+      },
+    ],
+    tips: [
+      {
+        fr: "La couleur d'accent identifie la société partout dans l'interface (avatar, sélecteur) — choisissez des couleurs distinctes entre vos sociétés.",
+        en: "The accent colour identifies the company across the interface (avatar, selector) — pick distinct colours for your companies.",
+      },
+    ],
+    faq: [
+      {
+        q: { fr: "Qui peut créer ou supprimer une société ?", en: "Who can create or delete a company?" },
+        a: {
+          fr: "Uniquement les administrateurs du compte (owner/admin). Les autres utilisateurs voient les sociétés auxquelles ils ont accès et peuvent en choisir une.",
+          en: "Only account administrators (owner/admin). Other users see the companies they have access to and can select one.",
+        },
+      },
+    ],
+    related: [
+      { label: { fr: "Mon équipe", en: "My team" }, href: "/mon-equipe" },
+      { label: { fr: "Comptes connectés", en: "Connected accounts" }, href: "/accounts" },
+      { label: { fr: "Démarrage assisté", en: "Assisted start" }, href: "/demarrage" },
+    ],
+  },
+
+  // ── /mon-equipe ─────────────────────────────────────────────────────────────
+  "/mon-equipe": {
+    title: { fr: "Mon équipe", en: "My team" },
+    tagline: { fr: "Ajoutez des utilisateurs et gérez leurs accès par société.", en: "Add users and manage their per-company access." },
+    whatFor: {
+      fr: "Mon équipe permet aux administrateurs du compte d'ajouter des utilisateurs et de leur accorder un accès à une ou plusieurs sociétés, en édition ou en lecture. Les administrateurs ont accès à tout. Un utilisateur qui a déjà un compte est ajouté immédiatement ; sinon, une invitation est créée et un e-mail d'invitation lui est envoyé (avec un texte copiable en secours) — ses accès s'activeront à sa première connexion.",
+      en: "My team lets account administrators add users and grant them access to one or several companies, in edit or view mode. Administrators have full access. A user who already has an account is added immediately; otherwise an invitation is created and an invitation email is sent (with a copyable text as backup) — their access activates on first sign-in.",
+    },
+    actions: [
+      {
+        label: { fr: "Ajouter un utilisateur", en: "Add a user" },
+        detail: {
+          fr: "« + Ajouter un utilisateur » : saisissez son e-mail, choisissez le rôle et, pour un Utilisateur, l'accès par société. S'il a déjà un compte, il rejoint l'équipe immédiatement.",
+          en: "'+ Add a user': enter their email, choose the role and, for a User, the per-company access. If they already have an account, they join the team immediately.",
+        },
+      },
+      {
+        label: { fr: "Choisir le rôle", en: "Choose the role" },
+        detail: {
+          fr: "Admin : accès total à toutes les sociétés et à la gestion de l'équipe. Utilisateur : accès limité aux sociétés que vous lui assignez, en Lecture ou en Édition.",
+          en: "Admin: full access to all companies and to team management. User: access limited to the companies you assign, in View or Edit mode.",
+        },
+      },
+      {
+        label: { fr: "Régler l'accès par société", en: "Set per-company access" },
+        detail: {
+          fr: "Pour chaque société, choisissez Aucun, Lecture (consultation) ou Édition (création et modification). Le bouton « Accès » d'un membre rouvre cette matrice à tout moment.",
+          en: "For each company, choose None, View (read-only) or Edit (create and modify). A member's 'Access' button reopens this matrix at any time.",
+        },
+      },
+      {
+        label: { fr: "Suivre les invitations", en: "Track invitations" },
+        detail: {
+          fr: "Les invitations en attente sont listées : « Copier l'invitation » copie le texte avec le lien d'inscription (utile si l'e-mail n'a pas pu partir) ; « Annuler » révoque l'invitation.",
+          en: "Pending invitations are listed: 'Copy invitation' copies the text with the signup link (useful if the email could not be sent); 'Cancel' revokes the invitation.",
+        },
+      },
+      {
+        label: { fr: "Retirer un membre", en: "Remove a member" },
+        detail: {
+          fr: "« Retirer » enlève le membre de l'équipe et révoque ses accès. Le propriétaire du compte ne peut pas être retiré.",
+          en: "'Remove' takes the member out of the team and revokes their access. The account owner cannot be removed.",
+        },
+      },
+    ],
+    tips: [
+      {
+        fr: "Si l'e-mail d'invitation n'a pas pu être envoyé (service e-mail non configuré), le texte d'invitation est copié automatiquement — envoyez-le vous-même.",
+        en: "If the invitation email could not be sent (email service not configured), the invitation text is copied automatically — send it yourself.",
+      },
+      {
+        fr: "Privilégiez le mode Lecture pour les parties prenantes qui doivent consulter sans risquer de modifier (direction, client final).",
+        en: "Prefer View mode for stakeholders who need to consult without risking changes (management, end client).",
+      },
+    ],
+    faq: [
+      {
+        q: { fr: "L'invité n'a pas reçu l'e-mail — que faire ?", en: "The invitee did not receive the email — what now?" },
+        a: {
+          fr: "Utilisez « Copier l'invitation » sur l'invitation en attente et envoyez-lui le texte (lien d'inscription inclus). Ses accès s'activeront dès sa première connexion avec cette adresse.",
+          en: "Use 'Copy invitation' on the pending invitation and send them the text (signup link included). Their access activates on their first sign-in with that address.",
+        },
+      },
+      {
+        q: { fr: "Qui peut gérer l'équipe ?", en: "Who can manage the team?" },
+        a: {
+          fr: "Cet espace est réservé aux administrateurs du compte (owner/admin).",
+          en: "This area is reserved for account administrators (owner/admin).",
+        },
+      },
+    ],
+    related: [
+      { label: { fr: "Mes sociétés", en: "My companies" }, href: "/mes-societes" },
+      { label: { fr: "Paramètres", en: "Settings" }, href: "/settings" },
+    ],
+  },
+
+  // ── /identite ───────────────────────────────────────────────────────────────
+  "/identite": {
+    title: { fr: "Identité de marque", en: "Brand identity" },
+    tagline: { fr: "Construisez et verrouillez l'ADN de la marque avec le consultant IA.", en: "Build and lock the brand's DNA with the AI consultant." },
+    whatFor: {
+      fr: "Espace de dialogue avec le consultant IA pour construire puis verrouiller l'identité de la marque (ADN), avant ou en parallèle des campagnes. Réutilisé comme étape 0 du démarrage guidé ; tout est réversible et l'identité peut être remise à zéro.",
+      en: "A dialogue space with the AI consultant to build then lock the brand identity (DNA), before or alongside campaigns. Reused as step 0 of the guided start; everything is reversible and the identity can be reset.",
+    },
+    actions: [
+      {
+        label: { fr: "Discuter avec le consultant IA", en: "Chat with the AI consultant" },
+        detail: {
+          fr: "Répondez aux questions du consultant pour affiner positionnement, ton et piliers de contenu de la marque.",
+          en: "Answer the consultant's questions to refine the brand's positioning, tone and content pillars.",
+        },
+      },
+      {
+        label: { fr: "Verrouiller l'identité", en: "Lock the identity" },
+        detail: {
+          fr: "Une fois l'ADN validé, verrouillez-le : il sert de référence aux générations de contenu. Vous pouvez le déverrouiller ou le réinitialiser à tout moment.",
+          en: "Once the DNA is validated, lock it: it becomes the reference for content generation. You can unlock or reset it at any time.",
+        },
+      },
+    ],
+    tips: [
+      {
+        fr: "Une identité verrouillée rend les contenus générés plus cohérents d'une campagne à l'autre.",
+        en: "A locked identity makes generated content more consistent from one campaign to the next.",
+      },
+    ],
+    faq: [],
+    related: [
+      { label: { fr: "Démarrage assisté", en: "Assisted start" }, href: "/demarrage" },
+      { label: { fr: "Composer", en: "Compose" }, href: "/compose" },
+    ],
+  },
+
+  // ── /benchmark ──────────────────────────────────────────────────────────────
+  "/benchmark": {
+    title: { fr: "Benchmark concurrentiel", en: "Competitive benchmark" },
+    tagline: { fr: "Comparez-vous à vos concurrents sur 12 dimensions.", en: "Compare yourself to competitors across 12 dimensions." },
+    whatFor: {
+      fr: "Le benchmark compare votre offre à des concurrents que vous saisissez (avec URL de pricing optionnelle). Le serveur récupère les pages puis l'IA produit une matrice de scores sur 12 dimensions, une SWOT, le positionnement et un prix conseillé.",
+      en: "The benchmark compares your offer to competitors you enter (with an optional pricing URL). The server fetches the pages then the AI produces a 12-dimension score matrix, a SWOT, the positioning and a suggested price.",
+    },
+    actions: [
+      {
+        label: { fr: "Saisir les concurrents", en: "Enter competitors" },
+        detail: {
+          fr: "Ajoutez les concurrents à comparer, avec leur URL de pricing si disponible pour affiner l'analyse tarifaire.",
+          en: "Add the competitors to compare, with their pricing URL if available to refine the price analysis.",
+        },
+      },
+      {
+        label: { fr: "Lancer l'analyse", en: "Run the analysis" },
+        detail: {
+          fr: "L'IA produit la matrice de scores, la SWOT et le positionnement — utilisez-les pour ajuster votre stratégie.",
+          en: "The AI produces the score matrix, the SWOT and the positioning — use them to adjust your strategy.",
+        },
+      },
+    ],
+    tips: [],
+    faq: [],
+    related: [
+      { label: { fr: "Veille & Marché", en: "Watch & Market" }, href: "/veille" },
+      { label: { fr: "Centre de pilotage", en: "Piloting center" }, href: "/pilotage" },
+    ],
+  },
+
+  // ── /series ─────────────────────────────────────────────────────────────────
+  "/series": {
+    title: { fr: "Séries multi-réseaux", en: "Multi-network series" },
+    tagline: { fr: "Générez une série de posts + visuels adaptée à chaque réseau.", en: "Generate a series of posts + visuals adapted to each network." },
+    whatFor: {
+      fr: "Les séries permettent de générer une série de publications (posts/articles) avec leurs visuels, puis de la diffuser en l'adaptant aux contraintes de chaque réseau. LinkedIn conserve son espace dédié (studio article) ; cette page couvre les autres réseaux.",
+      en: "Series let you generate a set of publications (posts/articles) with their visuals, then distribute it adapted to each network's constraints. LinkedIn keeps its dedicated space (article studio); this page covers the other networks.",
+    },
+    actions: [
+      {
+        label: { fr: "Générer une série", en: "Generate a series" },
+        detail: {
+          fr: "Décrivez le thème et les réseaux cibles : l'IA produit les posts et leurs visuels, adaptés aux contraintes de chaque plateforme.",
+          en: "Describe the theme and target networks: the AI produces the posts and their visuals, adapted to each platform's constraints.",
+        },
+      },
+      {
+        label: { fr: "Diffuser la série", en: "Distribute the series" },
+        detail: {
+          fr: "Relisez chaque élément puis publiez ou programmez la diffusion sur les réseaux sélectionnés.",
+          en: "Review each item then publish or schedule distribution on the selected networks.",
+        },
+      },
+    ],
+    tips: [],
+    faq: [],
+    related: [
+      { label: { fr: "Article LinkedIn", en: "LinkedIn article" }, href: "/article-linkedin" },
+      { label: { fr: "Publications programmées", en: "Scheduled posts" }, href: "/scheduled" },
+    ],
+  },
+
+  // ── /simulateur ─────────────────────────────────────────────────────────────
+  "/simulateur": {
+    title: { fr: "Prédiction & Simulation", en: "Prediction & Simulation" },
+    tagline: { fr: "Simulez la réception d'une campagne avant de dépenser.", en: "Simulate how a campaign will land before spending." },
+    whatFor: {
+      fr: "Avant de dépenser, simulez : à partir d'un produit, d'une cible et d'un message (et des tendances issues de la Veille), l'IA génère des personas représentatifs, simule leurs réactions et agrège une prédiction de réception avec des recommandations. Résultat directionnel — une aide à la décision, pas un oracle.",
+      en: "Before spending, simulate: from a product, a target and a message (plus trends from Watch), the AI generates representative personas, simulates their reactions and aggregates a reception prediction with recommendations. Directional output — a decision aid, not an oracle.",
+    },
+    actions: [
+      {
+        label: { fr: "Décrire la campagne", en: "Describe the campaign" },
+        detail: {
+          fr: "Renseignez produit, cible et message. Les tendances de la Veille enrichissent la simulation quand elles sont disponibles.",
+          en: "Fill in product, target and message. Watch trends enrich the simulation when available.",
+        },
+      },
+      {
+        label: { fr: "Lancer la simulation", en: "Run the simulation" },
+        detail: {
+          fr: "L'IA génère les personas, simule leurs réactions et restitue une prédiction agrégée avec des recommandations d'ajustement.",
+          en: "The AI generates personas, simulates their reactions and returns an aggregated prediction with adjustment recommendations.",
+        },
+      },
+    ],
+    tips: [
+      {
+        fr: "Prenez la prédiction comme une tendance directionnelle : confirmez-la avec un petit test réel avant d'engager le budget complet.",
+        en: "Treat the prediction as a directional trend: confirm it with a small real test before committing the full budget.",
+      },
+    ],
+    faq: [],
+    related: [
+      { label: { fr: "Veille & Marché", en: "Watch & Market" }, href: "/veille" },
+      { label: { fr: "Campagnes", en: "Campaigns" }, href: "/campaigns" },
+    ],
+  },
+
+  // ── /studio-affiche ─────────────────────────────────────────────────────────
+  "/studio-affiche": {
+    title: { fr: "Studio Affiches & Visuels", en: "Poster & Visual Studio" },
+    tagline: { fr: "Créez affiches et visuels de marque, print et réseaux.", en: "Create brand posters and visuals, print and social." },
+    whatFor: {
+      fr: "Un studio visuel piloté par IA : formats print (A4/A3) et réseaux (carré, story, portrait, paysage), fond généré par IA ou image uploadée, texte en surimpression (titre + sous-titre, couleur, position), logo de la marque, grand aperçu en temps réel et export PNG haute définition.",
+      en: "An AI-driven visual studio: print (A4/A3) and social formats (square, story, portrait, landscape), AI-generated background or uploaded image, text overlay (title + subtitle, colour, position), brand logo, large real-time preview and high-definition PNG export.",
+    },
+    actions: [
+      {
+        label: { fr: "Choisir le format", en: "Choose the format" },
+        detail: {
+          fr: "Sélectionnez un format print (A4/A3) ou réseau (carré, story, portrait, paysage) selon la destination du visuel.",
+          en: "Pick a print (A4/A3) or social format (square, story, portrait, landscape) depending on where the visual will be used.",
+        },
+      },
+      {
+        label: { fr: "Composer le visuel", en: "Compose the visual" },
+        detail: {
+          fr: "Générez un fond par IA ou uploadez une image, ajoutez titre/sous-titre et le logo, puis ajustez couleurs et positions dans l'aperçu.",
+          en: "Generate an AI background or upload an image, add title/subtitle and the logo, then adjust colours and positions in the preview.",
+        },
+      },
+      {
+        label: { fr: "Exporter en PNG", en: "Export as PNG" },
+        detail: {
+          fr: "Exportez le visuel final en PNG haute définition, utilisable hors réseaux également (print).",
+          en: "Export the final visual as a high-definition PNG, also usable outside social networks (print).",
+        },
+      },
+    ],
+    tips: [],
+    faq: [],
+    related: [
+      { label: { fr: "Médiathèque", en: "Media library" }, href: "/media" },
+      { label: { fr: "Composer", en: "Compose" }, href: "/compose" },
+    ],
+  },
+
+  // ── /studio-avatar ──────────────────────────────────────────────────────────
+  "/studio-avatar": {
+    title: { fr: "Studio Avatar", en: "Avatar Studio" },
+    tagline: { fr: "Créez une vidéo d'avatar parlant à partir d'un visage et d'un sujet.", en: "Create a talking-avatar video from a face and a topic." },
+    whatFor: {
+      fr: "Le Studio Avatar transforme un visage et un sujet en vidéo d'avatar parlant : script généré par l'IA, voix (synthèse vocale), puis synchronisation labiale. La vidéo produite est téléchargeable et publiable.",
+      en: "The Avatar Studio turns a face and a topic into a talking-avatar video: AI-generated script, voice (text-to-speech), then lip-sync. The resulting video is downloadable and publishable.",
+    },
+    actions: [
+      {
+        label: { fr: "Fournir le visage et le sujet", en: "Provide the face and the topic" },
+        detail: {
+          fr: "Uploadez le visage (avec consentement de la personne) et décrivez le sujet de la vidéo : l'IA rédige le script.",
+          en: "Upload the face (with the person's consent) and describe the video topic: the AI writes the script.",
+        },
+      },
+      {
+        label: { fr: "Générer puis publier", en: "Generate then publish" },
+        detail: {
+          fr: "Lancez la génération (voix + lip-sync), prévisualisez, puis téléchargez ou publiez la vidéo.",
+          en: "Launch generation (voice + lip-sync), preview, then download or publish the video.",
+        },
+      },
+    ],
+    tips: [],
+    faq: [],
+    related: [
+      { label: { fr: "Studio Vidéo", en: "Video Studio" }, href: "/studio-video" },
+      { label: { fr: "Médiathèque", en: "Media library" }, href: "/media" },
+    ],
+  },
+
+  // ── /media ──────────────────────────────────────────────────────────────────
+  "/media": {
+    title: { fr: "Médiathèque", en: "Media library" },
+    tagline: { fr: "Tous les visuels et vidéos de la marque, au même endroit.", en: "All the brand's visuals and videos, in one place." },
+    whatFor: {
+      fr: "La médiathèque est la galerie des visuels et vidéos de la marque, filtrable. Chaque média propose les actions « Décliner (IA) » pour en générer des variantes et « Créer une pub » pour l'utiliser comme base d'une publicité.",
+      en: "The media library is the filterable gallery of the brand's visuals and videos. Each media item offers 'Decline (AI)' to generate variants and 'Create an ad' to use it as the basis of an advertisement.",
+    },
+    actions: [
+      {
+        label: { fr: "Parcourir et filtrer", en: "Browse and filter" },
+        detail: {
+          fr: "Filtrez la galerie pour retrouver rapidement un visuel ou une vidéo de la marque.",
+          en: "Filter the gallery to quickly find a brand visual or video.",
+        },
+      },
+      {
+        label: { fr: "Décliner ou créer une pub", en: "Decline or create an ad" },
+        detail: {
+          fr: "« Décliner (IA) » génère des variantes d'un média ; « Créer une pub » l'envoie comme base d'une nouvelle publicité.",
+          en: "'Decline (AI)' generates variants of a media item; 'Create an ad' uses it as the basis of a new advertisement.",
+        },
+      },
+    ],
+    tips: [],
+    faq: [],
+    related: [
+      { label: { fr: "Bibliothèque", en: "Library" }, href: "/library" },
+      { label: { fr: "Studio Affiches", en: "Poster Studio" }, href: "/studio-affiche" },
+    ],
+  },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

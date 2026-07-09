@@ -17,10 +17,10 @@ export function Tabs({
 
   return (
     <div className={className}>
-      {/* Barre d'onglets */}
+      {/* Barre d'onglets — coins arrondis pour s'harmoniser avec les cartes voisines */}
       <div
         role="tablist"
-        className="flex gap-1 overflow-x-auto border-b border-hair"
+        className="flex gap-1 overflow-x-auto rounded-xl border border-hair bg-card px-1.5"
       >
         {tabs.map((t) => {
           const isActive = t.id === active;

@@ -7,8 +7,10 @@ import { AgentLauncher } from "@/components/agents/AgentLauncher";
 import { useScope } from "@/lib/scope";
 import { useLang, useT } from "@/lib/i18n";
 import { JourneyCampaignCard, zoneLabel } from "@/components/pilotage/JourneyCampaignCard";
+import { RecommendationModal, AGENT_LABEL, NET_LABEL } from "@/components/pilotage/RecommendationModal";
 import type { Campaign } from "@/lib/types";
 import type { OnboardingState } from "@/lib/onboarding/types";
+import type { ConnectorStatus } from "@/lib/connectors/types";
 import {
   computeNetworkKpis,
   aggregateKpis,
@@ -43,17 +45,6 @@ interface VeilleData {
   insights: VeilleInsight[];
   recommandations: VeilleReco[];
 }
-
-const NET_LABEL: Record<Network, { label: string; color: string }> = {
-  facebook: { label: "Facebook", color: "#1877F2" },
-  instagram: { label: "Instagram", color: "#E1306C" },
-  linkedin: { label: "LinkedIn", color: "#0A66C2" },
-};
-
-const AGENT_LABEL: Record<string, string> = {
-  strategist: "Stratège", copywriter: "Copywriter", creative: "Creative",
-  media_buyer: "Media Buyer", analyst: "Analyste", compliance: "Conformité",
-};
 
 function fmt(n: number): string {
   if (n >= 1000) return (n / 1000).toFixed(n >= 10000 ? 0 : 1) + "k";
@@ -224,6 +215,31 @@ export default function PilotagePage() {
       .catch(() => {});
     return () => { alive = false; };
   }, [company.id]);
+
+  // ── Comptes réellement connectés (bug #8) — MÊME source de vérité que la
+  // page Connecteurs : GET /api/connectors?companyId= (sh_channel_connections).
+  // Aucun état local/mock : le statut vient exclusivement de cette API.
+  const [connectedNets, setConnectedNets] = useState<string[] | null>(null);
+  useEffect(() => {
+    let alive = true;
+    setConnectedNets(null);
+    fetch(`/api/connectors?companyId=${encodeURIComponent(company.id)}`)
+      .then((r) => (r.ok ? (r.json() as Promise<ConnectorStatus[]>) : []))
+      .then((statuses) => {
+        if (!alive) return;
+        setConnectedNets(
+          Array.isArray(statuses)
+            ? statuses.filter((s) => (s.connectedAccounts ?? 0) > 0).map((s) => s.platform)
+            : []
+        );
+      })
+      .catch(() => { if (alive) setConnectedNets([]); });
+    return () => { alive = false; };
+  }, [company.id]);
+  const hasConnectedAccounts = (connectedNets?.length ?? 0) > 0;
+
+  // Recommandation ouverte dans la modale de détail (bug #7).
+  const [openDecision, setOpenDecision] = useState<Decision | null>(null);
 
   const setStatus = (id: string, status: Decision["status"]) =>
     setDecisions((ds) => ds.map((d) => (d.id === id ? { ...d, status } : d)));
@@ -401,10 +417,15 @@ export default function PilotagePage() {
         ) : (
           <EmptyState
             title={t("Aucune statistique pour l'instant", "No statistics yet")}
-            detail={t(
-              "Vos indicateurs (abonnés, engagement, portée…) s'afficheront ici dès la connexion de vos comptes Meta / LinkedIn.",
-              "Your metrics (followers, engagement, reach…) will appear here once your Meta / LinkedIn accounts are connected."
-            )}
+            detail={hasConnectedAccounts
+              ? t(
+                  "Vos comptes sont connectés — vos indicateurs (abonnés, engagement, portée…) s'afficheront ici dès la récupération des premières données.",
+                  "Your accounts are connected — your metrics (followers, engagement, reach…) will appear here as soon as the first data is retrieved."
+                )
+              : t(
+                  "Vos indicateurs (abonnés, engagement, portée…) s'afficheront ici dès la connexion de vos comptes Meta / LinkedIn.",
+                  "Your metrics (followers, engagement, reach…) will appear here once your Meta / LinkedIn accounts are connected."
+                )}
           />
         )}
       </section>
@@ -470,9 +491,16 @@ export default function PilotagePage() {
           <div className="section-label mb-2.5">{t("Recommandations des agents — à valider", "Agent recommendations — to review")}</div>
           <div className="space-y-2.5">
             {decisions.map((d) => (
-              <div key={d.id} className={`card p-4 ${d.status !== "pending" ? "opacity-60" : ""}`}>
+              <div key={d.id} className={`card p-4 transition-colors hover:border-primary-300 ${d.status !== "pending" ? "opacity-60" : ""}`}>
                 <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
+                  {/* Zone cliquable : ouvre la modale de détail complet (bug #7). */}
+                  <button
+                    type="button"
+                    onClick={() => setOpenDecision(d)}
+                    aria-haspopup="dialog"
+                    aria-label={t(`Voir le détail de la recommandation : ${d.title}`, `View recommendation details: ${d.title}`)}
+                    className="min-w-0 flex-1 cursor-pointer rounded-lg text-left transition-opacity hover:opacity-80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-400"
+                  >
                     <div className="mb-1 flex flex-wrap items-center gap-2">
                       <span className="rounded-md bg-page/10 px-1.5 py-0.5 text-2xs font-semibold text-page">
                         {AGENT_LABEL[d.agent] ?? d.agent}
@@ -487,7 +515,8 @@ export default function PilotagePage() {
                     <div className="break-words font-semibold text-ink">{d.title}</div>
                     <p className="mt-1 break-words text-sm text-muted">{d.rationale}</p>
                     <p className="mt-1.5 break-words text-2xs font-medium text-success-700">{t("Impact estimé", "Estimated impact")} : {d.impact}</p>
-                  </div>
+                    <span className="mt-1.5 inline-block text-2xs font-medium text-primary-600">{t("Voir le détail →", "View details →")}</span>
+                  </button>
                   {d.status === "pending" ? (
                     <div className="flex shrink-0 flex-col gap-1.5">
                       <button onClick={() => setStatus(d.id, "approved")} className="btn-primary px-3 py-1 text-2xs">{t("Valider", "Approve")}</button>
@@ -547,7 +576,38 @@ export default function PilotagePage() {
 
           <section>
             <div className="section-label mb-2.5">{t("Par réseau", "By network")}</div>
-            {!hasNetworkData ? (
+            {/* Statut « connecté » aligné sur la page Connecteurs (bug #8) :
+                GET /api/connectors (sh_channel_connections), jamais un état local. */}
+            {!hasNetworkData && connectedNets === null ? (
+              <div className="card animate-pulse p-4 text-sm text-muted">
+                {t("Vérification des comptes connectés…", "Checking connected accounts…")}
+              </div>
+            ) : !hasNetworkData && hasConnectedAccounts ? (
+              <div className="space-y-2">
+                {connectedNets!.map((p) => {
+                  const meta = NET_LABEL[p as Network];
+                  const real = realKpi?.perNet.find((n) => n.net.toLowerCase() === p);
+                  return (
+                    <div key={p} className="card flex items-center justify-between gap-2 p-3">
+                      <span className="flex min-w-0 items-center gap-2 text-sm font-medium text-ink">
+                        <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: meta?.color ?? "#94a3b8" }} />
+                        <span className="truncate">{meta?.label ?? p.charAt(0).toUpperCase() + p.slice(1)}</span>
+                      </span>
+                      <span className="flex shrink-0 items-center gap-2 text-2xs sm:gap-3">
+                        {real ? (
+                          <>
+                            <span className="text-muted">{fmt(real.followers)} {t("abo.", "subs.")}</span>
+                            <span className="font-semibold text-ink">{real.engagementRate}%</span>
+                          </>
+                        ) : (
+                          <span className="font-semibold text-success-700">{t("✓ Connecté", "✓ Connected")}</span>
+                        )}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : !hasNetworkData ? (
               <EmptyState
                 title={t("Aucun réseau connecté", "No network connected")}
                 detail={t(
@@ -579,11 +639,23 @@ export default function PilotagePage() {
       </div>
 
       <p className="text-center text-2xs text-muted">
-        {t(
-          "Indicateurs et benchmark estimés à partir du marché et des mots-clés ciblés — basculent sur les données réelles dès la connexion Meta / LinkedIn.",
-          "Metrics and benchmark estimated from the target market and keywords — switch to live data once Meta / LinkedIn is connected."
-        )}
+        {hasConnectedAccounts
+          ? t(
+              "Indicateurs calculés à partir de vos comptes connectés — le benchmark s'enrichit au fil de vos campagnes.",
+              "Metrics computed from your connected accounts — the benchmark grows richer as your campaigns run."
+            )
+          : t(
+              "Indicateurs et benchmark estimés à partir du marché et des mots-clés ciblés — basculent sur les données réelles dès la connexion Meta / LinkedIn.",
+              "Metrics and benchmark estimated from the target market and keywords — switch to live data once Meta / LinkedIn is connected."
+            )}
       </p>
+
+      {/* Modale de détail d'une recommandation IA (bug #7). */}
+      <RecommendationModal
+        decision={openDecision}
+        onClose={() => setOpenDecision(null)}
+        onSetStatus={setStatus}
+      />
     </div>
   );
 }

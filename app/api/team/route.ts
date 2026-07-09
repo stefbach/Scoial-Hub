@@ -9,6 +9,9 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireAccountAdmin } from "@/lib/auth/guard";
+import { createClient } from "@/lib/supabase/server";
+import { env } from "@/lib/env";
+import { sendEmail, buildInvitationEmail } from "@/lib/email";
 import { listCompanies } from "@/lib/repositories/companies";
 import {
   listTeam,
@@ -57,6 +60,21 @@ export async function POST(req: NextRequest) {
   if (!email) return NextResponse.json({ error: "Email requis" }, { status: 400 });
   const res = await addOrInviteMember(g.orgId, email, coerceRole(body.role), coerceAccess(body.access), g.userId);
   if (res.error) return NextResponse.json({ error: res.error }, { status: 400 });
+
+  // #12 — Si l'invitation n'est pas partie via Supabase Auth (SMTP absent),
+  // on tente l'envoi via le service e-mail applicatif (lib/email.ts, Resend).
+  // emailSent ne passe à true QUE si un e-mail est réellement accepté — sinon
+  // le repli honnête (lien d'invitation copiable) reste affiché côté UI.
+  if (res.invited && !res.emailSent) {
+    let inviterEmail: string | undefined;
+    try {
+      const sb = createClient();
+      inviterEmail = (await sb?.auth.getUser())?.data.user?.email ?? undefined;
+    } catch { /* inviteur anonyme : l'e-mail reste valide sans lui */ }
+    const signupUrl = `${env.appUrl.replace(/\/$/, "")}/signup`;
+    const { subject, text } = buildInvitationEmail({ email, signupUrl, inviterEmail });
+    res.emailSent = await sendEmail({ to: email, subject, text });
+  }
   return NextResponse.json(res);
 }
 

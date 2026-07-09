@@ -102,8 +102,10 @@ export interface OnboardingSchedule {
   cadence?: CadenceId;
   /** date de démarrage ISO (YYYY-MM-DD). */
   startDate?: string;
-  /** heures de publication HH:mm. */
+  /** heures de publication HH:mm (dédupliquées — 1er élément = heure principale). */
   times?: string[];
+  /** heure de publication par jour sélectionné (clé = jour 0=Dim … 6=Sam). */
+  timesByDay?: Record<number, string>;
   /** jours de publication (0=Dim … 6=Sam) pour les cadences 3x/sem & hebdo. */
   days?: number[];
 }

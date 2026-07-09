@@ -53,6 +53,20 @@ export function Stepper({ steps }: { steps: StepMeta[] }) {
                 type="button"
                 onClick={() => goTo(s.n)}
                 aria-current={active ? "step" : undefined}
+                // Infobulle : les étapes non actives n'affichent que leur numéro
+                // (libellé masqué sous lg) — le titre est révélé au survol via le
+                // `title` natif et annoncé aux lecteurs d'écran via `aria-label`.
+                // (Un tooltip CSS positionné serait rogné par l'overflow-x du rail.)
+                title={
+                  active
+                    ? undefined
+                    : t(`Étape ${s.n} — ${s.title.fr}`, `Step ${s.n} — ${s.title.en}`)
+                }
+                aria-label={
+                  active
+                    ? undefined
+                    : t(`Étape ${s.n} — ${s.title.fr}`, `Step ${s.n} — ${s.title.en}`)
+                }
                 className="group flex min-w-0 flex-1 items-center gap-2 rounded-xl px-2 py-1.5 text-left transition-colors hover:bg-canvas"
               >
                 <span

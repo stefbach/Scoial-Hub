@@ -5,7 +5,10 @@ import Link from "next/link";
 import { useCompany } from "@/lib/company-context";
 import { AgentLauncher } from "@/components/agents/AgentLauncher";
 import { useScope } from "@/lib/scope";
-import { useT } from "@/lib/i18n";
+import { useLang, useT } from "@/lib/i18n";
+import { JourneyCampaignCard, zoneLabel } from "@/components/pilotage/JourneyCampaignCard";
+import type { Campaign } from "@/lib/types";
+import type { OnboardingState } from "@/lib/onboarding/types";
 import {
   computeNetworkKpis,
   aggregateKpis,
@@ -64,23 +67,74 @@ export default function PilotagePage() {
   const days = range ? Math.max(1, Math.round((+range.to - +range.from) / 86400000)) : 30;
 
   const t = useT();
+  const { lang } = useLang();
   const [autonomy, setAutonomy] = useState(1);
-  const [objective, setObjective] = useState("");
   const [running, setRunning] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
-  // Objectif global depuis la config d'entité (tunnel admin) si présent
+  // ── Objectif global — TOUJOURS scopé à la société active (bug #11) ─────
+  // Priorité : saisie utilisateur persistée PAR société → config d'entité
+  // (tunnel admin) → défaut dérivé du nom + de la zone réelle de la société.
+  // L'override est rechargé à CHAQUE changement de société (jamais hérité).
+  const [objectiveOverride, setObjectiveOverride] = useState<string | null>(null);
   useEffect(() => {
+    let saved: string | null = null;
     try {
-      const raw = localStorage.getItem(`sh_entity_config_${company.id}`);
-      if (raw) {
-        const cfg = JSON.parse(raw);
-        if (cfg.objectifGlobal) setObjective(cfg.objectifGlobal);
+      saved = localStorage.getItem(`sh_pilotage_objective_${company.id}`);
+      if (!saved) {
+        const raw = localStorage.getItem(`sh_entity_config_${company.id}`);
+        if (raw) saved = (JSON.parse(raw) as { objectifGlobal?: string }).objectifGlobal || null;
       }
     } catch { /* ignore */ }
-    if (!objective) setObjective(`Développer la notoriété et l'acquisition de ${company.name} sur ${market}`);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    setObjectiveOverride(saved);
   }, [company.id]);
+
+  // ── Campagne + état du parcours créés par le Démarrage assisté (bug #12) ──
+  // Mêmes sources que l'activation de l'étape 6 : POST /api/campaigns
+  // (sh_campaigns) et PUT /api/onboarding/state (sh_onboarding_state).
+  const [journey, setJourney] = useState<{ campaign: Campaign | null; state: OnboardingState | null } | null>(null);
+  useEffect(() => {
+    let alive = true;
+    setJourney(null);
+    Promise.all([
+      fetch(`/api/campaigns?companyId=${encodeURIComponent(company.id)}`)
+        .then((r) => (r.ok ? (r.json() as Promise<Campaign[]>) : []))
+        .catch(() => [] as Campaign[]),
+      fetch(`/api/onboarding/state?companyId=${encodeURIComponent(company.id)}`)
+        .then((r) => (r.ok ? (r.json() as Promise<{ state?: OnboardingState }>) : null))
+        .catch(() => null),
+    ]).then(([camps, ob]) => {
+      if (!alive) return;
+      const list = Array.isArray(camps) ? camps : [];
+      const state = ob?.state ?? null;
+      // La campagne du parcours est nommée « <société> — <objectif> » (étape 6) ;
+      // à défaut, la campagne active la plus récente si le parcours est terminé.
+      const prefix = `${company.name} — `;
+      const campaign =
+        list.find((c) => c.enabled && c.name.startsWith(prefix)) ??
+        (state?.completed ? list.find((c) => c.enabled) ?? null : null);
+      setJourney({ campaign, state });
+    });
+    return () => { alive = false; };
+  }, [company.id, company.name]);
+
+  // Zone réelle de la société : pays du parcours si définis, sinon scope global.
+  const companyZone = journey?.state?.geo?.countries?.length
+    ? zoneLabel(journey.state.geo.countries, lang)
+    : market;
+  const objective = objectiveOverride ?? t(
+    `Développer la notoriété et l'acquisition de ${company.name} sur ${companyZone}`,
+    `Grow awareness and acquisition for ${company.name} in ${companyZone}`
+  );
+
+  function handleObjectiveChange(value: string) {
+    setObjectiveOverride(value);
+    try {
+      const key = `sh_pilotage_objective_${company.id}`;
+      if (value.trim()) localStorage.setItem(key, value);
+      else localStorage.removeItem(key);
+    } catch { /* ignore */ }
+  }
 
   const kpis = useMemo(() => computeNetworkKpis(company.id, market, days), [company.id, market, days]);
   const agg = useMemo(() => aggregateKpis(kpis), [kpis]);
@@ -272,7 +326,7 @@ export default function PilotagePage() {
             <label className="section-label mb-1 block text-muted">{t("Objectif global", "Global objective")}</label>
             <textarea
               value={objective}
-              onChange={(e) => setObjective(e.target.value)}
+              onChange={(e) => handleObjectiveChange(e.target.value)}
               rows={2}
               className="input resize-none"
             />
@@ -307,6 +361,11 @@ export default function PilotagePage() {
         </div>
         {toast && <div className="border-t border-hair bg-success-50 px-5 py-2 text-sm text-success-700">{toast}</div>}
       </div>
+
+      {/* ── Campagne du parcours (Démarrage assisté) ─────────────────────
+          Affiche le dispositif réellement activé à l'étape 6 ; masqué
+          pendant le chargement pour éviter un faux état vide. */}
+      {journey && <JourneyCampaignCard campaign={journey.campaign} state={journey.state} />}
 
       {/* ── KPIs agrégés ───────────────────────────────── */}
       <section>

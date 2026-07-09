@@ -17,6 +17,14 @@ type TabId = "all" | "scheduled" | "drafts";
 
 const isDraft = (p: ScheduledPost) => p.status === "draft";
 
+// Un post « scheduled » (statut par défaut) dont l'échéance date+heure est passée
+// n'est plus « planifié » mais EN RETARD : le cron le publiera au prochain passage,
+// l'utilisateur doit le voir clairement (badge ambre) au lieu du badge « Auto ».
+const isOverdue = (p: ScheduledPost) =>
+  (p.status ?? "scheduled") === "scheduled" &&
+  Boolean(p.date) &&
+  new Date(`${p.date}T${p.time || "23:59"}:00`).getTime() < Date.now();
+
 export default function ScheduledPage() {
   return (
     <Suspense fallback={null}>
@@ -275,6 +283,23 @@ function PostRow({
       {isDraft(p) ? (
         <span className="rounded-full bg-warning-100 px-2 py-0.5 text-2xs font-semibold text-warning-700">
           {t("Brouillon", "Draft")}
+        </span>
+      ) : isOverdue(p) ? (
+        // Échéance passée alors que le post est toujours « scheduled » : le badge
+        // « Auto » serait mensonger — on annonce le retard et le rattrapage cron.
+        <span
+          className="inline-flex items-center gap-1 rounded-full bg-warning-100 px-2 py-0.5 text-2xs font-semibold text-warning-700"
+          title={t(
+            "En retard — sera publié automatiquement au prochain passage du planificateur",
+            "Overdue — will be published automatically on the scheduler's next run"
+          )}
+        >
+          <svg viewBox="0 0 24 24" fill="none" className="h-2.5 w-2.5">
+            <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2.4" />
+            <path d="M12 8v5" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
+            <circle cx="12" cy="16.5" r="1.4" fill="currentColor" stroke="none" />
+          </svg>
+          {t("En retard", "Overdue")}
         </span>
       ) : (
         // Tout post planifié part AUTOMATIQUEMENT à l'heure prévue (cron),

@@ -253,7 +253,10 @@ export default function Step3Competition() {
             {profile.competitorAngles.map((angle, i) => (
               <li
                 key={i}
-                className="flex items-start gap-3 rounded-xl border border-ai-textbg/30 bg-ai-textbg/10 px-4 py-3"
+                // Même remplissage que l'état vide « Pas encore de données
+                // concurrents » : bg-primary-50 PLEIN — une variante d'opacité
+                // (/10, /30) échapperait au remap du thème clair.
+                className="flex items-start gap-3 rounded-xl border border-primary-200 bg-primary-50 px-4 py-3"
               >
                 <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-ai-textbg text-ai-text text-2xs font-bold" aria-hidden>
                   {i + 1}

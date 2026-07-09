@@ -7,11 +7,11 @@
 // • Récapitulatif complet du parcours
 // • CTA final : activation → POST /api/campaigns + ctx.complete() + succès
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useOnboardingCtx } from "@/components/onboarding/context";
 import { useT } from "@/lib/i18n";
-import type { CampaignType, CadenceId } from "@/lib/onboarding/types";
+import type { CampaignType, CadenceId, OnboardingSchedule } from "@/lib/onboarding/types";
 
 // ── Icônes SVG inline ────────────────────────────────────────────────────────
 
@@ -82,6 +82,45 @@ function todayISO(): string {
   const mm = String(d.getMonth() + 1).padStart(2, "0");
   const dd = String(d.getDate()).padStart(2, "0");
   return `${d.getFullYear()}-${mm}-${dd}`;
+}
+
+/** Jours effectifs de publication (quotidien = tous les jours). */
+function effectiveDays(schedule: OnboardingSchedule): number[] {
+  return schedule.cadence === "daily" ? [0, 1, 2, 3, 4, 5, 6] : schedule.days ?? [];
+}
+
+/**
+ * Prochain jour ∈ `days` à partir de `fromISO` (aujourd'hui compris), au format
+ * YYYY-MM-DD — calcul en fuseau local, comme todayISO().
+ */
+function nextSelectedDayISO(days: number[], fromISO: string): string | null {
+  if (days.length === 0) return null;
+  const [y, m, d] = fromISO.split("-").map(Number);
+  for (let i = 0; i < 7; i++) {
+    const cand = new Date(y, m - 1, d + i);
+    if (days.includes(cand.getDay())) {
+      const mm = String(cand.getMonth() + 1).padStart(2, "0");
+      const dd = String(cand.getDate()).padStart(2, "0");
+      return `${cand.getFullYear()}-${mm}-${dd}`;
+    }
+  }
+  return null;
+}
+
+/**
+ * Heures dédupliquées dérivées des heures par jour, dans l'ordre d'affichage
+ * Lun→Dim (rétro-compat `times` : 1er élément = heure principale).
+ */
+function deriveTimes(
+  days: number[],
+  timesByDay: Record<number, string> | undefined,
+  fallback: string
+): string[] {
+  const ordered = WEEK_DAYS.filter((w) => days.includes(w.d)).map(
+    (w) => timesByDay?.[w.d] ?? fallback
+  );
+  const dedup = ordered.filter((t, i) => ordered.indexOf(t) === i);
+  return dedup.length > 0 ? dedup : [fallback];
 }
 
 // ── Couleurs de plateforme ─────────────────────────────────────────────────────
@@ -285,14 +324,39 @@ function ProgrammationSection() {
   const selectedDays = schedule.days ?? [];
   const limitReached = selectedDays.length >= expectedDays;
 
-  // Heure unique de publication (rétro-compat : on lit la 1re heure du tableau).
-  const publishTime = schedule.times?.[0] ?? DEFAULT_TIME;
+  // Heure principale de publication (rétro-compat : 1re heure du tableau).
+  const mainTime = schedule.times?.[0] ?? DEFAULT_TIME;
+  const timeForDay = (d: number) => schedule.timesByDay?.[d] ?? mainTime;
+
+  // ── Pré-remplissage de la date de démarrage (prochain jour sélectionné) ────
+  // On ne touche jamais à une date saisie manuellement : seule une date vide,
+  // passée, ou égale au dernier défaut auto-calculé est (re)pré-remplie.
+  const autoDateRef = useRef<string | null>(null);
+  const daysKey = effectiveDays(schedule).join(",");
+  useEffect(() => {
+    const def = nextSelectedDayISO(effectiveDays(schedule), today);
+    if (!def) return;
+    const cur = schedule.startDate;
+    if (cur === def) {
+      autoDateRef.current = def; // le défaut courant reste re-calculable
+      return;
+    }
+    const isAuto = !cur || cur < today || cur === autoDateRef.current;
+    if (!isAuto) return;
+    autoDateRef.current = def;
+    setDateError(null);
+    patchState({ schedule: { ...schedule, startDate: def } });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [daysKey, schedule.startDate, today]);
 
   function setCadence(cadence: CadenceId) {
     // Changement de cadence : on tronque proprement les jours au nouveau plafond
-    // (les jours les plus tôt dans la semaine sont conservés).
+    // (les jours les plus tôt dans la semaine sont conservés) et on re-dérive
+    // les heures à partir des heures par jour restantes.
     const days = selectedDays.slice(0, maxDaysForCadence(cadence));
-    patchState({ schedule: { ...schedule, cadence, days } });
+    const times =
+      cadence === "daily" ? [mainTime] : deriveTimes(days, schedule.timesByDay, mainTime);
+    patchState({ schedule: { ...schedule, cadence, days, times } });
   }
 
   function setStartDate(startDate: string) {
@@ -312,20 +376,39 @@ function ProgrammationSection() {
 
   function toggleDay(day: number) {
     const cur = schedule.days ?? [];
+    let days: number[];
     if (cur.includes(day)) {
-      patchState({ schedule: { ...schedule, days: cur.filter((d) => d !== day) } });
-      return;
+      days = cur.filter((d) => d !== day);
+    } else {
+      // Plafond atteint : on ignore (les boutons sont désactivés par ailleurs).
+      if (cur.length >= expectedDays) return;
+      days = [...cur, day].sort((a, b) => a - b);
     }
-    // Plafond atteint : on ignore (les boutons sont désactivés par ailleurs).
-    if (cur.length >= expectedDays) return;
-    patchState({ schedule: { ...schedule, days: [...cur, day].sort((a, b) => a - b) } });
+    // `times` reste la liste dédupliquée des heures des jours actifs (l'heure
+    // mémorisée d'un jour décoché est conservée dans timesByDay).
+    patchState({
+      schedule: { ...schedule, days, times: deriveTimes(days, schedule.timesByDay, mainTime) },
+    });
   }
 
-  function setTime(time: string) {
+  function setSingleTime(time: string) {
     if (!time) return;
-    // Le type persiste un tableau : on envoie un tableau à 1 élément pour
-    // rester compatible avec l'aval (persistance / programmation).
-    patchState({ schedule: { ...schedule, times: [time] } });
+    // Heure unique (cadence quotidienne / aucun jour choisi) : on repart d'une
+    // base propre — pas d'heures par jour périmées.
+    patchState({ schedule: { ...schedule, times: [time], timesByDay: undefined } });
+  }
+
+  function setTimeForDay(day: number, time: string) {
+    if (!time) return;
+    const timesByDay = { ...(schedule.timesByDay ?? {}), [day]: time };
+    patchState({
+      schedule: {
+        ...schedule,
+        timesByDay,
+        // Rétro-compat : `times` = heures dédupliquées, 1er élément = heure principale.
+        times: deriveTimes(selectedDays, timesByDay, mainTime),
+      },
+    });
   }
 
   return (
@@ -439,26 +522,61 @@ function ProgrammationSection() {
           )}
         </div>
 
-        {/* Heure de publication — une seule heure, appliquée aux jours sélectionnés */}
-        <div className="space-y-2">
-          <label htmlFor="step6-publish-time" className="block text-xs font-semibold text-muted">
-            {t("Heure de publication", "Posting time")}
-          </label>
-          <input
-            id="step6-publish-time"
-            type="time"
-            value={publishTime}
-            onChange={(e) => setTime(e.target.value)}
-            className="input w-32 text-sm"
-            aria-label={t("Heure de publication", "Posting time")}
-          />
-          <p className="text-2xs text-muted">
-            {t(
-              "Les agents publieront à cette heure les jours sélectionnés.",
-              "Agents will post at this time on the selected days."
-            )}
-          </p>
-        </div>
+        {/* Heure de publication — une heure distincte possible par jour sélectionné ;
+            heure unique en cadence quotidienne ou tant qu'aucun jour n'est choisi */}
+        {schedule.cadence !== "daily" && selectedDays.length > 0 ? (
+          <fieldset className="space-y-2">
+            <legend className="text-xs font-semibold text-muted">
+              {t("Heure de publication", "Posting time")}
+            </legend>
+            <div className="space-y-1.5">
+              {WEEK_DAYS.filter((w) => selectedDays.includes(w.d)).map(({ d, fr, en }) => (
+                <div key={d} className="flex items-center gap-3">
+                  <label
+                    htmlFor={`step6-publish-time-${d}`}
+                    className="w-10 shrink-0 text-xs font-medium text-ink"
+                  >
+                    {t(fr, en)}
+                  </label>
+                  <input
+                    id={`step6-publish-time-${d}`}
+                    type="time"
+                    value={timeForDay(d)}
+                    onChange={(e) => setTimeForDay(d, e.target.value)}
+                    className="input w-32 text-sm"
+                    aria-label={t(`Heure de publication — ${fr}`, `Posting time — ${en}`)}
+                  />
+                </div>
+              ))}
+            </div>
+            <p className="text-2xs text-muted">
+              {t(
+                "Chaque jour sélectionné peut avoir sa propre heure de publication.",
+                "Each selected day can have its own posting time."
+              )}
+            </p>
+          </fieldset>
+        ) : (
+          <div className="space-y-2">
+            <label htmlFor="step6-publish-time" className="block text-xs font-semibold text-muted">
+              {t("Heure de publication", "Posting time")}
+            </label>
+            <input
+              id="step6-publish-time"
+              type="time"
+              value={mainTime}
+              onChange={(e) => setSingleTime(e.target.value)}
+              className="input w-32 text-sm"
+              aria-label={t("Heure de publication", "Posting time")}
+            />
+            <p className="text-2xs text-muted">
+              {t(
+                "Les agents publieront à cette heure les jours sélectionnés.",
+                "Agents will post at this time on the selected days."
+              )}
+            </p>
+          </div>
+        )}
 
       </div>
     </div>
@@ -495,8 +613,21 @@ function RecapSection() {
     return c ? t(c.fr, c.en) : state.schedule.cadence;
   })();
 
-  // Heure de publication (unique) + jours sélectionnés
+  // Heure de publication (principale) + jours sélectionnés
   const publishTime = state.schedule.times?.[0] ?? DEFAULT_TIME;
+  // Heures par jour : listées « Mer 09:00 · Ven 12:00 » si au moins deux diffèrent,
+  // sinon affichage compact heure unique + jours.
+  const perDayTimes = (() => {
+    const sched = state.schedule;
+    if (sched.cadence === "daily") return null;
+    const days = sched.days ?? [];
+    if (days.length === 0) return null;
+    const entries = WEEK_DAYS.filter((w) => days.includes(w.d)).map((w) => ({
+      w,
+      time: sched.timesByDay?.[w.d] ?? publishTime,
+    }));
+    return entries.some((e) => e.time !== entries[0].time) ? entries : null;
+  })();
   const daysSummary = (() => {
     if (state.schedule.cadence === "daily") return t("tous les jours", "every day");
     const days = state.schedule.days ?? [];
@@ -594,7 +725,16 @@ function RecapSection() {
     {
       labelFr: "Heure",
       labelEn: "Time",
-      content: (
+      content: perDayTimes ? (
+        <span className="text-sm text-ink">
+          {perDayTimes.map(({ w, time }, i) => (
+            <span key={w.d} className="whitespace-nowrap">
+              {i > 0 && <span className="text-muted"> · </span>}
+              {t(w.fr, w.en)} {time}
+            </span>
+          ))}
+        </span>
+      ) : (
         <span className="text-sm text-ink">
           {publishTime}
           {daysSummary && (
@@ -764,7 +904,7 @@ export default function Step6Diffusion() {
               </button>
               <Link
                 href="/dashboard"
-                className="btn-ghost inline-flex items-center gap-2 text-muted"
+                className="btn-secondary inline-flex items-center gap-2"
               >
                 <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4" aria-hidden="true">
                   <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" />

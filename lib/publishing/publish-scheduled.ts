@@ -227,9 +227,10 @@ export async function claimDueScheduledPost(id: string): Promise<boolean> {
   if (!supabase) return false;
   const { data, error } = await supabase
     .from("sh_scheduled_posts")
-    .update({ status: "publishing" })
+    .update({ status: "publishing", claimed_at: new Date().toISOString() })
     .eq("id", id)
     .eq("status", "scheduled") // compare-and-set atomique
+    .is("published_at", null) // jamais re-publier un post déjà parti une fois
     .select("id");
   return !error && Array.isArray(data) && data.length === 1;
 }
@@ -248,7 +249,14 @@ export async function finalizeFailedScheduledPost(id: string, permanent: boolean
   const supabase = createAdminClient();
   if (!supabase) return;
   try {
-    await supabase.from("sh_scheduled_posts").update({ status: next }).eq("id", id);
+    // CAS : ne repasse en scheduled/failed QUE depuis `publishing`. Sans cette
+    // garde, l'échec d'un passage concurrent écrasait le statut `published`
+    // posé par le passage gagnant → le post repartait à chaque run (doublons).
+    await supabase
+      .from("sh_scheduled_posts")
+      .update({ status: next })
+      .eq("id", id)
+      .eq("status", "publishing");
   } catch { /* non bloquant */ }
 }
 
@@ -259,18 +267,29 @@ export function isPermanentPublishError(status: number): boolean {
 
 /**
  * Remet en `scheduled` les posts restés bloqués en `publishing` (ex. crash /
- * timeout d'un passage cron précédent). Sûr car les passages cron ne se
- * chevauchent pas (toutes les 10 min, ≤ 60 s d'exécution) : un `publishing`
- * persistant est forcément orphelin. Renvoie le nombre de posts récupérés.
+ * timeout d'un passage cron précédent) — UNIQUEMENT si leur réservation est
+ * périmée (claimed_at plus vieux que STALE_CLAIM_MINUTES, ou absent : verrou
+ * hérité d'avant l'horodatage).
+ *
+ * ATTENTION : les passages du cron PEUVENT se chevaucher (cron Vercel + workflow
+ * GitHub Actions, tous deux toutes les 10 min, non synchronisés). L'ancienne
+ * version libérait TOUS les `publishing` au début de chaque passage : elle
+ * volait le verrou d'un passage concurrent en pleine publication → le post
+ * partait deux fois sur le réseau. Le seuil ferme cette course : une exécution
+ * dure ≤ 60 s (maxDuration), donc un verrou de plus de 10 min est orphelin.
  */
+const STALE_CLAIM_MINUTES = 10;
+
 export async function reclaimStalePublishing(): Promise<number> {
   if (!isSupabaseConfigured) return 0;
   const supabase = createAdminClient();
   if (!supabase) return 0;
+  const staleBefore = new Date(Date.now() - STALE_CLAIM_MINUTES * 60_000).toISOString();
   const { data, error } = await supabase
     .from("sh_scheduled_posts")
-    .update({ status: "scheduled" })
+    .update({ status: "scheduled", claimed_at: null })
     .eq("status", "publishing")
+    .or(`claimed_at.is.null,claimed_at.lt.${staleBefore}`)
     .select("id");
   if (error || !Array.isArray(data)) return 0;
   return data.length;
@@ -326,6 +345,7 @@ export async function listDueScheduledPosts(
     for (const [companyId, data] of Object.entries(COMPANY_DATA)) {
       for (const p of data.scheduled) {
         if ((p.status ?? "scheduled") !== "scheduled") continue;
+        if (p.publishedAt) continue; // déjà parti une fois — jamais re-publier
         if (!platforms.includes(p.platform)) continue;
         if (isDue(p)) out.push({ post: p, companyId });
       }
@@ -340,6 +360,10 @@ export async function listDueScheduledPosts(
     .from("sh_scheduled_posts")
     .select("*")
     .eq("status", "scheduled")
+    // Garde-fou anti-doublon : un post portant déjà un published_at a été
+    // publié au moins une fois (statut écrasé par une course passée) — on ne
+    // le remet JAMAIS dans le circuit automatique.
+    .is("published_at", null)
     .in("platform", platforms)
     .not("date", "is", null)
     .lte("date", todayStr)

@@ -15,6 +15,7 @@
  */
 
 import type { Platform } from "@/lib/types";
+import { formatForLinkedIn } from "@/lib/linkedin-format";
 import type {
   SocialConnector,
   TokenSet,
@@ -408,14 +409,18 @@ class LinkedInConnector implements SocialConnector {
       : input.externalAccountId;
 
     // Construction du body pour l'API Posts (linkedin.com/rest/posts).
-    // GARDE-FOU universel : le champ `commentary` de l'API Posts est limité à
-    // 3000 caractères. Au-delà, LinkedIn tronque (avec « … ») côté serveur. On
-    // garantit donc ≤ 3000 EN COUPANT PROPREMENT à une frontière de phrase
-    // (jamais en plein mot, aucun « … »). Couvre TOUS les chemins de
-    // publication (studio article, espace LinkedIn, publications programmées).
+    // 1) MISE EN FORME NATIVE : LinkedIn ne rend pas le markdown → conversion
+    //    du gras/italique/puces/titres en Unicode natif (formatForLinkedIn est
+    //    idempotente : un texte déjà converti ou sans markdown reste intact).
+    //    Point d'application UNIQUE : tous les chemins (studio article, espace
+    //    LinkedIn, publications programmées) passent par ce publishPost.
+    // 2) GARDE-FOU universel : le champ `commentary` de l'API Posts est limité
+    //    à 3000 caractères. Au-delà, LinkedIn tronque (avec « … ») côté
+    //    serveur. On garantit donc ≤ 3000 EN COUPANT PROPREMENT à une
+    //    frontière de phrase (jamais en plein mot, aucun « … »).
     const postBody: Record<string, unknown> = {
       author,
-      commentary: clampCommentary(input.text),
+      commentary: clampCommentary(formatForLinkedIn(input.text)),
       visibility: "PUBLIC",
       distribution: {
         feedDistribution: "MAIN_FEED",

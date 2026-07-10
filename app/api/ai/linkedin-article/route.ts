@@ -105,9 +105,20 @@ async function loadBrandContext(companyId: string, includeRag: boolean): Promise
 // corps + à-retenir + CTA + hashtags). Un post LinkedIn = 3000 caractères MAX :
 // on budgète sous 2900 pour produire un texte COMPLET qui ne sera JAMAIS coupé.
 const LENGTH_GUIDE: Record<string, string> = {
-  post: "Post LinkedIn court et COMPLET : le POST ENTIER (titre + accroche + corps + à-retenir + CTA + hashtags) doit faire AU TOTAL entre 700 et 1000 caractères. Une idée forte, un exemple concret, une conclusion nette.",
-  article: "Article LinkedIn structuré et COMPLET : le POST ENTIER fait AU TOTAL entre 1500 et 2100 caractères, 2 à 3 intertitres courts, chaque section développée avec un exemple concret (pas de généralités), conclusion nette.",
-  long: "Article LinkedIn riche et COMPLET tenant en UN SEUL post : le POST ENTIER fait AU TOTAL entre 2300 et 2850 caractères — JAMAIS plus de 2900 —, intertitres clairs, exemples concrets, mise en perspective, conclusion nette.",
+  post: "Post LinkedIn court et COMPLET : le POST ENTIER (titre + accroche + corps + à-retenir + CTA + hashtags) doit faire AU TOTAL entre 800 et 1200 caractères. Une idée forte, un exemple concret, une conclusion nette.",
+  article: "Article LinkedIn structuré et COMPLET : le POST ENTIER fait AU TOTAL entre 1500 et 2200 caractères, 2 à 3 intertitres courts, chaque section développée avec un exemple concret (pas de généralités), conclusion nette.",
+  long: "Article LinkedIn riche et COMPLET tenant en UN SEUL post : le POST ENTIER fait AU TOTAL entre 2400 et 2850 caractères — JAMAIS plus de 2900 —, intertitres clairs, exemples concrets, mise en perspective, conclusion nette.",
+};
+
+/**
+ * Cibles numériques par palier (caractères du POST ENTIER assemblé), alignées
+ * sur LENGTH_GUIDE. Servent au contrôle qualité : si l'article rendu fait
+ * moins de 70 % de la cible basse, UNE relance d'allongement est effectuée.
+ */
+const LENGTH_TARGETS: Record<string, { min: number; max: number }> = {
+  post: { min: 800, max: 1200 },
+  article: { min: 1500, max: 2200 },
+  long: { min: 2400, max: 2850 },
 };
 
 /** Budget caractères cible (marge sous la limite LinkedIn de 3000). */
@@ -189,7 +200,7 @@ Le prompt que tu produis doit préciser : l'objectif éditorial, l'angle unique,
 }
 
 // ── Mode "article" : génère l'article structuré + prompts visuels ─────────────
-const SYSTEM = `Tu es un rédacteur LinkedIn d'élite (leadership éclairé B2B). Tu écris des articles crédibles, structurés, engageants et PROFONDS — chaque idée est développée avec un raisonnement clair et des exemples concrets, jamais des généralités creuses ni du remplissage. Style LinkedIn : accroche forte dès la 1re ligne, paragraphes courts et aérés, intertitres explicites, transitions fluides. Jamais sensationnaliste, aucune promesse non étayée. Tu t'adaptes strictement au sujet demandé (prioritaire) et, s'il est fourni, à la voix de marque ; tu n'inventes ni chiffres ni faits. Pour les secteurs régulés (santé, finance, droit), langage mesuré.`;
+const SYSTEM = `Tu es un rédacteur LinkedIn d'élite (leadership éclairé B2B). Tu écris des articles crédibles, structurés, engageants et PROFONDS — chaque idée est développée avec un raisonnement clair et des exemples concrets, jamais des généralités creuses ni du remplissage. Structure professionnelle exigée : accroche forte en 1-2 lignes dès la 1re ligne, développement aéré en paragraphes courts, intertitres explicites, transitions fluides, puces si pertinent, conclusion avec une question d'engagement, 3 à 5 hashtags. Mets en relief les idées clés au format **gras** (quelques passages courts et décisifs, pas des phrases entières) : à la publication, ce gras est converti en caractères Unicode natifs LinkedIn — il s'affichera réellement en gras dans le fil. Jamais sensationnaliste, aucune promesse non étayée. Tu t'adaptes strictement au sujet demandé (prioritaire) et, s'il est fourni, à la voix de marque ; tu n'inventes ni chiffres ni faits. Pour les secteurs régulés (santé, finance, droit), langage mesuré.`;
 
 function fallbackArticle(body: Body, brand: BrandContext): ArticleResult {
   const topic = body.input.slice(0, 80);
@@ -280,6 +291,53 @@ ${JSON.stringify({ title: a.title, hook: a.hook, body: a.body, keyTakeaways: a.k
 }
 
 /**
+ * Réécrit l'article PLUS LONG quand le modèle a rendu un texte trop court pour
+ * le palier demandé (< 70 % de la cible basse) : développe avec des exemples
+ * concrets et de la mise en perspective, sans remplissage. UNE seule relance,
+ * jamais de boucle ; garde l'original si échec.
+ */
+async function expandToTarget(
+  a: ArticleResult,
+  client: Anthropic,
+  lang: string,
+  target: { min: number; max: number }
+): Promise<ArticleResult> {
+  const current = assembledPostText(a).length;
+  const promptE = `Ce post LinkedIn fait ${current} caractères : c'est TROP COURT pour le format demandé (le TOTAL publié — title + hook + body + keyTakeaways + cta + hashtags — doit faire entre ${target.min} et ${target.max} caractères). Réécris-le pour atteindre cette fourchette en DÉVELOPPANT réellement : exemples concrets supplémentaires, raisonnement approfondi, mise en perspective — JAMAIS de remplissage creux ni de répétitions. Conserve le sujet, l'angle, la structure (accroche, intertitres, idées clés en **gras**, question d'engagement) et la langue : ${lang}. Ne dépasse pas ${target.max} caractères. N'utilise jamais de tiret cadratin (—) ni demi-cadratin (–).
+
+Réponds UNIQUEMENT en JSON (même schéma) :
+{"title":"...","hook":"...","body":"...","keyTakeaways":["..."],"hashtags":["..."],"cta":"..."}
+
+Post actuel à développer :
+${JSON.stringify({ title: a.title, hook: a.hook, body: a.body, keyTakeaways: a.keyTakeaways, cta: a.cta, hashtags: a.hashtags })}`;
+  try {
+    const res = await createClaudeMessage(client, {
+      model: env.anthropicModel,
+      max_tokens: 3500,
+      system: SYSTEM,
+      messages: [{ role: "user", content: promptE }],
+    });
+    const raw = res.content.filter((b) => b.type === "text").map((b) => (b as { type: "text"; text: string }).text).join("");
+    const m = raw.match(/\{[\s\S]*\}/);
+    if (m) {
+      const p = JSON.parse(m[0]) as Partial<ArticleResult>;
+      const expanded = sanitizeArticle({
+        title: p.title ?? a.title,
+        hook: p.hook ?? a.hook,
+        body: p.body ?? a.body,
+        keyTakeaways: (p.keyTakeaways ?? a.keyTakeaways).slice(0, 6),
+        hashtags: (p.hashtags ?? a.hashtags).slice(0, 6),
+        cta: p.cta ?? a.cta,
+        visualPrompts: a.visualPrompts,
+      });
+      // On ne garde la relance que si elle a effectivement allongé le post.
+      if (assembledPostText(expanded).length > current) return expanded;
+    }
+  } catch { /* on garde l'original */ }
+  return a;
+}
+
+/**
  * Mode CHATBOT : applique une consigne d'ajustement à l'article COURANT
  * (« raccourcis l'intro », « ajoute une statistique », « ton plus direct »,
  * « termine par une question »…) et renvoie l'article révisé — toujours
@@ -364,7 +422,7 @@ IMPÉRATIF DE SORTIE — quelles que soient les instructions du brief ci-dessus 
 {
   "title": "titre d'article fort et professionnel",
   "hook": "1-2 phrases d'accroche qui donnent envie de lire (1re ligne du post)",
-  "body": "le corps de l'article en markdown : intertitres (##), paragraphes aérés et courts, listes si utile. Développé, crédible, riche en exemples concrets, sans jargon creux. Respecte la longueur demandée.",
+  "body": "le corps de l'article en markdown : intertitres (##), paragraphes aérés et courts, listes à puces si utile, idées clés en **gras** (rendu en gras Unicode natif sur LinkedIn — utilise-le pour 3 à 6 passages courts et décisifs). Développé, crédible, riche en exemples concrets, sans jargon creux. Respecte STRICTEMENT la fourchette de longueur demandée : un article nettement trop court sera refusé.",
   "keyTakeaways": ["3 à 5 enseignements clés et concrets (phrases complètes, actionnables)"],
   "hashtags": ["3 à 5 hashtags LinkedIn pertinents et spécifiques"],
   "cta": "un appel à l'action / question d'engagement en fin d'article",
@@ -393,8 +451,14 @@ IMPÉRATIF DE SORTIE — quelles que soient les instructions du brief ci-dessus 
           cta: p.cta ?? "",
           visualPrompts: (p.visualPrompts ?? []).slice(0, 3),
         });
-        // Si le post dépasse la limite LinkedIn, on le CONDENSE (réécriture
-        // complète plus courte) au lieu de le tronquer à la publication.
+        // Contrôle qualité longueur (palier demandé) : si l'article rendu est
+        // trop court (< 70 % de la cible basse), UNE relance d'allongement —
+        // jamais de boucle. Puis, s'il dépasse la limite LinkedIn, on le
+        // CONDENSE (réécriture complète plus courte) au lieu de le tronquer.
+        const target = LENGTH_TARGETS[body.length ?? "article"] ?? LENGTH_TARGETS.article;
+        if (assembledPostText(article).length < Math.round(target.min * 0.7)) {
+          article = await expandToTarget(article, client, langName(body.language ?? "fr"), target);
+        }
         if (assembledPostText(article).length > LINKEDIN_CHAR_BUDGET) {
           article = await condenseToFit(article, client, langName(body.language ?? "fr"));
         }

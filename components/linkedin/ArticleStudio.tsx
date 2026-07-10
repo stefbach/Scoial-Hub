@@ -11,6 +11,7 @@ import { PUBLISH_LANGUAGES } from "@/lib/publish-languages";
 import { Spinner, BusyHint } from "@/components/ui/Spinner";
 import { LinkedInScheduler } from "@/components/linkedin/LinkedInScheduler";
 import { VisualPromptCoach } from "@/components/linkedin/VisualPromptCoach";
+import { formatForLinkedIn } from "@/lib/linkedin-format";
 import { MediaLibraryButton } from "@/components/studio/MediaLibrary";
 import { UploadMediaButton } from "@/components/studio/UploadMediaButton";
 
@@ -803,8 +804,10 @@ export function ArticleStudio({ seed }: { seed?: { nonce: number; text: string }
               </div>
             </div>
 
-            {/* Corps du post = le texte final exact */}
-            <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-ink">{postText}</p>
+            {/* Corps du post = le texte final exact, rendu comme sur LinkedIn :
+                le **gras** markdown est converti en Unicode natif (même
+                transformation que celle appliquée à la publication). */}
+            <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-ink">{formatForLinkedIn(postText)}</p>
 
             {/* Visuel choisi */}
             {(selectedImage || Object.values(images).flat()[0]) && (

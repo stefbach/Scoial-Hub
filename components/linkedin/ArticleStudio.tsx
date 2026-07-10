@@ -10,6 +10,8 @@ import { useT, useLang } from "@/lib/i18n";
 import { PUBLISH_LANGUAGES } from "@/lib/publish-languages";
 import { Spinner, BusyHint } from "@/components/ui/Spinner";
 import { LinkedInScheduler } from "@/components/linkedin/LinkedInScheduler";
+import { VisualPromptCoach } from "@/components/linkedin/VisualPromptCoach";
+import { formatForLinkedIn } from "@/lib/linkedin-format";
 import { MediaLibraryButton } from "@/components/studio/MediaLibrary";
 import { UploadMediaButton } from "@/components/studio/UploadMediaButton";
 
@@ -21,6 +23,13 @@ const VISUAL_MODELS: { id: string; label: string }[] = [
   { id: "black-forest-labs/flux-1.1-pro", label: "Flux 1.1 Pro" },
   { id: "ideogram-ai/ideogram-v3-quality", label: "Ideogram v3 — texte/affiche" },
 ];
+
+/** Prompt visuel PILOTABLE : texte courant (éditable) + proposition d'origine
+ *  de l'IA (`original`, null pour un visuel ajouté à la main) pour le « ↺ ». */
+interface VisualPromptItem {
+  text: string;
+  original: string | null;
+}
 
 interface Article {
   title: string;
@@ -130,9 +139,15 @@ export function ArticleStudio({ seed }: { seed?: { nonce: number; text: string }
   // Dernière version produite par l'IA, en attente d'être appliquée au post.
   const [pendingText, setPendingText] = useState<string | null>(null);
 
-  // Visuels
+  // Visuels — prompts PILOTABLES par l'utilisateur : copie locale éditable des
+  // `article.visualPrompts` (initialisée quand l'article arrive), qu'on peut
+  // modifier, restaurer (↺), supprimer, ou compléter d'un visuel vierge.
+  const [visualPrompts, setVisualPrompts] = useState<VisualPromptItem[]>([]);
   const [images, setImages] = useState<Record<number, string[]>>({});
   const [imgLoading, setImgLoading] = useState<number | null>(null);
+  // Assistant de prompt visuel (repliable) + index du prompt visuel actif.
+  const [coachOpen, setCoachOpen] = useState(false);
+  const [coachTarget, setCoachTarget] = useState(0);
   const [imgModel, setImgModel] = useState(VISUAL_MODELS[0].id);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   // Type du média choisi (le connecteur LinkedIn publie images ET vidéos).
@@ -235,6 +250,9 @@ export function ArticleStudio({ seed }: { seed?: { nonce: number; text: string }
       if (!r.ok) throw new Error((d.error as string) || t("Échec.", "Failed."));
       const a = d.article as Article;
       setArticle(a);
+      // Copie locale ÉDITABLE des prompts visuels proposés (pilotage utilisateur).
+      setVisualPrompts(a.visualPrompts.map((p) => ({ text: p, original: p })));
+      setCoachTarget(0);
       setPostText(toPlainText(a));   // le post final reflète l'article généré
       setPendingText(null);
       if (!d.aiGenerated) setAiNote(t("Démo — IA non configurée (ANTHROPIC_API_KEY).", "Demo — AI not configured (ANTHROPIC_API_KEY)."));
@@ -264,6 +282,42 @@ export function ArticleStudio({ seed }: { seed?: { nonce: number; text: string }
     } catch (e) {
       setAiNote(e instanceof Error ? e.message : t("Échec de génération d'image.", "Image generation failed."));
     } finally { setImgLoading(null); }
+  }
+
+  /** Édite le texte du prompt visuel n° idx. */
+  function editVisualPrompt(idx: number, text: string) {
+    setVisualPrompts((prev) => prev.map((it, i) => (i === idx ? { ...it, text } : it)));
+  }
+
+  /** Ajoute un visuel à partir d'un prompt vierge (le coach le cible). */
+  function addVisualPrompt() {
+    setCoachTarget(visualPrompts.length);
+    setVisualPrompts((prev) => [...prev, { text: "", original: null }]);
+  }
+
+  /** Supprime un prompt visuel et ré-indexe les images déjà générées. */
+  function removeVisualPrompt(idx: number) {
+    setVisualPrompts((prev) => prev.filter((_, i) => i !== idx));
+    setImages((prev) => {
+      const next: Record<number, string[]> = {};
+      for (const [k, urls] of Object.entries(prev)) {
+        const i = Number(k);
+        if (i === idx) continue;
+        next[i > idx ? i - 1 : i] = urls;
+      }
+      return next;
+    });
+    setCoachTarget((c) => (c > idx ? c - 1 : Math.min(c, Math.max(0, visualPrompts.length - 2))));
+  }
+
+  /** « Utiliser ce prompt » du coach → remplit le prompt visuel actif (ou en crée un). */
+  function applyCoachPrompt(prompt: string) {
+    setVisualPrompts((prev) => {
+      if (coachTarget >= 0 && coachTarget < prev.length) {
+        return prev.map((it, i) => (i === coachTarget ? { ...it, text: prompt } : it));
+      }
+      return [...prev, { text: prompt, original: null }];
+    });
   }
 
   async function copyArticle() {
@@ -557,24 +611,75 @@ export function ArticleStudio({ seed }: { seed?: { nonce: number; text: string }
         </section>
       )}
 
-      {/* Visuels */}
-      {article && article.visualPrompts.length > 0 && (
+      {/* Visuels — prompts PILOTABLES (éditer / restaurer / ajouter / supprimer) */}
+      {article && (
         <section className="card p-5">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="section-label">{t("Visuels associés (haute qualité)", "Associated visuals (high quality)")}</span>
-            <label className="flex items-center gap-1.5 text-2xs text-muted">
-              {t("Modèle :", "Model:")}
-              <select value={imgModel} onChange={(e) => setImgModel(e.target.value)} className="rounded-lg border border-hair bg-canvas px-2 py-1 text-2xs text-ink outline-none focus:border-primary-400">
-                {VISUAL_MODELS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
-              </select>
-            </label>
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="flex items-center gap-1.5 text-2xs text-muted">
+                {t("Modèle :", "Model:")}
+                <select value={imgModel} onChange={(e) => setImgModel(e.target.value)} className="rounded-lg border border-hair bg-canvas px-2 py-1 text-2xs text-ink outline-none focus:border-primary-400">
+                  {VISUAL_MODELS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+                </select>
+              </label>
+              <button type="button" onClick={() => setCoachOpen((o) => !o)}
+                className={`rounded-full px-2.5 py-1 text-2xs font-medium transition-colors ${coachOpen ? "bg-page text-white" : "border border-hair bg-canvas text-ink hover:border-page hover:text-page"}`}>
+                ✦ {t("M'aider à créer le visuel", "Help me craft the visual")}
+              </button>
+            </div>
           </div>
-          <p className="mt-1 text-2xs text-muted">{t("Cliquez une image pour la choisir comme visuel de la publication.", "Click an image to set it as the post visual.")}</p>
+          <p className="mt-1 text-2xs text-muted">{t("Modifiez chaque prompt avant génération. Cliquez une image pour la choisir comme visuel de la publication.", "Edit each prompt before generating. Click an image to set it as the post visual.")}</p>
+
+          {/* Assistant conversationnel de prompt visuel (repliable) */}
+          {coachOpen && (
+            <div className="mt-3">
+              <VisualPromptCoach
+                articleContext={article ? [article.title, article.hook].filter(Boolean).join("\n") : undefined}
+                targetLabel={coachTarget < visualPrompts.length
+                  ? t(`Visuel ${coachTarget + 1}`, `Visual ${coachTarget + 1}`)
+                  : t("Nouveau visuel", "New visual")}
+                onUsePrompt={applyCoachPrompt}
+              />
+            </div>
+          )}
+
           <div className="mt-3 space-y-4">
-            {article.visualPrompts.map((vp, idx) => (
-              <div key={idx} className="rounded-xl border border-hair p-3">
-                <p className="text-xs text-muted">{vp}</p>
-                <button onClick={() => genVisual(idx, vp)} disabled={imgLoading === idx} className="btn-secondary mt-2 inline-flex items-center gap-1.5 text-xs disabled:opacity-50">
+            {visualPrompts.map((vp, idx) => (
+              <div key={idx} className={`rounded-xl border p-3 ${coachOpen && coachTarget === idx ? "border-primary-300" : "border-hair"}`}>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-2xs font-medium text-muted">
+                    {t(`Visuel ${idx + 1} — prompt (éditable)`, `Visual ${idx + 1} — prompt (editable)`)}
+                  </span>
+                  <div className="flex items-center gap-1">
+                    {vp.original !== null && vp.text !== vp.original && (
+                      <button type="button" onClick={() => editVisualPrompt(idx, vp.original!)} disabled={!canEdit}
+                        title={t("Revenir au prompt proposé", "Restore the suggested prompt")}
+                        className="rounded-lg border border-hair bg-canvas px-2 py-0.5 text-2xs text-ink hover:border-page hover:text-page disabled:opacity-50">
+                        ↺
+                      </button>
+                    )}
+                    <button type="button" onClick={() => { setCoachTarget(idx); setCoachOpen(true); }}
+                      title={t("Ouvrir l'assistant pour ce visuel", "Open the assistant for this visual")}
+                      className="rounded-lg border border-hair bg-canvas px-2 py-0.5 text-2xs text-ink hover:border-page hover:text-page">
+                      ✦
+                    </button>
+                    <button type="button" onClick={() => removeVisualPrompt(idx)} disabled={!canEdit}
+                      title={t("Supprimer ce visuel", "Remove this visual")}
+                      className="rounded-lg border border-hair bg-canvas px-2 py-0.5 text-2xs text-danger-600 hover:border-danger-500 disabled:opacity-50">
+                      ✕
+                    </button>
+                  </div>
+                </div>
+                <textarea
+                  value={vp.text}
+                  onChange={(e) => editVisualPrompt(idx, e.target.value)}
+                  rows={3}
+                  disabled={!canEdit}
+                  placeholder={t("Décrivez le visuel à générer (en anglais de préférence)…", "Describe the visual to generate (English preferred)…")}
+                  className="mt-1.5 w-full resize-y rounded-lg border border-hair bg-canvas px-3 py-2 text-xs leading-relaxed text-ink outline-none focus:border-primary-400"
+                />
+                <button onClick={() => genVisual(idx, vp.text)} disabled={imgLoading === idx || !vp.text.trim() || !canEdit} className="btn-secondary mt-2 inline-flex items-center gap-1.5 text-xs disabled:opacity-50">
                   {imgLoading === idx && <Spinner size={14} className="text-current" />}
                   {imgLoading === idx ? t("Génération…", "Generating…") : t("Générer ce visuel", "Generate this visual")}
                 </button>
@@ -602,6 +707,10 @@ export function ArticleStudio({ seed }: { seed?: { nonce: number; text: string }
                 )}
               </div>
             ))}
+            <button type="button" onClick={addVisualPrompt} disabled={!canEdit}
+              className="w-full rounded-xl border border-dashed border-hair px-3 py-2 text-xs font-medium text-muted transition-colors hover:border-page hover:text-page disabled:opacity-50">
+              + {t("Ajouter un visuel", "Add a visual")}
+            </button>
           </div>
         </section>
       )}
@@ -695,8 +804,10 @@ export function ArticleStudio({ seed }: { seed?: { nonce: number; text: string }
               </div>
             </div>
 
-            {/* Corps du post = le texte final exact */}
-            <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-ink">{postText}</p>
+            {/* Corps du post = le texte final exact, rendu comme sur LinkedIn :
+                le **gras** markdown est converti en Unicode natif (même
+                transformation que celle appliquée à la publication). */}
+            <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-ink">{formatForLinkedIn(postText)}</p>
 
             {/* Visuel choisi */}
             {(selectedImage || Object.values(images).flat()[0]) && (

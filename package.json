@@ -12,7 +12,8 @@
     "test:connectors": "tsx scripts/verify-connectors.ts",
     "test:e2e": "playwright test",
     "diagnose": "tsx scripts/diagnose.ts",
-    "test:tz": "tsx scripts/verify-schedule-timezone.ts"
+    "test:tz": "tsx scripts/verify-schedule-timezone.ts",
+    "test:liformat": "tsx scripts/verify-linkedin-format.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.100.1",

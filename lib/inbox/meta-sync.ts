@@ -166,7 +166,7 @@ async function missingPermissions(userToken: string | undefined, errs: string[])
  * Messenger + IG DM, et avis/recommandations de la Page.
  * Idempotent (externalId unique).
  */
-export async function syncMetaComments(companyId: string): Promise<SyncResult> {
+export async function syncMetaComments(companyId: string, budgetMs = 48_000): Promise<SyncResult> {
   const ctx = await getMetaContext(companyId);
   const token = ctx.pageToken;
   if (!token) {
@@ -182,7 +182,7 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
   // Budget temps : la route serverless est tuée à 60 s (504). On s'arrête
   // PROPREMENT avant, en gardant tout ce qui est déjà importé — l'import est
   // idempotent, chaque relance reprend là où la précédente s'est arrêtée.
-  const deadline = Date.now() + 48_000;
+  const deadline = Date.now() + budgetMs;
   let partial = false;
   const timeUp = (): boolean => {
     if (Date.now() >= deadline) {

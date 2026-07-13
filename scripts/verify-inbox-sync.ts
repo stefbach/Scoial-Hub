@@ -78,29 +78,28 @@ function route(url: string, init?: RequestInit): Response {
   }
   if (url.includes("PAGE_ERR/")) return json({ data: [] });
 
-  // — Facebook : feed (post de la Page + post visiteur), commentaires en stream —
+  // — Facebook : feed (post de la Page + post visiteur) — liste d'ids —
   if (url.includes(`${PAGE}/feed`)) {
     return json({
       data: [
-        {
-          id: "post1",
-          permalink_url: "https://fb.com/post1",
-          comments: {
-            data: [
-              { id: "c1", from: { name: "Alice", id: "u1" }, message: "Top !", created_time: "2026-07-10T08:30:00+0000" },
-              { id: "c2", from: { name: "Ma Page", id: PAGE }, message: "Merci (notre propre réponse)" },
-              { id: "c3", from: { name: "Carl", id: "u3" }, message: "Réponse en fil" },
-            ],
-            paging: { next: "https://graph.facebook.com/v21.0/nested-fb-comments?after=x" },
-          },
-        },
-        {
-          id: "post2-visiteur",
-          permalink_url: "https://fb.com/post2",
-          comments: { data: [{ id: "c5", from: { name: "Eve", id: "u5" }, message: "Post visiteur : une question" }] },
-        },
+        { id: "post1", permalink_url: "https://fb.com/post1" },
+        { id: "post2-visiteur", permalink_url: "https://fb.com/post2" },
       ],
     });
+  }
+  // Lecture DIRECTE des commentaires de chaque post (fenêtre since).
+  if (url.includes("/post1/comments")) {
+    return json({
+      data: [
+        { id: "c1", from: { name: "Alice", id: "u1" }, message: "Top !", created_time: "2026-07-10T08:30:00+0000" },
+        { id: "c2", from: { name: "Ma Page", id: PAGE }, message: "Merci (notre propre réponse)" },
+        { id: "c3", from: { name: "Carl", id: "u3" }, message: "Réponse en fil" },
+      ],
+      paging: { next: "https://graph.facebook.com/v21.0/nested-fb-comments?after=x" },
+    });
+  }
+  if (url.includes("post2-visiteur/comments")) {
+    return json({ data: [{ id: "c5", from: { name: "Eve", id: "u5" }, message: "Post visiteur : une question" }] });
   }
 
   // — Comptage batch ?ids=… : commentaires par post/média pub, noms de pages —
@@ -213,17 +212,12 @@ function route(url: string, init?: RequestInit): Response {
 
   // — Posts publicitaires (dark posts, absents du feed) —
   if (url.includes(`${PAGE}/ads_posts`)) {
+    return json({ data: [{ id: "adpost1", permalink_url: "https://fb.com/adpost1" }] });
+  }
+  if (url.includes("adpost1/comments")) {
     return json({
       data: [
-        {
-          id: "adpost1",
-          permalink_url: "https://fb.com/adpost1",
-          comments: {
-            data: [
-              { id: "c6", from: { name: "Gil", id: "u6" }, message: "Commentaire du jour sous la pub", created_time: "2026-07-13T09:15:00+0000" },
-            ],
-          },
-        },
+        { id: "c6", from: { name: "Gil", id: "u6" }, message: "Commentaire du jour sous la pub", created_time: "2026-07-13T09:15:00+0000" },
       ],
     });
   }
@@ -393,9 +387,14 @@ async function main() {
   check("horodatage webhook en millisecondes converti", graphTimeToIso(1783777800000) === "2026-07-11T13:50:00.000Z", graphTimeToIso(1783777800000));
   check("horodatage invalide → undefined (fallback maintenant)", graphTimeToIso("n/a") === undefined);
   check(
-    "commentaires FB demandés du plus récent au plus ancien",
-    fetched.some((u) => u.includes("order(reverse_chronological)")),
-    "order(reverse_chronological) absent des appels /feed"
+    "commentaires des posts du fil lus en DIRECT avec la fenêtre since",
+    fetched.some((u) => u.includes("post1/comments?filter=stream&since=")),
+    "lecture directe since absente pour post1"
+  );
+  check(
+    "posts pubs « inline » demandés (créas flexibles)",
+    fetched.some((u) => u.includes("include_inline_create=true")),
+    "include_inline_create absent des appels ads_posts"
   );
 
   // Rétro-correction : une ligne importée AVANT le correctif (date d'import)

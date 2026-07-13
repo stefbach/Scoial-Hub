@@ -429,21 +429,22 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
     /** Token de page candidat pour lire chaque média IG pub (page de la créa). */
     const mediaHintToken = new Map<string, string>();
     const foreignByPage = new Map<string, number>();
+    const foreignSample = new Map<string, { adName: string; act: string; active: boolean }>();
     // Les comptes ont des CENTAINES de vieilles pubs et l'endpoint /ads les
     // sert des plus anciennes aux plus récentes : sans filtre serveur, les
     // pubs EN COURS n'apparaissent même pas dans les 300 premières (constaté :
     // uniquement des commentaires 2013-2025). On demande donc à Meta les pubs
     // ACTIVES directement, puis une page de pubs récentes en complément.
     const ADS_FIELDS =
-      "fields=effective_status,creative{effective_object_story_id,object_story_id,effective_instagram_media_id}";
+      "fields=name,effective_status,creative{effective_object_story_id,object_story_id,effective_instagram_media_id}";
     const allAds: Array<Record<string, unknown>> = [];
     const seenAds = new Set<string>();
-    const pushAds = (ads: Array<Record<string, unknown>>) => {
+    const pushAds = (ads: Array<Record<string, unknown>>, act: string) => {
       for (const a of ads) {
         const id = String(a.id ?? "");
         if (id && seenAds.has(id)) continue;
         if (id) seenAds.add(id);
-        allAds.push(a);
+        allAds.push({ ...a, _act: act });
       }
     };
     for (const act of [...accounts].slice(0, 5)) {
@@ -454,10 +455,11 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
           adsToken,
           3,
           errs
-        )
+        ),
+        act
       );
       // 2) Complément : une page de pubs tous statuts (récemment arrêtées…).
-      pushAds(await gpaged(`${act}/ads?${ADS_FIELDS}&limit=100`, adsToken, 1, errs));
+      pushAds(await gpaged(`${act}/ads?${ADS_FIELDS}&limit=100`, adsToken, 1, errs), act);
     }
     adStats.ads = allAds.length;
     {
@@ -485,8 +487,17 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
               partnerByPage.set(owner, (partnerByPage.get(owner) ?? 0) + 1);
             }
           } else {
-            // Page ni connectée ni gérée : diagnostic uniquement.
+            // Page ni connectée ni gérée : diagnostic uniquement — on retient
+            // un EXEMPLE (nom de la pub + compte) pour que l'utilisateur
+            // reconnaisse SA campagne dans la bannière.
             foreignByPage.set(owner, (foreignByPage.get(owner) ?? 0) + 1);
+            if (!foreignSample.has(owner)) {
+              foreignSample.set(owner, {
+                adName: String(a.name ?? ""),
+                act: String((a as { _act?: string })._act ?? ""),
+                active: isActive,
+              });
+            }
           }
         }
         // Média IG : pubs de la page connectée ou d'une page gérée.
@@ -507,7 +518,11 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
     adStats.foreignStories = [...foreignByPage.values()].reduce((s, n) => s + n, 0);
     adStats.foreignPages = [...foreignByPage.entries()]
       .slice(0, 5)
-      .map(([id, n]) => `${pageNameById.get(id) ?? id} (${n} pubs)`)
+      .map(([id, n]) => {
+        const s = foreignSample.get(id);
+        const ex = s?.adName ? ` — ex. « ${s.adName} »${s.active ? " (ACTIVE)" : ""}, compte ${s.act.replace("act_", "")}` : "";
+        return `Page ${pageNameById.get(id) ?? id} : ${n} pubs${ex}`;
+      })
       .join(" · ");
 
     /** GET en essayant plusieurs tokens (page connectée, page partenaire, ads). */

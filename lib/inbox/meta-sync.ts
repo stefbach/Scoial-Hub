@@ -299,10 +299,13 @@ export async function syncMetaComments(companyId: string, budgetMs = 48_000): Pr
     // dynamique (ex. campagnes de formulaires) — leurs posts sombres sont
     // créés « inline » et n'apparaissent dans ads_posts qu'avec ce paramètre.
     const inline = edge === "ads_posts" ? "&include_inline_create=true" : "";
+    // ads_posts : listing PROFOND (500) — un post boosté peut être ancien
+    // (créé il y a plus d'un an) tout en recevant des commentaires AUJOURD'HUI,
+    // et la lecture bornée à la fenêtre récente rend chaque post bon marché.
     const posts = await gpaged(
       `${ctx.pageId}/${edge}?fields=id,permalink_url${inline}&limit=50`,
       token!,
-      4,
+      edge === "ads_posts" ? 10 : 6,
       errs
     );
     const permalinkById = new Map<string, string>();
@@ -770,8 +773,30 @@ export async function syncMetaComments(companyId: string, budgetMs = 48_000): Pr
 
   // Sections lancées EN PARALLÈLE : la route serverless est bornée à 60 s, en
   // séquentiel une grosse Page dépassait le délai et perdait la fin de l'import.
+  // ── Temps réel : abonne la Page au webhook de l'app (idempotent) ────────────
+  // C'est le mécanisme qu'utilise Business Suite : chaque nouveau commentaire
+  // (posts sombres et boosts anciens inclus) et chaque DM arrive instantanément
+  // sur /api/inbox/webhook — le polling ne sert plus que de rattrapage.
+  async function subscribePageWebhook(): Promise<void> {
+    if (!ctx.pageId) return;
+    try {
+      const res = await fetch(`https://graph.facebook.com/${V}/${ctx.pageId}/subscribed_apps`, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          subscribed_fields: "feed,messages,message_echoes",
+          access_token: token!,
+        }).toString(),
+      });
+      const j = (await res.json()) as { success?: boolean; error?: { message?: string } };
+      if (j.error?.message) errs.push(`Webhook non abonné : ${j.error.message}`);
+    } catch {
+      /* réseau : le prochain passage réessaiera */
+    }
+  }
+
   const jobs: Array<Promise<void>> = [];
-  if (ctx.pageId) jobs.push(fbPostComments("feed"), fbPostComments("ads_posts"), messengerDms(), pageRatings(), adCreativeComments());
+  if (ctx.pageId) jobs.push(subscribePageWebhook(), fbPostComments("feed"), fbPostComments("ads_posts"), messengerDms(), pageRatings(), adCreativeComments());
   if (ctx.igId) jobs.push(igComments());
   if (ctx.igId && ctx.pageId) jobs.push(igDms());
   const [missing] = await Promise.all([missingPermissions(ctx.userToken, errs), ...jobs]);

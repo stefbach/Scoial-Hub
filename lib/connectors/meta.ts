@@ -46,6 +46,7 @@ const META_SCOPES = [
   "pages_read_user_content", // lire les commentaires/posts des VISITEURS + avis de la Page (messagerie)
   "pages_messaging", // lire/répondre aux messages privés Messenger
   "pages_show_list",
+  "pages_manage_metadata", // abonner la Page au webhook (commentaires/DM en temps réel)
   "instagram_basic",
   "instagram_content_publish",
   "instagram_manage_insights",

@@ -276,6 +276,8 @@ export interface IngestMessageInput {
   externalId?: string;
   kind?: InboxMessage["kind"];
   permalink?: string;
+  /** Date/heure RÉELLE du message sur la plateforme (ISO). Défaut : maintenant. */
+  receivedAt?: string;
   raw?: Record<string, unknown>;
 }
 
@@ -295,13 +297,22 @@ export async function ingestMessage(
     text: input.text,
     permalink: input.permalink,
     status: "pending",
-    receivedAt: new Date().toISOString(),
+    receivedAt: input.receivedAt ?? new Date().toISOString(),
     raw: input.raw ?? {},
   };
 
   if (!isSupabaseConfigured || !createClient()) {
     const arr = MESSAGES.get(companyId) ?? [];
-    if (input.externalId && arr.some((m) => m.externalId === input.externalId && m.channel === input.channel)) {
+    const dup = input.externalId
+      ? arr.find((m) => m.externalId === input.externalId && m.channel === input.channel)
+      : undefined;
+    if (dup) {
+      // Rétro-correction : les lignes importées avant que la vraie date du
+      // message soit connue portaient la date d'IMPORT. On la remplace par
+      // l'horodatage réel de la plateforme dès qu'il est disponible.
+      if (input.receivedAt && new Date(dup.receivedAt).getTime() !== new Date(input.receivedAt).getTime()) {
+        dup.receivedAt = input.receivedAt;
+      }
       return null;
     }
     arr.unshift(msg);
@@ -314,12 +325,24 @@ export async function ingestMessage(
   if (input.externalId) {
     const { data: existing } = await supabase
       .from("sh_inbox_messages")
-      .select("id")
+      .select("id, received_at")
       .eq("company_id", uuid)
       .eq("channel", input.channel)
       .eq("external_id", input.externalId)
       .maybeSingle();
-    if (existing) return null;
+    if (existing) {
+      // Rétro-correction : les lignes importées avant que la vraie date du
+      // message soit connue portaient la date d'IMPORT. On la remplace par
+      // l'horodatage réel de la plateforme dès qu'il est disponible.
+      const known = existing.received_at ? new Date(String(existing.received_at)).getTime() : NaN;
+      if (input.receivedAt && known !== new Date(input.receivedAt).getTime()) {
+        await supabase
+          .from("sh_inbox_messages")
+          .update({ received_at: input.receivedAt })
+          .eq("id", existing.id);
+      }
+      return null;
+    }
   }
   const { data, error } = await supabase
     .from("sh_inbox_messages")
@@ -333,6 +356,7 @@ export async function ingestMessage(
       text: msg.text,
       permalink: msg.permalink ?? null,
       status: "pending",
+      received_at: msg.receivedAt,
       raw: msg.raw ?? {},
     })
     .select()

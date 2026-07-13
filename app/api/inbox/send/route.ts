@@ -12,11 +12,12 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-// POST /api/inbox/send  { companyId, messageId, body, replyId?, agentId? }
+// POST /api/inbox/send  { companyId, messageId, body, replyId?, agentId?, visibility? }
 // Valide/édite une réponse et la publie sur la plateforme (best-effort).
+// visibility "private" sur un commentaire : répond en MESSAGE PRIVÉ à l'auteur.
 export async function POST(req: NextRequest) {
   try {
-    const { companyId, messageId, body, replyId, agentId } = await req.json();
+    const { companyId, messageId, body, replyId, agentId, visibility } = await req.json();
     if (!companyId || !messageId || !body?.trim()) {
       return NextResponse.json({ error: "companyId, messageId et body requis" }, { status: 400 });
     }
@@ -29,7 +30,15 @@ export async function POST(req: NextRequest) {
     // Tentative d'envoi réel vers la plateforme.
     const delivery = await deliverMetaReply(
       companyId,
-      { channel: message.channel, kind: message.kind, externalId: message.externalId, authorHandle: message.authorHandle },
+      {
+        channel: message.channel,
+        kind: message.kind,
+        externalId: message.externalId,
+        authorHandle: message.authorHandle,
+        visibility: visibility === "private" ? "private" : "public",
+        // Post d'une autre Page du Business : répondre avec SON token.
+        ownerPageId: typeof message.raw?._sh_owner_page === "string" ? message.raw._sh_owner_page : undefined,
+      },
       body.trim()
     );
     const now = new Date().toISOString();

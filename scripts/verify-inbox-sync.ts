@@ -123,7 +123,44 @@ function route(url: string, init?: RequestInit): Response {
   // — Pages gérées par l'utilisateur (même Business) : token de chaque page —
   if (url.includes("me/accounts")) {
     if (url.includes("access_token=tok-noaccess")) return json({ data: [] });
-    return json({ data: [{ id: "PAGE2", name: "Page Partenaire", access_token: "tok-p2" }] });
+    return json({
+      data: [
+        { id: "PAGE2", name: "Page Partenaire", access_token: "tok-p2" },
+        // Page HOMONYME de la page connectée (même nom normalisé).
+        { id: "PAGE5", name: "Ma Page !", access_token: "tok-p5" },
+      ],
+    });
+  }
+  // — Nom de la page connectée (détection des homonymes) —
+  if (url.includes("/PAGE1?fields=name")) {
+    return json({ id: PAGE, name: "Ma Page" });
+  }
+  // — Contenus de la page homonyme, lus avec SON token —
+  if (url.includes("PAGE5/feed")) {
+    return json({ data: [{ id: "post9", permalink_url: "https://fb.com/post9" }] });
+  }
+  if (url.includes("PAGE5/ads_posts")) {
+    return json({ data: [] });
+  }
+  if (url.includes("/post9/comments")) {
+    if (!url.includes("access_token=tok-p5")) {
+      return json({ error: { message: "(#10) requires admin token of this page" } });
+    }
+    return json({
+      data: [
+        { id: "c12", from: { name: "Katie", id: "u12" }, message: "Commentaire du jour sur le post boosté de la page homonyme", created_time: "2026-07-13T14:00:00+0000" },
+      ],
+    });
+  }
+  if (url.includes("PAGE5/conversations")) {
+    return json({
+      data: [
+        {
+          id: "conv9",
+          messages: { data: [{ id: "m9", message: "Bonjour, info svp", from: { name: "Sam", id: "PSID12" }, created_time: "2026-07-13T13:30:00+0000" }] },
+        },
+      ],
+    });
   }
   // — Pages du Business Manager (jamais cochées dans l'écran de sélection) —
   if (url.includes("me/businesses")) {
@@ -314,11 +351,25 @@ async function main() {
   const r = await syncMetaComments("democo");
   check("sync disponible", r.available);
   check(
-    "commentaires importés = 12 (4 FB + 1 ads_posts + 5 créas pub FB/IG/partenaires/Business + 2 IG)",
-    r.comments === 12,
+    "commentaires importés = 13 (4 FB + 1 ads_posts + 5 créas pub + 2 IG + 1 page homonyme)",
+    r.comments === 13,
     `comments=${r.comments}`
   );
-  check("DM importés = 3 (2 Messenger paginés + 1 DM Instagram, sans échos)", r.dms === 3, `dms=${r.dms}`);
+  check("DM importés = 4 (2 Messenger + 1 DM Instagram + 1 page homonyme)", r.dms === 4, `dms=${r.dms}`);
+  const msgsTwin = await listMessages("democo", { limit: 500 });
+  const twinComment = msgsTwin.find((m) => m.externalId === "c12");
+  check(
+    "page HOMONYME : fil lu avec SON token, commentaire du post boosté importé",
+    twinComment?.receivedAt === "2026-07-13T14:00:00.000Z" &&
+      (twinComment?.raw as { _sh_owner_page?: string } | undefined)?._sh_owner_page === "PAGE5",
+    `at=${twinComment?.receivedAt} owner=${(twinComment?.raw as { _sh_owner_page?: string } | undefined)?._sh_owner_page}`
+  );
+  const twinDm = msgsTwin.find((m) => m.externalId === "m9");
+  check(
+    "page HOMONYME : conversations Messenger importées aussi",
+    twinDm?.authorHandle === "PSID12" && (twinDm?.raw as { _sh_owner_page?: string } | undefined)?._sh_owner_page === "PAGE5",
+    `handle=${twinDm?.authorHandle}`
+  );
   check("avis importés = 1 (l'avis sans texte est ignoré)", r.reviews === 1, `reviews=${r.reviews}`);
   check("imported = commentaires + DM + avis", r.imported === r.comments + r.dms + r.reviews, `imported=${r.imported}`);
   check("aucune note d'erreur quand tout est lisible", !r.note, r.note ?? "");

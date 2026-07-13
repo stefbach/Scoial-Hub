@@ -294,7 +294,11 @@ export async function syncMetaComments(companyId: string, budgetMs = 48_000): Pr
   // DIRECTE de chaque post commenté avec la fenêtre `since` (les expansions de
   // champ servent les fils du plus ancien au plus récent et coupent à ~200 :
   // sur un post boosté très commenté, les commentaires du jour étaient perdus).
-  async function fbPostComments(edge: "feed" | "ads_posts"): Promise<void> {
+  async function fbPostComments(
+    edge: "feed" | "ads_posts",
+    pageId: string = ctx.pageId!,
+    pageToken: string = token!
+  ): Promise<void> {
     // include_inline_create : indispensable pour les pubs à créa FLEXIBLE/
     // dynamique (ex. campagnes de formulaires) — leurs posts sombres sont
     // créés « inline » et n'apparaissent dans ads_posts qu'avec ce paramètre.
@@ -303,8 +307,8 @@ export async function syncMetaComments(companyId: string, budgetMs = 48_000): Pr
     // (créé il y a plus d'un an) tout en recevant des commentaires AUJOURD'HUI,
     // et la lecture bornée à la fenêtre récente rend chaque post bon marché.
     const posts = await gpaged(
-      `${ctx.pageId}/${edge}?fields=id,permalink_url${inline}&limit=50`,
-      token!,
+      `${pageId}/${edge}?fields=id,permalink_url${inline}&limit=50`,
+      pageToken,
       edge === "ads_posts" ? 10 : 6,
       errs
     );
@@ -318,20 +322,20 @@ export async function syncMetaComments(companyId: string, budgetMs = 48_000): Pr
       // page de localisation) : signalé pour diagnostic — c'est souvent là
       // que vivent les commentaires « introuvables ».
       const m = permalink.match(/facebook\.com\/(\d{6,})\//);
-      if (m && ctx.pageId && m[1] !== ctx.pageId) siblingPages.add(m[1]);
+      if (m && m[1] !== pageId && ctx.pageId && m[1] !== ctx.pageId) siblingPages.add(m[1]);
     }
     // TOUS les posts listés sont lus (l'arrêt à la fenêtre RECENT_SINCE rend
     // chaque lecture bon marché : 1 appel pour un post sans activité récente).
     const toRead = [...permalinkById.keys()];
 
     async function readPost(pid: string): Promise<void> {
-      const list = await readRecentComments(pid, [token]);
+      const list = await readRecentComments(pid, [pageToken, token]);
       const inputs: Array<Parameters<typeof ingestMessage>[1]> = [];
       for (const c of list) {
         scanned++;
         const from = c.from as { name?: string; id?: string } | undefined;
         // On ignore les commentaires écrits par la Page elle-même.
-        if (from?.id && from.id === ctx.pageId) continue;
+        if (from?.id && (from.id === pageId || from.id === ctx.pageId)) continue;
         const text = String(c.message ?? "");
         // Texte vide = sticker/photo ou contenu caviardé par Meta (post d'une
         // page dont on n'est pas admin) : rien d'actionnable, on n'insère pas.
@@ -345,7 +349,10 @@ export async function syncMetaComments(companyId: string, budgetMs = 48_000): Pr
           authorHandle: from?.id ? String(from.id) : undefined,
           permalink: permalinkById.get(pid) || undefined,
           receivedAt: graphTimeToIso(c.created_time),
-          raw: c as Record<string, unknown>,
+          // Page homonyme : mémorise la propriétaire pour répondre en son nom.
+          raw: pageId !== ctx.pageId
+            ? { ...(c as Record<string, unknown>), _sh_owner_page: pageId }
+            : (c as Record<string, unknown>),
         });
       }
       const n = await ingestAll(inputs);
@@ -357,10 +364,13 @@ export async function syncMetaComments(companyId: string, budgetMs = 48_000): Pr
   }
 
   // ── Messenger : conversations privées (fils paginés) ────────────────────────
-  async function messengerDms(): Promise<void> {
+  async function messengerDms(
+    pageId: string = ctx.pageId!,
+    pageToken: string = token!
+  ): Promise<void> {
     const convos = await gpaged(
-      `${ctx.pageId}/conversations?fields=updated_time,messages.limit(25){id,message,from,created_time}&limit=50`,
-      token!,
+      `${pageId}/conversations?fields=updated_time,messages.limit(25){id,message,from,created_time}&limit=50`,
+      pageToken,
       3,
       errs
     );
@@ -371,7 +381,7 @@ export async function syncMetaComments(companyId: string, budgetMs = 48_000): Pr
       for (const m of msgs) {
         const from = m.from as { name?: string; id?: string; email?: string } | undefined;
         // On ignore les messages envoyés par la Page elle-même.
-        if (from?.id && ctx.pageId && from.id === ctx.pageId) continue;
+        if (from?.id && (from.id === pageId || (ctx.pageId && from.id === ctx.pageId))) continue;
         const text = String(m.message ?? "");
         if (!text) continue;
         scanned++;
@@ -383,7 +393,10 @@ export async function syncMetaComments(companyId: string, budgetMs = 48_000): Pr
           authorName: from?.name ?? "Messenger",
           authorHandle: from?.id ? String(from.id) : undefined,
           receivedAt: graphTimeToIso(m.created_time),
-          raw: m as Record<string, unknown>,
+          // Page homonyme : la réponse Send API devra partir de CETTE page.
+          raw: pageId !== ctx.pageId
+            ? { ...(m as Record<string, unknown>), _sh_owner_page: pageId }
+            : (m as Record<string, unknown>),
         });
       }
       {
@@ -795,8 +808,40 @@ export async function syncMetaComments(companyId: string, budgetMs = 48_000): Pr
     }
   }
 
+  // ── Pages HOMONYMES du Business : même nom que la page connectée ────────────
+  // (ex. seconde page « Obesity Care Clinic » qui porte les posts boostés et
+  // leurs commentaires). On lit AUSSI leur fil, leurs posts pubs et leurs
+  // conversations, avec LEUR token — les réponses partiront en leur nom
+  // (raw._sh_owner_page → deliverMetaReply).
+  async function homonymPages(): Promise<Array<{ id: string; token: string }>> {
+    const adsToken = ctx.adsToken ?? ctx.userToken;
+    if (!ctx.pageId || !adsToken) return [];
+    const self = await gget(`${ctx.pageId}?fields=name`, token!, errs);
+    const norm = (v: string) => v.toLowerCase().replace(/[^a-z0-9]/g, "");
+    const selfName = norm(String(self?.name ?? ""));
+    if (!selfName) return [];
+    const out: Array<{ id: string; token: string }> = [];
+    const pages = await gpaged(`me/accounts?fields=id,name,access_token&limit=100`, adsToken, 2, errs);
+    for (const p of pages) {
+      const id = String(p.id ?? "");
+      if (!id || id === ctx.pageId || otherCompaniesPages.has(id)) continue;
+      if (!p.access_token || norm(String(p.name ?? "")) !== selfName) continue;
+      out.push({ id, token: String(p.access_token) });
+    }
+    return out.slice(0, 2);
+  }
+
   const jobs: Array<Promise<void>> = [];
   if (ctx.pageId) jobs.push(subscribePageWebhook(), fbPostComments("feed"), fbPostComments("ads_posts"), messengerDms(), pageRatings(), adCreativeComments());
+  if (ctx.pageId) {
+    for (const twin of await homonymPages()) {
+      jobs.push(
+        fbPostComments("feed", twin.id, twin.token),
+        fbPostComments("ads_posts", twin.id, twin.token),
+        messengerDms(twin.id, twin.token)
+      );
+    }
+  }
   if (ctx.igId) jobs.push(igComments());
   if (ctx.igId && ctx.pageId) jobs.push(igDms());
   const [missing] = await Promise.all([missingPermissions(ctx.userToken, errs), ...jobs]);

@@ -126,6 +126,27 @@ function route(url: string, init?: RequestInit): Response {
     if (url.includes("access_token=tok-noaccess")) return json({ data: [] });
     return json({ data: [{ id: "PAGE2", name: "Page Partenaire", access_token: "tok-p2" }] });
   }
+  // — Pages du Business Manager (jamais cochées dans l'écran de sélection) —
+  if (url.includes("me/businesses")) {
+    if (url.includes("access_token=tok-noaccess")) return json({ data: [] });
+    return json({ data: [{ id: "BIZ1", name: "Mon Business" }] });
+  }
+  if (url.includes("BIZ1/owned_pages")) {
+    return json({ data: [{ id: "PAGE4", name: "Page Funnel", access_token: "tok-p4" }] });
+  }
+  if (url.includes("BIZ1/client_pages")) {
+    return json({ data: [] });
+  }
+  if (url.includes("PAGE4_story8/comments")) {
+    if (!url.includes("access_token=tok-p4")) {
+      return json({ error: { message: "(#10) requires Page Public Content Access" } });
+    }
+    return json({
+      data: [
+        { id: "c11", from: { name: "Zoé", id: "u11" }, message: "Commentaire du jour, pub via page du Business", created_time: "2026-07-13T13:15:00+0000" },
+      ],
+    });
+  }
   // — Second compte pub : pub active publiée sous la page gérée PAGE2 —
   if (url.includes("act_AD2/ads")) {
     return json({
@@ -157,6 +178,10 @@ function route(url: string, init?: RequestInit): Response {
         // Pub ACTIVE du compte de la société publiée sous une AUTRE page GÉRÉE
         // (même Business) : lue avec le token de cette page (tok-p2).
         { id: "ad4", effective_status: "ACTIVE", creative: { effective_object_story_id: "PAGE2_story5" } },
+        // Pub ACTIVE publiée sous une page du BUSINESS jamais cochée dans
+        // l'écran de sélection (absente de me/accounts) : token via
+        // me/businesses → owned_pages.
+        { id: "ad6", effective_status: "ACTIVE", creative: { effective_object_story_id: "PAGE4_story8" } },
       ],
     });
   }
@@ -295,8 +320,8 @@ async function main() {
   const r = await syncMetaComments("democo");
   check("sync disponible", r.available);
   check(
-    "commentaires importés = 11 (4 FB + 1 ads_posts + 4 créas pub FB/IG/partenaires + 2 IG)",
-    r.comments === 11,
+    "commentaires importés = 12 (4 FB + 1 ads_posts + 5 créas pub FB/IG/partenaires/Business + 2 IG)",
+    r.comments === 12,
     `comments=${r.comments}`
   );
   check("DM importés = 3 (2 Messenger paginés + 1 DM Instagram, sans échos)", r.dms === 3, `dms=${r.dms}`);
@@ -345,6 +370,13 @@ async function main() {
     "pub d'un AUTRE compte pub, page gérée → importée aussi",
     otherAcctComment?.receivedAt === "2026-07-13T12:05:00.000Z",
     `at=${otherAcctComment?.receivedAt}`
+  );
+  const bizPageComment = msgs.find((m) => m.externalId === "c11");
+  check(
+    "pub sous une page du BUSINESS (hors écran de sélection) → token via me/businesses",
+    bizPageComment?.receivedAt === "2026-07-13T13:15:00.000Z" &&
+      (bizPageComment?.raw as { _sh_owner_page?: string } | undefined)?._sh_owner_page === "PAGE4",
+    `at=${bizPageComment?.receivedAt}`
   );
   const dmNested = msgs.find((m) => m.externalId === "m3");
   check("pagination imbriquée des conversations suivie", Boolean(dmNested));
@@ -419,7 +451,7 @@ async function main() {
   const r5 = await syncMetaComments("democo5");
   check(
     "société sans pubs propres : les pubs des pages GÉRÉES restent importées",
-    r5.comments === 2,
+    r5.comments === 3,
     `comments=${r5.comments}`
   );
 

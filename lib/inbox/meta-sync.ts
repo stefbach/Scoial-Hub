@@ -396,14 +396,27 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
     // Pages GÉRÉES par l'utilisateur (même Business Suite) : id, nom et surtout
     // TOKEN de chaque page — indispensable pour lire les posts pubs publiés
     // sous une autre identité de Page que celle connectée (erreur #10 sinon).
-    const managedPages = await gpaged(`me/accounts?fields=id,name,access_token&limit=100`, adsToken, 2, errs);
     const pageTokenById = new Map<string, string>();
     const pageNameById = new Map<string, string>();
-    for (const p of managedPages) {
-      const id = String(p.id ?? "");
-      if (!id) continue;
-      if (p.access_token) pageTokenById.set(id, String(p.access_token));
-      if (p.name) pageNameById.set(id, String(p.name));
+    const registerPages = (pages: Array<Record<string, unknown>>) => {
+      for (const p of pages) {
+        const id = String(p.id ?? "");
+        if (!id) continue;
+        if (p.access_token && !pageTokenById.has(id)) pageTokenById.set(id, String(p.access_token));
+        if (p.name && !pageNameById.has(id)) pageNameById.set(id, String(p.name));
+      }
+    };
+    registerPages(await gpaged(`me/accounts?fields=id,name,access_token&limit=100`, adsToken, 2, errs));
+    // Pages du BUSINESS MANAGER : l'écran de sélection Facebook ne partage avec
+    // l'app que les pages cochées — les autres pages du Business (ex. pages
+    // « funnel » qui portent les pubs) n'apparaissent pas dans me/accounts.
+    // business_management permet de les découvrir ET d'obtenir leur token.
+    const businesses = await gpaged(`me/businesses?fields=id,name&limit=25`, adsToken, 1, errs);
+    for (const b of businesses.slice(0, 5)) {
+      const bid = String(b.id ?? "");
+      if (!bid) continue;
+      registerPages(await gpaged(`${bid}/owned_pages?fields=id,name,access_token&limit=100`, adsToken, 2, errs));
+      registerPages(await gpaged(`${bid}/client_pages?fields=id,name,access_token&limit=100`, adsToken, 2, errs));
     }
 
     const storyIds: string[] = [];
@@ -745,12 +758,24 @@ export interface DeliverTarget {
   ownerPageId?: string;
 }
 
-/** Token d'une Page gérée par l'utilisateur (via me/accounts). */
+/** Token d'une Page gérée (me/accounts, puis pages du Business Manager). */
 async function managedPageToken(pageId: string, userToken?: string): Promise<string | null> {
   if (!userToken) return null;
-  const res = await gget(`me/accounts?fields=id,access_token&limit=100`, userToken);
-  for (const p of (res?.data as Array<{ id?: string; access_token?: string }>) ?? []) {
-    if (String(p.id ?? "") === pageId && p.access_token) return String(p.access_token);
+  const find = (res: Record<string, unknown> | null): string | null => {
+    for (const p of (res?.data as Array<{ id?: string; access_token?: string }>) ?? []) {
+      if (String(p.id ?? "") === pageId && p.access_token) return String(p.access_token);
+    }
+    return null;
+  };
+  const direct = find(await gget(`me/accounts?fields=id,access_token&limit=100`, userToken));
+  if (direct) return direct;
+  const businesses = await gget(`me/businesses?fields=id&limit=25`, userToken);
+  for (const b of (businesses?.data as Array<{ id?: string }>) ?? []) {
+    if (!b.id) continue;
+    for (const edge of ["owned_pages", "client_pages"]) {
+      const hit = find(await gget(`${b.id}/${edge}?fields=id,access_token&limit=100`, userToken));
+      if (hit) return hit;
+    }
   }
   return null;
 }

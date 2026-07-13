@@ -1,5 +1,6 @@
-// Synchronisation des messages Meta (commentaires Facebook + Instagram) vers la
-// messagerie, et envoi des réponses vers la plateforme.
+// Synchronisation des messages Meta (commentaires Facebook + Instagram, messages
+// privés Messenger + IG DM, avis de la Page) vers la messagerie, et envoi des
+// réponses vers la plateforme.
 // Utilise le token de PAGE stocké pour la société (cf. meta-pages.getMetaContext).
 
 import { getMetaContext } from "@/lib/connectors/meta-pages";
@@ -8,7 +9,22 @@ import type { InboxChannel } from "@/lib/inbox/types";
 
 const V = process.env.META_API_VERSION ?? "v21.0";
 
-async function gget(path: string, token: string): Promise<Record<string, unknown> | null> {
+/** Edge Graph imbriqué (data + pagination). */
+interface GraphEdge {
+  data?: Array<Record<string, unknown>>;
+  paging?: { next?: string };
+}
+
+/**
+ * GET Graph. En cas d'erreur Graph, le message est collecté dans `errs`
+ * (au lieu d'être avalé) pour être remonté à l'utilisateur : c'est souvent
+ * une permission manquante qui explique des messages « invisibles ».
+ */
+async function gget(
+  path: string,
+  token: string,
+  errs?: string[]
+): Promise<Record<string, unknown> | null> {
   try {
     const sep = path.includes("?") ? "&" : "?";
     const res = await fetch(
@@ -16,7 +32,11 @@ async function gget(path: string, token: string): Promise<Record<string, unknown
       { cache: "no-store" }
     );
     const j = (await res.json()) as Record<string, unknown>;
-    if (j && (j as { error?: unknown }).error) return null;
+    const err = (j as { error?: { message?: string } }).error;
+    if (err) {
+      if (err.message) errs?.push(err.message);
+      return null;
+    }
     return j;
   } catch {
     return null;
@@ -29,6 +49,7 @@ export interface SyncResult {
   available: boolean;
   comments: number;
   dms: number;
+  reviews: number;
   note?: string;
 }
 
@@ -36,10 +57,11 @@ export interface SyncResult {
 async function gpaged(
   startPath: string,
   token: string,
-  maxPages = 5
+  maxPages = 5,
+  errs?: string[]
 ): Promise<Array<Record<string, unknown>>> {
   const out: Array<Record<string, unknown>> = [];
-  let page = await gget(startPath, token);
+  let page = await gget(startPath, token, errs);
   let guard = 0;
   while (page && guard < maxPages) {
     const data = (page.data as Array<Record<string, unknown>>) ?? [];
@@ -59,33 +81,82 @@ async function gpaged(
 }
 
 /**
- * Importe TOUS les messages récupérables (commentaires FB + IG ET messages privés
- * Messenger + IG DM) en messages « pending ». Idempotent (externalId unique).
+ * Épuise un edge IMBRIQUÉ (ex. les commentaires d'un post, les messages d'une
+ * conversation) en suivant son propre paging.next. Sans cela, seule la première
+ * page (25–50 éléments) de chaque fil était importée.
+ */
+async function drainEdge(
+  edge: GraphEdge | undefined,
+  maxPages = 3,
+  errs?: string[]
+): Promise<Array<Record<string, unknown>>> {
+  const out = [...(edge?.data ?? [])];
+  let next = edge?.paging?.next;
+  let guard = 0;
+  while (next && guard < maxPages) {
+    guard++;
+    try {
+      const res = await fetch(next, { cache: "no-store" });
+      const j = (await res.json()) as GraphEdge & { error?: { message?: string } };
+      if (j.error) {
+        if (j.error.message) errs?.push(j.error.message);
+        break;
+      }
+      out.push(...(j.data ?? []));
+      next = j.paging?.next;
+    } catch {
+      break;
+    }
+  }
+  return out;
+}
+
+/** Résumé lisible des erreurs Graph rencontrées (dédupliquées). */
+function buildNote(errs: string[]): string | undefined {
+  if (errs.length === 0) return undefined;
+  const uniq = [...new Set(errs)].slice(0, 2).join(" · ");
+  return `Certains contenus n'ont pas pu être lus (${uniq}). Si les permissions ont changé, reconnectez votre Page Meta depuis Comptes.`;
+}
+
+/**
+ * Importe TOUS les messages récupérables — comme la boîte de réception
+ * Meta Business Suite : commentaires FB (posts de la Page ET des visiteurs,
+ * réponses en fil incluses), commentaires IG (+ réponses), messages privés
+ * Messenger + IG DM, et avis/recommandations de la Page.
+ * Idempotent (externalId unique).
  */
 export async function syncMetaComments(companyId: string): Promise<SyncResult> {
   const ctx = await getMetaContext(companyId);
   const token = ctx.pageToken;
   if (!token) {
-    return { imported: 0, scanned: 0, comments: 0, dms: 0, available: false, note: "Page Meta non connectée." };
+    return { imported: 0, scanned: 0, comments: 0, dms: 0, reviews: 0, available: false, note: "Page Meta non connectée." };
   }
 
   let comments = 0;
   let dms = 0;
+  let reviews = 0;
   let scanned = 0;
+  const errs: string[] = [];
 
-  // ── Facebook : posts → commentaires (paginés) ──────────────────────────────
+  // ── Facebook : publications → commentaires ──────────────────────────────────
+  // /feed (et non /posts) : inclut aussi les publications des VISITEURS sur la
+  // Page. filter(stream) : renvoie tous les commentaires À PLAT, y compris les
+  // réponses en fil (sinon seuls les commentaires de premier niveau arrivent).
   if (ctx.pageId) {
     const posts = await gpaged(
-      `${ctx.pageId}/posts?fields=permalink_url,comments.limit(50){id,from,message,created_time}&limit=25`,
+      `${ctx.pageId}/feed?fields=permalink_url,comments.filter(stream).limit(50){id,from,message,created_time}&limit=25`,
       token,
-      4
+      4,
+      errs
     );
     for (const post of posts) {
       const permalink = post.permalink_url ? String(post.permalink_url) : undefined;
-      const comments_ = (post.comments as { data?: Array<Record<string, unknown>> })?.data ?? [];
+      const comments_ = await drainEdge(post.comments as GraphEdge | undefined, 3, errs);
       for (const c of comments_) {
         scanned++;
         const from = c.from as { name?: string; id?: string } | undefined;
+        // On ignore les commentaires écrits par la Page elle-même.
+        if (from?.id && from.id === ctx.pageId) continue;
         const inserted = await ingestMessage(companyId, {
           channel: "facebook",
           externalId: String(c.id ?? ""),
@@ -100,14 +171,15 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
       }
     }
 
-    // ── Messenger : conversations privées ────────────────────────────────────
+    // ── Messenger : conversations privées (fils paginés) ─────────────────────
     const convos = await gpaged(
       `${ctx.pageId}/conversations?fields=updated_time,messages.limit(25){id,message,from,created_time}&limit=50`,
       token,
-      3
+      3,
+      errs
     );
     for (const conv of convos) {
-      const msgs = (conv.messages as { data?: Array<Record<string, unknown>> })?.data ?? [];
+      const msgs = await drainEdge(conv.messages as GraphEdge | undefined, 3, errs);
       for (const m of msgs) {
         const from = m.from as { name?: string; id?: string; email?: string } | undefined;
         // On ignore les messages envoyés par la Page elle-même.
@@ -127,19 +199,53 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
         if (inserted) dms++;
       }
     }
+
+    // ── Avis / recommandations de la Page ────────────────────────────────────
+    // Visibles dans Meta Business Suite ; externalId = open_graph_story pour
+    // pouvoir y répondre publiquement (POST /{story-id}/comments).
+    const ratings = await gpaged(
+      `${ctx.pageId}/ratings?fields=review_text,created_time,recommendation_type,reviewer{id,name},open_graph_story{id}&limit=50`,
+      token,
+      2,
+      errs
+    );
+    for (const r of ratings) {
+      const text = String(r.review_text ?? "");
+      if (!text) continue; // note sans texte : rien à traiter
+      scanned++;
+      const reviewer = r.reviewer as { id?: string; name?: string } | undefined;
+      const story = (r.open_graph_story as { id?: string } | undefined)?.id;
+      const inserted = await ingestMessage(companyId, {
+        channel: "facebook",
+        externalId: story ?? `review-${reviewer?.id ?? "anon"}-${String(r.created_time ?? "")}`,
+        kind: "review",
+        text,
+        authorName: reviewer?.name ?? "Avis Facebook",
+        authorHandle: reviewer?.id ? String(reviewer.id) : undefined,
+        raw: r as Record<string, unknown>,
+      });
+      if (inserted) reviews++;
+    }
   }
 
-  // ── Instagram : médias → commentaires (paginés) ────────────────────────────
+  // ── Instagram : médias → commentaires + réponses en fil ─────────────────────
   if (ctx.igId) {
     const media = await gpaged(
-      `${ctx.igId}/media?fields=permalink,comments.limit(50){id,text,timestamp,username}&limit=25`,
+      `${ctx.igId}/media?fields=permalink,comments.limit(50){id,text,timestamp,username,replies.limit(25){id,text,timestamp,username}}&limit=25`,
       token,
-      4
+      4,
+      errs
     );
     for (const m of media) {
       const permalink = m.permalink ? String(m.permalink) : undefined;
-      const comments_ = (m.comments as { data?: Array<Record<string, unknown>> })?.data ?? [];
-      for (const c of comments_) {
+      const top = await drainEdge(m.comments as GraphEdge | undefined, 3, errs);
+      // Aplati : commentaires de premier niveau + leurs réponses en fil.
+      const all: Array<Record<string, unknown>> = [];
+      for (const c of top) {
+        all.push(c);
+        all.push(...(((c.replies as GraphEdge | undefined)?.data) ?? []));
+      }
+      for (const c of all) {
         scanned++;
         const username = c.username ? String(c.username) : undefined;
         const inserted = await ingestMessage(companyId, {
@@ -161,10 +267,11 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
       const igConvos = await gpaged(
         `${ctx.pageId}/conversations?platform=instagram&fields=updated_time,messages.limit(25){id,message,from,created_time}&limit=50`,
         token,
-        3
+        3,
+        errs
       );
       for (const conv of igConvos) {
-        const msgs = (conv.messages as { data?: Array<Record<string, unknown>> })?.data ?? [];
+        const msgs = await drainEdge(conv.messages as GraphEdge | undefined, 3, errs);
         for (const m of msgs) {
           const from = m.from as { username?: string; id?: string } | undefined;
           if (from?.id && ctx.igId && from.id === ctx.igId) continue;
@@ -177,7 +284,9 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
             kind: "dm",
             text,
             authorName: from?.username ? `@${from.username}` : "DM Instagram",
-            authorHandle: from?.username ?? from?.id,
+            // IMPORTANT : l'ID (IGSID) — c'est lui que la Send API accepte comme
+            // destinataire. Le username ne permet PAS de répondre.
+            authorHandle: from?.id ? String(from.id) : undefined,
             raw: m as Record<string, unknown>,
           });
           if (inserted) dms++;
@@ -186,7 +295,15 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
     }
   }
 
-  return { imported: comments + dms, scanned, comments, dms, available: true };
+  return {
+    imported: comments + dms + reviews,
+    scanned,
+    comments,
+    dms,
+    reviews,
+    available: true,
+    note: buildNote(errs),
+  };
 }
 
 export interface DeliverResult {
@@ -199,7 +316,7 @@ export interface DeliverTarget {
   channel: InboxChannel;
   kind: "comment" | "dm" | "mention" | "review";
   externalId?: string;
-  /** Pour un DM : l'identifiant de l'expéditeur (PSID Messenger / id IG). */
+  /** Pour un DM : l'identifiant de l'expéditeur (PSID Messenger / IGSID). */
   authorHandle?: string;
 }
 
@@ -220,10 +337,11 @@ async function metaPost(path: string, params: Record<string, string>): Promise<D
 
 /**
  * Envoie une réponse vers la plateforme.
- * - Commentaire FB : POST /{comment-id}/comments
- * - Commentaire IG : POST /{ig-comment-id}/replies
- * - DM Messenger   : POST /{page-id}/messages (Send API, fenêtre 24 h)
- * - DM Instagram   : POST /{ig-id}/messages
+ * - Commentaire FB / avis FB : POST /{comment-or-story-id}/comments
+ * - Commentaire IG           : POST /{ig-comment-id}/replies
+ * - DM Messenger + DM IG     : POST /{page-id}/messages (Send API — les DM
+ *   Instagram passent aussi par le nœud de la PAGE avec le token de Page ;
+ *   fenêtre de réponse 24 h côté Meta)
  * Dégradation : si pas de token / cible manquante → delivered=false avec message.
  */
 export async function deliverMetaReply(
@@ -242,7 +360,9 @@ export async function deliverMetaReply(
   // ── Messages privés (Send API) ─────────────────────────────────────────────
   if (kind === "dm") {
     if (!authorHandle) return { delivered: false, error: "Destinataire du message privé inconnu." };
-    const senderNode = channel === "instagram" ? ctx.igId : ctx.pageId;
+    // Messenger ET Instagram : l'envoi se fait via le nœud de la PAGE liée
+    // (token de Page). On garde l'ID IG en secours si la Page manque.
+    const senderNode = ctx.pageId ?? (channel === "instagram" ? ctx.igId : undefined);
     if (!senderNode) return { delivered: false, error: "Compte expéditeur introuvable." };
     return metaPost(`${senderNode}/messages`, {
       recipient: JSON.stringify({ id: authorHandle }),
@@ -252,7 +372,7 @@ export async function deliverMetaReply(
     });
   }
 
-  // ── Commentaires (réponse publique) ────────────────────────────────────────
+  // ── Commentaires, avis, mentions (réponse publique) ────────────────────────
   if (!externalId) return { delivered: false, error: "Identifiant de message manquant." };
   const path = channel === "instagram" ? `${externalId}/replies` : `${externalId}/comments`;
   return metaPost(path, { message: body, access_token: token });

@@ -43,6 +43,7 @@ const META_SCOPES = [
   "pages_manage_posts",
   "pages_read_engagement",
   "pages_manage_engagement", // répondre aux commentaires/messages de la Page (messagerie)
+  "pages_read_user_content", // lire les commentaires/posts des VISITEURS + avis de la Page (messagerie)
   "pages_messaging", // lire/répondre aux messages privés Messenger
   "pages_show_list",
   "instagram_basic",

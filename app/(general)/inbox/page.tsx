@@ -37,7 +37,7 @@ export default function InboxPage() {
   const [agents, setAgents] = useState<InboxAgent[]>([]);
   const [messages, setMessages] = useState<InboxMessage[]>([]);
   const [filter, setFilter] = useState<Filter>("pending");
-  const [kindFilter, setKindFilter] = useState<"all" | "comment" | "dm">("all");
+  const [kindFilter, setKindFilter] = useState<"all" | "comment" | "dm" | "review">("all");
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [banner, setBanner] = useState<{ kind: "ok" | "warn"; text: string } | null>(null);
@@ -91,12 +91,14 @@ export default function InboxPage() {
       if (!d.available) {
         setBanner({ kind: "warn", text: t("Connectez votre Page Meta pour importer les messages.", "Connect your Meta Page to import messages.") });
       } else {
+        const summary = t(
+          `${d.imported} importé(s) — ${d.comments ?? 0} commentaire(s), ${d.dms ?? 0} message(s) privé(s), ${d.reviews ?? 0} avis.`,
+          `${d.imported} imported — ${d.comments ?? 0} comment(s), ${d.dms ?? 0} private message(s), ${d.reviews ?? 0} review(s).`
+        );
+        // La note signale les contenus illisibles (permission manquante, etc.).
         setBanner({
-          kind: "ok",
-          text: t(
-            `${d.imported} importé(s) — ${d.comments ?? 0} commentaire(s), ${d.dms ?? 0} message(s) privé(s).`,
-            `${d.imported} imported — ${d.comments ?? 0} comment(s), ${d.dms ?? 0} private message(s).`
-          ),
+          kind: d.note ? "warn" : "ok",
+          text: d.note ? `${summary} ${d.note}` : summary,
         });
         await loadMessages(true);
       }
@@ -188,6 +190,7 @@ export default function InboxPage() {
           { id: "all", fr: "Tous les types", en: "All types" },
           { id: "comment", fr: "Commentaires", en: "Comments" },
           { id: "dm", fr: "Messages privés", en: "Private messages" },
+          { id: "review", fr: "Avis", en: "Reviews" },
         ] as const).map((k) => (
           <button
             key={k.id}
@@ -435,6 +438,8 @@ function MessageCard({
                 ? t("Message privé", "Private message")
                 : message.kind === "mention"
                 ? t("Mention", "Mention")
+                : message.kind === "review"
+                ? t("Avis", "Review")
                 : t("Commentaire", "Comment")}
             </span>
             {message.sentiment && (

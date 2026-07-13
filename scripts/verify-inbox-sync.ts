@@ -120,6 +120,10 @@ function route(url: string, init?: RequestInit): Response {
   if (url.includes("me/adaccounts")) {
     return json({ data: [{ account_id: "AD1" }] });
   }
+  // — Pages gérées par l'utilisateur (même Business) : token de chaque page —
+  if (url.includes("me/accounts")) {
+    return json({ data: [{ id: "PAGE2", name: "Page Partenaire", access_token: "tok-p2" }] });
+  }
   if (url.includes("act_AD1/ads")) {
     return json({
       data: [
@@ -129,9 +133,23 @@ function route(url: string, init?: RequestInit): Response {
           creative: { effective_object_story_id: "PAGE1_story9", effective_instagram_media_id: "igm9" },
         },
         { id: "ad2", effective_status: "PAUSED", creative: {} },
-        // Pub ACTIVE renvoyant vers une AUTRE page : jamais ingérée, mais
+        // Pub ACTIVE renvoyant vers une page NON gérée : jamais ingérée, mais
         // comptée et nommée pour le diagnostic.
         { id: "ad3", effective_status: "ACTIVE", creative: { effective_object_story_id: "PAGEX_story1" } },
+        // Pub ACTIVE du compte de la société publiée sous une AUTRE page GÉRÉE
+        // (même Business) : lue avec le token de cette page (tok-p2).
+        { id: "ad4", effective_status: "ACTIVE", creative: { effective_object_story_id: "PAGE2_story5" } },
+      ],
+    });
+  }
+  if (url.includes("PAGE2_story5/comments")) {
+    // Ce post n'est lisible qu'avec le token de SA page.
+    if (!url.includes("access_token=tok-p2")) {
+      return json({ error: { message: "(#10) requires Page Public Content Access" } });
+    }
+    return json({
+      data: [
+        { id: "c8", from: { name: "Léo", id: "u8" }, message: "Commentaire sous la pub de la page partenaire", created_time: "2026-07-13T11:40:00+0000" },
       ],
     });
   }
@@ -259,8 +277,8 @@ async function main() {
   const r = await syncMetaComments("democo");
   check("sync disponible", r.available);
   check(
-    "commentaires importés = 9 (4 FB + 1 ads_posts + 2 créas pub FB/IG + 2 IG)",
-    r.comments === 9,
+    "commentaires importés = 10 (4 FB + 1 ads_posts + 3 créas pub FB/IG/partenaire + 2 IG)",
+    r.comments === 10,
     `comments=${r.comments}`
   );
   check("DM importés = 3 (2 Messenger paginés + 1 DM Instagram, sans échos)", r.dms === 3, `dms=${r.dms}`);
@@ -292,6 +310,12 @@ async function main() {
     "commentaire IG sur pub ACTIVE importé (média pub, hors /media)",
     adCreativeIg?.channel === "instagram" && adCreativeIg?.receivedAt === "2026-07-13T10:20:00.000Z",
     `at=${adCreativeIg?.receivedAt}`
+  );
+  const partnerComment = msgs.find((m) => m.externalId === "c8");
+  check(
+    "pub du compte société publiée sous une autre page GÉRÉE → lue avec le token de cette page",
+    partnerComment?.receivedAt === "2026-07-13T11:40:00.000Z",
+    `at=${partnerComment?.receivedAt}`
   );
   const dmNested = msgs.find((m) => m.externalId === "m3");
   check("pagination imbriquée des conversations suivie", Boolean(dmNested));
@@ -365,8 +389,8 @@ async function main() {
   await upsertConnection("democo5", "instagram", { ig_business_account_id: "IGZ", page_access_token: "tok" }, "connected");
   const r5 = await syncMetaComments("democo5");
   check(
-    "pubs vers d'autres Pages → note nomme la page et le volume",
-    Boolean(r5.note?.includes("renvoient vers d'autres Pages") && r5.note?.includes("Autre Page")),
+    "pubs vers des Pages non accessibles → note nomme les pages et le volume",
+    Boolean(r5.note?.includes("Pages non accessibles") && r5.note?.includes("PAGEX")),
     r5.note ?? "(vide)"
   );
   check("… sans ingérer les commentaires des autres Pages", r5.comments === 0, `comments=${r5.comments}`);

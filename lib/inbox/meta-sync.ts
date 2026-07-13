@@ -560,12 +560,17 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
 
     // Commentaires Facebook sur les posts publicitaires — lectures par lots de
     // 5 en parallèle, insertions parallèles, arrêt propre au budget temps.
+    // IMPORTANT : order(reverse_chronological) n'est PAS honoré avec
+    // filter=stream (constaté : blocs de 2013 servis en premier sur les gros
+    // fils) → on borne avec `since` pour garantir les commentaires RÉCENTS
+    // quel que soit l'ordre de pagination.
+    const AD_COMMENTS_SINCE = Math.floor(Date.now() / 1000) - 90 * 24 * 3600; // 90 jours
     async function readAdStory(sid: string, readToken: string, owner: string): Promise<void> {
       const first = await ggetFirst(
-        `${sid}/comments?filter=stream&order=reverse_chronological&limit=50&fields=id,from,message,created_time`,
+        `${sid}/comments?filter=stream&since=${AD_COMMENTS_SINCE}&limit=50&fields=id,from,message,created_time`,
         [readToken, adsToken]
       );
-      const list = await drainEdge((first ?? undefined) as GraphEdge | undefined, 3, errs);
+      const list = await drainEdge((first ?? undefined) as GraphEdge | undefined, 5, errs);
       const inputs: Array<Parameters<typeof ingestMessage>[1]> = [];
       for (const c of list) {
         scanned++;

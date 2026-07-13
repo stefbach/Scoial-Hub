@@ -326,31 +326,51 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
   // On passe par le compte publicitaire (Marketing API) : chaque pub expose le
   // post réellement diffusé (effective_object_story_id côté FB,
   // effective_instagram_media_id côté IG) → on lit ses commentaires directement.
+  const adStats = { accounts: 0, ads: 0, stories: 0, media: 0 };
   async function adCreativeComments(): Promise<void> {
-    if (!ctx.adAccountId) return;
     const adsToken = ctx.adsToken ?? ctx.userToken;
     if (!adsToken) return;
-    const act = ctx.adAccountId.startsWith("act_") ? ctx.adAccountId : `act_${ctx.adAccountId}`;
-    const ads = await gpaged(
-      `${act}/ads?fields=effective_status,creative{effective_object_story_id,effective_instagram_media_id}&limit=100`,
-      adsToken,
-      3,
-      errs
-    );
-    // Pubs actives d'abord (ce sont elles qui reçoivent les commentaires du jour).
-    const active = ads.filter((a) => String(a.effective_status ?? "") === "ACTIVE");
-    const rest = ads.filter((a) => String(a.effective_status ?? "") !== "ACTIVE");
+
+    // TOUS les comptes pub accessibles : le compte enregistré (choisi par
+    // similarité de nom) n'est pas forcément celui qui diffuse les pubs en
+    // cours. L'appartenance à la société est garantie plus bas par page/IG.
+    const accounts = new Set<string>();
+    if (ctx.adAccountId) {
+      accounts.add(ctx.adAccountId.startsWith("act_") ? ctx.adAccountId : `act_${ctx.adAccountId}`);
+    }
+    const accs = await gpaged(`me/adaccounts?fields=account_id&limit=50`, adsToken, 1, errs);
+    for (const a of accs) {
+      if (a.account_id) accounts.add(`act_${String(a.account_id)}`);
+    }
+    adStats.accounts = accounts.size;
+
     const storyIds: string[] = [];
     const igMediaIds: string[] = [];
-    for (const a of [...active, ...rest]) {
-      const cr = a.creative as
-        | { effective_object_story_id?: string; effective_instagram_media_id?: string }
-        | undefined;
-      const sid = cr?.effective_object_story_id ? String(cr.effective_object_story_id) : "";
-      const mid = cr?.effective_instagram_media_id ? String(cr.effective_instagram_media_id) : "";
-      if (sid && !storyIds.includes(sid)) storyIds.push(sid);
-      if (mid && !igMediaIds.includes(mid)) igMediaIds.push(mid);
+    for (const act of [...accounts].slice(0, 5)) {
+      const ads = await gpaged(
+        `${act}/ads?fields=effective_status,creative{effective_object_story_id,object_story_id,effective_instagram_media_id}&limit=100`,
+        adsToken,
+        3,
+        errs
+      );
+      adStats.ads += ads.length;
+      // Pubs actives d'abord (ce sont elles qui reçoivent les commentaires du jour).
+      const active = ads.filter((a) => String(a.effective_status ?? "") === "ACTIVE");
+      const rest = ads.filter((a) => String(a.effective_status ?? "") !== "ACTIVE");
+      for (const a of [...active, ...rest]) {
+        const cr = a.creative as
+          | { effective_object_story_id?: string; object_story_id?: string; effective_instagram_media_id?: string }
+          | undefined;
+        const sid = String(cr?.effective_object_story_id ?? cr?.object_story_id ?? "");
+        const mid = cr?.effective_instagram_media_id ? String(cr.effective_instagram_media_id) : "";
+        // Seuls les posts de LA page de la société (format {pageId}_{postId}) :
+        // les autres comptes pub peuvent diffuser pour d'autres pages.
+        if (sid && ctx.pageId && sid.startsWith(`${ctx.pageId}_`) && !storyIds.includes(sid)) storyIds.push(sid);
+        if (mid && !igMediaIds.includes(mid)) igMediaIds.push(mid);
+      }
     }
+    adStats.stories = storyIds.length;
+    adStats.media = igMediaIds.length;
 
     // Commentaires Facebook sur les posts publicitaires (token de Page).
     for (const sid of storyIds.slice(0, 25)) {
@@ -359,7 +379,7 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
         token!,
         errs
       );
-      const list = await drainEdge((first ?? undefined) as GraphEdge | undefined, 2, errs);
+      const list = await drainEdge((first ?? undefined) as GraphEdge | undefined, 3, errs);
       for (const c of list) {
         scanned++;
         const from = c.from as { name?: string; id?: string } | undefined;
@@ -380,13 +400,17 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
     }
 
     // Commentaires Instagram sur les médias publicitaires (token de Page).
+    // owner vérifié : le média doit appartenir au compte IG de la société.
     for (const mid of igMediaIds.slice(0, 25)) {
-      const first = await gget(
-        `${mid}/comments?fields=id,text,timestamp,username&limit=50`,
+      const media = await gget(
+        `${mid}?fields=owner,comments.limit(50){id,text,timestamp,username}`,
         token!,
         errs
       );
-      const list = await drainEdge((first ?? undefined) as GraphEdge | undefined, 2, errs);
+      if (!media) continue;
+      const owner = (media.owner as { id?: string } | undefined)?.id;
+      if (owner && ctx.igId && owner !== ctx.igId) continue;
+      const list = await drainEdge(media.comments as GraphEdge | undefined, 4, errs);
       for (const c of list) {
         scanned++;
         const username = c.username ? String(c.username) : undefined;
@@ -456,7 +480,7 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
       `Meta masque une partie des messages sans renvoyer d'erreur.` +
       (note ? ` ${note}` : "");
   }
-  console.warn("[inbox/sync]", JSON.stringify({ companyId, comments, dms, reviews, scanned, missing, errs: [...new Set(errs)].slice(0, 5) }));
+  console.warn("[inbox/sync]", JSON.stringify({ companyId, comments, dms, reviews, scanned, ads: adStats, missing, errs: [...new Set(errs)].slice(0, 5) }));
 
   return {
     imported: comments + dms + reviews,

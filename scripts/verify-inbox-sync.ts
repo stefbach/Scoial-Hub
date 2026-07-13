@@ -103,7 +103,10 @@ function route(url: string, init?: RequestInit): Response {
     });
   }
 
-  // — Marketing API : pubs du compte publicitaire → posts réels des créas —
+  // — Marketing API : comptes pub accessibles, pubs → posts réels des créas —
+  if (url.includes("me/adaccounts")) {
+    return json({ data: [{ account_id: "AD1" }] });
+  }
   if (url.includes("act_AD1/ads")) {
     return json({
       data: [
@@ -123,11 +126,15 @@ function route(url: string, init?: RequestInit): Response {
       ],
     });
   }
-  if (url.includes("igm9/comments")) {
+  if (url.includes("igm9?")) {
     return json({
-      data: [
-        { id: "ic9", text: "Commentaire IG sous la pub", username: "nina", timestamp: "2026-07-13T10:20:00+0000" },
-      ],
+      id: "igm9",
+      owner: { id: IG },
+      comments: {
+        data: [
+          { id: "ic9", text: "Commentaire IG sous la pub", username: "nina", timestamp: "2026-07-13T10:20:00+0000" },
+        ],
+      },
     });
   }
 

@@ -211,10 +211,15 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
   // publicitaires (y compris dark posts, absents du feed) — c'est là que
   // tombent la plupart des commentaires récents quand des pubs tournent.
   async function fbPostComments(edge: "feed" | "ads_posts"): Promise<void> {
+    // include_inline_create : indispensable pour les pubs à créa FLEXIBLE/
+    // dynamique (ex. campagnes de formulaires) — leurs posts sombres sont
+    // créés « inline » et n'apparaissent dans ads_posts qu'avec ce paramètre
+    // (et n'exposent pas d'effective_object_story_id côté Marketing API).
+    const inline = edge === "ads_posts" ? "&include_inline_create=true" : "";
     const posts = await gpaged(
-      `${ctx.pageId}/${edge}?fields=permalink_url,${FB_COMMENTS}&limit=25`,
+      `${ctx.pageId}/${edge}?fields=permalink_url,${FB_COMMENTS}${inline}&limit=25`,
       token!,
-      4,
+      6,
       errs
     );
     for (const post of posts) {
@@ -375,6 +380,10 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
     foreignPages: "",
     /** Commentaires pub effectivement importés pour la société. */
     imported: 0,
+    /** Pubs ACTIVES dont la créa n'expose AUCUN post/média (créa flexible). */
+    activesSansPost: 0,
+    /** Posts pubs ACTIFS de la page connectée. */
+    ownActive: 0,
   };
   async function adCreativeComments(): Promise<void> {
     const adsToken = ctx.adsToken ?? ctx.userToken;
@@ -507,8 +516,13 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
           const hint = pageTokenById.get(owner);
           if (hint && !mediaHintToken.has(mid)) mediaHintToken.set(mid, hint);
         }
+        // Créa flexible/dynamique : aucun post ni média exposé — ses
+        // commentaires ne sont atteignables que via ads_posts
+        // include_inline_create (cf. fbPostComments).
+        if (isActive && !sid && !mid) adStats.activesSansPost++;
       }
     }
+    adStats.ownActive = activeStories.size;
     adStats.stories = storyIds.length;
     adStats.media = igMediaIds.length;
     adStats.partnerStories = partnerStories.length;

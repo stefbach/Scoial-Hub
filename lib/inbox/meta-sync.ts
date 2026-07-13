@@ -179,6 +179,25 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
   let scanned = 0;
   const errs: string[] = [];
 
+  // Budget temps : la route serverless est tuée à 60 s (504). On s'arrête
+  // PROPREMENT avant, en gardant tout ce qui est déjà importé — l'import est
+  // idempotent, chaque relance reprend là où la précédente s'est arrêtée.
+  const deadline = Date.now() + 48_000;
+  let partial = false;
+  const timeUp = (): boolean => {
+    if (Date.now() >= deadline) {
+      partial = true;
+      return true;
+    }
+    return false;
+  };
+
+  /** Insère une liste de messages EN PARALLÈLE (idempotent) ; renvoie le nb inséré. */
+  async function ingestAll(inputs: Array<Parameters<typeof ingestMessage>[1]>): Promise<number> {
+    const results = await Promise.all(inputs.map((i) => ingestMessage(companyId, i)));
+    return results.filter(Boolean).length;
+  }
+
   // Expansion commune des commentaires FB.
   // filter(stream) : tous les commentaires À PLAT, réponses en fil incluses.
   // order(reverse_chronological) : les PLUS RÉCENTS d'abord — sinon stream sert
@@ -199,14 +218,16 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
       errs
     );
     for (const post of posts) {
+      if (timeUp()) return;
       const permalink = post.permalink_url ? String(post.permalink_url) : undefined;
       const comments_ = await drainEdge(post.comments as GraphEdge | undefined, 3, errs);
+      const inputs: Array<Parameters<typeof ingestMessage>[1]> = [];
       for (const c of comments_) {
         scanned++;
         const from = c.from as { name?: string; id?: string } | undefined;
         // On ignore les commentaires écrits par la Page elle-même.
         if (from?.id && from.id === ctx.pageId) continue;
-        const inserted = await ingestMessage(companyId, {
+        inputs.push({
           channel: "facebook",
           externalId: String(c.id ?? ""),
           kind: "comment",
@@ -217,7 +238,10 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
           receivedAt: graphTimeToIso(c.created_time),
           raw: c as Record<string, unknown>,
         });
-        if (inserted) comments++;
+      }
+      {
+        const n = await ingestAll(inputs);
+        comments += n;
       }
     }
   }
@@ -231,7 +255,9 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
       errs
     );
     for (const conv of convos) {
+      if (timeUp()) return;
       const msgs = await drainEdge(conv.messages as GraphEdge | undefined, 3, errs);
+      const inputs: Array<Parameters<typeof ingestMessage>[1]> = [];
       for (const m of msgs) {
         const from = m.from as { name?: string; id?: string; email?: string } | undefined;
         // On ignore les messages envoyés par la Page elle-même.
@@ -239,7 +265,7 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
         const text = String(m.message ?? "");
         if (!text) continue;
         scanned++;
-        const inserted = await ingestMessage(companyId, {
+        inputs.push({
           channel: "facebook",
           externalId: String(m.id ?? ""),
           kind: "dm",
@@ -249,7 +275,10 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
           receivedAt: graphTimeToIso(m.created_time),
           raw: m as Record<string, unknown>,
         });
-        if (inserted) dms++;
+      }
+      {
+        const n = await ingestAll(inputs);
+        dms += n;
       }
     }
   }
@@ -293,6 +322,7 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
       errs
     );
     for (const m of media) {
+      if (timeUp()) return;
       const permalink = m.permalink ? String(m.permalink) : undefined;
       const top = await drainEdge(m.comments as GraphEdge | undefined, 3, errs);
       // Aplati : commentaires de premier niveau + leurs réponses en fil.
@@ -301,10 +331,11 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
         all.push(c);
         all.push(...(((c.replies as GraphEdge | undefined)?.data) ?? []));
       }
+      const inputs: Array<Parameters<typeof ingestMessage>[1]> = [];
       for (const c of all) {
         scanned++;
         const username = c.username ? String(c.username) : undefined;
-        const inserted = await ingestMessage(companyId, {
+        inputs.push({
           channel: "instagram",
           externalId: String(c.id ?? ""),
           kind: "comment",
@@ -315,7 +346,10 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
           receivedAt: graphTimeToIso(c.timestamp),
           raw: c as Record<string, unknown>,
         });
-        if (inserted) comments++;
+      }
+      {
+        const n = await ingestAll(inputs);
+        comments += n;
       }
     }
   }
@@ -382,6 +416,11 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
     /** Token de page candidat pour lire chaque média IG pub (page de la créa). */
     const mediaHintToken = new Map<string, string>();
     const foreignByPage = new Map<string, number>();
+    // On collecte d'abord TOUTES les pubs de TOUS les comptes, puis on trie
+    // les ACTIVES en tête GLOBALEMENT : sinon les centaines de vieilles pubs
+    // du premier compte saturent les plafonds avant les pubs en cours des
+    // comptes suivants (constaté : 211 commentaires importés, tous ≤ 2019).
+    const allAds: Array<Record<string, unknown>> = [];
     for (const act of [...accounts].slice(0, 5)) {
       const ads = await gpaged(
         `${act}/ads?fields=effective_status,creative{effective_object_story_id,object_story_id,effective_instagram_media_id}&limit=100`,
@@ -390,9 +429,11 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
         errs
       );
       adStats.ads += ads.length;
-      // Pubs actives d'abord (ce sont elles qui reçoivent les commentaires du jour).
-      const active = ads.filter((a) => String(a.effective_status ?? "") === "ACTIVE");
-      const rest = ads.filter((a) => String(a.effective_status ?? "") !== "ACTIVE");
+      allAds.push(...ads);
+    }
+    {
+      const active = allAds.filter((a) => String(a.effective_status ?? "") === "ACTIVE");
+      const rest = allAds.filter((a) => String(a.effective_status ?? "") !== "ACTIVE");
       for (const a of [...active, ...rest]) {
         const isActive = String(a.effective_status ?? "") === "ACTIVE";
         const cr = a.creative as
@@ -501,19 +542,21 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
       ]),
     ].slice(0, 50);
 
-    // Commentaires Facebook sur les posts publicitaires.
-    for (const { sid, readToken, owner } of storiesToRead) {
+    // Commentaires Facebook sur les posts publicitaires — lectures par lots de
+    // 5 en parallèle, insertions parallèles, arrêt propre au budget temps.
+    async function readAdStory(sid: string, readToken: string, owner: string): Promise<void> {
       const first = await ggetFirst(
         `${sid}/comments?filter=stream&order=reverse_chronological&limit=50&fields=id,from,message,created_time`,
         [readToken, adsToken]
       );
       const list = await drainEdge((first ?? undefined) as GraphEdge | undefined, 3, errs);
+      const inputs: Array<Parameters<typeof ingestMessage>[1]> = [];
       for (const c of list) {
         scanned++;
         const from = c.from as { name?: string; id?: string } | undefined;
         // Réponses de la Page (connectée ou partenaire) : nos propres échos.
         if (from?.id && (from.id === ctx.pageId || from.id === owner)) continue;
-        const inserted = await ingestMessage(companyId, {
+        inputs.push({
           channel: "facebook",
           externalId: String(c.id ?? ""),
           kind: "comment",
@@ -526,26 +569,29 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
           // partir avec le token de CETTE page (cf. deliverMetaReply).
           raw: { ...(c as Record<string, unknown>), _sh_owner_page: owner },
         });
-        if (inserted) {
-          comments++;
-          adStats.imported++;
-        }
       }
+      const n = await ingestAll(inputs);
+      comments += n;
+      adStats.imported += n;
+    }
+    for (let i = 0; i < storiesToRead.length && !timeUp(); i += 5) {
+      await Promise.all(storiesToRead.slice(i, i + 5).map((s) => readAdStory(s.sid, s.readToken, s.owner)));
     }
 
     // Commentaires Instagram sur les médias publicitaires : token de la page
     // connectée, puis token de la page de la créa, puis token utilisateur.
-    for (const mid of mediaToRead) {
+    async function readAdMedia(mid: string): Promise<void> {
       const first = await ggetFirst(`${mid}/comments?fields=id,text,timestamp,username&limit=50`, [
         token,
         mediaHintToken.get(mid),
         adsToken,
       ]);
       const list = await drainEdge((first ?? undefined) as GraphEdge | undefined, 4, errs);
+      const inputs: Array<Parameters<typeof ingestMessage>[1]> = [];
       for (const c of list) {
         scanned++;
         const username = c.username ? String(c.username) : undefined;
-        const inserted = await ingestMessage(companyId, {
+        inputs.push({
           channel: "instagram",
           externalId: String(c.id ?? ""),
           kind: "comment",
@@ -555,11 +601,13 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
           receivedAt: graphTimeToIso(c.timestamp),
           raw: c as Record<string, unknown>,
         });
-        if (inserted) {
-          comments++;
-          adStats.imported++;
-        }
       }
+      const n = await ingestAll(inputs);
+      comments += n;
+      adStats.imported += n;
+    }
+    for (let i = 0; i < mediaToRead.length && !timeUp(); i += 5) {
+      await Promise.all(mediaToRead.slice(i, i + 5).map((mid) => readAdMedia(mid)));
     }
   }
 
@@ -572,14 +620,16 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
       errs
     );
     for (const conv of igConvos) {
+      if (timeUp()) return;
       const msgs = await drainEdge(conv.messages as GraphEdge | undefined, 3, errs);
+      const inputs: Array<Parameters<typeof ingestMessage>[1]> = [];
       for (const m of msgs) {
         const from = m.from as { username?: string; id?: string } | undefined;
         if (from?.id && ctx.igId && from.id === ctx.igId) continue;
         const text = String(m.message ?? "");
         if (!text) continue;
         scanned++;
-        const inserted = await ingestMessage(companyId, {
+        inputs.push({
           channel: "instagram",
           externalId: String(m.id ?? ""),
           kind: "dm",
@@ -591,7 +641,10 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
           receivedAt: graphTimeToIso(m.created_time),
           raw: m as Record<string, unknown>,
         });
-        if (inserted) dms++;
+      }
+      {
+        const n = await ingestAll(inputs);
+        dms += n;
       }
     }
   }
@@ -624,7 +677,15 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
       `Meta masque une partie des messages sans renvoyer d'erreur.` +
       (note ? ` ${note}` : "");
   }
-  console.warn("[inbox/sync]", JSON.stringify({ companyId, comments, dms, reviews, scanned, ads: adStats, missing, errs: [...new Set(errs)].slice(0, 5) }));
+  // Budget temps atteint : tout ce qui est importé est conservé — la relance
+  // reprend là où on s'est arrêté (import idempotent, actifs lus en premier).
+  if (partial) {
+    note =
+      `Synchronisation partielle (beaucoup de contenus à parcourir) : cliquez à nouveau ` +
+      `« Synchroniser Meta » pour continuer l'import.` +
+      (note ? ` ${note}` : "");
+  }
+  console.warn("[inbox/sync]", JSON.stringify({ companyId, comments, dms, reviews, scanned, partial, ads: adStats, missing, errs: [...new Set(errs)].slice(0, 5) }));
 
   return {
     imported: comments + dms + reviews,

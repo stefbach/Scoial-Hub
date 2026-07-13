@@ -15,7 +15,10 @@ export async function GET(req: NextRequest) {
   try {
     const status = (req.nextUrl.searchParams.get("status") as InboxMessageStatus) || undefined;
     const channel = (req.nextUrl.searchParams.get("channel") as InboxChannel) || undefined;
-    const messages = await listMessages(companyId, { status, channel });
+    // limit optionnel (borné 1..500), défaut du repository sinon.
+    const rawLimit = Number(req.nextUrl.searchParams.get("limit"));
+    const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 500) : undefined;
+    const messages = await listMessages(companyId, { status, channel, limit });
     return NextResponse.json(messages);
   } catch (e) {
     console.error("[GET /api/inbox/messages]", e);

@@ -19,7 +19,7 @@
 // Lancement : npx tsx scripts/verify-inbox-sync.ts
 
 import { upsertConnection } from "../lib/repositories/channel-connections";
-import { listMessages } from "../lib/repositories/inbox";
+import { listMessages, ingestMessage } from "../lib/repositories/inbox";
 import { syncMetaComments, deliverMetaReply, graphTimeToIso } from "../lib/inbox/meta-sync";
 
 let failed = 0;
@@ -34,12 +34,14 @@ const PAGE = "PAGE1";
 const IG = "IG1";
 
 const posted: Array<{ url: string; body: string }> = [];
+const fetched: string[] = [];
 
 function json(data: unknown) {
   return { json: async () => data } as Response;
 }
 
 function route(url: string, init?: RequestInit): Response {
+  fetched.push(url);
   if (init?.method === "POST") {
     posted.push({ url, body: String(init.body ?? "") });
     return json({ id: "created_1", message_id: "mid_1" });
@@ -206,6 +208,31 @@ async function main() {
   check("horodatage webhook en secondes Unix converti", graphTimeToIso(1783777800) === "2026-07-11T13:50:00.000Z", graphTimeToIso(1783777800));
   check("horodatage webhook en millisecondes converti", graphTimeToIso(1783777800000) === "2026-07-11T13:50:00.000Z", graphTimeToIso(1783777800000));
   check("horodatage invalide → undefined (fallback maintenant)", graphTimeToIso("n/a") === undefined);
+  check(
+    "commentaires FB demandés du plus récent au plus ancien",
+    fetched.some((u) => u.includes("order(reverse_chronological)")),
+    "order(reverse_chronological) absent des appels /feed"
+  );
+
+  // Rétro-correction : une ligne importée AVANT le correctif (date d'import)
+  // récupère la vraie date de la plateforme lors de la re-synchronisation.
+  await ingestMessage("democo3", { channel: "facebook", externalId: "old1", kind: "comment", text: "ancien import" });
+  const before = (await listMessages("democo3")).find((m) => m.externalId === "old1");
+  const beforeAt = before?.receivedAt; // copie : le store mémoire mute l'objet partagé
+  const dup = await ingestMessage("democo3", {
+    channel: "facebook",
+    externalId: "old1",
+    kind: "comment",
+    text: "ancien import",
+    receivedAt: "2026-07-01T10:00:00.000Z",
+  });
+  const after = (await listMessages("democo3")).find((m) => m.externalId === "old1");
+  check("re-sync d'un doublon → toujours pas de réimport", dup === null);
+  check(
+    "re-sync d'un doublon → received_at corrigé avec la vraie date",
+    after?.receivedAt === "2026-07-01T10:00:00.000Z" && beforeAt !== after?.receivedAt,
+    `avant=${beforeAt} après=${after?.receivedAt}`
+  );
 
   console.log("\n— 2) Erreurs Graph remontées (permission manquante) —");
   const r2 = await syncMetaComments("democo2");

@@ -303,7 +303,16 @@ export async function ingestMessage(
 
   if (!isSupabaseConfigured || !createClient()) {
     const arr = MESSAGES.get(companyId) ?? [];
-    if (input.externalId && arr.some((m) => m.externalId === input.externalId && m.channel === input.channel)) {
+    const dup = input.externalId
+      ? arr.find((m) => m.externalId === input.externalId && m.channel === input.channel)
+      : undefined;
+    if (dup) {
+      // Rétro-correction : les lignes importées avant que la vraie date du
+      // message soit connue portaient la date d'IMPORT. On la remplace par
+      // l'horodatage réel de la plateforme dès qu'il est disponible.
+      if (input.receivedAt && new Date(dup.receivedAt).getTime() !== new Date(input.receivedAt).getTime()) {
+        dup.receivedAt = input.receivedAt;
+      }
       return null;
     }
     arr.unshift(msg);
@@ -316,12 +325,24 @@ export async function ingestMessage(
   if (input.externalId) {
     const { data: existing } = await supabase
       .from("sh_inbox_messages")
-      .select("id")
+      .select("id, received_at")
       .eq("company_id", uuid)
       .eq("channel", input.channel)
       .eq("external_id", input.externalId)
       .maybeSingle();
-    if (existing) return null;
+    if (existing) {
+      // Rétro-correction : les lignes importées avant que la vraie date du
+      // message soit connue portaient la date d'IMPORT. On la remplace par
+      // l'horodatage réel de la plateforme dès qu'il est disponible.
+      const known = existing.received_at ? new Date(String(existing.received_at)).getTime() : NaN;
+      if (input.receivedAt && known !== new Date(input.receivedAt).getTime()) {
+        await supabase
+          .from("sh_inbox_messages")
+          .update({ received_at: input.receivedAt })
+          .eq("id", existing.id);
+      }
+      return null;
+    }
   }
   const { data, error } = await supabase
     .from("sh_inbox_messages")

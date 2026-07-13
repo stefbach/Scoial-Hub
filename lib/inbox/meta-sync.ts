@@ -157,9 +157,12 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
   // /feed (et non /posts) : inclut aussi les publications des VISITEURS sur la
   // Page. filter(stream) : renvoie tous les commentaires À PLAT, y compris les
   // réponses en fil (sinon seuls les commentaires de premier niveau arrivent).
+  // order(reverse_chronological) : les PLUS RÉCENTS d'abord — sinon stream sert
+  // les plus anciens en premier et les derniers commentaires restent au-delà
+  // des pages parcourues.
   if (ctx.pageId) {
     const posts = await gpaged(
-      `${ctx.pageId}/feed?fields=permalink_url,comments.filter(stream).limit(50){id,from,message,created_time}&limit=25`,
+      `${ctx.pageId}/feed?fields=permalink_url,comments.filter(stream).order(reverse_chronological).limit(50){id,from,message,created_time}&limit=25`,
       token,
       4,
       errs

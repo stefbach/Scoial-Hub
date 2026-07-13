@@ -70,7 +70,7 @@ export default function InboxPage() {
       if (!silent) setLoading(true);
       try {
         const q = filter === "all" ? "" : `&status=${filter}`;
-        const r = await fetch(`/api/inbox/messages?companyId=${encodeURIComponent(companyId)}${q}`);
+        const r = await fetch(`/api/inbox/messages?companyId=${encodeURIComponent(companyId)}${q}&limit=300`);
         if (r.ok) setMessages(await r.json());
       } catch {
         /* ignore */

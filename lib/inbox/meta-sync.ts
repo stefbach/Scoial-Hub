@@ -416,21 +416,37 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
     /** Token de page candidat pour lire chaque média IG pub (page de la créa). */
     const mediaHintToken = new Map<string, string>();
     const foreignByPage = new Map<string, number>();
-    // On collecte d'abord TOUTES les pubs de TOUS les comptes, puis on trie
-    // les ACTIVES en tête GLOBALEMENT : sinon les centaines de vieilles pubs
-    // du premier compte saturent les plafonds avant les pubs en cours des
-    // comptes suivants (constaté : 211 commentaires importés, tous ≤ 2019).
+    // Les comptes ont des CENTAINES de vieilles pubs et l'endpoint /ads les
+    // sert des plus anciennes aux plus récentes : sans filtre serveur, les
+    // pubs EN COURS n'apparaissent même pas dans les 300 premières (constaté :
+    // uniquement des commentaires 2013-2025). On demande donc à Meta les pubs
+    // ACTIVES directement, puis une page de pubs récentes en complément.
+    const ADS_FIELDS =
+      "fields=effective_status,creative{effective_object_story_id,object_story_id,effective_instagram_media_id}";
     const allAds: Array<Record<string, unknown>> = [];
+    const seenAds = new Set<string>();
+    const pushAds = (ads: Array<Record<string, unknown>>) => {
+      for (const a of ads) {
+        const id = String(a.id ?? "");
+        if (id && seenAds.has(id)) continue;
+        if (id) seenAds.add(id);
+        allAds.push(a);
+      }
+    };
     for (const act of [...accounts].slice(0, 5)) {
-      const ads = await gpaged(
-        `${act}/ads?fields=effective_status,creative{effective_object_story_id,object_story_id,effective_instagram_media_id}&limit=100`,
-        adsToken,
-        3,
-        errs
+      // 1) Pubs EN DIFFUSION (filtre serveur) — la priorité absolue.
+      pushAds(
+        await gpaged(
+          `${act}/ads?${ADS_FIELDS}&effective_status=${encodeURIComponent('["ACTIVE"]')}&limit=100`,
+          adsToken,
+          3,
+          errs
+        )
       );
-      adStats.ads += ads.length;
-      allAds.push(...ads);
+      // 2) Complément : une page de pubs tous statuts (récemment arrêtées…).
+      pushAds(await gpaged(`${act}/ads?${ADS_FIELDS}&limit=100`, adsToken, 1, errs));
     }
+    adStats.ads = allAds.length;
     {
       const active = allAds.filter((a) => String(a.effective_status ?? "") === "ACTIVE");
       const rest = allAds.filter((a) => String(a.effective_status ?? "") !== "ACTIVE");
@@ -451,7 +467,7 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
             // Pub publiée sous une autre Page GÉRÉE par l'utilisateur (même
             // Business Suite, ex. page « funnel ») : on lit ses commentaires
             // avec le token de cette page — quel que soit le compte pub.
-            if (partnerStories.length < 100 && !partnerStories.some((s) => s.sid === sid)) {
+            if (partnerStories.length < 200 && !partnerStories.some((s) => s.sid === sid)) {
               partnerStories.push({ sid, owner });
               partnerByPage.set(owner, (partnerByPage.get(owner) ?? 0) + 1);
             }
@@ -531,7 +547,7 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
     ]
       .slice(0, 50)
       .map((sid) => ({ sid, readToken: token!, owner: ctx.pageId ?? "" }));
-    for (const { sid, owner } of partnerStories.slice(0, 50)) {
+    for (const { sid, owner } of partnerStories.slice(0, 150)) {
       const t = pageTokenById.get(owner);
       if (t) storiesToRead.push({ sid, readToken: t, owner });
     }

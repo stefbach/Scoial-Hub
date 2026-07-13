@@ -53,6 +53,7 @@ const META_SCOPES = [
   "instagram_manage_messages", // lire/répondre aux DM Instagram
   "ads_management",
   "business_management",
+  "leads_retrieval", // lire les leads des campagnes de formulaires (Lead Ads)
 ].join(",");
 
 // ---------------------------------------------------------------------------

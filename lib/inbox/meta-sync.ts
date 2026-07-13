@@ -198,36 +198,72 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
     return results.filter(Boolean).length;
   }
 
-  // Expansion commune des commentaires FB.
-  // filter(stream) : tous les commentaires À PLAT, réponses en fil incluses.
-  // order(reverse_chronological) : les PLUS RÉCENTS d'abord — sinon stream sert
-  // les plus anciens en premier et les derniers commentaires restent au-delà
-  // des pages parcourues.
-  const FB_COMMENTS =
-    "comments.filter(stream).order(reverse_chronological).limit(50){id,from,message,created_time}";
+  // Fenêtre RÉCENTE commune (90 jours). Graph sert les fils de commentaires du
+  // plus ANCIEN au plus récent quel que soit le tri demandé : sur un post
+  // boosté très commenté, les commentaires du jour sont au-delà des pages
+  // parcourues — `since` est le SEUL moyen fiable de les obtenir.
+  const RECENT_SINCE = Math.floor(Date.now() / 1000) - 90 * 24 * 3600;
+
+  /** GET batch ?ids=… (50 par appel). */
+  async function batchGet(ids: string[], fields: string, tok: string): Promise<Map<string, Record<string, unknown>>> {
+    const out = new Map<string, Record<string, unknown>>();
+    for (let i = 0; i < ids.length; i += 50) {
+      const res = await gget(
+        `?ids=${encodeURIComponent(ids.slice(i, i + 50).join(","))}&fields=${fields}`,
+        tok,
+        errs
+      );
+      if (!res) continue;
+      for (const [k, v] of Object.entries(res)) {
+        if (v && typeof v === "object") out.set(k, v as Record<string, unknown>);
+      }
+    }
+    return out;
+  }
+  const summaryCount = (o: Record<string, unknown> | undefined): number =>
+    Number((o?.comments as { summary?: { total_count?: number } })?.summary?.total_count ?? 0);
 
   // ── Facebook : publications → commentaires ──────────────────────────────────
   // edge "feed" : posts de la Page ET des VISITEURS. edge "ads_posts" : posts
   // publicitaires (y compris dark posts, absents du feed) — c'est là que
   // tombent la plupart des commentaires récents quand des pubs tournent.
+  // Méthode : liste des posts → comptage batch des commentaires → lecture
+  // DIRECTE de chaque post commenté avec la fenêtre `since` (les expansions de
+  // champ servent les fils du plus ancien au plus récent et coupent à ~200 :
+  // sur un post boosté très commenté, les commentaires du jour étaient perdus).
   async function fbPostComments(edge: "feed" | "ads_posts"): Promise<void> {
     // include_inline_create : indispensable pour les pubs à créa FLEXIBLE/
     // dynamique (ex. campagnes de formulaires) — leurs posts sombres sont
-    // créés « inline » et n'apparaissent dans ads_posts qu'avec ce paramètre
-    // (et n'exposent pas d'effective_object_story_id côté Marketing API).
+    // créés « inline » et n'apparaissent dans ads_posts qu'avec ce paramètre.
     const inline = edge === "ads_posts" ? "&include_inline_create=true" : "";
     const posts = await gpaged(
-      `${ctx.pageId}/${edge}?fields=permalink_url,${FB_COMMENTS}${inline}&limit=25`,
+      `${ctx.pageId}/${edge}?fields=id,permalink_url${inline}&limit=50`,
       token!,
-      6,
+      4,
       errs
     );
-    for (const post of posts) {
-      if (timeUp()) return;
-      const permalink = post.permalink_url ? String(post.permalink_url) : undefined;
-      const comments_ = await drainEdge(post.comments as GraphEdge | undefined, 3, errs);
+    const permalinkById = new Map<string, string>();
+    for (const p of posts) {
+      const id = String(p.id ?? "");
+      if (id) permalinkById.set(id, p.permalink_url ? String(p.permalink_url) : "");
+    }
+    const ids = [...permalinkById.keys()];
+    const counts = await batchGet(ids, "comments.summary(true).limit(0)", token!);
+    // Posts commentés, les plus commentés d'abord (posts boostés en tête).
+    const toRead = ids
+      .filter((id) => summaryCount(counts.get(id)) > 0)
+      .sort((a, b) => summaryCount(counts.get(b)) - summaryCount(counts.get(a)))
+      .slice(0, 80);
+
+    async function readPost(pid: string): Promise<void> {
+      const first = await gget(
+        `${pid}/comments?filter=stream&since=${RECENT_SINCE}&limit=50&fields=id,from,message,created_time`,
+        token!,
+        errs
+      );
+      const list = await drainEdge((first ?? undefined) as GraphEdge | undefined, 5, errs);
       const inputs: Array<Parameters<typeof ingestMessage>[1]> = [];
-      for (const c of comments_) {
+      for (const c of list) {
         scanned++;
         const from = c.from as { name?: string; id?: string } | undefined;
         // On ignore les commentaires écrits par la Page elle-même.
@@ -239,15 +275,16 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
           text: String(c.message ?? ""),
           authorName: from?.name ?? "Utilisateur Facebook",
           authorHandle: from?.id ? String(from.id) : undefined,
-          permalink,
+          permalink: permalinkById.get(pid) || undefined,
           receivedAt: graphTimeToIso(c.created_time),
           raw: c as Record<string, unknown>,
         });
       }
-      {
-        const n = await ingestAll(inputs);
-        comments += n;
-      }
+      const n = await ingestAll(inputs);
+      comments += n;
+    }
+    for (let i = 0; i < toRead.length && !timeUp(); i += 5) {
+      await Promise.all(toRead.slice(i, i + 5).map((pid) => readPost(pid)));
     }
   }
 
@@ -602,14 +639,11 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
 
     // Commentaires Facebook sur les posts publicitaires — lectures par lots de
     // 5 en parallèle, insertions parallèles, arrêt propre au budget temps.
-    // IMPORTANT : order(reverse_chronological) n'est PAS honoré avec
-    // filter=stream (constaté : blocs de 2013 servis en premier sur les gros
-    // fils) → on borne avec `since` pour garantir les commentaires RÉCENTS
-    // quel que soit l'ordre de pagination.
-    const AD_COMMENTS_SINCE = Math.floor(Date.now() / 1000) - 90 * 24 * 3600; // 90 jours
+    // Fenêtre `since` commune (cf. RECENT_SINCE) : seul moyen fiable d'obtenir
+    // les commentaires récents sur les gros fils.
     async function readAdStory(sid: string, readToken: string, owner: string): Promise<void> {
       const first = await ggetFirst(
-        `${sid}/comments?filter=stream&since=${AD_COMMENTS_SINCE}&limit=50&fields=id,from,message,created_time`,
+        `${sid}/comments?filter=stream&since=${RECENT_SINCE}&limit=50&fields=id,from,message,created_time`,
         [readToken, adsToken]
       );
       const list = await drainEdge((first ?? undefined) as GraphEdge | undefined, 5, errs);

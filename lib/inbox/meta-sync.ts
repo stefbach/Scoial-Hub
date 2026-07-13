@@ -35,6 +35,8 @@ async function gget(
     const err = (j as { error?: { message?: string } }).error;
     if (err) {
       if (err.message) errs?.push(err.message);
+      // Trace serveur (visible dans les logs Vercel) — sans le token.
+      console.error("[meta-sync] Graph refuse", path.split("?")[0], "→", err.message);
       return null;
     }
     return j;
@@ -131,6 +133,30 @@ function buildNote(errs: string[]): string | undefined {
   if (errs.length === 0) return undefined;
   const uniq = [...new Set(errs)].slice(0, 2).join(" · ");
   return `Certains contenus n'ont pas pu être lus (${uniq}). Si les permissions ont changé, reconnectez votre Page Meta depuis Comptes.`;
+}
+
+/**
+ * Permissions nécessaires à la messagerie. Sans certaines d'entre elles
+ * (ex. pages_read_user_content), Meta ne renvoie PAS d'erreur : il masque
+ * silencieusement les contenus des visiteurs — d'où des messages « manquants »
+ * inexplicables. On vérifie donc ce que le token accorde réellement.
+ */
+const REQUIRED_PERMS = [
+  "pages_read_engagement",
+  "pages_read_user_content",
+  "pages_manage_engagement",
+  "pages_messaging",
+  "instagram_manage_comments",
+  "instagram_manage_messages",
+] as const;
+
+async function missingPermissions(userToken: string | undefined, errs: string[]): Promise<string[]> {
+  if (!userToken) return [];
+  const res = await gget("me/permissions?limit=100", userToken, errs);
+  const rows = (res?.data as Array<{ permission?: string; status?: string }>) ?? [];
+  if (rows.length === 0) return [];
+  const granted = new Set(rows.filter((r) => r.status === "granted").map((r) => String(r.permission)));
+  return REQUIRED_PERMS.filter((p) => !granted.has(p));
 }
 
 /**
@@ -333,7 +359,19 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
   if (ctx.pageId) jobs.push(fbPostComments("feed"), fbPostComments("ads_posts"), messengerDms(), pageRatings());
   if (ctx.igId) jobs.push(igComments());
   if (ctx.igId && ctx.pageId) jobs.push(igDms());
-  await Promise.all(jobs);
+  const [missing] = await Promise.all([missingPermissions(ctx.userToken, errs), ...jobs]);
+
+  // Diagnostic prioritaire : des permissions absentes du token = contenus
+  // masqués EN SILENCE par Meta (aucune erreur). On le dit explicitement.
+  let note = buildNote(errs);
+  if (missing.length > 0) {
+    note =
+      `Permissions Meta manquantes sur le token actuel : ${missing.join(", ")}. ` +
+      `Reconnectez votre Page Meta (Comptes → Facebook) pour les accorder — sans elles, ` +
+      `Meta masque une partie des messages sans renvoyer d'erreur.` +
+      (note ? ` ${note}` : "");
+  }
+  console.warn("[inbox/sync]", JSON.stringify({ companyId, comments, dms, reviews, scanned, missing, errs: [...new Set(errs)].slice(0, 5) }));
 
   return {
     imported: comments + dms + reviews,
@@ -342,7 +380,7 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
     dms,
     reviews,
     available: true,
-    note: buildNote(errs),
+    note,
   };
 }
 

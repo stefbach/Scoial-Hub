@@ -55,6 +55,23 @@ function route(url: string, init?: RequestInit): Response {
     return json({ data: [{ id: "m3", message: "Suite de la conversation", from: { name: "Bob", id: "PSID7" } }] });
   }
 
+  // — Permissions accordées au token (diagnostic des contenus masqués) —
+  if (url.includes("me/permissions")) {
+    const all = [
+      "pages_read_engagement",
+      "pages_read_user_content",
+      "pages_manage_engagement",
+      "pages_messaging",
+      "instagram_manage_comments",
+      "instagram_manage_messages",
+    ];
+    // "tok-old" simule un token accordé AVANT l'ajout des nouveaux scopes.
+    const granted = url.includes("access_token=tok-old")
+      ? all.filter((p) => p !== "pages_read_user_content" && p !== "instagram_manage_messages")
+      : all;
+    return json({ data: granted.map((p) => ({ permission: p, status: "granted" })) });
+  }
+
   // — Page en erreur de permission (2e société) —
   if (url.includes("PAGE_ERR/feed")) {
     return json({ error: { message: "(#10) Permission pages_read_user_content manquante" } });
@@ -186,7 +203,7 @@ function route(url: string, init?: RequestInit): Response {
 
 async function main() {
   // Connexions en mémoire (Supabase absent → fallback mock du repository).
-  await upsertConnection("democo", "facebook", { page_id: PAGE, page_access_token: "tok" }, "connected");
+  await upsertConnection("democo", "facebook", { page_id: PAGE, page_access_token: "tok", user_access_token: "tok" }, "connected");
   await upsertConnection("democo", "instagram", { ig_business_account_id: IG, page_access_token: "tok" }, "connected");
   await upsertConnection("democo2", "facebook", { page_id: "PAGE_ERR", page_access_token: "tok" }, "connected");
 
@@ -256,6 +273,22 @@ async function main() {
   const r2 = await syncMetaComments("democo2");
   check("sync disponible malgré l'erreur", r2.available);
   check("note présente et explicite", Boolean(r2.note?.includes("pages_read_user_content")), r2.note ?? "(vide)");
+
+  // Token ANCIEN (accordé avant l'ajout des scopes) : Meta masque les contenus
+  // SANS erreur → le diagnostic doit nommer les permissions manquantes.
+  await upsertConnection(
+    "democo4",
+    "facebook",
+    { page_id: PAGE, page_access_token: "tok", user_access_token: "tok-old" },
+    "connected"
+  );
+  const r4 = await syncMetaComments("democo4");
+  check(
+    "token ancien → note liste les permissions manquantes",
+    Boolean(r4.note?.includes("pages_read_user_content") && r4.note?.includes("instagram_manage_messages")),
+    r4.note ?? "(vide)"
+  );
+  check("token complet → aucune alerte de permission", !r.note, r.note ?? "");
 
   console.log("\n— 3) Envoi des réponses : bons endpoints Graph —");
   posted.length = 0;

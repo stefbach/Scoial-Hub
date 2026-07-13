@@ -48,20 +48,21 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
   }
 
-  const companyIds = [...new Set((data ?? []).map((r) => String(r.company_id)))];
-  const overallDeadline = Date.now() + 52_000; // marge sous les 60 s Vercel
+  const companyIds = [...new Set((data ?? []).map((r) => String(r.company_id)))].sort();
   const results: Array<Record<string, unknown>> = [];
 
-  for (let i = 0; i < companyIds.length; i++) {
-    const remainingMs = overallDeadline - Date.now();
-    if (remainingMs < 5_000) break; // trop juste : au prochain passage
-    const share = Math.max(12_000, Math.floor(remainingMs / (companyIds.length - i)));
-    const budget = Math.min(share, remainingMs - 2_000);
+  // UNE société par passage, avec le budget COMPLET (48 s) : trois budgets
+  // tronqués de 15 s n'avançaient presque pas dans les listings profonds.
+  // Rotation déterministe sur l'horloge (période = cadence du cron) : chaque
+  // société est servie à tour de rôle, l'import idempotent cumule les passes.
+  if (companyIds.length > 0) {
+    const idx = Math.floor(Date.now() / 900_000) % companyIds.length;
+    const target = companyIds[idx];
     try {
-      const r = await syncMetaComments(companyIds[i], budget);
-      results.push({ companyId: companyIds[i], imported: r.imported, note: r.note });
+      const r = await syncMetaComments(target, 48_000);
+      results.push({ companyId: target, imported: r.imported, partial: r.note?.includes("partielle") ?? false, note: r.note });
     } catch (e) {
-      results.push({ companyId: companyIds[i], error: e instanceof Error ? e.message : "échec" });
+      results.push({ companyId: target, error: e instanceof Error ? e.message : "échec" });
     }
   }
 

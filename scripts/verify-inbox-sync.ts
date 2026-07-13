@@ -103,6 +103,34 @@ function route(url: string, init?: RequestInit): Response {
     });
   }
 
+  // — Marketing API : pubs du compte publicitaire → posts réels des créas —
+  if (url.includes("act_AD1/ads")) {
+    return json({
+      data: [
+        {
+          id: "ad1",
+          effective_status: "ACTIVE",
+          creative: { effective_object_story_id: "PAGE1_story9", effective_instagram_media_id: "igm9" },
+        },
+        { id: "ad2", effective_status: "PAUSED", creative: {} },
+      ],
+    });
+  }
+  if (url.includes("PAGE1_story9/comments")) {
+    return json({
+      data: [
+        { id: "c7", from: { name: "Ana", id: "u7" }, message: "Commentaire du jour sous la pub active", created_time: "2026-07-13T10:05:00+0000" },
+      ],
+    });
+  }
+  if (url.includes("igm9/comments")) {
+    return json({
+      data: [
+        { id: "ic9", text: "Commentaire IG sous la pub", username: "nina", timestamp: "2026-07-13T10:20:00+0000" },
+      ],
+    });
+  }
+
   // — Posts publicitaires (dark posts, absents du feed) —
   if (url.includes(`${PAGE}/ads_posts`)) {
     return json({
@@ -205,12 +233,17 @@ async function main() {
   // Connexions en mémoire (Supabase absent → fallback mock du repository).
   await upsertConnection("democo", "facebook", { page_id: PAGE, page_access_token: "tok", user_access_token: "tok" }, "connected");
   await upsertConnection("democo", "instagram", { ig_business_account_id: IG, page_access_token: "tok" }, "connected");
+  await upsertConnection("democo", "meta_ads", { ad_account_id: "AD1", access_token: "tok" }, "connected");
   await upsertConnection("democo2", "facebook", { page_id: "PAGE_ERR", page_access_token: "tok" }, "connected");
 
   console.log("\n— 1) Synchronisation : parité Meta Business Suite —");
   const r = await syncMetaComments("democo");
   check("sync disponible", r.available);
-  check("commentaires importés = 7 (4 FB + 1 sous pub + 2 IG dont réponse en fil)", r.comments === 7, `comments=${r.comments}`);
+  check(
+    "commentaires importés = 9 (4 FB + 1 ads_posts + 2 créas pub FB/IG + 2 IG)",
+    r.comments === 9,
+    `comments=${r.comments}`
+  );
   check("DM importés = 3 (2 Messenger paginés + 1 DM Instagram, sans échos)", r.dms === 3, `dms=${r.dms}`);
   check("avis importés = 1 (l'avis sans texte est ignoré)", r.reviews === 1, `reviews=${r.reviews}`);
   check("imported = commentaires + DM + avis", r.imported === r.comments + r.dms + r.reviews, `imported=${r.imported}`);
@@ -229,6 +262,18 @@ async function main() {
   check("pagination imbriquée des commentaires suivie", Boolean(fbNested));
   const adComment = msgs.find((m) => m.externalId === "c6");
   check("commentaire sous PUBLICITÉ importé (ads_posts)", adComment?.receivedAt === "2026-07-13T09:15:00.000Z", adComment?.receivedAt);
+  const adCreativeFb = msgs.find((m) => m.externalId === "c7");
+  check(
+    "commentaire FB sur pub ACTIVE importé (Marketing API, dark post)",
+    adCreativeFb?.receivedAt === "2026-07-13T10:05:00.000Z" && adCreativeFb?.permalink === "https://www.facebook.com/PAGE1_story9",
+    `at=${adCreativeFb?.receivedAt} lien=${adCreativeFb?.permalink}`
+  );
+  const adCreativeIg = msgs.find((m) => m.externalId === "ic9");
+  check(
+    "commentaire IG sur pub ACTIVE importé (média pub, hors /media)",
+    adCreativeIg?.channel === "instagram" && adCreativeIg?.receivedAt === "2026-07-13T10:20:00.000Z",
+    `at=${adCreativeIg?.receivedAt}`
+  );
   const dmNested = msgs.find((m) => m.externalId === "m3");
   check("pagination imbriquée des conversations suivie", Boolean(dmNested));
   const ownEcho = msgs.find((m) => m.externalId === "c2" || m.externalId === "m2" || m.externalId === "ig-dm2");

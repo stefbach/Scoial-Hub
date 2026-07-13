@@ -320,6 +320,91 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
     }
   }
 
+  // ── Publicités EN COURS : commentaires sur les posts réels des créas ────────
+  // /ads_posts ne suffit pas : les créas dynamiques et les placements Instagram
+  // portent leurs commentaires sur des posts « dark » invisibles autrement.
+  // On passe par le compte publicitaire (Marketing API) : chaque pub expose le
+  // post réellement diffusé (effective_object_story_id côté FB,
+  // effective_instagram_media_id côté IG) → on lit ses commentaires directement.
+  async function adCreativeComments(): Promise<void> {
+    if (!ctx.adAccountId) return;
+    const adsToken = ctx.adsToken ?? ctx.userToken;
+    if (!adsToken) return;
+    const act = ctx.adAccountId.startsWith("act_") ? ctx.adAccountId : `act_${ctx.adAccountId}`;
+    const ads = await gpaged(
+      `${act}/ads?fields=effective_status,creative{effective_object_story_id,effective_instagram_media_id}&limit=100`,
+      adsToken,
+      3,
+      errs
+    );
+    // Pubs actives d'abord (ce sont elles qui reçoivent les commentaires du jour).
+    const active = ads.filter((a) => String(a.effective_status ?? "") === "ACTIVE");
+    const rest = ads.filter((a) => String(a.effective_status ?? "") !== "ACTIVE");
+    const storyIds: string[] = [];
+    const igMediaIds: string[] = [];
+    for (const a of [...active, ...rest]) {
+      const cr = a.creative as
+        | { effective_object_story_id?: string; effective_instagram_media_id?: string }
+        | undefined;
+      const sid = cr?.effective_object_story_id ? String(cr.effective_object_story_id) : "";
+      const mid = cr?.effective_instagram_media_id ? String(cr.effective_instagram_media_id) : "";
+      if (sid && !storyIds.includes(sid)) storyIds.push(sid);
+      if (mid && !igMediaIds.includes(mid)) igMediaIds.push(mid);
+    }
+
+    // Commentaires Facebook sur les posts publicitaires (token de Page).
+    for (const sid of storyIds.slice(0, 25)) {
+      const first = await gget(
+        `${sid}/comments?filter=stream&order=reverse_chronological&limit=50&fields=id,from,message,created_time`,
+        token!,
+        errs
+      );
+      const list = await drainEdge((first ?? undefined) as GraphEdge | undefined, 2, errs);
+      for (const c of list) {
+        scanned++;
+        const from = c.from as { name?: string; id?: string } | undefined;
+        if (from?.id && from.id === ctx.pageId) continue;
+        const inserted = await ingestMessage(companyId, {
+          channel: "facebook",
+          externalId: String(c.id ?? ""),
+          kind: "comment",
+          text: String(c.message ?? ""),
+          authorName: from?.name ?? "Utilisateur Facebook",
+          authorHandle: from?.id ? String(from.id) : undefined,
+          permalink: `https://www.facebook.com/${sid}`,
+          receivedAt: graphTimeToIso(c.created_time),
+          raw: c as Record<string, unknown>,
+        });
+        if (inserted) comments++;
+      }
+    }
+
+    // Commentaires Instagram sur les médias publicitaires (token de Page).
+    for (const mid of igMediaIds.slice(0, 25)) {
+      const first = await gget(
+        `${mid}/comments?fields=id,text,timestamp,username&limit=50`,
+        token!,
+        errs
+      );
+      const list = await drainEdge((first ?? undefined) as GraphEdge | undefined, 2, errs);
+      for (const c of list) {
+        scanned++;
+        const username = c.username ? String(c.username) : undefined;
+        const inserted = await ingestMessage(companyId, {
+          channel: "instagram",
+          externalId: String(c.id ?? ""),
+          kind: "comment",
+          text: String(c.text ?? ""),
+          authorName: username ? `@${username}` : "Utilisateur Instagram",
+          authorHandle: username,
+          receivedAt: graphTimeToIso(c.timestamp),
+          raw: c as Record<string, unknown>,
+        });
+        if (inserted) comments++;
+      }
+    }
+  }
+
   // ── Instagram DM : conversations privées (via la Page, platform=instagram) ──
   async function igDms(): Promise<void> {
     const igConvos = await gpaged(
@@ -356,7 +441,7 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
   // Sections lancées EN PARALLÈLE : la route serverless est bornée à 60 s, en
   // séquentiel une grosse Page dépassait le délai et perdait la fin de l'import.
   const jobs: Array<Promise<void>> = [];
-  if (ctx.pageId) jobs.push(fbPostComments("feed"), fbPostComments("ads_posts"), messengerDms(), pageRatings());
+  if (ctx.pageId) jobs.push(fbPostComments("feed"), fbPostComments("ads_posts"), messengerDms(), pageRatings(), adCreativeComments());
   if (ctx.igId) jobs.push(igComments());
   if (ctx.igId && ctx.pageId) jobs.push(igDms());
   const [missing] = await Promise.all([missingPermissions(ctx.userToken, errs), ...jobs]);

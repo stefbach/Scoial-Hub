@@ -52,6 +52,8 @@ export interface MetaContext {
   pageId?: string;
   igId?: string;
   adAccountId?: string;
+  /** Token utilisateur enregistré avec le connecteur Meta Ads (lecture des pubs). */
+  adsToken?: string;
 }
 
 /** Lit les tokens/ids Meta enregistrés pour une société. */
@@ -68,6 +70,7 @@ export async function getMetaContext(companyId: string): Promise<MetaContext> {
     pageId: fb.page_id || undefined,
     igId: ig.ig_business_account_id || undefined,
     adAccountId: ads.ad_account_id || undefined,
+    adsToken: ads.access_token || undefined,
   };
 }
 

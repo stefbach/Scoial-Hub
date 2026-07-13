@@ -372,10 +372,6 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
       if (p.name) pageNameById.set(id, String(p.name));
     }
 
-    const companyAct = ctx.adAccountId
-      ? (ctx.adAccountId.startsWith("act_") ? ctx.adAccountId : `act_${ctx.adAccountId}`)
-      : "";
-
     const storyIds: string[] = [];
     const igMediaIds: string[] = [];
     const activeStories = new Set<string>();
@@ -410,21 +406,21 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
             // Post de LA page connectée de la société.
             if (!storyIds.includes(sid)) storyIds.push(sid);
             if (isActive) activeStories.add(sid);
-          } else if (act === companyAct && pageTokenById.has(owner)) {
-            // Pub du COMPTE PUB DE LA SOCIÉTÉ publiée sous une autre Page gérée
-            // par l'utilisateur : c'est bien une pub de la société → on lit ses
-            // commentaires avec le token de cette page.
+          } else if (pageTokenById.has(owner)) {
+            // Pub publiée sous une autre Page GÉRÉE par l'utilisateur (même
+            // Business Suite, ex. page « funnel ») : on lit ses commentaires
+            // avec le token de cette page — quel que soit le compte pub.
             if (partnerStories.length < 100 && !partnerStories.some((s) => s.sid === sid)) {
               partnerStories.push({ sid, owner });
               partnerByPage.set(owner, (partnerByPage.get(owner) ?? 0) + 1);
             }
           } else {
-            // Page ni connectée ni accessible : diagnostic uniquement.
+            // Page ni connectée ni gérée : diagnostic uniquement.
             foreignByPage.set(owner, (foreignByPage.get(owner) ?? 0) + 1);
           }
         }
-        // Média IG : uniquement les pubs du compte de la société ou de la page connectée.
-        if (mid && (act === companyAct || (owner && ctx.pageId && owner === ctx.pageId))) {
+        // Média IG : pubs de la page connectée ou d'une page gérée.
+        if (mid && (!owner || (ctx.pageId && owner === ctx.pageId) || pageTokenById.has(owner))) {
           if (!igMediaIds.includes(mid)) igMediaIds.push(mid);
           if (isActive) activeMedia.add(mid);
           const hint = pageTokenById.get(owner);
@@ -526,7 +522,9 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
           authorHandle: from?.id ? String(from.id) : undefined,
           permalink: `https://www.facebook.com/${sid}`,
           receivedAt: graphTimeToIso(c.created_time),
-          raw: c as Record<string, unknown>,
+          // _sh_owner_page : la Page qui possède le post — la RÉPONSE devra
+          // partir avec le token de CETTE page (cf. deliverMetaReply).
+          raw: { ...(c as Record<string, unknown>), _sh_owner_page: owner },
         });
         if (inserted) {
           comments++;
@@ -657,6 +655,22 @@ export interface DeliverTarget {
    * commentaire, fenêtre de 7 jours côté Meta). Défaut : réponse publique.
    */
   visibility?: "public" | "private";
+  /**
+   * Page propriétaire du post commenté quand ce n'est PAS la page connectée
+   * (pubs publiées sous une autre Page du Business) : la réponse doit partir
+   * avec le token de CETTE page. Alimenté par raw._sh_owner_page à la sync.
+   */
+  ownerPageId?: string;
+}
+
+/** Token d'une Page gérée par l'utilisateur (via me/accounts). */
+async function managedPageToken(pageId: string, userToken?: string): Promise<string | null> {
+  if (!userToken) return null;
+  const res = await gget(`me/accounts?fields=id,access_token&limit=100`, userToken);
+  for (const p of (res?.data as Array<{ id?: string; access_token?: string }>) ?? []) {
+    if (String(p.id ?? "") === pageId && p.access_token) return String(p.access_token);
+  }
+  return null;
 }
 
 async function metaPost(path: string, params: Record<string, string>): Promise<DeliverResult> {
@@ -688,7 +702,7 @@ export async function deliverMetaReply(
   target: DeliverTarget,
   body: string
 ): Promise<DeliverResult> {
-  const { channel, kind, externalId, authorHandle, visibility } = target;
+  const { channel, kind, externalId, authorHandle, visibility, ownerPageId } = target;
   if (channel !== "facebook" && channel !== "instagram") {
     return { delivered: false, error: `Envoi automatique non géré pour ${channel}.` };
   }
@@ -696,17 +710,29 @@ export async function deliverMetaReply(
   const token = ctx.pageToken;
   if (!token) return { delivered: false, error: "Page Meta non connectée." };
 
+  // Post d'une AUTRE Page du Business (pub « partenaire ») : la réponse part
+  // avec le token et l'identité de CETTE page.
+  let sendToken = token;
+  let senderPage = ctx.pageId;
+  if (ownerPageId && ownerPageId !== ctx.pageId) {
+    const alt = await managedPageToken(ownerPageId, ctx.userToken ?? ctx.adsToken);
+    if (alt) {
+      sendToken = alt;
+      senderPage = ownerPageId;
+    }
+  }
+
   // ── Bascule public → privé : réponse privée à un commentaire ──────────────
   // Private Replies : le destinataire est le COMMENTAIRE (recipient.comment_id),
   // Meta route le message vers son auteur en DM. Même nœud Page pour FB et IG.
   if (visibility === "private" && kind !== "dm") {
     if (!externalId) return { delivered: false, error: "Identifiant de commentaire manquant." };
-    const senderNode = ctx.pageId ?? (channel === "instagram" ? ctx.igId : undefined);
+    const senderNode = senderPage ?? (channel === "instagram" ? ctx.igId : undefined);
     if (!senderNode) return { delivered: false, error: "Compte expéditeur introuvable." };
     return metaPost(`${senderNode}/messages`, {
       recipient: JSON.stringify({ comment_id: externalId }),
       message: JSON.stringify({ text: body }),
-      access_token: token,
+      access_token: sendToken,
     });
   }
 
@@ -728,5 +754,5 @@ export async function deliverMetaReply(
   // ── Commentaires, avis, mentions (réponse publique) ────────────────────────
   if (!externalId) return { delivered: false, error: "Identifiant de message manquant." };
   const path = channel === "instagram" ? `${externalId}/replies` : `${externalId}/comments`;
-  return metaPost(path, { message: body, access_token: token });
+  return metaPost(path, { message: body, access_token: sendToken });
 }

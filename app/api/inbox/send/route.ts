@@ -36,6 +36,8 @@ export async function POST(req: NextRequest) {
         externalId: message.externalId,
         authorHandle: message.authorHandle,
         visibility: visibility === "private" ? "private" : "public",
+        // Post d'une autre Page du Business : répondre avec SON token.
+        ownerPageId: typeof message.raw?._sh_owner_page === "string" ? message.raw._sh_owner_page : undefined,
       },
       body.trim()
     );

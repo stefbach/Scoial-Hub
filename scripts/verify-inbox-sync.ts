@@ -118,11 +118,29 @@ function route(url: string, init?: RequestInit): Response {
 
   // — Marketing API : comptes pub accessibles, pubs → posts réels des créas —
   if (url.includes("me/adaccounts")) {
-    return json({ data: [{ account_id: "AD1" }] });
+    if (url.includes("access_token=tok-noaccess")) return json({ data: [] });
+    return json({ data: [{ account_id: "AD1" }, { account_id: "AD2" }] });
   }
   // — Pages gérées par l'utilisateur (même Business) : token de chaque page —
   if (url.includes("me/accounts")) {
+    if (url.includes("access_token=tok-noaccess")) return json({ data: [] });
     return json({ data: [{ id: "PAGE2", name: "Page Partenaire", access_token: "tok-p2" }] });
+  }
+  // — Second compte pub : pub active publiée sous la page gérée PAGE2 —
+  if (url.includes("act_AD2/ads")) {
+    return json({
+      data: [{ id: "ad5", effective_status: "ACTIVE", creative: { effective_object_story_id: "PAGE2_story7" } }],
+    });
+  }
+  if (url.includes("PAGE2_story7/comments")) {
+    if (!url.includes("access_token=tok-p2")) {
+      return json({ error: { message: "(#10) requires Page Public Content Access" } });
+    }
+    return json({
+      data: [
+        { id: "c10", from: { name: "Mia", id: "u10" }, message: "Commentaire du jour, pub d'un autre compte pub", created_time: "2026-07-13T12:05:00+0000" },
+      ],
+    });
   }
   if (url.includes("act_AD1/ads")) {
     return json({
@@ -277,8 +295,8 @@ async function main() {
   const r = await syncMetaComments("democo");
   check("sync disponible", r.available);
   check(
-    "commentaires importés = 10 (4 FB + 1 ads_posts + 3 créas pub FB/IG/partenaire + 2 IG)",
-    r.comments === 10,
+    "commentaires importés = 11 (4 FB + 1 ads_posts + 4 créas pub FB/IG/partenaires + 2 IG)",
+    r.comments === 11,
     `comments=${r.comments}`
   );
   check("DM importés = 3 (2 Messenger paginés + 1 DM Instagram, sans échos)", r.dms === 3, `dms=${r.dms}`);
@@ -313,9 +331,20 @@ async function main() {
   );
   const partnerComment = msgs.find((m) => m.externalId === "c8");
   check(
-    "pub du compte société publiée sous une autre page GÉRÉE → lue avec le token de cette page",
+    "pub publiée sous une autre page GÉRÉE → lue avec le token de cette page",
     partnerComment?.receivedAt === "2026-07-13T11:40:00.000Z",
     `at=${partnerComment?.receivedAt}`
+  );
+  check(
+    "… et la page propriétaire est mémorisée pour la réponse",
+    (partnerComment?.raw as { _sh_owner_page?: string } | undefined)?._sh_owner_page === "PAGE2",
+    String((partnerComment?.raw as { _sh_owner_page?: string } | undefined)?._sh_owner_page)
+  );
+  const otherAcctComment = msgs.find((m) => m.externalId === "c10");
+  check(
+    "pub d'un AUTRE compte pub, page gérée → importée aussi",
+    otherAcctComment?.receivedAt === "2026-07-13T12:05:00.000Z",
+    `at=${otherAcctComment?.receivedAt}`
   );
   const dmNested = msgs.find((m) => m.externalId === "m3");
   check("pagination imbriquée des conversations suivie", Boolean(dmNested));
@@ -389,11 +418,27 @@ async function main() {
   await upsertConnection("democo5", "instagram", { ig_business_account_id: "IGZ", page_access_token: "tok" }, "connected");
   const r5 = await syncMetaComments("democo5");
   check(
-    "pubs vers des Pages non accessibles → note nomme les pages et le volume",
-    Boolean(r5.note?.includes("Pages non accessibles") && r5.note?.includes("PAGEX")),
-    r5.note ?? "(vide)"
+    "société sans pubs propres : les pubs des pages GÉRÉES restent importées",
+    r5.comments === 2,
+    `comments=${r5.comments}`
   );
-  check("… sans ingérer les commentaires des autres Pages", r5.comments === 0, `comments=${r5.comments}`);
+
+  // Utilisateur SANS accès aux pages des pubs (ni gérées ni connectées) :
+  // la note doit nommer les pages hors de portée.
+  await upsertConnection(
+    "democo6",
+    "facebook",
+    { page_id: "PAGEZ", page_access_token: "tok", user_access_token: "tok-noaccess" },
+    "connected"
+  );
+  await upsertConnection("democo6", "meta_ads", { ad_account_id: "AD1", access_token: "tok-noaccess" }, "connected");
+  const r6 = await syncMetaComments("democo6");
+  check(
+    "pubs vers des Pages non accessibles → note nomme les pages et le volume",
+    Boolean(r6.note?.includes("Pages non accessibles") && r6.note?.includes("PAGEX")),
+    r6.note ?? "(vide)"
+  );
+  check("… sans ingérer les commentaires de ces Pages", r6.comments === 0, `comments=${r6.comments}`);
 
   console.log("\n— 3) Envoi des réponses : bons endpoints Graph —");
   posted.length = 0;
@@ -417,17 +462,28 @@ async function main() {
   const d6 = await deliverMetaReply("democo", { channel: "linkedin", kind: "comment", externalId: "x" }, "…");
   check("canal non-Meta → refus propre (pas d'appel réseau)", !d6.delivered && posted.length === 5, d6.error);
 
+  const d7 = await deliverMetaReply(
+    "democo",
+    { channel: "facebook", kind: "comment", externalId: "c10", ownerPageId: "PAGE2" },
+    "Merci !"
+  );
+  check(
+    "commentaire d'une pub d'une AUTRE page gérée → réponse avec le token de cette page",
+    d7.delivered && posted[5]?.url.includes("/c10/comments") && posted[5]?.body.includes("access_token=tok-p2"),
+    `${posted[5]?.url} · ${posted[5]?.body}`
+  );
+
   console.log("\n— 4) Bascule public → privé (Private Replies) —");
   const p1 = await deliverMetaReply("democo", { channel: "facebook", kind: "comment", externalId: "c1", visibility: "private" }, "On vous écrit en privé.");
-  check("commentaire FB en privé → POST /{page-id}/messages", p1.delivered && posted[5]?.url.includes(`/${PAGE}/messages`), posted[5]?.url);
-  check("commentaire FB en privé : recipient = comment_id", posted[5]?.body.includes(encodeURIComponent('{"comment_id":"c1"}')), posted[5]?.body);
+  check("commentaire FB en privé → POST /{page-id}/messages", p1.delivered && posted[6]?.url.includes(`/${PAGE}/messages`), posted[6]?.url);
+  check("commentaire FB en privé : recipient = comment_id", posted[6]?.body.includes(encodeURIComponent('{"comment_id":"c1"}')), posted[6]?.body);
 
   const p2 = await deliverMetaReply("democo", { channel: "instagram", kind: "comment", externalId: "ic1", visibility: "private" }, "On vous écrit en privé.");
-  check("commentaire IG en privé → POST /{page-id}/messages", p2.delivered && posted[6]?.url.includes(`/${PAGE}/messages`), posted[6]?.url);
-  check("commentaire IG en privé : recipient = comment_id", posted[6]?.body.includes(encodeURIComponent('{"comment_id":"ic1"}')), posted[6]?.body);
+  check("commentaire IG en privé → POST /{page-id}/messages", p2.delivered && posted[7]?.url.includes(`/${PAGE}/messages`), posted[7]?.url);
+  check("commentaire IG en privé : recipient = comment_id", posted[7]?.body.includes(encodeURIComponent('{"comment_id":"ic1"}')), posted[7]?.body);
 
   const p3 = await deliverMetaReply("democo", { channel: "facebook", kind: "dm", authorHandle: "PSID7", visibility: "private" }, "Déjà privé.");
-  check("un DM reste un DM (visibility sans effet)", p3.delivered && posted[7]?.body.includes(encodeURIComponent('{"id":"PSID7"}')), posted[7]?.body);
+  check("un DM reste un DM (visibility sans effet)", p3.delivered && posted[8]?.body.includes(encodeURIComponent('{"id":"PSID7"}')), posted[8]?.body);
 
   console.log(failed === 0 ? "\n✅ Tous les tests passent." : `\n❌ ${failed} test(s) en échec.`);
   process.exit(failed === 0 ? 0 : 1);

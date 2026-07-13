@@ -111,6 +111,21 @@ async function drainEdge(
   return out;
 }
 
+/**
+ * Normalise un horodatage Graph en ISO 8601 : Meta renvoie selon les endpoints
+ * un ISO avec offset compact ("2026-07-01T10:00:00+0000"), des secondes Unix
+ * (webhooks feed) ou des millisecondes (webhooks messaging).
+ */
+export function graphTimeToIso(v: unknown): string | undefined {
+  if (v == null || v === "") return undefined;
+  if (typeof v === "number") {
+    const d = new Date(v > 1e12 ? v : v * 1000);
+    return Number.isNaN(d.getTime()) ? undefined : d.toISOString();
+  }
+  const d = new Date(String(v));
+  return Number.isNaN(d.getTime()) ? undefined : d.toISOString();
+}
+
 /** Résumé lisible des erreurs Graph rencontrées (dédupliquées). */
 function buildNote(errs: string[]): string | undefined {
   if (errs.length === 0) return undefined;
@@ -165,6 +180,7 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
           authorName: from?.name ?? "Utilisateur Facebook",
           authorHandle: from?.id ? String(from.id) : undefined,
           permalink,
+          receivedAt: graphTimeToIso(c.created_time),
           raw: c as Record<string, unknown>,
         });
         if (inserted) comments++;
@@ -194,6 +210,7 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
           text,
           authorName: from?.name ?? "Messenger",
           authorHandle: from?.id ? String(from.id) : undefined,
+          receivedAt: graphTimeToIso(m.created_time),
           raw: m as Record<string, unknown>,
         });
         if (inserted) dms++;
@@ -222,6 +239,7 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
         text,
         authorName: reviewer?.name ?? "Avis Facebook",
         authorHandle: reviewer?.id ? String(reviewer.id) : undefined,
+        receivedAt: graphTimeToIso(r.created_time),
         raw: r as Record<string, unknown>,
       });
       if (inserted) reviews++;
@@ -256,6 +274,7 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
           authorName: username ? `@${username}` : "Utilisateur Instagram",
           authorHandle: username,
           permalink,
+          receivedAt: graphTimeToIso(c.timestamp),
           raw: c as Record<string, unknown>,
         });
         if (inserted) comments++;
@@ -287,6 +306,7 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
             // IMPORTANT : l'ID (IGSID) — c'est lui que la Send API accepte comme
             // destinataire. Le username ne permet PAS de répondre.
             authorHandle: from?.id ? String(from.id) : undefined,
+            receivedAt: graphTimeToIso(m.created_time),
             raw: m as Record<string, unknown>,
           });
           if (inserted) dms++;
@@ -318,6 +338,12 @@ export interface DeliverTarget {
   externalId?: string;
   /** Pour un DM : l'identifiant de l'expéditeur (PSID Messenger / IGSID). */
   authorHandle?: string;
+  /**
+   * "private" sur un commentaire : bascule la réponse en MESSAGE PRIVÉ à son
+   * auteur (Private Replies de la Send API — une seule réponse privée par
+   * commentaire, fenêtre de 7 jours côté Meta). Défaut : réponse publique.
+   */
+  visibility?: "public" | "private";
 }
 
 async function metaPost(path: string, params: Record<string, string>): Promise<DeliverResult> {
@@ -349,13 +375,27 @@ export async function deliverMetaReply(
   target: DeliverTarget,
   body: string
 ): Promise<DeliverResult> {
-  const { channel, kind, externalId, authorHandle } = target;
+  const { channel, kind, externalId, authorHandle, visibility } = target;
   if (channel !== "facebook" && channel !== "instagram") {
     return { delivered: false, error: `Envoi automatique non géré pour ${channel}.` };
   }
   const ctx = await getMetaContext(companyId);
   const token = ctx.pageToken;
   if (!token) return { delivered: false, error: "Page Meta non connectée." };
+
+  // ── Bascule public → privé : réponse privée à un commentaire ──────────────
+  // Private Replies : le destinataire est le COMMENTAIRE (recipient.comment_id),
+  // Meta route le message vers son auteur en DM. Même nœud Page pour FB et IG.
+  if (visibility === "private" && kind !== "dm") {
+    if (!externalId) return { delivered: false, error: "Identifiant de commentaire manquant." };
+    const senderNode = ctx.pageId ?? (channel === "instagram" ? ctx.igId : undefined);
+    if (!senderNode) return { delivered: false, error: "Compte expéditeur introuvable." };
+    return metaPost(`${senderNode}/messages`, {
+      recipient: JSON.stringify({ comment_id: externalId }),
+      message: JSON.stringify({ text: body }),
+      access_token: token,
+    });
+  }
 
   // ── Messages privés (Send API) ─────────────────────────────────────────────
   if (kind === "dm") {

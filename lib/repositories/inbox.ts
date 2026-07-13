@@ -276,6 +276,8 @@ export interface IngestMessageInput {
   externalId?: string;
   kind?: InboxMessage["kind"];
   permalink?: string;
+  /** Date/heure RÉELLE du message sur la plateforme (ISO). Défaut : maintenant. */
+  receivedAt?: string;
   raw?: Record<string, unknown>;
 }
 
@@ -295,7 +297,7 @@ export async function ingestMessage(
     text: input.text,
     permalink: input.permalink,
     status: "pending",
-    receivedAt: new Date().toISOString(),
+    receivedAt: input.receivedAt ?? new Date().toISOString(),
     raw: input.raw ?? {},
   };
 
@@ -333,6 +335,7 @@ export async function ingestMessage(
       text: msg.text,
       permalink: msg.permalink ?? null,
       status: "pending",
+      received_at: msg.receivedAt,
       raw: msg.raw ?? {},
     })
     .select()

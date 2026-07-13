@@ -14,6 +14,7 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { createAdminClient } from "@/lib/supabase/server";
 import { ingestMessage } from "@/lib/repositories/inbox";
+import { graphTimeToIso } from "@/lib/inbox/meta-sync";
 import type { InboxChannel } from "@/lib/inbox/types";
 
 export const runtime = "nodejs";
@@ -94,6 +95,7 @@ export async function POST(req: NextRequest) {
             text: String(value.message ?? ""),
             authorName: from?.name ?? "Utilisateur Facebook",
             authorHandle: from?.id,
+            receivedAt: graphTimeToIso(value.created_time ?? entry.time),
             raw: value,
           });
         }
@@ -110,6 +112,7 @@ export async function POST(req: NextRequest) {
             text: String(value.text ?? ""),
             authorName: from?.username ? `@${from.username}` : "Utilisateur Instagram",
             authorHandle: from?.username ?? from?.id,
+            receivedAt: graphTimeToIso(value.timestamp ?? entry.time),
             raw: value,
           });
         }
@@ -130,6 +133,7 @@ export async function POST(req: NextRequest) {
           text: String(message.text),
           authorName: channel === "instagram" ? "DM Instagram" : "DM Messenger",
           authorHandle: sender?.id,
+          receivedAt: graphTimeToIso(m.timestamp),
           raw: m,
         });
       }

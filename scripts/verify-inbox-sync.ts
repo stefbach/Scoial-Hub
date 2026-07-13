@@ -20,7 +20,7 @@
 
 import { upsertConnection } from "../lib/repositories/channel-connections";
 import { listMessages } from "../lib/repositories/inbox";
-import { syncMetaComments, deliverMetaReply } from "../lib/inbox/meta-sync";
+import { syncMetaComments, deliverMetaReply, graphTimeToIso } from "../lib/inbox/meta-sync";
 
 let failed = 0;
 function check(name: string, cond: boolean, detail = "") {
@@ -68,7 +68,7 @@ function route(url: string, init?: RequestInit): Response {
           permalink_url: "https://fb.com/post1",
           comments: {
             data: [
-              { id: "c1", from: { name: "Alice", id: "u1" }, message: "Top !" },
+              { id: "c1", from: { name: "Alice", id: "u1" }, message: "Top !", created_time: "2026-07-10T08:30:00+0000" },
               { id: "c2", from: { name: "Ma Page", id: PAGE }, message: "Merci (notre propre réponse)" },
               { id: "c3", from: { name: "Carl", id: "u3" }, message: "Réponse en fil" },
             ],
@@ -92,7 +92,7 @@ function route(url: string, init?: RequestInit): Response {
           id: "igconv1",
           messages: {
             data: [
-              { id: "ig-dm1", message: "Bonjour, dispo en taille M ?", from: { username: "jane", id: "IGSID9" } },
+              { id: "ig-dm1", message: "Bonjour, dispo en taille M ?", from: { username: "jane", id: "IGSID9" }, created_time: "2026-07-12T18:45:00+0000" },
               { id: "ig-dm2", message: "Oui bien sûr !", from: { username: "mabrand", id: IG } }, // écho → ignoré
             ],
           },
@@ -148,6 +148,7 @@ function route(url: string, init?: RequestInit): Response {
                 id: "ic1",
                 text: "Sublime !",
                 username: "lea",
+                timestamp: "2026-07-11T09:00:00+0000",
                 replies: { data: [{ id: "ic2", text: "Je confirme", username: "marc" }] },
               },
             ],
@@ -196,6 +197,16 @@ async function main() {
   const ownEcho = msgs.find((m) => m.externalId === "c2" || m.externalId === "m2" || m.externalId === "ig-dm2");
   check("nos propres messages/commentaires ne sont pas réimportés", !ownEcho, ownEcho?.externalId);
 
+  console.log("\n— 1b) Date/heure réelle des messages (pas la date d'import) —");
+  const c1 = msgs.find((m) => m.externalId === "c1");
+  check("commentaire FB : receivedAt = created_time Meta", c1?.receivedAt === "2026-07-10T08:30:00.000Z", c1?.receivedAt);
+  const ic1 = msgs.find((m) => m.externalId === "ic1");
+  check("commentaire IG : receivedAt = timestamp Meta", ic1?.receivedAt === "2026-07-11T09:00:00.000Z", ic1?.receivedAt);
+  check("DM IG : receivedAt = created_time Meta", igDm?.receivedAt === "2026-07-12T18:45:00.000Z", igDm?.receivedAt);
+  check("horodatage webhook en secondes Unix converti", graphTimeToIso(1783777800) === "2026-07-11T13:50:00.000Z", graphTimeToIso(1783777800));
+  check("horodatage webhook en millisecondes converti", graphTimeToIso(1783777800000) === "2026-07-11T13:50:00.000Z", graphTimeToIso(1783777800000));
+  check("horodatage invalide → undefined (fallback maintenant)", graphTimeToIso("n/a") === undefined);
+
   console.log("\n— 2) Erreurs Graph remontées (permission manquante) —");
   const r2 = await syncMetaComments("democo2");
   check("sync disponible malgré l'erreur", r2.available);
@@ -222,6 +233,18 @@ async function main() {
 
   const d6 = await deliverMetaReply("democo", { channel: "linkedin", kind: "comment", externalId: "x" }, "…");
   check("canal non-Meta → refus propre (pas d'appel réseau)", !d6.delivered && posted.length === 5, d6.error);
+
+  console.log("\n— 4) Bascule public → privé (Private Replies) —");
+  const p1 = await deliverMetaReply("democo", { channel: "facebook", kind: "comment", externalId: "c1", visibility: "private" }, "On vous écrit en privé.");
+  check("commentaire FB en privé → POST /{page-id}/messages", p1.delivered && posted[5]?.url.includes(`/${PAGE}/messages`), posted[5]?.url);
+  check("commentaire FB en privé : recipient = comment_id", posted[5]?.body.includes(encodeURIComponent('{"comment_id":"c1"}')), posted[5]?.body);
+
+  const p2 = await deliverMetaReply("democo", { channel: "instagram", kind: "comment", externalId: "ic1", visibility: "private" }, "On vous écrit en privé.");
+  check("commentaire IG en privé → POST /{page-id}/messages", p2.delivered && posted[6]?.url.includes(`/${PAGE}/messages`), posted[6]?.url);
+  check("commentaire IG en privé : recipient = comment_id", posted[6]?.body.includes(encodeURIComponent('{"comment_id":"ic1"}')), posted[6]?.body);
+
+  const p3 = await deliverMetaReply("democo", { channel: "facebook", kind: "dm", authorHandle: "PSID7", visibility: "private" }, "Déjà privé.");
+  check("un DM reste un DM (visibility sans effet)", p3.delivered && posted[7]?.body.includes(encodeURIComponent('{"id":"PSID7"}')), posted[7]?.body);
 
   console.log(failed === 0 ? "\n✅ Tous les tests passent." : `\n❌ ${failed} test(s) en échec.`);
   process.exit(failed === 0 ? 0 : 1);

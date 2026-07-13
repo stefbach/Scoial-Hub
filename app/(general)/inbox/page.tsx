@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useCompany, useCanEdit } from "@/lib/company-context";
-import { useT } from "@/lib/i18n";
+import { useT, useLang } from "@/lib/i18n";
 import { AgentModal } from "@/components/inbox/AgentModal";
 import { Spinner, BusyHint } from "@/components/ui/Spinner";
 import {
@@ -21,6 +21,16 @@ const STATUS_FILTERS: { id: Filter; fr: string; en: string }[] = [
   { id: "answered", fr: "Répondu", en: "Answered" },
   { id: "all", fr: "Tout", en: "All" },
 ];
+
+/** Date/heure du message (heure locale du navigateur), ex. « 12 juil. 2026, 14:32 ». */
+function formatWhen(iso: string, lang: "fr" | "en"): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleString(lang === "fr" ? "fr-FR" : "en-GB", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+}
 
 const SENTIMENT_STYLE: Record<string, string> = {
   positive: "bg-success-50 text-success-700",
@@ -356,12 +366,18 @@ function MessageCard({
   onChanged: (m: InboxMessage) => void;
 }) {
   const t = useT();
+  const { lang } = useLang();
   const canEdit = useCanEdit();
   const [draft, setDraft] = useState(message.reply?.body ?? "");
   const [reply, setReply] = useState(message.reply ?? null);
   const [generating, setGenerating] = useState(false);
   const [sending, setSending] = useState(false);
+  const [privately, setPrivately] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+
+  // Bascule public → privé : commentaires/avis Meta uniquement (Private Replies).
+  const canReplyPrivately =
+    message.kind !== "dm" && (message.channel === "facebook" || message.channel === "instagram");
 
   async function generate() {
     setGenerating(true);
@@ -398,13 +414,22 @@ function MessageCard({
       const r = await fetch("/api/inbox/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyId, messageId: message.id, body: draft, replyId: reply?.id, agentId: reply?.agentId }),
+        body: JSON.stringify({
+          companyId,
+          messageId: message.id,
+          body: draft,
+          replyId: reply?.id,
+          agentId: reply?.agentId,
+          visibility: privately ? "private" : "public",
+        }),
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error);
       onChanged({ ...message, status: "answered", reply: d.reply });
       if (d.deliveryError) {
         setNote(t(`Enregistré, mais non publié : ${d.deliveryError}`, `Saved, but not posted: ${d.deliveryError}`));
+      } else if (privately) {
+        setNote(t("Envoyé en message privé à l'auteur.", "Sent as a private message to the author."));
       }
     } catch (e) {
       setNote(e instanceof Error ? e.message : t("Échec de l'envoi.", "Send failed."));
@@ -457,6 +482,11 @@ function MessageCard({
                 {t("Répondu", "Answered")}
               </span>
             )}
+            {message.receivedAt && (
+              <time dateTime={message.receivedAt} className="text-2xs text-muted">
+                {formatWhen(message.receivedAt, lang)}
+              </time>
+            )}
           </div>
           <p className="mt-1.5 whitespace-pre-wrap text-sm text-ink">{message.text}</p>
           {message.permalink && (
@@ -500,6 +530,24 @@ function MessageCard({
               <button onClick={() => setStatus("ignored")} disabled={!canEdit} className="text-xs text-muted hover:text-ink disabled:opacity-50">
                 {t("Ignorer", "Ignore")}
               </button>
+              {canReplyPrivately && (
+                <label
+                  className={`flex items-center gap-1.5 text-2xs text-muted ${canEdit ? "cursor-pointer" : "opacity-50"}`}
+                  title={t(
+                    "Répond à l'auteur du commentaire en message privé au lieu d'une réponse publique.",
+                    "Replies to the comment author privately instead of posting a public reply."
+                  )}
+                >
+                  <input
+                    type="checkbox"
+                    checked={privately}
+                    disabled={!canEdit}
+                    onChange={(e) => setPrivately(e.target.checked)}
+                    className="accent-primary-600"
+                  />
+                  {t("Répondre en privé", "Reply privately")}
+                </label>
+              )}
               {!hasAgent && (
                 <span className="text-2xs text-muted">{t("Créez un agent pour la réponse IA.", "Create an agent for AI replies.")}</span>
               )}

@@ -326,7 +326,7 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
   // On passe par le compte publicitaire (Marketing API) : chaque pub expose le
   // post réellement diffusé (effective_object_story_id côté FB,
   // effective_instagram_media_id côté IG) → on lit ses commentaires directement.
-  const adStats = { accounts: 0, ads: 0, stories: 0, media: 0 };
+  const adStats = { accounts: 0, ads: 0, stories: 0, media: 0, storyComments: 0, mediaComments: 0 };
   async function adCreativeComments(): Promise<void> {
     const adsToken = ctx.adsToken ?? ctx.userToken;
     if (!adsToken) return;
@@ -372,8 +372,39 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
     adStats.stories = storyIds.length;
     adStats.media = igMediaIds.length;
 
+    // Comptage BATCH (?ids=…, 50 par appel) : combien de commentaires Meta
+    // déclare sur CHAQUE post/média pub — pas de plafond arbitraire, et on ne
+    // lit ensuite que ceux qui en ont vraiment.
+    async function batchMeta(ids: string[], fields: string): Promise<Map<string, Record<string, unknown>>> {
+      const out = new Map<string, Record<string, unknown>>();
+      for (let i = 0; i < ids.length; i += 50) {
+        const batch = ids.slice(i, i + 50);
+        const res = await gget(`?ids=${encodeURIComponent(batch.join(","))}&fields=${fields}`, token!, errs);
+        if (!res) continue;
+        for (const [k, v] of Object.entries(res)) {
+          if (v && typeof v === "object") out.set(k, v as Record<string, unknown>);
+        }
+      }
+      return out;
+    }
+    const totalOf = (o: Record<string, unknown> | undefined): number =>
+      Number(((o?.comments as { summary?: { total_count?: number } })?.summary?.total_count) ?? 0);
+
+    const storyMeta = await batchMeta(storyIds, "comments.summary(true).limit(0)");
+    const mediaMeta = await batchMeta(igMediaIds, "owner,comments.summary(true).limit(0)");
+
+    const storiesWithComments = storyIds.filter((id) => totalOf(storyMeta.get(id)) > 0);
+    const mediaWithComments = igMediaIds.filter((id) => {
+      const m = mediaMeta.get(id);
+      const owner = (m?.owner as { id?: string } | undefined)?.id;
+      if (owner && ctx.igId && owner !== ctx.igId) return false; // pub d'un autre compte IG
+      return totalOf(m) > 0;
+    });
+    adStats.storyComments = storyIds.reduce((s, id) => s + totalOf(storyMeta.get(id)), 0);
+    adStats.mediaComments = igMediaIds.reduce((s, id) => s + totalOf(mediaMeta.get(id)), 0);
+
     // Commentaires Facebook sur les posts publicitaires (token de Page).
-    for (const sid of storyIds.slice(0, 25)) {
+    for (const sid of storiesWithComments.slice(0, 50)) {
       const first = await gget(
         `${sid}/comments?filter=stream&order=reverse_chronological&limit=50&fields=id,from,message,created_time`,
         token!,
@@ -400,17 +431,9 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
     }
 
     // Commentaires Instagram sur les médias publicitaires (token de Page).
-    // owner vérifié : le média doit appartenir au compte IG de la société.
-    for (const mid of igMediaIds.slice(0, 25)) {
-      const media = await gget(
-        `${mid}?fields=owner,comments.limit(50){id,text,timestamp,username}`,
-        token!,
-        errs
-      );
-      if (!media) continue;
-      const owner = (media.owner as { id?: string } | undefined)?.id;
-      if (owner && ctx.igId && owner !== ctx.igId) continue;
-      const list = await drainEdge(media.comments as GraphEdge | undefined, 4, errs);
+    for (const mid of mediaWithComments.slice(0, 50)) {
+      const first = await gget(`${mid}/comments?fields=id,text,timestamp,username&limit=50`, token!, errs);
+      const list = await drainEdge((first ?? undefined) as GraphEdge | undefined, 4, errs);
       for (const c of list) {
         scanned++;
         const username = c.username ? String(c.username) : undefined;

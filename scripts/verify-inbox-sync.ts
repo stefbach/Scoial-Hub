@@ -103,6 +103,20 @@ function route(url: string, init?: RequestInit): Response {
     });
   }
 
+  // — Comptage batch ?ids=… : nombre de commentaires par post/média pub —
+  if (url.includes("/?ids=")) {
+    const m = url.match(/[?&]ids=([^&]+)/);
+    const ids = decodeURIComponent(m?.[1] ?? "").split(",");
+    const out: Record<string, unknown> = {};
+    for (const id of ids) {
+      out[id] =
+        id === "igm9"
+          ? { owner: { id: IG }, comments: { summary: { total_count: 1 }, data: [] } }
+          : { comments: { summary: { total_count: 1 }, data: [] } };
+    }
+    return json(out);
+  }
+
   // — Marketing API : comptes pub accessibles, pubs → posts réels des créas —
   if (url.includes("me/adaccounts")) {
     return json({ data: [{ account_id: "AD1" }] });
@@ -126,15 +140,11 @@ function route(url: string, init?: RequestInit): Response {
       ],
     });
   }
-  if (url.includes("igm9?")) {
+  if (url.includes("igm9/comments")) {
     return json({
-      id: "igm9",
-      owner: { id: IG },
-      comments: {
-        data: [
-          { id: "ic9", text: "Commentaire IG sous la pub", username: "nina", timestamp: "2026-07-13T10:20:00+0000" },
-        ],
-      },
+      data: [
+        { id: "ic9", text: "Commentaire IG sous la pub", username: "nina", timestamp: "2026-07-13T10:20:00+0000" },
+      ],
     });
   }
 

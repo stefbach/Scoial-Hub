@@ -204,24 +204,87 @@ export async function syncMetaComments(companyId: string, budgetMs = 48_000): Pr
   // parcourues — `since` est le SEUL moyen fiable de les obtenir.
   const RECENT_SINCE = Math.floor(Date.now() / 1000) - 90 * 24 * 3600;
 
-  /** GET batch ?ids=… (50 par appel). */
-  async function batchGet(ids: string[], fields: string, tok: string): Promise<Map<string, Record<string, unknown>>> {
-    const out = new Map<string, Record<string, unknown>>();
-    for (let i = 0; i < ids.length; i += 50) {
-      const res = await gget(
-        `?ids=${encodeURIComponent(ids.slice(i, i + 50).join(","))}&fields=${fields}`,
-        tok,
-        errs
-      );
-      if (!res) continue;
-      for (const [k, v] of Object.entries(res)) {
-        if (v && typeof v === "object") out.set(k, v as Record<string, unknown>);
+  /** Pages étrangères repérées dans le fil (crossposts, pages sœurs). */
+  const siblingPages = new Set<string>();
+
+  // Pages connectées par d'AUTRES sociétés : jamais importées ici — verrou
+  // anti-fuite entre sociétés (constaté : commentaires TIBOK dans l'inbox OCC).
+  const otherCompaniesPages = new Set<string>();
+  try {
+    const { createAdminClient } = await import("@/lib/supabase/server");
+    const { resolveCompanyUuid } = await import("@/lib/repositories/resolve-company");
+    const sb = createAdminClient();
+    if (sb) {
+      const uuid = await resolveCompanyUuid(companyId);
+      const { data } = await sb
+        .from("sh_channel_connections")
+        .select("company_id, config")
+        .eq("channel", "facebook");
+      for (const r of (data ?? []) as Array<{ company_id: string; config?: { page_id?: string } }>) {
+        const pid = r.config?.page_id;
+        if (pid && String(r.company_id) !== uuid) otherCompaniesPages.add(String(pid));
+      }
+    }
+  } catch {
+    /* démo sans Supabase */
+  }
+
+  /** GET en essayant plusieurs tokens (page connectée, page partenaire, user). */
+  async function ggetFirst(path: string, tokens: Array<string | undefined>): Promise<Record<string, unknown> | null> {
+    const tried = new Set<string>();
+    const local: string[] = [];
+    for (const t of tokens) {
+      if (!t || tried.has(t)) continue;
+      tried.add(t);
+      const r = await gget(path, t, local);
+      if (r) return r;
+    }
+    if (local.length > 0) errs.push(local[local.length - 1]);
+    return null;
+  }
+
+  /**
+   * Lit les commentaires RÉCENTS d'un post : order=reverse_chronological
+   * (documenté, honoré avec le filtre par défaut) + arrêt dès que la fenêtre
+   * RECENT_SINCE est dépassée. Ne dépend NI de `since` (non documenté sur
+   * l'edge /comments, peut vider la réponse en silence) NI des compteurs
+   * summary (bornes non garanties) NI du format ?ids= (tout-ou-rien : un id
+   * mort invalidait le comptage de 50 posts d'un coup).
+   */
+  async function readRecentComments(
+    objectId: string,
+    tokens: Array<string | undefined>
+  ): Promise<Array<Record<string, unknown>>> {
+    const out: Array<Record<string, unknown>> = [];
+    let page = await ggetFirst(
+      `${objectId}/comments?order=reverse_chronological&limit=50&fields=id,from,message,created_time`,
+      tokens
+    );
+    let guard = 0;
+    while (page && guard < 4) {
+      const data = (page.data as Array<Record<string, unknown>>) ?? [];
+      for (const c of data) {
+        const iso = graphTimeToIso(c.created_time);
+        if (iso && new Date(iso).getTime() < RECENT_SINCE * 1000) return out; // fenêtre dépassée
+        out.push(c);
+      }
+      const next = (page.paging as { next?: string })?.next;
+      if (!next || data.length === 0) break;
+      guard++;
+      try {
+        const res = await fetch(next, { cache: "no-store" });
+        page = (await res.json()) as Record<string, unknown>;
+        if ((page as { error?: { message?: string } }).error) {
+          const msg = (page as { error?: { message?: string } }).error?.message;
+          if (msg) errs.push(msg);
+          break;
+        }
+      } catch {
+        break;
       }
     }
     return out;
   }
-  const summaryCount = (o: Record<string, unknown> | undefined): number =>
-    Number((o?.comments as { summary?: { total_count?: number } })?.summary?.total_count ?? 0);
 
   // ── Facebook : publications → commentaires ──────────────────────────────────
   // edge "feed" : posts de la Page ET des VISITEURS. edge "ads_posts" : posts
@@ -245,34 +308,36 @@ export async function syncMetaComments(companyId: string, budgetMs = 48_000): Pr
     const permalinkById = new Map<string, string>();
     for (const p of posts) {
       const id = String(p.id ?? "");
-      if (id) permalinkById.set(id, p.permalink_url ? String(p.permalink_url) : "");
+      if (!id) continue;
+      const permalink = p.permalink_url ? String(p.permalink_url) : "";
+      permalinkById.set(id, permalink);
+      // Post du fil appartenant à une AUTRE page (crosspost, page sœur,
+      // page de localisation) : signalé pour diagnostic — c'est souvent là
+      // que vivent les commentaires « introuvables ».
+      const m = permalink.match(/facebook\.com\/(\d{6,})\//);
+      if (m && ctx.pageId && m[1] !== ctx.pageId) siblingPages.add(m[1]);
     }
-    const ids = [...permalinkById.keys()];
-    const counts = await batchGet(ids, "comments.summary(true).limit(0)", token!);
-    // Posts commentés, les plus commentés d'abord (posts boostés en tête).
-    const toRead = ids
-      .filter((id) => summaryCount(counts.get(id)) > 0)
-      .sort((a, b) => summaryCount(counts.get(b)) - summaryCount(counts.get(a)))
-      .slice(0, 80);
+    // TOUS les posts listés sont lus (l'arrêt à la fenêtre RECENT_SINCE rend
+    // chaque lecture bon marché : 1 appel pour un post sans activité récente).
+    const toRead = [...permalinkById.keys()];
 
     async function readPost(pid: string): Promise<void> {
-      const first = await gget(
-        `${pid}/comments?filter=stream&since=${RECENT_SINCE}&limit=50&fields=id,from,message,created_time`,
-        token!,
-        errs
-      );
-      const list = await drainEdge((first ?? undefined) as GraphEdge | undefined, 5, errs);
+      const list = await readRecentComments(pid, [token]);
       const inputs: Array<Parameters<typeof ingestMessage>[1]> = [];
       for (const c of list) {
         scanned++;
         const from = c.from as { name?: string; id?: string } | undefined;
         // On ignore les commentaires écrits par la Page elle-même.
         if (from?.id && from.id === ctx.pageId) continue;
+        const text = String(c.message ?? "");
+        // Texte vide = sticker/photo ou contenu caviardé par Meta (post d'une
+        // page dont on n'est pas admin) : rien d'actionnable, on n'insère pas.
+        if (!text) continue;
         inputs.push({
           channel: "facebook",
           externalId: String(c.id ?? ""),
           kind: "comment",
-          text: String(c.message ?? ""),
+          text,
           authorName: from?.name ?? "Utilisateur Facebook",
           authorHandle: from?.id ? String(from.id) : undefined,
           permalink: permalinkById.get(pid) || undefined,
@@ -407,8 +472,6 @@ export async function syncMetaComments(companyId: string, budgetMs = 48_000): Pr
     ads: 0,
     stories: 0,
     media: 0,
-    storyComments: 0,
-    mediaComments: 0,
     /** Posts pubs d'autres Pages GÉRÉES par l'utilisateur (lus avec leur token). */
     partnerStories: 0,
     partnerPages: "",
@@ -524,6 +587,9 @@ export async function syncMetaComments(companyId: string, budgetMs = 48_000): Pr
             // Post de LA page connectée de la société.
             if (!storyIds.includes(sid)) storyIds.push(sid);
             if (isActive) activeStories.add(sid);
+          } else if (otherCompaniesPages.has(owner)) {
+            // Page connectée par une AUTRE société : ses contenus lui
+            // appartiennent — jamais importés ici (anti-fuite).
           } else if (pageTokenById.has(owner)) {
             // Pub publiée sous une autre Page GÉRÉE par l'utilisateur (même
             // Business Suite, ex. page « funnel ») : on lit ses commentaires
@@ -546,8 +612,9 @@ export async function syncMetaComments(companyId: string, budgetMs = 48_000): Pr
             }
           }
         }
-        // Média IG : pubs de la page connectée ou d'une page gérée.
-        if (mid && (!owner || (ctx.pageId && owner === ctx.pageId) || pageTokenById.has(owner))) {
+        // Média IG : pubs de la page connectée ou d'une page gérée (jamais
+        // celles d'une page appartenant à une autre société).
+        if (mid && !otherCompaniesPages.has(owner) && (!owner || (ctx.pageId && owner === ctx.pageId) || pageTokenById.has(owner))) {
           if (!igMediaIds.includes(mid)) igMediaIds.push(mid);
           if (isActive) activeMedia.add(mid);
           const hint = pageTokenById.get(owner);
@@ -576,88 +643,43 @@ export async function syncMetaComments(companyId: string, budgetMs = 48_000): Pr
       })
       .join(" · ");
 
-    /** GET en essayant plusieurs tokens (page connectée, page partenaire, ads). */
-    async function ggetFirst(path: string, tokens: Array<string | undefined>): Promise<Record<string, unknown> | null> {
-      const tried = new Set<string>();
-      const local: string[] = [];
-      for (const t of tokens) {
-        if (!t || tried.has(t)) continue;
-        tried.add(t);
-        const r = await gget(path, t, local);
-        if (r) return r;
-      }
-      if (local.length > 0) errs.push(local[local.length - 1]);
-      return null;
-    }
-
-    // Comptage BATCH (?ids=…, 50 par appel) : combien de commentaires Meta
-    // déclare sur CHAQUE post/média pub — pas de plafond arbitraire, et on ne
-    // lit ensuite que ceux qui en ont vraiment.
-    async function batchMeta(ids: string[], fields: string): Promise<Map<string, Record<string, unknown>>> {
-      const out = new Map<string, Record<string, unknown>>();
-      for (let i = 0; i < ids.length; i += 50) {
-        const batch = ids.slice(i, i + 50);
-        const res = await gget(`?ids=${encodeURIComponent(batch.join(","))}&fields=${fields}`, token!, errs);
-        if (!res) continue;
-        for (const [k, v] of Object.entries(res)) {
-          if (v && typeof v === "object") out.set(k, v as Record<string, unknown>);
-        }
-      }
-      return out;
-    }
-    const totalOf = (o: Record<string, unknown> | undefined): number =>
-      Number(((o?.comments as { summary?: { total_count?: number } })?.summary?.total_count) ?? 0);
-    // IMPORTANT : les médias Instagram n'acceptent PAS comments.summary —
-    // leur compteur est le champ dédié comments_count.
-    const mediaCount = (o: Record<string, unknown> | undefined): number =>
-      Number(o?.comments_count ?? 0);
-
-    const storyMeta = await batchMeta(storyIds, "comments.summary(true).limit(0)");
-    const mediaMeta = await batchMeta(igMediaIds, "owner,comments_count");
-
-    adStats.storyComments = storyIds.reduce((s, id) => s + totalOf(storyMeta.get(id)), 0);
-    adStats.mediaComments = igMediaIds.reduce((s, id) => s + mediaCount(mediaMeta.get(id)), 0);
-
-    // À lire : posts avec commentaires déclarés + posts de pubs ACTIVES même à
-    // « 0 » (les compteurs peuvent être en retard sur les posts sombres), plus
-    // les posts pubs des pages partenaires (lus avec le token de LEUR page).
+    // À lire : TOUS les posts pubs de la page connectée (l'arrêt à la fenêtre
+    // RECENT_SINCE rend chaque lecture bon marché — plus aucun pré-comptage
+    // batch : le format ?ids= est tout-ou-rien et un seul id mort invalidait
+    // le comptage de 50 posts d'un coup), plus les posts pubs des pages
+    // partenaires (lus avec le token de LEUR page).
     const storiesToRead: Array<{ sid: string; readToken: string; owner: string }> = [
-      ...new Set([...storyIds.filter((id) => totalOf(storyMeta.get(id)) > 0), ...activeStories]),
+      ...new Set([...storyIds, ...activeStories]),
     ]
-      .slice(0, 50)
+      .slice(0, 100)
       .map((sid) => ({ sid, readToken: token!, owner: ctx.pageId ?? "" }));
     for (const { sid, owner } of partnerStories.slice(0, 150)) {
       const t = pageTokenById.get(owner);
       if (t) storiesToRead.push({ sid, readToken: t, owner });
     }
-    const mediaToRead = [
-      ...new Set([
-        ...igMediaIds.filter((id) => mediaCount(mediaMeta.get(id)) > 0),
-        ...[...activeMedia],
-      ]),
-    ].slice(0, 50);
+    // Médias IG : tous ceux collectés, actifs en tête (pré-comptage supprimé,
+    // cf. commentaire storiesToRead).
+    const mediaToRead = [...new Set([...activeMedia, ...igMediaIds])].slice(0, 100);
 
     // Commentaires Facebook sur les posts publicitaires — lectures par lots de
     // 5 en parallèle, insertions parallèles, arrêt propre au budget temps.
     // Fenêtre `since` commune (cf. RECENT_SINCE) : seul moyen fiable d'obtenir
     // les commentaires récents sur les gros fils.
     async function readAdStory(sid: string, readToken: string, owner: string): Promise<void> {
-      const first = await ggetFirst(
-        `${sid}/comments?filter=stream&since=${RECENT_SINCE}&limit=50&fields=id,from,message,created_time`,
-        [readToken, adsToken]
-      );
-      const list = await drainEdge((first ?? undefined) as GraphEdge | undefined, 5, errs);
+      const list = await readRecentComments(sid, [readToken, adsToken]);
       const inputs: Array<Parameters<typeof ingestMessage>[1]> = [];
       for (const c of list) {
         scanned++;
         const from = c.from as { name?: string; id?: string } | undefined;
         // Réponses de la Page (connectée ou partenaire) : nos propres échos.
         if (from?.id && (from.id === ctx.pageId || from.id === owner)) continue;
+        const text = String(c.message ?? "");
+        if (!text) continue; // sticker/photo ou contenu caviardé : inexploitable
         inputs.push({
           channel: "facebook",
           externalId: String(c.id ?? ""),
           kind: "comment",
-          text: String(c.message ?? ""),
+          text,
           authorName: from?.name ?? "Utilisateur Facebook",
           authorHandle: from?.id ? String(from.id) : undefined,
           permalink: `https://www.facebook.com/${sid}`,
@@ -757,6 +779,22 @@ export async function syncMetaComments(companyId: string, budgetMs = 48_000): Pr
   // Diagnostic prioritaire : des permissions absentes du token = contenus
   // masqués EN SILENCE par Meta (aucune erreur). On le dit explicitement.
   let note = buildNote(errs);
+  // Pages SŒURS détectées dans le fil (crossposts / pages de localisation /
+  // seconde page au même nom) : c'est le suspect n°1 des « commentaires
+  // visibles dans Business Suite mais absents ici » — Business Suite agrège
+  // TOUTES les pages du Business, l'app ne lit que la page connectée.
+  if (siblingPages.size > 0) {
+    const named: string[] = [];
+    for (const pid of [...siblingPages].slice(0, 3)) {
+      const info = await gget(`${pid}?fields=name`, ctx.userToken ?? token, []);
+      named.push(info?.name ? `« ${String(info.name)} » (${pid})` : pid);
+    }
+    note =
+      `Votre fil référence des publications d'une autre Page de votre Business : ${named.join(" · ")}. ` +
+      `Si vos commentaires « manquants » sont sur cette Page (posts boostés compris), connectez-LA : ` +
+      `Comptes → reconnecter Facebook → cocher cette Page.` +
+      (note ? ` ${note}` : "");
+  }
   // Pubs renvoyant vers des Pages NI connectées NI gérées par l'utilisateur :
   // leurs commentaires sont hors de portée des accès actuels — on le dit
   // nommément quand aucun commentaire pub n'a pu être importé par ailleurs.
@@ -782,7 +820,7 @@ export async function syncMetaComments(companyId: string, budgetMs = 48_000): Pr
       `« Synchroniser Meta » pour continuer l'import.` +
       (note ? ` ${note}` : "");
   }
-  console.warn("[inbox/sync]", JSON.stringify({ companyId, comments, dms, reviews, scanned, partial, ads: adStats, missing, errs: [...new Set(errs)].slice(0, 5) }));
+  console.warn("[inbox/sync]", JSON.stringify({ companyId, comments, dms, reviews, scanned, partial, siblings: [...siblingPages].slice(0, 5), ads: adStats, missing, errs: [...new Set(errs)].slice(0, 5) }));
 
   return {
     imported: comments + dms + reviews,

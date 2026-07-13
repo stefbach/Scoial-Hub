@@ -325,21 +325,27 @@ export async function ingestMessage(
   if (input.externalId) {
     const { data: existing } = await supabase
       .from("sh_inbox_messages")
-      .select("id, received_at")
+      .select("id, received_at, text")
       .eq("company_id", uuid)
       .eq("channel", input.channel)
       .eq("external_id", input.externalId)
       .maybeSingle();
     if (existing) {
-      // Rétro-correction : les lignes importées avant que la vraie date du
-      // message soit connue portaient la date d'IMPORT. On la remplace par
-      // l'horodatage réel de la plateforme dès qu'il est disponible.
+      // Rétro-corrections sur doublon : la vraie date de la plateforme, et le
+      // texte quand la ligne existante est VIDE (contenu caviardé lors d'un
+      // import antérieur) alors que la relecture apporte le vrai texte.
+      const patch: Record<string, unknown> = {};
       const known = existing.received_at ? new Date(String(existing.received_at)).getTime() : NaN;
       if (input.receivedAt && known !== new Date(input.receivedAt).getTime()) {
-        await supabase
-          .from("sh_inbox_messages")
-          .update({ received_at: input.receivedAt })
-          .eq("id", existing.id);
+        patch.received_at = input.receivedAt;
+      }
+      if (input.text && !String((existing as { text?: string }).text ?? "")) {
+        patch.text = input.text;
+        if (input.authorName) patch.author_name = input.authorName;
+        if (input.permalink) patch.permalink = input.permalink;
+      }
+      if (Object.keys(patch).length > 0) {
+        await supabase.from("sh_inbox_messages").update(patch).eq("id", existing.id);
       }
       return null;
     }

@@ -182,6 +182,10 @@ class FacebookConnector implements SocialConnector {
       redirect_uri: `${APP_URL}/api/connectors/facebook/callback`,
       scope: META_SCOPES,
       response_type: "code",
+      // rerequest : force Facebook à RE-proposer le choix des Pages partagées
+      // avec l'app — sinon la reconnexion réutilise la sélection précédente et
+      // les Pages jamais cochées restent invisibles (pubs « non accessibles »).
+      auth_type: "rerequest",
       state,
     });
 
@@ -399,6 +403,10 @@ class InstagramConnector implements SocialConnector {
       redirect_uri: `${APP_URL}/api/connectors/instagram/callback`,
       scope: META_SCOPES,
       response_type: "code",
+      // rerequest : force Facebook à RE-proposer le choix des Pages partagées
+      // avec l'app — sinon la reconnexion réutilise la sélection précédente et
+      // les Pages jamais cochées restent invisibles (pubs « non accessibles »).
+      auth_type: "rerequest",
       state,
     });
 

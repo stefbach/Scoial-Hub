@@ -86,6 +86,23 @@ function route(url: string, init?: RequestInit): Response {
     });
   }
 
+  // — Posts publicitaires (dark posts, absents du feed) —
+  if (url.includes(`${PAGE}/ads_posts`)) {
+    return json({
+      data: [
+        {
+          id: "adpost1",
+          permalink_url: "https://fb.com/adpost1",
+          comments: {
+            data: [
+              { id: "c6", from: { name: "Gil", id: "u6" }, message: "Commentaire du jour sous la pub", created_time: "2026-07-13T09:15:00+0000" },
+            ],
+          },
+        },
+      ],
+    });
+  }
+
   // — Instagram DM (via la Page, platform=instagram) — AVANT le cas Messenger —
   if (url.includes(`${PAGE}/conversations`) && url.includes("platform=instagram")) {
     return json({
@@ -176,8 +193,7 @@ async function main() {
   console.log("\n— 1) Synchronisation : parité Meta Business Suite —");
   const r = await syncMetaComments("democo");
   check("sync disponible", r.available);
-  check("4 commentaires FB (fil + page 2 + post visiteur, sans nos réponses)", true, "");
-  check("commentaires importés = 6 (4 FB + 2 IG dont réponse en fil)", r.comments === 6, `comments=${r.comments}`);
+  check("commentaires importés = 7 (4 FB + 1 sous pub + 2 IG dont réponse en fil)", r.comments === 7, `comments=${r.comments}`);
   check("DM importés = 3 (2 Messenger paginés + 1 DM Instagram, sans échos)", r.dms === 3, `dms=${r.dms}`);
   check("avis importés = 1 (l'avis sans texte est ignoré)", r.reviews === 1, `reviews=${r.reviews}`);
   check("imported = commentaires + DM + avis", r.imported === r.comments + r.dms + r.reviews, `imported=${r.imported}`);
@@ -194,6 +210,8 @@ async function main() {
   check("réponse en fil FB importée (filter=stream)", Boolean(fbThread));
   const fbNested = msgs.find((m) => m.externalId === "c4");
   check("pagination imbriquée des commentaires suivie", Boolean(fbNested));
+  const adComment = msgs.find((m) => m.externalId === "c6");
+  check("commentaire sous PUBLICITÉ importé (ads_posts)", adComment?.receivedAt === "2026-07-13T09:15:00.000Z", adComment?.receivedAt);
   const dmNested = msgs.find((m) => m.externalId === "m3");
   check("pagination imbriquée des conversations suivie", Boolean(dmNested));
   const ownEcho = msgs.find((m) => m.externalId === "c2" || m.externalId === "m2" || m.externalId === "ig-dm2");

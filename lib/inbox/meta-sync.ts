@@ -153,17 +153,22 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
   let scanned = 0;
   const errs: string[] = [];
 
-  // ── Facebook : publications → commentaires ──────────────────────────────────
-  // /feed (et non /posts) : inclut aussi les publications des VISITEURS sur la
-  // Page. filter(stream) : renvoie tous les commentaires À PLAT, y compris les
-  // réponses en fil (sinon seuls les commentaires de premier niveau arrivent).
+  // Expansion commune des commentaires FB.
+  // filter(stream) : tous les commentaires À PLAT, réponses en fil incluses.
   // order(reverse_chronological) : les PLUS RÉCENTS d'abord — sinon stream sert
   // les plus anciens en premier et les derniers commentaires restent au-delà
   // des pages parcourues.
-  if (ctx.pageId) {
+  const FB_COMMENTS =
+    "comments.filter(stream).order(reverse_chronological).limit(50){id,from,message,created_time}";
+
+  // ── Facebook : publications → commentaires ──────────────────────────────────
+  // edge "feed" : posts de la Page ET des VISITEURS. edge "ads_posts" : posts
+  // publicitaires (y compris dark posts, absents du feed) — c'est là que
+  // tombent la plupart des commentaires récents quand des pubs tournent.
+  async function fbPostComments(edge: "feed" | "ads_posts"): Promise<void> {
     const posts = await gpaged(
-      `${ctx.pageId}/feed?fields=permalink_url,comments.filter(stream).order(reverse_chronological).limit(50){id,from,message,created_time}&limit=25`,
-      token,
+      `${ctx.pageId}/${edge}?fields=permalink_url,${FB_COMMENTS}&limit=25`,
+      token!,
       4,
       errs
     );
@@ -189,11 +194,13 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
         if (inserted) comments++;
       }
     }
+  }
 
-    // ── Messenger : conversations privées (fils paginés) ─────────────────────
+  // ── Messenger : conversations privées (fils paginés) ────────────────────────
+  async function messengerDms(): Promise<void> {
     const convos = await gpaged(
       `${ctx.pageId}/conversations?fields=updated_time,messages.limit(25){id,message,from,created_time}&limit=50`,
-      token,
+      token!,
       3,
       errs
     );
@@ -219,13 +226,15 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
         if (inserted) dms++;
       }
     }
+  }
 
-    // ── Avis / recommandations de la Page ────────────────────────────────────
-    // Visibles dans Meta Business Suite ; externalId = open_graph_story pour
-    // pouvoir y répondre publiquement (POST /{story-id}/comments).
+  // ── Avis / recommandations de la Page ────────────────────────────────────────
+  // Visibles dans Meta Business Suite ; externalId = open_graph_story pour
+  // pouvoir y répondre publiquement (POST /{story-id}/comments).
+  async function pageRatings(): Promise<void> {
     const ratings = await gpaged(
       `${ctx.pageId}/ratings?fields=review_text,created_time,recommendation_type,reviewer{id,name},open_graph_story{id}&limit=50`,
-      token,
+      token!,
       2,
       errs
     );
@@ -250,10 +259,10 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
   }
 
   // ── Instagram : médias → commentaires + réponses en fil ─────────────────────
-  if (ctx.igId) {
+  async function igComments(): Promise<void> {
     const media = await gpaged(
       `${ctx.igId}/media?fields=permalink,comments.limit(50){id,text,timestamp,username,replies.limit(25){id,text,timestamp,username}}&limit=25`,
-      token,
+      token!,
       4,
       errs
     );
@@ -283,40 +292,48 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
         if (inserted) comments++;
       }
     }
+  }
 
-    // ── Instagram DM : conversations privées (via la Page, platform=instagram) ─
-    if (ctx.pageId) {
-      const igConvos = await gpaged(
-        `${ctx.pageId}/conversations?platform=instagram&fields=updated_time,messages.limit(25){id,message,from,created_time}&limit=50`,
-        token,
-        3,
-        errs
-      );
-      for (const conv of igConvos) {
-        const msgs = await drainEdge(conv.messages as GraphEdge | undefined, 3, errs);
-        for (const m of msgs) {
-          const from = m.from as { username?: string; id?: string } | undefined;
-          if (from?.id && ctx.igId && from.id === ctx.igId) continue;
-          const text = String(m.message ?? "");
-          if (!text) continue;
-          scanned++;
-          const inserted = await ingestMessage(companyId, {
-            channel: "instagram",
-            externalId: String(m.id ?? ""),
-            kind: "dm",
-            text,
-            authorName: from?.username ? `@${from.username}` : "DM Instagram",
-            // IMPORTANT : l'ID (IGSID) — c'est lui que la Send API accepte comme
-            // destinataire. Le username ne permet PAS de répondre.
-            authorHandle: from?.id ? String(from.id) : undefined,
-            receivedAt: graphTimeToIso(m.created_time),
-            raw: m as Record<string, unknown>,
-          });
-          if (inserted) dms++;
-        }
+  // ── Instagram DM : conversations privées (via la Page, platform=instagram) ──
+  async function igDms(): Promise<void> {
+    const igConvos = await gpaged(
+      `${ctx.pageId}/conversations?platform=instagram&fields=updated_time,messages.limit(25){id,message,from,created_time}&limit=50`,
+      token!,
+      3,
+      errs
+    );
+    for (const conv of igConvos) {
+      const msgs = await drainEdge(conv.messages as GraphEdge | undefined, 3, errs);
+      for (const m of msgs) {
+        const from = m.from as { username?: string; id?: string } | undefined;
+        if (from?.id && ctx.igId && from.id === ctx.igId) continue;
+        const text = String(m.message ?? "");
+        if (!text) continue;
+        scanned++;
+        const inserted = await ingestMessage(companyId, {
+          channel: "instagram",
+          externalId: String(m.id ?? ""),
+          kind: "dm",
+          text,
+          authorName: from?.username ? `@${from.username}` : "DM Instagram",
+          // IMPORTANT : l'ID (IGSID) — c'est lui que la Send API accepte comme
+          // destinataire. Le username ne permet PAS de répondre.
+          authorHandle: from?.id ? String(from.id) : undefined,
+          receivedAt: graphTimeToIso(m.created_time),
+          raw: m as Record<string, unknown>,
+        });
+        if (inserted) dms++;
       }
     }
   }
+
+  // Sections lancées EN PARALLÈLE : la route serverless est bornée à 60 s, en
+  // séquentiel une grosse Page dépassait le délai et perdait la fin de l'import.
+  const jobs: Array<Promise<void>> = [];
+  if (ctx.pageId) jobs.push(fbPostComments("feed"), fbPostComments("ads_posts"), messengerDms(), pageRatings());
+  if (ctx.igId) jobs.push(igComments());
+  if (ctx.igId && ctx.pageId) jobs.push(igDms());
+  await Promise.all(jobs);
 
   return {
     imported: comments + dms + reviews,

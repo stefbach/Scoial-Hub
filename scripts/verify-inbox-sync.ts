@@ -387,9 +387,9 @@ async function main() {
   check("horodatage webhook en millisecondes converti", graphTimeToIso(1783777800000) === "2026-07-11T13:50:00.000Z", graphTimeToIso(1783777800000));
   check("horodatage invalide → undefined (fallback maintenant)", graphTimeToIso("n/a") === undefined);
   check(
-    "commentaires des posts du fil lus en DIRECT avec la fenêtre since",
-    fetched.some((u) => u.includes("post1/comments?filter=stream&since=")),
-    "lecture directe since absente pour post1"
+    "commentaires des posts du fil lus en DIRECT, plus récents d'abord",
+    fetched.some((u) => u.includes("/post1/comments?order=reverse_chronological")),
+    "lecture directe reverse_chronological absente pour post1"
   );
   check(
     "posts pubs « inline » demandés (créas flexibles)",

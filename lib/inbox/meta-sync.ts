@@ -326,7 +326,20 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
   // On passe par le compte publicitaire (Marketing API) : chaque pub expose le
   // post réellement diffusé (effective_object_story_id côté FB,
   // effective_instagram_media_id côté IG) → on lit ses commentaires directement.
-  const adStats = { accounts: 0, ads: 0, stories: 0, media: 0, storyComments: 0, mediaComments: 0 };
+  const adStats = {
+    accounts: 0,
+    ads: 0,
+    stories: 0,
+    media: 0,
+    storyComments: 0,
+    mediaComments: 0,
+    /** Posts pubs renvoyant vers d'AUTRES pages que celle connectée. */
+    foreignStories: 0,
+    foreignComments: 0,
+    foreignPages: "",
+    /** Commentaires pub effectivement importés pour la société. */
+    imported: 0,
+  };
   async function adCreativeComments(): Promise<void> {
     const adsToken = ctx.adsToken ?? ctx.userToken;
     if (!adsToken) return;
@@ -346,6 +359,10 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
 
     const storyIds: string[] = [];
     const igMediaIds: string[] = [];
+    const activeStories = new Set<string>();
+    const activeMedia = new Set<string>();
+    const foreignSids: string[] = [];
+    const foreignByPage = new Map<string, number>();
     for (const act of [...accounts].slice(0, 5)) {
       const ads = await gpaged(
         `${act}/ads?fields=effective_status,creative{effective_object_story_id,object_story_id,effective_instagram_media_id}&limit=100`,
@@ -358,19 +375,34 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
       const active = ads.filter((a) => String(a.effective_status ?? "") === "ACTIVE");
       const rest = ads.filter((a) => String(a.effective_status ?? "") !== "ACTIVE");
       for (const a of [...active, ...rest]) {
+        const isActive = String(a.effective_status ?? "") === "ACTIVE";
         const cr = a.creative as
           | { effective_object_story_id?: string; object_story_id?: string; effective_instagram_media_id?: string }
           | undefined;
         const sid = String(cr?.effective_object_story_id ?? cr?.object_story_id ?? "");
         const mid = cr?.effective_instagram_media_id ? String(cr.effective_instagram_media_id) : "";
-        // Seuls les posts de LA page de la société (format {pageId}_{postId}) :
-        // les autres comptes pub peuvent diffuser pour d'autres pages.
-        if (sid && ctx.pageId && sid.startsWith(`${ctx.pageId}_`) && !storyIds.includes(sid)) storyIds.push(sid);
-        if (mid && !igMediaIds.includes(mid)) igMediaIds.push(mid);
+        if (sid) {
+          const owner = sid.split("_")[0];
+          if (ctx.pageId && owner === ctx.pageId) {
+            // Post de LA page de la société.
+            if (!storyIds.includes(sid)) storyIds.push(sid);
+            if (isActive) activeStories.add(sid);
+          } else {
+            // Pub renvoyant vers une AUTRE page : comptée pour diagnostic,
+            // jamais ingérée (attribution de société incorrecte sinon).
+            foreignByPage.set(owner, (foreignByPage.get(owner) ?? 0) + 1);
+            if (foreignSids.length < 100 && !foreignSids.includes(sid)) foreignSids.push(sid);
+          }
+        }
+        if (mid) {
+          if (!igMediaIds.includes(mid)) igMediaIds.push(mid);
+          if (isActive) activeMedia.add(mid);
+        }
       }
     }
     adStats.stories = storyIds.length;
     adStats.media = igMediaIds.length;
+    adStats.foreignStories = foreignSids.length;
 
     // Comptage BATCH (?ids=…, 50 par appel) : combien de commentaires Meta
     // déclare sur CHAQUE post/média pub — pas de plafond arbitraire, et on ne
@@ -389,22 +421,49 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
     }
     const totalOf = (o: Record<string, unknown> | undefined): number =>
       Number(((o?.comments as { summary?: { total_count?: number } })?.summary?.total_count) ?? 0);
+    // IMPORTANT : les médias Instagram n'acceptent PAS comments.summary —
+    // leur compteur est le champ dédié comments_count.
+    const mediaCount = (o: Record<string, unknown> | undefined): number =>
+      Number(o?.comments_count ?? 0);
 
     const storyMeta = await batchMeta(storyIds, "comments.summary(true).limit(0)");
-    const mediaMeta = await batchMeta(igMediaIds, "owner,comments.summary(true).limit(0)");
+    const mediaMeta = await batchMeta(igMediaIds, "owner,comments_count");
+    const foreignMeta = await batchMeta(foreignSids, "comments.summary(true).limit(0)");
 
-    const storiesWithComments = storyIds.filter((id) => totalOf(storyMeta.get(id)) > 0);
-    const mediaWithComments = igMediaIds.filter((id) => {
-      const m = mediaMeta.get(id);
-      const owner = (m?.owner as { id?: string } | undefined)?.id;
-      if (owner && ctx.igId && owner !== ctx.igId) return false; // pub d'un autre compte IG
-      return totalOf(m) > 0;
-    });
     adStats.storyComments = storyIds.reduce((s, id) => s + totalOf(storyMeta.get(id)), 0);
-    adStats.mediaComments = igMediaIds.reduce((s, id) => s + totalOf(mediaMeta.get(id)), 0);
+    adStats.mediaComments = igMediaIds.reduce((s, id) => s + mediaCount(mediaMeta.get(id)), 0);
+    adStats.foreignComments = foreignSids.reduce((s, id) => s + totalOf(foreignMeta.get(id)), 0);
+
+    // Diagnostic : nom des autres pages promues par ces pubs (visible en logs
+    // et dans la note si rien n'est importable pour la page connectée).
+    if (foreignByPage.size > 0) {
+      const topPages = [...foreignByPage.keys()].slice(0, 5);
+      const names = await batchMeta(topPages, "name");
+      adStats.foreignPages = topPages
+        .map((id) => `${String(names.get(id)?.name ?? id)} (${foreignByPage.get(id)} pubs)`)
+        .join(" · ");
+    }
+
+    const mediaOwnedByCompany = (id: string): boolean => {
+      const owner = (mediaMeta.get(id)?.owner as { id?: string } | undefined)?.id;
+      return !(owner && ctx.igId && owner !== ctx.igId); // pub d'un autre compte IG → exclue
+    };
+    // À lire : posts avec commentaires déclarés + posts de pubs ACTIVES même à
+    // « 0 » (les compteurs peuvent être en retard sur les posts sombres).
+    const storiesToRead = [
+      ...new Set([...storyIds.filter((id) => totalOf(storyMeta.get(id)) > 0), ...activeStories]),
+    ].slice(0, 50);
+    const mediaToRead = [
+      ...new Set([
+        ...igMediaIds.filter((id) => mediaCount(mediaMeta.get(id)) > 0),
+        ...[...activeMedia],
+      ]),
+    ]
+      .filter(mediaOwnedByCompany)
+      .slice(0, 50);
 
     // Commentaires Facebook sur les posts publicitaires (token de Page).
-    for (const sid of storiesWithComments.slice(0, 50)) {
+    for (const sid of storiesToRead) {
       const first = await gget(
         `${sid}/comments?filter=stream&order=reverse_chronological&limit=50&fields=id,from,message,created_time`,
         token!,
@@ -426,12 +485,15 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
           receivedAt: graphTimeToIso(c.created_time),
           raw: c as Record<string, unknown>,
         });
-        if (inserted) comments++;
+        if (inserted) {
+          comments++;
+          adStats.imported++;
+        }
       }
     }
 
     // Commentaires Instagram sur les médias publicitaires (token de Page).
-    for (const mid of mediaWithComments.slice(0, 50)) {
+    for (const mid of mediaToRead) {
       const first = await gget(`${mid}/comments?fields=id,text,timestamp,username&limit=50`, token!, errs);
       const list = await drainEdge((first ?? undefined) as GraphEdge | undefined, 4, errs);
       for (const c of list) {
@@ -447,7 +509,10 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
           receivedAt: graphTimeToIso(c.timestamp),
           raw: c as Record<string, unknown>,
         });
-        if (inserted) comments++;
+        if (inserted) {
+          comments++;
+          adStats.imported++;
+        }
       }
     }
   }
@@ -496,6 +561,16 @@ export async function syncMetaComments(companyId: string): Promise<SyncResult> {
   // Diagnostic prioritaire : des permissions absentes du token = contenus
   // masqués EN SILENCE par Meta (aucune erreur). On le dit explicitement.
   let note = buildNote(errs);
+  // Pubs renvoyant vers d'AUTRES pages : si des commentaires y existent alors
+  // qu'aucun commentaire pub n'est importable pour la page connectée, c'est la
+  // cause la plus probable des « messages manquants » — on le dit nommément.
+  if (adStats.foreignComments > 0 && adStats.imported === 0) {
+    note =
+      `Vos publicités renvoient vers d'autres Pages que celle connectée — ${adStats.foreignPages} — ` +
+      `avec ${adStats.foreignComments} commentaire(s) au total. Connectez la bonne Page dans Comptes ` +
+      `(ou créez une société pour cette Page) pour importer ces messages.` +
+      (note ? ` ${note}` : "");
+  }
   if (missing.length > 0) {
     note =
       `Permissions Meta manquantes sur le token actuel : ${missing.join(", ")}. ` +

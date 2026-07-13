@@ -103,16 +103,15 @@ function route(url: string, init?: RequestInit): Response {
     });
   }
 
-  // — Comptage batch ?ids=… : nombre de commentaires par post/média pub —
+  // — Comptage batch ?ids=… : commentaires par post/média pub, noms de pages —
   if (url.includes("/?ids=")) {
     const m = url.match(/[?&]ids=([^&]+)/);
     const ids = decodeURIComponent(m?.[1] ?? "").split(",");
     const out: Record<string, unknown> = {};
     for (const id of ids) {
-      out[id] =
-        id === "igm9"
-          ? { owner: { id: IG }, comments: { summary: { total_count: 1 }, data: [] } }
-          : { comments: { summary: { total_count: 1 }, data: [] } };
+      if (url.includes("fields=name")) out[id] = { name: "Autre Page" };
+      else if (url.includes("comments_count")) out[id] = { owner: { id: IG }, comments_count: 1 };
+      else out[id] = { comments: { summary: { total_count: 1 }, data: [] } };
     }
     return json(out);
   }
@@ -130,6 +129,9 @@ function route(url: string, init?: RequestInit): Response {
           creative: { effective_object_story_id: "PAGE1_story9", effective_instagram_media_id: "igm9" },
         },
         { id: "ad2", effective_status: "PAUSED", creative: {} },
+        // Pub ACTIVE renvoyant vers une AUTRE page : jamais ingérée, mais
+        // comptée et nommée pour le diagnostic.
+        { id: "ad3", effective_status: "ACTIVE", creative: { effective_object_story_id: "PAGEX_story1" } },
       ],
     });
   }
@@ -351,6 +353,23 @@ async function main() {
     r4.note ?? "(vide)"
   );
   check("token complet → aucune alerte de permission", !r.note, r.note ?? "");
+
+  // Société dont la page connectée n'a AUCUN commentaire pub, alors que les
+  // pubs accessibles renvoient vers d'autres Pages → la note doit le nommer.
+  await upsertConnection(
+    "democo5",
+    "facebook",
+    { page_id: "PAGEZ", page_access_token: "tok", user_access_token: "tok" },
+    "connected"
+  );
+  await upsertConnection("democo5", "instagram", { ig_business_account_id: "IGZ", page_access_token: "tok" }, "connected");
+  const r5 = await syncMetaComments("democo5");
+  check(
+    "pubs vers d'autres Pages → note nomme la page et le volume",
+    Boolean(r5.note?.includes("renvoient vers d'autres Pages") && r5.note?.includes("Autre Page")),
+    r5.note ?? "(vide)"
+  );
+  check("… sans ingérer les commentaires des autres Pages", r5.comments === 0, `comments=${r5.comments}`);
 
   console.log("\n— 3) Envoi des réponses : bons endpoints Graph —");
   posted.length = 0;

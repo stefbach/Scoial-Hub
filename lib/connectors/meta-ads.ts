@@ -246,6 +246,11 @@ export async function publishAd(input: PublishAdInput): Promise<PublishAdResult>
     objective: campaignObjective,
     status: "PAUSED",
     special_ad_categories: [],
+    // Champ de CAMPAGNE exigé par Meta quand le budget vit au niveau des
+    // ad sets (pas de budget de campagne) : déclare que les ensembles ne
+    // partagent pas leur budget. Sans lui : « Il faut indiquer True ou False
+    // dans le champ is_adset_budget_sharing_enabled ».
+    is_adset_budget_sharing_enabled: false,
   }, token);
   const campaignId = String(campaign.id);
 

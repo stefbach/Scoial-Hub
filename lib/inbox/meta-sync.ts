@@ -136,6 +136,31 @@ function buildNote(errs: string[]): string | undefined {
 }
 
 /**
+ * Tranche la propriété d'une Page connectée par PLUSIEURS sociétés, par
+ * rapprochement des noms. "other" = la Page porte le nom d'une autre société
+ * et pas de celle-ci (import à bloquer : sinon les boîtes se mélangent) ;
+ * "own" = elle porte le nom de la société courante ; "ambiguous" = aucun
+ * nom ne permet de trancher (import permis, avec avertissement).
+ */
+export function sharedPageOwnership(
+  pageName: string,
+  ownCompanyName: string,
+  otherCompanyNames: string[]
+): "own" | "other" | "ambiguous" {
+  const norm = (s: string) =>
+    s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const related = (a: string, b: string): boolean => {
+    if (!a || !b) return false;
+    if (a.includes(b) || b.includes(a)) return true;
+    return b.split(" ").some((w) => w.length > 3 && a.includes(w));
+  };
+  const page = norm(pageName);
+  if (!page) return "ambiguous";
+  if (related(page, norm(ownCompanyName))) return "own";
+  return otherCompanyNames.some((n) => related(page, norm(n))) ? "other" : "ambiguous";
+}
+
+/**
  * Permissions nécessaires à la messagerie. Sans certaines d'entre elles
  * (ex. pages_read_user_content), Meta ne renvoie PAS d'erreur : il masque
  * silencieusement les contenus des visiteurs — d'où des messages « manquants »
@@ -210,6 +235,9 @@ export async function syncMetaComments(companyId: string, budgetMs = 48_000): Pr
   // Pages connectées par d'AUTRES sociétés : jamais importées ici — verrou
   // anti-fuite entre sociétés (constaté : commentaires TIBOK dans l'inbox OCC).
   const otherCompaniesPages = new Set<string>();
+  // Sociétés partageant LA MÊME Page que celle-ci (sélection erronée probable).
+  const pageSharers: string[] = [];
+  let sharedPageWarning: string | undefined;
   try {
     const { createAdminClient } = await import("@/lib/supabase/server");
     const { resolveCompanyUuid } = await import("@/lib/repositories/resolve-company");
@@ -222,7 +250,40 @@ export async function syncMetaComments(companyId: string, budgetMs = 48_000): Pr
         .eq("channel", "facebook");
       for (const r of (data ?? []) as Array<{ company_id: string; config?: { page_id?: string } }>) {
         const pid = r.config?.page_id;
-        if (pid && String(r.company_id) !== uuid) otherCompaniesPages.add(String(pid));
+        if (!pid || String(r.company_id) === uuid) continue;
+        otherCompaniesPages.add(String(pid));
+        if (ctx.pageId && String(pid) === ctx.pageId) pageSharers.push(String(r.company_id));
+      }
+      // La même Page est connectée à PLUSIEURS sociétés : une seule peut en
+      // être la vraie propriétaire. On tranche par le nom — si la Page porte
+      // le nom d'une AUTRE société et pas de celle-ci, on N'IMPORTE RIEN :
+      // sinon le cron re-remplirait cette boîte avec les messages de l'autre
+      // société toutes les 15 minutes (constaté : TIBOK dans OCC et Cabo Verde).
+      if (pageSharers.length > 0 && ctx.pageId) {
+        const { data: comps } = await sb
+          .from("sh_companies")
+          .select("id, name")
+          .in("id", [uuid, ...pageSharers]);
+        const names = new Map((comps ?? []).map((c) => [String(c.id), String(c.name ?? "")]));
+        const verdict = sharedPageOwnership(
+          ctx.pageName ?? "",
+          names.get(uuid) ?? "",
+          pageSharers.map((s) => names.get(s) ?? "")
+        );
+        if (verdict === "other") {
+          const label = ctx.pageName ? `« ${ctx.pageName} »` : ctx.pageId;
+          return {
+            imported: 0, scanned: 0, comments: 0, dms: 0, reviews: 0, available: true,
+            note:
+              `Import bloqué : la Page connectée à cette société (${label}) appartient à une autre de vos sociétés — ` +
+              `importer ici mélangerait les boîtes de réception. Allez dans « Mes Pages & données » et sélectionnez la Page ` +
+              `de CETTE société ; si elle n'apparaît pas dans la liste, reconnectez Facebook (Comptes) en COCHANT toutes vos ` +
+              `Pages dans la fenêtre Meta.`,
+          };
+        }
+        sharedPageWarning =
+          `⚠️ La même Page Facebook (${ctx.pageName ? `« ${ctx.pageName} »` : ctx.pageId}) est connectée à plusieurs de vos ` +
+          `sociétés : vérifiez la sélection dans « Mes Pages & données » pour chacune.`;
       }
     }
   } catch {
@@ -889,6 +950,11 @@ export async function syncMetaComments(companyId: string, budgetMs = 48_000): Pr
       `Synchronisation partielle (beaucoup de contenus à parcourir) : cliquez à nouveau ` +
       `« Synchroniser Meta » pour continuer l'import.` +
       (note ? ` ${note}` : "");
+  }
+  // Page partagée entre sociétés sans propriétaire tranché par le nom :
+  // l'import a eu lieu, mais l'utilisateur doit vérifier ses sélections.
+  if (sharedPageWarning) {
+    note = sharedPageWarning + (note ? ` ${note}` : "");
   }
   console.warn("[inbox/sync]", JSON.stringify({ companyId, comments, dms, reviews, scanned, partial, siblings: [...siblingPages].slice(0, 5), ads: adStats, missing, errs: [...new Set(errs)].slice(0, 5) }));
 

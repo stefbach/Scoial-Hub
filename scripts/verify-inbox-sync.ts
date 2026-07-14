@@ -20,7 +20,7 @@
 
 import { upsertConnection } from "../lib/repositories/channel-connections";
 import { listMessages, ingestMessage } from "../lib/repositories/inbox";
-import { syncMetaComments, deliverMetaReply, graphTimeToIso } from "../lib/inbox/meta-sync";
+import { syncMetaComments, deliverMetaReply, graphTimeToIso, sharedPageOwnership } from "../lib/inbox/meta-sync";
 
 let failed = 0;
 function check(name: string, cond: boolean, detail = "") {
@@ -566,6 +566,25 @@ async function main() {
 
   const p3 = await deliverMetaReply("democo", { channel: "facebook", kind: "dm", authorHandle: "PSID7", visibility: "private" }, "Déjà privé.");
   check("un DM reste un DM (visibility sans effet)", p3.delivered && posted[8]?.body.includes(encodeURIComponent('{"id":"PSID7"}')), posted[8]?.body);
+
+  console.log("\n— 5) Page partagée entre sociétés : propriété par le nom —");
+  check(
+    "page au nom d'une AUTRE société → import bloqué (other)",
+    sharedPageOwnership("TIBOK MU - Télémédecine Maurice", "Obesity Care Clinic", ["Tibok", "Cabo Verde Medical International"]) === "other"
+  );
+  check(
+    "page au nom de la société courante → own",
+    sharedPageOwnership("TIBOK MU - Télémédecine Maurice", "Tibok", ["Obesity Care Clinic"]) === "own"
+  );
+  check(
+    "nom sans rapport avec aucune société → ambiguous (import permis + alerte)",
+    sharedPageOwnership("Page Génériques 2000", "Obesity Care Clinic", ["Tibok"]) === "ambiguous"
+  );
+  check(
+    "accents/casse neutralisés (télémédecine vs TELEMEDECINE)",
+    sharedPageOwnership("TELEMEDECINE MAURICE", "Télémédecine Maurice SARL", ["Autre"]) === "own"
+  );
+  check("nom de page vide → ambiguous", sharedPageOwnership("", "Tibok", ["OCC"]) === "ambiguous");
 
   console.log(failed === 0 ? "\n✅ Tous les tests passent." : `\n❌ ${failed} test(s) en échec.`);
   process.exit(failed === 0 ? 0 : 1);

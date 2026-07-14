@@ -50,6 +50,8 @@ export interface MetaContext {
   userToken?: string;
   pageToken?: string;
   pageId?: string;
+  /** Nom de la Page Facebook connectée (tel qu'enregistré à la connexion). */
+  pageName?: string;
   igId?: string;
   adAccountId?: string;
   /** Token utilisateur enregistré avec le connecteur Meta Ads (lecture des pubs). */
@@ -68,6 +70,7 @@ export async function getMetaContext(companyId: string): Promise<MetaContext> {
     userToken: fb.user_access_token || undefined,
     pageToken: fb.page_access_token || undefined,
     pageId: fb.page_id || undefined,
+    pageName: fb.account_name || undefined,
     igId: ig.ig_business_account_id || undefined,
     adAccountId: ads.ad_account_id || undefined,
     adsToken: ads.access_token || undefined,

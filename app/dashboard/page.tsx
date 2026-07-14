@@ -84,7 +84,6 @@ export default function DashboardPage() {
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           <MetricCard label={t("Programmés", "Scheduled")} value={d.organic.scheduled} href="/scheduled" />
           <MetricCard label={t("Publiés (7j)", "Published (7d)")} value={d.organic.published7d} href="/history?tab=published" />
-          <MetricCard label={t("En bibliothèque", "In library")} value={d.organic.inLibrary} href="/library" />
           <MetricCard
             label={t("Posts en échec", "Failed posts")}
             value={d.organic.failed}

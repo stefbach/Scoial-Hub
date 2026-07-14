@@ -1,16 +1,16 @@
-// Diagnostic TEMPORAIRE (lecture seule) : localiser le post qui porte des
-// commentaires récents visibles dans Business Suite mais introuvables par la
-// sync. Appelé par le cron inbox-sync ; résultats journalisés ([inbox/debug])
-// et lus dans les logs Vercel. À retirer une fois la cause identifiée.
+// Diagnostic TEMPORAIRE (lecture seule) v3 : les pubs actives « OCC FRANCE »
+// (créas flexibles, titre « Free Weight Loss Surgery Abroad! ») sont
+// identifiées — stories 115871611517429_912308595222970 / _912306261889870.
+// Reste à trouver OÙ vivent les commentaires : sur ces stories (alors
+// pourquoi la sync les rate ?) ou sur des VARIANTES de post sombre générées
+// par la créa flexible. Résultats journalisés ([inbox/debug]).
 
 import { getMetaContext } from "@/lib/connectors/meta-pages";
 
 const V = process.env.META_API_VERSION ?? "v21.0";
 
-/** Page du Business référencée par le fil mais illisible avec les accès actuels. */
-const MYSTERY_PAGE = "883412421445921";
-/** Ne journalise que les commentaires postérieurs à cette date. */
-const RECENT = "2026-06-25";
+/** Stories des pubs actives « OCC FRANCE » (créa flexible NHS). */
+const ACTIVE_STORIES = ["115871611517429_912308595222970", "115871611517429_912306261889870"];
 
 async function g(path: string, token: string): Promise<Record<string, unknown> | { __err: string }> {
   try {
@@ -32,114 +32,88 @@ function log(what: string, data: unknown): void {
   console.warn("[inbox/debug]", what, JSON.stringify(data));
 }
 
-interface PostRow {
-  id?: string;
-  permalink_url?: string;
-  comments?: {
+function shortComments(r: unknown): unknown {
+  const p = r as {
+    __err?: string;
     summary?: { total_count?: number };
-    data?: Array<{ id?: string; message?: string; created_time?: string; from?: { name?: string } }>;
+    data?: Array<{ created_time?: string; message?: string; from?: { name?: string } }>;
+  };
+  if (p.__err) return { erreur: p.__err };
+  return {
+    total: p.summary?.total_count ?? null,
+    premiers: (p.data ?? []).slice(0, 3).map((c) => ({
+      quand: c.created_time,
+      qui: c.from?.name ?? null,
+      texte: String(c.message ?? "").slice(0, 50),
+    })),
   };
 }
 
-/**
- * Pour la société dont la Page connectée matche /obes/i :
- * 1) demande à Graph, pour CHAQUE post du fil et des posts pubs, le total de
- *    commentaires et les 2 plus récents (expansion summary en tri inverse) —
- *    identifie directement le post qui porte les commentaires de juillet ;
- * 2) journalise les créas FLEXIBLES des pubs ACTIVES du compte pub principal
- *    (asset_feed_spec : le texte « Free Weight Loss Surgery Abroad! » peut y
- *    vivre sans apparaître dans name/title/body) ;
- * 3) sonde la Page mystère (l'accès a-t-il été accordé depuis ?).
- */
 export async function debugMetaAds(companyId: string): Promise<void> {
   const ctx = await getMetaContext(companyId);
   if (!/obes/i.test(ctx.pageName ?? "")) return;
-  const token = ctx.pageToken ?? ctx.userToken;
-  if (!token) return;
-  const deadline = Date.now() + 15_000;
+  const page = ctx.pageToken;
+  if (!page) return;
+  const tokens: Array<[string, string]> = [["pageToken", page]];
+  if (ctx.adsToken) tokens.push(["adsToken", ctx.adsToken]);
+  if (ctx.userToken) tokens.push(["userToken", ctx.userToken]);
 
-  // 1) Post(s) à commentaires récents — la question posée directement à Graph.
-  const expansion =
-    `comments.summary(true).order(reverse_chronological).limit(2)` +
-    `{id,message,created_time,from}`;
-  for (const edge of ["feed", "ads_posts?include_inline_create=true&"]) {
-    const base = edge.includes("?") ? edge : `${edge}?`;
-    let pages = 0;
-    let posts = 0;
-    let withComments = 0;
-    let r = await g(`${ctx.pageId}/${base}fields=id,permalink_url,${expansion}&limit=100`, token);
-    while (pages < 8 && Date.now() < deadline) {
-      pages++;
-      if ((r as { __err?: string }).__err) {
-        log(`${edge} page ${pages}`, r);
-        break;
-      }
-      const rows = ((r as { data?: PostRow[] }).data ?? []);
-      posts += rows.length;
-      for (const p of rows) {
-        const total = p.comments?.summary?.total_count ?? 0;
-        if (total === 0) continue;
-        withComments++;
-        const latest = p.comments?.data ?? [];
-        const isRecent = latest.some((c) => String(c.created_time ?? "") >= RECENT);
-        if (isRecent || withComments <= 5) {
-          log(isRecent ? "POST À COMMENTAIRES RÉCENTS" : "post commenté (ancien)", {
-            edge: edge.replace(/\?.*$/, ""),
-            post: p.id,
-            lien: p.permalink_url,
-            total,
-            derniers: latest.map((c) => ({
-              quand: c.created_time,
-              qui: c.from?.name ?? null,
-              texte: String(c.message ?? "").slice(0, 50),
-            })),
-          });
-        }
-      }
-      // paging.next est une URL complète (token inclus) : on la suit telle quelle.
-      const next = (r as { paging?: { next?: string } }).paging?.next;
-      if (!next || rows.length === 0) break;
-      try {
-        const res = await fetch(next, { cache: "no-store" });
-        r = (await res.json()) as Record<string, unknown>;
-        if ((r as { error?: { message?: string } }).error) {
-          r = { __err: ((r as { error?: { message?: string } }).error?.message) ?? "erreur Graph" };
-        }
-      } catch {
-        break;
-      }
+  // 1) Les 2 stories actives : total et premiers commentaires, dans les deux
+  //    ordres et en filter=stream (réponses de fil comprises).
+  for (const sid of ACTIVE_STORIES) {
+    for (const [label, tok] of tokens) {
+      const rev = await g(
+        `${sid}/comments?order=reverse_chronological&limit=5&summary=true&fields=id,message,created_time,from`,
+        tok
+      );
+      log(`story ${sid} reverse via ${label}`, shortComments(rev));
+      const stream = await g(
+        `${sid}/comments?filter=stream&order=reverse_chronological&limit=5&summary=true&fields=id,message,created_time,from`,
+        tok
+      );
+      log(`story ${sid} stream via ${label}`, shortComments(stream));
+      if (!(rev as { __err?: string }).__err) break; // un token lisible suffit
     }
-    log(`${edge.replace(/\?.*$/, "")} bilan`, { pages, posts, commentés: withComments });
   }
 
-  // 2) Créas flexibles des pubs ACTIVES du compte principal.
-  const reader = ctx.adsToken ?? ctx.userToken ?? token;
-  if (ctx.adAccountId) {
-    const ads = await g(
-      `act_${ctx.adAccountId}/ads?fields=id,name,effective_status,effective_object_story_id,` +
-        `creative{object_story_id,effective_object_story_id,asset_feed_spec{titles,bodies,link_urls},object_story_spec{page_id}}` +
-        `&effective_status=["ACTIVE"]&limit=50&include_inline_create=true`,
-      reader
+  // 2) Posts SOMBRES (non publiés) de la page — les variantes des créas
+  //    flexibles vivent ici si l'edge est encore servi.
+  const dark = await g(
+    `${ctx.pageId}/promotable_posts?is_published=false&include_hidden=true&limit=100` +
+      `&fields=id,created_time,is_published,` +
+      `comments.summary(true).order(reverse_chronological).limit(2){message,created_time,from}`,
+    page
+  );
+  if ((dark as { __err?: string }).__err) {
+    log("promotable_posts", dark);
+  } else {
+    const rows = ((dark as { data?: Array<Record<string, unknown>> }).data ?? []);
+    const commented = rows.filter(
+      (p) => (((p.comments ?? {}) as { summary?: { total_count?: number } }).summary?.total_count ?? 0) > 0
     );
-    const rows = ((ads as { data?: Array<Record<string, unknown>> }).data ?? []);
-    if ((ads as { __err?: string }).__err) log("pubs actives", ads);
-    for (const ad of rows.slice(0, 10)) {
-      const cre = (ad.creative ?? {}) as Record<string, unknown>;
-      const feed = (cre.asset_feed_spec ?? {}) as {
-        titles?: Array<{ text?: string }>;
-        bodies?: Array<{ text?: string }>;
+    log("promotable_posts bilan", { posts: rows.length, commentés: commented.length });
+    for (const p of commented.slice(0, 8)) {
+      const c = (p.comments ?? {}) as {
+        summary?: { total_count?: number };
+        data?: Array<{ created_time?: string; message?: string; from?: { name?: string } }>;
       };
-      log("pub ACTIVE", {
-        id: ad.id,
-        nom: ad.name,
-        story: ad.effective_object_story_id ?? cre.effective_object_story_id ?? cre.object_story_id ?? null,
-        page_creative: ((cre.object_story_spec ?? {}) as { page_id?: string }).page_id ?? null,
-        titres: (feed.titles ?? []).map((t) => String(t.text ?? "").slice(0, 60)),
-        corps: (feed.bodies ?? []).map((b) => String(b.text ?? "").slice(0, 60)),
+      log("POST SOMBRE COMMENTÉ", {
+        post: p.id,
+        cree: p.created_time,
+        total: c.summary?.total_count ?? 0,
+        derniers: (c.data ?? []).map((x) => ({
+          quand: x.created_time,
+          qui: x.from?.name ?? null,
+          texte: String(x.message ?? "").slice(0, 50),
+        })),
       });
     }
   }
 
-  // 3) La Page mystère : l'accès a-t-il été accordé depuis ?
-  log(`page ${MYSTERY_PAGE}`, await g(`${MYSTERY_PAGE}?fields=id,name,link,is_published`, ctx.userToken ?? token));
+  // 3) ads_posts : pourquoi vide ? Réponse brute (1re page) avec deux tokens.
+  for (const [label, tok] of tokens.slice(0, 2)) {
+    const raw = await g(`${ctx.pageId}/ads_posts?limit=10&fields=id,created_time,is_published`, tok);
+    const rows = ((raw as { data?: Array<unknown> }).data ?? []);
+    log(`ads_posts via ${label}`, (raw as { __err?: string }).__err ? raw : { posts: rows.length, ids: rows });
+  }
 }

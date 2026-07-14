@@ -46,6 +46,50 @@ export async function sendEmail({ to, subject, text, html }: EmailPayload): Prom
  * Contenu bilingue (FR puis EN) de l'e-mail d'invitation à rejoindre l'espace :
  * qui invite, lien d'inscription, activation des accès à la première connexion.
  */
+/**
+ * E-mail envoyé au PROPRIÉTAIRE d'un compte à sa création par l'administrateur
+ * de la plateforme : lien sécurisé pour définir son mot de passe (si fourni),
+ * adresse de connexion, et rappel qu'il peut inviter ses utilisateurs depuis
+ * « Mon équipe ». Bilingue FR/EN, texte simple.
+ */
+export function buildAccountCreatedEmail(params: {
+  email: string;
+  loginUrl: string;
+  setPasswordUrl?: string;
+}): { subject: string; text: string } {
+  const { email, loginUrl, setPasswordUrl } = params;
+  const accessFr = setPasswordUrl
+    ? `Définissez votre mot de passe avec ce lien sécurisé : ${setPasswordUrl}`
+    : `Connectez-vous avec le mot de passe qui vous a été communiqué.`;
+  const accessEn = setPasswordUrl
+    ? `Set your password using this secure link: ${setPasswordUrl}`
+    : `Sign in with the password you were given.`;
+  return {
+    subject: "Votre compte AXON-AI Social Hub est prêt / Your AXON-AI Social Hub account is ready",
+    text: [
+      "Bonjour,",
+      "",
+      `Votre compte AXON-AI Social Hub vient d'être créé pour l'adresse ${email}.`,
+      accessFr,
+      `Adresse de connexion : ${loginUrl}`,
+      "",
+      "Vous êtes propriétaire de ce compte : vous pouvez inviter vos utilisateurs",
+      "et régler leurs accès depuis « Mon équipe » une fois connecté.",
+      "",
+      "— — —",
+      "",
+      "Hello,",
+      "",
+      `Your AXON-AI Social Hub account has been created for ${email}.`,
+      accessEn,
+      `Sign-in address: ${loginUrl}`,
+      "",
+      "You are the owner of this account: once signed in, you can invite your",
+      "users and manage their access from “My team”.",
+    ].join("\n"),
+  };
+}
+
 export function buildInvitationEmail(params: {
   email: string;
   signupUrl: string;

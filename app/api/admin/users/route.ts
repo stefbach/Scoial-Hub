@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { ADMIN_COOKIE, verifyAdminSession } from "@/lib/admin";
 import { createAdminClient } from "@/lib/supabase/server";
+import { env } from "@/lib/env";
+import { sendEmail, buildAccountCreatedEmail } from "@/lib/email";
 
 export const runtime = "nodejs";
 
@@ -67,7 +69,27 @@ export async function POST(req: NextRequest) {
       }
     } catch { /* non bloquant */ }
 
-    return NextResponse.json({ ok: true, id: data.user?.id }, { status: 201 });
+    // E-mail d'accès au propriétaire du compte : lien sécurisé pour définir
+    // son mot de passe (généré via Supabase) + adresse de connexion. Sans
+    // service e-mail configuré, emailSent reste false et l'UI indique à
+    // l'admin de communiquer les identifiants lui-même.
+    let emailSent = false;
+    try {
+      let setPasswordUrl: string | undefined;
+      try {
+        const { data: link } = await supabase.auth.admin.generateLink({ type: "recovery", email });
+        setPasswordUrl = link?.properties?.action_link ?? undefined;
+      } catch {
+        /* lien facultatif : l'e-mail reste utile sans lui */
+      }
+      const loginUrl = `${env.appUrl.replace(/\/$/, "")}/login`;
+      const { subject, text } = buildAccountCreatedEmail({ email, loginUrl, setPasswordUrl });
+      emailSent = await sendEmail({ to: email, subject, text });
+    } catch {
+      /* l'échec d'e-mail ne doit pas annuler la création du compte */
+    }
+
+    return NextResponse.json({ ok: true, id: data.user?.id, emailSent }, { status: 201 });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });
   }

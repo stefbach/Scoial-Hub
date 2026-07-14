@@ -41,7 +41,18 @@ export default function AdminUsersPage() {
       if (!res.ok) {
         setMsg({ ok: false, text: d.error ?? t("Échec de la création.", "Creation failed.") });
       } else {
-        setMsg({ ok: true, text: t(`Utilisateur ${email} créé. Il peut se connecter sur /login.`, `User ${email} created. They can sign in at /login.`) });
+        setMsg({
+          ok: true,
+          text: d.emailSent
+            ? t(
+                `Utilisateur ${email} créé — un e-mail d'accès (lien de définition du mot de passe) lui a été envoyé.`,
+                `User ${email} created — an access email (set-password link) has been sent to them.`
+              )
+            : t(
+                `Utilisateur ${email} créé, mais l'e-mail d'accès n'a pas pu partir (service e-mail non configuré) : communiquez-lui son mot de passe et l'adresse /login.`,
+                `User ${email} created, but the access email could not be sent (email service not configured): share the password and the /login address with them.`
+              ),
+        });
         setEmail(""); setPassword(""); setOrgName("");
         load();
       }

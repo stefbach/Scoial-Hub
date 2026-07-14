@@ -99,6 +99,44 @@ export interface PublishOutcome {
   platform: Platform;
 }
 
+/**
+ * Trace la tentative dans l'HISTORIQUE (/history lit sh_history_items).
+ * Sans cette écriture, les posts publiés par « Publier maintenant » et par le
+ * cron n'apparaissaient jamais dans l'historique — seuls les flux annexes
+ * (publication directe Meta/LinkedIn) y écrivaient. Non bloquant.
+ */
+async function logHistory(
+  companyUuid: string,
+  post: ScheduledPost,
+  text: string,
+  status: "published" | "failed",
+  url?: string,
+  errorMessage?: string
+): Promise<void> {
+  try {
+    const sb = createAdminClient();
+    if (!sb) return;
+    await sb.from("sh_history_items").insert({
+      company_id: companyUuid,
+      platform: post.platform,
+      body: text.slice(0, 280),
+      full_body: text,
+      external_url: url ?? null,
+      published_at: status === "published" ? new Date().toISOString() : null,
+      scheduled_at: post.date && post.time ? `${post.date}T${post.time}:00` : null,
+      source: post.automationName ? "automation" : "manual",
+      automation_name: post.automationName ?? null,
+      status,
+      ...(post.media?.kind ? { media: { kind: post.media.kind } } : {}),
+      ...(errorMessage
+        ? { error: { title: "Échec de publication", detail: errorMessage.slice(0, 500) } }
+        : {}),
+    });
+  } catch {
+    /* non bloquant : l'historique ne doit jamais faire échouer la publication */
+  }
+}
+
 /** Marque le post comme publié via le client admin (cron — pas de session). */
 async function markPublishedAdmin(id: string, publishedAt: string): Promise<void> {
   if (!isSupabaseConfigured) {
@@ -187,6 +225,7 @@ export async function publishScheduledPostNow(
   } catch (err) {
     const message = err instanceof Error ? err.message : "Erreur inconnue";
     console.error(`[publish-scheduled] ${platform} (post ${post.id}):`, message);
+    await logHistory(uuid, post, text, "failed", undefined, message);
     return {
       ok: false,
       status: 502,
@@ -195,13 +234,14 @@ export async function publishScheduledPostNow(
     };
   }
 
-  // Publication effectuée → on marque le post comme publié.
+  // Publication effectuée → on marque le post comme publié + trace Historique.
   const publishedAt = new Date().toISOString();
   if (opts.admin) {
     await markPublishedAdmin(post.id, publishedAt).catch(() => {});
   } else {
     await updateScheduledPost(post.id, { status: "published", publishedAt }).catch(() => {});
   }
+  await logHistory(uuid, post, text, "published", result.url);
 
   return {
     ok: true,

@@ -281,6 +281,10 @@ export async function publishAd(input: PublishAdInput): Promise<PublishAdResult>
     geo_locations: geo,
     age_min: input.ageMin ?? 18,
     age_max: input.ageMax ?? 65,
+    // Exigé par Meta à la création d'ad set : déclarer explicitement si
+    // l'audience Advantage (élargissement automatique du ciblage) est active.
+    // 0 = non — le ciblage défini ici (géo/âge/intérêts) est respecté tel quel.
+    targeting_automation: { advantage_audience: 0 },
   };
   if (input.locales?.length) targeting.locales = input.locales.map(Number).filter(Boolean);
   // Exclusions : centres d'intérêt + audiences personnalisées.

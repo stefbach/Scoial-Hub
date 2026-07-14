@@ -468,10 +468,10 @@ async function main() {
     `avant=${beforeAt} après=${after?.receivedAt}`
   );
 
-  console.log("\n— 2) Erreurs Graph remontées (permission manquante) —");
+  console.log("\n— 2) Erreurs Graph : loguées côté serveur, PAS dans la bannière —");
   const r2 = await syncMetaComments("democo2");
   check("sync disponible malgré l'erreur", r2.available);
-  check("note présente et explicite", Boolean(r2.note?.includes("pages_read_user_content")), r2.note ?? "(vide)");
+  check("erreur Graph brute absente de la bannière (logs seulement)", !r2.note, r2.note ?? "");
 
   // Token ANCIEN (accordé avant l'ajout des scopes) : Meta masque les contenus
   // SANS erreur → le diagnostic doit nommer les permissions manquantes.
@@ -516,8 +516,8 @@ async function main() {
   await upsertConnection("democo6", "meta_ads", { ad_account_id: "AD1", access_token: "tok-noaccess" }, "connected");
   const r6 = await syncMetaComments("democo6");
   check(
-    "pubs vers des Pages non accessibles → note nomme les pages et le volume",
-    Boolean(r6.note?.includes("Pages non accessibles") && r6.note?.includes("PAGEX")),
+    "pubs vers des Pages non accessibles → PAS de message d'erreur dans la bannière (logs seulement)",
+    !r6.note?.includes("Pages non accessibles"),
     r6.note ?? "(vide)"
   );
   check("… sans ingérer les commentaires de ces Pages", r6.comments === 0, `comments=${r6.comments}`);

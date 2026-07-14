@@ -5,7 +5,12 @@
 
 import { getMetaContext } from "@/lib/connectors/meta-pages";
 
-const V = process.env.META_API_VERSION ?? "v21.0";
+// Version DÉDIÉE à l'API Marketing (création de campagnes/ad sets/pubs) :
+// le champ is_adset_budget_sharing_enabled — désormais EXIGÉ par Meta quand le
+// budget vit au niveau de l'ad set — n'est pris en compte que par les versions
+// récentes ; en v21 il est ignoré et Meta redemande sa présence en boucle.
+// Indépendante de META_API_VERSION (qui peut rester épinglée pour la lecture).
+const V = process.env.META_ADS_API_VERSION ?? "v23.0";
 const BASE = `https://graph.facebook.com/${V}`;
 
 // Plafond de sécurité du budget quotidien (centimes). Au-delà → refus.

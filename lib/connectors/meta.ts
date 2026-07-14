@@ -47,6 +47,7 @@ const META_SCOPES = [
   "pages_messaging", // lire/répondre aux messages privés Messenger
   "pages_show_list",
   "pages_manage_metadata", // abonner la Page au webhook (commentaires/DM en temps réel)
+  "pages_manage_ads", // lister les posts publicitaires SOMBRES de la Page (/ads_posts, créas flexibles)
   "instagram_basic",
   "instagram_content_publish",
   "instagram_manage_insights",

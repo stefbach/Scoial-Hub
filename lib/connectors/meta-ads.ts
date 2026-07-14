@@ -299,6 +299,10 @@ export async function publishAd(input: PublishAdInput): Promise<PublishAdResult>
     targeting,
     status: "PAUSED",
     start_time: startTime,
+    // Budget défini au niveau de l'AD SET (pas de budget de campagne) : Meta
+    // exige désormais ce champ explicitement. false = pas de partage des 20 %
+    // de budget entre ensembles (un seul ad set créé ici de toute façon).
+    is_adset_budget_sharing_enabled: false,
     ...(promotedObject ? { promoted_object: promotedObject } : {}),
   };
   if (isLifetime) {

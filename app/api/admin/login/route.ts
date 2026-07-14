@@ -1,10 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isValidAdmin, ADMIN_COOKIE, createAdminSession, ADMIN_SESSION_MAX_AGE } from "@/lib/admin";
+import { isValidAdmin, isAdminConfigured, ADMIN_COOKIE, createAdminSession, ADMIN_SESSION_MAX_AGE } from "@/lib/admin";
 
 export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
   try {
+    // Verrou de production : tant que ADMIN_EMAIL / ADMIN_PASSWORD /
+    // ADMIN_SECRET ne sont pas configures dans Vercel, la console est fermee
+    // (les identifiants de repli dev sont publics — depot open source).
+    if (process.env.NODE_ENV === "production" && !isAdminConfigured) {
+      return NextResponse.json(
+        { error: "Console admin non configuree : definissez ADMIN_EMAIL, ADMIN_PASSWORD et ADMIN_SECRET dans Vercel, puis redeployez." },
+        { status: 503 }
+      );
+    }
     const { email, password } = await req.json();
     if (!isValidAdmin(email ?? "", password ?? "")) {
       return NextResponse.json({ error: "Identifiants invalides" }, { status: 401 });

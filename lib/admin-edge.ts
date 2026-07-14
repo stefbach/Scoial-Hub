@@ -48,6 +48,9 @@ function safeEqual(a: string, b: string): boolean {
  * Format attendu : "<issuedAtMs>.<expiresAtMs>.<signatureBase64url>".
  */
 export async function verifyAdminSessionEdge(value: string | undefined | null): Promise<boolean> {
+  // Verrou de production : sans ADMIN_SECRET configuré, aucune session admin
+  // n'est valide (le secret de repli dev est public — dépôt open source).
+  if (process.env.NODE_ENV === "production" && !process.env.ADMIN_SECRET) return false;
   if (!value || typeof value !== "string") return false;
   const parts = value.split(".");
   if (parts.length !== 3) return false;

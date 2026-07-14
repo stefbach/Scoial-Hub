@@ -34,7 +34,15 @@ interface CompanyContextValue {
 const CompanyContext = createContext<CompanyContextValue | null>(null);
 
 export function CompanyProvider({ children }: { children: React.ReactNode }) {
-  const [companyId, setCompanyIdState] = useState(COMPANIES[0].id);
+  // En backend RÉEL (Supabase configuré), on NE démarre PAS sur une société de
+  // démonstration : la sélection reste vide (→ sentinelle « aucune société »)
+  // jusqu'à l'hydratation des vraies sociétés. Sinon l'app activerait par défaut
+  // la marque de démo « occ », à laquelle un compte réel n'a pas accès (403 sur
+  // les appels par-société, puis plantage au rendu). En mode démo pur (Supabase
+  // absent), on garde la première marque de démonstration.
+  const [companyId, setCompanyIdState] = useState(
+    isSupabaseConfigured ? "" : COMPANIES[0].id
+  );
   const [access, setAccess] = useState<MyAccess>(DEFAULT_ACCESS);
 
   // Sélection de société PERSISTÉE (localStorage) : remplace l'ancien menu
@@ -53,7 +61,9 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
   }, []);
   // Snapshot of the shared COMPANIES list; bumping this triggers re-renders
   // for the switcher and any consumer when companies are added/edited.
-  const [companies, setCompanies] = useState<Company[]>([...COMPANIES]);
+  const [companies, setCompanies] = useState<Company[]>(
+    isSupabaseConfigured ? [] : [...COMPANIES]
+  );
   // Données de la société courante, hydratées depuis la base réelle (sh_*).
   // Démarrage propre : vide tant que le fetch n'a pas répondu (et si absence
   // de données réelles, reste vide — aucune donnée fictive).
@@ -164,6 +174,9 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let cancelled = false;
     setCompanyData(makeEmptyCompanyData());
+    // Aucune société active (sentinelle) → pas d'appel par-société (évite un 403
+    // inutile sur une société inexistante/étrangère avant l'hydratation).
+    if (!companyId) return;
     fetch(`/api/company-data?companyId=${encodeURIComponent(companyId)}`)
       .then((res) => (res.ok ? (res.json() as Promise<CompanyData>) : null))
       .then((fetched) => {

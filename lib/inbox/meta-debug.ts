@@ -1,9 +1,9 @@
-// Diagnostic TEMPORAIRE (lecture seule) v3 : les pubs actives « OCC FRANCE »
-// (créas flexibles, titre « Free Weight Loss Surgery Abroad! ») sont
-// identifiées — stories 115871611517429_912308595222970 / _912306261889870.
-// Reste à trouver OÙ vivent les commentaires : sur ces stories (alors
-// pourquoi la sync les rate ?) ou sur des VARIANTES de post sombre générées
-// par la créa flexible. Résultats journalisés ([inbox/debug]).
+// Diagnostic TEMPORAIRE (lecture seule) v4 : les commentaires des pubs
+// actives « OCC FRANCE » (créa flexible) ne sont NI sur le fil (700 posts
+// sondés), NI sur les 2 stories principales (0 commentaire, tous ordres),
+// NI dans ads_posts (vide) ; promotable_posts n'existe plus. Hypothèse
+// restante : les VARIANTES de post générées par la créa dynamique/flexible
+// — edge /{post}/dynamic_posts. Résultats journalisés ([inbox/debug]).
 
 import { getMetaContext } from "@/lib/connectors/meta-pages";
 
@@ -11,6 +11,8 @@ const V = process.env.META_API_VERSION ?? "v21.0";
 
 /** Stories des pubs actives « OCC FRANCE » (créa flexible NHS). */
 const ACTIVE_STORIES = ["115871611517429_912308595222970", "115871611517429_912306261889870"];
+/** Ids des 2 pubs actives (compte OCC-Malta). */
+const ACTIVE_ADS = ["120223689372380677", "120223689372410677"];
 
 async function g(path: string, token: string): Promise<Record<string, unknown> | { __err: string }> {
   try {
@@ -32,75 +34,35 @@ function log(what: string, data: unknown): void {
   console.warn("[inbox/debug]", what, JSON.stringify(data));
 }
 
-function shortComments(r: unknown): unknown {
-  const p = r as {
-    __err?: string;
-    summary?: { total_count?: number };
-    data?: Array<{ created_time?: string; message?: string; from?: { name?: string } }>;
-  };
-  if (p.__err) return { erreur: p.__err };
-  return {
-    total: p.summary?.total_count ?? null,
-    premiers: (p.data ?? []).slice(0, 3).map((c) => ({
-      quand: c.created_time,
-      qui: c.from?.name ?? null,
-      texte: String(c.message ?? "").slice(0, 50),
-    })),
-  };
-}
-
 export async function debugMetaAds(companyId: string): Promise<void> {
   const ctx = await getMetaContext(companyId);
   if (!/obes/i.test(ctx.pageName ?? "")) return;
   const page = ctx.pageToken;
   if (!page) return;
-  const tokens: Array<[string, string]> = [["pageToken", page]];
-  if (ctx.adsToken) tokens.push(["adsToken", ctx.adsToken]);
-  if (ctx.userToken) tokens.push(["userToken", ctx.userToken]);
 
-  // 1) Les 2 stories actives : total et premiers commentaires, dans les deux
-  //    ordres et en filter=stream (réponses de fil comprises).
+  // 1) Variantes de post des créas dynamiques/flexibles : /{post}/dynamic_posts.
   for (const sid of ACTIVE_STORIES) {
-    for (const [label, tok] of tokens) {
-      const rev = await g(
-        `${sid}/comments?order=reverse_chronological&limit=5&summary=true&fields=id,message,created_time,from`,
-        tok
-      );
-      log(`story ${sid} reverse via ${label}`, shortComments(rev));
-      const stream = await g(
-        `${sid}/comments?filter=stream&order=reverse_chronological&limit=5&summary=true&fields=id,message,created_time,from`,
-        tok
-      );
-      log(`story ${sid} stream via ${label}`, shortComments(stream));
-      if (!(rev as { __err?: string }).__err) break; // un token lisible suffit
-    }
-  }
-
-  // 2) Posts SOMBRES (non publiés) de la page — les variantes des créas
-  //    flexibles vivent ici si l'edge est encore servi.
-  const dark = await g(
-    `${ctx.pageId}/promotable_posts?is_published=false&include_hidden=true&limit=100` +
-      `&fields=id,created_time,is_published,` +
-      `comments.summary(true).order(reverse_chronological).limit(2){message,created_time,from}`,
-    page
-  );
-  if ((dark as { __err?: string }).__err) {
-    log("promotable_posts", dark);
-  } else {
-    const rows = ((dark as { data?: Array<Record<string, unknown>> }).data ?? []);
-    const commented = rows.filter(
-      (p) => (((p.comments ?? {}) as { summary?: { total_count?: number } }).summary?.total_count ?? 0) > 0
+    const dyn = await g(
+      `${sid}/dynamic_posts?limit=25&fields=id,` +
+        `comments.summary(true).order(reverse_chronological).limit(3){id,message,created_time,from}`,
+      page
     );
-    log("promotable_posts bilan", { posts: rows.length, commentés: commented.length });
-    for (const p of commented.slice(0, 8)) {
+    if ((dyn as { __err?: string }).__err) {
+      log(`dynamic_posts ${sid}`, dyn);
+      continue;
+    }
+    const rows = ((dyn as { data?: Array<Record<string, unknown>> }).data ?? []);
+    log(`dynamic_posts ${sid} bilan`, { variantes: rows.length });
+    for (const p of rows) {
       const c = (p.comments ?? {}) as {
         summary?: { total_count?: number };
-        data?: Array<{ created_time?: string; message?: string; from?: { name?: string } }>;
+        data?: Array<{ id?: string; created_time?: string; message?: string; from?: { name?: string } }>;
       };
-      log("POST SOMBRE COMMENTÉ", {
+      const total = c.summary?.total_count ?? 0;
+      if (total === 0) continue;
+      log("VARIANTE COMMENTÉE", {
         post: p.id,
-        cree: p.created_time,
-        total: c.summary?.total_count ?? 0,
+        total,
         derniers: (c.data ?? []).map((x) => ({
           quand: x.created_time,
           qui: x.from?.name ?? null,
@@ -110,10 +72,18 @@ export async function debugMetaAds(companyId: string): Promise<void> {
     }
   }
 
-  // 3) ads_posts : pourquoi vide ? Réponse brute (1re page) avec deux tokens.
-  for (const [label, tok] of tokens.slice(0, 2)) {
-    const raw = await g(`${ctx.pageId}/ads_posts?limit=10&fields=id,created_time,is_published`, tok);
-    const rows = ((raw as { data?: Array<unknown> }).data ?? []);
-    log(`ads_posts via ${label}`, (raw as { __err?: string }).__err ? raw : { posts: rows.length, ids: rows });
+  // 2) Lien de prévisualisation des 2 pubs (peut révéler l'id du post servi).
+  const reader = ctx.adsToken ?? ctx.userToken ?? page;
+  for (const adId of ACTIVE_ADS) {
+    const ad = await g(`${adId}?fields=preview_shareable_link,creative{id,effective_object_story_id}`, reader);
+    log(`pub ${adId} preview`, ad);
   }
+
+  // 3) ads_posts avec include_inline_create (la variante « inline » du listing).
+  const ap = await g(
+    `${ctx.pageId}/ads_posts?include_inline_create=true&limit=25&fields=id,created_time,is_published,admin_creator`,
+    page
+  );
+  const rows = ((ap as { data?: Array<unknown> }).data ?? []);
+  log("ads_posts inline", (ap as { __err?: string }).__err ? ap : { posts: rows.length, premiers: rows.slice(0, 5) });
 }

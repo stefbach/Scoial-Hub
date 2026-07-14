@@ -24,7 +24,10 @@ export interface EmailPayload {
  */
 export async function sendEmail({ to, subject, text, html }: EmailPayload): Promise<boolean> {
   const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) return false;
+  if (!apiKey) {
+    console.warn("[email] RESEND_API_KEY absente — e-mail non envoyé à", to, "(configurez Resend dans Vercel)");
+    return false;
+  }
   const from = process.env.EMAIL_FROM ?? "AXON-AI Social Hub <onboarding@resend.dev>";
   try {
     const res = await fetch(RESEND_ENDPOINT, {

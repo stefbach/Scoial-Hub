@@ -378,7 +378,18 @@ export default function NewMetaAdPage() {
     if (p.headline) setHeadline(String(p.headline));
     if (p.cta) setCta(String(p.cta));
     if (typeof p.link === "string") setLink(p.link);
-    if (Array.isArray(p.variants)) setVariants(p.variants.filter(Boolean).slice(0, 4).map(String));
+    // L'assistant peut renvoyer les variantes en chaînes OU en objets
+    // ({ primaryText: … }) : on extrait toujours le texte — sinon l'UI
+    // affichait « [object Object] ».
+    if (Array.isArray(p.variants)) {
+      setVariants(
+        p.variants
+          .map((v: any) => (typeof v === "string" ? v : String(v?.primaryText ?? v?.text ?? "")))
+          .map((s: string) => s.trim())
+          .filter(Boolean)
+          .slice(0, 4)
+      );
+    }
     if (p.conversionEvent) setConversionEvent(String(p.conversionEvent));
     if (lead && p.leadForm) {
       const lf = p.leadForm;

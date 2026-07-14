@@ -381,9 +381,14 @@ export async function syncMetaComments(companyId: string, budgetMs = 48_000): Pr
       permalinkById.set(id, permalink);
       // Post du fil appartenant à une AUTRE page (crosspost, page sœur,
       // page de localisation) : signalé pour diagnostic — c'est souvent là
-      // que vivent les commentaires « introuvables ».
-      const m = permalink.match(/facebook\.com\/(\d{6,})\//);
-      if (m && m[1] !== pageId && ctx.pageId && m[1] !== ctx.pageId) siblingPages.add(m[1]);
+      // que vivent les commentaires « introuvables ». Détection par le
+      // PRÉFIXE de l'id d'objet ({page}_{post}) et non par le permalink :
+      // depuis la nouvelle expérience Pages, le permalink des propres posts
+      // de la page porte souvent un ALIAS numérique différent du page id
+      // (constaté : facebook.com/883412421445921/… pour des posts de la page
+      // 115871611517429), ce qui créait de fausses « pages sœurs ».
+      const owner = id.includes("_") ? id.split("_")[0] : "";
+      if (owner && owner !== pageId && ctx.pageId && owner !== ctx.pageId) siblingPages.add(owner);
     }
     // TOUS les posts listés sont lus (l'arrêt à la fenêtre RECENT_SINCE rend
     // chaque lecture bon marché : 1 appel pour un post sans activité récente).

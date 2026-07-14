@@ -177,7 +177,18 @@ async function createLeadForm(pageId: string, pageToken: string, spec: LeadFormS
     follow_up_action_text: "Merci !",
   };
   if (spec.intro) {
-    params.context_card = { title: spec.intro, style: "PARAGRAPH_STYLE" };
+    // Meta limite le TITRE de la carte de contexte à 60 caractères
+    // ((#100) Param context_card[title] must be at most 60 characters long) :
+    // une accroche longue part dans le CONTENU du paragraphe, sous un titre court.
+    const intro = String(spec.intro).trim();
+    params.context_card =
+      intro.length <= 60
+        ? { title: intro, style: "PARAGRAPH_STYLE" }
+        : {
+            title: String(spec.formName || "En savoir plus").slice(0, 60),
+            content: [intro],
+            style: "PARAGRAPH_STYLE",
+          };
   }
   if (spec.thankYouTitle || spec.thankYouBody) {
     params.thank_you_page = {

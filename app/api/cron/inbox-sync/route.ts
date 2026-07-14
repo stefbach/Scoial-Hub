@@ -55,11 +55,21 @@ export async function GET(req: NextRequest) {
   // tronqués de 15 s n'avançaient presque pas dans les listings profonds.
   // Rotation déterministe sur l'horloge (période = cadence du cron) : chaque
   // société est servie à tour de rôle, l'import idempotent cumule les passes.
+  // Diagnostic TEMPORAIRE (lecture seule, ~15 s max) : localise le post boosté
+  // OCC dont les commentaires restent introuvables — résultats en logs
+  // [inbox/debug]. À retirer une fois la cause identifiée.
+  try {
+    const { debugMetaAds } = await import("@/lib/inbox/meta-debug");
+    for (const cid of companyIds) await debugMetaAds(cid);
+  } catch (e) {
+    console.error("[inbox/debug] échec :", e instanceof Error ? e.message : e);
+  }
+
   if (companyIds.length > 0) {
     const idx = Math.floor(Date.now() / 900_000) % companyIds.length;
     const target = companyIds[idx];
     try {
-      const r = await syncMetaComments(target, 48_000);
+      const r = await syncMetaComments(target, 40_000);
       results.push({ companyId: target, imported: r.imported, partial: r.note?.includes("partielle") ?? false, note: r.note });
     } catch (e) {
       results.push({ companyId: target, error: e instanceof Error ? e.message : "échec" });

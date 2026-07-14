@@ -87,12 +87,8 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
       return { url: "/api/companies", authed: true };
     }
 
-    let isAuthed = false;
     resolveApiUrl()
-      .then(({ url, authed }) => {
-        isAuthed = authed;
-        return fetch(url);
-      })
+      .then(({ url }) => fetch(url))
       .then((res) => {
         if (!res.ok) throw new Error(`/api/companies returned ${res.status}`);
         return res.json() as Promise<Company[]>;
@@ -100,20 +96,30 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
       .then((fetched) => {
         if (cancelled || !Array.isArray(fetched)) return;
 
-        // ── Compte RÉEL (utilisateur connecté avec organisation) ──────────
-        // On affiche EXACTEMENT ses sociétés (jamais les marques de démo).
-        // Espace vierge (aucune société) → liste VIDE — surtout PAS les marques
-        // de démonstration, sinon toute action par société (connecteurs, etc.)
-        // renverrait 403 sur une société qui ne lui appartient pas.
-        if (isAuthed) {
+        // ── Backend RÉEL configuré : la liste renvoyée fait AUTORITÉ ───────
+        // Elle est filtrée par la session serveur (cookie), donc fiable même si
+        // le client n'a pas encore résolu `getUser()`. On affiche EXACTEMENT
+        // les sociétés du compte (jamais les marques de démonstration) et on ne
+        // reste JAMAIS bloqué sur une société d'une AUTRE organisation mémorisée
+        // lors d'une session précédente — cause des 403 puis du plantage au
+        // démarrage. Espace vierge → liste VIDE et sélection périmée purgée.
+        if (isSupabaseConfigured) {
           for (const c of fetched) {
             if (!COMPANY_DATA[c.id]) COMPANY_DATA[c.id] = makeEmptyCompanyData();
           }
           COMPANIES.splice(0, COMPANIES.length, ...fetched);
           setCompanies([...COMPANIES]);
-          setCompanyIdState((prev) =>
-            COMPANIES.some((c) => c.id === prev) ? prev : (COMPANIES[0]?.id ?? "")
-          );
+          setCompanyIdState((prev) => {
+            if (COMPANIES.some((c) => c.id === prev)) return prev;
+            const fallback = COMPANIES[0]?.id ?? "";
+            try {
+              if (fallback) window.localStorage.setItem(COMPANY_LS_KEY, fallback);
+              else window.localStorage.removeItem(COMPANY_LS_KEY);
+            } catch {
+              /* ignore */
+            }
+            return fallback;
+          });
           return;
         }
 

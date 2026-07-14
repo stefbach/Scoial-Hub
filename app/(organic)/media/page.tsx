@@ -167,10 +167,6 @@ export default function MediaLibraryPage() {
           "All your created visuals and videos (studios, campaigns, AI) — reusable: create an ad in one click, or derive a variation."
         )}
       </p>
-      <p className="mb-4 text-2xs text-muted">
-        {t("Vous cherchez vos modèles de posts (texte) ?", "Looking for your post templates (text)?")}{" "}
-        <Link href="/library" className="text-primary-600 hover:underline">{t("→ Modèles", "→ Templates")}</Link>
-      </p>
 
       {/* Import : fichier OU URL */}
       <div className="mb-5 flex flex-col gap-2 sm:flex-row">

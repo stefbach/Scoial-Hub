@@ -293,7 +293,6 @@ export default function PilotagePage() {
       <div className="flex flex-wrap items-center gap-2">
         {([
           ["/veille", t("Veille", "Watch")],
-          ["/agents", t("Agents", "Agents")],
           ["/campaigns", t("Campagnes", "Campaigns")],
           ["/ad-performance", t("Performance Ads", "Ad Performance")],
           ["/inbox", t("Messagerie", "Inbox")],

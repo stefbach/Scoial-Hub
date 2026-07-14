@@ -346,7 +346,6 @@ const GROUPS: NavGroup[] = [
       { href: "/studio-avatar", label: "Studio Avatar" },
       { href: "/studio-affiche", label: "Studio Affiches" },
       { href: "/media",         label: "Médiathèque" },
-      { href: "/library",       label: "Modèles" },
     ],
   },
   {
@@ -373,7 +372,6 @@ const GROUPS: NavGroup[] = [
       { href: "/veille",     label: "Veille & Marché" },
       { href: "/publicites", label: "Competitor Ads" },
       { href: "/benchmark",  label: "Benchmark" },
-      { href: "/agents",     label: "Agents" },
     ],
   },
   {

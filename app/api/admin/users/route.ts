@@ -69,24 +69,34 @@ export async function POST(req: NextRequest) {
       }
     } catch { /* non bloquant */ }
 
-    // E-mail d'accès au propriétaire du compte : lien sécurisé pour définir
-    // son mot de passe (généré via Supabase) + adresse de connexion. Sans
-    // service e-mail configuré, emailSent reste false et l'UI indique à
-    // l'admin de communiquer les identifiants lui-même.
+    // E-mail d'accès au propriétaire du compte — SUPABASE D'ABORD (même
+    // principe que l'invitation d'équipe) : l'e-mail natif de définition de
+    // mot de passe part via le mailer Supabase (SMTP du projet). Repli Resend
+    // (lib/email.ts) si Supabase refuse. emailSent reste false si aucun des
+    // deux ne part : l'UI indique alors le geste manuel.
     let emailSent = false;
     try {
-      let setPasswordUrl: string | undefined;
-      try {
-        const { data: link } = await supabase.auth.admin.generateLink({ type: "recovery", email });
-        setPasswordUrl = link?.properties?.action_link ?? undefined;
-      } catch {
-        /* lien facultatif : l'e-mail reste utile sans lui */
-      }
-      const loginUrl = `${env.appUrl.replace(/\/$/, "")}/login`;
-      const { subject, text } = buildAccountCreatedEmail({ email, loginUrl, setPasswordUrl });
-      emailSent = await sendEmail({ to: email, subject, text });
+      const redirectTo = `${env.appUrl.replace(/\/$/, "")}/auth/callback`;
+      const { error: mailErr } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+      emailSent = !mailErr;
     } catch {
-      /* l'échec d'e-mail ne doit pas annuler la création du compte */
+      emailSent = false;
+    }
+    if (!emailSent) {
+      try {
+        let setPasswordUrl: string | undefined;
+        try {
+          const { data: link } = await supabase.auth.admin.generateLink({ type: "recovery", email });
+          setPasswordUrl = link?.properties?.action_link ?? undefined;
+        } catch {
+          /* lien facultatif : l'e-mail reste utile sans lui */
+        }
+        const loginUrl = `${env.appUrl.replace(/\/$/, "")}/login`;
+        const { subject, text } = buildAccountCreatedEmail({ email, loginUrl, setPasswordUrl });
+        emailSent = await sendEmail({ to: email, subject, text });
+      } catch {
+        /* l'échec d'e-mail ne doit pas annuler la création du compte */
+      }
     }
 
     return NextResponse.json({ ok: true, id: data.user?.id, emailSent }, { status: 201 });

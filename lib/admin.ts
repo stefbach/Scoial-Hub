@@ -58,6 +58,10 @@ function constantTimeEqual(a: string, b: string): boolean {
 
 /** Vérifie email + mot de passe contre la configuration (temps constant). */
 export function isValidAdmin(email: string, password: string): boolean {
+  // En PRODUCTION, la console admin est verrouillée tant que les variables
+  // d'environnement ne sont pas définies : le dépôt étant public, les
+  // identifiants de repli dev seraient sinon utilisables par n'importe qui.
+  if (process.env.NODE_ENV === "production" && !isAdminConfigured) return false;
   const emailOk = email.trim().toLowerCase() === ADMIN_EMAIL.toLowerCase();
   const passOk = constantTimeEqual(password ?? "", getAdminPassword());
   return emailOk && passOk;
@@ -86,6 +90,9 @@ export function createAdminSession(): string {
  * Renvoie true si la session est valide et non expirée.
  */
 export function verifyAdminSession(value: string | undefined | null): boolean {
+  // Même verrou qu'au login : pas de session admin valide en production
+  // sans configuration explicite (le secret de repli dev est public).
+  if (process.env.NODE_ENV === "production" && !isAdminConfigured) return false;
   if (!value || typeof value !== "string") return false;
   const parts = value.split(".");
   if (parts.length !== 3) return false;

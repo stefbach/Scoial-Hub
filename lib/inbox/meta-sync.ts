@@ -181,6 +181,9 @@ async function missingPermissions(userToken: string | undefined, errs: string[])
   const rows = (res?.data as Array<{ permission?: string; status?: string }>) ?? [];
   if (rows.length === 0) return [];
   const granted = new Set(rows.filter((r) => r.status === "granted").map((r) => String(r.permission)));
+  // Trace des permissions réellement accordées au token (diagnostic des
+  // scopes optionnels comme pages_manage_ads, absents de REQUIRED_PERMS).
+  console.warn("[inbox/sync] permissions accordées :", [...granted].sort().join(","));
   return REQUIRED_PERMS.filter((p) => !granted.has(p));
 }
 

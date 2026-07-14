@@ -128,13 +128,6 @@ export function graphTimeToIso(v: unknown): string | undefined {
   return Number.isNaN(d.getTime()) ? undefined : d.toISOString();
 }
 
-/** Résumé lisible des erreurs Graph rencontrées (dédupliquées). */
-function buildNote(errs: string[]): string | undefined {
-  if (errs.length === 0) return undefined;
-  const uniq = [...new Set(errs)].slice(0, 2).join(" · ");
-  return `Certains contenus n'ont pas pu être lus (${uniq}). Si les permissions ont changé, reconnectez votre Page Meta depuis Comptes.`;
-}
-
 /**
  * Tranche la propriété d'une Page connectée par PLUSIEURS sociétés, par
  * rapprochement des noms. "other" = la Page porte le nom d'une autre société
@@ -915,9 +908,11 @@ export async function syncMetaComments(companyId: string, budgetMs = 48_000): Pr
   if (ctx.igId && ctx.pageId) jobs.push(igDms());
   const [missing] = await Promise.all([missingPermissions(ctx.userToken, errs), ...jobs]);
 
-  // Diagnostic prioritaire : des permissions absentes du token = contenus
-  // masqués EN SILENCE par Meta (aucune erreur). On le dit explicitement.
-  let note = buildNote(errs);
+  // Bannière utilisateur : uniquement des messages ACTIONNABLES (permission
+  // manquante, mauvaise Page, sync partielle). Les erreurs Graph brutes et la
+  // liste des pubs d'autres annonceurs restent dans les logs serveur
+  // ([inbox/sync]) — les afficher dégradait l'expérience sans aider.
+  let note: string | undefined;
   // Pages SŒURS détectées dans le fil (crossposts / pages de localisation /
   // seconde page au même nom) : c'est le suspect n°1 des « commentaires
   // visibles dans Business Suite mais absents ici » — Business Suite agrège
@@ -932,16 +927,6 @@ export async function syncMetaComments(companyId: string, budgetMs = 48_000): Pr
       `Votre fil référence des publications d'une autre Page de votre Business : ${named.join(" · ")}. ` +
       `Si vos commentaires « manquants » sont sur cette Page (posts boostés compris), connectez-LA : ` +
       `Comptes → reconnecter Facebook → cocher cette Page.` +
-      (note ? ` ${note}` : "");
-  }
-  // Pubs renvoyant vers des Pages NI connectées NI gérées par l'utilisateur :
-  // leurs commentaires sont hors de portée des accès actuels — on le dit
-  // nommément quand aucun commentaire pub n'a pu être importé par ailleurs.
-  if (adStats.foreignStories > 0 && adStats.imported === 0) {
-    note =
-      `Vos publicités renvoient vers des Pages non accessibles avec vos accès actuels — ${adStats.foreignPages} ` +
-      `(${adStats.foreignStories} pubs). Ajoutez ces Pages à votre Business (ou connectez-les dans Comptes) ` +
-      `pour importer leurs commentaires.` +
       (note ? ` ${note}` : "");
   }
   if (missing.length > 0) {

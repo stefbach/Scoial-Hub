@@ -267,14 +267,10 @@ export default function LinkedInPage() {
               ))}
               {savingTarget && <span className="self-center text-2xs text-muted">{t("enregistrement…", "saving…")}</span>}
             </div>
-            {targets.orgsAvailable === false && (
-              <p className="mt-1.5 text-2xs text-muted">
-                {t(
-                  "Vos Pages entreprise n'apparaissent pas ? Il faut l'accès « organisation » de LinkedIn (produit Community Management, soumis à validation). Sans cela, seule la publication sur votre profil est possible.",
-                  "Your company Pages don't show? You need LinkedIn's organization access (Community Management product, review required). Without it, only profile publishing is available."
-                )}
-              </p>
-            )}
+            {/* Note « accès organisation LinkedIn » retirée à la demande de
+                l'utilisateur (validation Community Management en cours — le
+                sélecteur de Pages apparaîtra de lui-même une fois l'accès
+                accordé, sans message d'explication). */}
           </div>
         )}
 

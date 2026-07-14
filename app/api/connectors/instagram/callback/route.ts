@@ -80,7 +80,12 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         const uuid = await resolveCompanyUuid(companyId);
         const name = await getCompanyName(uuid);
         const pages = await fetchMetaPages(tokenSet.accessToken);
-        const page = pickPageForCompany(pages, name);
+        // Page déjà connectée : préférée en cas d'homonymes, et conservée si
+        // le matching de nom échoue (jamais de bascule aveugle vers une autre
+        // Page — cf. pickPageForCompany).
+        const { getMetaContext } = await import("@/lib/connectors/meta-pages");
+        const prev = (await getMetaContext(companyId)).pageId;
+        const page = pickPageForCompany(pages, name, prev);
         if (page) await storeMetaConnections(companyId, page, tokenSet.accessToken);
       } catch (e) {
         console.warn("[Instagram callback] channel_connection:", e);

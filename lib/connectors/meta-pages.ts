@@ -474,21 +474,32 @@ export async function fetchMetaInsights(ctx: MetaContext): Promise<MetaInsights>
   return out;
 }
 
-/** Choisit la Page la plus proche du nom de la société (exact → inclus → 1ère). */
-export function pickPageForCompany(pages: MetaPage[], companyName: string): MetaPage | null {
+/**
+ * Choisit la Page de la société : nom exact → nom partiel → Page DÉJÀ
+ * connectée (stabilité) → null. En cas d'homonymes, la Page déjà connectée
+ * est préférée. JAMAIS de repli aveugle sur la première Page de la liste :
+ * c'est ainsi qu'une reconnexion a rebranché une société sur la page d'une
+ * AUTRE société (OCC → TIBOK MU) quand le matching de nom échouait.
+ */
+export function pickPageForCompany(
+  pages: MetaPage[],
+  companyName: string,
+  previousPageId?: string
+): MetaPage | null {
   if (pages.length === 0) return null;
   const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
   const cn = norm(companyName);
+  const previous = previousPageId ? pages.find((p) => p.id === previousPageId) : undefined;
   if (cn) {
-    const exact = pages.find((p) => norm(p.name) === cn);
-    if (exact) return exact;
-    const partial = pages.find((p) => {
+    const exact = pages.filter((p) => norm(p.name) === cn);
+    if (exact.length > 0) return exact.find((p) => p.id === previousPageId) ?? exact[0];
+    const partial = pages.filter((p) => {
       const pn = norm(p.name);
       return pn && (pn.includes(cn) || cn.includes(pn));
     });
-    if (partial) return partial;
+    if (partial.length > 0) return partial.find((p) => p.id === previousPageId) ?? partial[0];
   }
-  return pages[0];
+  return previous ?? null;
 }
 
 /** Récupère le nom de la société (pour le matching de Page). */

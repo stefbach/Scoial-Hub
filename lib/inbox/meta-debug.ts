@@ -48,18 +48,20 @@ export async function debugMetaAds(companyId: string): Promise<void> {
 
   const stories = new Set<string>();
   for (const acc of ids) {
+    // L'id de story vit sur la CRÉA (creative{effective_object_story_id}) —
+    // au niveau de la pub le champ revient vide (constaté v6 : 229 pubs, 0 story).
     const ads = await g(
-      `act_${acc}/ads?fields=effective_object_story_id&limit=100&include_inline_create=true`,
+      `act_${acc}/ads?fields=creative{effective_object_story_id,object_story_id}&limit=100&include_inline_create=true`,
       reader
     );
     if ((ads as { __err?: string }).__err) {
       log(`act_${acc} ERREUR`, ads);
       continue;
     }
-    const rows = ((ads as { data?: Array<{ effective_object_story_id?: string }> }).data ?? []);
+    const rows = ((ads as { data?: Array<{ creative?: { effective_object_story_id?: string; object_story_id?: string } }> }).data ?? []);
     let own = 0;
     for (const ad of rows) {
-      const sid = String(ad.effective_object_story_id ?? "");
+      const sid = String(ad.creative?.effective_object_story_id ?? ad.creative?.object_story_id ?? "");
       if (sid.startsWith(`${ctx.pageId}_`)) {
         stories.add(sid);
         own++;

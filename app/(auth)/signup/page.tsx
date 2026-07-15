@@ -20,6 +20,10 @@ export default function SignupPage() {
   // Affiché quand le compte est créé mais nécessite une confirmation e-mail
   // (signUp renvoie un user SANS session) — on ne redirige PAS dans ce cas.
   const [emailConfirm, setEmailConfirm] = useState(false);
+  // Affiché après création + bootstrap : l'org est en attente de validation par
+  // l'admin générale. On NE redirige PAS vers /dashboard (verrouillé) — on
+  // explique que l'accès est ouvert dès validation.
+  const [pendingApproval, setPendingApproval] = useState(false);
 
   const isDemo = !isSupabaseConfigured;
 
@@ -71,12 +75,13 @@ export default function SignupPage() {
       });
 
       if (!bootstrapRes.ok) {
-        // Non bloquant : on redirige quand même
+        // Non bloquant : on affiche quand même l'écran d'attente de validation.
         console.warn("[signup] bootstrap failed:", await bootstrapRes.text());
       }
 
-      router.push("/dashboard");
-      router.refresh();
+      // L'org est créée en `pending` : accès ouvert seulement après validation
+      // par l'admin générale. On affiche l'écran d'attente plutôt que de rediriger.
+      setPendingApproval(true);
     } catch {
       setError(t("Une erreur inattendue s'est produite.", "An unexpected error occurred."));
     } finally {
@@ -119,8 +124,38 @@ export default function SignupPage() {
           </div>
         )}
 
-        {/* Confirmation e-mail requise (user créé sans session) */}
-        {emailConfirm ? (
+        {/* Compte créé + bootstrap : en attente de validation par l'admin */}
+        {pendingApproval ? (
+          <div className="card p-8 text-center">
+            <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-warning-50 text-warning-700">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.6" />
+                <path d="M12 7v5l3 2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </div>
+            <h2 className="text-lg font-semibold text-ink">
+              {t("Compte en attente de validation", "Account awaiting approval")}
+            </h2>
+            <p className="mt-2 text-sm text-muted">
+              {t(
+                "Votre compte a bien été créé. Un administrateur doit le valider avant que vous puissiez accéder à votre espace.",
+                "Your account has been created. An administrator must approve it before you can access your workspace."
+              )}
+            </p>
+            <p className="mt-2 text-2xs text-muted">
+              {t(
+                "Vous pourrez vous connecter dès la validation de votre compte.",
+                "You'll be able to sign in as soon as your account is approved."
+              )}
+            </p>
+            <Link
+              href="/login"
+              className="btn-primary mt-6 inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg"
+            >
+              {t("Aller à la connexion", "Go to sign in")}
+            </Link>
+          </div>
+        ) : emailConfirm ? (
           <div className="card p-8 text-center">
             <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-success-50 text-success-600">
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">

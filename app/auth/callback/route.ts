@@ -20,9 +20,11 @@ async function ensureWorkspace(userId: string, name: string) {
       .limit(1)
       .maybeSingle();
     if (existing?.org_id) return;
+    // Auto-inscription OAuth : org en attente de validation admin (`pending`),
+    // au même titre que l'inscription par e-mail.
     const { data: org } = await admin
       .from("sh_organizations")
-      .insert({ name: name || "Mon Organisation" })
+      .insert({ name: name || "Mon Organisation", status: "pending" })
       .select("id")
       .single();
     if (org?.id) {

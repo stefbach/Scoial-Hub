@@ -139,10 +139,13 @@ export async function POST(req: NextRequest) {
       // body vide, on garde le nom par défaut
     }
 
-    // 1. Crée l'organisation
+    // 1. Crée l'organisation — auto-inscription : statut `pending`.
+    //    L'espace n'est pas accessible tant que l'admin générale n'a pas validé
+    //    le compte (verrou AccountGate + guard serveur). L'abonnement/paiement
+    //    automatique se branchera ici ultérieurement, après validation.
     const { data: org, error: orgError } = await admin
       .from("sh_organizations")
-      .insert({ name: orgName })
+      .insert({ name: orgName, status: "pending" })
       .select("id")
       .single();
 

@@ -16,6 +16,7 @@ interface OrgRow {
   members: number;
   companies: number;
   createdAt: string | null;
+  adminEmail: string | null;
 }
 
 export default function AdminValidationPage() {
@@ -88,6 +89,7 @@ export default function AdminValidationPage() {
                   <span className="chip">{o.plan}</span>
                 </div>
                 <p className="mt-0.5 text-2xs text-muted">
+                  {o.adminEmail ? <><span className="text-ink/70">{o.adminEmail}</span> · </> : null}
                   {o.members} {t("membre(s)", "member(s)")} · {o.companies} {t("société(s)", "company(ies)")}
                 </p>
               </div>

@@ -5,6 +5,7 @@ import { CompanyProvider } from "@/lib/company-context";
 import { ScopeProvider } from "@/lib/scope";
 import { LangProvider } from "@/lib/i18n";
 import { AppShell } from "@/components/shell/AppShell";
+import { AccountGate } from "@/components/shell/AccountGate";
 
 /* ── Typographie premium ─────────────────────────────────────────────
    Fraunces : serif optique variable, éditorial et haut de gamme
@@ -62,7 +63,9 @@ export default function RootLayout({
         <LangProvider>
           <CompanyProvider>
             <ScopeProvider>
-              <AppShell>{children}</AppShell>
+              <AccountGate>
+                <AppShell>{children}</AppShell>
+              </AccountGate>
             </ScopeProvider>
           </CompanyProvider>
         </LangProvider>

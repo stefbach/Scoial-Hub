@@ -81,14 +81,19 @@ export async function requireCompanyAccess(
       return { ok: false, status: 403, error: "Compte suspendu" };
     }
 
-    // Organisation suspendue par l'admin générale → blocage.
+    // Statut de l'organisation (validation par l'admin générale) → blocage.
+    // `pending` : auto-inscription pas encore validée. `suspended` : bloquée.
     const { data: org } = await admin
       .from("sh_organizations")
       .select("status")
       .eq("id", orgId)
       .maybeSingle();
-    if ((org?.status as string) === "suspended") {
+    const orgStatus = (org?.status as string) ?? "approved";
+    if (orgStatus === "suspended") {
       return { ok: false, status: 403, error: "Organisation suspendue" };
+    }
+    if (orgStatus === "pending") {
+      return { ok: false, status: 403, error: "Organisation en attente de validation" };
     }
 
     const role = (membership.role as OrgRole) ?? "member";
@@ -163,6 +168,22 @@ export async function requireAccountAdmin(
     if (!role || !isAccountAdmin(role)) {
       return { ok: false, status: 403, error: "Réservé aux administrateurs du compte" };
     }
+
+    // Org non validée → aucune action d'administration possible (création de
+    // société, gestion d'équipe) tant que l'admin générale n'a pas approuvé.
+    const { data: org } = await admin
+      .from("sh_organizations")
+      .select("status")
+      .eq("id", targetOrg)
+      .maybeSingle();
+    const orgStatus = (org?.status as string) ?? "approved";
+    if (orgStatus === "suspended") {
+      return { ok: false, status: 403, error: "Organisation suspendue" };
+    }
+    if (orgStatus === "pending") {
+      return { ok: false, status: 403, error: "Organisation en attente de validation" };
+    }
+
     return { ok: true, userId: user.id, role, orgId: targetOrg };
   } catch (e) {
     console.error("[guard] requireAccountAdmin error:", e);

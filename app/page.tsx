@@ -19,7 +19,6 @@ import { IconLink, IconChat, IconTrendingUp, IconLock, IconShieldCheck, IconMic,
 // Globe terrestre interactif : on tourne autour du monde, les réseaux sociaux
 // sont les satellites. Villes accessibles en un clic (fly-to façon Google Earth).
 const GoogleEarth = dynamic(() => import("@/components/landing/GoogleEarth").then((m) => m.GoogleEarth), { ssr: false });
-const Phone3D = dynamic(() => import("@/components/landing/Phone3D").then((m) => m.Phone3D), { ssr: false });
 
 /* ───────────────────────── Logos réseaux (SVG inline) ───────────────────── */
 function FacebookLogo({ s = 28 }: { s?: number }) {
@@ -102,9 +101,9 @@ const CAP_CAT_OF = ["ads", "ads", "ads", "ads", "create", "create", "create", "c
 
 
 const TESTIMONIALS = [
-  { q: "Avant, je publiais à minuit, épuisée. Aujourd'hui je valide trois posts depuis mon téléphone le matin — et c'est réglé.", a: "Sophie · gérante de clinique", m: "−65 % de temps", net: 0, av: "S", c: "#e1306c" },
-  { q: "L'assistant rédige et cible mieux que notre ancienne agence — et je garde la main sur tout.", a: "Thomas · fondateur, SaaS B2B", m: "×2,4 de clics LinkedIn", net: 2, av: "T", c: "#0A66C2" },
-  { q: "Je gère 6 marques depuis un seul espace, et les visuels s'adaptent tout seuls à chaque réseau.", a: "Léa · social media manager", m: "6 marques, 1 outil", net: 1, av: "L", c: "#a855f7" },
+  { q: "Avant, je publiais à minuit, épuisée. Aujourd'hui je valide trois posts depuis mon téléphone le matin — et c'est réglé.", a: "Sophie · gérante de clinique", m: "−65 % de temps", net: 0, photo: "/life/av-sophie.webp" },
+  { q: "L'assistant rédige et cible mieux que notre ancienne agence — et je garde la main sur tout.", a: "Thomas · fondateur, SaaS B2B", m: "×2,4 de clics LinkedIn", net: 2, photo: "/life/av-thomas.webp" },
+  { q: "Je gère 6 marques depuis un seul espace, et les visuels s'adaptent tout seuls à chaque réseau.", a: "Léa · social media manager", m: "6 marques, 1 outil", net: 1, photo: "/life/av-lea.webp" },
 ];
 
 
@@ -199,6 +198,17 @@ export default function Home() {
             ))}
           </div>
         </div>
+        {/* Vraie vie : la fondatrice qui regarde l'horizon — sa marque porte loin */}
+        <div className="mc-hero-human-wrap">
+          <img
+            src="/life/horizon.webp"
+            alt={t("Une entrepreneuse regarde l'horizon au lever du soleil", "A founder gazes at the horizon at sunrise")}
+            className="mc-hero-human"
+            width={250} height={354}
+            fetchPriority="high"
+          />
+          <span className="mc-hero-human-cap">☀️ {t("Pendant qu'elle vit, sa marque publie", "While she lives, her brand publishes")}</span>
+        </div>
       </section>
 
       {/* ── Le concept : le système nerveux de la marque ── */}
@@ -214,6 +224,24 @@ export default function Home() {
           </p>
         </header>
         <AgentConstellation3D />
+
+        {/* Vraie vie : derrière chaque signal du réseau, des personnes réelles */}
+        <div className="mc-human-band reveal" style={{ marginTop: "2.5rem" }}>
+          <img
+            src="/life/connexion.webp"
+            alt={t("Deux personnes connectées par leurs téléphones sur une place en ville", "Two people connected through their phones on a city square")}
+            loading="lazy" decoding="async"
+          />
+          <div className="mc-human-band-cap">
+            <b>{t("Derrière chaque impulsion, une personne réelle.", "Behind every pulse, a real person.")}</b>
+            <p>
+              {t(
+                "Vos clients ne vivent pas dans un tableau de bord : ils marchent, s'arrêtent, découvrent votre marque sur leur téléphone. AXON transporte votre voix jusqu'à eux — au bon endroit, au bon moment.",
+                "Your customers don't live in a dashboard: they walk, pause, discover your brand on their phone. AXON carries your voice to them — right place, right time."
+              )}
+            </p>
+          </div>
+        </div>
       </section>
 
 
@@ -227,7 +255,14 @@ export default function Home() {
             <h2 className="mc-h2">{t("Tout votre social, au même endroit.", "Your whole social presence, in one place.")}</h2>
             <p className="mc-sec-sub">{t("De l'idée au message publié — vos assistants s'occupent de la création, la publication, les réponses et la veille. Cliquez sur une carte pour voir.", "From idea to published post — your assistants handle creation, publishing, replies and watch. Click a card to take a look.")}</p>
           </header>
-          <Phone3D />
+          {/* Vraie vie : l'assistant IA, dans une vraie main, dans un vrai café */}
+          <img
+            src="/life/assistant.webp"
+            alt={t("Une main tient un téléphone affichant l'assistant IA et les réseaux sociaux, dans un café", "A hand holds a phone showing the AI assistant and social networks, in a café")}
+            className="mc-cap-photo"
+            loading="lazy" decoding="async"
+            width={320} height={452}
+          />
         </div>
 
         {/* Onglets dynamiques par catégorie — allège l'affichage (3-4 cartes) */}
@@ -264,6 +299,57 @@ export default function Home() {
 
 
 
+      {/* ── Vraie vie : une matinée avec AXON ── */}
+      <section className="mc-section">
+        <div className="mc-morning">
+          <div className="mc-morning-photo reveal">
+            <img
+              src="/life/matin.webp"
+              alt={t("Une gérante valide ses publications sur son téléphone en buvant son café du matin", "A business owner approves her posts on her phone over morning coffee")}
+              loading="lazy" decoding="async"
+              width={420} height={594}
+            />
+            <div className="mc-morning-chip" role="presentation">
+              <i>✓</i>
+              <span>
+                {t("3 posts validés", "3 posts approved")}
+                <em>{t("Publication à 9h00 · 3 réseaux", "Publishing at 9:00 AM · 3 networks")}</em>
+              </span>
+            </div>
+          </div>
+          <div className="reveal">
+            <span className="mc-kicker">{t("La vraie vie", "Real life")}</span>
+            <h2 className="mc-h2">{t("Votre matin peut ressembler à ça.", "Your morning can look like this.")}</h2>
+            <div className="mc-hours">
+              <div className="mc-hour">
+                <time>8h02</time>
+                <div>
+                  <b>{t("Le café est servi.", "Coffee is served.")}</b>
+                  <p>{t("Sophie ouvre AXON sur son téléphone. Pendant la nuit, ses assistants ont préparé la journée.", "Sophie opens AXON on her phone. Overnight, her assistants prepared the day.")}</p>
+                </div>
+              </div>
+              <div className="mc-hour">
+                <time>8h04</time>
+                <div>
+                  <b>{t("Trois posts l'attendent.", "Three posts are waiting.")}</b>
+                  <p>{t("Textes écrits dans sa voix, visuels adaptés à chaque réseau. Elle en ajuste un, valide les trois.", "Copy written in her voice, visuals adapted to each network. She tweaks one, approves all three.")}</p>
+                </div>
+              </div>
+              <div className="mc-hour">
+                <time>8h07</time>
+                <div>
+                  <b>{t("C'est réglé.", "Done.")}</b>
+                  <p>{t("Facebook, Instagram, LinkedIn : tout part à l'heure prévue. Sa journée commence — sa marque travaille déjà.", "Facebook, Instagram, LinkedIn: everything goes out on schedule. Her day begins — her brand is already at work.")}</p>
+                </div>
+              </div>
+            </div>
+            <div className="mc-cta-row" style={{ marginTop: "1.8rem" }}>
+              <Link href="/demarrage" className="mc-btn mc-btn-glow">{t("Vivre ce matin-là →", "Live that morning →")}</Link>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* ── Trois étapes ── */}
       <section className="mc-section mc-section--warm">
         <header className="mc-sec-head reveal">
@@ -295,7 +381,7 @@ export default function Home() {
             return (
               <figure key={i} className="mc-quote reveal" style={{ transitionDelay: `${i * 90}ms` }}>
                 <div className="mc-quote-top">
-                  <span className="mc-avatar" style={{ background: tm.c }} aria-hidden>{tm.av}</span>
+                  <img src={tm.photo} alt="" className="mc-avatar-img" loading="lazy" decoding="async" width={44} height={44} />
                   <L s={22} />
                 </div>
                 <blockquote>“{tm.q}”</blockquote>

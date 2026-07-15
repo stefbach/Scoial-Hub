@@ -1183,3 +1183,58 @@ html[data-theme="light"] .app-shell > .app-grain {
 @keyframes mcscrollrev{from{transform:translateX(-50%)}to{transform:translateX(0)}}
 .mc-chip-dot{width:8px;height:8px;border-radius:50%;background:var(--c,#a855f7);box-shadow:0 0 10px 1px var(--c,#a855f7);display:inline-block;}
 .mc-chip{border-color:color-mix(in srgb, var(--c,#a855f7) 35%, transparent);}
+
+/* ── Vraie vie : photos incarnées sur la homepage ────────────────────────────
+   Chaque section porte UNE photo réelle (médaillon hero, bande humaine,
+   matinée de validation, main+téléphone, avatars témoignages). */
+
+/* Médaillon hero : légende incrustée + halo chaud, sans gêner le globe. */
+.mc-hero-human{pointer-events:none;object-fit:cover;}
+/* bottom : 5% + hauteur du header sticky (~76px) + débord de la légende,
+   pour que photo ET légende restent au-dessus de la ligne de flottaison. */
+.mc-hero-human-wrap{position:absolute;bottom:calc(5% + 96px);right:3%;width:min(44%,250px);z-index:3;pointer-events:none;}
+.mc-hero-human-wrap .mc-hero-human{position:static;width:100%;}
+.mc-hero-human-cap{position:absolute;left:50%;bottom:-12px;transform:translateX(-50%);white-space:nowrap;
+  display:inline-flex;align-items:center;gap:.4rem;padding:.4rem .8rem;border-radius:999px;
+  font-size:.72rem;font-weight:600;color:#ffe9d6;background:rgba(24,14,10,.82);backdrop-filter:blur(8px);
+  border:1px solid rgba(255,176,122,.35);box-shadow:0 10px 30px -10px rgba(0,0,0,.6);}
+@media(max-width:760px){
+  .mc-hero-human-wrap{position:relative;bottom:0;right:0;width:72%;margin:1.4rem auto 0;display:block;}
+}
+
+/* Bande humaine (concept → humains) : réutilise .mc-human-band. */
+.mc-human-band{min-height:340px;}
+.mc-human-band-cap b{font-family:var(--font-display);font-size:1.35rem;color:#fff;letter-spacing:-.01em;}
+
+/* La matinée : photo portrait + fil d'heures. */
+.mc-morning{display:grid;gap:2.4rem;align-items:center;}
+@media(min-width:880px){.mc-morning{grid-template-columns:.9fr 1.1fr;}}
+.mc-morning-photo{position:relative;max-width:420px;margin:0 auto;}
+.mc-morning-photo img{display:block;width:100%;border-radius:24px;
+  border:1px solid rgba(255,200,150,.2);
+  box-shadow:0 40px 90px -30px rgba(255,138,76,.4),0 0 0 8px rgba(255,138,76,.05);}
+.mc-morning-chip{position:absolute;right:-10px;bottom:9%;display:flex;align-items:center;gap:.55rem;
+  padding:.65rem .95rem;border-radius:14px;background:rgba(18,12,26,.94);
+  border:1px solid rgba(168,85,247,.4);box-shadow:0 20px 44px -14px rgba(0,0,0,.75);
+  animation:mcbob 6s ease-in-out infinite;}
+.mc-morning-chip i{display:grid;place-items:center;width:26px;height:26px;border-radius:50%;
+  background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;font-style:normal;font-size:.8rem;font-weight:800;}
+.mc-morning-chip span{font-size:.78rem;color:#e9e2f7;font-weight:600;line-height:1.25;}
+.mc-morning-chip span em{display:block;font-style:normal;color:#9b8fb5;font-weight:500;font-size:.7rem;}
+@media(max-width:520px){.mc-morning-chip{right:4px;}}
+.mc-hours{display:flex;flex-direction:column;gap:1.1rem;margin-top:1.6rem;}
+.mc-hour{display:grid;grid-template-columns:64px 1fr;gap:1rem;align-items:start;}
+.mc-hour time{font-family:var(--font-display);font-size:1.05rem;color:#ffb07a;white-space:nowrap;padding-top:.1rem;}
+.mc-hour div{border-left:1px solid rgba(255,176,122,.25);padding-left:1rem;}
+.mc-hour b{display:block;color:#f4eeff;font-size:.98rem;}
+.mc-hour p{margin:.2rem 0 0;color:#b6abc9;font-size:.9rem;line-height:1.55;}
+
+/* Main + téléphone (remplace le rendu 3D abstrait). */
+.mc-cap-photo{width:100%;max-width:320px;justify-self:center;border-radius:26px;
+  border:1px solid rgba(168,85,247,.28);
+  box-shadow:0 40px 80px -28px rgba(124,58,237,.55),0 12px 40px -12px rgba(255,138,76,.2);}
+@media(max-width:860px){.mc-cap-photo{max-width:250px;}}
+
+/* Avatars témoignages : vrais visages. */
+.mc-avatar-img{width:44px;height:44px;border-radius:50%;object-fit:cover;
+  border:2px solid rgba(255,176,122,.45);box-shadow:0 6px 18px -6px rgba(0,0,0,.6);}

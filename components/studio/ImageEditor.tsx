@@ -31,6 +31,9 @@ export function ImageEditor({
   const [busy, setBusy] = useState<"edit" | "upscale" | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [versions, setVersions] = useState<string[]>([]);
+  // #BUG17 — version actuellement affichée (null = la dernière). Cliquer une
+  // vignette SÉLECTIONNE une version sans jamais tronquer l'historique.
+  const [selected, setSelected] = useState<number | null>(null);
   // Dernière URL que NOUS avons émise via onResult. Quand le parent l'applique,
   // elle nous revient en écho par la prop `imageUrl` : il ne faut alors PAS
   // réinitialiser l'historique (c'était le bug « la retouche s'efface
@@ -42,6 +45,7 @@ export function ImageEditor({
   useEffect(() => {
     if (imageUrl === emittedRef.current) return; // écho de notre onResult
     setVersions((v) => (v.includes(imageUrl) ? v : [imageUrl]));
+    setSelected(null);
   }, [imageUrl]);
 
   async function run(mode: "edit" | "upscale") {
@@ -52,7 +56,8 @@ export function ImageEditor({
     }
     setBusy(mode); setNote(null);
     try {
-      const current = versions[versions.length - 1] ?? imageUrl;
+      // #BUG17 — on retouche la version AFFICHÉE (sélectionnée), pas forcément la dernière.
+      const current = versions[selected ?? versions.length - 1] ?? imageUrl;
       // Un data-URI volumineux dépasse la limite de requête (~4,5 Mo → HTTP 413).
       // Cas de repli uniquement (l'import héberge normalement le fichier) :
       // on explique clairement au lieu de laisser échouer en silence.
@@ -79,6 +84,7 @@ export function ImageEditor({
       if (d.simulated) { setNote(t("Édition IA non configurée (REPLICATE_API_TOKEN).", "AI editing not configured (REPLICATE_API_TOKEN).")); return; }
       if (!r.ok || !d.url) { setNote((d.error as string) || t("Échec de la retouche.", "Edit failed.")); return; }
       setVersions((v) => [...v, d.url]);
+      setSelected(null); // la nouvelle version devient celle affichée
       emittedRef.current = d.url; // l'écho de cette URL ne réinitialisera pas l'historique
       onResult(d.url);
       if (mode === "edit") setInstruction("");
@@ -87,10 +93,14 @@ export function ImageEditor({
     } finally { setBusy(null); }
   }
 
+  // #BUG17 — cause racine de « cliquer v0 fait disparaître les versions » :
+  // l'ancien code TRONQUAIT l'historique (v.slice(0, i + 1)) ; revenir à v0
+  // supprimait donc v1 et masquait la rangée (condition length > 1). On se
+  // contente désormais d'afficher la version cliquée, l'historique est intact.
   function restore(i: number) {
     const url = versions[i];
     if (!url) return;
-    setVersions((v) => v.slice(0, i + 1));
+    setSelected(i);
     emittedRef.current = url; // idem : restauration = notre propre émission
     onResult(url);
   }
@@ -126,8 +136,8 @@ export function ImageEditor({
         </div>
       </div>
 
-      {/* Upscale */}
-      <div className="flex flex-wrap items-center gap-2 border-t border-hair pt-3">
+      {/* Upscale — #BUG16 : sans filet/cadre gris, la carte suffit */}
+      <div className="flex flex-wrap items-center gap-2 pt-1">
         <select value={upModel} onChange={(e) => setUpModel(e.target.value)} className={`${inputCls} flex-1 min-w-[180px]`} title={t("Modèle d'amélioration", "Upscale model")}>
           {UPSCALE_MODELS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
         </select>
@@ -146,7 +156,7 @@ export function ImageEditor({
             {versions.map((u, i) => (
               <button key={`${i}-${u.slice(-12)}`} type="button" onClick={() => restore(i)}
                 title={i === 0 ? t("Original", "Original") : t(`Version ${i}`, `Version ${i}`)}
-                className={`relative h-14 w-14 shrink-0 overflow-hidden rounded-lg ring-2 transition-all ${i === versions.length - 1 ? "ring-page" : "ring-hair hover:ring-page/60"}`}>
+                className={`relative h-14 w-14 shrink-0 overflow-hidden rounded-lg ring-2 transition-all ${i === (selected ?? versions.length - 1) ? "ring-page" : "ring-hair hover:ring-page/60"}`}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={u} alt="" className="h-full w-full object-cover" />
                 <span className="absolute bottom-0 right-0 rounded-tl bg-ink/70 px-1 text-[9px] text-white">{i === 0 ? "v0" : `v${i}`}</span>

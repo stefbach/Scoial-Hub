@@ -222,7 +222,7 @@ export function BrandConsultant({
           body: JSON.stringify({ companyId, messages: history, language: lang }),
         });
         const data = await res.json();
-        if (!res.ok) throw new Error(data?.error || `Erreur ${res.status}`);
+        if (!res.ok) throw new Error(data?.error || t(`Erreur ${res.status}`, `Error ${res.status}`));
         const reply: string = data.reply || "…";
         setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
         if (data.dna) {
@@ -248,7 +248,7 @@ export function BrandConsultant({
         setSending(false);
       }
     },
-    [companyId, lang]
+    [companyId, lang, t]
   );
 
   const send = useCallback(() => {

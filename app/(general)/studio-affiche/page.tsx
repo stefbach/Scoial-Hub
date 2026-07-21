@@ -10,7 +10,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useCompany } from "@/lib/company-context";
-import { useT } from "@/lib/i18n";
+import { useT, useLang } from "@/lib/i18n";
 import { Spinner, BusyHint } from "@/components/ui/Spinner";
 import { IMAGE_MODELS, DEFAULT_IMAGE_MODEL_ID } from "@/lib/ai/model-catalog";
 import BrandKitPanel from "@/components/studio/BrandKitPanel";
@@ -70,6 +70,7 @@ function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number)
 
 export default function StudioAffichePage() {
   const t = useT();
+  const { lang } = useLang();
   const { company, access } = useCompany();
   const canEdit = access.canEdit;
   const companyId = company.id;
@@ -99,6 +100,48 @@ export default function StudioAffichePage() {
 
   const [note, setNote] = useState<string | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  // ── Zoom & déplacement de l'aperçu (#23) ────────────────────────────────────
+  const [zoom, setZoom] = useState(1);
+  const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
+  const [panning, setPanning] = useState(false);
+  const panStart = useRef({ x: 0, y: 0, ox: 0, oy: 0 });
+  const previewRef = useRef<HTMLDivElement>(null);
+
+  // Zoom borné [1..4] ; au retour à 1, l'aperçu est recentré.
+  const applyZoom = useCallback((z: number) => {
+    const c = Math.min(4, Math.max(1, z));
+    setZoom(c);
+    if (c === 1) setPanOffset({ x: 0, y: 0 });
+  }, []);
+
+  // Molette = zoom (listener natif non-passif pour bloquer le défilement de page).
+  useEffect(() => {
+    const el = previewRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      setZoom((z) => {
+        const c = Math.min(4, Math.max(1, z * (e.deltaY < 0 ? 1.2 : 1 / 1.2)));
+        if (c === 1) setPanOffset({ x: 0, y: 0 });
+        return c;
+      });
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, []);
+
+  function onPanStart(e: React.PointerEvent<HTMLDivElement>) {
+    if (zoom <= 1 || (e.target as HTMLElement).closest("button")) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    panStart.current = { x: e.clientX, y: e.clientY, ox: panOffset.x, oy: panOffset.y };
+    setPanning(true);
+  }
+  function onPanMove(e: React.PointerEvent<HTMLDivElement>) {
+    if (!panning) return;
+    const s = panStart.current;
+    setPanOffset({ x: s.ox + e.clientX - s.x, y: s.oy + e.clientY - s.y });
+  }
 
   // ── Génération du fond par IA ───────────────────────────────────────────────
   // `o` permet au copilote de générer immédiatement avec SES valeurs (axe :
@@ -143,7 +186,8 @@ export default function StudioAffichePage() {
     try {
       const r = await fetch("/api/ai/suggest-image-prompt", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyId, brief: [prompt, promptHints].filter(Boolean).join(" — "), format: format.label, kind: format.print ? "affiche" : "visuel réseau social" }),
+        // `language` : le prompt suggéré doit sortir dans la langue de l'UI.
+        body: JSON.stringify({ companyId, brief: [prompt, promptHints].filter(Boolean).join(" — "), format: format.label, kind: format.print ? "affiche" : "visuel réseau social", language: lang }),
       });
       const d = await r.json();
       if (d.prompt) setPrompt(d.prompt);
@@ -534,8 +578,9 @@ export default function StudioAffichePage() {
                 );
               })}
             </div>
-            {/* Décliner tout le jeu de formats réseaux en un clic — deux modes */}
-            <div className="mt-3 space-y-2 border-t border-hair pt-3">
+            {/* Décliner tout le jeu de formats réseaux en un clic — deux modes
+                (sans cadre ni bordure de conteneur : #21) */}
+            <div className="mt-4 space-y-2">
               <p className="text-2xs font-semibold uppercase tracking-wide text-muted">{t("Décliner tout le jeu réseaux", "Decline the whole network set")}</p>
 
               {/* Mode PUB : recomposition IA plein cadre (le but pour les pubs) */}
@@ -684,12 +729,31 @@ export default function StudioAffichePage() {
 
         {/* ── Grand aperçu (uniquement l'affiche : #21) ── */}
         <div className="lg:sticky lg:top-20">
-          <div className="card flex items-center justify-center bg-[repeating-conic-gradient(#f1f1f4_0%_25%,#fafafb_0%_50%)] bg-[length:24px_24px] p-4 sm:p-6">
+          <div
+            ref={previewRef}
+            onPointerDown={onPanStart}
+            onPointerMove={onPanMove}
+            onPointerUp={() => setPanning(false)}
+            onPointerCancel={() => setPanning(false)}
+            onDoubleClick={() => applyZoom(1)}
+            title={t("Molette : zoom · glisser : déplacer · double-clic : réinitialiser", "Wheel: zoom · drag: pan · double-click: reset")}
+            className="card relative flex items-center justify-center overflow-hidden bg-[repeating-conic-gradient(#f1f1f4_0%_25%,#fafafb_0%_50%)] bg-[length:24px_24px] p-4 sm:p-6"
+            style={{ cursor: zoom > 1 ? (panning ? "grabbing" : "grab") : "default", touchAction: zoom > 1 ? "none" : undefined }}
+          >
             <canvas
               ref={canvasRef}
               className="max-h-[70vh] w-auto max-w-full rounded-lg shadow-lg ring-1 ring-hair"
-              style={{ aspectRatio: `${format.w} / ${format.h}` }}
+              style={{ aspectRatio: `${format.w} / ${format.h}`, transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoom})` }}
             />
+            {/* Contrôles de zoom de l'aperçu */}
+            <div className="absolute bottom-2 right-2 flex items-center gap-1 rounded-lg border border-hair bg-card/90 px-1 py-0.5 shadow-xs">
+              <button type="button" onClick={() => applyZoom(zoom / 1.2)} aria-label={t("Zoom arrière", "Zoom out")} className="h-6 w-6 rounded text-sm text-muted hover:bg-canvas hover:text-ink">−</button>
+              <span className="w-10 text-center text-2xs tabular-nums text-muted">{Math.round(zoom * 100)}%</span>
+              <button type="button" onClick={() => applyZoom(zoom * 1.2)} aria-label={t("Zoom avant", "Zoom in")} className="h-6 w-6 rounded text-sm text-muted hover:bg-canvas hover:text-ink">+</button>
+              {zoom !== 1 && (
+                <button type="button" onClick={() => applyZoom(1)} aria-label={t("Réinitialiser le zoom", "Reset zoom")} className="h-6 w-6 rounded text-sm text-muted hover:bg-canvas hover:text-ink">⟲</button>
+              )}
+            </div>
           </div>
           <p className="mt-2 text-center text-2xs text-muted">
             {format.label} · {format.w}×{format.h}px{format.print ? t(" · ~150 dpi (impression)", " · ~150 dpi (print)") : ""}

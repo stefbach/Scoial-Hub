@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useT } from "@/lib/i18n";
+import { useT, useLang } from "@/lib/i18n";
 import { useCompany } from "@/lib/company-context";
 import { SOCIAL_FORMATS, type SocialPlatform } from "@/lib/social-formats";
 import { generateVideoPolling } from "@/lib/ai/generate-video-client";
@@ -91,6 +91,7 @@ export default function PromptStudio({
   seed?: { nonce: number; kind?: "image" | "video"; prompt?: string; imageModel?: string; videoModel?: string; autorun?: boolean };
 }) {
   const t = useT();
+  const { lang } = useLang();
   const { company } = useCompany();
 
   const [kind, setKind] = useState<Kind>("image");
@@ -196,7 +197,8 @@ export default function PromptStudio({
       const res = await fetch("/api/ai/improve-prompt", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: idea, kind, brandVoice: company.brandVoice }),
+        // `language` : le prompt amélioré doit sortir dans la langue de l'UI.
+        body: JSON.stringify({ prompt: idea, kind, brandVoice: company.brandVoice, language: lang }),
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok && typeof data.prompt === "string" && data.prompt.trim()) {
@@ -484,7 +486,7 @@ export default function PromptStudio({
 
       {/* Aperçu du média généré */}
       {result && (
-        <div className="mt-4 border-t border-hair pt-4">
+        <div className="mt-4">
           <div className="mb-2 text-2xs font-semibold uppercase tracking-wide text-muted">
             {t("Résultat", "Result")} — {t("ajouté à vos médias", "added to your media")}
           </div>
@@ -493,10 +495,10 @@ export default function PromptStudio({
             <img
               src={result.url}
               alt={t("Image générée", "Generated image")}
-              className="max-h-72 w-auto rounded-lg border border-hair"
+              className="max-h-72 w-auto rounded-lg"
             />
           ) : (
-            <video src={result.url} controls className="max-h-72 w-auto rounded-lg border border-hair" />
+            <video src={result.url} controls className="max-h-72 w-auto rounded-lg" />
           )}
           <div className="mt-2 flex flex-wrap gap-2">
             <a

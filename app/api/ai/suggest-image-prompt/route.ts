@@ -1,6 +1,7 @@
-// Génère un PROMPT d'image professionnel (en anglais, optimisé pour les modèles
-// text-to-image) à partir d'un brief court + du contexte de marque. C'est le
-// « prompt généré par l'IA » qui alimente ensuite l'IA d'image.
+// Génère un PROMPT d'image professionnel (dans la langue de l'UI si `language`
+// est fourni, sinon anglais — optimisé pour les modèles text-to-image) à partir
+// d'un brief court + du contexte de marque. C'est le « prompt généré par l'IA »
+// qui alimente ensuite l'IA d'image.
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -13,9 +14,12 @@ import { isAiConfigured, env } from "@/lib/env";
 
 export async function POST(req: NextRequest) {
   try {
-    const { companyId, brief, format, kind } = (await req.json()) as {
+    const { companyId, brief, format, kind, language } = (await req.json()) as {
       companyId?: string; brief?: string; format?: string; kind?: string;
+      /** Langue de l'UI ("fr" | "en") — optionnelle : sans elle, anglais comme avant. */
+      language?: string;
     };
+    const wantFr = language === "fr";
     if (!companyId) return NextResponse.json({ error: "companyId requis" }, { status: 400 });
     const guard = await requireCompanyAccess(companyId);
     if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
@@ -32,15 +36,21 @@ export async function POST(req: NextRequest) {
       }
     } catch { /* dégradation */ }
 
-    const fallback = [
-      (brief || `professional ${kind || "poster"} for ${name || "the brand"}`).trim(),
-      "high-end advertising visual, clean composition, strong focal point, premium lighting,",
-      "ample negative space for headline text, modern color grading, photorealistic, 4k, sharp.",
-    ].join(" ");
+    const fallback = wantFr
+      ? [
+          (brief || `${kind || "affiche"} professionnelle pour ${name || "la marque"}`).trim(),
+          "visuel publicitaire haut de gamme, composition épurée, point focal fort, lumière premium,",
+          "large espace négatif pour le titre, étalonnage moderne, photoréaliste, 4k, net.",
+        ].join(" ")
+      : [
+          (brief || `professional ${kind || "poster"} for ${name || "the brand"}`).trim(),
+          "high-end advertising visual, clean composition, strong focal point, premium lighting,",
+          "ample negative space for headline text, modern color grading, photorealistic, 4k, sharp.",
+        ].join(" ");
 
     if (!isAiConfigured) return NextResponse.json({ prompt: fallback, aiGenerated: false });
 
-    const meta = `Tu es directeur artistique. Rédige UN SEUL prompt en ANGLAIS pour un modèle text-to-image (Flux/Ideogram/Imagen), destiné à créer un visuel ${kind || "affiche"} PROFESSIONNEL${format ? ` au format ${format}` : ""}.
+    const meta = `Tu es directeur artistique. Rédige UN SEUL prompt en ${wantFr ? "FRANÇAIS" : "ANGLAIS"} pour un modèle text-to-image (Flux/Ideogram/Imagen), destiné à créer un visuel ${kind || "affiche"} PROFESSIONNEL${format ? ` au format ${format}` : ""}.
 Marque : ${name || "(non précisée)"}${voice ? ` — voix : ${voice}` : ""}${positioning ? ` — positionnement : ${positioning}` : ""}.
 Demande de l'utilisateur : "${brief || "(libre)"}".
 
@@ -48,7 +58,7 @@ Contraintes du prompt :
 - décris la SCÈNE, le style, la lumière, la composition, la palette ;
 - prévois un ESPACE NÉGATIF pour le titre (le texte sera ajouté ensuite, n'inclus PAS de texte dans l'image) ;
 - qualité publicitaire haut de gamme, photoréaliste ou design selon le besoin.
-Réponds UNIQUEMENT par le prompt (une à trois phrases, en anglais), sans guillemets ni préface.`;
+Réponds UNIQUEMENT par le prompt (une à trois phrases, en ${wantFr ? "français" : "anglais"}), sans guillemets ni préface.`;
 
     try {
       const Anthropic = (await import("@anthropic-ai/sdk")).default;

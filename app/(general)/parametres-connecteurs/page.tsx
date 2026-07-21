@@ -364,7 +364,9 @@ export default function ParametresConnecteursPage() {
       </div>
 
       {/* Encart explicatif */}
-      <div className="rounded-xl border border-primary-200 bg-primary-50/60 px-5 py-4 space-y-3">
+      {/* La variante d'opacité (bg-primary-50/60) échappe au remap du thème
+          clair et rendait un pavé sombre : on garde la tuile pleine, remappée. */}
+      <div className="rounded-xl border border-primary-200 bg-primary-50 px-5 py-4 space-y-3">
         <h2 className="text-sm font-semibold text-ink">
           {t("Comprendre les niveaux d'accès", "Understanding access levels")}
         </h2>
@@ -412,8 +414,8 @@ export default function ParametresConnecteursPage() {
 
         return (
           <section key={group.id} className="space-y-3">
-            {/* Titre de section */}
-            <div className="flex items-end justify-between gap-4 border-b border-hair pb-2">
+            {/* Titre de section — sans encadré ni filet (retour QA : boîtes grises) */}
+            <div className="flex items-end justify-between gap-4 pb-1">
               <div>
                 <h2 className="text-sm font-bold text-ink">{t(group.labelFr, group.labelEn)}</h2>
                 <p className="text-xs text-muted mt-0.5">{t(group.subtitleFr, group.subtitleEn)}</p>

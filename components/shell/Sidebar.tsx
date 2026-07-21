@@ -493,7 +493,6 @@ export function Sidebar({
                 : "text-muted hover:bg-white/[0.06] hover:text-ink",
             ].join(" ")}
           >
-            {active && <span aria-hidden="true" className="absolute inset-y-1.5 left-0 w-[2px] rounded-full bg-page" />}
             <span className={active || entry ? "opacity-100" : "opacity-55 group-hover:opacity-80"}>{icon}</span>
           </Link>
         </li>
@@ -516,12 +515,8 @@ export function Sidebar({
               : "text-muted hover:bg-white/[0.06] hover:text-ink",
           ].join(" ")}
         >
-          {active && (
-            <span
-              aria-hidden="true"
-              className="absolute inset-y-2 left-0 w-[2px] rounded-full bg-page"
-            />
-          )}
+          {/* (Retour QA bug 20 : plus de barre verticale sur l'item actif — le
+              fond teinté suffit à signaler la sélection.) */}
           <span
             className={[
               "shrink-0 transition-opacity duration-[120ms]",

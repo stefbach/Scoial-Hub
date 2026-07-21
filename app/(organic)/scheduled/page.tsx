@@ -175,8 +175,9 @@ function ScheduledContent() {
         }
       />
 
-      {/* Tab bar */}
-      <div className="mb-5 flex gap-1 border-b border-hair">
+      {/* Tab bar — #25 : conteneur arrondi (rounded-xl) harmonisé avec les cartes,
+          même langage segmenté que le toggle Liste / Calendrier ci-dessus. */}
+      <div className="mb-5 inline-flex gap-1 rounded-xl border border-hair bg-card p-1 shadow-xs">
         {TABS.map((tb) => {
           const c = counts[tb.id];
           const active = tb.id === tab;
@@ -184,10 +185,10 @@ function ScheduledContent() {
             <button
               key={tb.id}
               onClick={() => setTab(tb.id)}
-              className={`-mb-px inline-flex items-center gap-1.5 border-b-2 px-3 pb-2.5 pt-1 text-sm transition-colors ${
+              className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm transition-all ${
                 active
-                  ? "border-page font-semibold text-ink"
-                  : "border-transparent text-muted hover:text-ink"
+                  ? "bg-canvas font-semibold text-ink shadow-xs"
+                  : "text-muted hover:text-ink"
               }`}
             >
               {tb.label}

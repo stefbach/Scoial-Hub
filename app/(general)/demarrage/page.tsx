@@ -102,7 +102,7 @@ function Shell() {
           companyName={companyName}
           onLocked={(p) => applyProfile(p)}
         />
-        <div className="flex justify-center border-t border-hair pt-4">
+        <div className="flex justify-center pt-4">
           <button type="button" onClick={() => setSkipConsult(true)} className="btn-ghost text-sm text-muted">
             {t("Construire l'identité plus tard →", "Build the identity later →")}
           </button>

@@ -76,6 +76,9 @@ export interface BrandKitPanelProps {
   onKit?: (kit: BrandKit) => void;
 }
 
+/** Clé localStorage de l'état plié/déplié du panneau. */
+const FOLD_KEY = "axon_brandkit_folded";
+
 export default function BrandKitPanel({
   companyId,
   brandName,
@@ -90,6 +93,16 @@ export default function BrandKitPanel({
 
   const [logoDataUrl, setLogoDataUrl] = useState("");
   const [charteDataUrl, setCharteDataUrl] = useState("");
+  // Replié par défaut quand un kit est déjà enregistré (préférence mémorisée).
+  const [folded, setFolded] = useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    try { return localStorage.getItem(FOLD_KEY) !== "0"; } catch { return true; }
+  });
+  function toggleFold() {
+    const next = !folded;
+    setFolded(next);
+    try { localStorage.setItem(FOLD_KEY, next ? "1" : "0"); } catch { /* ignore */ }
+  }
   const [analyzing, setAnalyzing] = useState(false);
   const [generatingChart, setGeneratingChart] = useState(false);
   const [resetting, setResetting] = useState(false);
@@ -241,13 +254,30 @@ export default function BrandKitPanel({
   const k = kit;
   const hasAnalysis = !!k && (k.summary || k.palette.length > 0 || k.style || k.tone);
   const canChart = !!(logoDataUrl || (k?.logoUrl && /^https?:\/\//.test(k.logoUrl)));
+  // Kit « enregistré » (contenu persistant) → panneau repliable, replié par défaut.
+  const isSaved = Boolean(k?.updatedAt) && Boolean(k?.logoUrl || k?.charteUrl || hasAnalysis || k?.chart);
+  const collapsed = isSaved && folded;
 
   return (
     <section className="card p-4 space-y-3">
       <div className="flex items-center justify-between gap-2">
-        <div className="section-label">{t("Brand kit (IA)", "Brand kit (AI)")}</div>
+        {isSaved ? (
+          <button
+            type="button"
+            onClick={toggleFold}
+            aria-expanded={!collapsed}
+            className="flex min-w-0 flex-1 items-center gap-2 text-left"
+            title={collapsed ? t("Afficher le brand kit", "Show the brand kit") : t("Réduire le brand kit", "Collapse the brand kit")}
+          >
+            <span className="section-label">{t("Brand kit (IA)", "Brand kit (AI)")}</span>
+            <span className="text-2xs text-success-600">{t("✓ enregistré", "✓ saved")}</span>
+            <span className="ml-auto text-muted" aria-hidden="true">{collapsed ? "▸" : "▾"}</span>
+          </button>
+        ) : (
+          <div className="section-label">{t("Brand kit (IA)", "Brand kit (AI)")}</div>
+        )}
         <div className="flex items-center gap-2">
-          {k?.updatedAt && <span className="text-2xs text-success-600">{t("✓ enregistré", "✓ saved")}</span>}
+          {!isSaved && k?.updatedAt && <span className="text-2xs text-success-600">{t("✓ enregistré", "✓ saved")}</span>}
           {(k?.logoUrl || k?.charteUrl || hasAnalysis || k?.chart) && (
             <button onClick={resetKit} disabled={resetting} className="btn-ghost text-2xs text-muted" title={t("Tout remettre à zéro", "Reset everything")}>
               {resetting ? t("…", "…") : t("↺ Réinitialiser", "↺ Reset")}
@@ -255,6 +285,7 @@ export default function BrandKitPanel({
           )}
         </div>
       </div>
+      {!collapsed && (<>
       <p className="text-2xs text-muted">
         {t("Importez le logo et la charte graphique : l'IA en extrait la palette, le style et le ton — mémorisés pour cette marque et réutilisés partout.", "Upload the logo and brand chart: the AI extracts the palette, style and tone — saved for this brand and reused everywhere.")}
       </p>
@@ -313,6 +344,7 @@ export default function BrandKitPanel({
       )}
 
       {note && <p className="rounded-lg bg-warning-50 px-3 py-2 text-2xs text-warning-700">{note}</p>}
+      </>)}
     </section>
   );
 }

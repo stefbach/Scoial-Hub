@@ -11,7 +11,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAccountAdmin } from "@/lib/auth/guard";
 import { createClient } from "@/lib/supabase/server";
 import { env } from "@/lib/env";
-import { sendEmail, buildInvitationEmail } from "@/lib/email";
+import { sendEmail, buildInvitationEmail, buildAddedToTeamEmail } from "@/lib/email";
 import { listCompanies } from "@/lib/repositories/companies";
 import {
   listTeam,
@@ -65,14 +65,19 @@ export async function POST(req: NextRequest) {
   // on tente l'envoi via le service e-mail applicatif (lib/email.ts, Resend).
   // emailSent ne passe à true QUE si un e-mail est réellement accepté — sinon
   // le repli honnête (lien d'invitation copiable) reste affiché côté UI.
-  if (res.invited && !res.emailSent) {
+  if ((res.invited && !res.emailSent) || res.added) {
     let inviterEmail: string | undefined;
     try {
       const sb = createClient();
       inviterEmail = (await sb?.auth.getUser())?.data.user?.email ?? undefined;
     } catch { /* inviteur anonyme : l'e-mail reste valide sans lui */ }
-    const signupUrl = `${env.appUrl.replace(/\/$/, "")}/signup`;
-    const { subject, text } = buildInvitationEmail({ email, signupUrl, inviterEmail });
+    const base = env.appUrl.replace(/\/$/, "");
+    // Utilisateur déjà inscrit : Supabase Auth n'envoie RIEN dans ce cas (pas
+    // d'inscription à faire) — on le prévient nous-mêmes de ses nouveaux accès
+    // (#QA bug 10). Sinon, repli applicatif de l'invitation (SMTP absent).
+    const { subject, text } = res.added
+      ? buildAddedToTeamEmail({ email, loginUrl: `${base}/login`, inviterEmail })
+      : buildInvitationEmail({ email, signupUrl: `${base}/signup`, inviterEmail });
     res.emailSent = await sendEmail({ to: email, subject, text });
   }
   return NextResponse.json(res);

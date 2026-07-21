@@ -89,7 +89,7 @@ export function RecommendationModal({
           </div>
 
           {decision.status === "pending" && (
-            <div className="mt-5 flex justify-end gap-2 border-t border-hair pt-4">
+            <div className="mt-5 flex justify-end gap-2 pt-1">
               <button
                 type="button"
                 onClick={() => { onSetStatus(decision.id, "rejected"); onClose(); }}

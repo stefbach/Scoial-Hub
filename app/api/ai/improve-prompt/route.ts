@@ -16,10 +16,12 @@ interface RequestBody {
   prompt?: string;
   kind?: "image" | "video";
   brandVoice?: string;
+  /** Langue de l'UI ("fr" | "en") — optionnelle, rétro-compatible. */
+  language?: "fr" | "en";
 }
 
 /** Construit l'instruction envoyée à Claude. */
-function buildPrompt(idea: string, kind: "image" | "video", brandVoice?: string): string {
+function buildPrompt(idea: string, kind: "image" | "video", brandVoice?: string, language?: "fr" | "en"): string {
   const media = kind === "video" ? "vidéo courte" : "image";
   const motion =
     kind === "video"
@@ -48,7 +50,9 @@ Le prompt final doit décrire avec précision :
 Règles :
 - Réponds UNIQUEMENT avec le prompt final, en un seul paragraphe fluide, sans titre, sans listes, sans guillemets, sans préambule.
 - Reste dans l'esprit et le sujet de l'idée du client (ne change pas le concept).
-- Privilégie la même langue que l'idée d'origine.`;
+- ${language
+    ? `Écris IMPÉRATIVEMENT le prompt final en ${language === "en" ? "anglais" : "français"}.`
+    : "Privilégie la même langue que l'idée d'origine."}`;
 }
 
 export async function POST(req: NextRequest) {
@@ -70,7 +74,7 @@ export async function POST(req: NextRequest) {
       model: env.anthropicModel,
       max_tokens: 400,
       messages: [
-        { role: "user", content: buildPrompt(original, kind, body.brandVoice) },
+        { role: "user", content: buildPrompt(original, kind, body.brandVoice, body.language === "en" || body.language === "fr" ? body.language : undefined) },
       ],
     });
 

@@ -93,6 +93,39 @@ export function buildAccountCreatedEmail(params: {
   };
 }
 
+/**
+ * E-mail envoyé à un utilisateur qui possède DÉJÀ un compte quand un admin
+ * l'ajoute à son équipe : dans ce cas aucun e-mail Supabase Auth ne part
+ * (pas d'inscription à faire), on le prévient donc explicitement (#QA bug 10).
+ */
+export function buildAddedToTeamEmail(params: {
+  email: string;
+  loginUrl: string;
+  inviterEmail?: string;
+}): { subject: string; text: string } {
+  const { email, loginUrl, inviterEmail } = params;
+  const inviterFr = inviterEmail ?? "Un administrateur";
+  const inviterEn = inviterEmail ?? "An administrator";
+  return {
+    subject: "Nouvel accès — AXON-AI Social Hub / New access — AXON-AI Social Hub",
+    text: [
+      "Bonjour,",
+      "",
+      `${inviterFr} vous a ajouté(e) à son équipe AXON-AI Social Hub.`,
+      `Vos accès sont actifs dès maintenant : connectez-vous avec ${email}.`,
+      `Adresse de connexion : ${loginUrl}`,
+      "",
+      "— — —",
+      "",
+      "Hello,",
+      "",
+      `${inviterEn} has added you to their AXON-AI Social Hub team.`,
+      `Your access is active now: sign in with ${email}.`,
+      `Sign-in address: ${loginUrl}`,
+    ].join("\n"),
+  };
+}
+
 export function buildInvitationEmail(params: {
   email: string;
   signupUrl: string;

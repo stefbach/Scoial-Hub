@@ -816,7 +816,7 @@ export function RunTimeline({ result, companyId }: RunTimelineProps) {
                   </pre>
 
                   {step.detail && (
-                    <p className="mt-1.5 text-2xs text-muted italic border-l-2 border-hair pl-2">
+                    <p className="mt-1.5 text-2xs text-muted italic">
                       {step.detail}
                     </p>
                   )}

@@ -85,6 +85,13 @@ function langDirective(language: "fr" | "en"): string {
     : "\n\nIMPORTANT : rédige TOUT le texte produit en FRANÇAIS.";
 }
 
+/** Sélecteur bilingue pour les libellés statiques des étapes (retour QA bug 6 :
+ *  les titres/détails des agents doivent suivre la langue choisie par l'utilisateur). */
+function makeL(language: "fr" | "en" | undefined): (fr: string, en: string) => string {
+  const en = language === "en";
+  return (fr, enTxt) => (en ? enTxt : fr);
+}
+
 function ts(): string {
   return new Date().toISOString();
 }
@@ -422,8 +429,10 @@ async function runOrchestrator(
   cadence: Required<Cadence>
 ): Promise<AgentStep> {
   const cadenceStr = formatCadence(cadence);
+  const L = makeL(input.language);
 
-  const plan = `Objectif reçu : "${input.objective}".
+  const plan = L(
+    `Objectif reçu : "${input.objective}".
 
 Profil professionnel actif : ${profile.label} — ${profile.description}
 Cadence éditoriale : ${cadenceStr}
@@ -438,12 +447,34 @@ Séquence planifiée :
   6. Analyste      → benchmark sectoriel, KPIs cibles et captation d'audience
 
 Niveau d'autonomie : N${input.autonomy} (${
-    input.autonomy === 1
-      ? "recommandation pure — aucune action exécutée"
-      : input.autonomy === 2
-      ? "semi-auto — validation humaine requise avant publication"
-      : "auto sous garde-fous — exécution si conformité et budget OK"
-  }).`;
+      input.autonomy === 1
+        ? "recommandation pure — aucune action exécutée"
+        : input.autonomy === 2
+        ? "semi-auto — validation humaine requise avant publication"
+        : "auto sous garde-fous — exécution si conformité et budget OK"
+    }).`,
+    `Objective received: "${input.objective}".
+
+Active professional profile: ${profile.label} — ${profile.description}
+Editorial cadence: ${cadenceStr}
+${input.benchmarkTarget ? `Benchmark target: ${input.benchmarkTarget}` : ""}
+
+Planned sequence:
+  1. Strategist    → professional + semantic environment analysis (market, competition, positioning)
+  2. Copywriter    → content generation matching the profile and brand voice
+  3. Creative      → visual brief
+  4. Compliance    → ANSM / Meta regulatory check (BLOCKING)
+  5. Media Buyer   → Meta Ads campaign setup
+  6. Analyst       → sector benchmark, target KPIs and audience capture
+
+Autonomy level: N${input.autonomy} (${
+      input.autonomy === 1
+        ? "recommendation only — no action executed"
+        : input.autonomy === 2
+        ? "semi-auto — human validation required before publishing"
+        : "auto with guardrails — executes if compliance and budget are OK"
+    }).`
+  );
 
   await auditLog("orchestrator", "orchestration_start", input.companyId, {
     objective: input.objective,
@@ -454,7 +485,7 @@ Niveau d'autonomie : N${input.autonomy} (${
 
   return {
     agent: "orchestrator",
-    title: "Décomposition de l'objectif",
+    title: L("Décomposition de l'objectif", "Objective breakdown"),
     status: "done",
     output: plan,
     finishedAt: ts(),
@@ -471,6 +502,7 @@ async function runStrategist(
   profile: ProProfile,
   cadence: Required<Cadence>
 ): Promise<{ step: AgentStep; analysis: EnvironmentAnalysis }> {
+  const L = makeL(input.language);
   if (!isAiConfigured) {
     const analysis = mockEnvironmentAnalysis(profile, input.objective);
     const output = `[ANALYSE D'ENVIRONNEMENT — mode mock]
@@ -498,10 +530,10 @@ Cadence éditoriale retenue : ${formatCadence(cadence)}`;
     return {
       step: {
         agent: "strategist",
-        title: "Analyse d'environnement pro & sémantique (mode mock)",
+        title: L("Analyse d'environnement pro & sémantique (mode mock)", "Professional & semantic environment analysis (mock mode)"),
         status: "simulated",
         output,
-        detail: "Mode mock — configurez ANTHROPIC_API_KEY pour l'analyse IA temps réel.",
+        detail: L("Mode mock — configurez ANTHROPIC_API_KEY pour l'analyse IA temps réel.", "Mock mode — set ANTHROPIC_API_KEY for real-time AI analysis."),
         finishedAt: ts(),
       },
       analysis,
@@ -532,32 +564,32 @@ Cadence éditoriale retenue : ${formatCadence(cadence)}`;
       analysis = mockEnvironmentAnalysis(profile, input.objective);
     }
 
-    const output = `[ANALYSE D'ENVIRONNEMENT — IA]
+    const output = `${L("[ANALYSE D'ENVIRONNEMENT — IA]", "[ENVIRONMENT ANALYSIS — AI]")}
 
-Marché & concurrence :
+${L("Marché & concurrence :", "Market & competition:")}
 ${analysis.marketOverview}
 
-Analyse sémantique :
+${L("Analyse sémantique :", "Semantic analysis:")}
 ${analysis.semanticAnalysis}
 
-Positionnement recommandé :
+${L("Positionnement recommandé :", "Recommended positioning:")}
 ${analysis.positioning}
 
-Angles d'acquisition :
+${L("Angles d'acquisition :", "Acquisition angles:")}
 ${analysis.acquisitionAngles.map((a) => `  • ${a}`).join("\n")}
 
-Plateformes recommandées :
+${L("Plateformes recommandées :", "Recommended platforms:")}
 ${analysis.recommendedPlatforms.map((p) => `  • ${p}`).join("\n")}
 
-Risques concurrentiels :
+${L("Risques concurrentiels :", "Competitive risks:")}
 ${analysis.competitiveRisks}
 
-Cadence éditoriale retenue : ${formatCadence(cadence)}`;
+${L("Cadence éditoriale retenue :", "Selected editorial cadence:")} ${formatCadence(cadence)}`;
 
     return {
       step: {
         agent: "strategist",
-        title: "Analyse d'environnement pro & sémantique",
+        title: L("Analyse d'environnement pro & sémantique", "Professional & semantic environment analysis"),
         status: "done",
         output,
         finishedAt: ts(),
@@ -570,10 +602,10 @@ Cadence éditoriale retenue : ${formatCadence(cadence)}`;
     return {
       step: {
         agent: "strategist",
-        title: "Analyse d'environnement (dégradation)",
+        title: L("Analyse d'environnement (dégradation)", "Environment analysis (degraded)"),
         status: "simulated",
-        output: `Analyse générée en mode dégradé suite à une erreur API.\n\n${analysis.marketOverview}`,
-        detail: `Erreur API : ${msg}`,
+        output: `${L("Analyse générée en mode dégradé suite à une erreur API.", "Analysis generated in degraded mode after an API error.")}\n\n${analysis.marketOverview}`,
+        detail: L(`Erreur API : ${msg}`, `API error: ${msg}`),
         finishedAt: ts(),
       },
       analysis,
@@ -589,6 +621,7 @@ async function runCopywriter(
   profile: ProProfile
 ): Promise<AgentStep> {
   const voice = input.brandVoice ?? profile.recommendedTone;
+  const L = makeL(input.language);
 
   if (!isAiConfigured) {
     const mockText = `${profile.contentAngles[0]} — C'est au cœur de notre mission chaque jour.
@@ -599,10 +632,10 @@ ${profile.semanticField.slice(0, 4).map((s) => `#${s.replace(/\s+/g, "")}`).join
 
     return {
       agent: "copywriter",
-      title: "Génération du contenu (mode mock)",
+      title: L("Génération du contenu (mode mock)", "Content generation (mock mode)"),
       status: "done",
       output: mockText,
-      detail: "Mode mock actif — configurez ANTHROPIC_API_KEY pour activer la génération IA réelle.",
+      detail: L("Mode mock actif — configurez ANTHROPIC_API_KEY pour activer la génération IA réelle.", "Mock mode active — set ANTHROPIC_API_KEY to enable real AI generation."),
       finishedAt: ts(),
     };
   }
@@ -626,7 +659,7 @@ ${profile.semanticField.slice(0, 4).map((s) => `#${s.replace(/\s+/g, "")}`).join
 
     return {
       agent: "copywriter",
-      title: "Génération du contenu (Claude IA)",
+      title: L("Génération du contenu (Claude IA)", "Content generation (Claude AI)"),
       status: "done",
       output: text,
       finishedAt: ts(),
@@ -635,10 +668,10 @@ ${profile.semanticField.slice(0, 4).map((s) => `#${s.replace(/\s+/g, "")}`).join
     const msg = err instanceof Error ? err.message : String(err);
     return {
       agent: "copywriter",
-      title: "Génération du contenu (erreur)",
+      title: L("Génération du contenu (erreur)", "Content generation (error)"),
       status: "blocked",
-      output: "La génération de contenu a échoué.",
-      detail: `Erreur Anthropic API : ${msg}`,
+      output: L("La génération de contenu a échoué.", "Content generation failed."),
+      detail: L(`Erreur Anthropic API : ${msg}`, `Anthropic API error: ${msg}`),
       finishedAt: ts(),
     };
   }
@@ -677,14 +710,25 @@ async function runCreative(
   cadence: Required<Cadence>
 ): Promise<CreativeResult> {
   const platforms = profile.priorityPlatforms.slice(0, 2).join(" + ");
-  const briefBase = `Brief créatif — Profil : ${profile.label}
+  const L = makeL(input.language);
+  const briefBase = L(
+    `Brief créatif — Profil : ${profile.label}
 • Format principal : image carrée 1080×1080 px (Feed ${platforms}) + bannière 1200×628 px
 • Palette : tons cohérents avec la marque, professionnels
 • Style : photographie professionnelle authentique, adaptée au secteur
 • Éléments obligatoires : logo de la marque (coin bas-droit), mention légale si requis
 • Accroche visuelle : "${copyText.split("\n")[0].slice(0, 80)}…"
 • Variantes : Story 9:16 (1080×1920) + Réels 4:5 (1080×1350)
-• Tonalité visuelle : ${profile.recommendedTone}`;
+• Tonalité visuelle : ${profile.recommendedTone}`,
+    `Creative brief — Profile: ${profile.label}
+• Main format: square image 1080×1080 px (${platforms} feed) + banner 1200×628 px
+• Palette: professional tones consistent with the brand
+• Style: authentic professional photography, tailored to the sector
+• Required elements: brand logo (bottom-right corner), legal notice if required
+• Visual hook: "${copyText.split("\n")[0].slice(0, 80)}…"
+• Variants: Story 9:16 (1080×1920) + Reels 4:5 (1080×1350)
+• Visual tone: ${profile.recommendedTone}`
+  );
 
   // Le cycle ne génère PLUS le média en synchrone (Replicate image ~15s + vidéo
   // ~60-90s ferait dépasser la limite de 60s → 504). Il propose les PROMPTS ;
@@ -719,20 +763,20 @@ async function runCreative(
     } catch { /* repli prompt-only */ }
   }
 
-  const lines: string[] = [briefBase, `\n🎨 Prompt image :\n  ${imagePrompt}`];
-  if (videoPrompt) lines.push(`\n🎬 Prompt vidéo (à générer) :\n  ${videoPrompt}`);
+  const lines: string[] = [briefBase, L(`\n🎨 Prompt image :\n  ${imagePrompt}`, `\n🎨 Image prompt:\n  ${imagePrompt}`)];
+  if (videoPrompt) lines.push(L(`\n🎬 Prompt vidéo (à générer) :\n  ${videoPrompt}`, `\n🎬 Video prompt (to generate):\n  ${videoPrompt}`));
   lines.push(
     generatedImages
-      ? `\n✓ Visuel généré et enregistré dans la Médiathèque (réutilisable en pub).`
+      ? L(`\n✓ Visuel généré et enregistré dans la Médiathèque (réutilisable en pub).`, `\n✓ Visual generated and saved to the Media Library (reusable in ads).`)
       : isReplicateConfigured
-      ? `\n→ Cliquez sur « Générer l'image » / « Générer la vidéo » ci-dessous pour produire les visuels (Replicate).`
-      : `\n→ Configurez REPLICATE_API_TOKEN, puis générez les visuels en 1 clic.`
+      ? L(`\n→ Cliquez sur « Générer l'image » / « Générer la vidéo » ci-dessous pour produire les visuels (Replicate).`, `\n→ Click “Generate image” / “Generate video” below to produce the visuals (Replicate).`)
+      : L(`\n→ Configurez REPLICATE_API_TOKEN, puis générez les visuels en 1 clic.`, `\n→ Set REPLICATE_API_TOKEN, then generate the visuals in 1 click.`)
   );
 
   return {
     step: {
       agent: "creative",
-      title: "Brief créatif & visuel",
+      title: L("Brief créatif & visuel", "Creative & visual brief"),
       status: "done",
       output: lines.join("\n"),
       finishedAt: ts(),
@@ -758,14 +802,15 @@ async function runCompliance(
 }> {
   // Décision du CLIENT (option du run), pas du profil ni de l'app.
   const healthcareMode = Boolean(input.healthcareCompliance);
+  const L = makeL(input.language);
   if (!isAiConfigured) {
     return {
       step: {
         agent: "compliance",
-        title: "Vérification de conformité (mode mock)",
+        title: L("Vérification de conformité (mode mock)", "Compliance check (mock mode)"),
         status: "done",
-        output: "Verdict : PASS (mock) — aucun problème de conformité détecté.",
-        detail: "Mode mock actif — configurez ANTHROPIC_API_KEY pour l'évaluation réelle.",
+        output: L("Verdict : PASS (mock) — aucun problème de conformité détecté.", "Verdict: PASS (mock) — no compliance issue detected."),
+        detail: L("Mode mock actif — configurez ANTHROPIC_API_KEY pour l'évaluation réelle.", "Mock mode active — set ANTHROPIC_API_KEY for the real evaluation."),
         finishedAt: ts(),
       },
       verdict: "pass",
@@ -812,24 +857,28 @@ ${copyText}
     }
 
     const verdictEmoji = parsed.verdict === "pass" ? "✅" : parsed.verdict === "warn" ? "⚠️" : "🚫";
-    const verdictLabel = parsed.verdict === "pass" ? "CONFORME" : parsed.verdict === "warn" ? "AVERTISSEMENT" : "BLOQUÉ";
+    const verdictLabel = parsed.verdict === "pass"
+      ? L("CONFORME", "COMPLIANT")
+      : parsed.verdict === "warn"
+      ? L("AVERTISSEMENT", "WARNING")
+      : L("BLOQUÉ", "BLOCKED");
 
     const outputLines = [
-      `Verdict : ${verdictEmoji} ${verdictLabel}`,
+      `${L("Verdict :", "Verdict:")} ${verdictEmoji} ${verdictLabel}`,
       parsed.issues.length > 0
-        ? `Problèmes identifiés :\n${parsed.issues.map((i) => `  • ${i}`).join("\n")}`
-        : "Aucun problème identifié.",
+        ? `${L("Problèmes identifiés :", "Issues found:")}\n${parsed.issues.map((i) => `  • ${i}`).join("\n")}`
+        : L("Aucun problème identifié.", "No issue found."),
     ];
     if (parsed.suggestion) {
-      outputLines.push(`Suggestion : ${parsed.suggestion}`);
+      outputLines.push(`${L("Suggestion :", "Suggestion:")} ${parsed.suggestion}`);
     }
 
     return {
       step: {
         agent: "compliance",
         title: healthcareMode
-          ? "Vérification de conformité ANSM / Meta"
-          : "Vérification de conformité publicitaire",
+          ? L("Vérification de conformité ANSM / Meta", "ANSM / Meta compliance check")
+          : L("Vérification de conformité publicitaire", "Advertising compliance check"),
         status: parsed.verdict === "block" ? "blocked" : "done",
         output: outputLines.join("\n"),
         finishedAt: ts(),
@@ -843,14 +892,17 @@ ${copyText}
     return {
       step: {
         agent: "compliance",
-        title: "Vérification de conformité (erreur API)",
+        title: L("Vérification de conformité (erreur API)", "Compliance check (API error)"),
         status: "done",
-        output: "⚠️ AVERTISSEMENT — La vérification automatique a échoué. Révision manuelle obligatoire avant publication.",
-        detail: `Erreur : ${msg}`,
+        output: L(
+          "⚠️ AVERTISSEMENT — La vérification automatique a échoué. Révision manuelle obligatoire avant publication.",
+          "⚠️ WARNING — The automatic check failed. Manual review required before publishing."
+        ),
+        detail: L(`Erreur : ${msg}`, `Error: ${msg}`),
         finishedAt: ts(),
       },
       verdict: "warn",
-      issues: ["Vérification automatique indisponible — révision manuelle requise."],
+      issues: [L("Vérification automatique indisponible — révision manuelle requise.", "Automatic check unavailable — manual review required.")],
     };
   }
 }
@@ -869,14 +921,21 @@ async function runMediaBuyer(
 ): Promise<AgentStep> {
   const budgetMatch = input.objective.match(/(\d+)\s*€\s*\/?\s*j/i);
   const dailyBudget = budgetMatch ? parseInt(budgetMatch[1], 10) : 50;
+  const L = makeL(input.language);
 
   if (autonomy === 3 && dailyBudget > BUDGET_CAP_EUR) {
     return {
       agent: "media_buyer",
-      title: "Configuration campagne Meta Ads — BLOQUÉ (budget)",
+      title: L("Configuration campagne Meta Ads — BLOQUÉ (budget)", "Meta Ads campaign setup — BLOCKED (budget)"),
       status: "blocked",
-      output: `Budget quotidien demandé (${dailyBudget}€) dépasse le plafond autorisé (${BUDGET_CAP_EUR}€/j) en mode automatique.`,
-      detail: `Plafond de sécurité : ${BUDGET_CAP_EUR}€/jour. Réduisez le budget ou passez en autonomie 2 pour une validation manuelle.`,
+      output: L(
+        `Budget quotidien demandé (${dailyBudget}€) dépasse le plafond autorisé (${BUDGET_CAP_EUR}€/j) en mode automatique.`,
+        `Requested daily budget (€${dailyBudget}) exceeds the allowed cap (€${BUDGET_CAP_EUR}/day) in automatic mode.`
+      ),
+      detail: L(
+        `Plafond de sécurité : ${BUDGET_CAP_EUR}€/jour. Réduisez le budget ou passez en autonomie 2 pour une validation manuelle.`,
+        `Safety cap: €${BUDGET_CAP_EUR}/day. Lower the budget or switch to autonomy 2 for manual validation.`
+      ),
       finishedAt: ts(),
     };
   }
@@ -884,22 +943,30 @@ async function runMediaBuyer(
   if (blocked) {
     return {
       agent: "media_buyer",
-      title: "Configuration campagne Meta Ads — ANNULÉE",
+      title: L("Configuration campagne Meta Ads — ANNULÉE", "Meta Ads campaign setup — CANCELLED"),
       status: "blocked",
-      output: "Configuration annulée : le contenu a été bloqué par l'agent Conformité. Aucune campagne ne sera créée.",
+      output: L(
+        "Configuration annulée : le contenu a été bloqué par l'agent Conformité. Aucune campagne ne sera créée.",
+        "Setup cancelled: the content was blocked by the Compliance agent. No campaign will be created."
+      ),
       finishedAt: ts(),
     };
   }
 
-  const actionVerb = autonomy === 1 ? "Recommandation" : autonomy === 2 ? "Simulation" : "Exécution simulée";
+  const actionVerb = autonomy === 1
+    ? L("Recommandation", "Recommendation")
+    : autonomy === 2
+    ? L("Simulation", "Simulation")
+    : L("Exécution simulée", "Simulated execution");
   const platforms = profile.priorityPlatforms
     .filter((p) => ["Facebook", "Instagram"].includes(p))
     .join(", ") || "Facebook, Instagram";
 
   const days = cadence.postingDays.map((d) => DAY_NAMES[d] ?? d).join(", ");
-  const hours = cadence.postingHours.join(" et ");
+  const hours = cadence.postingHours.join(L(" et ", " and "));
 
-  const output = `${actionVerb} — Configuration campagne Meta Ads :
+  const output = L(
+    `${actionVerb} — Configuration campagne Meta Ads :
 • Profil : ${profile.label}
 • Nom de la campagne : "DDS_IA_${new Date().toISOString().slice(0, 10)}"
 • Objectif : CONVERSIONS (Lead Generation)
@@ -911,27 +978,55 @@ async function runMediaBuyer(
 • Enchères : CPC cible < ${profile.sectorKPIs.cpc.max}€
 • KPIs cibles : CTR ≥ ${profile.sectorKPIs.ctr.min}% · CPL ≤ ${profile.sectorKPIs.cpa.max}€
 ${
-  autonomy === 1
-    ? "\n⚠️ Autonomie 1 — Aucune campagne créée : validation et activation manuelles requises."
-    : autonomy === 2
-    ? "\n⚠️ Autonomie 2 — Campagne simulée : activez manuellement dans Meta Business Manager après validation."
-    : "\n✅ Autonomie 3 — Campagne transmise à Meta Ads API (connecteur requis pour exécution réelle)."
-}`;
+      autonomy === 1
+        ? "\n⚠️ Autonomie 1 — Aucune campagne créée : validation et activation manuelles requises."
+        : autonomy === 2
+        ? "\n⚠️ Autonomie 2 — Campagne simulée : activez manuellement dans Meta Business Manager après validation."
+        : "\n✅ Autonomie 3 — Campagne transmise à Meta Ads API (connecteur requis pour exécution réelle)."
+    }`,
+    `${actionVerb} — Meta Ads campaign setup:
+• Profile: ${profile.label}
+• Campaign name: "DDS_IA_${new Date().toISOString().slice(0, 10)}"
+• Objective: CONVERSIONS (Lead Generation)
+• Daily budget: €${dailyBudget}/day
+• Target audience: ${profile.typicalAudience}
+• Placements: ${platforms} Feed + Stories
+• Schedule: ${days} — ${hours}
+• Cadence: ${cadence.postingPerDay} post(s)/day
+• Bidding: target CPC < €${profile.sectorKPIs.cpc.max}
+• Target KPIs: CTR ≥ ${profile.sectorKPIs.ctr.min}% · CPL ≤ €${profile.sectorKPIs.cpa.max}
+${
+      autonomy === 1
+        ? "\n⚠️ Autonomy 1 — No campaign created: manual validation and activation required."
+        : autonomy === 2
+        ? "\n⚠️ Autonomy 2 — Simulated campaign: activate manually in Meta Business Manager after validation."
+        : "\n✅ Autonomy 3 — Campaign sent to the Meta Ads API (connector required for real execution)."
+    }`
+  );
 
   // Lien prêt-à-créer : ouvre /campaigns/new pré-rempli (visuel + texte) pour
   // créer la VRAIE campagne en PAUSE en un clic (sans dépense aveugle).
   const params = new URLSearchParams();
   if (imageUrl) params.set("image", imageUrl);
   if (copyText) params.set("text", copyText.slice(0, 600));
-  params.set("name", `Campagne IA ${new Date().toISOString().slice(0, 10)}`);
-  const handoff = `\n\n🔗 Créer cette campagne (pré-remplie, EN PAUSE) : /campaigns/new?${params.toString()}`;
+  params.set("name", L(`Campagne IA ${new Date().toISOString().slice(0, 10)}`, `AI campaign ${new Date().toISOString().slice(0, 10)}`));
+  const handoff = L(
+    `\n\n🔗 Créer cette campagne (pré-remplie, EN PAUSE) : /campaigns/new?${params.toString()}`,
+    `\n\n🔗 Create this campaign (pre-filled, PAUSED): /campaigns/new?${params.toString()}`
+  );
 
   return {
     agent: "media_buyer",
-    title: `Configuration campagne Meta Ads (${actionVerb.toLowerCase()})`,
+    title: L(
+      `Configuration campagne Meta Ads (${actionVerb.toLowerCase()})`,
+      `Meta Ads campaign setup (${actionVerb.toLowerCase()})`
+    ),
     status: "simulated",
     output: output + handoff,
-    detail: "Cliquez le lien pour créer la vraie campagne EN PAUSE (visuel + texte pré-remplis) puis activez-la quand vous voulez.",
+    detail: L(
+      "Cliquez le lien pour créer la vraie campagne EN PAUSE (visuel + texte pré-remplis) puis activez-la quand vous voulez.",
+      "Click the link to create the real campaign PAUSED (visual + text pre-filled), then activate it whenever you want."
+    ),
     finishedAt: ts(),
   };
 }
@@ -952,20 +1047,24 @@ async function runPublisher(
   generatedVideo: { url: string } | undefined,
   complianceVerdict: "pass" | "warn" | "block"
 ): Promise<{ step: AgentStep; publisherResult: PublisherResult }> {
+  const L = makeL(input.language);
   // Veto conformité — jamais publier si bloqué
   if (complianceVerdict === "block") {
     const result: PublisherResult = {
       status: "blocked",
       platforms: [],
-      message: "Publication empêchée par l'agent Conformité (verdict : BLOCK). Aucun contenu n'a été envoyé.",
+      message: L(
+        "Publication empêchée par l'agent Conformité (verdict : BLOCK). Aucun contenu n'a été envoyé.",
+        "Publishing prevented by the Compliance agent (verdict: BLOCK). No content was sent."
+      ),
     };
     return {
       step: {
         agent: "publisher",
-        title: "Publication — BLOQUÉE (conformité)",
+        title: L("Publication — BLOQUÉE (conformité)", "Publishing — BLOCKED (compliance)"),
         status: "blocked",
         output: result.message,
-        detail: "Le verdict de conformité 'block' empêche toute publication.",
+        detail: L("Le verdict de conformité 'block' empêche toute publication.", "The 'block' compliance verdict prevents any publishing."),
         finishedAt: ts(),
       },
       publisherResult: result,
@@ -983,15 +1082,21 @@ async function runPublisher(
     const result: PublisherResult = {
       status: "pending",
       platforms,
-      message: `Recommandation de publication préparée pour : ${platformsLabel}. Aucune action initiée (Autonomie N1 — validation manuelle requise).`,
+      message: L(
+        `Recommandation de publication préparée pour : ${platformsLabel}. Aucune action initiée (Autonomie N1 — validation manuelle requise).`,
+        `Publishing recommendation prepared for: ${platformsLabel}. No action taken (Autonomy N1 — manual validation required).`
+      ),
     };
     return {
       step: {
         agent: "publisher",
-        title: "Proposition de publication (Autonomie N1)",
+        title: L("Proposition de publication (Autonomie N1)", "Publishing proposal (Autonomy N1)"),
         status: "simulated",
-        output: `[RECOMMANDATION — non publiée]\n\nPlateformes cibles : ${platformsLabel}\nContenu préparé : ${copyText.slice(0, 200)}${copyText.length > 200 ? "…" : ""}\n\nVisuels disponibles : ${generatedImages && generatedImages.length > 0 ? generatedImages.map((i) => i.url).join(", ") : "aucun visuel généré"}${generatedVideo ? `\nVidéo : ${generatedVideo.url}` : ""}\n\n⚠️ Autonomie N1 — Aucune publication initiée. Validez et publiez manuellement sur les plateformes.`,
-        detail: "Autonomie 1 : proposition uniquement, aucune action exécutée.",
+        output: L(
+          `[RECOMMANDATION — non publiée]\n\nPlateformes cibles : ${platformsLabel}\nContenu préparé : ${copyText.slice(0, 200)}${copyText.length > 200 ? "…" : ""}\n\nVisuels disponibles : ${generatedImages && generatedImages.length > 0 ? generatedImages.map((i) => i.url).join(", ") : "aucun visuel généré"}${generatedVideo ? `\nVidéo : ${generatedVideo.url}` : ""}\n\n⚠️ Autonomie N1 — Aucune publication initiée. Validez et publiez manuellement sur les plateformes.`,
+          `[RECOMMENDATION — not published]\n\nTarget platforms: ${platformsLabel}\nPrepared content: ${copyText.slice(0, 200)}${copyText.length > 200 ? "…" : ""}\n\nAvailable visuals: ${generatedImages && generatedImages.length > 0 ? generatedImages.map((i) => i.url).join(", ") : "no visual generated"}${generatedVideo ? `\nVideo: ${generatedVideo.url}` : ""}\n\n⚠️ Autonomy N1 — No publishing initiated. Validate and publish manually on the platforms.`
+        ),
+        detail: L("Autonomie 1 : proposition uniquement, aucune action exécutée.", "Autonomy 1: proposal only, no action executed."),
         finishedAt: ts(),
       },
       publisherResult: result,
@@ -1019,7 +1124,7 @@ async function runPublisher(
         }),
       });
       if (resp.ok) {
-        publishResults.push({ platform, success: true, detail: "Publication envoyée avec succès." });
+        publishResults.push({ platform, success: true, detail: L("Publication envoyée avec succès.", "Post sent successfully.") });
       } else {
         const err = await resp.json().catch(() => ({ error: `HTTP ${resp.status}` }));
         publishResults.push({
@@ -1032,7 +1137,7 @@ async function runPublisher(
       publishResults.push({
         platform,
         success: false,
-        detail: "Connecteur non disponible (endpoint introuvable ou non configuré).",
+        detail: L("Connecteur non disponible (endpoint introuvable ou non configuré).", "Connector unavailable (endpoint missing or not configured)."),
       });
     }
   }
@@ -1045,8 +1150,8 @@ async function runPublisher(
     : "simulated";
 
   const outputLines: string[] = [
-    `Résultat de publication (Autonomie N${input.autonomy}) :`,
-    `Plateformes ciblées : ${platformsLabel}`,
+    L(`Résultat de publication (Autonomie N${input.autonomy}) :`, `Publishing result (Autonomy N${input.autonomy}):`),
+    L(`Plateformes ciblées : ${platformsLabel}`, `Target platforms: ${platformsLabel}`),
     "",
   ];
 
@@ -1057,17 +1162,29 @@ async function runPublisher(
   if (allFailed) {
     outputLines.push(
       "",
-      `⚠️ Connecteurs non configurés — le contenu a été préparé mais non publié.`,
-      `Configurez les connecteurs Meta Business API / LinkedIn API pour activer la publication automatique.`
+      L(
+        `⚠️ Connecteurs non configurés — le contenu a été préparé mais non publié.`,
+        `⚠️ Connectors not configured — the content was prepared but not published.`
+      ),
+      L(
+        `Configurez les connecteurs Meta Business API / LinkedIn API pour activer la publication automatique.`,
+        `Configure the Meta Business API / LinkedIn API connectors to enable automatic publishing.`
+      )
     );
   } else if (input.autonomy === 2) {
-    outputLines.push("", "ℹ️ Autonomie N2 — La publication a été soumise mais requiert une validation finale dans les dashboards des plateformes.");
+    outputLines.push("", L(
+      "ℹ️ Autonomie N2 — La publication a été soumise mais requiert une validation finale dans les dashboards des plateformes.",
+      "ℹ️ Autonomy N2 — The post was submitted but requires final validation in the platforms' dashboards."
+    ));
   } else {
-    outputLines.push("", "✅ Autonomie N3 — Publication déclenchée sous garde-fous conformité.");
+    outputLines.push("", L(
+      "✅ Autonomie N3 — Publication déclenchée sous garde-fous conformité.",
+      "✅ Autonomy N3 — Publishing triggered under compliance guardrails."
+    ));
   }
 
   if (mediaUrls.length > 0) {
-    outputLines.push("", "Médias attachés :");
+    outputLines.push("", L("Médias attachés :", "Attached media:"));
     mediaUrls.forEach((u) => outputLines.push(`  • ${u}`));
   }
 
@@ -1075,22 +1192,34 @@ async function runPublisher(
     status: publisherStatus,
     platforms,
     message: allFailed
-      ? `Connecteurs non configurés — contenu préparé pour ${platformsLabel} mais non publié.`
+      ? L(
+          `Connecteurs non configurés — contenu préparé pour ${platformsLabel} mais non publié.`,
+          `Connectors not configured — content prepared for ${platformsLabel} but not published.`
+        )
       : anySuccess
-      ? `Contenu ${input.autonomy === 3 ? "publié" : "programmé"} sur ${publishResults.filter((r) => r.success).map((r) => r.platform).join(", ")}.`
-      : `Publication simulée — connecteurs requis pour ${platformsLabel}.`,
+      ? L(
+          `Contenu ${input.autonomy === 3 ? "publié" : "programmé"} sur ${publishResults.filter((r) => r.success).map((r) => r.platform).join(", ")}.`,
+          `Content ${input.autonomy === 3 ? "published" : "scheduled"} on ${publishResults.filter((r) => r.success).map((r) => r.platform).join(", ")}.`
+        )
+      : L(
+          `Publication simulée — connecteurs requis pour ${platformsLabel}.`,
+          `Simulated publishing — connectors required for ${platformsLabel}.`
+        ),
   };
 
   return {
     step: {
       agent: "publisher",
       title: anySuccess
-        ? `Publication déclenchée (N${input.autonomy})`
-        : `Publication préparée — connecteurs requis`,
+        ? L(`Publication déclenchée (N${input.autonomy})`, `Publishing triggered (N${input.autonomy})`)
+        : L(`Publication préparée — connecteurs requis`, `Publishing prepared — connectors required`),
       status: anySuccess ? "done" : "simulated",
       output: outputLines.join("\n"),
       detail: allFailed
-        ? "Connecteurs requis : Meta Business API + LinkedIn API. Configurez-les dans les paramètres de l'application."
+        ? L(
+            "Connecteurs requis : Meta Business API + LinkedIn API. Configurez-les dans les paramètres de l'application.",
+            "Required connectors: Meta Business API + LinkedIn API. Configure them in the app settings."
+          )
         : undefined,
       finishedAt: ts(),
     },
@@ -1108,20 +1237,24 @@ async function runAnalyst(
   cadence: Required<Cadence>,
   blocked: boolean
 ): Promise<{ step: AgentStep; benchmark: BenchmarkResult }> {
+  const L = makeL(input.language);
   if (blocked) {
     const emptyBenchmark: BenchmarkResult = {
       benchmarkTarget: input.benchmarkTarget ?? `Benchmark ${profile.label}`,
       kpiRows: [],
       audienceCaptureProjection: { targetAudienceSize: 0, estimatedReach: 0, captureRate: 0, timeframe: "—" },
       optimizationRecommendations: [],
-      summary: "Analyse annulée suite au blocage conformité.",
+      summary: L("Analyse annulée suite au blocage conformité.", "Analysis cancelled after the compliance block."),
     };
     return {
       step: {
         agent: "analyst",
-        title: "Benchmark & analyse de performance — ANNULÉE",
+        title: L("Benchmark & analyse de performance — ANNULÉE", "Benchmark & performance analysis — CANCELLED"),
         status: "blocked",
-        output: "Analyse annulée : le contenu a été bloqué par l'agent Conformité. Aucune projection n'est produite.",
+        output: L(
+          "Analyse annulée : le contenu a été bloqué par l'agent Conformité. Aucune projection n'est produite.",
+          "Analysis cancelled: the content was blocked by the Compliance agent. No projection is produced."
+        ),
         finishedAt: ts(),
       },
       benchmark: emptyBenchmark,
@@ -1135,14 +1268,14 @@ async function runAnalyst(
 
   if (!isAiConfigured) {
     const benchmark = mockBenchmark(profile, cadence, dailyBudget, input.benchmarkTarget);
-    const output = buildBenchmarkOutput(benchmark, totalBudget, dailyBudget, cadence);
+    const output = buildBenchmarkOutput(benchmark, totalBudget, dailyBudget, cadence, input.language);
     return {
       step: {
         agent: "analyst",
-        title: "Benchmark sectoriel & captation d'audience (mode mock)",
+        title: L("Benchmark sectoriel & captation d'audience (mode mock)", "Sector benchmark & audience capture (mock mode)"),
         status: "simulated",
         output,
-        detail: "Mode mock — configurez ANTHROPIC_API_KEY pour l'analyse IA temps réel.",
+        detail: L("Mode mock — configurez ANTHROPIC_API_KEY pour l'analyse IA temps réel.", "Mock mode — set ANTHROPIC_API_KEY for real-time AI analysis."),
         finishedAt: ts(),
       },
       benchmark,
@@ -1173,11 +1306,11 @@ async function runAnalyst(
       benchmark = mockBenchmark(profile, cadence, dailyBudget, input.benchmarkTarget);
     }
 
-    const output = buildBenchmarkOutput(benchmark, totalBudget, dailyBudget, cadence);
+    const output = buildBenchmarkOutput(benchmark, totalBudget, dailyBudget, cadence, input.language);
     return {
       step: {
         agent: "analyst",
-        title: "Benchmark sectoriel & captation d'audience",
+        title: L("Benchmark sectoriel & captation d'audience", "Sector benchmark & audience capture"),
         status: "done",
         output,
         finishedAt: ts(),
@@ -1187,14 +1320,14 @@ async function runAnalyst(
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     const benchmark = mockBenchmark(profile, cadence, dailyBudget, input.benchmarkTarget);
-    const output = buildBenchmarkOutput(benchmark, totalBudget, dailyBudget, cadence);
+    const output = buildBenchmarkOutput(benchmark, totalBudget, dailyBudget, cadence, input.language);
     return {
       step: {
         agent: "analyst",
-        title: "Benchmark sectoriel (dégradation)",
+        title: L("Benchmark sectoriel (dégradation)", "Sector benchmark (degraded)"),
         status: "simulated",
         output,
-        detail: `Erreur API : ${msg}`,
+        detail: L(`Erreur API : ${msg}`, `API error: ${msg}`),
         finishedAt: ts(),
       },
       benchmark,
@@ -1206,18 +1339,21 @@ function buildBenchmarkOutput(
   b: BenchmarkResult,
   totalBudget: number,
   dailyBudget: number,
-  cadence: Required<Cadence>
+  cadence: Required<Cadence>,
+  language?: "fr" | "en"
 ): string {
+  const L = makeL(language);
   const rows = b.kpiRows
     .map((r) => {
       const icon = r.assessment === "above" ? "↑" : r.assessment === "below" ? "↓" : "≈";
-      return `  ${icon} ${r.kpi.padEnd(22)} Cible : ${r.targetValue.padEnd(10)} Secteur : ${r.sectorReference}`;
+      return `  ${icon} ${r.kpi.padEnd(22)} ${L("Cible :", "Target:")} ${r.targetValue.padEnd(10)} ${L("Secteur :", "Sector:")} ${r.sectorReference}`;
     })
     .join("\n");
 
   const proj = b.audienceCaptureProjection;
 
-  return `Cible benchmark : ${b.benchmarkTarget}
+  return L(
+    `Cible benchmark : ${b.benchmarkTarget}
 Budget : ${dailyBudget}€/j · Total période : ${totalBudget.toLocaleString("fr-FR")}€
 
 Tableau KPIs (↑ au-dessus / ≈ dans la norme / ↓ en dessous) :
@@ -1232,7 +1368,24 @@ Projection de captation d'audience :
 Recommandations d'optimisation :
 ${b.optimizationRecommendations.map((r) => `  • ${r}`).join("\n")}
 
-Synthèse : ${b.summary}`;
+Synthèse : ${b.summary}`,
+    `Benchmark target: ${b.benchmarkTarget}
+Budget: €${dailyBudget}/day · Period total: €${totalBudget.toLocaleString("en-US")}
+
+KPI table (↑ above / ≈ within norm / ↓ below):
+${rows}
+
+Audience capture projection:
+  Estimated target audience : ${proj.targetAudienceSize.toLocaleString("en-US")} people
+  Projected reach           : ${proj.estimatedReach.toLocaleString("en-US")} unique contacts
+  Capture rate              : ${proj.captureRate}% of the target audience
+  Timeframe                 : ${proj.timeframe}
+
+Optimization recommendations:
+${b.optimizationRecommendations.map((r) => `  • ${r}`).join("\n")}
+
+Summary: ${b.summary}`
+  );
 }
 
 // ── Point d'entrée principal ──────────────────────────────────────────────────

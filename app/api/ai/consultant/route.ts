@@ -227,7 +227,11 @@ export async function POST(req: NextRequest) {
     const messages: ChatMsg[] = Array.isArray(body.messages) ? body.messages.filter((m) => str(m?.content)) : [];
     if (!isAiConfigured) {
       return NextResponse.json(
-        { error: "IA non configurée (ANTHROPIC_API_KEY)." },
+        {
+          error: lang === "en"
+            ? "AI not configured (ANTHROPIC_API_KEY)."
+            : "IA non configurée (ANTHROPIC_API_KEY).",
+        },
         { status: 503 }
       );
     }
@@ -327,16 +331,25 @@ Prise de parole naturelle, humaine, ${lang === "en" ? "EN ANGLAIS (the client's 
   "memoryNotes": [ { "kind": "insight|angle|format|recommendation|competitor|keyword", "title": "", "content": "", "network": "(optionnel) instagram|facebook|tiktok|linkedin" } ]
 }`;
 
-    // Modèle rapide + budget de tokens réduit : l'entretien doit rester fluide
-    // (les tours longs faisaient ~70 s avec un gros modèle / 2200 tokens).
-    const result = await callClaudeJSON<ConsultantResult>(prompt, {
-      model: "claude-sonnet-4-6",
-      maxTokens: 1600,
-      temperature: 0.7,
-    });
+    // Modèle rapide, budget de tokens suffisant pour le JSON complet (un budget
+    // trop court tronquait la réponse → JSON invalide → « reformulez » en boucle),
+    // et un ré-essai automatique : un échec ponctuel ne doit pas bloquer l'entretien.
+    let result: ConsultantResult | null = null;
+    for (let attempt = 0; attempt < 2 && !result; attempt++) {
+      result = await callClaudeJSON<ConsultantResult>(prompt, {
+        model: "claude-sonnet-4-6",
+        maxTokens: 3000,
+        temperature: 0.7,
+        timeoutMs: 25_000,
+      });
+    }
     if (!result) {
       return NextResponse.json(
-        { error: "Le consultant IA n'a pas pu répondre. Reformulez ou réessayez." },
+        {
+          error: lang === "en"
+            ? "The AI consultant could not reply. Please try again."
+            : "Le consultant IA n'a pas pu répondre. Reformulez ou réessayez.",
+        },
         { status: 502 }
       );
     }

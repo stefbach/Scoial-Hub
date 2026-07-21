@@ -8,7 +8,7 @@
 
 import { useState } from "react";
 import { useOnboardingCtx } from "@/components/onboarding/context";
-import { useT } from "@/lib/i18n";
+import { useT, useLang } from "@/lib/i18n";
 import type { AgentRunResult } from "@/lib/agents/types";
 
 // ── Icônes SVG inline ────────────────────────────────────────────────────────
@@ -421,6 +421,7 @@ function CreativeBriefCard({ imagePrompt, videoPrompt }: { imagePrompt?: string;
 
 export default function Step5Agents() {
   const t = useT();
+  const { lang } = useLang();
   const { state, profile, companyId, companyName } = useOnboardingCtx();
 
   const [running, setRunning]   = useState(false);
@@ -478,6 +479,8 @@ export default function Step5Agents() {
           companyId,
           brandVoice: profile.tone || companyName,
           autonomy: 2,
+          // Bug 6 : les textes des agents doivent suivre la langue de l'UI.
+          language: lang,
         }),
       });
 

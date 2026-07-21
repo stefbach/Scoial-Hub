@@ -19,7 +19,7 @@ type Studio = "affiche" | "avatar" | "video";
 
 interface CopilotResult {
   reply?: string;
-  prompt?: string;          // prompt de génération prêt à l'emploi (EN pour image/vidéo)
+  prompt?: string;          // prompt de génération prêt à l'emploi (dans la langue de l'UI)
   modelId?: string;         // id de modèle recommandé (depuis la liste fournie)
   category?: "image" | "edit" | "upscale" | "video" | "music" | "voice";
   aspect?: string;          // 1:1 | 4:5 | 16:9 | 9:16
@@ -73,6 +73,9 @@ export async function POST(req: NextRequest) {
     const studio = (body.studio ?? "affiche") as Studio;
     const goal = (body.goal ?? "").trim();
     const lang = body.language === "en" ? "en" : "fr";
+    // #BUG15 — le prompt de génération suit la langue de l'UI. Rétro-compatible :
+    // sans paramètre `language`, on conserve l'ancien comportement (anglais).
+    const promptLang = body.language ? (lang === "en" ? "ANGLAIS" : "FRANÇAIS") : "ANGLAIS";
     if (!companyId) return NextResponse.json({ error: "companyId requis" }, { status: 400 });
     if (!goal) return NextResponse.json({ error: "goal requis" }, { status: 400 });
 
@@ -107,7 +110,7 @@ ${body.currentPrompt ? `\n# PROMPT ACTUEL DANS LE STUDIO\n${body.currentPrompt}`
 
 # CE QUE TU PRODUIS
 1. "reply" : une réponse courte, humaine et utile (langue : ${lang === "en" ? "anglais" : "français"}), qui explique ton choix en 1-3 phrases.
-2. "prompt" : un PROMPT de génération prêt à l'emploi — pour les modèles d'IMAGE/VIDÉO, écris-le EN ANGLAIS, très détaillé et premium (sujet, composition, cadrage, lumière, style, ambiance, rendu HD), SANS texte incrusté sauf si explicitement demandé. Pour la MUSIQUE, décris genre/instruments/tempo/ambiance. Pour la VOIX, "prompt" = le texte à dire.
+2. "prompt" : un PROMPT de génération prêt à l'emploi — rédigé en ${promptLang} (la langue de l'interface : l'utilisateur doit pouvoir le lire et l'éditer), très détaillé et premium (sujet, composition, cadrage, lumière, style, ambiance, rendu HD), SANS texte incrusté sauf si explicitement demandé. Pour la MUSIQUE, décris genre/instruments/tempo/ambiance. Pour la VOIX, "prompt" = le texte à dire.
 3. "category" : la catégorie d'action (image | edit | upscale | video | music | voice).
 4. "modelId" : l'id EXACT du meilleur modèle de la liste pour cette demande.
 5. "aspect" : 1:1, 4:5, 16:9 ou 9:16 selon l'usage.

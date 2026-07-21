@@ -29,6 +29,7 @@ export default function MonEquipePage() {
   const [denied, setDenied] = useState(false);
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<TeamMember | null>(null);
+  const [removing, setRemoving] = useState<TeamMember | null>(null);
   const [note, setNote] = useState<string | null>(null);
 
   // Aucun email n'est envoyé automatiquement : on fournit un texte d'invitation
@@ -66,9 +67,11 @@ export default function MonEquipePage() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Confirmation applicative (pas de window.confirm : dialogue natif du
+  // navigateur signalé en QA — bug 9). La modale stylée `removing` prend le relais.
   async function removeMember(userId: string) {
-    if (!window.confirm(t("Retirer ce membre de l'équipe ?", "Remove this member from the team?"))) return;
     await fetch(`/api/team?userId=${encodeURIComponent(userId)}`, { method: "DELETE" });
+    setRemoving(null);
     load();
   }
   async function revokeInvite(id: string) {
@@ -146,7 +149,7 @@ export default function MonEquipePage() {
                 {m.role !== "owner" && (
                   <div className="flex shrink-0 items-center gap-2">
                     <button onClick={() => setEditing(m)} className="btn-secondary text-2xs">{t("Accès", "Access")}</button>
-                    <button onClick={() => removeMember(m.userId)} className="btn-ghost text-2xs text-danger-600">{t("Retirer", "Remove")}</button>
+                    <button onClick={() => setRemoving(m)} className="btn-ghost text-2xs text-danger-600">{t("Retirer", "Remove")}</button>
                   </div>
                 )}
               </div>
@@ -200,7 +203,13 @@ export default function MonEquipePage() {
                     )
               );
             } else if (res?.added) {
-              setNote(t("Utilisateur ajouté à l'équipe ✓", "User added to the team ✓"));
+              // Bug 10 : l'utilisateur déjà inscrit est désormais prévenu par
+              // e-mail de ses nouveaux accès — on reflète l'envoi réel.
+              setNote(
+                res.emailSent
+                  ? t("Utilisateur ajouté à l'équipe ✓ — il a été prévenu par e-mail.", "User added to the team ✓ — they were notified by email.")
+                  : t("Utilisateur ajouté à l'équipe ✓ (e-mail de notification non envoyé : service e-mail non configuré).", "User added to the team ✓ (notification email not sent: email service not configured).")
+              );
             }
           }}
         />
@@ -212,6 +221,33 @@ export default function MonEquipePage() {
           onClose={() => setEditing(null)}
           onSaved={() => { setEditing(null); load(); }}
         />
+      )}
+
+      {/* Confirmation de retrait — remplace le confirm() natif du navigateur (bug 9) */}
+      {removing && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-ink/50 p-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-label={t("Retirer ce membre", "Remove this member")}
+          onClick={() => setRemoving(null)}
+        >
+          <div className="card w-full max-w-sm p-5" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-base font-semibold text-ink">{t("Retirer ce membre ?", "Remove this member?")}</h2>
+            <p className="mt-2 text-sm text-muted">
+              {t(
+                `${removing.email} perdra immédiatement l'accès à toutes les sociétés du compte.`,
+                `${removing.email} will immediately lose access to all companies of this account.`
+              )}
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button onClick={() => setRemoving(null)} className="btn-secondary text-sm">{t("Annuler", "Cancel")}</button>
+              <button onClick={() => removeMember(removing.userId)} className="btn-primary text-sm">
+                {t("Retirer", "Remove")}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

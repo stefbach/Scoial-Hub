@@ -42,6 +42,59 @@ function firstImage(d: unknown): string | null {
   return null;
 }
 
+// ── Encodage WAV minimal (clonage de voix) ───────────────────────────────────
+// Replicate (MiniMax/XTTS) n'accepte que wav/mp3/m4a : un enregistrement
+// MediaRecorder (webm/ogg) est donc décodé via WebAudio puis ré-encodé en
+// WAV PCM 16 bits mono, sans dépendance externe.
+
+/** Extensions d'échantillon acceptées telles quelles par le clonage. */
+const CLONE_EXTS = ["wav", "mp3", "m4a"];
+
+/** AudioBuffer → Blob WAV (PCM 16 bits, mono — suffisant pour le clonage). */
+function audioBufferToWav(buf: AudioBuffer): Blob {
+  const rate = buf.sampleRate;
+  const frames = buf.length;
+  const dataSize = frames * 2; // mono, 2 octets/échantillon
+  const ab = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(ab);
+  const str = (off: number, s: string) => { for (let i = 0; i < s.length; i++) view.setUint8(off + i, s.charCodeAt(i)); };
+  str(0, "RIFF"); view.setUint32(4, 36 + dataSize, true); str(8, "WAVE");
+  str(12, "fmt "); view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);            // PCM
+  view.setUint16(22, 1, true);            // mono
+  view.setUint32(24, rate, true);
+  view.setUint32(28, rate * 2, true);     // octets/seconde
+  view.setUint16(32, 2, true);            // alignement de bloc
+  view.setUint16(34, 16, true);           // bits/échantillon
+  str(36, "data"); view.setUint32(40, dataSize, true);
+  // Mixage mono (moyenne des canaux) puis quantification 16 bits.
+  const chans: Float32Array[] = [];
+  for (let c = 0; c < buf.numberOfChannels; c++) chans.push(buf.getChannelData(c));
+  let off = 44;
+  for (let i = 0; i < frames; i++) {
+    let s = 0;
+    for (const ch of chans) s += ch[i];
+    s = Math.max(-1, Math.min(1, s / chans.length));
+    view.setInt16(off, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+    off += 2;
+  }
+  return new Blob([ab], { type: "audio/wav" });
+}
+
+/** Décode n'importe quel blob audio lisible par le navigateur → WAV. */
+async function toWavBlob(blob: Blob): Promise<Blob> {
+  type WinAC = typeof window & { webkitAudioContext?: typeof AudioContext };
+  const Ctx = window.AudioContext ?? (window as WinAC).webkitAudioContext;
+  if (!Ctx) throw new Error("WebAudio indisponible");
+  const ctx = new Ctx();
+  try {
+    const decoded = await ctx.decodeAudioData(await blob.arrayBuffer());
+    return audioBufferToWav(decoded);
+  } finally {
+    void ctx.close();
+  }
+}
+
 export default function StudioAvatarPage() {
   const { company, access } = useCompany();
   const t = useT();
@@ -276,9 +329,19 @@ export default function StudioAvatarPage() {
   }
 
   // Clone une voix à partir d'un échantillon audio téléversé.
+  // #BUG18 — Replicate n'accepte que wav/mp3/m4a : une extension valide est
+  // conservée telle quelle, sinon l'échantillon est ré-encodé en WAV localement.
   async function cloneVoiceFile(files: FileList | null) {
     if (!files || files.length === 0) return;
-    await cloneVoiceBlob(files[0], files[0].name);
+    const file = files[0];
+    const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+    if (CLONE_EXTS.includes(ext)) { await cloneVoiceBlob(file, file.name); return; }
+    try {
+      const wav = await toWavBlob(file);
+      await cloneVoiceBlob(wav, `${file.name.replace(/\.[^.]*$/, "") || "echantillon"}.wav`);
+    } catch {
+      setError(t("Format audio non reconnu. Utilisez un fichier wav, mp3 ou m4a.", "Unrecognized audio format. Use a wav, mp3 or m4a file."));
+    }
   }
 
   // Cœur du clonage : upload de l'échantillon (fichier OU enregistrement micro)
@@ -343,14 +406,25 @@ export default function StudioAvatarPage() {
       const mr = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
       chunksRef.current = [];
       mr.ondataavailable = (e) => { if (e.data && e.data.size > 0) chunksRef.current.push(e.data); };
-      mr.onstop = () => {
+      mr.onstop = async () => {
         stream.getTracks().forEach((tr) => tr.stop());
         if (recTimerRef.current) { clearInterval(recTimerRef.current); recTimerRef.current = null; }
         setRecording(false);
         const type = mr.mimeType || "audio/webm";
-        const ext = type.includes("mp4") ? "m4a" : type.includes("ogg") ? "ogg" : "webm";
         const blob = new Blob(chunksRef.current, { type });
-        void cloneVoiceBlob(blob, `enregistrement-${Date.now()}.${ext}`);
+        // #BUG18 — Replicate rejette webm/ogg (« invalid file ext for voice
+        // clone ») : l'enregistrement est ré-encodé en WAV avant l'envoi.
+        // Safari enregistre en audio/mp4 → m4a, accepté tel quel.
+        if (type.includes("mp4")) {
+          void cloneVoiceBlob(blob, `enregistrement-${Date.now()}.m4a`);
+          return;
+        }
+        try {
+          const wav = await toWavBlob(blob);
+          void cloneVoiceBlob(wav, `enregistrement-${Date.now()}.wav`);
+        } catch {
+          setError(t("Conversion audio impossible. Téléversez plutôt un fichier wav, mp3 ou m4a.", "Audio conversion failed. Upload a wav, mp3 or m4a file instead."));
+        }
       };
       mr.start();
       mediaRecRef.current = mr;
@@ -565,8 +639,9 @@ export default function StudioAvatarPage() {
                 </div>
               )}
 
-              {/* Décor / environnement appliqué au portrait courant */}
-              <div className="border-t border-hair pt-3">
+              {/* Décor / environnement appliqué au portrait courant.
+                  #BUG16 — sans cadre ni filet gris : la carte d'étape suffit. */}
+              <div className="pt-1">
                 <label className="text-2xs text-muted">{t("Décor / environnement (optionnel)", "Background / environment (optional)")}</label>
                 <div className="mt-1 flex gap-2">
                   <input value={environment} onChange={(e) => setEnvironment(e.target.value)} placeholder={t("Ex. « bureau moderne », « clinique épurée », « studio dégradé violet »", "E.g. \"modern office\", \"clean clinic\", \"purple gradient studio\"")} className="input flex-1" />
@@ -586,8 +661,8 @@ export default function StudioAvatarPage() {
                 </div>
               )}
 
-              {/* #18 — enregistrer / réutiliser un avatar */}
-              <div className="flex flex-wrap items-center gap-2 border-t border-hair pt-2">
+              {/* #18 — enregistrer / réutiliser un avatar (#BUG16 : sans filet gris) */}
+              <div className="flex flex-wrap items-center gap-2 pt-1">
                 <MediaLibraryButton
                   companyId={company.id}
                   accept="image"
@@ -718,13 +793,15 @@ export default function StudioAvatarPage() {
           <div className="space-y-3 lg:sticky lg:top-4 lg:self-start">
             <p className="section-label">{t("Résultat", "Result")}</p>
             <Tilt3D max={5} className="rounded-xl">
-              <div className="studio-preview mx-auto flex aspect-[9/16] max-h-[72vh] w-full items-center justify-center overflow-hidden rounded-xl bg-black/40">
+              {/* #BUG19 — placeholder clair (bg-canvas + hairline) accordé à la
+                  page ; le fond noir ne s'applique qu'à la vidéo elle-même. */}
+              <div className={`studio-preview mx-auto flex aspect-[9/16] max-h-[72vh] w-full items-center justify-center overflow-hidden rounded-xl ${videoUrl ? "bg-black" : "bg-canvas"}`}>
                 {videoUrl ? (
                   // eslint-disable-next-line jsx-a11y/media-has-caption
                   <video src={videoUrl} controls autoPlay className="h-full w-full object-contain bg-black" />
                 ) : (
                   <div className="flex flex-col items-center gap-3 px-6 text-center">
-                    <span className="animate-float flex h-14 w-14 items-center justify-center rounded-2xl bg-white/[0.04] text-muted ring-1 ring-hair"><IconClapper size={26} /></span>
+                    <span className="animate-float flex h-14 w-14 items-center justify-center rounded-2xl bg-card text-muted ring-1 ring-hair"><IconClapper size={26} /></span>
                     <p className="text-sm text-muted">{t("La vidéo de votre avatar s'affichera ici.", "Your avatar video will appear here.")}</p>
                   </div>
                 )}

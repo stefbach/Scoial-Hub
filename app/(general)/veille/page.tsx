@@ -62,6 +62,33 @@ const NETWORKS: { value: ScrapeNetwork; label: string }[] = [
   { value: "facebook",  label: "Facebook" },
 ];
 
+// #28 — URL externe pour vérifier qu'un compte suggéré existe réellement :
+// profil direct si un handle est connu, sinon recherche Google ciblée sur le réseau.
+const NETWORK_DOMAIN: Record<ScrapeNetwork, string> = {
+  instagram: "instagram.com",
+  tiktok:    "tiktok.com",
+  youtube:   "youtube.com",
+  linkedin:  "linkedin.com",
+  twitter:   "x.com",
+  facebook:  "facebook.com",
+};
+
+function competitorVerifyUrl(network: ScrapeNetwork, name: string, handle?: string | null): string {
+  const h = (handle ?? "").trim().replace(/^@/, "");
+  if (h) {
+    const enc = encodeURIComponent(h);
+    switch (network) {
+      case "instagram": return `https://www.instagram.com/${enc}`;
+      case "tiktok":    return `https://www.tiktok.com/@${enc}`;
+      case "youtube":   return `https://www.youtube.com/@${enc}`;
+      case "linkedin":  return `https://www.linkedin.com/company/${enc}`;
+      case "twitter":   return `https://x.com/${enc}`;
+      case "facebook":  return `https://www.facebook.com/${enc}`;
+    }
+  }
+  return `https://www.google.com/search?q=${encodeURIComponent(`site:${NETWORK_DOMAIN[network]} ${name}`)}`;
+}
+
 /* ─────────────────────────────────────────────────────────────────────────────
    Composant Tag Input léger
 ───────────────────────────────────────────────────────────────────────────── */
@@ -549,6 +576,31 @@ export default function VeillePage() {
                   : <><SparkleIcon /> {t("Identifier des concurrents", "Identify competitors")}</>}
               </button>
 
+              {/* #29 — Liste des compétiteurs suivis, juste sous les boutons d'ajout
+                  (avant les suggestions IA, qui ne sont que des pistes à vérifier). */}
+              {loadingCompetitors ? (
+                <div className="flex justify-center py-4"><Spinner /></div>
+              ) : competitors.length > 0 ? (
+                <div className="space-y-1.5 pt-1">
+                  <p className="text-2xs font-semibold text-muted uppercase tracking-widest">{t("Liste active", "Active list")}</p>
+                  {competitors.map((c) => (
+                    <CompetitorItem
+                      key={c.id}
+                      competitor={c}
+                      onRemove={handleRemove}
+                      removing={removingId === c.id}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-muted text-center py-2">
+                  {t(
+                    "Aucun compétiteur — ajoutez-en ou utilisez « Identifier ».",
+                    "No competitors — add some or use \"Identify\"."
+                  )}
+                </p>
+              )}
+
               {/* Note : plus de concurrents = mémoire plus riche */}
               <div className="flex items-start gap-1.5 rounded-lg bg-ai-textbg px-2.5 py-2">
                 <SparkleIcon />
@@ -574,7 +626,10 @@ export default function VeillePage() {
                     const typed = (editedHandles[i] ?? "").trim();
                     const canAdd = Boolean(c.handle) || typed.length > 0;
                     return (
-                    <div key={`${c.name}-${c.network}-${i}`} className="rounded-lg border border-dashed border-primary-200 bg-primary-50/40 p-2.5 space-y-1.5">
+                    // #27 — `bg-primary-50` (sans /40) : remappé en tuile lavande pâle
+                    // par le thème clair ; la variante /40 retombait sur le violet
+                    // sombre du thème nuit (pavé gris foncé illisible).
+                    <div key={`${c.name}-${c.network}-${i}`} className="rounded-lg border border-dashed border-primary-200 bg-primary-50 p-2.5 space-y-1.5">
                       <div className="flex items-center justify-between gap-2">
                         <div className="min-w-0">
                           <p className="text-xs font-semibold text-ink truncate">
@@ -607,34 +662,20 @@ export default function VeillePage() {
                         />
                       )}
                       <p className="text-2xs text-muted leading-snug">{c.rationale}</p>
+                      {/* #28 — vérification directe du compte sur le réseau concerné
+                          (profil si un handle est connu/saisi, sinon recherche ciblée). */}
+                      <a
+                        href={competitorVerifyUrl(c.network, c.name, c.handle ?? typed)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-2xs font-medium text-primary-600 hover:underline"
+                      >
+                        {t("Vérifier le compte", "Verify the account")} ↗
+                      </a>
                     </div>
                     );
                   })}
                 </div>
-              )}
-
-              {/* Liste des compétiteurs ajoutés */}
-              {loadingCompetitors ? (
-                <div className="flex justify-center py-4"><Spinner /></div>
-              ) : competitors.length > 0 ? (
-                <div className="space-y-1.5 pt-1">
-                  <p className="text-2xs font-semibold text-muted uppercase tracking-widest">{t("Liste active", "Active list")}</p>
-                  {competitors.map((c) => (
-                    <CompetitorItem
-                      key={c.id}
-                      competitor={c}
-                      onRemove={handleRemove}
-                      removing={removingId === c.id}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <p className="text-xs text-muted text-center py-2">
-                  {t(
-                    "Aucun compétiteur — ajoutez-en ou utilisez « Identifier ».",
-                    "No competitors — add some or use \"Identify\"."
-                  )}
-                </p>
               )}
             </div>
           </aside>
@@ -734,20 +775,23 @@ export default function VeillePage() {
                   </button>
                 </div>
 
-                {/* Onglets */}
-                <div className="flex gap-1 border-b border-hair overflow-x-auto">
+                {/* Onglets — #30 : pas d'overflow (2 onglets suffisent), soulignement
+                    actif améthyste et survol doux pour une vraie barre d'onglets. */}
+                <div role="tablist" className="flex items-end gap-1 border-b border-hair">
                   {[
                     { key: "analyse" as const, labelFr: "Analyse IA", labelEn: "AI Analysis" },
                     { key: "contenus" as const, labelFr: `Contenus (${result.scrape.contents.length})`, labelEn: `Content (${result.scrape.contents.length})` },
                   ].map((tab) => (
                     <button
                       key={tab.key}
+                      role="tab"
+                      aria-selected={activeTab === tab.key}
                       onClick={() => setActiveTab(tab.key)}
                       className={[
-                        "px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px",
+                        "-mb-px whitespace-nowrap rounded-t-lg border-b-2 px-4 py-2 text-sm font-medium transition-colors",
                         activeTab === tab.key
-                          ? "border-page text-ink"
-                          : "border-transparent text-muted hover:text-ink",
+                          ? "border-page font-semibold text-ink"
+                          : "border-transparent text-muted hover:bg-canvas/60 hover:text-ink",
                       ].join(" ")}
                     >
                       {t(tab.labelFr, tab.labelEn)}

@@ -257,6 +257,7 @@ export default function PilotagePage() {
           brandVoice: company.brandVoice,
           autonomy,
           benchmarkTarget: `concurrents ${market}`,
+          language: lang,
         }),
       });
       const data = await res.json();

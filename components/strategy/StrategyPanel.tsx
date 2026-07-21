@@ -147,7 +147,10 @@ export function StrategyPanel({ companyId, refreshSignal }: { companyId: string;
         ) : (
           <>
             {brief?.resume && (
-              <div className="rounded-xl border-l-4 border-ai-text bg-ai-textbg/40 p-4">
+              // Fond clair : `bg-ai-textbg` (sans /40) est remappé en tuile lavande
+              // pâle par le thème clair — la variante /40 échappait au remap et
+              // retombait sur le violet sombre du thème nuit (bug #26).
+              <div className="rounded-xl border-l-4 border-ai-text bg-ai-textbg p-4">
                 <div className="flex items-center gap-2">
                   <span className="section-label text-ai-text">{t("Brief", "Brief")}</span>
                   {brief.aiGenerated && <span className="rounded-full bg-ai-textbg px-2 py-0.5 text-2xs font-semibold text-ai-text">IA</span>}

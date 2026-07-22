@@ -225,7 +225,8 @@ export function NewAudienceModal({
               onClick={() => choose("lookalike")}
             />
           </div>
-          <div className="mt-4 flex justify-end border-t-hair pt-3">
+          {/* Footer sans filet — la fine ligne (border-t-hair) traversait la modale. */}
+          <div className="mt-4 flex justify-end">
             <Button variant="secondary" onClick={onClose}>{t("Annuler", "Cancel")}</Button>
           </div>
         </div>

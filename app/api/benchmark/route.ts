@@ -11,7 +11,7 @@ export const maxDuration = 120;
 import { NextRequest, NextResponse } from "next/server";
 import { requireCompanyAccess } from "@/lib/auth/guard";
 import { isSafeRemoteUrl } from "@/lib/security/url-guard";
-import { callClaudeJSON } from "@/lib/ai/claude-json";
+import { callClaudeJSONRetryResult } from "@/lib/ai/claude-json";
 import { isAiConfigured } from "@/lib/env";
 
 interface Competitor { name?: string; url?: string }
@@ -113,13 +113,35 @@ Inclus NOTRE PRODUIT en première ligne de "rows" (isYou=true) et une ligne par 
 
 ${(body.language === "en") ? "Write ALL textual values (summary, positioning, tiers, notes, swot, rationale…) in ENGLISH." : "Rédige toutes les valeurs textuelles en français."}`;
 
-  const data = await callClaudeJSON<BenchmarkResult>(prompt, {
-    model: "claude-sonnet-4-6",
-    maxTokens: 4000,
-    temperature: 0.4,
-    system: "Tu réponds uniquement en JSON valide, sans texte autour.",
-  });
+  // #14 — Causes racines de l'échec récurrent : (a) max_tokens 4000 trop bas pour
+  // la matrice 12 dimensions × N produits + SWOT + pricing → JSON tronqué non
+  // parsable ; (b) timeout par défaut du helper (30 s) trop court pour une
+  // génération de cette taille alors que maxDuration = 120 s. On monte les deux
+  // (90 s < 120 s, fetchs inclus) et on ré-essaie 1 fois sur échec transitoire
+  // (le helper ne ré-essaie pas après un timeout, pas de risque de 504).
+  const { data, error: aiError } = await callClaudeJSONRetryResult<BenchmarkResult>(
+    prompt,
+    {
+      model: "claude-sonnet-4-6",
+      maxTokens: 8000,
+      temperature: 0.4,
+      timeoutMs: 90_000,
+      system: "Tu réponds uniquement en JSON valide, sans texte autour.",
+    },
+    1
+  );
 
-  if (!data) return NextResponse.json({ error: "Échec de génération du benchmark. Réessayez." }, { status: 502 });
+  if (!data) {
+    const en = body.language === "en";
+    const timedOut = /tim(e|ed)?\s*-?\s*out|timeout/i.test(aiError ?? "");
+    const msg = timedOut
+      ? (en
+          ? "Benchmark generation timed out — retry with fewer competitors."
+          : "Génération du benchmark trop longue — réessayez avec moins de concurrents.")
+      : (en
+          ? `Benchmark generation failed (${aiError ?? "unknown error"}). Please retry.`
+          : `Échec de génération du benchmark (${aiError ?? "erreur inconnue"}). Réessayez.`);
+    return NextResponse.json({ error: msg }, { status: 502 });
+  }
   return NextResponse.json({ result: data });
 }

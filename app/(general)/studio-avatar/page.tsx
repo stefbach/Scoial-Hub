@@ -621,7 +621,7 @@ export default function StudioAvatarPage() {
                   <input value={faceUrl} onChange={(e) => setFaceUrl(e.target.value)} placeholder={t("URL d'un portrait (https://…)", "Portrait URL (https://…)")} className="input flex-1" />
                   <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => uploadFace(e.target.files)} />
                   <button onClick={() => fileRef.current?.click()} disabled={uploading} className="btn-secondary shrink-0 text-xs disabled:opacity-50">
-                    {uploading ? t("Envoi…", "Uploading…") : t("⬆︎ Photo", "⬆︎ Photo")}
+                    {uploading ? <span className="inline-flex items-center gap-1.5"><Spinner size={12} className="text-current" />{t("Envoi…", "Uploading…")}</span> : t("⬆︎ Photo", "⬆︎ Photo")}
                   </button>
                 </div>
               ) : (
@@ -673,7 +673,7 @@ export default function StudioAvatarPage() {
                 {faceUrl.trim() && (
                   <button onClick={saveAvatar} disabled={savingAvatar} className="btn-secondary inline-flex items-center gap-1.5 text-xs disabled:opacity-50">
                     {savingAvatar && <Spinner size={12} className="text-current" />}
-                    {savingAvatar ? t("Enregistrement…", "Saving…") : t("💾 Enregistrer cet avatar", "💾 Save this avatar")}
+                    {savingAvatar ? <span className="inline-flex items-center gap-1.5"><Spinner size={12} className="text-current" />{t("Enregistrement…", "Saving…")}</span> : t("💾 Enregistrer cet avatar", "💾 Save this avatar")}
                   </button>
                 )}
               </div>
@@ -696,7 +696,7 @@ export default function StudioAvatarPage() {
                 </label>
                 <button onClick={genScript} disabled={writing} className="btn-secondary ml-auto inline-flex items-center gap-1.5 text-xs disabled:opacity-50">
                   {writing && <Spinner size={14} className="text-current" />}
-                  {writing ? t("Rédaction…", "Writing…") : t("✨ Générer le script", "✨ Generate script")}
+                  {writing ? <span className="inline-flex items-center gap-1.5"><Spinner size={12} className="text-current" />{t("Rédaction…", "Writing…")}</span> : t("✨ Générer le script", "✨ Generate script")}
                 </button>
               </div>
               <textarea value={script} onChange={(e) => setScript(e.target.value)} rows={6} placeholder={t("Le script parlé apparaîtra ici (éditable)…", "The spoken script will appear here (editable)…")} className="input" />
@@ -749,7 +749,7 @@ export default function StudioAvatarPage() {
                         <button type="button" onClick={() => cloneRef.current?.click()} disabled={cloning || !consent || recording}
                           className="btn-secondary inline-flex items-center gap-1.5 text-2xs disabled:opacity-50">
                           {cloning && <Spinner size={12} className="text-current" />}
-                          {cloning ? t("Clonage…", "Cloning…") : t("⬆︎ Téléverser un échantillon", "⬆︎ Upload a sample")}
+                          {cloning ? <span className="inline-flex items-center gap-1.5"><Spinner size={12} className="text-current" />{t("Clonage…", "Cloning…")}</span> : t("⬆︎ Téléverser un échantillon", "⬆︎ Upload a sample")}
                         </button>
                       </div>
                     </div>

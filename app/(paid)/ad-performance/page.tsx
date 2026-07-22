@@ -7,6 +7,7 @@ import { useCompany } from "@/lib/company-context";
 import { StudioHero } from "@/components/studio/StudioUI";
 import { IconBars } from "@/components/visual/Icons";
 import { MetricCard } from "@/components/ui/MetricCard";
+import { Pagination } from "@/components/ui/Pagination";
 import { Dropdown, DropdownItem } from "@/components/ui/Dropdown";
 import { DatePicker } from "@/components/ui/DateTimePicker";
 import { MultiLineChart, type ChartSeries } from "@/components/charts/MultiLineChart";
@@ -398,6 +399,27 @@ function AdPerformanceContent() {
     const key = tableSortKey;
     return [...rows].sort((a, b) => (tableSortDir === "asc" ? a[key] - b[key] : b[key] - a[key]));
   }, [hasRealMeta, realPerf, platformFilter, statusFilter, search, tableSortKey, tableSortDir]);
+
+  // ── Pagination client du tableau des publicités (10 par page) ────────────
+  const ADS_PAGE_SIZE = 10;
+  const [adsPage, setAdsPage] = useState(1);
+
+  // Retour page 1 dès qu'un filtre, la recherche, le tri ou la période change.
+  useEffect(() => {
+    setAdsPage(1);
+  }, [search, campaignFilter, platformFilter, statusFilter, range, customFrom, customTo, tableSortKey, tableSortDir, hasRealMeta]);
+
+  const adsRowCount = hasRealMeta ? realSortedRows.length : sortedRows.length;
+  const adsTotalPages = Math.max(1, Math.ceil(adsRowCount / ADS_PAGE_SIZE));
+  const adsSafePage = Math.min(adsPage, adsTotalPages);
+  const pagedRealRows = useMemo(
+    () => realSortedRows.slice((adsSafePage - 1) * ADS_PAGE_SIZE, adsSafePage * ADS_PAGE_SIZE),
+    [realSortedRows, adsSafePage]
+  );
+  const pagedDemoRows = useMemo(
+    () => sortedRows.slice((adsSafePage - 1) * ADS_PAGE_SIZE, adsSafePage * ADS_PAGE_SIZE),
+    [sortedRows, adsSafePage]
+  );
 
   const topPerformer = useMemo(() => {
     const candidates = [...allRows];
@@ -834,7 +856,7 @@ function AdPerformanceContent() {
                       </td>
                     </tr>
                   ) : (
-                    realSortedRows.map((r) => {
+                    pagedRealRows.map((r) => {
                       const active = r.status === "ACTIVE";
                       return (
                         <tr key={r.id} className="transition-colors hover:bg-canvas/70">
@@ -863,7 +885,7 @@ function AdPerformanceContent() {
                     </td>
                   </tr>
                 ) : (
-                  sortedRows.map((r) => (
+                  pagedDemoRows.map((r) => (
                     <tr
                       key={r.ad.id}
                       onClick={() => setOpenAd(r)}
@@ -899,6 +921,11 @@ function AdPerformanceContent() {
               </tbody>
             </table>
             </div>
+            {adsTotalPages > 1 && (
+              <div className="border-t border-hair/60 px-5 pb-3">
+                <Pagination page={adsSafePage} totalPages={adsTotalPages} onChange={setAdsPage} />
+              </div>
+            )}
           </div>
 
           {/* AI insight + actions */}

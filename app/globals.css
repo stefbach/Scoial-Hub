@@ -553,9 +553,17 @@ html[data-theme="light"] .studio-seg {
   mix-blend-mode: overlay;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
-.app-shell > *:not(.app-mesh):not(.app-grain) {
+.app-shell > *:not(.app-mesh):not(.app-grain):not(.app-header) {
   position: relative;
   z-index: 1;
+}
+/* Bug 5 (lot 17) : la règle ci-dessus écrasait `position: sticky` du header
+   (spécificité supérieure à la classe Tailwind) — la barre disparaissait au
+   défilement. On rétablit explicitement le collage. */
+.app-shell > .app-header {
+  position: sticky;
+  top: 0;
+  z-index: 60;
 }
 @media (prefers-reduced-motion: reduce) {
   .app-shell > .app-mesh { animation: none; }

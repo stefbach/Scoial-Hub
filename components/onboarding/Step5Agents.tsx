@@ -337,9 +337,9 @@ function StepCard({ step, isLast }: { step: AgentRunResult["steps"][number]; isL
             </button>
           )}
 
-          {/* Détail optionnel */}
+          {/* Détail optionnel — sans filet ni encadré (retour QA bug 2, lot 17) */}
           {step.detail && (
-            <p className="mt-1.5 border-l-2 border-hair pl-2 text-2xs italic text-muted">
+            <p className="mt-1.5 text-2xs italic text-muted">
               {step.detail}
             </p>
           )}
@@ -429,7 +429,10 @@ export default function Step5Agents() {
   const [error, setError]       = useState<string | null>(null);
 
   // ── Construction de l'objectif textuel envoyé aux agents ──────────────────
+  // Rédigé dans la langue de l'UI (bug 1 lot 17) : l'objectif est repris tel
+  // quel dans la sortie de l'orchestrateur et oriente la langue des agents.
   function buildObjective(): string {
+    const en = lang === "en";
     const objectiveLabels = state.objectives.map((id) => {
       const found = profile.suggestedObjectives?.find((o) => o.id === id);
       return found ? found.label : id;
@@ -437,28 +440,30 @@ export default function Step5Agents() {
 
     const parts: string[] = [];
     parts.push(
-      `Construis ${state.campaignCount} campagne(s) social media pour ${companyName}.`
+      en
+        ? `Build ${state.campaignCount} social media campaign(s) for ${companyName}.`
+        : `Construis ${state.campaignCount} campagne(s) social media pour ${companyName}.`
     );
     if (objectiveLabels.length > 0) {
-      parts.push(`Objectifs: ${objectiveLabels.join(", ")}.`);
+      parts.push(`${en ? "Objectives" : "Objectifs"}: ${objectiveLabels.join(", ")}.`);
     }
     if (state.networks.length > 0) {
-      parts.push(`Réseaux: ${state.networks.join(", ")}.`);
+      parts.push(`${en ? "Networks" : "Réseaux"}: ${state.networks.join(", ")}.`);
     }
     if (state.geo.countries.length > 0) {
-      parts.push(`Zone: ${state.geo.countries.join(", ")}.`);
+      parts.push(`${en ? "Area" : "Zone"}: ${state.geo.countries.join(", ")}.`);
     }
     if (profile.positioning) {
-      parts.push(`Positionnement: ${profile.positioning}.`);
+      parts.push(`${en ? "Positioning" : "Positionnement"}: ${profile.positioning}.`);
     }
     if (profile.tone) {
-      parts.push(`Ton: ${profile.tone}.`);
+      parts.push(`${en ? "Tone" : "Ton"}: ${profile.tone}.`);
     }
     if (profile.audience) {
       parts.push(`Audience: ${profile.audience}.`);
     }
     if (profile.competitorAngles && profile.competitorAngles.length > 0) {
-      parts.push(`Angles: ${profile.competitorAngles.join(", ")}.`);
+      parts.push(`${en ? "Angles" : "Angles"}: ${profile.competitorAngles.join(", ")}.`);
     }
     return parts.join(" ");
   }

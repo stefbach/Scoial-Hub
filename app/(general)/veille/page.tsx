@@ -775,9 +775,9 @@ export default function VeillePage() {
                   </button>
                 </div>
 
-                {/* Onglets — #30 : pas d'overflow (2 onglets suffisent), soulignement
-                    actif améthyste et survol doux pour une vraie barre d'onglets. */}
-                <div role="tablist" className="flex items-end gap-1 border-b border-hair">
+                {/* Onglets — bug 7 lot 17 : contrôle segmenté arrondi, même
+                    langage que la barre de « Planifiés » (référence QA). */}
+                <div role="tablist" className="inline-flex gap-1 rounded-xl border border-hair bg-card p-1">
                   {[
                     { key: "analyse" as const, labelFr: "Analyse IA", labelEn: "AI Analysis" },
                     { key: "contenus" as const, labelFr: `Contenus (${result.scrape.contents.length})`, labelEn: `Content (${result.scrape.contents.length})` },
@@ -788,10 +788,10 @@ export default function VeillePage() {
                       aria-selected={activeTab === tab.key}
                       onClick={() => setActiveTab(tab.key)}
                       className={[
-                        "-mb-px whitespace-nowrap rounded-t-lg border-b-2 px-4 py-2 text-sm font-medium transition-colors",
+                        "whitespace-nowrap rounded-lg px-3 py-1.5 text-sm transition-colors",
                         activeTab === tab.key
-                          ? "border-page font-semibold text-ink"
-                          : "border-transparent text-muted hover:bg-canvas/60 hover:text-ink",
+                          ? "bg-canvas font-semibold text-ink shadow-xs"
+                          : "font-medium text-muted hover:text-ink",
                       ].join(" ")}
                     >
                       {t(tab.labelFr, tab.labelEn)}

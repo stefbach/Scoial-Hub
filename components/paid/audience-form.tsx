@@ -12,6 +12,36 @@ const LOCATION_SUGGESTIONS = [
   "Cape Verde", "Senegal", "Côte d'Ivoire", "West Africa", "East Africa",
 ];
 
+// Populations approximatives (habitants) des pays/régions du sélecteur de
+// Locations — borne haute réaliste pour l'estimation mock de portée.
+const LOCATION_POPULATION: Record<string, number> = {
+  Mauritius: 1_270_000,
+  "Réunion": 880_000,
+  Madagascar: 30_300_000,
+  Seychelles: 100_000,
+  "South Africa": 60_400_000,
+  France: 68_200_000,
+  "United Kingdom": 67_000_000,
+  "United Arab Emirates": 9_400_000,
+  Singapore: 5_900_000,
+  "Cape Verde": 560_000,
+  Senegal: 17_700_000,
+  "Côte d'Ivoire": 28_900_000,
+  "West Africa": 430_000_000,
+  "East Africa": 480_000_000,
+};
+
+// Population par défaut pour un lieu saisi librement (inconnu de la table).
+const UNKNOWN_LOCATION_POPULATION = 5_000_000;
+
+/** Population totale des lieux sélectionnés. */
+function populationOf(locations: string[]): number {
+  return locations.reduce(
+    (sum, loc) => sum + (LOCATION_POPULATION[loc.trim()] ?? UNKNOWN_LOCATION_POPULATION),
+    0
+  );
+}
+
 const INTEREST_SUGGESTIONS = [
   "weight loss", "wellness", "nutrition", "fitness", "yoga", "running",
   "cooking", "healthy eating", "meditation", "mindfulness", "men's health",
@@ -46,14 +76,19 @@ export function savedValid(c: SavedConfig) {
 }
 
 export function estimateSavedReach(c: SavedConfig) {
-  let r = 2_000_000;
+  // Estimation mock bornée par la population réelle des lieux sélectionnés
+  // (ex. Maurice ≈ 1,27 M — jamais 2 M de personnes atteignables).
+  const population = c.locations.length > 0 ? populationOf(c.locations) : UNKNOWN_LOCATION_POPULATION;
+  // ~62 % de la population est atteignable sur Meta (ordre de grandeur).
+  let r = population * 0.62;
   if (c.gender !== "All") r *= 0.5;
-  const ageWidth = Math.max(1, c.ageMax - c.ageMin);
-  r *= ageWidth / 80;
-  if (c.locations.length > 0) r *= Math.pow(0.7, c.locations.length);
+  // Fraction plausible de la pyramide des âges (utilisateurs Meta 13-80 ans).
+  const ageWidth = Math.max(1, Math.min(80, c.ageMax) - Math.max(13, c.ageMin));
+  r *= Math.min(1, ageWidth / (80 - 13));
   if (c.interests.length > 0) r *= Math.pow(0.8, c.interests.length);
-  r = Math.max(1000, Math.round(r));
-  return r;
+  // Garde-fou : la fourchette haute affichée (r × 1,1) reste sous la population.
+  r = Math.min(r, population / 1.1);
+  return Math.max(1000, Math.round(r));
 }
 
 export function SavedFields({
@@ -354,7 +389,10 @@ export function lookalikeValid(c: LookalikeConfig) {
 export function estimateLookalikeReach(c: LookalikeConfig) {
   const base = 12_000 * c.similarity; // 1% ≈ 12K, 10% ≈ 120K
   const multiplier = Math.max(1, c.countries.length);
-  return Math.round(base * multiplier);
+  // Même garde-fou que les audiences enregistrées : jamais au-delà de la
+  // population des pays choisis (ex. Seychelles ≈ 100 K).
+  const population = c.countries.length > 0 ? populationOf(c.countries) : UNKNOWN_LOCATION_POPULATION;
+  return Math.max(1000, Math.round(Math.min(base * multiplier, population / 1.1)));
 }
 
 export function LookalikeFields({

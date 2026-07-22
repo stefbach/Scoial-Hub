@@ -96,6 +96,16 @@ function ts(): string {
   return new Date().toISOString();
 }
 
+/** Extraction JSON défensive : clôtures Markdown et texte autour tolérés.
+ *  (Bug 1 lot 17 : un JSON.parse strict échouait dès que le modèle enrobait sa
+ *  réponse, et l'on retombait silencieusement sur le mock français.) */
+function parseJsonBlock<T>(raw: string): T | null {
+  const cleaned = raw.replace(/```json\s*/gi, "").replace(/```/g, "").trim();
+  const m = cleaned.match(/\{[\s\S]*\}/);
+  if (!m) return null;
+  try { return JSON.parse(m[0]) as T; } catch { return null; }
+}
+
 /** Résout la cadence avec des valeurs par défaut sensées. */
 function resolveCadence(cadence?: Cadence): Required<Cadence> {
   return {
@@ -316,7 +326,21 @@ Tu dois produire UNIQUEMENT un JSON valide avec cette structure exacte :
 
 // ── Mock helpers ──────────────────────────────────────────────────────────────
 
-function mockEnvironmentAnalysis(profile: ProProfile, objective: string): EnvironmentAnalysis {
+function mockEnvironmentAnalysis(profile: ProProfile, objective: string, language?: "fr" | "en"): EnvironmentAnalysis {
+  // Contenu de repli bilingue : il doit suivre la langue de l'UI comme le reste
+  // des étapes (bug 1 lot 17 — un repli français apparaissait sous UI anglaise).
+  if (language === "en") {
+    return {
+      marketOverview: `"${profile.label}" sector: structurally growing market, driven by the digitalization of patient journeys and the rise of mobile usage. Fragmented competition between traditional players and digital pure-players. The objective "${objective.slice(0, 60)}…" sits in a context of intensifying demand.`,
+      semanticAnalysis: `Dominant search intents: immediate solutions, price/service comparison, patient reviews. Priority semantic field: ${profile.semanticField.slice(0, 5).join(", ")}. High-potential keywords: "near me" queries + frequent symptoms + specialty names.`,
+      positioning: `Position on the combination Expertise + Proximity + Accessibility. Avoid purely promotional territory (saturation) and medical jargon (engagement barrier). Differentiating lever: ${profile.contentAngles[0]}.`,
+      acquisitionAngles: profile.acquisitionLevers.slice(0, 4),
+      recommendedPlatforms: profile.priorityPlatforms.slice(0, 3).map(
+        (p, i) => `${p}: ${["maximum reach and precise geographic targeting", "high engagement and visual storytelling", "demand generation and purchase intent"][i] ?? "relevant for this sector"}`
+      ),
+      competitiveRisks: `Main risks: competitors with a bigger SEA budget, ad saturation on health slots, audience sensitivity to intrusive content. Recommendation: differentiate through content quality and social proof.`,
+    };
+  }
   return {
     marketOverview: `Secteur "${profile.label}" : marché en croissance structurelle, porté par la digitalisation des parcours patients et l'essor des usages mobiles. Concurrence fragmentée entre acteurs traditionnels et pure-players numériques. L'objectif "${objective.slice(0, 60)}…" s'inscrit dans un contexte d'intensification de la demande.`,
     semanticAnalysis: `Intentions de recherche dominantes : solutions immédiates, comparaison de prix/services, avis patients. Champ sémantique prioritaire : ${profile.semanticField.slice(0, 5).join(", ")}. Mots-clés à fort potentiel : requêtes "near me" + symptômes fréquents + noms de spécialités.`,
@@ -333,8 +357,10 @@ function mockBenchmark(
   profile: ProProfile,
   cadence: Required<Cadence>,
   dailyBudget: number,
-  benchmarkTarget?: string
+  benchmarkTarget?: string,
+  language?: "fr" | "en"
 ): BenchmarkResult {
+  const L = makeL(language);
   const kpis = profile.sectorKPIs;
   const targetCPM = ((kpis.cpm.min + kpis.cpm.max) / 2).toFixed(2);
   const targetCPC = ((kpis.cpc.min + kpis.cpc.max) / 2).toFixed(2);
@@ -370,7 +396,7 @@ function mockBenchmark(
       assessment: parseFloat(targetCTR) > (kpis.ctr.min + kpis.ctr.max) / 2 ? "above" : "inline",
     },
     {
-      kpi: "Taux d'engagement",
+      kpi: L("Taux d'engagement", "Engagement rate"),
       targetValue: `${targetEngagement}%`,
       sectorReference: `${kpis.engagementRate.min}–${kpis.engagementRate.max}%`,
       assessment: "inline",
@@ -382,7 +408,7 @@ function mockBenchmark(
       assessment: parseFloat(targetCPA) < kpis.cpa.max ? "inline" : "below",
     },
     {
-      kpi: "Taux de conversion",
+      kpi: L("Taux de conversion", "Conversion rate"),
       targetValue: `${targetCVR}%`,
       sectorReference: `${kpis.conversionRate.min}–${kpis.conversionRate.max}%`,
       assessment: "inline",
@@ -400,21 +426,32 @@ function mockBenchmark(
   ];
 
   return {
-    benchmarkTarget: benchmarkTarget ?? `Benchmark sectoriel ${profile.label}`,
+    benchmarkTarget: benchmarkTarget ?? L(`Benchmark sectoriel ${profile.label}`, `${profile.label} sector benchmark`),
     kpiRows,
     audienceCaptureProjection: {
       targetAudienceSize: audienceSize,
       estimatedReach,
       captureRate,
-      timeframe: `${periodDays} jours (${cadence.reportingPeriod === "month" ? "1 mois" : `reporting ${cadence.reportingPeriod}`})`,
+      timeframe: L(
+        `${periodDays} jours (${cadence.reportingPeriod === "month" ? "1 mois" : `reporting ${cadence.reportingPeriod}`})`,
+        `${periodDays} days (${cadence.reportingPeriod === "month" ? "1 month" : `${cadence.reportingPeriod} reporting`})`
+      ),
     },
-    optimizationRecommendations: [
+    optimizationRecommendations: language === "en" ? [
+      `Test 2–3 creative variants from D1–D3 and cut ad sets below ${kpis.ctr.min}% CTR`,
+      `Scale the budget by 15–20% per week if CPA < €${kpis.cpa.min * 1.2}`,
+      `Enable retargeting on 30-day visitors (CPL usually 40% lower)`,
+      `Exclude audiences that already converted to optimize spend`,
+    ] : [
       `Tester 2–3 variantes créatives dès J1–J3 et couper les adsets sous ${kpis.ctr.min}% de CTR`,
       `Escalader le budget de 15–20% par semaine si CPA < ${kpis.cpa.min * 1.2}€`,
       `Activer le retargeting sur les visiteurs 30 jours (CPL généralement 40% inférieur)`,
       `Exclure les audiences ayant déjà converti pour optimiser la dépense`,
     ],
-    summary: `Sur la période de reporting ${cadence.reportingPeriod}, avec ${dailyBudget}€/j, les projections sont alignées avec les benchmarks du secteur ${profile.label}. Portée estimée : ${estimatedReach.toLocaleString("fr-FR")} contacts uniques, soit ${captureRate}% de captation de l'audience cible sur ${periodDays} jours.`,
+    summary: L(
+      `Sur la période de reporting ${cadence.reportingPeriod}, avec ${dailyBudget}€/j, les projections sont alignées avec les benchmarks du secteur ${profile.label}. Portée estimée : ${estimatedReach.toLocaleString("fr-FR")} contacts uniques, soit ${captureRate}% de captation de l'audience cible sur ${periodDays} jours.`,
+      `Over the ${cadence.reportingPeriod} reporting period, at €${dailyBudget}/day, projections are aligned with ${profile.label} sector benchmarks. Estimated reach: ${estimatedReach.toLocaleString("en-US")} unique contacts, i.e. ${captureRate}% capture of the target audience over ${periodDays} days.`
+    ),
   };
 }
 
@@ -504,7 +541,7 @@ async function runStrategist(
 ): Promise<{ step: AgentStep; analysis: EnvironmentAnalysis }> {
   const L = makeL(input.language);
   if (!isAiConfigured) {
-    const analysis = mockEnvironmentAnalysis(profile, input.objective);
+    const analysis = mockEnvironmentAnalysis(profile, input.objective, input.language);
     const output = `[ANALYSE D'ENVIRONNEMENT — mode mock]
 
 Marché & concurrence :
@@ -557,12 +594,9 @@ Cadence éditoriale retenue : ${formatCadence(cadence)}`;
     const firstBlock = resp.content[0];
     if (firstBlock.type !== "text") throw new Error("Réponse inattendue de Claude");
 
-    let analysis: EnvironmentAnalysis;
-    try {
-      analysis = JSON.parse(firstBlock.text.trim()) as EnvironmentAnalysis;
-    } catch {
-      analysis = mockEnvironmentAnalysis(profile, input.objective);
-    }
+    const analysis: EnvironmentAnalysis =
+      parseJsonBlock<EnvironmentAnalysis>(firstBlock.text) ??
+      mockEnvironmentAnalysis(profile, input.objective, input.language);
 
     const output = `${L("[ANALYSE D'ENVIRONNEMENT — IA]", "[ENVIRONMENT ANALYSIS — AI]")}
 
@@ -598,7 +632,7 @@ ${L("Cadence éditoriale retenue :", "Selected editorial cadence:")} ${formatCad
     };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    const analysis = mockEnvironmentAnalysis(profile, input.objective);
+    const analysis = mockEnvironmentAnalysis(profile, input.objective, input.language);
     return {
       step: {
         agent: "strategist",
@@ -845,16 +879,15 @@ ${copyText}
     const firstBlock = resp.content[0];
     if (firstBlock.type !== "text") throw new Error("Réponse inattendue de Claude");
 
-    let parsed: { verdict: "pass" | "warn" | "block"; issues: string[]; suggestion?: string };
-    try {
-      parsed = JSON.parse(firstBlock.text.trim());
-    } catch {
-      parsed = {
-        verdict: "warn",
-        issues: ["Évaluation automatique incomplète — révision manuelle recommandée."],
+    const parsed =
+      parseJsonBlock<{ verdict: "pass" | "warn" | "block"; issues: string[]; suggestion?: string }>(firstBlock.text) ?? {
+        verdict: "warn" as const,
+        issues: [L(
+          "Évaluation automatique incomplète — révision manuelle recommandée.",
+          "Automatic evaluation incomplete — manual review recommended."
+        )],
         suggestion: firstBlock.text,
       };
-    }
 
     const verdictEmoji = parsed.verdict === "pass" ? "✅" : parsed.verdict === "warn" ? "⚠️" : "🚫";
     const verdictLabel = parsed.verdict === "pass"
@@ -1267,7 +1300,7 @@ async function runAnalyst(
   const totalBudget = dailyBudget * periodDays;
 
   if (!isAiConfigured) {
-    const benchmark = mockBenchmark(profile, cadence, dailyBudget, input.benchmarkTarget);
+    const benchmark = mockBenchmark(profile, cadence, dailyBudget, input.benchmarkTarget, input.language);
     const output = buildBenchmarkOutput(benchmark, totalBudget, dailyBudget, cadence, input.language);
     return {
       step: {
@@ -1299,12 +1332,9 @@ async function runAnalyst(
     const firstBlock = resp.content[0];
     if (firstBlock.type !== "text") throw new Error("Réponse inattendue de Claude");
 
-    let benchmark: BenchmarkResult;
-    try {
-      benchmark = JSON.parse(firstBlock.text.trim()) as BenchmarkResult;
-    } catch {
-      benchmark = mockBenchmark(profile, cadence, dailyBudget, input.benchmarkTarget);
-    }
+    const benchmark: BenchmarkResult =
+      parseJsonBlock<BenchmarkResult>(firstBlock.text) ??
+      mockBenchmark(profile, cadence, dailyBudget, input.benchmarkTarget, input.language);
 
     const output = buildBenchmarkOutput(benchmark, totalBudget, dailyBudget, cadence, input.language);
     return {
@@ -1319,7 +1349,7 @@ async function runAnalyst(
     };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    const benchmark = mockBenchmark(profile, cadence, dailyBudget, input.benchmarkTarget);
+    const benchmark = mockBenchmark(profile, cadence, dailyBudget, input.benchmarkTarget, input.language);
     const output = buildBenchmarkOutput(benchmark, totalBudget, dailyBudget, cadence, input.language);
     return {
       step: {

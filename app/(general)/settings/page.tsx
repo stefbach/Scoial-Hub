@@ -133,9 +133,10 @@ function SettingsContent() {
         {/* Sidebar nav — desktop: vertical column; mobile: horizontal scroll bar */}
         <nav className="shrink-0 border-b border-hair bg-canvas/40 p-3 lg:w-52 lg:border-b-0 lg:border-r">
           {/* Mobile: single scrollable row of all sections.
-              pb-2 : espace sous les onglets pour que la barre de défilement
-              horizontale ne touche pas l'onglet sélectionné (bug 7 lot 18). */}
-          <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-2 lg:hidden">
+              pt-1/pb-2 : espace autour des bulles — le liseré supérieur de
+              l'onglet actif reste visible et la barre de défilement ne touche
+              plus la bulle (bugs 7 lot 18 & 9 lot 19). */}
+          <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pt-1 pb-2 lg:hidden">
             {NAV.flatMap((g) => g.items).map((it) => (
               <button
                 key={it.id}

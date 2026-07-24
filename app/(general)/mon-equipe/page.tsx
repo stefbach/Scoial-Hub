@@ -31,6 +31,8 @@ export default function MonEquipePage() {
   const [editing, setEditing] = useState<TeamMember | null>(null);
   const [removing, setRemoving] = useState<TeamMember | null>(null);
   const [note, setNote] = useState<string | null>(null);
+  // null = inconnu (chargement) ; false = aucun e-mail ne partira (bandeau).
+  const [emailConfigured, setEmailConfigured] = useState<boolean | null>(null);
 
   // Aucun email n'est envoyé automatiquement : on fournit un texte d'invitation
   // copiable (lien d'inscription + email) que l'admin partage lui-même.
@@ -60,6 +62,7 @@ export default function MonEquipePage() {
       setMembers(d.members ?? []);
       setInvitations(d.invitations ?? []);
       setCompanies(d.companies ?? []);
+      if (typeof d.emailConfigured === "boolean") setEmailConfigured(d.emailConfigured);
     } catch { /* ignore */ } finally {
       setLoading(false);
     }
@@ -112,6 +115,20 @@ export default function MonEquipePage() {
           "A user who already has an account is added immediately. Otherwise an invitation is created: copy it and send it to them — their access activates on first sign-in."
         )}
       </p>
+
+      {/* Bandeau proactif (bug 1 lot 19) : l'admin sait AVANT d'ajouter quelqu'un
+          qu'aucun e-mail ne partira tant que le service n'est pas configuré. */}
+      {emailConfigured === false && (
+        <div className="flex items-start gap-2.5 rounded-xl border border-warning-200 bg-warning-50 px-4 py-3 text-xs text-warning-700" role="status">
+          <span aria-hidden="true">✉️</span>
+          <p>
+            {t(
+              "Envoi d'e-mails non configuré : les invitations et notifications ne partiront pas automatiquement. Définissez RESEND_API_KEY (et EMAIL_FROM) dans les variables d'environnement Vercel — voir le README. En attendant, utilisez « Copier l'invitation ».",
+              "Email sending is not configured: invitations and notifications will not be sent automatically. Set RESEND_API_KEY (and EMAIL_FROM) in the Vercel environment variables — see the README. Meanwhile, use “Copy invitation”."
+            )}
+          </p>
+        </div>
+      )}
 
       {note && (
         <p className="rounded-lg bg-canvas px-3 py-2 text-xs text-ink ring-1 ring-hair">{note}</p>

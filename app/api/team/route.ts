@@ -11,7 +11,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAccountAdmin } from "@/lib/auth/guard";
 import { createClient } from "@/lib/supabase/server";
 import { env } from "@/lib/env";
-import { sendEmail, buildInvitationEmail, buildAddedToTeamEmail } from "@/lib/email";
+import { sendEmail, buildInvitationEmail, buildAddedToTeamEmail, isEmailConfigured } from "@/lib/email";
 import { listCompanies } from "@/lib/repositories/companies";
 import {
   listTeam,
@@ -49,6 +49,9 @@ export async function GET() {
     members,
     invitations,
     companies: companies.map((c) => ({ id: c.id, name: c.name, code: c.code })),
+    // Bugs 1/8 lot 19 : l'UI prévient AVANT l'ajout si aucun e-mail ne partira
+    // (service e-mail applicatif non configuré côté serveur).
+    emailConfigured: isEmailConfigured(),
   });
 }
 

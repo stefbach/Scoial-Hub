@@ -38,6 +38,8 @@ export function AiPrefs() {
   const [videoCap, setVideoCap] = useState(40);
   const [toast, setToast] = useState<string | null>(null);
   const [openLog, setOpenLog] = useState<AiGenLog | null>(null);
+  // Bug 9 (lot 19) : « Voir tout » déplie la liste complète des générations.
+  const [showAllLogs, setShowAllLogs] = useState(false);
 
   // Dépenses IA RÉELLES de la société (depuis les données hydratées). Pas de
   // placeholder fictif : le suivi par-type texte n'existe pas encore → 0 honnête.
@@ -164,7 +166,7 @@ export function AiPrefs() {
             )}
           </div>
         ) : (
-          history.slice(0, 8).map((g) => (
+          (showAllLogs ? history : history.slice(0, 8)).map((g) => (
             <button
               key={g.id}
               onClick={() => setOpenLog(g)}
@@ -183,7 +185,16 @@ export function AiPrefs() {
         )}
       </div>
       {history.length > 8 && (
-        <button className="mt-2 text-2xs text-ai-text hover:underline">{t("Voir tout →", "View all →")}</button>
+        <button
+          type="button"
+          onClick={() => setShowAllLogs((v) => !v)}
+          aria-expanded={showAllLogs}
+          className="mt-2 text-2xs text-ai-text hover:underline"
+        >
+          {showAllLogs
+            ? t("Réduire ↑", "Show less ↑")
+            : t(`Voir tout (${history.length}) →`, `View all (${history.length}) →`)}
+        </button>
       )}
 
       {openLog && <LogDetailModal log={openLog} onClose={() => setOpenLog(null)} />}

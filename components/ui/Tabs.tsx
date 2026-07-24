@@ -17,13 +17,12 @@ export function Tabs({
 
   return (
     <div className={className}>
-      {/* Barre d'onglets — coins arrondis pour s'harmoniser avec les cartes voisines */}
-      {/* #11 — `overflow-y-hidden` : avec `overflow-x-auto` seul, le navigateur
-          passe overflow-y en auto et le 1px de débordement vertical des boutons
-          (-mb-px) affichait une mini scrollbar verticale parasite. */}
+      {/* Barre d'onglets — contrôle segmenté arrondi, même langage que les
+          onglets de « Planifiés » (référence désignée par la QA, bug 6 lot 17).
+          `overflow-y-hidden` conservé (#11) pour éviter la mini scrollbar. */}
       <div
         role="tablist"
-        className="flex gap-1 overflow-x-auto overflow-y-hidden rounded-xl border border-hair bg-card px-1.5"
+        className="inline-flex max-w-full gap-1 overflow-x-auto overflow-y-hidden rounded-xl border border-hair bg-card p-1"
       >
         {tabs.map((t) => {
           const isActive = t.id === active;
@@ -35,23 +34,15 @@ export function Tabs({
               aria-controls={`tabpanel-${t.id}`}
               onClick={() => setActive(t.id)}
               className={[
-                "relative shrink-0 px-2 pb-2.5 pt-1 text-sm font-medium sm:px-3",
+                "shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm",
                 "transition-colors duration-[120ms]",
-                // Anneau focus améthyste
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/40 focus-visible:ring-offset-1 rounded-t",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/40",
                 isActive
-                  ? "text-ink"
-                  : "text-muted hover:text-ink/80",
+                  ? "bg-canvas font-semibold text-ink shadow-xs"
+                  : "font-medium text-muted hover:text-ink",
               ].join(" ")}
             >
               {t.label}
-              {/* Indicateur actif — barre prune-violet en bas */}
-              {isActive && (
-                <span
-                  aria-hidden="true"
-                  className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full bg-page"
-                />
-              )}
             </button>
           );
         })}

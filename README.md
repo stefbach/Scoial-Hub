@@ -91,6 +91,8 @@ auth.users (Supabase Auth)
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` / `ADMIN_SECRET` | console admin | identifiants dev de secours |
 | `TOKEN_ENCRYPTION_KEY` | chiffrement des tokens | stockage en clair |
 | `META_ADS_MAX_DAILY_CENTS` | plafond budget pub | défaut 500000 |
+| `RESEND_API_KEY` | e-mails transactionnels (invitations « Mon équipe », notifications d'accès) via Resend | e-mails non envoyés — repli : lien d'invitation copiable |
+| `EMAIL_FROM` | expéditeur des e-mails (ex. `AXON-AI <no-reply@votre-domaine>`) | défaut `onboarding@resend.dev` |
 
 > Diagnostic non secret : `GET /api/health` renvoie la **présence** (booléen) des clés + `NEXT_PUBLIC_APP_URL`.
 

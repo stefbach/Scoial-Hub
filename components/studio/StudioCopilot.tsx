@@ -8,6 +8,7 @@
 import { useRef, useState } from "react";
 import { useCompany } from "@/lib/company-context";
 import { useT, useLang } from "@/lib/i18n";
+import { Spinner } from "@/components/ui/Spinner";
 
 export interface CopilotSuggestion {
   reply?: string;
@@ -106,7 +107,8 @@ export function StudioCopilot({
                   </div>
                 </div>
               ))}
-              {busy && <div className="flex justify-start"><span className="inline-flex items-center gap-1.5 rounded-2xl bg-white/[0.05] px-3 py-2 text-2xs text-muted ring-1 ring-hair">✦ {t("Le copilote prépare votre création…", "The copilot is setting up your creation…")}</span></div>}
+              {/* Attente avec animation (bug 4 lot 17) : spinner visible, pas un simple texte */}
+              {busy && <div className="flex justify-start"><span className="inline-flex items-center gap-1.5 rounded-2xl bg-white/[0.05] px-3 py-2 text-2xs text-muted ring-1 ring-hair"><Spinner size={12} className="text-primary-600" /> {t("Le copilote prépare votre création…", "The copilot is setting up your creation…")}</span></div>}
             </div>
           )}
 

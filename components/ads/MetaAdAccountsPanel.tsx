@@ -10,6 +10,7 @@ import Link from "next/link";
 import { useCompany } from "@/lib/company-context";
 import { useT } from "@/lib/i18n";
 import { Spinner } from "@/components/ui/Spinner";
+import { Pagination } from "@/components/ui/Pagination";
 
 interface AdAccount { id: string; name: string; currency: string; active: boolean; amountSpent: number; }
 interface AdCampaignRow {
@@ -33,6 +34,12 @@ export function MetaAdAccountsPanel({ showCampaigns = true }: { showCampaigns?: 
   const [loading, setLoading] = useState(true);
   const [selecting, setSelecting] = useState<string | null>(null);
   const [datePreset, setDatePreset] = useState("maximum");
+  // Pagination client du tableau des campagnes (10 lignes par page).
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 10;
+
+  // Retour page 1 quand la période ou le compte sélectionné change.
+  useEffect(() => { setPage(1); }, [datePreset, resp?.selectedId]);
 
   const PERIODS: { id: string; fr: string; en: string }[] = [
     { id: "last_7d", fr: "7 jours", en: "7 days" },
@@ -93,6 +100,13 @@ export function MetaAdAccountsPanel({ showCampaigns = true }: { showCampaigns?: 
 
   const selected = resp.selectedId;
   const data = resp.data;
+
+  // Découpage de la page courante — le total (tfoot) reste calculé sur TOUTES
+  // les campagnes, pas seulement celles de la page affichée.
+  const campaigns = data?.campaigns ?? [];
+  const totalPages = Math.max(1, Math.ceil(campaigns.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const pageCampaigns = campaigns.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   return (
     <section className="card overflow-hidden">
@@ -164,8 +178,9 @@ export function MetaAdAccountsPanel({ showCampaigns = true }: { showCampaigns?: 
             <>
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[52rem] text-left text-sm">
+                  {/* En-tête sans encadré — simple séparateur discret. */}
                   <thead>
-                    <tr className="border-b border-hair text-2xs uppercase tracking-wide text-muted">
+                    <tr className="border-b border-hair/60 text-2xs uppercase tracking-wide text-muted">
                       <th className="py-2 pr-3 font-semibold">{t("Campagne", "Campaign")}</th>
                       <th className="py-2 pr-3 font-semibold">{t("Statut", "Status")}</th>
                       <th className="py-2 pr-3 text-right font-semibold">{t("Dépense", "Spend")}</th>
@@ -179,7 +194,7 @@ export function MetaAdAccountsPanel({ showCampaigns = true }: { showCampaigns?: 
                     </tr>
                   </thead>
                   <tbody>
-                    {data.campaigns.map((c, i) => (
+                    {pageCampaigns.map((c, i) => (
                       <tr key={c.id || i} className="border-b border-hair/60">
                         <td className="py-2 pr-3 font-medium text-ink">{c.name}</td>
                         <td className="py-2 pr-3">
@@ -207,9 +222,11 @@ export function MetaAdAccountsPanel({ showCampaigns = true }: { showCampaigns?: 
                     const ctr = sum.impr ? (sum.clicks / sum.impr) * 100 : 0;
                     const cpc = sum.clicks ? sum.spend / sum.clicks : 0;
                     const cpm = sum.impr ? (sum.spend / sum.impr) * 1000 : 0;
+                    // Ligne Total — mise en avant sans encadré : fond canvas,
+                    // séparateur supérieur épais, toujours visible (global).
                     return (
                       <tfoot>
-                        <tr className="border-t-2 border-hair text-2xs font-semibold text-ink">
+                        <tr className="border-t-2 border-hair bg-canvas text-sm font-semibold text-ink">
                           <td className="py-2 pr-3">{t("Total", "Total")} ({t(PERIODS.find((p) => p.id === datePreset)?.fr ?? "", PERIODS.find((p) => p.id === datePreset)?.en ?? "")})</td>
                           <td className="py-2 pr-3" />
                           <td className="py-2 pr-3 text-right">{money(sum.spend, cur)}</td>
@@ -226,6 +243,7 @@ export function MetaAdAccountsPanel({ showCampaigns = true }: { showCampaigns?: 
                   })()}
                 </table>
               </div>
+              <Pagination page={safePage} totalPages={totalPages} onChange={setPage} />
               <p className="mt-2 text-2xs text-muted">{t("Données réelles Meta (Marketing API).", "Real Meta data (Marketing API).")} {datePreset === "maximum" ? t("Fenêtre : toute la durée de vie du compte.", "Window: full account lifetime.") : ""}</p>
             </>
           ) : (

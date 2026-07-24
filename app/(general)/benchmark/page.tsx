@@ -5,7 +5,7 @@
 // optionnelle). Le serveur récupère les pages puis Claude produit une matrice de
 // scores (12 dimensions), une SWOT, le positionnement et un prix conseillé.
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useCompany } from "@/lib/company-context";
 import { useT, useLang } from "@/lib/i18n";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -51,6 +51,16 @@ export default function BenchmarkPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<BenchmarkResult | null>(null);
+  const productRef = useRef<HTMLTextAreaElement>(null);
+
+  // #12 — La description (souvent préremplie et longue) était coupée à 2 lignes :
+  // hauteur mini ~6 lignes + auto-ajustement de la hauteur au contenu.
+  useEffect(() => {
+    const el = productRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [product]);
 
   const setComp = (i: number, key: "name" | "url", v: string) =>
     setCompetitors((cs) => cs.map((c, j) => (j === i ? { ...c, [key]: v } : c)));
@@ -76,24 +86,27 @@ export default function BenchmarkPage() {
     return () => { alive = false; };
   }, [company.id]);
 
-  // #21 — L'IA propose des concurrents à partir de votre produit ; l'utilisateur
-  // peut toujours en ajouter/éditer/supprimer manuellement.
+  // #21/#13 — L'IA propose des concurrents produit AVEC l'URL probable de leur
+  // page tarifs (préremplie, modifiable). L'utilisateur peut toujours en
+  // ajouter/éditer/supprimer manuellement.
   async function suggestCompetitors() {
     if (suggesting) return;
     setSuggesting(true); setError(null);
     try {
-      const res = await fetch("/api/veille/identify", {
+      const res = await fetch("/api/benchmark/suggest", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyId: company.id, theme: product.trim() || company.name, keywords: [], geo: "fr", language: lang }),
+        body: JSON.stringify({ companyId: company.id, product: product.trim() || company.name, language: lang }),
       });
-      const d = await res.json() as { competitors?: { name: string }[] };
-      const names = (d.competitors ?? []).map((c) => c.name).filter(Boolean);
-      if (names.length === 0) { setError(t("Aucune suggestion — décrivez votre produit puis réessayez.", "No suggestion — describe your product then retry.")); return; }
+      const d = await res.json() as { simulated?: boolean; error?: string; competitors?: { name?: string; pricingUrl?: string | null }[] };
+      if (d.simulated) { setError(t("IA non configurée (ANTHROPIC_API_KEY).", "AI not configured (ANTHROPIC_API_KEY).")); return; }
+      if (!res.ok) { setError(d.error || t("Échec de la suggestion.", "Suggestion failed.")); return; }
+      const suggestions = (d.competitors ?? [])
+        .map((c) => ({ name: (c.name ?? "").trim(), url: (c.pricingUrl ?? "").trim() }))
+        .filter((c) => c.name);
+      if (suggestions.length === 0) { setError(t("Aucune suggestion — décrivez votre produit puis réessayez.", "No suggestion — describe your product then retry.")); return; }
       setCompetitors((cs) => {
         const existing = new Set(cs.map((c) => c.name.trim().toLowerCase()).filter(Boolean));
-        const additions = names
-          .filter((n) => !existing.has(n.toLowerCase()))
-          .map((n) => ({ name: n, url: "" }));
+        const additions = suggestions.filter((s) => !existing.has(s.name.toLowerCase()));
         return [...cs.filter((c) => c.name.trim()), ...additions].slice(0, 6);
       });
     } catch {
@@ -150,11 +163,12 @@ export default function BenchmarkPage() {
         <div>
           <label className="section-label">{t("Votre produit", "Your product")}</label>
           <textarea
+            ref={productRef}
             value={product}
             onChange={(e) => setProduct(e.target.value)}
-            rows={2}
+            rows={6}
             placeholder={t("Décrivez votre produit, sa cible et ses atouts…", "Describe your product, target and strengths…")}
-            className="input mt-1 w-full"
+            className="input mt-1 min-h-[9rem] w-full resize-y"
           />
           {productPrefilled && (
             <p className="mt-1 text-2xs text-muted">{t("✓ Prérempli depuis votre identité de marque — modifiable.", "✓ Prefilled from your brand identity — editable.")}</p>
@@ -309,7 +323,9 @@ export default function BenchmarkPage() {
               <span className="section-label text-primary-600">{t("Prix conseillé pour votre produit", "Recommended pricing for your product")}</span>
               <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 {result.recommendedPricing.tiers.map((tier, i) => (
-                  <div key={i} className="rounded-xl border border-primary-400/30 bg-primary-50/40 p-3">
+                  // bg-primary-50 sans opacité : la variante /40 échappait au
+                  // remap du thème clair (pavés sombres — bug 4 lot 18).
+                  <div key={i} className="rounded-xl border border-primary-200 bg-primary-50 p-3">
                     <p className="text-sm font-bold text-ink">{tier.name}</p>
                     <p className="my-1 text-lg font-extrabold text-primary-600">{tier.price}</p>
                     <p className="text-2xs font-medium text-muted">{tier.target}</p>

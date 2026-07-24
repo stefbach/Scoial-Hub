@@ -6,6 +6,7 @@ import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { ReadOnlyBanner } from "./ReadOnlyBanner";
 import { Sidebar } from "./Sidebar";
+import { CompanyIndicator } from "./CompanyIndicator";
 import { HelpButton } from "@/components/help/HelpButton";
 import { HelpTrigger } from "@/components/help/HelpTrigger";
 import { DemoBanner } from "@/components/ui/DemoBanner";
@@ -202,7 +203,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <div className="app-grain" aria-hidden="true" />
 
       {/* Header sticky — blur + ombre au scroll via CSS */}
-      <header className="app-header sticky top-0 z-[60] flex items-center justify-between border-b border-hair bg-canvas/70 px-3 py-2.5 backdrop-blur-xl sm:px-5">
+      {/* z-30 : sous les overlays/modales (z-40/z-50) — la topbar doit rester
+          en arrière-plan quand une modale est ouverte (bug 5 lot 18). */}
+      <header className="app-header sticky top-0 z-30 flex items-center justify-between border-b border-hair bg-canvas/70 px-3 py-2.5 backdrop-blur-xl sm:px-5">
         <div className="flex min-w-0 items-center gap-2 sm:gap-3">
           {/* Hamburger (mobile only) */}
           <button
@@ -220,6 +223,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <Link href="/" aria-label="Accueil AXON-AI Social Media" className="shrink-0">
             <Logo size={28} />
           </Link>
+
+          {/* Sélecteur de société — visible aussi quand la sidebar est masquée
+              (fenêtre étroite / affichage fractionné — bug 1 lot 18). */}
+          <div className="min-w-0 max-w-[38vw] lg:hidden">
+            <CompanyIndicator />
+          </div>
         </div>
 
         {/* Zone droite : aide + thème + langue + avatar */}

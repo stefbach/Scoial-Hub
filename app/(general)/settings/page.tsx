@@ -132,8 +132,10 @@ function SettingsContent() {
       <div className="card flex min-h-[480px] flex-col overflow-hidden lg:flex-row">
         {/* Sidebar nav — desktop: vertical column; mobile: horizontal scroll bar */}
         <nav className="shrink-0 border-b border-hair bg-canvas/40 p-3 lg:w-52 lg:border-b-0 lg:border-r">
-          {/* Mobile: single scrollable row of all sections */}
-          <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 lg:hidden">
+          {/* Mobile: single scrollable row of all sections.
+              pb-2 : espace sous les onglets pour que la barre de défilement
+              horizontale ne touche pas l'onglet sélectionné (bug 7 lot 18). */}
+          <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-2 lg:hidden">
             {NAV.flatMap((g) => g.items).map((it) => (
               <button
                 key={it.id}

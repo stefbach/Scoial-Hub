@@ -26,7 +26,9 @@ export function Profile() {
   const { company } = useCompany();
   // UAT #14 — on n'affiche JAMAIS de profil fictif (« Younes O. »). On part de
   // champs vides puis on hydrate avec le VRAI utilisateur de la session Supabase.
-  const [name, setName] = useState("");
+  // Bug 8 (lot 18) : prénom et nom de famille séparés (plus un champ unique).
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [tz, setTz] = useState(TIMEZONES[0]);
   const [lang, setLang] = useState("English");
@@ -34,8 +36,12 @@ export function Profile() {
   const [twoFa, setTwoFa] = useState(false);
 
   const [dirty, setDirty] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [pwOpen, setPwOpen] = useState(false);
   const [twoFaOpen, setTwoFaOpen] = useState(false);
+  // Nonce de remontage du Toggle 2FA : le refus dans la modale doit ramener
+  // visuellement l'interrupteur sur « off » (bug 9 lot 18).
+  const [twoFaNonce, setTwoFaNonce] = useState(0);
   const [toast, setToast] = useState<string | null>(null);
 
   // Hydrate le profil depuis l'utilisateur réellement connecté. Email = source
@@ -50,15 +56,28 @@ export function Profile() {
       if (!u) return;
       if (u.email) setEmail(u.email);
       const meta = (u.user_metadata ?? {}) as Record<string, unknown>;
-      const metaName =
-        (typeof meta.full_name === "string" && meta.full_name) ||
-        (typeof meta.name === "string" && meta.name) ||
-        "";
-      if (metaName) setName(metaName);
+      // Prénom/nom explicites si présents ; sinon on scinde l'ancien nom complet
+      // (1er mot = prénom, reste = nom) pour une migration douce.
+      const metaFirst = typeof meta.first_name === "string" ? meta.first_name : "";
+      const metaLast = typeof meta.last_name === "string" ? meta.last_name : "";
+      if (metaFirst || metaLast) {
+        setFirstName(metaFirst);
+        setLastName(metaLast);
+      } else {
+        const metaName =
+          (typeof meta.full_name === "string" && meta.full_name) ||
+          (typeof meta.name === "string" && meta.name) ||
+          "";
+        const parts = metaName.trim().split(/\s+/).filter(Boolean);
+        if (parts.length) {
+          setFirstName(parts[0]);
+          setLastName(parts.slice(1).join(" "));
+        }
+      }
     });
   }, []);
 
-  const initials = (name || email)
+  const initials = (`${firstName} ${lastName}`.trim() || email)
     .split(/[\s@.]+/)
     .filter(Boolean)
     .map((p) => p[0])
@@ -71,9 +90,27 @@ export function Profile() {
     setDirty(true);
   };
 
-  const save = () => {
-    setDirty(false);
-    setToast(t("Profil enregistré.", "Profile saved."));
+  // Persistance réelle : prénom/nom écrits dans les métadonnées Supabase de
+  // l'utilisateur (full_name conservé pour compatibilité). Retour honnête.
+  const save = async () => {
+    setSaving(true);
+    try {
+      const supabase = isSupabaseConfigured ? createClient() : null;
+      if (supabase) {
+        const full = `${firstName} ${lastName}`.trim();
+        const { error } = await supabase.auth.updateUser({
+          data: { first_name: firstName.trim(), last_name: lastName.trim(), full_name: full },
+        });
+        if (error) {
+          setToast(t("Enregistrement impossible : ", "Could not save: ") + error.message);
+          return;
+        }
+      }
+      setDirty(false);
+      setToast(t("Profil enregistré.", "Profile saved."));
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -92,11 +129,20 @@ export function Profile() {
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
-          <label className="text-2xs font-medium text-muted">{t("Nom complet", "Full name")}</label>
+          <label className="text-2xs font-medium text-muted">{t("Prénom", "First name")}</label>
           <input
-            value={name}
-            onChange={(e) => mark(setName)(e.target.value)}
-            placeholder={t("Votre nom", "Your name")}
+            value={firstName}
+            onChange={(e) => mark(setFirstName)(e.target.value)}
+            placeholder={t("Votre prénom", "Your first name")}
+            className="mt-1 block w-full rounded-md border-hair border-hair bg-card px-3 py-2 text-sm text-ink placeholder:text-muted focus:outline-none"
+          />
+        </div>
+        <div>
+          <label className="text-2xs font-medium text-muted">{t("Nom de famille", "Last name")}</label>
+          <input
+            value={lastName}
+            onChange={(e) => mark(setLastName)(e.target.value)}
+            placeholder={t("Votre nom de famille", "Your last name")}
             className="mt-1 block w-full rounded-md border-hair border-hair bg-card px-3 py-2 text-sm text-ink placeholder:text-muted focus:outline-none"
           />
         </div>
@@ -146,7 +192,7 @@ export function Profile() {
           <div className="text-2xs text-muted">{t("Ajoutez une deuxième étape à la connexion pour plus de sécurité.", "Add a second step at sign-in for extra security.")}</div>
         </div>
         <Toggle
-          key={String(twoFa)}
+          key={`${twoFa}-${twoFaNonce}`}
           defaultOn={twoFa}
           onChange={(on) => {
             if (on) setTwoFaOpen(true);
@@ -157,19 +203,29 @@ export function Profile() {
 
       <div className="mt-6 flex items-center justify-end gap-3">
         {dirty && <span className="text-2xs text-amber-700">● {t("Modifications non enregistrées", "Unsaved changes")}</span>}
-        <Button variant="primary" disabled={!dirty} onClick={save}>{t("Enregistrer", "Save changes")}</Button>
+        <Button variant="primary" disabled={!dirty || saving} onClick={save}>
+          {saving ? t("Enregistrement…", "Saving…") : t("Enregistrer", "Save changes")}
+        </Button>
       </div>
 
       {pwOpen && <ChangePasswordModal onClose={() => setPwOpen(false)} onDone={() => { setPwOpen(false); setToast(t("Mot de passe modifié.", "Password changed.")); }} />}
       {twoFaOpen && (
-        <Modal open onClose={() => setTwoFaOpen(false)} width="max-w-sm">
+        <Modal
+          open
+          onClose={() => { setTwoFaOpen(false); setTwoFaNonce((n) => n + 1); }}
+          width="max-w-sm"
+        >
           <div className="border-b-hair border-hair px-4 py-3 text-sm font-semibold text-ink">{t("Authentification à deux facteurs", "Two-factor authentication")}</div>
           <div className="p-4 text-sm text-ink">
-            {t("La configuration 2FA sera activée une fois le backend connecté.", "2FA setup will be enabled when the backend is connected.")}
+            {/* Bug 9 (lot 18) : message honnête — fonctionnalité planifiée, pas
+                un problème de « backend à connecter ». */}
+            {t(
+              "L'authentification à deux facteurs n'est pas encore disponible : elle est prévue dans une prochaine version. Votre compte reste protégé par votre mot de passe.",
+              "Two-factor authentication is not available yet: it is planned for an upcoming release. Your account remains protected by your password."
+            )}
           </div>
           <div className="flex justify-end gap-2 border-t-hair border-hair px-4 py-3">
-            <Button variant="secondary" onClick={() => setTwoFaOpen(false)}>{t("Annuler", "Cancel")}</Button>
-            <Button variant="primary" onClick={() => setTwoFaOpen(false)}>OK</Button>
+            <Button variant="primary" onClick={() => { setTwoFaOpen(false); setTwoFaNonce((n) => n + 1); }}>OK</Button>
           </div>
         </Modal>
       )}

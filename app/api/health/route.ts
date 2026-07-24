@@ -31,6 +31,9 @@ export async function GET() {
       SHOTSTACK_API_KEY: Boolean(process.env.SHOTSTACK_API_KEY),
       TELEGRAM_BOT_TOKEN: Boolean(process.env.TELEGRAM_BOT_TOKEN),
       TELEGRAM_BOT_USERNAME: Boolean(process.env.TELEGRAM_BOT_USERNAME),
+      // E-mails transactionnels (invitations « Mon équipe ») — bug 3 lot 17 :
+      // sans cette clé, aucun e-mail ne part (repli : lien copiable).
+      RESEND_API_KEY: Boolean(process.env.RESEND_API_KEY),
     },
     config: {
       // Valeur non secrète — utile pour diagnostiquer le rendu Shotstack.

@@ -115,7 +115,9 @@ export function AdStrategyBrain() {
 
         {analysis && (
           <>
-            <div className="rounded-xl border-l-4 border-ai-text bg-ai-textbg/40 p-4">
+            {/* Tuile claire : bg-ai-textbg/40 échappait au remap du thème clair
+                (variante d'opacité non remappée → fond sombre opaque). */}
+            <div className="rounded-xl border-l-4 border-ai-text bg-ai-textbg p-4">
               <div className="flex items-center gap-2">
                 <span className="section-label text-ai-text">{t("Diagnostic", "Diagnostic")}</span>
                 {analysis.aiGenerated && <span className="rounded-full bg-ai-textbg px-2 py-0.5 text-2xs font-semibold text-ai-text">IA</span>}

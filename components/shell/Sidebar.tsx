@@ -157,6 +157,14 @@ const ICONS: Record<string, React.ReactNode> = {
       <path d="M9.5 12.5l1.5-2H7.8l1.7 2Z"  fill="currentColor" opacity="0.75"/>
     </svg>
   ),
+  // Séries de posts — piles de cartes décalées (bug 3 lot 18 : icône manquante)
+  "/series": (
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+      <rect x="2" y="4.5" width="8.5" height="8" rx="1.2" stroke="currentColor" strokeWidth="1.2" fill="none"/>
+      <path d="M4.5 2.5h8A1.5 1.5 0 0 1 14 4v6" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" fill="none" opacity="0.6"/>
+      <path d="M4.5 7.5h3.5M4.5 9.5h2" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round"/>
+    </svg>
+  ),
   "/history": (
     <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
       <path d="M2 7.5A5.5 5.5 0 1 0 7.5 2" stroke="currentColor" strokeWidth="1.2" fill="none" strokeLinecap="round"/>

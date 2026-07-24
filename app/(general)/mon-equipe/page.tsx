@@ -198,8 +198,8 @@ export default function MonEquipePage() {
                       `Invitation emailed to ${res.email} ✓ (the text was also copied, as a backup). Their access activates on first sign-in.`
                     )
                   : t(
-                      `Invitation créée pour ${res.email} — e-mail non envoyé (service e-mail non configuré). Le texte d'invitation a été copié : envoyez-le-lui vous-même pour finaliser la création de son compte.`,
-                      `Invitation created for ${res.email} — email not sent (email service not configured). The invitation text was copied: send it to them yourself so they can finish creating their account.`
+                      `Invitation créée pour ${res.email} — e-mail non envoyé : le service e-mail n'est pas configuré (variable RESEND_API_KEY à définir dans Vercel, cf. README). Le texte d'invitation a été copié : envoyez-le-lui vous-même en attendant.`,
+                      `Invitation created for ${res.email} — email not sent: the email service is not configured (set the RESEND_API_KEY variable in Vercel, see README). The invitation text was copied: send it to them yourself in the meantime.`
                     )
               );
             } else if (res?.added) {
@@ -208,7 +208,10 @@ export default function MonEquipePage() {
               setNote(
                 res.emailSent
                   ? t("Utilisateur ajouté à l'équipe ✓ — il a été prévenu par e-mail.", "User added to the team ✓ — they were notified by email.")
-                  : t("Utilisateur ajouté à l'équipe ✓ (e-mail de notification non envoyé : service e-mail non configuré).", "User added to the team ✓ (notification email not sent: email service not configured).")
+                  : t(
+                      "Utilisateur ajouté à l'équipe ✓ — e-mail de notification non envoyé : le service e-mail n'est pas configuré (variable RESEND_API_KEY à définir dans Vercel, cf. README).",
+                      "User added to the team ✓ — notification email not sent: the email service is not configured (set the RESEND_API_KEY variable in Vercel, see README)."
+                    )
               );
             }
           }}

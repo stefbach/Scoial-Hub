@@ -35,6 +35,9 @@ interface AdStrategyAnalysis {
   aiGenerated: boolean;
 }
 
+// BUG #11 : pagination client de la liste d'annonces (10 par page).
+const ADS_PER_PAGE = 10;
+
 export default function PublicitesPage() {
   const t = useT();
   const { lang } = useLang();
@@ -47,6 +50,7 @@ export default function PublicitesPage() {
   const [metricsAvailable, setMetricsAvailable] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; key: number } | null>(null);
+  const [page, setPage] = useState(1);
   const [analyzing, setAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState<AdStrategyAnalysis | null>(null);
   // Incrémenté après une analyse → force le StrategyPanel à recharger le brief.
@@ -57,6 +61,7 @@ export default function PublicitesPage() {
   const hydrated = useRef(false);
   useEffect(() => {
     hydrated.current = false;
+    setPage(1); // changement de société : on repart de la première page
     try {
       const raw = localStorage.getItem(`publicites_${company.id}`);
       if (raw) {
@@ -84,6 +89,7 @@ export default function PublicitesPage() {
     setErr(null);
     setAds([]);
     setAnalysis(null);
+    setPage(1); // BUG #11 : chaque nouvelle recherche repart de la page 1
     try {
       const res = await fetch("/api/veille/ads", {
         method: "POST",
@@ -143,6 +149,11 @@ export default function PublicitesPage() {
     if (a.impressionsHigh === 0 && a.impressionsLow === 0) return "—";
     return `${a.impressionsLow.toLocaleString()}–${a.impressionsHigh.toLocaleString()}`;
   }
+
+  // BUG #11 : découpage de la liste courante (borné si la liste rétrécit).
+  const pageCount = Math.max(1, Math.ceil(ads.length / ADS_PER_PAGE));
+  const safePage = Math.min(page, pageCount);
+  const pageAds = ads.slice((safePage - 1) * ADS_PER_PAGE, safePage * ADS_PER_PAGE);
 
   const flowSteps = [
     t("Chercher des pubs concurrentes", "Find competitor ads"),
@@ -264,7 +275,9 @@ export default function PublicitesPage() {
             <div className="card space-y-4 p-5">
               <div className="flex items-center gap-2">
                 <span className="section-label text-primary-500">{t("Stratégie publicitaire", "Ad strategy")}</span>
-                <span className={`rounded-full px-2 py-0.5 text-2xs font-semibold ${analysis.aiGenerated ? "bg-success-100 text-success-700" : "bg-warning-50 text-warning-700"}`}>
+                {/* BUG #8 : bg-success-100 (tuile verte sombre, non remappée en clair)
+                    rendait le badge illisible → bg-success-50 remappé + texte foncé. */}
+                <span className={`rounded-full px-2 py-0.5 text-2xs font-semibold ${analysis.aiGenerated ? "bg-success-50 text-success-700" : "bg-warning-50 text-warning-700"}`}>
                   {analysis.aiGenerated ? t("Analyse IA", "AI analysis") : t("Modèle", "Template")}
                 </span>
               </div>
@@ -309,17 +322,20 @@ export default function PublicitesPage() {
               {analysis.recommandations?.length > 0 && (
                 <div>
                   <p className="section-label mb-2">{t("Recommandations pour vous", "Recommendations for you")}</p>
+                  {/* BUG #9 : bg-primary-50/50 (variante d'opacité de la tuile sombre,
+                      non remappée en clair) donnait des pavés gris-violet opaques →
+                      tuile claire remappée, harmonisée sur toutes les cartes. */}
                   <div className="space-y-2">
                     {analysis.recommandations.map((r, i) => (
                       <a
                         key={i}
                         href={`/campaigns/new?${new URLSearchParams({ name: r.titre, text: `${r.titre} — ${r.detail}` }).toString()}`}
-                        className="group block rounded-lg border border-primary-200 bg-primary-50/50 p-3 transition-colors hover:border-primary-400 hover:bg-primary-50"
+                        className="group block rounded-lg border border-primary-200 bg-primary-50 p-3 transition-colors hover:border-primary-400 hover:bg-primary-100"
                         title={t("Créer une campagne à partir de cette recommandation", "Create a campaign from this recommendation")}
                       >
                         <p className="flex items-center justify-between gap-2 text-sm font-semibold text-ink">
                           {r.titre}
-                          <span className="shrink-0 text-2xs font-medium text-page opacity-0 transition-opacity group-hover:opacity-100">{t("Créer une pub →", "Create an ad →")}</span>
+                          <span className="shrink-0 text-2xs font-medium text-primary-700 opacity-0 transition-opacity group-hover:opacity-100">{t("Créer une pub →", "Create an ad →")}</span>
                         </p>
                         <p className="mt-0.5 text-xs text-muted">{r.detail}</p>
                       </a>
@@ -328,7 +344,9 @@ export default function PublicitesPage() {
                 </div>
               )}
 
-              <div className="flex flex-wrap items-center gap-3 border-t border-hair pt-3">
+              {/* BUG #10 : le filet border-t dessinait un encadré gris autour de la
+                  rangée → on garde bouton + texte, sans bordure de conteneur. */}
+              <div className="flex flex-wrap items-center gap-3 pt-1">
                 <button className="btn-secondary text-xs" onClick={analyze} disabled={analyzing}>{t("↻ Relancer l'analyse", "↻ Re-run analysis")}</button>
                 <p className="min-w-0 flex-1 text-2xs text-ai-text">
                   {t(
@@ -360,7 +378,7 @@ export default function PublicitesPage() {
               : t("publicités (impressions/dépenses indisponibles)", "ads (impressions/spend unavailable)")}
           </div>
           <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-            {ads.map((a) => (
+            {pageAds.map((a) => (
               <div key={a.id} className="card p-4">
                 <div className="mb-1.5 flex items-center justify-between gap-2">
                   <span className="min-w-0 truncate font-semibold text-ink">{a.pageName || "—"}</span>
@@ -385,6 +403,46 @@ export default function PublicitesPage() {
               </div>
             ))}
           </div>
+
+          {/* BUG #11 : contrôles de pagination (10 annonces par page) */}
+          {pageCount > 1 && (
+            <nav
+              className="flex flex-wrap items-center justify-center gap-1.5 pt-1"
+              aria-label={t("Pagination des publicités", "Ads pagination")}
+            >
+              <button
+                className="btn-secondary text-xs disabled:cursor-not-allowed disabled:opacity-50"
+                onClick={() => setPage(safePage - 1)}
+                disabled={safePage === 1}
+                aria-label={t("Page précédente", "Previous page")}
+              >
+                ← {t("Précédent", "Previous")}
+              </button>
+              {Array.from({ length: pageCount }, (_, i) => i + 1).map((n) => (
+                <button
+                  key={n}
+                  onClick={() => setPage(n)}
+                  aria-label={t(`Page ${n}`, `Page ${n}`)}
+                  aria-current={n === safePage ? "page" : undefined}
+                  className={`h-8 min-w-8 rounded-lg px-2 text-xs font-semibold transition-colors ${
+                    n === safePage
+                      ? "bg-primary-500 text-white"
+                      : "border border-hair bg-card text-muted hover:text-ink"
+                  }`}
+                >
+                  {n}
+                </button>
+              ))}
+              <button
+                className="btn-secondary text-xs disabled:cursor-not-allowed disabled:opacity-50"
+                onClick={() => setPage(safePage + 1)}
+                disabled={safePage === pageCount}
+                aria-label={t("Page suivante", "Next page")}
+              >
+                {t("Suivant", "Next")} →
+              </button>
+            </nav>
+          )}
         </section>
       )}
 

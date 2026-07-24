@@ -147,8 +147,8 @@ export function Team() {
                 // (livraison e-mail non configurée). L'accès s'appliquera à la
                 // première connexion de la personne avec cette adresse.
                 setToast(t(
-                  `Invitation créée pour ${payload.email}, mais l'envoi d'e-mail n'est pas configuré. L'accès s'activera à sa première connexion avec cet e-mail.`,
-                  `Invitation created for ${payload.email}, but email delivery isn't configured. Access applies on their first sign-in with this email.`,
+                  `Invitation créée pour ${payload.email}, mais l'envoi d'e-mail n'est pas configuré (RESEND_API_KEY à définir dans Vercel, cf. README). L'accès s'activera à sa première connexion avec cet e-mail.`,
+                  `Invitation created for ${payload.email}, but email delivery isn't configured (set RESEND_API_KEY in Vercel, see README). Access applies on their first sign-in with this email.`,
                 ));
               }
             } catch {

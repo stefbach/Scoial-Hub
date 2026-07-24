@@ -64,7 +64,8 @@ export function Notifications() {
         <div className="overflow-x-auto">
         <table className="w-full min-w-[20rem] text-sm">
           <thead>
-            <tr className="section-label border-b-hair border-hair text-left">
+            {/* Fond teinté : l'en-tête se distingue des lignes (bug 7 lot 19) */}
+            <tr className="section-label border-b-hair border-hair bg-canvas text-left">
               <th className="px-3 py-2 font-semibold">{t("ÉVÉNEMENT", "EVENT")}</th>
               <th className="px-3 py-2 font-semibold text-center">{t("EMAIL", "EMAIL")}</th>
               <th className="px-3 py-2 font-semibold text-center">{t("IN-APP", "IN-APP")}</th>

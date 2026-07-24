@@ -323,7 +323,9 @@ export default function BenchmarkPage() {
               <span className="section-label text-primary-600">{t("Prix conseillé pour votre produit", "Recommended pricing for your product")}</span>
               <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 {result.recommendedPricing.tiers.map((tier, i) => (
-                  <div key={i} className="rounded-xl border border-primary-400/30 bg-primary-50/40 p-3">
+                  // bg-primary-50 sans opacité : la variante /40 échappait au
+                  // remap du thème clair (pavés sombres — bug 4 lot 18).
+                  <div key={i} className="rounded-xl border border-primary-200 bg-primary-50 p-3">
                     <p className="text-sm font-bold text-ink">{tier.name}</p>
                     <p className="my-1 text-lg font-extrabold text-primary-600">{tier.price}</p>
                     <p className="text-2xs font-medium text-muted">{tier.target}</p>

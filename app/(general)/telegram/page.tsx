@@ -198,8 +198,8 @@ export default function ClientTelegramPage() {
           ))}
         </div>
 
-        {/* Exemples concrets à envoyer au bot — en langage naturel, par thème */}
-        <div className="mt-5 border-t border-hair pt-4">
+        {/* Exemples concrets à envoyer au bot — sans filet (retour QA bug 6 lot 18) */}
+        <div className="mt-5 pt-2">
           <div className="section-label mb-1">{t("Exemples de messages à envoyer", "Examples of messages to send")}</div>
           <p className="mb-3 text-xs text-muted">
             {t(

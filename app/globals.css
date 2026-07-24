@@ -563,7 +563,9 @@ html[data-theme="light"] .studio-seg {
 .app-shell > .app-header {
   position: sticky;
   top: 0;
-  z-index: 60;
+  /* Sous les modales/overlays (z-40/50) : la topbar reste en arrière-plan
+     quand une fenêtre modale est ouverte (bug 5 lot 18). */
+  z-index: 30;
 }
 @media (prefers-reduced-motion: reduce) {
   .app-shell > .app-mesh { animation: none; }

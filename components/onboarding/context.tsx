@@ -97,6 +97,12 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
     setState(makeEmptyOnboardingState(companyId));
     setProfile(makeEmptyBrandProfile(companyId));
 
+    // Sentinelle « aucune société active » : pas d'appel (companyId vide → 400).
+    if (!companyId) {
+      setLoading(false);
+      return;
+    }
+
     fetch(`/api/onboarding/state?companyId=${encodeURIComponent(companyId)}`)
       .then((r) => (r.ok ? (r.json() as Promise<OnboardingStateResponse>) : null))
       .then((data) => {
@@ -120,6 +126,7 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const persist = useCallback(
     (next: OnboardingState) => {
+      if (!companyId) return; // rien à persister sans société active
       if (saveTimer.current) clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(async () => {
         setSaving(true);

@@ -209,6 +209,7 @@ export default function VeillePage() {
   // pour que la page soit immédiatement utilisable (bouton actif).
   useEffect(() => {
     let alive = true;
+    if (!company.id) return; // aucune société active → pas d'appel (400 sinon)
     fetch(`/api/onboarding/state?companyId=${encodeURIComponent(company.id)}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {

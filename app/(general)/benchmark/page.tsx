@@ -73,6 +73,7 @@ export default function BenchmarkPage() {
   useEffect(() => {
     let alive = true;
     setProduct(""); setProductPrefilled(false);
+    if (!company.id) return; // aucune société active → pas d'appel (400 sinon)
     fetch(`/api/onboarding/state?companyId=${encodeURIComponent(company.id)}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {

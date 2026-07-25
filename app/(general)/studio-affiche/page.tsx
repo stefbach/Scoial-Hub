@@ -146,7 +146,16 @@ export default function StudioAffichePage() {
   // ── Génération du fond par IA ───────────────────────────────────────────────
   // `o` permet au copilote de générer immédiatement avec SES valeurs (axe :
   // « le copilote déclenche la génération »), sans attendre le re-render React.
+  // Aucune société active (sentinelle "" avant hydratation / espace vierge) :
+  // les API par-société répondraient 400 — on explique au lieu d'échouer en silence.
+  const noCompanyNote = () =>
+    setNote(t(
+      "Aucune société active : sélectionnez ou créez d'abord une société (menu Sociétés).",
+      "No active company: select or create a company first (Companies menu)."
+    ));
+
   async function generateBackground(o?: { prompt?: string; model?: string; ar?: string }) {
+    if (!companyId) { noCompanyNote(); return; }
     setGenerating(true); setNote(null);
     try {
       const effPrompt = o?.prompt ?? prompt;
@@ -182,6 +191,7 @@ export default function StudioAffichePage() {
 
   // ── Prompt généré par l'IA (puis utilisé pour générer l'image) ──────────────
   async function suggestPrompt() {
+    if (!companyId) { noCompanyNote(); return; }
     setSuggesting(true); setNote(null);
     try {
       const r = await fetch("/api/ai/suggest-image-prompt", {
@@ -401,6 +411,7 @@ export default function StudioAffichePage() {
   async function saveToLibrary() {
     const canvas = canvasRef.current;
     if (!canvas) return;
+    if (!companyId) { noCompanyNote(); return; }
     setSavingLib(true); setNote(null);
     try {
       const blob: Blob | null = await new Promise((res) => canvas.toBlob((b) => res(b), "image/png"));
@@ -422,6 +433,7 @@ export default function StudioAffichePage() {
   const declineSet = FORMATS.filter((f) => SOCIAL_DECLINE_IDS.includes(f.id));
   async function declineAll() {
     if (declining) return;
+    if (!companyId) { noCompanyNote(); return; }
     if (!bgImg && !headline && !subtitle) { setNote(t("Composez d'abord l'affiche (fond ou texte).", "Compose the poster first (background or text).")); return; }
     setDeclining(true); setDeclineDone(0); setNote(null);
     let ok = 0;
@@ -475,6 +487,7 @@ export default function StudioAffichePage() {
 
   async function declineAds() {
     if (decliningAds || declining) return;
+    if (!companyId) { noCompanyNote(); return; }
     if (!bgUrl) { setNote(t("Générez d'abord un fond (IA) pour décliner en pub plein cadre.", "Generate a background (AI) first to create full-frame ads.")); return; }
     setDecliningAds(true); setAdsDone(0); setNote(null);
     let okIA = 0;

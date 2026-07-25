@@ -87,6 +87,7 @@ export default function PilotagePage() {
   useEffect(() => {
     let alive = true;
     setJourney(null);
+    if (!company.id) return; // aucune société active → pas d'appel (400 sinon)
     Promise.all([
       fetch(`/api/campaigns?companyId=${encodeURIComponent(company.id)}`)
         .then((r) => (r.ok ? (r.json() as Promise<Campaign[]>) : []))

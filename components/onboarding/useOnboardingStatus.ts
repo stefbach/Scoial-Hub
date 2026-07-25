@@ -26,6 +26,12 @@ export function useOnboardingStatus(): OnboardingStatus {
 
   useEffect(() => {
     let alive = true;
+    // Sentinelle « aucune société active » (avant hydratation ou espace vierge) :
+    // pas d'appel — il partirait avec companyId vide et répondrait 400.
+    if (!companyId) {
+      setStatus({ loading: false, completed: false, step: 1, hasProfile: false });
+      return;
+    }
     setStatus((p) => ({ ...p, loading: true }));
 
     fetch(`/api/onboarding/state?companyId=${encodeURIComponent(companyId)}`)

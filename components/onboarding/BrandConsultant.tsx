@@ -169,6 +169,7 @@ export function BrandConsultant({
   // disparaisse pas au rechargement. Le fil local, s'il existe, reste prioritaire.
   useEffect(() => {
     let alive = true;
+    if (!companyId) return; // aucune société active → pas d'appel (400 sinon)
     try { if (localStorage.getItem(storageKey)) return; } catch { /* continue */ }
     fetch(`/api/onboarding/state?companyId=${encodeURIComponent(companyId)}`)
       .then((r) => (r.ok ? r.json() : null))

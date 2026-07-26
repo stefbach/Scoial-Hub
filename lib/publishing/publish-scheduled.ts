@@ -16,6 +16,7 @@ import {
   getConnectionAdmin,
 } from "@/lib/repositories/channel-connections";
 import { updateScheduledPost } from "@/lib/repositories/scheduled-posts";
+import { ensurePublishableImageUrl } from "@/lib/repositories/media";
 import { resolveCompanyUuid } from "@/lib/repositories/resolve-company";
 import { getConnector } from "@/lib/connectors/index";
 import { createAdminClient } from "@/lib/supabase/server";
@@ -199,7 +200,7 @@ export async function publishScheduledPostNow(
 
   // Média attaché (URL) — requis par Instagram (pas de post texte seul),
   // optionnel mais pris en compte pour Facebook/LinkedIn.
-  const mediaUrl = post.media?.url;
+  let mediaUrl = post.media?.url;
   if (platform === "instagram" && !mediaUrl) {
     return {
       ok: false,
@@ -207,6 +208,12 @@ export async function publishScheduledPostNow(
       error: "Instagram exige un visuel (image ou vidéo). Ajoutez un média à la publication avant de publier.",
       platform,
     };
+  }
+
+  // Un visuel WebP (anciens posts programmés avec une image IA) est refusé par
+  // LinkedIn et Instagram → conversion JPEG + rehébergement avant publication.
+  if (mediaUrl && post.media?.kind !== "video") {
+    mediaUrl = await ensurePublishableImageUrl(companyIdOrUuid, mediaUrl);
   }
 
   const input: PublishInput = {

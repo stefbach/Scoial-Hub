@@ -266,7 +266,8 @@ export async function generateImage(
   const input = {
     prompt,
     aspect_ratio: aspectRatio,
-    output_format: "webp",
+    // jpg (pas webp) : LinkedIn/Instagram refusent le WebP à la publication.
+    output_format: "jpg",
     output_quality: 80,
     safety_tolerance: 2,
   };

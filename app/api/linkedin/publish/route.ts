@@ -4,6 +4,7 @@ import { getConnection } from "@/lib/repositories/channel-connections";
 import { resolveCompanyUuid } from "@/lib/repositories/resolve-company";
 import { getConnector } from "@/lib/connectors/index";
 import { createAdminClient } from "@/lib/supabase/server";
+import { ensurePublishableImageUrl } from "@/lib/repositories/media";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -36,10 +37,11 @@ export async function POST(req: NextRequest) {
       linkTitle: linkTitle || undefined,
       linkDescription: linkDescription || undefined,
       // Vidéo prioritaire (Videos API) ; mimeType explicite pour la détection.
+      // Image : WebP refusé par LinkedIn → conversion JPEG + rehébergement.
       media: videoUrl
         ? { url: videoUrl, mimeType: "video/mp4" }
         : imageUrl
-        ? { url: imageUrl }
+        ? { url: await ensurePublishableImageUrl(companyId, imageUrl) }
         : undefined,
     });
 

@@ -18,6 +18,7 @@ import { requireCompanyAccess } from "@/lib/auth/guard";
 import { getConnection } from "@/lib/repositories/channel-connections";
 import { resolveCompanyUuid } from "@/lib/repositories/resolve-company";
 import { getConnector, isSupportedPlatform } from "@/lib/connectors/index";
+import { ensurePublishableImageUrl } from "@/lib/repositories/media";
 
 export async function POST(req: NextRequest) {
   try {
@@ -45,10 +46,11 @@ export async function POST(req: NextRequest) {
     }
 
     // Média : vidéo prioritaire (TikTok), sinon image.
+    // Image : WebP refusé par plusieurs réseaux → conversion JPEG + rehébergement.
     const media = videoUrl
       ? { url: videoUrl as string, mimeType: "video/mp4" }
       : imageUrl
-      ? { url: imageUrl as string, mimeType: "image/jpeg" }
+      ? { url: await ensurePublishableImageUrl(companyId, imageUrl as string), mimeType: "image/jpeg" }
       : undefined;
 
     const result = await getConnector(platform).publishPost({

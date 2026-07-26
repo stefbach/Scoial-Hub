@@ -14,6 +14,7 @@ import { requireCompanyAccess } from "@/lib/auth/guard";
 import { getMetaContext } from "@/lib/connectors/meta-pages";
 import { createAdminClient } from "@/lib/supabase/server";
 import { resolveCompanyUuid } from "@/lib/repositories/resolve-company";
+import { ensurePublishableImageUrl } from "@/lib/repositories/media";
 
 const V = process.env.META_API_VERSION ?? "v21.0";
 
@@ -76,7 +77,7 @@ async function logPublished(companyId: string, platform: string, body: string, u
 
 export async function POST(req: NextRequest) {
   try {
-    const { companyId, text, imageUrl, targets } = (await req.json()) as {
+    let { companyId, text, imageUrl, targets } = (await req.json()) as {
       companyId?: string;
       text?: string;
       imageUrl?: string;
@@ -93,6 +94,9 @@ export async function POST(req: NextRequest) {
     if (!ctx.pageToken) {
       return NextResponse.json({ connected: false, error: "Page Meta non connectée." });
     }
+
+    // WebP refusé par Instagram (JPEG requis) → conversion + rehébergement.
+    if (imageUrl) imageUrl = await ensurePublishableImageUrl(companyId, imageUrl);
 
     const wantFb = targets?.facebook !== false; // FB par défaut
     const wantIg = Boolean(targets?.instagram);

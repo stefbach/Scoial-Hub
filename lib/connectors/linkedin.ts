@@ -16,6 +16,7 @@
 
 import type { Platform } from "@/lib/types";
 import { formatForLinkedIn } from "@/lib/linkedin-format";
+import { isWebpBytes, toJpeg } from "@/lib/media/image-format";
 import type {
   SocialConnector,
   TokenSet,
@@ -160,15 +161,23 @@ async function uploadLinkedInImage(author: string, imageUrl: string, token: stri
   // Récupère les octets du visuel source (doit être une URL publique).
   const imgRes = await fetch(imageUrl);
   if (!imgRes.ok) throw new Error(`Téléchargement du visuel échoué (HTTP ${imgRes.status}).`);
-  const bytes = Buffer.from(await imgRes.arrayBuffer());
+  let bytes: Buffer = Buffer.from(await imgRes.arrayBuffer());
+  let contentType = imgRes.headers.get("content-type") || "application/octet-stream";
+
+  // LinkedIn n'accepte que JPG/PNG/GIF : un WebP (visuel généré par IA) est
+  // rejeté au traitement et le post partirait sans image → conversion JPEG.
+  if (isWebpBytes(bytes)) {
+    bytes = await toJpeg(bytes);
+    contentType = "image/jpeg";
+  }
 
   const up = await fetch(uploadUrl, {
     method: "PUT",
     headers: {
       Authorization: `Bearer ${token}`,
-      "Content-Type": imgRes.headers.get("content-type") || "application/octet-stream",
+      "Content-Type": contentType,
     },
-    body: bytes,
+    body: new Uint8Array(bytes),
   });
   if (!up.ok) throw new Error(`LinkedIn image upload → HTTP ${up.status}`);
   return imageUrn;
@@ -444,16 +453,14 @@ class LinkedInConnector implements SocialConnector {
         };
         mediaAttached = true;
       } else {
-        try {
-          const imageUrn = await uploadLinkedInImage(author, input.media.url, input.accessToken);
-          postBody.content = {
-            media: { id: imageUrn, ...(input.linkTitle ? { title: input.linkTitle } : {}) },
-          };
-          mediaAttached = true;
-        } catch (e) {
-          // Repli : si l'upload de l'image échoue, on publie au moins le texte.
-          console.warn("[linkedin] upload image échoué, publication en texte seul :", (e as Error).message);
-        }
+        // Image : comme la vidéo, AUCUN repli texte silencieux — publier sans
+        // le visuel choisi à l'insu de l'utilisateur est pire qu'un échec
+        // visible (le post « réussissait » mais l'image manquait sur LinkedIn).
+        const imageUrn = await uploadLinkedInImage(author, input.media.url, input.accessToken);
+        postBody.content = {
+          media: { id: imageUrn, ...(input.linkTitle ? { title: input.linkTitle } : {}) },
+        };
+        mediaAttached = true;
       }
     }
     if (!mediaAttached && input.link) {

@@ -57,19 +57,20 @@ export const IMAGE_MODELS: GenModel[] = [
     id: "black-forest-labs/flux-1.1-pro",
     label: "Flux 1.1 Pro",
     note: "Photoréaliste, polyvalent",
-    buildInput: (p, o) => ({ prompt: p, aspect_ratio: imgRatio(o.aspect), output_format: "webp", output_quality: 90, safety_tolerance: 5 }),
+    // jpg (pas webp) : LinkedIn/Instagram refusent le WebP à la publication.
+    buildInput: (p, o) => ({ prompt: p, aspect_ratio: imgRatio(o.aspect), output_format: "jpg", output_quality: 90, safety_tolerance: 5 }),
   },
   {
     id: "black-forest-labs/flux-1.1-pro-ultra",
     label: "Flux 1.1 Pro Ultra",
     note: "Ultra-net (jusqu'à 4 MP)",
-    buildInput: (p, o) => ({ prompt: p, aspect_ratio: imgRatio(o.aspect), output_format: "webp", safety_tolerance: 5 }),
+    buildInput: (p, o) => ({ prompt: p, aspect_ratio: imgRatio(o.aspect), output_format: "jpg", safety_tolerance: 5 }),
   },
   {
     id: "black-forest-labs/flux-schnell",
     label: "Flux Schnell",
     note: "Rapide & économique",
-    buildInput: (p, o) => ({ prompt: p, aspect_ratio: imgRatio(o.aspect), output_format: "webp", num_outputs: 1 }),
+    buildInput: (p, o) => ({ prompt: p, aspect_ratio: imgRatio(o.aspect), output_format: "jpg", num_outputs: 1 }),
   },
   {
     id: "google/imagen-4",
@@ -99,7 +100,7 @@ export const IMAGE_MODELS: GenModel[] = [
     id: "stability-ai/stable-diffusion-3.5-large",
     label: "Stable Diffusion 3.5",
     note: "Open, polyvalent",
-    buildInput: (p, o) => ({ prompt: p, aspect_ratio: imgRatio(o.aspect), output_format: "webp" }),
+    buildInput: (p, o) => ({ prompt: p, aspect_ratio: imgRatio(o.aspect), output_format: "jpg" }),
   },
   {
     id: "bytedance/seedream-3",

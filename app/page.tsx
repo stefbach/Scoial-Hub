@@ -441,7 +441,12 @@ export default function Home() {
       </section>
 
       <footer className="mc-foot">
-        <span>© {new Date().getFullYear()} AXON·AI</span>
+        <span>© {new Date().getFullYear()} AXON·AI · Social Hub — Digital Data Solutions Ltd</span>
+        <nav className="mc-foot-links" aria-label={t("Liens légaux", "Legal links")}>
+          <Link href="/legal/conditions">{t("Conditions", "Terms")}</Link>
+          <Link href="/legal/confidentialite">{t("Confidentialité", "Privacy")}</Link>
+          <Link href="/legal/suppression-donnees">{t("Suppression des données", "Data deletion")}</Link>
+        </nav>
         <span className="mc-foot-net">{NETWORKS.map((L, i) => <L key={i} s={18} />)}</span>
       </footer>
     </div>

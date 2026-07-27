@@ -1032,6 +1032,9 @@ html[data-theme="light"] .app-shell > .app-grain {
         .mc-foot{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;
           padding:2rem clamp(1rem,4vw,3rem);border-top:1px solid rgba(168,85,247,.14);color:#8b7fa8;font-size:.85rem;}
         .mc-foot-net{display:flex;gap:.6rem;}
+        .mc-foot-links{display:flex;gap:1.25rem;flex-wrap:wrap;font-size:.8rem;}
+        .mc-foot-links a{color:#a091c4;text-decoration:none;transition:color .15s ease;}
+        .mc-foot-links a:hover{color:#e9defa;text-decoration:underline;text-underline-offset:3px;}
 
         /* Scroll reveal */
         .reveal{opacity:0;transform:translateY(26px);transition:opacity .7s ease,transform .7s cubic-bezier(.2,.8,.2,1);}

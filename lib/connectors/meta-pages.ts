@@ -4,6 +4,8 @@
 // les Pages de l'utilisateur, on choisit celle qui correspond à la société, et
 // on enregistre les bons identifiants dans sh_channel_connections.
 
+import { withAppSecretProof } from "@/lib/connectors/meta-appsecret";
+
 const V = process.env.META_API_VERSION ?? "v21.0";
 
 export interface MetaPage {
@@ -18,10 +20,11 @@ export interface MetaPage {
 
 /** Liste les Pages gérées par l'utilisateur (avec token de page + IG lié). */
 export async function fetchMetaPages(userToken: string): Promise<MetaPage[]> {
-  const url =
+  const url = withAppSecretProof(
     `https://graph.facebook.com/${V}/me/accounts` +
-    `?fields=id,name,access_token,fan_count,picture{url},instagram_business_account{id,username}` +
-    `&limit=100&access_token=${encodeURIComponent(userToken)}`;
+      `?fields=id,name,access_token,fan_count,picture{url},instagram_business_account{id,username}` +
+      `&limit=100&access_token=${encodeURIComponent(userToken)}`
+  );
   try {
     const res = await fetch(url, { cache: "no-store" });
     const json = (await res.json()) as { data?: Array<Record<string, unknown>> };
@@ -88,9 +91,10 @@ export interface AdAccount {
 }
 
 export async function fetchAdAccounts(userToken: string): Promise<AdAccount[]> {
-  const url =
+  const url = withAppSecretProof(
     `https://graph.facebook.com/${V}/me/adaccounts` +
-    `?fields=account_id,name,currency,account_status,amount_spent&limit=100&access_token=${encodeURIComponent(userToken)}`;
+      `?fields=account_id,name,currency,account_status,amount_spent&limit=100&access_token=${encodeURIComponent(userToken)}`
+  );
   try {
     const res = await fetch(url, { cache: "no-store" });
     const json = (await res.json()) as { data?: Array<Record<string, unknown>> };
@@ -383,7 +387,10 @@ export interface MetaInsights {
 async function gget(path: string, token: string): Promise<Record<string, unknown> | null> {
   try {
     const sep = path.includes("?") ? "&" : "?";
-    const res = await fetch(`https://graph.facebook.com/${V}/${path}${sep}access_token=${encodeURIComponent(token)}`, { cache: "no-store" });
+    const url = withAppSecretProof(
+      `https://graph.facebook.com/${V}/${path}${sep}access_token=${encodeURIComponent(token)}`
+    );
+    const res = await fetch(url, { cache: "no-store" });
     const j = (await res.json()) as Record<string, unknown>;
     if (j && (j as { error?: unknown }).error) return null;
     return j;

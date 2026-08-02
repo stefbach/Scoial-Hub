@@ -24,6 +24,34 @@ import type { Platform } from "@/lib/types";
 export type ConnectorPlatform = Platform | "twitter" | "pinterest" | "threads";
 
 // ---------------------------------------------------------------------------
+// Erreurs d'authentification
+// ---------------------------------------------------------------------------
+
+/**
+ * Le fournisseur a rejeté le token du compte (expiré, révoqué, mauvais profil).
+ *
+ * Distincte d'une erreur réseau : réessayer à l'identique ne peut PAS aboutir,
+ * seule une reconnexion du compte le peut. La couche publication s'en sert pour
+ * marquer la connexion `disconnected` et arrêter la boucle de réessais, au lieu
+ * d'échouer silencieusement toutes les 10 minutes (cas Tibok : jeton Facebook
+ * invalide depuis le 13/07 sans que personne ne le voie).
+ */
+export class ConnectorAuthError extends Error {
+  readonly platform: string;
+
+  constructor(platform: string, message: string) {
+    super(message);
+    this.name = "ConnectorAuthError";
+    this.platform = platform;
+  }
+}
+
+/** Vrai si l'erreur signale un token rejeté par le fournisseur. */
+export function isConnectorAuthError(err: unknown): err is ConnectorAuthError {
+  return err instanceof ConnectorAuthError;
+}
+
+// ---------------------------------------------------------------------------
 // Token OAuth
 // ---------------------------------------------------------------------------
 

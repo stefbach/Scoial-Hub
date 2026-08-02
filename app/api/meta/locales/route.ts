@@ -8,6 +8,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireCompanyAccess } from "@/lib/auth/guard";
 import { getMetaContext } from "@/lib/connectors/meta-pages";
+import { withAppSecretProof } from "@/lib/connectors/meta-appsecret";
 
 const V = process.env.META_API_VERSION ?? "v21.0";
 
@@ -25,7 +26,7 @@ export async function GET(req: NextRequest) {
     if (!ctx.userToken) return NextResponse.json({ results: [], connected: false });
 
     const url = `https://graph.facebook.com/${V}/search?type=adlocale&q=${encodeURIComponent(q)}&limit=20&access_token=${encodeURIComponent(ctx.userToken)}`;
-    const res = await fetch(url, { cache: "no-store" });
+    const res = await fetch(withAppSecretProof(url), { cache: "no-store" });
     const json = (await res.json()) as { data?: Array<Record<string, unknown>>; error?: { message?: string } };
     if (json.error) return NextResponse.json({ error: json.error.message ?? "Erreur recherche langues" }, { status: 502 });
 

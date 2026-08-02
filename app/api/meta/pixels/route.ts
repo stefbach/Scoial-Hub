@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireCompanyAccess } from "@/lib/auth/guard";
 import { getMetaContext } from "@/lib/connectors/meta-pages";
 import { cached } from "@/lib/cache/ttl-cache";
+import { withAppSecretProof } from "@/lib/connectors/meta-appsecret";
 
 const V = process.env.META_API_VERSION ?? "v21.0";
 
@@ -22,7 +23,7 @@ export async function GET(req: NextRequest) {
       if (!ctx.userToken || !ctx.adAccountId) return { pixels: [] };
       const act = `act_${String(ctx.adAccountId).replace(/^act_/, "")}`;
       const url = `https://graph.facebook.com/${V}/${act}/adspixels?fields=id,name,last_fired_time&access_token=${encodeURIComponent(ctx.userToken)}`;
-      const res = await fetch(url, { cache: "no-store" });
+      const res = await fetch(withAppSecretProof(url), { cache: "no-store" });
       const json = (await res.json()) as { data?: Array<Record<string, unknown>>; error?: { message?: string } };
       if (json.error) return { pixels: [], error: json.error.message };
       const pixels = (json.data ?? []).map((p) => ({ id: String(p.id ?? ""), name: String(p.name ?? "Pixel") })).filter((p) => p.id);

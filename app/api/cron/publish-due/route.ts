@@ -32,7 +32,9 @@ import {
   claimDueScheduledPost,
   finalizeFailedScheduledPost,
   isPermanentPublishError,
+  isPastRetryWindow,
   reclaimStalePublishing,
+  RETRY_WINDOW_HOURS,
 } from "@/lib/publishing/publish-scheduled";
 import type { Platform } from "@/lib/types";
 
@@ -43,6 +45,9 @@ export const maxDuration = 60;
 const CONCURRENCY = 8;
 
 const PLATFORMS: Platform[] = ["linkedin", "facebook", "instagram", "twitter", "tiktok"];
+
+/** Fenêtre de retard tolérée, formulée pour le message d'erreur utilisateur. */
+const RETRY_WINDOW_LABEL = `${RETRY_WINDOW_HOURS} h`;
 
 /* ── Auth ──────────────────────────────────────────────────────────────── */
 
@@ -84,9 +89,29 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       const { post, companyId } = item;
       const claimed = await claimDueScheduledPost(post.id);
       if (!claimed) return null; // déjà traité par un autre passage concurrent
+
+      // Trop en retard pour partir automatiquement : publier un post prévu il y
+      // a plusieurs jours n'a plus de sens éditorial (et, après une panne, en
+      // enverrait toute une pile d'un coup sur le réseau). On le rend visible
+      // en `failed` — l'utilisateur le reprogramme ou le publie à la main.
+      if (isPastRetryWindow(post)) {
+        await finalizeFailedScheduledPost(post.id, true);
+        return {
+          postId: post.id,
+          companyId,
+          platform: post.platform,
+          title: post.title,
+          ok: false,
+          error: `Échéance dépassée de plus de ${RETRY_WINDOW_LABEL} — publication automatique annulée, à reprogrammer.`,
+        };
+      }
+
       const outcome = await publishScheduledPostNow(post, companyId, { admin: true });
       if (!outcome.ok) {
-        const permanent = isPermanentPublishError(outcome.status);
+        // Échec permanent par nature, OU transitoire mais hors fenêtre de
+        // réessai : dans les deux cas on arrête la boucle et le post devient
+        // visiblement `failed` au lieu de repartir en silence indéfiniment.
+        const permanent = isPermanentPublishError(outcome.status) || isPastRetryWindow(post);
         // Échec permanent → `failed` (on arrête de réessayer) ; transitoire →
         // on relâche le verrou en repassant `scheduled` (réessai au prochain run).
         await finalizeFailedScheduledPost(post.id, permanent);

@@ -11,6 +11,8 @@
  */
 
 import type { Platform } from "@/lib/types";
+import { withAppSecretProof } from "@/lib/connectors/meta-appsecret";
+import { ConnectorAuthError } from "@/lib/connectors/types";
 import type {
   SocialConnector,
   TokenSet,
@@ -70,7 +72,9 @@ async function graphFetch<T = Record<string, unknown>>(
   path: string,
   options?: RequestInit
 ): Promise<T> {
-  const url = `${GRAPH_BASE}${path}`;
+  // Signature « Require App Secret » : ajoutée ici pour TOUS les appels de ce
+  // connecteur (le token voyage dans la query string de `path`).
+  const url = withAppSecretProof(`${GRAPH_BASE}${path}`);
   const res = await fetch(url, {
     ...options,
     headers: {
@@ -82,6 +86,16 @@ async function graphFetch<T = Record<string, unknown>>(
   const data = (await res.json()) as T & { error?: { message: string; code: number } };
 
   if ("error" in data && data.error) {
+    // Code 190 = « Invalid OAuth 2.0 Access Token » (expiré, révoqué, mauvais
+    // profil). Erreur typée : réessayer à l'identique ne peut pas aboutir, seule
+    // une reconnexion le peut — l'appelant marque la connexion `disconnected`
+    // au lieu de boucler en silence.
+    if (data.error.code === 190) {
+      throw new ConnectorAuthError(
+        "meta",
+        `Meta a refusé le token du compte (${data.error.message}). Reconnectez le compte dans Connecteurs.`
+      );
+    }
     throw new Error(
       `Graph API ${path} → [${data.error.code}] ${data.error.message}`
     );

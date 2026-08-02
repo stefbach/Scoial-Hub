@@ -3,6 +3,7 @@
 // réponses vers la plateforme.
 // Utilise le token de PAGE stocké pour la société (cf. meta-pages.getMetaContext).
 
+import { signFormBody, withAppSecretProof } from "@/lib/connectors/meta-appsecret";
 import { getMetaContext } from "@/lib/connectors/meta-pages";
 import { ingestMessage } from "@/lib/repositories/inbox";
 import type { InboxChannel } from "@/lib/inbox/types";
@@ -28,7 +29,9 @@ async function gget(
   try {
     const sep = path.includes("?") ? "&" : "?";
     const res = await fetch(
-      `https://graph.facebook.com/${V}/${path}${sep}access_token=${encodeURIComponent(token)}`,
+      withAppSecretProof(
+        `https://graph.facebook.com/${V}/${path}${sep}access_token=${encodeURIComponent(token)}`
+      ),
       { cache: "no-store" }
     );
     const j = (await res.json()) as Record<string, unknown>;
@@ -72,7 +75,7 @@ async function gpaged(
     if (!next || data.length === 0) break;
     guard++;
     try {
-      const res = await fetch(next, { cache: "no-store" });
+      const res = await fetch(withAppSecretProof(next), { cache: "no-store" });
       page = (await res.json()) as Record<string, unknown>;
       if ((page as { error?: unknown }).error) break;
     } catch {
@@ -98,7 +101,7 @@ async function drainEdge(
   while (next && guard < maxPages) {
     guard++;
     try {
-      const res = await fetch(next, { cache: "no-store" });
+      const res = await fetch(withAppSecretProof(next), { cache: "no-store" });
       const j = (await res.json()) as GraphEdge & { error?: { message?: string } };
       if (j.error) {
         if (j.error.message) errs?.push(j.error.message);
@@ -329,7 +332,7 @@ export async function syncMetaComments(companyId: string, budgetMs = 48_000): Pr
       if (!next || data.length === 0) break;
       guard++;
       try {
-        const res = await fetch(next, { cache: "no-store" });
+        const res = await fetch(withAppSecretProof(next), { cache: "no-store" });
         page = (await res.json()) as Record<string, unknown>;
         if ((page as { error?: { message?: string } }).error) {
           const msg = (page as { error?: { message?: string } }).error?.message;
@@ -858,10 +861,12 @@ export async function syncMetaComments(companyId: string, budgetMs = 48_000): Pr
       const res = await fetch(`https://graph.facebook.com/${V}/${ctx.pageId}/subscribed_apps`, {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({
-          subscribed_fields: "feed,messages,message_echoes",
-          access_token: token!,
-        }).toString(),
+        body: signFormBody(
+          new URLSearchParams({
+            subscribed_fields: "feed,messages,message_echoes",
+            access_token: token!,
+          })
+        ).toString(),
       });
       const j = (await res.json()) as { success?: boolean; error?: { message?: string } };
       if (j.error?.message) errs.push(`Webhook non abonné : ${j.error.message}`);
@@ -1015,7 +1020,7 @@ async function metaPost(path: string, params: Record<string, string>): Promise<D
     const res = await fetch(`https://graph.facebook.com/${V}/${path}`, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams(params).toString(),
+      body: signFormBody(new URLSearchParams(params)).toString(),
     });
     const json = (await res.json()) as { id?: string; message_id?: string; error?: { message?: string } };
     if (json.error) return { delivered: false, error: json.error.message ?? "Erreur Meta." };

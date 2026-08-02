@@ -14,7 +14,9 @@
 import {
   getConnection,
   getConnectionAdmin,
+  markConnectionDisconnected,
 } from "@/lib/repositories/channel-connections";
+import { isConnectorAuthError } from "@/lib/connectors/types";
 import { updateScheduledPost } from "@/lib/repositories/scheduled-posts";
 import { ensurePublishableImageUrl } from "@/lib/repositories/media";
 import { resolveCompanyUuid } from "@/lib/repositories/resolve-company";
@@ -233,6 +235,21 @@ export async function publishScheduledPostNow(
     const message = err instanceof Error ? err.message : "Erreur inconnue";
     console.error(`[publish-scheduled] ${platform} (post ${post.id}):`, message);
     await logHistory(uuid, post, text, "failed", undefined, message);
+
+    // Token rejeté par la plateforme : ce n'est PAS transitoire. Réessayer
+    // toutes les 10 minutes ne peut rien donner et masque le problème — on
+    // invalide la connexion (l'écran Connecteurs réclame alors une
+    // reconnexion) et on renvoie un statut permanent pour arrêter la boucle.
+    if (isConnectorAuthError(err)) {
+      await markConnectionDisconnected(uuid, platform, message);
+      return {
+        ok: false,
+        status: 409,
+        error: `${label} : ${message}`,
+        platform,
+      };
+    }
+
     return {
       ok: false,
       status: 502,
@@ -310,6 +327,30 @@ export async function finalizeFailedScheduledPost(id: string, permanent: boolean
 /** Codes considérés comme erreurs PERMANENTES (inutile de réessayer). */
 export function isPermanentPublishError(status: number): boolean {
   return status === 400 || status === 409 || status === 422;
+}
+
+/**
+ * Fenêtre au-delà de laquelle on cesse de réessayer un post en échec
+ * transitoire, en heures après son échéance.
+ */
+export const RETRY_WINDOW_HOURS = Number(process.env.PUBLISH_RETRY_WINDOW_HOURS ?? 24);
+
+/**
+ * Vrai si l'échéance du post est dépassée depuis plus que la fenêtre de
+ * réessai — l'échec doit alors être traité comme définitif.
+ *
+ * Sans cette borne, un échec classé « transitoire » repartait indéfiniment :
+ * les publications LinkedIn du 28/07 ont été retentées toutes les 10 minutes
+ * pendant 5 jours, échouant à chaque fois sans jamais apparaître comme
+ * `failed` à l'utilisateur. Une publication programmée qui n'est pas partie
+ * 24 h après son heure n'a de toute façon plus d'intérêt à partir seule : elle
+ * doit devenir visible et être renvoyée manuellement.
+ */
+export function isPastRetryWindow(post: ScheduledPost, now: Date = new Date()): boolean {
+  if (!post.date) return false;
+  const due = Date.parse(`${post.date}T${post.time || "00:00"}:00Z`);
+  if (Number.isNaN(due)) return false;
+  return now.getTime() - due > RETRY_WINDOW_HOURS * 3_600_000;
 }
 
 /**

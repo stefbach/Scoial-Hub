@@ -4,6 +4,7 @@
 // action explicite séparée, plafonnée par un budget max.
 
 import { getMetaContext } from "@/lib/connectors/meta-pages";
+import { signFormBody, withAppSecretProof } from "@/lib/connectors/meta-appsecret";
 
 // Version DÉDIÉE à l'API Marketing (création de campagnes/ad sets/pubs) :
 // le champ is_adset_budget_sharing_enabled — désormais EXIGÉ par Meta quand le
@@ -51,7 +52,9 @@ function metaError(json: Record<string, unknown>): Error {
 
 async function graphGet(path: string, fields: string, token: string): Promise<Record<string, unknown>> {
   const sep = path.includes("?") ? "&" : "?";
-  const url = `${BASE}/${path}${sep}fields=${encodeURIComponent(fields)}&access_token=${encodeURIComponent(token)}`;
+  const url = withAppSecretProof(
+    `${BASE}/${path}${sep}fields=${encodeURIComponent(fields)}&access_token=${encodeURIComponent(token)}`
+  );
   const res = await fetch(url, { cache: "no-store" });
   const json = (await res.json()) as Record<string, unknown>;
   if (json && (json as { error?: unknown }).error) throw metaError(json);
@@ -65,6 +68,7 @@ async function graphPost(path: string, params: Params, token: string): Promise<R
     form.set(k, typeof v === "object" ? JSON.stringify(v) : String(v));
   }
   form.set("access_token", token);
+  signFormBody(form);
   const res = await fetch(`${BASE}/${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -96,6 +100,10 @@ export interface LeadFormSpec {
   fields: LeadFieldType[];       // questions (au moins EMAIL recommandé)
   thankYouTitle?: string;
   thankYouBody?: string;
+  /** Destination du bouton de la page de remerciement. Absent → aucun bouton. */
+  websiteUrl?: string;
+  /** Libellé du bouton (ignoré sans websiteUrl). */
+  thankYouButtonText?: string;
   locale?: string;               // ex "fr_FR"
 }
 
@@ -196,10 +204,22 @@ async function createLeadForm(pageId: string, pageToken: string, spec: LeadFormS
           };
   }
   if (spec.thankYouTitle || spec.thankYouBody) {
+    // Meta valide le COUPLE (button_type, champs associés) : un bouton
+    // "VIEW_WEBSITE" EXIGE button_text ET website_url. Les envoyer manquants
+    // faisait échouer toute création de Lead Ad avec
+    // « (#100) Button text is missing for Thank You Page ».
+    // Sans destination fournie → NO_BUTTON, qui n'attend aucun champ.
+    const websiteUrl = spec.websiteUrl?.trim();
     params.thank_you_page = {
       title: spec.thankYouTitle || "Merci !",
       body: spec.thankYouBody || "Nous vous recontactons rapidement.",
-      button_type: "VIEW_WEBSITE",
+      ...(websiteUrl
+        ? {
+            button_type: "VIEW_WEBSITE",
+            button_text: spec.thankYouButtonText?.trim() || "Visiter le site",
+            website_url: websiteUrl,
+          }
+        : { button_type: "NO_BUTTON" }),
     };
   }
   const res = await graphPost(`${pageId}/leadgen_forms`, params, pageToken);
@@ -232,7 +252,16 @@ export async function publishAd(input: PublishAdInput): Promise<PublishAdResult>
   let leadFormId: string | undefined;
   if (isLead) {
     if (!ctx.pageToken) throw new Error("Token de Page requis pour créer un formulaire de prospects.");
-    leadFormId = await createLeadForm(ctx.pageId, ctx.pageToken, input.leadForm!);
+    const spec = input.leadForm!;
+    // Le bouton de remerciement ne renvoie vers le site QUE si une vraie
+    // destination existe : `input.link` retombe sur l'URL de confidentialité en
+    // mode formulaire (cf. /api/meta/ads/publish) — y envoyer le prospect
+    // serait absurde, on préfère alors aucun bouton.
+    const destination = spec.websiteUrl?.trim() || input.link?.trim();
+    leadFormId = await createLeadForm(ctx.pageId, ctx.pageToken, {
+      ...spec,
+      websiteUrl: destination && destination !== spec.privacyUrl?.trim() ? destination : undefined,
+    });
   }
 
   // Mode « conversions de site » : objectif Ventes/Conversions + pixel fourni.

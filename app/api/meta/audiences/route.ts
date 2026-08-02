@@ -5,6 +5,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireCompanyAccess } from "@/lib/auth/guard";
 import { getMetaContext } from "@/lib/connectors/meta-pages";
+import { withAppSecretProof } from "@/lib/connectors/meta-appsecret";
 
 const V = process.env.META_API_VERSION ?? "v21.0";
 
@@ -20,7 +21,7 @@ export async function GET(req: NextRequest) {
 
     const act = `act_${String(ctx.adAccountId).replace(/^act_/, "")}`;
     const url = `https://graph.facebook.com/${V}/${act}/customaudiences?fields=id,name,subtype,approximate_count_lower_bound&limit=100&access_token=${encodeURIComponent(ctx.userToken)}`;
-    const res = await fetch(url, { cache: "no-store" });
+    const res = await fetch(withAppSecretProof(url), { cache: "no-store" });
     const json = (await res.json()) as { data?: Array<Record<string, unknown>>; error?: { message?: string } };
     if (json.error) return NextResponse.json({ audiences: [], error: json.error.message });
     const audiences = (json.data ?? []).map((a) => ({

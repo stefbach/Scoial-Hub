@@ -15,6 +15,7 @@ import { createAdminClient } from "@/lib/supabase/server";
 import { resolveCompanyUuid } from "@/lib/repositories/resolve-company";
 import { callClaudeJSON } from "@/lib/ai/claude-json";
 import { isAiConfigured } from "@/lib/env";
+import { withAppSecretProof } from "@/lib/connectors/meta-appsecret";
 
 const V = process.env.META_API_VERSION ?? "v21.0";
 
@@ -52,7 +53,7 @@ async function resolveInterests(keywords: string[], token: string, language?: "f
   for (const kw of keywords.slice(0, 6)) {
     try {
       const url = `https://graph.facebook.com/${V}/search?type=adinterest&q=${encodeURIComponent(kw)}${locale ? `&locale=${locale}` : ""}&limit=1&access_token=${encodeURIComponent(token)}`;
-      const r = await fetch(url, { cache: "no-store" });
+      const r = await fetch(withAppSecretProof(url), { cache: "no-store" });
       const j = (await r.json()) as { data?: Array<{ id?: string; name?: string }> };
       const top = j.data?.[0];
       if (top?.id && top?.name && !out.some((x) => x.id === top.id)) out.push({ id: String(top.id), name: String(top.name) });

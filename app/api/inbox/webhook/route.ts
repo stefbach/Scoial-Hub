@@ -20,7 +20,12 @@ import type { InboxChannel } from "@/lib/inbox/types";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const VERIFY_TOKEN = process.env.META_WEBHOOK_VERIFY_TOKEN ?? "axon-verify-dev";
+// Le repli « axon-verify-dev » ne vaut QU'EN DÉVELOPPEMENT : en production, une
+// variable d'environnement absente doit faire échouer la vérification bruyamment
+// plutôt que de laisser un token deviné faire foi.
+const CONFIGURED_VERIFY_TOKEN = (process.env.META_WEBHOOK_VERIFY_TOKEN ?? "").trim();
+const VERIFY_TOKEN =
+  CONFIGURED_VERIFY_TOKEN || (process.env.NODE_ENV === "production" ? "" : "axon-verify-dev");
 const APP_SECRET = (process.env.META_APP_SECRET ?? "").split("|")[0].trim();
 
 // ── 1) Handshake de vérification (GET) ───────────────────────────────────────
@@ -29,7 +34,25 @@ export async function GET(req: NextRequest) {
   const mode = p.get("hub.mode");
   const token = p.get("hub.verify_token");
   const challenge = p.get("hub.challenge");
-  if (mode === "subscribe" && token === VERIFY_TOKEN && challenge) {
+
+  // Trace systématique : c'est CE log qui permet de trancher « la requête de
+  // Meta n'arrive jamais » (aucune ligne) contre « elle arrive mais le token ne
+  // correspond pas » (ligne présente, ok=false). Sans lui, l'échec de
+  // vérification côté Meta était indiscernable d'un blocage réseau en amont.
+  // Le token reçu n'est jamais journalisé, seulement le verdict.
+  const ok = mode === "subscribe" && Boolean(challenge) && Boolean(VERIFY_TOKEN) && token === VERIFY_TOKEN;
+  console.log(
+    `[inbox/webhook] handshake mode=${mode ?? "-"} challenge=${challenge ? "oui" : "non"} ` +
+      `token_configuré=${VERIFY_TOKEN ? "oui" : "NON"} correspond=${ok ? "oui" : "non"}`
+  );
+
+  if (!VERIFY_TOKEN) {
+    console.error(
+      "[inbox/webhook] META_WEBHOOK_VERIFY_TOKEN absent en production — vérification impossible."
+    );
+  }
+
+  if (ok) {
     return new NextResponse(challenge, { status: 200, headers: { "Content-Type": "text/plain" } });
   }
   return new NextResponse("Forbidden", { status: 403 });

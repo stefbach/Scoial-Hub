@@ -15,7 +15,8 @@
     "diagnose": "tsx scripts/diagnose.ts",
     "test:tz": "tsx scripts/verify-schedule-timezone.ts",
     "test:liformat": "tsx scripts/verify-linkedin-format.ts",
-    "test:imgformat": "tsx scripts/verify-image-format.ts"
+    "test:imgformat": "tsx scripts/verify-image-format.ts",
+    "test:publishfix": "tsx scripts/verify-publish-fixes.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.100.1",

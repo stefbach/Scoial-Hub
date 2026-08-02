@@ -300,6 +300,68 @@ export async function upsertConnection(
   }
 }
 
+// ── Invalidation d'une connexion ──────────────────────────────────────────────
+
+/**
+ * Marque une connexion `disconnected` après un rejet du token par le
+ * fournisseur (ConnectorAuthError), et mémorise la raison + l'horodatage.
+ *
+ * Pourquoi : un token expiré ne se répare pas tout seul. Tant que le statut
+ * restait `connected`, l'app continuait d'appeler l'API avec un token mort —
+ * la synchro s'arrêtait et les envois échouaient sans que personne ne le voie
+ * (cas Tibok : jeton Facebook invalide depuis le 13/07, découvert 3 semaines
+ * plus tard dans les logs Vercel). Le statut `disconnected` fait remonter la
+ * demande de reconnexion dans l'écran Connecteurs.
+ *
+ * Écrit via le client service_role : appelé aussi depuis le cron, où aucune
+ * session utilisateur n'existe. Ne throw jamais.
+ */
+export async function markConnectionDisconnected(
+  companyId: string,
+  channel: string,
+  reason: string
+): Promise<void> {
+  const ts = now();
+
+  if (!isSupabaseConfigured) {
+    const existing = mockFind(companyId, channel);
+    if (existing) {
+      existing.status = "disconnected";
+      existing.config = { ...existing.config, auth_error: reason, auth_error_at: ts };
+      existing.updated_at = ts;
+    }
+    return;
+  }
+
+  try {
+    const supabase = createAdminClient();
+    if (!supabase) return;
+
+    // Relecture de la config pour préserver les secrets déjà chiffrés : on
+    // n'écrit QUE le statut et les deux champs de diagnostic.
+    const { data } = await supabase
+      .from("sh_channel_connections")
+      .select("config")
+      .eq("company_id", companyId)
+      .eq("channel", channel)
+      .maybeSingle();
+
+    const config = {
+      ...(((data as { config?: Record<string, string> } | null)?.config) ?? {}),
+      auth_error: reason.slice(0, 300),
+      auth_error_at: ts,
+    };
+
+    await supabase
+      .from("sh_channel_connections")
+      .update({ status: "disconnected", config, updated_at: ts })
+      .eq("company_id", companyId)
+      .eq("channel", channel);
+  } catch (err) {
+    console.error("[channel-connections] markConnectionDisconnected exception:", err);
+  }
+}
+
 // ── Utilitaire de merge config ────────────────────────────────────────────────
 
 /**

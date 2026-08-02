@@ -15,6 +15,7 @@ import { getMetaContext } from "@/lib/connectors/meta-pages";
 import { createAdminClient } from "@/lib/supabase/server";
 import { resolveCompanyUuid } from "@/lib/repositories/resolve-company";
 import { ensurePublishableImageUrl } from "@/lib/repositories/media";
+import { signFormBody, withAppSecretProof } from "@/lib/connectors/meta-appsecret";
 
 const V = process.env.META_API_VERSION ?? "v21.0";
 
@@ -22,7 +23,7 @@ async function metaPost(path: string, params: Record<string, string>) {
   const res = await fetch(`https://graph.facebook.com/${V}/${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams(params).toString(),
+    body: signFormBody(new URLSearchParams(params)).toString(),
   });
   return (await res.json()) as { id?: string; post_id?: string; error?: { message?: string } };
 }
@@ -40,7 +41,9 @@ async function waitForIgContainerReady(containerId: string, token: string): Prom
   let delay = 1200;
   while (Date.now() < deadline) {
     const res = await fetch(
-      `https://graph.facebook.com/${V}/${containerId}?fields=status_code,status&access_token=${encodeURIComponent(token)}`,
+      withAppSecretProof(
+        `https://graph.facebook.com/${V}/${containerId}?fields=status_code,status&access_token=${encodeURIComponent(token)}`
+      ),
       { cache: "no-store" }
     );
     const s = (await res.json()) as { status_code?: string; status?: string; error?: { message?: string } };

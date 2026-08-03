@@ -9,6 +9,8 @@
 
 import { alertsFromLiveKpis, type LiveNetworkKpis } from "../lib/pilotage-live";
 import { PLAN_USERS, seatLimitForPlans } from "../lib/plans";
+import { searchProvider, isSearchConfigured } from "../lib/reputation/search";
+import { isNoiseHost } from "../lib/reputation/scan";
 
 let failures = 0;
 
@@ -114,6 +116,25 @@ function main() {
     seatLimitForPlans([]) === PLAN_USERS.presence);
   check("formule inconnue → traitée comme la formule par défaut",
     seatLimitForPlans(["inexistante"]) === PLAN_USERS.presence);
+
+  // ── 7) Veille de réputation : dormante sans clé, filtrage du bruit ────────
+  console.log("\n— 7) Veille de réputation —");
+  {
+    // Sans BRAVE_SEARCH_API_KEY ni SERPAPI_KEY, la veille ne doit RIEN appeler.
+    check("aucune clé → fournisseur « none »", searchProvider() === "none");
+    check("aucune clé → veille non configurée", !isSearchConfigured());
+
+    // Le filtrage du bruit et la déduplication décident du coût comme de la
+    // pertinence : une mention de sa propre page Facebook n'est pas une mention.
+    check("un résultat facebook.com est écarté", isNoiseHost("facebook.com"));
+    check("un sous-domaine m.facebook.com est écarté", isNoiseHost("m.facebook.com"));
+    check("un site de presse est conservé", !isNoiseHost("lexpress.mu"));
+    // Le piège que `endsWith` seul ne voit pas : ce domaine n'a aucun rapport
+    // avec Facebook et doit être CONSERVÉ.
+    check("« monfacebook.com » n'est pas Facebook et reste", !isNoiseHost("monfacebook.com"));
+    check("« x.com » est écarté", isNoiseHost("x.com"));
+    check("« lexpress.mu » ne ressemble pas à « x.com »", !isNoiseHost("lexpress.mu"));
+  }
 
   console.log(failures === 0 ? "\n✓ TOUT VERT" : `\n✗ ${failures} échec(s)`);
   if (failures > 0) process.exit(1);

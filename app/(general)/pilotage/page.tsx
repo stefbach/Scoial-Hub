@@ -12,14 +12,13 @@ import type { Campaign } from "@/lib/types";
 import type { OnboardingState } from "@/lib/onboarding/types";
 import type { ConnectorStatus } from "@/lib/connectors/types";
 import {
-  computeNetworkKpis,
   aggregateKpis,
   computeBenchmark,
   generateDecisions,
-  generateAlerts,
   type Decision,
   type NetworkKpis,
   type Network,
+  type PilotAlert,
 } from "@/lib/pilotage";
 
 /* ── Types veille (miroir du endpoint GET /api/veille/latest) ─────────── */
@@ -128,10 +127,31 @@ export default function PilotagePage() {
     } catch { /* ignore */ }
   }
 
-  const kpis = useMemo(() => computeNetworkKpis(company.id, market, days), [company.id, market, days]);
+  // Indicateurs et alertes calculés côté SERVEUR sur les vraies données des
+  // réseaux connectés : les tokens de Page ne doivent pas passer au navigateur.
+  // Auparavant cet écran appelait des fonctions locales qui renvoyaient zéro.
+  const [kpis, setKpis] = useState<NetworkKpis[]>([]);
+  const [alerts, setAlerts] = useState<PilotAlert[]>([]);
+  const [kpisLoading, setKpisLoading] = useState(true);
+
+  useEffect(() => {
+    let alive = true;
+    setKpisLoading(true);
+    fetch(`/api/pilotage?companyId=${encodeURIComponent(company.id)}`)
+      .then((r) => r.json())
+      .then((d: { kpis?: NetworkKpis[]; alerts?: PilotAlert[] }) => {
+        if (!alive) return;
+        setKpis(Array.isArray(d.kpis) ? d.kpis : []);
+        setAlerts(Array.isArray(d.alerts) ? d.alerts : []);
+      })
+      .catch(() => { if (alive) { setKpis([]); setAlerts([]); } })
+      .finally(() => { if (alive) setKpisLoading(false); });
+    return () => { alive = false; };
+  }, [company.id, days]);
+
   const agg = useMemo(() => aggregateKpis(kpis), [kpis]);
   const bench = useMemo(() => computeBenchmark(company.id, market, kpis), [company.id, market, kpis]);
-  const alerts = useMemo(() => generateAlerts(company.id, market, kpis), [company.id, market, kpis]);
+  void kpisLoading;
 
   const [decisions, setDecisions] = useState<Decision[]>([]);
   useEffect(() => { setDecisions(generateDecisions(company.id, market)); }, [company.id, market]);

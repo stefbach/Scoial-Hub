@@ -1391,3 +1391,16 @@ html[data-theme="light"] .app-shell > .app-grain {
   font-size:.82rem;color:var(--pub-muted);}
 .tf-notes li{display:grid;grid-template-columns:.9rem 1fr;gap:.5rem;line-height:1.6;}
 .tf-notes li::before{content:"†";color:#a855f7;}
+
+/* ── Page tarifs : bloc comparatif marché ─────────────────────────────────── */
+/* Notre ligne est mise en évidence dans le tableau : sans repère visuel, le
+   lecteur doit chercher où nous sommes parmi huit concurrents. */
+.tf-matrix tr.tf-us td{background:rgba(124,58,237,.09);font-weight:600;}
+.tf-matrix tr.tf-us td:first-child{box-shadow:inset 3px 0 0 var(--pub-accent);}
+
+.tf-why{display:grid;gap:1px;background:var(--pub-hair);
+  border:1px solid var(--pub-hair);border-radius:18px;overflow:hidden;margin-top:1.5rem;}
+@media(min-width:640px){.tf-why{grid-template-columns:repeat(2,1fr);}}
+@media(min-width:1040px){.tf-why{grid-template-columns:repeat(4,1fr);}}
+
+.tf-bench-note{margin-top:1.2rem;font-size:.86rem;color:var(--pub-muted);line-height:1.65;max-width:80ch;}

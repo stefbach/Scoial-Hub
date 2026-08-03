@@ -39,13 +39,14 @@ const PLANS: Plan[] = [
     id: "executive",
     name: "LinkedIn Executive",
     audience: ["Dirigeants, consultants, cabinets", "Executives, consultants, firms"],
-    rs: "3 900",
-    eur: "79",
+    rs: "2 500",
+    eur: "49",
     feats: [
       { t: ["Publications LinkedIn illimitées", "Unlimited LinkedIn posts"], key: true },
-      { t: ["Ligne éditoriale et mémoire de marque", "Editorial line and brand memory"] },
+      { t: ["Trois mots-clés suffisent : article, posts et visuels", "Three keywords is enough: article, posts and visuals"], key: true },
       { t: ["Articles longs et séries thématiques", "Long-form articles and themed series"] },
       { t: ["Visuels générés à votre charte", "Visuals generated in your brand style"] },
+      { t: ["Mémoire de marque : la plateforme retient ce qui marche", "Brand memory: the platform remembers what works"] },
       { t: ["Montage de vos photos et vidéos", "Editing of your own photos and videos"] },
       { t: ["Réponses aux commentaires assistées", "Assisted comment replies"] },
       { t: ["Facebook et Instagram", "Facebook and Instagram"], off: true },
@@ -62,6 +63,7 @@ const PLANS: Plan[] = [
     feats: [
       { t: ["LinkedIn + Facebook + Instagram", "LinkedIn + Facebook + Instagram"], key: true },
       { t: ["Publications illimitées", "Unlimited posts"], key: true },
+      { t: ["Trois mots-clés suffisent : un mois de contenu cohérent", "Three keywords is enough: a coherent month of content"], key: true },
       { t: ["Stratégie, calendrier et validation mensuelle", "Strategy, calendar and monthly approval"] },
       { t: ["Visuels et affiches à votre charte", "Visuals and posters in your brand style"] },
       { t: ["Montage vidéo illimité de vos médias", "Unlimited editing of your own media"] },
@@ -149,6 +151,63 @@ const AGENCY_FIGURES: { k: L; v: string; sub?: L }[] = [
   { k: ["Vidéo IA partagée", "Shared AI video"], v: "180 s", sub: ["/ mois", "/ month"] },
 ];
 
+/* ── Benchmark marché ─────────────────────────────────────────────────────── */
+
+/** Cellule de benchmark : oui, non, ou nuance bilingue. */
+type BCell = "y" | "n" | L;
+
+/**
+ * Comparatif ramené à UN MÊME scénario : une marque, trois réseaux, deux
+ * utilisateurs. Sans cette normalisation, les prix affichés ne sont pas
+ * comparables — Hootsuite, Sprout et Agorapulse facturent par utilisateur,
+ * Buffer par canal. Tarifs publics relevés en août 2026.
+ */
+const BENCH: { name: string; price: L; kw: BCell; visual: BCell; ads: BCell; memory: BCell; us?: boolean }[] = [
+  {
+    name: "AXON·AI — Présence", us: true,
+    price: ["159 €", "€159"],
+    kw: "y", visual: "y", ads: [" Studio", "Studio"], memory: "y",
+  },
+  { name: "Hootsuite — Standard", price: ["198 $", "$198"], kw: ["partiel", "partial"], visual: "y", ads: "n", memory: "n" },
+  { name: "Sprout Social — Essentials", price: ["198 $", "$198"], kw: ["partiel", "partial"], visual: "n", ads: "n", memory: "n" },
+  { name: "Agorapulse — Standard", price: ["198 $", "$198"], kw: ["partiel", "partial"], visual: "n", ads: "n", memory: "n" },
+  { name: "Predis.ai — Rise", price: ["40 $", "$40"], kw: "y", visual: "y", ads: "n", memory: "n" },
+  { name: "Taplio (LinkedIn)", price: ["65 $", "$65"], kw: "y", visual: "n", ads: "n", memory: "n" },
+  { name: "Buffer — Team", price: ["30 $", "$30"], kw: ["partiel", "partial"], visual: "n", ads: "n", memory: "n" },
+  { name: "Metricool — Starter", price: ["20 €", "€20"], kw: ["limité", "limited"], visual: "n", ads: "n", memory: "n" },
+];
+
+const WHY: { t: L; d: L }[] = [
+  {
+    t: ["Personne d'autre ne crée vos publicités", "No one else builds your ads"],
+    d: [
+      "Les autres plateformes publient et mesurent. Aucune ne construit campagne, ciblage, créative et formulaire de prospects. C'est la différence la moins contestable de cette page.",
+      "The others publish and measure. None of them builds a campaign, targeting, creative and lead form. It is the least contestable difference on this page.",
+    ],
+  },
+  {
+    t: ["Trois mots-clés, un mois de contenu", "Three keywords, a month of content"],
+    d: [
+      "Article long, posts déclinés pour chaque réseau, visuels à votre charte, calendrier prêt à valider. Ailleurs, vous obtenez un post à la fois.",
+      "A long-form article, posts adapted per network, visuals in your brand style, a calendar ready to approve. Elsewhere, you get one post at a time.",
+    ],
+  },
+  {
+    t: ["La plateforme retient ce qui marche", "The platform remembers what works"],
+    d: [
+      "Les assistants concurrents repartent de zéro à chaque demande. Le nôtre accumule le contexte de votre marque et s'en sert à la publication suivante.",
+      "Rival assistants start from scratch every time. Ours accumulates your brand context and uses it on the next post.",
+    ],
+  },
+  {
+    t: ["Un prix qui ne punit pas la croissance", "Pricing that doesn't punish growth"],
+    d: [
+      "Nous facturons par marque. Hootsuite, Sprout et Agorapulse facturent par utilisateur : dès la deuxième personne, ils coûtent plus cher que nous en faisant moins.",
+      "We bill per brand. Hootsuite, Sprout and Agorapulse bill per user: from the second person on, they cost more than us while doing less.",
+    ],
+  },
+];
+
 /* ── Inventaire des capacités ─────────────────────────────────────────────── */
 
 const MATRIX: { g: L; rows: { l: L; s?: L; v: [Cell, Cell, Cell] }[] }[] = [
@@ -193,6 +252,8 @@ const MATRIX: { g: L; rows: { l: L; s?: L; v: [Cell, Cell, Cell] }[] }[] = [
     rows: [
       { l: ["Messagerie unifiée", "Unified inbox"], s: ["Commentaires et messages privés, tous réseaux", "Comments and direct messages, all networks"], v: ["y", "y", "y"] },
       { l: ["Agent IA de réponse", "AI reply agent"], s: ["Répond dans votre ton, sous votre contrôle", "Replies in your tone, under your control"], v: ["n", "y", "y"] },
+      { l: ["Analyse de sentiment", "Sentiment analysis"], s: ["Chaque message classé : positif, neutre, négatif, question", "Every message classified: positive, neutral, negative, question"], v: ["y", "y", "y"] },
+      { l: ["Tableau d'humeur de vos audiences", "Audience mood dashboard"], s: ["L'évolution du sentiment dans le temps", "How sentiment shifts over time"], v: ["n", "y", "y"] },
       { l: ["Alertes Telegram", "Telegram alerts"], v: ["y", "y", "y"] },
     ],
   },
@@ -299,6 +360,7 @@ export default function TarifsPage() {
         <nav className="mc-navlinks">
           <Link href="/">{t("Accueil", "Home")}</Link>
           <a href="#formules">{t("Formules", "Plans")}</a>
+          <a href="#benchmark">{t("Comparatif", "Comparison")}</a>
           <a href="#detail">{t("Le détail", "Full detail")}</a>
           <a href="#agences">{t("Agences", "Agencies")}</a>
         </nav>
@@ -363,8 +425,8 @@ export default function TarifsPage() {
           <h2 className="mc-h2">{t("Publications illimitées, sur toutes les formules.", "Unlimited posts, on every plan.")}</h2>
           <p className="mc-sec-sub">
             {t(
-              "Nous ne comptons pas vos posts. La seule ressource limitée est la vidéo générée par intelligence artificielle, parce qu'elle coûte réellement cher à produire. Prise en main et service client inclus partout.",
-              "We don't count your posts. The only limited resource is AI-generated video, because it genuinely costs a lot to produce. Onboarding and support are included everywhere."
+              "Vous donnez trois mots-clés, vous récupérez un mois de contenu cohérent : articles, posts déclinés par réseau, visuels et calendrier. Nous ne comptons pas vos publications — seule la vidéo générée par IA est plafonnée, parce qu'elle coûte réellement cher à produire.",
+              "Give us three keywords and get a coherent month of content: articles, posts adapted per network, visuals and a calendar. We don't count your posts — only AI-generated video is capped, because it genuinely costs a lot to produce."
             )}
           </p>
         </header>
@@ -388,6 +450,70 @@ export default function TarifsPage() {
             </article>
           ))}
         </div>
+      </section>
+
+
+      {/* ── Benchmark & pourquoi nous ── */}
+      <section id="benchmark" className="mc-section">
+        <header className="mc-sec-head mc-sec-head--left">
+          <span className="mc-kicker">{t("Comparatif marché", "Market comparison")}</span>
+          <h2 className="mc-h2">{t("Pourquoi nous plutôt qu'un autre.", "Why us rather than someone else.")}</h2>
+          <p className="mc-sec-sub">
+            {t(
+              "Chaque éditeur facture sur une unité différente — par canal, par utilisateur, par siège. Les prix ci-dessous sont ramenés au même scénario : une marque, trois réseaux, deux utilisateurs.",
+              "Every vendor bills on a different unit — per channel, per user, per seat. The prices below are normalised to one scenario: one brand, three networks, two users."
+            )}
+          </p>
+        </header>
+
+        <div className="tf-matrix-scroll">
+          <table className="tf-matrix">
+            <caption>
+              {t(
+                "Tarifs publics relevés en août 2026 · ● inclus · ○ absent",
+                "Public pricing as of August 2026 · ● included · ○ absent"
+              )}
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">{t("Plateforme", "Platform")}</th>
+                <th scope="col" className="c">{t("Coût du scénario", "Scenario cost")}</th>
+                <th scope="col" className="c">{t("Contenu depuis mots-clés", "Content from keywords")}</th>
+                <th scope="col" className="c">{t("Visuels générés", "Generated visuals")}</th>
+                <th scope="col" className="c">{t("Création de publicités", "Ad creation")}</th>
+                <th scope="col" className="c">{t("Mémoire de marque", "Brand memory")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {BENCH.map((b) => (
+                <tr key={b.name} className={b.us ? "tf-us" : undefined}>
+                  <td>{b.name}</td>
+                  <td className="c"><span className="tf-lim">{tr(b.price)}</span></td>
+                  <td className="c">{cell(b.kw)}</td>
+                  <td className="c">{cell(b.visual)}</td>
+                  <td className="c">{cell(b.ads)}</td>
+                  <td className="c">{cell(b.memory)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="tf-why">
+          {WHY.map((w) => (
+            <div key={w.t[0]} className="tf-item">
+              <h3>{tr(w.t)}</h3>
+              <p>{tr(w.d)}</p>
+            </div>
+          ))}
+        </div>
+
+        <p className="tf-bench-note">
+          {t(
+            "Nous ne sommes pas l'offre la moins chère et nous ne le prétendons pas : Metricool et Buffer coûtent moins, et font nettement moins. Nous sommes moins chers que les suites qui facturent à l'utilisateur — en créant vos publicités, ce qu'aucune d'elles ne fait.",
+            "We are not the cheapest and we don't claim to be: Metricool and Buffer cost less, and do markedly less. We cost less than the suites that bill per user — while building your ads, which none of them does."
+          )}
+        </p>
       </section>
 
       {/* ── Démarrage ── */}

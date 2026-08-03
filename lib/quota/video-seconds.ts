@@ -102,9 +102,31 @@ export async function reserveVideoSeconds(
   });
 
   if (error) {
-    // Le verrou est indisponible (fonction absente, panne) : on REFUSE.
-    // Laisser passer par défaut exposerait directement le poste de coût que ce
-    // quota existe pour contenir.
+    // Deux situations très différentes se cachent derrière une erreur ici.
+    //
+    // 1. La fonction SQL n'EXISTE PAS ENCORE : la migration 0011 n'est pas
+    //    appliquée sur cet environnement. Refuser reviendrait à couper la
+    //    génération vidéo partout tant que la migration n'a pas été jouée —
+    //    alors qu'avant cette migration il n'y avait de toute façon aucun
+    //    plafond. On laisse donc passer, en le signalant bruyamment : le quota
+    //    s'activera de lui-même dès que la migration sera appliquée.
+    //
+    // 2. Toute autre erreur (panne, permission) : on REFUSE. Laisser passer
+    //    exposerait précisément le poste de coût que ce quota existe pour
+    //    contenir.
+    const notDeployed =
+      error.code === "PGRST202" ||
+      error.code === "42883" ||
+      /could not find the function|does not exist/i.test(error.message ?? "");
+
+    if (notDeployed) {
+      console.warn(
+        "[quota/video] Migration 0011 non appliquée : sh_reserve_video_seconds est absente. " +
+          "La génération vidéo passe SANS PLAFOND jusqu'à son application."
+      );
+      return { allowed: true, used: 0, quota, remaining: quota, requested: seconds, plan };
+    }
+
     console.error("[quota/video] sh_reserve_video_seconds:", error.message);
     return {
       allowed: false,

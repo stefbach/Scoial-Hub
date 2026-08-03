@@ -155,6 +155,27 @@ async function main() {
       unlocked.used <= 8, `sans verrou : ${unlocked.used} s enregistrées au lieu de 56`);
   }
 
+  // ── 6) Migration absente : on laisse passer, tout le reste refuse ──────────
+  console.log("\n— 6) Fonction SQL absente vs vraie panne —");
+  {
+    // Reproduit le tri fait dans reserveVideoSeconds : seule l'absence de la
+    // fonction (migration pas encore jouée) doit laisser passer.
+    const notDeployed = (e: { code?: string; message?: string }) =>
+      e.code === "PGRST202" ||
+      e.code === "42883" ||
+      /could not find the function|does not exist/i.test(e.message ?? "");
+
+    check("PostgREST PGRST202 → migration absente", notDeployed({ code: "PGRST202", message: "" }));
+    check("Postgres 42883 → migration absente", notDeployed({ code: "42883", message: "" }));
+    check("message « Could not find the function » → migration absente",
+      notDeployed({ message: "Could not find the function public.sh_reserve_video_seconds" }));
+    check("panne réseau → PAS traitée comme migration absente",
+      !notDeployed({ code: "08006", message: "connection failure" }));
+    check("permission refusée → PAS traitée comme migration absente",
+      !notDeployed({ code: "42501", message: "permission denied for function" }));
+    check("erreur vide → PAS traitée comme migration absente", !notDeployed({}));
+  }
+
   console.log(failures === 0 ? "\n✓ TOUT VERT" : `\n✗ ${failures} échec(s)`);
   if (failures > 0) process.exit(1);
 }

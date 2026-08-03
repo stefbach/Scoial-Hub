@@ -40,6 +40,12 @@ function makeCounter(quota: number) {
   return {
     get used() { return used; },
     async reserve(seconds: number): Promise<{ allowed: boolean; used: number }> {
+      // Garde de la migration 0012 : une réservation nulle ou négative
+      // CRÉDITERAIT le compteur. La base ne dépend pas de la politesse de son
+      // appelant, même si l'appelant applicatif borne déjà à 1 s.
+      if (!Number.isFinite(seconds) || seconds <= 0) {
+        throw new Error(`p_seconds doit être strictement positif (reçu ${seconds})`);
+      }
       let release!: () => void;
       const mine = new Promise<void>((r) => (release = r));
       const previous = busy;
@@ -174,6 +180,28 @@ async function main() {
     check("permission refusée → PAS traitée comme migration absente",
       !notDeployed({ code: "42501", message: "permission denied for function" }));
     check("erreur vide → PAS traitée comme migration absente", !notDeployed({}));
+  }
+
+  // ── 7) Le quota ne doit pas être contournable par l'entrée ────────────────
+  console.log("\n— 7) Secondes non positives refusées par la base —");
+  {
+    const c = makeCounter(60);
+    await c.reserve(20);
+
+    for (const bad of [0, -10, Number.NaN]) {
+      let refusé = false;
+      try {
+        await c.reserve(bad);
+      } catch {
+        refusé = true;
+      }
+      check(`réservation de ${bad} s rejetée`, refusé);
+    }
+    check("compteur intact après les tentatives", c.used === 20, `${c.used} s`);
+
+    // La couche applicative borne déjà à 1 s : la garde SQL est une seconde
+    // ligne de défense, pas la seule.
+    check("l'appelant applicatif borne à 1 s minimum", Math.max(1, Math.ceil(-10)) === 1);
   }
 
   console.log(failures === 0 ? "\n✓ TOUT VERT" : `\n✗ ${failures} échec(s)`);

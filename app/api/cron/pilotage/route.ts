@@ -18,7 +18,9 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { listCompanies } from "@/lib/repositories/companies";
-import { generateAlerts, computeNetworkKpis } from "@/lib/pilotage";
+import { fetchLiveKpis, alertsFromLiveKpis } from "@/lib/pilotage-live";
+import { scanReputation } from "@/lib/reputation/scan";
+import { isSearchConfigured } from "@/lib/reputation/search";
 import { createAdminClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/env";
 
@@ -60,6 +62,8 @@ interface CycleResult {
   companyName: string;
   alertCount: number;
   criticalCount: number;
+  /** Mentions de réputation nouvellement collectées sur ce cycle. */
+  mentions?: number;
   error?: string;
 }
 
@@ -69,8 +73,21 @@ async function runCycleForCompany(
   market: string
 ): Promise<CycleResult> {
   try {
-    const kpis = computeNetworkKpis(companyId, market, 30);
-    const alerts = generateAlerts(companyId, market, kpis);
+    // Vraies données des réseaux connectés. Ce cycle tournait jusqu'ici sur des
+    // indicateurs à zéro : il s'exécutait toutes les 6 h sans jamais rien
+    // pouvoir signaler.
+    const kpis = await fetchLiveKpis(companyId);
+    const alerts = alertsFromLiveKpis(kpis);
+
+    // Veille de réputation, greffée sur ce cycle plutôt que sur un cron dédié :
+    // scanReputation s'auto-limite à un balayage par tranche de 20 h, donc un
+    // cycle 6 h ne déclenche qu'une recherche par jour et par société. Sans
+    // clé de recherche configurée, l'appel ne fait rien.
+    let mentions = 0;
+    if (isSearchConfigured()) {
+      const rep = await scanReputation(companyId, companyName);
+      mentions = rep.ingested;
+    }
 
     const criticalCount = alerts.filter((a) => a.level === "critical").length;
     const alertCount = alerts.length;
@@ -81,10 +98,21 @@ async function runCycleForCompany(
       alertCount,
       criticalCount,
       alertTitles: alerts.map((a) => a.title),
+      mentions,
+      // Trace des indicateurs observés : c'est ce journal qui constituera
+      // l'historique nécessaire au calcul des tendances.
+      networks: kpis
+        .filter((k) => k.measured)
+        .map((k) => ({
+          network: k.network,
+          followers: k.followers,
+          engagementRate: k.engagementRate,
+          daysSinceLastPost: k.daysSinceLastPost ?? null,
+        })),
       cycledAt: new Date().toISOString(),
     });
 
-    return { companyId, companyName, alertCount, criticalCount };
+    return { companyId, companyName, alertCount, criticalCount, mentions };
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err);
     console.error(`[cron/pilotage] Erreur entité ${companyId}:`, errorMsg);

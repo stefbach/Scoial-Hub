@@ -28,6 +28,27 @@ export const PLAN_VIDEO_SECONDS: Record<PlanId, number> = {
   agence: 180,
 };
 
+/**
+ * Sièges (utilisateurs de l'organisation) autorisés par formule.
+ * `Infinity` = illimité, tel qu'annoncé sur la page tarifs.
+ */
+export const PLAN_USERS: Record<PlanId, number> = {
+  executive: 2,
+  presence: 5,
+  studio: Infinity,
+  agence: Infinity,
+};
+
+/**
+ * Nombre de sièges d'une organisation : le PLUS ÉLEVÉ des plafonds de ses
+ * sociétés. Une organisation qui paie Studio sur une marque ne doit pas se voir
+ * appliquer le plafond d'une autre marque restée en Présence.
+ */
+export function seatLimitForPlans(plans: unknown[]): number {
+  if (plans.length === 0) return PLAN_USERS[DEFAULT_PLAN];
+  return Math.max(...plans.map((p) => PLAN_USERS[toPlanId(p)]));
+}
+
 /** Libellé commercial de la formule. */
 export const PLAN_LABEL: Record<PlanId, string> = {
   executive: "LinkedIn Executive",

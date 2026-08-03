@@ -21,6 +21,7 @@ import {
   revokeInvitation,
 } from "@/lib/repositories/access";
 import { CompanyAccessGrant, OrgRole } from "@/lib/rbac/types";
+import { checkSeatAvailable } from "@/lib/quota/seats";
 
 function coerceAccess(v: unknown): CompanyAccessGrant[] {
   if (!Array.isArray(v)) return [];
@@ -58,6 +59,18 @@ export async function POST(req: NextRequest) {
   const body = (await req.json()) as { email?: string; role?: string; access?: unknown };
   const email = (body.email ?? "").trim();
   if (!email) return NextResponse.json({ error: "Email requis" }, { status: 400 });
+
+  // Plafond de sièges de la formule. Contrôlé AVANT l'ajout : les invitations
+  // en attente comptent, sinon le plafond se contournerait en invitant sans
+  // limite et serait dépassé au fil des acceptations, sans jamais rien bloquer.
+  const seats = await checkSeatAvailable(g.orgId);
+  if (!seats.allowed) {
+    return NextResponse.json(
+      { error: seats.reason, seats: { used: seats.used, limit: seats.limit } },
+      { status: 402 }
+    );
+  }
+
   const res = await addOrInviteMember(g.orgId, email, coerceRole(body.role), coerceAccess(body.access), g.userId);
   if (res.error) return NextResponse.json({ error: res.error }, { status: 400 });
 

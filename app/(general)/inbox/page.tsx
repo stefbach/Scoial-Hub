@@ -32,11 +32,30 @@ function formatWhen(iso: string, lang: "fr" | "en"): string {
   });
 }
 
+/** Sentiments dans l'ordre d'importance opérationnelle : le négatif d'abord,
+ *  parce que c'est ce qui demande une réaction. */
+const SENTIMENTS = [
+  { id: "negative", fr: "Négatif", en: "Negative" },
+  { id: "question", fr: "Question", en: "Question" },
+  { id: "neutral", fr: "Neutre", en: "Neutral" },
+  { id: "positive", fr: "Positif", en: "Positive" },
+] as const;
+
+type SentimentId = (typeof SENTIMENTS)[number]["id"];
+
 const SENTIMENT_STYLE: Record<string, string> = {
   positive: "bg-success-50 text-success-700",
   negative: "bg-danger-50 text-danger-700",
   question: "bg-ai-textbg text-ai-text",
   neutral: "bg-canvas text-muted",
+};
+
+/** Aplats de la barre de répartition (mêmes teintes que les badges). */
+const SENTIMENT_BAR: Record<string, string> = {
+  positive: "bg-success-500",
+  negative: "bg-danger-500",
+  question: "bg-primary-500",
+  neutral: "bg-hair",
 };
 
 export default function InboxPage() {
@@ -48,6 +67,7 @@ export default function InboxPage() {
   const [messages, setMessages] = useState<InboxMessage[]>([]);
   const [filter, setFilter] = useState<Filter>("pending");
   const [kindFilter, setKindFilter] = useState<"all" | "comment" | "dm" | "review">("all");
+  const [sentimentFilter, setSentimentFilter] = useState<"all" | SentimentId>("all");
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [banner, setBanner] = useState<{ kind: "ok" | "warn"; text: string } | null>(null);
@@ -132,6 +152,16 @@ export default function InboxPage() {
     pending: messages.filter((m) => m.status === "pending").length,
   };
 
+  // Humeur de l'audience sur les messages chargés. Le sentiment était déjà
+  // calculé à la réception (lib/inbox/respond.ts) mais n'apparaissait que
+  // message par message : impossible de voir une tendance, ni d'aller droit
+  // aux mécontents.
+  const sentimentCounts = SENTIMENTS.map((s) => ({
+    ...s,
+    n: messages.filter((m) => m.sentiment === s.id).length,
+  }));
+  const sentimentTotal = sentimentCounts.reduce((a, b) => a + b.n, 0);
+
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       {/* En-tête */}
@@ -194,6 +224,55 @@ export default function InboxPage() {
         }}
       />
 
+      {/* Humeur de l'audience — cliquable pour filtrer */}
+      {sentimentTotal > 0 && (
+        <section aria-label={t("Humeur de vos audiences", "Audience mood")} className="rounded-xl border border-hair bg-card p-4">
+          <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="text-sm font-semibold text-ink">{t("Humeur de vos audiences", "Audience mood")}</h2>
+            <p className="text-2xs text-muted">
+              {t(`${sentimentTotal} message(s) analysé(s)`, `${sentimentTotal} message(s) analysed`)}
+            </p>
+          </div>
+
+          {/* Répartition en une barre : la part de négatif se voit d'un coup d'œil. */}
+          <div className="flex h-2 overflow-hidden rounded-full bg-canvas" role="img"
+               aria-label={sentimentCounts.map((s) => `${t(s.fr, s.en)} ${s.n}`).join(", ")}>
+            {sentimentCounts.filter((s) => s.n > 0).map((s) => (
+              <span
+                key={s.id}
+                className={SENTIMENT_BAR[s.id]}
+                style={{ width: `${(s.n / sentimentTotal) * 100}%` }}
+              />
+            ))}
+          </div>
+
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            <button
+              onClick={() => setSentimentFilter("all")}
+              aria-pressed={sentimentFilter === "all"}
+              className={`rounded-full px-3 py-1 text-2xs font-medium transition-colors ${sentimentFilter === "all" ? "bg-ink text-white" : "bg-canvas text-muted hover:text-ink"}`}
+            >
+              {t("Tout", "All")}
+            </button>
+            {sentimentCounts.map((s) => (
+              <button
+                key={s.id}
+                onClick={() => setSentimentFilter(sentimentFilter === s.id ? "all" : s.id)}
+                aria-pressed={sentimentFilter === s.id}
+                disabled={s.n === 0}
+                className={`rounded-full px-3 py-1 text-2xs font-medium transition-colors disabled:opacity-40 ${sentimentFilter === s.id ? "bg-ink text-white" : `${SENTIMENT_STYLE[s.id]} hover:opacity-80`}`}
+              >
+                {t(s.fr, s.en)}
+                <span className="ml-1.5 tabular-nums opacity-70">{s.n}</span>
+                <span className="ml-1 tabular-nums opacity-50">
+                  {Math.round((s.n / sentimentTotal) * 100)}%
+                </span>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* Filtres par type (commentaire / message privé) */}
       <div className="flex flex-wrap items-center gap-1.5">
         {([
@@ -230,7 +309,9 @@ export default function InboxPage() {
 
       {/* Messages */}
       {(() => {
-        const visible = kindFilter === "all" ? messages : messages.filter((m) => m.kind === kindFilter);
+        const visible = messages
+          .filter((m) => kindFilter === "all" || m.kind === kindFilter)
+          .filter((m) => sentimentFilter === "all" || m.sentiment === sentimentFilter);
         if (loading) return <p className="text-sm text-muted">{t("Chargement…", "Loading…")}</p>;
         if (visible.length === 0) return <EmptyInbox t={t} hasAgents={agents.length > 0} />;
         return (
@@ -469,7 +550,10 @@ function MessageCard({
             </span>
             {message.sentiment && (
               <span className={`rounded-full px-2 py-0.5 text-2xs font-medium ${SENTIMENT_STYLE[message.sentiment] ?? SENTIMENT_STYLE.neutral}`}>
-                {message.sentiment}
+                {t(
+                  SENTIMENTS.find((s) => s.id === message.sentiment)?.fr ?? message.sentiment,
+                  SENTIMENTS.find((s) => s.id === message.sentiment)?.en ?? message.sentiment
+                )}
               </span>
             )}
             {message.status === "needs_human" && (

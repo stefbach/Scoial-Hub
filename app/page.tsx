@@ -164,6 +164,7 @@ export default function Home() {
           <a href="#capabilities">{t("Fonctionnalités", "Features")}</a>
           <a href="#showcase">{t("Aperçu", "Preview")}</a>
           <Link href="/agents">{t("Agents", "Agents")}</Link>
+          <Link href="/tarifs">{t("Tarifs", "Pricing")}</Link>
         </nav>
         <div className="mc-navcta">
           <LanguageSwitcher />
@@ -443,6 +444,7 @@ export default function Home() {
       <footer className="mc-foot">
         <span>© {new Date().getFullYear()} AXON·AI · Social Hub — Digital Data Solutions Ltd</span>
         <nav className="mc-foot-links" aria-label={t("Liens légaux", "Legal links")}>
+          <Link href="/tarifs">{t("Tarifs", "Pricing")}</Link>
           <Link href="/legal/conditions">{t("Conditions", "Terms")}</Link>
           <Link href="/legal/confidentialite">{t("Confidentialité", "Privacy")}</Link>
           <Link href="/legal/suppression-donnees">{t("Suppression des données", "Data deletion")}</Link>

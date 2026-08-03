@@ -1251,3 +1251,115 @@ html[data-theme="light"] .app-shell > .app-grain {
 /* Avatars témoignages : vrais visages. */
 .mc-avatar-img{width:44px;height:44px;border-radius:50%;object-fit:cover;
   border:2px solid rgba(255,176,122,.45);box-shadow:0 6px 18px -6px rgba(0,0,0,.6);}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Page TARIFS (/tarifs) — blocs propres à la tarification.
+   S'appuie sur l'habillage .mc-* de la landing : même fond sombre, même accent
+   violet, mêmes boutons. Seuls les composants absents de la landing sont
+   définis ici (grille de cadence, cartes de formule, matrice, options).
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Ouverture : promesse à gauche, grille de cadence à droite. */
+.tf-hero{display:grid;gap:clamp(2rem,5vw,3.5rem);align-items:end;}
+@media(min-width:980px){.tf-hero{grid-template-columns:1.3fr 1fr;}}
+.tf-h1{font-size:clamp(2.1rem,5vw,3.6rem);margin-top:.6rem;}
+.tf-lede{margin-top:1rem;max-width:40ch;}
+
+/* Grille de cadence : 3 réseaux × 7 jours — la promesse rendue visible. */
+.tf-cadence{border:1px solid rgba(168,85,247,.22);border-radius:18px;padding:1.3rem;
+  background:rgba(20,14,32,.6);backdrop-filter:blur(8px);}
+.tf-cadence-head{display:flex;justify-content:space-between;align-items:baseline;gap:1rem;margin-bottom:1rem;}
+.tf-week{display:grid;grid-template-columns:repeat(7,1fr);gap:.4rem;}
+.tf-day{display:flex;flex-direction:column;align-items:center;gap:.5rem;}
+.tf-slots{display:flex;flex-direction:column;gap:.3rem;width:100%;}
+.tf-slot{height:.5rem;border-radius:2px;}
+.tf-slot.a,.tf-chip.a{background:#a855f7;}
+.tf-slot.b,.tf-chip.b{background:#22c55e;}
+.tf-slot.c,.tf-chip.c{background:#f472b6;}
+.tf-day-l{font-size:.7rem;letter-spacing:.08em;color:#9d90bb;}
+.tf-legend{display:flex;flex-wrap:wrap;gap:.9rem;margin-top:1.1rem;font-size:.78rem;color:#9d90bb;}
+.tf-legend span{display:inline-flex;align-items:center;gap:.4rem;}
+.tf-chip{width:.65rem;height:.65rem;border-radius:2px;display:inline-block;}
+
+/* Cartes de formule. */
+.tf-plans{display:grid;gap:1.1rem;grid-template-columns:1fr;align-items:stretch;margin-top:2rem;}
+@media(min-width:900px){.tf-plans{grid-template-columns:repeat(3,1fr);}}
+.tf-plan{position:relative;display:flex;flex-direction:column;gap:.9rem;
+  border:1px solid rgba(168,85,247,.18);border-radius:20px;padding:1.7rem 1.4rem 1.5rem;
+  background:rgba(20,14,32,.55);backdrop-filter:blur(8px);}
+.tf-plan.is-feature{border-color:rgba(168,85,247,.6);
+  box-shadow:0 20px 60px -30px rgba(168,85,247,.8);}
+.tf-badge{position:absolute;top:0;right:1.3rem;transform:translateY(-50%);
+  background:linear-gradient(135deg,#a855f7,#7c3aed);color:#fff;
+  font-size:.66rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+  padding:.3rem .65rem;border-radius:999px;}
+.tf-plan-name{font-family:var(--font-display);font-weight:600;font-size:1.5rem;letter-spacing:-.02em;}
+.tf-plan-for{font-size:.82rem;color:#9d90bb;margin-top:-.55rem;}
+.tf-price{display:flex;align-items:baseline;gap:.45rem;font-variant-numeric:tabular-nums;}
+.tf-price b{font-family:var(--font-display);font-size:2.4rem;font-weight:600;letter-spacing:-.03em;}
+.tf-price span{font-size:.9rem;color:#9d90bb;}
+.tf-price-alt{font-size:.8rem;color:#9d90bb;margin-top:-.7rem;font-variant-numeric:tabular-nums;}
+.tf-feat{display:flex;flex-direction:column;gap:.55rem;font-size:.92rem;}
+.tf-feat li{display:grid;grid-template-columns:1rem 1fr;gap:.55rem;align-items:start;color:#ded5f0;}
+.tf-feat li::before{content:"—";color:#22c55e;line-height:1.5;}
+.tf-feat li.key{font-weight:600;color:#fff;}
+.tf-feat li.key::before{content:"●";font-size:.55rem;line-height:2.6;}
+.tf-feat li.off{color:#7c718f;}
+.tf-feat li.off::before{content:"·";color:#7c718f;}
+.tf-cta{margin-top:auto;width:100%;}
+
+/* Triptyques (démarrage, agences). */
+.tf-trio{display:grid;gap:1.5rem;grid-template-columns:1fr;margin-top:2rem;}
+@media(min-width:820px){.tf-trio{grid-template-columns:repeat(3,1fr);}}
+.tf-step{border-top:2px solid #a855f7;padding-top:.9rem;}
+.tf-step h3{font-family:var(--font-display);font-weight:600;font-size:1.2rem;margin-bottom:.4rem;}
+.tf-step p{font-size:.88rem;color:#b6a9d2;line-height:1.65;}
+
+/* Chiffres clés de l'offre agence. */
+.tf-figures{display:flex;flex-wrap:wrap;gap:1.2rem 2.6rem;align-items:baseline;
+  margin-top:2.4rem;padding-top:1.6rem;border-top:1px solid rgba(168,85,247,.2);}
+.tf-figures>div{display:flex;flex-direction:column;gap:.15rem;}
+.tf-fig-k{font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:#9d90bb;}
+.tf-fig-v{font-family:var(--font-display);font-size:1.7rem;font-weight:600;
+  font-variant-numeric:tabular-nums;letter-spacing:-.02em;}
+.tf-fig-v em{font-style:normal;font-size:.55em;opacity:.6;margin-left:.3rem;}
+
+/* Matrice des capacités — défile horizontalement sans pousser la page. */
+.tf-matrix-scroll{overflow-x:auto;border:1px solid rgba(168,85,247,.18);border-radius:18px;
+  background:rgba(20,14,32,.55);margin-top:2rem;}
+.tf-matrix{border-collapse:collapse;width:100%;min-width:44rem;font-size:.92rem;}
+.tf-matrix caption{text-align:left;padding:1rem 1.2rem;font-size:.78rem;color:#9d90bb;
+  border-bottom:1px solid rgba(168,85,247,.16);}
+.tf-matrix th,.tf-matrix td{text-align:left;padding:.7rem 1.2rem;vertical-align:top;
+  border-bottom:1px solid rgba(168,85,247,.1);}
+.tf-matrix thead th{font-size:.7rem;letter-spacing:.1em;text-transform:uppercase;
+  color:#9d90bb;font-weight:600;}
+.tf-matrix .c{text-align:center;width:8.5rem;}
+.tf-matrix tbody tr:last-child td{border-bottom:0;}
+.tf-matrix td small{display:block;color:#8d81a8;font-size:.78rem;line-height:1.5;margin-top:.15rem;}
+.tf-grp td{background:rgba(168,85,247,.09);font-size:.7rem;letter-spacing:.12em;
+  text-transform:uppercase;color:#c9b8ea;padding-block:.5rem;}
+.tf-yes{color:#22c55e;font-weight:700;}
+.tf-no{color:#6b6183;}
+.tf-lim{font-size:.8rem;font-variant-numeric:tabular-nums;color:#ded5f0;}
+
+/* Options à la carte. */
+.tf-carte{display:grid;gap:1px;background:rgba(168,85,247,.18);
+  border:1px solid rgba(168,85,247,.18);border-radius:18px;overflow:hidden;margin-top:2rem;}
+@media(min-width:640px){.tf-carte{grid-template-columns:repeat(2,1fr);}}
+@media(min-width:1040px){.tf-carte{grid-template-columns:repeat(4,1fr);}}
+.tf-item{background:#140e20;padding:1.3rem 1.2rem;display:flex;flex-direction:column;gap:.5rem;}
+.tf-item h3{font-family:var(--font-display);font-weight:600;font-size:1.12rem;}
+.tf-item p{font-size:.85rem;color:#b6a9d2;line-height:1.6;}
+.tf-tag{margin-top:auto;padding-top:.7rem;font-variant-numeric:tabular-nums;
+  font-size:.95rem;color:#c084fc;font-weight:600;}
+.tf-tag em{font-style:normal;color:#9d90bb;font-size:.8rem;font-weight:400;}
+
+/* Clôture : mentions à gauche, appel à l'action à droite. */
+.tf-close{display:grid;gap:2.5rem;grid-template-columns:1fr;}
+@media(min-width:900px){.tf-close{grid-template-columns:1.2fr 1fr;align-items:start;}}
+.tf-close-h{font-size:clamp(1.5rem,3vw,2.1rem);margin-top:.5rem;}
+.tf-notes{display:flex;flex-direction:column;gap:.6rem;margin-top:1rem;
+  font-size:.82rem;color:#9d90bb;}
+.tf-notes li{display:grid;grid-template-columns:.9rem 1fr;gap:.5rem;line-height:1.6;}
+.tf-notes li::before{content:"†";color:#a855f7;}

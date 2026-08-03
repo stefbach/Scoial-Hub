@@ -12,6 +12,7 @@ function isPublicPath(pathname: string): boolean {
   if (pathname.startsWith("/signup")) return true;
   if (pathname.startsWith("/auth/")) return true;
   if (pathname.startsWith("/legal")) return true; // pages légales publiques (Meta/LinkedIn)
+  if (pathname.startsWith("/tarifs")) return true; // grille tarifaire publique
   if (pathname.startsWith("/api/")) return true;
   if (pathname.startsWith("/_next/")) return true;
   if (pathname.startsWith("/favicon")) return true;

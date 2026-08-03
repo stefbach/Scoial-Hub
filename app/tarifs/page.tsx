@@ -120,10 +120,10 @@ const START: { t: L; d: L }[] = [
 
 const AGENCY: { t: L; d: L }[] = [
   {
-    t: ["Marque blanche", "White label"],
+    t: ["Dix marques incluses", "Ten brands included"],
     d: [
-      "Votre logo, vos couleurs, votre domaine. Vos clients ne voient jamais AXON — ils voient votre studio.",
-      "Your logo, your colours, your domain. Your clients never see AXON — they see your studio.",
+      "Chaque client a son identité, sa mémoire stratégique et son calendrier, entièrement séparés des autres.",
+      "Each client gets its own identity, strategic memory and calendar, fully separated from the others.",
     ],
   },
   {
@@ -419,8 +419,8 @@ export default function TarifsPage() {
           <h2 className="mc-h2">{t("Dix marques, une seule console.", "Ten brands, one console.")}</h2>
           <p className="mc-sec-sub">
             {t(
-              "Chaque client garde son identité, sa mémoire stratégique et son calendrier. Vous gardez la main sur tout, sous votre propre marque.",
-              "Every client keeps its own identity, strategic memory and calendar. You keep control of everything, under your own brand."
+              "Chaque client garde son identité, sa mémoire stratégique et son calendrier. Un seul écran, un seul abonnement, une seule facture.",
+              "Every client keeps its own identity, strategic memory and calendar. One screen, one subscription, one invoice."
             )}
           </p>
         </header>

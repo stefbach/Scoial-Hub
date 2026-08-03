@@ -162,22 +162,36 @@ type BCell = "y" | "n" | L;
  * comparables — Hootsuite, Sprout et Agorapulse facturent par utilisateur,
  * Buffer par canal. Tarifs publics relevés en août 2026.
  */
-const BENCH: { name: string; price: L; kw: BCell; visual: BCell; ads: BCell; memory: BCell; us?: boolean }[] = [
+const BENCH: { name: string; price: L; kw: BCell; visual: BCell; ads: BCell; pilot: BCell; memory: BCell; us?: boolean }[] = [
   {
     name: "AXON·AI — Présence", us: true,
     price: ["159 €", "€159"],
-    kw: "y", visual: "y", ads: [" Studio", "Studio"], memory: "y",
+    kw: "y", visual: "y", ads: [" Studio", "Studio"], pilot: "y", memory: "y",
   },
-  { name: "Hootsuite — Standard", price: ["198 $", "$198"], kw: ["partiel", "partial"], visual: "y", ads: "n", memory: "n" },
-  { name: "Sprout Social — Essentials", price: ["198 $", "$198"], kw: ["partiel", "partial"], visual: "n", ads: "n", memory: "n" },
-  { name: "Agorapulse — Standard", price: ["198 $", "$198"], kw: ["partiel", "partial"], visual: "n", ads: "n", memory: "n" },
-  { name: "Predis.ai — Rise", price: ["40 $", "$40"], kw: "y", visual: "y", ads: "n", memory: "n" },
-  { name: "Taplio (LinkedIn)", price: ["65 $", "$65"], kw: "y", visual: "n", ads: "n", memory: "n" },
-  { name: "Buffer — Team", price: ["30 $", "$30"], kw: ["partiel", "partial"], visual: "n", ads: "n", memory: "n" },
-  { name: "Metricool — Starter", price: ["20 €", "€20"], kw: ["limité", "limited"], visual: "n", ads: "n", memory: "n" },
+  { name: "Hootsuite — Standard", price: ["198 $", "$198"], kw: ["partiel", "partial"], visual: "y", ads: "n", pilot: "n", memory: "n" },
+  { name: "Sprout Social — Essentials", price: ["198 $", "$198"], kw: ["partiel", "partial"], visual: "n", ads: "n", pilot: "n", memory: "n" },
+  { name: "Agorapulse — Standard", price: ["198 $", "$198"], kw: ["partiel", "partial"], visual: "n", ads: "n", pilot: "n", memory: "n" },
+  { name: "Predis.ai — Rise", price: ["40 $", "$40"], kw: "y", visual: "y", ads: "n", pilot: "n", memory: "n" },
+  { name: "Taplio (LinkedIn)", price: ["65 $", "$65"], kw: "y", visual: "n", ads: "n", pilot: "n", memory: "n" },
+  { name: "Buffer — Team", price: ["30 $", "$30"], kw: ["partiel", "partial"], visual: "n", ads: "n", pilot: "n", memory: "n" },
+  { name: "Metricool — Starter", price: ["20 €", "€20"], kw: ["limité", "limited"], visual: "n", ads: "n", pilot: "n", memory: "n" },
 ];
 
 const WHY: { t: L; d: L }[] = [
+  {
+    t: ["Une veille stratégique qui travaille pour vous", "Strategic watch working for you"],
+    d: [
+      "Nous suivons en continu ce que publient vos concurrents — y compris leurs publicités, via la bibliothèque publicitaire officielle. Vous savez ce qui se dit sur votre marché sans y passer une heure par semaine.",
+      "We continuously track what your competitors publish — including their ads, through the official ad library. You know what's happening in your market without spending an hour a week on it.",
+    ],
+  },
+  {
+    t: ["Un pilotage assisté par IA, jamais à votre insu", "AI-assisted piloting, never behind your back"],
+    d: [
+      "L'IA lit vos performances publicitaires réelles et propose les décisions : mettre en pause, augmenter un budget, réactiver. Chaque action est marquée « sûre » ou « dépense », et rien ne s'applique sans votre clic.",
+      "The AI reads your real ad performance and proposes the decisions: pause, raise a budget, reactivate. Each action is flagged “safe” or “spend”, and nothing is applied without your click.",
+    ],
+  },
   {
     t: ["Personne d'autre ne crée vos publicités", "No one else builds your ads"],
     d: [
@@ -264,6 +278,7 @@ const MATRIX: { g: L; rows: { l: L; s?: L; v: [Cell, Cell, Cell] }[] }[] = [
       { l: ["Formulaires de prospects", "Lead forms"], v: ["n", "n", "y"] },
       { l: ["Audiences et pixels", "Audiences and pixels"], v: ["n", "n", "y"] },
       { l: ["Garde-fou budgétaire", "Budget safeguard"], s: ["Tout est créé en pause, plafond de dépense", "Everything is created paused, with a spend cap"], v: ["n", "n", "y"] },
+      { l: ["Pilote Pub assisté par IA", "AI-assisted ad pilot"], s: ["L'IA propose pause, budget et activation d'après vos résultats réels — appliqué sur votre clic", "The AI proposes pause, budget and activation from your real results — applied on your click"], v: ["n", "n", "y"] },
     ],
   },
   {
@@ -460,8 +475,8 @@ export default function TarifsPage() {
           <h2 className="mc-h2">{t("Pourquoi nous plutôt qu'un autre.", "Why us rather than someone else.")}</h2>
           <p className="mc-sec-sub">
             {t(
-              "Chaque éditeur facture sur une unité différente — par canal, par utilisateur, par siège. Les prix ci-dessous sont ramenés au même scénario : une marque, trois réseaux, deux utilisateurs.",
-              "Every vendor bills on a different unit — per channel, per user, per seat. The prices below are normalised to one scenario: one brand, three networks, two users."
+              "Publier, tout le monde sait le faire. Ce qui ne se trouve nulle part ailleurs, c'est la veille stratégique de votre marché et le pilotage de vos campagnes assisté par IA. Les prix ci-dessous sont ramenés au même scénario : une marque, trois réseaux, deux utilisateurs.",
+              "Anyone can publish. What you won't find elsewhere is strategic market watch and AI-assisted campaign piloting. The prices below are normalised to one scenario: one brand, three networks, two users."
             )}
           </p>
         </header>
@@ -481,6 +496,7 @@ export default function TarifsPage() {
                 <th scope="col" className="c">{t("Contenu depuis mots-clés", "Content from keywords")}</th>
                 <th scope="col" className="c">{t("Visuels générés", "Generated visuals")}</th>
                 <th scope="col" className="c">{t("Création de publicités", "Ad creation")}</th>
+                <th scope="col" className="c">{t("Veille + pilotage IA", "Watch + AI piloting")}</th>
                 <th scope="col" className="c">{t("Mémoire de marque", "Brand memory")}</th>
               </tr>
             </thead>
@@ -492,6 +508,7 @@ export default function TarifsPage() {
                   <td className="c">{cell(b.kw)}</td>
                   <td className="c">{cell(b.visual)}</td>
                   <td className="c">{cell(b.ads)}</td>
+                  <td className="c">{cell(b.pilot)}</td>
                   <td className="c">{cell(b.memory)}</td>
                 </tr>
               ))}

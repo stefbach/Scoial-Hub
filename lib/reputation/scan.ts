@@ -16,7 +16,9 @@
  */
 
 import { searchMentions, isSearchConfigured, searchProvider, type SearchHit } from "@/lib/reputation/search";
-import { ingestMessage, setMessageSentiment, listMessages } from "@/lib/repositories/inbox";
+import { ingestMessage, setMessageSentiment } from "@/lib/repositories/inbox";
+import { createAdminClient } from "@/lib/supabase/server";
+import { isSupabaseConfigured } from "@/lib/env";
 import { callClaudeJSON } from "@/lib/ai/claude-json";
 import { isAiConfigured } from "@/lib/env";
 import type { InboxSentiment } from "@/lib/inbox/types";
@@ -41,21 +43,61 @@ export interface ScanResult {
   classified: number;
 }
 
+/** Événement d'audit marquant qu'un balayage a EU LIEU, résultats ou non. */
+const SCAN_EVENT = "reputation_scan";
+
 /**
- * Vrai si la société a déjà été balayée récemment. Sans table dédiée, on lit la
- * date de la mention la plus récente déjà en messagerie : c'est exactement la
- * trace qu'écrit ce balayage.
+ * Trace le balayage dans sh_audit_log. C'est cette trace — et non les mentions
+ * trouvées — qui porte le délai anti-répétition.
+ *
+ * Se fier à la dernière mention en base serait un piège à facturation : une
+ * marque sans aucune mention n'en enregistre jamais, donc elle serait
+ * considérée « jamais balayée » et repartirait à CHAQUE passage du cron
+ * (4 fois par jour au lieu d'une). Ce sont précisément les petites marques,
+ * les plus nombreuses, qui coûteraient le plus cher.
+ */
+async function markScanned(companyId: string, now: Date, found: number): Promise<void> {
+  if (!isSupabaseConfigured) return;
+  try {
+    const sb = createAdminClient();
+    if (!sb) return;
+    await sb.from("sh_audit_log").insert({
+      company_id: companyId,
+      event: SCAN_EVENT,
+      details: { found, at: now.toISOString() },
+      created_at: now.toISOString(),
+    });
+  } catch {
+    /* journalisation non critique */
+  }
+}
+
+/**
+ * Vrai si la société a été balayée dans les dernières SCAN_COOLDOWN_HOURS.
+ *
+ * En cas de doute (erreur de lecture), renvoie TRUE : on saute le balayage.
+ * Un balayage manqué ne coûte rien, un balayage de trop coûte des requêtes.
  */
 async function scannedRecently(companyId: string, now: Date): Promise<boolean> {
+  if (!isSupabaseConfigured) return false;
+  const sb = createAdminClient();
+  if (!sb) return false;
   try {
-    const recent = await listMessages(companyId, { channel: "web", limit: 50 });
-    const mentions = recent.filter((m) => m.kind === "mention");
-    if (mentions.length === 0) return false;
-    const newest = Math.max(...mentions.map((m) => new Date(m.receivedAt).getTime()));
-    if (Number.isNaN(newest)) return false;
-    return now.getTime() - newest < SCAN_COOLDOWN_HOURS * 3_600_000;
+    const since = new Date(now.getTime() - SCAN_COOLDOWN_HOURS * 3_600_000).toISOString();
+    const { data, error } = await sb
+      .from("sh_audit_log")
+      .select("id")
+      .eq("company_id", companyId)
+      .eq("event", SCAN_EVENT)
+      .gte("created_at", since)
+      .limit(1);
+    if (error) {
+      console.warn("[reputation] lecture du délai impossible, balayage sauté :", error.message);
+      return true;
+    }
+    return Array.isArray(data) && data.length > 0;
   } catch {
-    return false;
+    return true;
   }
 }
 
@@ -146,8 +188,17 @@ export async function scanReputation(
   }
 
   const queries = buildQueries(brand, opts.site);
+  if (queries.length === 0) {
+    return { configured: true, provider, found: 0, ingested: 0, classified: 0 };
+  }
+
   const batches = await Promise.all(queries.map((q) => searchMentions(q, 8)));
   const hits = keepUseful(batches.flat());
+
+  // Marqué APRÈS l'appel payant et AVANT tout retour anticipé : c'est la
+  // dépense qu'on trace, pas le succès. Zéro résultat compte comme un balayage.
+  await markScanned(companyId, now, hits.length);
+
   if (hits.length === 0) {
     return { configured: true, provider, found: 0, ingested: 0, classified: 0 };
   }

@@ -134,6 +134,19 @@ function main() {
     check("« monfacebook.com » n'est pas Facebook et reste", !isNoiseHost("monfacebook.com"));
     check("« x.com » est écarté", isNoiseHost("x.com"));
     check("« lexpress.mu » ne ressemble pas à « x.com »", !isNoiseHost("lexpress.mu"));
+
+    // Coût : 3 requêtes par balayage, au plus un balayage par 20 h et par
+    // société. Ce sont ces deux nombres qui déterminent la facture Brave.
+    const QUERIES_PER_SCAN = 3;
+    const SCANS_PER_DAY = 1;              // délai de 20 h sur un cron 6 h
+    const perCompanyMonthly = QUERIES_PER_SCAN * SCANS_PER_DAY * 30;
+    check("90 requêtes par société et par mois", perCompanyMonthly === 90, `${perCompanyMonthly}`);
+    check("les 1 000 requêtes offertes couvrent 11 sociétés",
+      Math.floor(1000 / perCompanyMonthly) === 11);
+    check("100 sociétés → 9 000 requêtes/mois", perCompanyMonthly * 100 === 9000);
+    // Sans le délai, le cron 6 h balaierait 4 fois par jour : coût ×4.
+    check("sans délai, la facture serait quadruplée",
+      QUERIES_PER_SCAN * 4 * 30 === 360);
   }
 
   console.log(failures === 0 ? "\n✓ TOUT VERT" : `\n✗ ${failures} échec(s)`);

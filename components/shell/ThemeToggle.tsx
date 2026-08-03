@@ -1,9 +1,9 @@
 "use client";
 
 // ── Bascule de thème jour / nuit ─────────────────────────────────────────────
-// Le thème est appliqué via <html data-theme="light"> (sombre par défaut) et
-// persisté dans localStorage. Un script inline dans le layout l'applique avant
-// la première peinture (aucun flash). Ce composant ne fait que basculer.
+// Le thème CLAIR est le défaut : <html data-theme="light"> est posé dès le rendu
+// serveur. Passer en sombre retire l'attribut. Le choix est persisté dans
+// localStorage et rétabli par un script inline avant la première peinture.
 
 import { useEffect, useState } from "react";
 import { useT } from "@/lib/i18n";
@@ -12,7 +12,7 @@ const STORAGE_KEY = "axon_theme";
 
 export function ThemeToggle() {
   const t = useT();
-  const [theme, setTheme] = useState<"dark" | "light">("dark");
+  const [theme, setTheme] = useState<"dark" | "light">("light");
 
   // Synchronise l'état local avec le thème déjà appliqué par le script inline.
   useEffect(() => {

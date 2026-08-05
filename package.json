@@ -18,7 +18,8 @@
     "test:imgformat": "tsx scripts/verify-image-format.ts",
     "test:publishfix": "tsx scripts/verify-publish-fixes.ts",
     "test:videoquota": "tsx scripts/verify-video-quota.ts",
-    "test:pilotage": "tsx scripts/verify-pilotage-seats.ts"
+    "test:pilotage": "tsx scripts/verify-pilotage-seats.ts",
+    "test:analytics": "tsx scripts/verify-analytics-real.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.100.1",

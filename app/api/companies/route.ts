@@ -4,6 +4,7 @@ import { isSupabaseConfigured } from "@/lib/env";
 import { getSessionUser, getMyOrgId } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/server";
 import { ADMIN_COOKIE, verifyAdminSession } from "@/lib/admin";
+import { chooseOrgSource } from "@/lib/auth/org-scope";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -69,9 +70,15 @@ async function ensureOrgForUser(userId: string, nameHint: string): Promise<strin
 
 // POST /api/companies
 // Body: { orgId?, name, code?, brandVoice?, accent?, ... }
-// - Admin (cookie) : peut fournir orgId explicitement (dépannage).
-// - Client connecté : la société est créée dans SA propre organisation
+// - Admin (cookie) AVEC orgId : crée dans l'organisation désignée (dépannage).
+// - Sinon : la société est créée dans l'organisation de l'utilisateur connecté
 //   (créée à la volée si nécessaire) — orgId du body ignoré par sécurité.
+//
+// Le cookie admin ne doit JAMAIS empêcher une création ordinaire : il survit à
+// une visite de la console admin dans le même navigateur, et aucun écran de
+// création (modale client, assistant admin) n'envoie d'orgId. Exiger orgId dès
+// que ce cookie existe rendait donc « Nouvelle société » impossible pour un
+// utilisateur ayant ouvert /admin une fois (« orgId requis (admin) »).
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -86,16 +93,24 @@ export async function POST(req: NextRequest) {
     let orgId = "local-dev";
     if (isSupabaseConfigured) {
       const isAdmin = verifyAdminSession(req.cookies.get(ADMIN_COOKIE)?.value);
-      if (isAdmin) {
+      const fromBody = chooseOrgSource(isAdmin, bodyOrgId) === "body" ? bodyOrgId : undefined;
+      if (fromBody) {
         // Dépannage : l'admin peut créer une société dans n'importe quelle org.
-        if (!bodyOrgId) {
-          return NextResponse.json({ error: "orgId requis (admin)" }, { status: 400 });
-        }
-        orgId = bodyOrgId;
+        orgId = fromBody;
       } else {
-        // Client : on impose SA propre organisation (jamais celle du body).
+        // Cas courant : on impose l'organisation de la SESSION (jamais celle du
+        // body) — y compris pour un admin qui crée sa propre société.
         const user = await getSessionUser();
-        if (!user) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+        if (!user) {
+          return NextResponse.json(
+            {
+              error: isAdmin
+                ? "orgId requis : aucune session utilisateur pour déduire l'organisation."
+                : "Non authentifié",
+            },
+            { status: isAdmin ? 400 : 401 }
+          );
+        }
         const resolved = await ensureOrgForUser(user.id, input.name);
         if (!resolved) {
           return NextResponse.json({ error: "Organisation introuvable" }, { status: 500 });

@@ -121,9 +121,16 @@ export default function InboxPage() {
       if (!d.available) {
         setBanner({ kind: "warn", text: t("Connectez votre Page Meta pour importer les messages.", "Connect your Meta Page to import messages.") });
       } else {
+        // Le détail Messenger / Instagram est explicite : un « 0 côté
+        // Instagram » doit se voir, sinon un total non nul laisse croire que
+        // les DM Instagram sont arrivés alors qu'ils manquent tous.
         const summary = t(
-          `${d.imported} importé(s) — ${d.comments ?? 0} commentaire(s), ${d.dms ?? 0} message(s) privé(s), ${d.reviews ?? 0} avis.`,
-          `${d.imported} imported — ${d.comments ?? 0} comment(s), ${d.dms ?? 0} private message(s), ${d.reviews ?? 0} review(s).`
+          `${d.imported} importé(s) — ${d.comments ?? 0} commentaire(s), ` +
+            `${d.dmsMessenger ?? 0} message(s) privé(s) Messenger, ${d.dmsInstagram ?? 0} Instagram, ` +
+            `${d.reviews ?? 0} avis.`,
+          `${d.imported} imported — ${d.comments ?? 0} comment(s), ` +
+            `${d.dmsMessenger ?? 0} Messenger private message(s), ${d.dmsInstagram ?? 0} Instagram, ` +
+            `${d.reviews ?? 0} review(s).`
         );
         // La note signale les contenus illisibles (permission manquante, etc.).
         setBanner({

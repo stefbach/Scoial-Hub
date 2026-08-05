@@ -310,6 +310,29 @@ function route(url: string, init?: RequestInit): Response {
     });
   }
 
+  // — Compte dont SEUL le nœud Instagram sert les conversations privées —
+  // (le nœud de la Page répond une liste vide, sans erreur : c'est le cas qui
+  // faisait conclure à tort « aucun DM Instagram »).
+  if (url.includes("IGQ/conversations") && url.includes("platform=instagram")) {
+    return json({
+      data: [
+        {
+          id: "igconvQ",
+          messages: {
+            data: [
+              {
+                id: "ig-dmQ",
+                message: "Vous livrez à Curepipe ?",
+                from: { username: "ravi", id: "IGSID42" },
+                created_time: "2026-07-14T10:00:00+0000",
+              },
+            ],
+          },
+        },
+      ],
+    });
+  }
+
   // — Instagram : médias + commentaires + réponses en fil —
   if (url.includes(`${IG}/media`)) {
     return json({
@@ -521,6 +544,50 @@ async function main() {
     r6.note ?? "(vide)"
   );
   check("… sans ingérer les commentaires de ces Pages", r6.comments === 0, `comments=${r6.comments}`);
+
+  console.log("\n— 2b) Messages privés Instagram : détail et diagnostic —");
+  check(
+    "les DM sont détaillés par plateforme (Messenger vs Instagram)",
+    r.dmsMessenger === 3 && r.dmsInstagram === 1,
+    `messenger=${r.dmsMessenger} instagram=${r.dmsInstagram}`
+  );
+
+  // Compte dont le nœud de la PAGE ne sert pas les conversations Instagram :
+  // le nœud du compte IG doit être essayé avant de conclure à l'absence de DM.
+  await upsertConnection(
+    "democo7",
+    "facebook",
+    { page_id: "PAGEQ", page_access_token: "tok", user_access_token: "tok" },
+    "connected"
+  );
+  await upsertConnection("democo7", "instagram", { ig_business_account_id: "IGQ" }, "connected");
+  const r7 = await syncMetaComments("democo7");
+  check(
+    "nœud de la Page muet → repli sur le nœud Instagram, DM importé",
+    r7.dmsInstagram === 1,
+    `instagram=${r7.dmsInstagram}`
+  );
+  const igDm7 = (await listMessages("democo7")).find((m) => m.externalId === "ig-dmQ");
+  check("… avec l'IGSID comme destinataire (réponse possible)", igDm7?.authorHandle === "IGSID42", igDm7?.authorHandle ?? "(absent)");
+  check("… et aucun avertissement puisque la synchronisation a abouti", !r7.note?.includes("Outils connectés"), r7.note ?? "(vide)");
+
+  // Aucun nœud ne renvoie de conversation : Meta ne signale PAS d'erreur quand
+  // l'accès aux messages n'est pas autorisé côté Instagram — la note doit
+  // nommer les deux réglages qui le conditionnent.
+  await upsertConnection(
+    "democo8",
+    "facebook",
+    { page_id: "PAGEN", page_access_token: "tok", user_access_token: "tok" },
+    "connected"
+  );
+  await upsertConnection("democo8", "instagram", { ig_business_account_id: "IGN" }, "connected");
+  const r8 = await syncMetaComments("democo8");
+  check("aucune conversation Instagram → 0 DM Instagram", r8.dmsInstagram === 0);
+  check(
+    "… et la note nomme la permission ET le réglage « Outils connectés »",
+    Boolean(r8.note?.includes("instagram_manage_messages") && r8.note?.includes("Outils connectés")),
+    r8.note ?? "(vide)"
+  );
 
   console.log("\n— 3) Envoi des réponses : bons endpoints Graph —");
   posted.length = 0;

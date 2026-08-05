@@ -15,6 +15,17 @@ import {
 
 type Filter = "pending" | "needs_human" | "answered" | "all";
 
+/** Réponse de /api/inbox/diagnose-ig (verdict + observations). */
+interface IgDmDiagnosisView {
+  igLinked: boolean;
+  igUsername?: string;
+  permissionGranted: boolean | null;
+  webhookSubscribed: boolean | null;
+  probes: Array<{ node: "page" | "instagram"; id: string; conversations: number; error?: string }>;
+  verdict: "ok" | "no-ig" | "permission-missing" | "graph-error" | "access-blocked-or-empty";
+  explanation: string;
+}
+
 const STATUS_FILTERS: { id: Filter; fr: string; en: string }[] = [
   { id: "pending", fr: "À traiter", en: "To handle" },
   { id: "needs_human", fr: "Pour un humain", en: "For a human" },
@@ -75,6 +86,8 @@ export default function InboxPage() {
   const [agentModal, setAgentModal] = useState(false);
   const [editAgent, setEditAgent] = useState<InboxAgent | null>(null);
   const [simulateOpen, setSimulateOpen] = useState(false);
+  const [igDiag, setIgDiag] = useState<IgDmDiagnosisView | null>(null);
+  const [diagnosing, setDiagnosing] = useState(false);
 
   const loadAgents = useCallback(async () => {
     try {
@@ -146,6 +159,21 @@ export default function InboxPage() {
     }
   }
 
+  async function diagnoseIg() {
+    setDiagnosing(true);
+    setIgDiag(null);
+    try {
+      const r = await fetch(`/api/inbox/diagnose-ig?companyId=${encodeURIComponent(companyId)}`);
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error ?? "diagnostic indisponible");
+      setIgDiag(d as IgDmDiagnosisView);
+    } catch {
+      setBanner({ kind: "warn", text: t("Diagnostic indisponible.", "Diagnosis unavailable.") });
+    } finally {
+      setDiagnosing(false);
+    }
+  }
+
   function onMessageChanged(updated: InboxMessage) {
     setMessages((prev) => {
       // Si le filtre ne correspond plus au nouveau statut, on retire la carte.
@@ -186,6 +214,18 @@ export default function InboxPage() {
           <button onClick={() => setSimulateOpen(true)} className="btn-secondary text-sm">
             {t("Simuler un message", "Simulate a message")}
           </button>
+          <button
+            onClick={diagnoseIg}
+            disabled={diagnosing}
+            className="btn-secondary inline-flex items-center gap-1.5 text-sm disabled:opacity-50"
+            title={t(
+              "Dit pourquoi les messages privés Instagram n'arrivent pas",
+              "Tells you why Instagram private messages don't arrive"
+            )}
+          >
+            {diagnosing && <Spinner size={16} />}
+            {t("Diagnostiquer les DM Instagram", "Diagnose Instagram DMs")}
+          </button>
           <button onClick={sync} disabled={syncing} className="btn-primary inline-flex items-center gap-1.5 text-sm disabled:opacity-50">
             {syncing && <Spinner size={16} className="text-white" />}
             {syncing ? t("Synchronisation…", "Syncing…") : t("Synchroniser Meta", "Sync Meta")}
@@ -204,6 +244,65 @@ export default function InboxPage() {
         >
           {banner.text}
         </div>
+      )}
+
+      {/* Diagnostic des DM Instagram : chaque ligne est une observation, pas une
+          supposition — le verdict indique laquelle des causes bloque. */}
+      {igDiag && (
+        <section
+          aria-label={t("Diagnostic des messages privés Instagram", "Instagram DM diagnosis")}
+          className="rounded-xl border border-hair bg-card p-4"
+        >
+          <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="text-sm font-semibold text-ink">
+              {t("Messages privés Instagram", "Instagram private messages")}
+              {igDiag.igUsername ? ` · @${igDiag.igUsername}` : ""}
+            </h2>
+            <button onClick={() => setIgDiag(null)} className="text-2xs text-muted hover:text-ink">
+              {t("Fermer", "Close")}
+            </button>
+          </div>
+          <ul className="space-y-1.5 text-xs">
+            <DiagLine
+              ok={igDiag.igLinked}
+              label={t("Compte Instagram professionnel lié à la Page", "Instagram professional account linked to the Page")}
+            />
+            <DiagLine
+              ok={igDiag.permissionGranted}
+              label={t("Permission instagram_manage_messages accordée", "instagram_manage_messages permission granted")}
+              unknown={t("indéterminable (aucun token utilisateur enregistré)", "undeterminable (no user token stored)")}
+            />
+            <DiagLine
+              ok={igDiag.webhookSubscribed}
+              label={t("Page abonnée au webhook « messages » (temps réel)", "Page subscribed to the “messages” webhook (real time)")}
+              unknown={t("inconnu", "unknown")}
+            />
+            {igDiag.probes.map((p) => (
+              <DiagLine
+                key={p.node}
+                ok={p.error ? false : p.conversations > 0}
+                label={
+                  p.error
+                    ? t(
+                        `Conversations via le nœud ${p.node === "page" ? "Page" : "Instagram"} : refus de Meta — ${p.error}`,
+                        `Conversations via the ${p.node === "page" ? "Page" : "Instagram"} node: Meta refused — ${p.error}`
+                      )
+                    : t(
+                        `Conversations via le nœud ${p.node === "page" ? "Page" : "Instagram"} : ${p.conversations} fil(s)`,
+                        `Conversations via the ${p.node === "page" ? "Page" : "Instagram"} node: ${p.conversations} thread(s)`
+                      )
+                }
+              />
+            ))}
+          </ul>
+          <p
+            className={`mt-3 rounded-lg px-3 py-2 text-xs ${
+              igDiag.verdict === "ok" ? "bg-success-50 text-success-700" : "bg-warning-50 text-warning-700"
+            }`}
+          >
+            {igDiag.explanation}
+          </p>
+        </section>
       )}
 
       {/* Agents */}
@@ -358,6 +457,24 @@ export default function InboxPage() {
 }
 
 // ── Section agents ────────────────────────────────────────────────────────────
+/**
+ * Une observation du diagnostic. `ok === null` = indéterminable : on l'affiche
+ * en gris plutôt qu'en échec, pour ne pas accuser un réglage sain.
+ */
+function DiagLine({ ok, label, unknown }: { ok: boolean | null; label: string; unknown?: string }) {
+  const mark = ok === null ? "•" : ok ? "✓" : "✗";
+  const tone = ok === null ? "text-muted" : ok ? "text-success-700" : "text-danger-600";
+  return (
+    <li className="flex items-start gap-2">
+      <span aria-hidden="true" className={`mt-px font-semibold ${tone}`}>{mark}</span>
+      <span className="text-ink/80">
+        {label}
+        {ok === null && unknown ? ` — ${unknown}` : ""}
+      </span>
+    </li>
+  );
+}
+
 function AgentsSection({
   agents,
   onCreate,

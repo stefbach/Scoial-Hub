@@ -83,7 +83,15 @@ const spec: OAuth2ProviderSpec = {
     // vérification "Verify domains" côté Content Posting API restait ambiguë
     // même une fois la propriété d'URL générale vérifiée. On envoie les octets
     // directement, en un seul chunk (suffisant pour de courtes vidéos).
-    const videoRes = await fetch(media.url);
+    let videoRes: Response;
+    try {
+      videoRes = await fetch(media.url);
+    } catch (e) {
+      // fetch() rejette avec une TypeError générique ("fetch failed") ; la
+      // vraie raison (DNS, TLS, timeout…) vit dans `cause`, sinon invisible.
+      const cause = e instanceof Error && "cause" in e ? String((e as { cause?: unknown }).cause) : undefined;
+      throw new Error(`TikTok publish → échec réseau au téléchargement de la vidéo (${cause ?? String(e)}).`);
+    }
     if (!videoRes.ok) {
       throw new Error(`TikTok publish → impossible de récupérer la vidéo (HTTP ${videoRes.status}).`);
     }
@@ -119,16 +127,23 @@ const spec: OAuth2ProviderSpec = {
 
     // Envoi effectif des octets — TikTok exige Content-Range même pour un
     // upload en un seul morceau.
-    const uploadRes = await fetch(uploadUrl, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "video/mp4",
-        "Content-Range": `bytes 0-${videoSize - 1}/${videoSize}`,
-      },
-      body: videoBuf,
-    });
+    let uploadRes: Response;
+    try {
+      uploadRes = await fetch(uploadUrl, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "video/mp4",
+          "Content-Range": `bytes 0-${videoSize - 1}/${videoSize}`,
+        },
+        body: videoBuf,
+      });
+    } catch (e) {
+      const cause = e instanceof Error && "cause" in e ? String((e as { cause?: unknown }).cause) : undefined;
+      throw new Error(`TikTok publish → échec réseau à l'envoi vers TikTok (${cause ?? String(e)}).`);
+    }
     if (!uploadRes.ok) {
-      throw new Error(`TikTok publish → échec de l'envoi du fichier (HTTP ${uploadRes.status}).`);
+      const bodyText = await uploadRes.text().catch(() => "");
+      throw new Error(`TikTok publish → échec de l'envoi du fichier (HTTP ${uploadRes.status}${bodyText ? `: ${bodyText.slice(0, 300)}` : ""}).`);
     }
 
     return { externalId: json.data?.publish_id ?? "" };

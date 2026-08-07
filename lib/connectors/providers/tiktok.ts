@@ -30,15 +30,20 @@ const spec: OAuth2ProviderSpec = {
   simPrefix: "tt",
 
   async fetchAccount(accessToken) {
-    const res = await fetch(`${TIKTOK_API}/user/info/?fields=open_id,username,display_name`, {
+    // "username" appartient au scope user.info.profile (qu'on ne demande pas —
+    // seul user.info.basic est configuré). Le demander quand même fait
+    // rejeter l'appel ENTIER en 401 par TikTok, même si open_id/display_name
+    // seraient couverts par user.info.basic. On se limite donc aux deux champs
+    // réellement autorisés par notre scope actuel.
+    const res = await fetch(`${TIKTOK_API}/user/info/?fields=open_id,display_name`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
     if (!res.ok) throw new Error(`user/info → HTTP ${res.status}`);
-    const json = (await res.json()) as { data?: { user?: { open_id?: string; username?: string; display_name?: string } } };
+    const json = (await res.json()) as { data?: { user?: { open_id?: string; display_name?: string } } };
     const u = json.data?.user;
     return {
       externalId: u?.open_id,
-      accountName: u?.username ? `@${u.username}` : (u?.display_name ?? "TikTok"),
+      accountName: u?.display_name ?? "TikTok",
     };
   },
 

@@ -78,26 +78,16 @@ const spec: OAuth2ProviderSpec = {
       );
     }
 
-    // FILE_UPLOAD plutôt que PULL_FROM_URL : évite complètement d'avoir à faire
-    // vérifier le domaine d'hébergement (Supabase Storage) par TikTok — la
-    // vérification "Verify domains" côté Content Posting API restait ambiguë
-    // même une fois la propriété d'URL générale vérifiée. On envoie les octets
-    // directement, en un seul chunk (suffisant pour de courtes vidéos).
-    let videoRes: Response;
-    try {
-      videoRes = await fetch(media.url);
-    } catch (e) {
-      // fetch() rejette avec une TypeError générique ("fetch failed") ; la
-      // vraie raison (DNS, TLS, timeout…) vit dans `cause`, sinon invisible.
-      const cause = e instanceof Error && "cause" in e ? String((e as { cause?: unknown }).cause) : undefined;
-      throw new Error(`TikTok publish → échec réseau au téléchargement de la vidéo (${cause ?? String(e)}).`);
-    }
-    if (!videoRes.ok) {
-      throw new Error(`TikTok publish → impossible de récupérer la vidéo (HTTP ${videoRes.status}).`);
-    }
-    const videoBuf = new Uint8Array(await videoRes.arrayBuffer());
-    const videoSize = videoBuf.byteLength;
-
+    // PULL_FROM_URL — la vidéo vit déjà sur NOTRE serveur (bucket Supabase),
+    // ce qui est exactement le cas où les guidelines TikTok imposent
+    // PULL_FROM_URL et interdisent FILE_UPLOAD (réservé au contenu venant de
+    // l'appareil de l'utilisateur final) : "If video resources are already
+    // on API Clients' servers, do not use FILE_UPLOAD; use PULL_FROM_URL
+    // instead." — l'avoir fait dans l'autre sens était la vraie cause du
+    // rejet générique "review our integration guidelines". Le domaine du
+    // bucket est déjà vérifié via Manage URL properties (requis pour
+    // PULL_FROM_URL).
+    //
     // NB : privacy_level SELF_ONLY est le seul autorisé tant que l'app n'est pas
     // auditée par TikTok ; une app auditée peut utiliser PUBLIC_TO_EVERYONE.
     const res = await fetch(`${TIKTOK_API}/post/publish/video/init/`, {
@@ -105,47 +95,16 @@ const spec: OAuth2ProviderSpec = {
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
       body: JSON.stringify({
         post_info: { title: text, privacy_level: "SELF_ONLY" },
-        source_info: {
-          source: "FILE_UPLOAD",
-          video_size: videoSize,
-          chunk_size: videoSize,
-          total_chunk_count: 1,
-        },
+        source_info: { source: "PULL_FROM_URL", video_url: media.url },
       }),
     });
     const json = (await res.json()) as {
-      data?: { publish_id?: string; upload_url?: string };
+      data?: { publish_id?: string };
       error?: { code?: string; message?: string };
     };
     if (!res.ok || (json.error && json.error.code && json.error.code !== "ok")) {
       throw new Error(`TikTok publish → ${json.error?.message ?? `HTTP ${res.status}`}`);
     }
-    const uploadUrl = json.data?.upload_url;
-    if (!uploadUrl) {
-      throw new Error("TikTok publish → réponse sans upload_url.");
-    }
-
-    // Envoi effectif des octets — TikTok exige Content-Range même pour un
-    // upload en un seul morceau.
-    let uploadRes: Response;
-    try {
-      uploadRes = await fetch(uploadUrl, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "video/mp4",
-          "Content-Range": `bytes 0-${videoSize - 1}/${videoSize}`,
-        },
-        body: videoBuf,
-      });
-    } catch (e) {
-      const cause = e instanceof Error && "cause" in e ? String((e as { cause?: unknown }).cause) : undefined;
-      throw new Error(`TikTok publish → échec réseau à l'envoi vers TikTok (${cause ?? String(e)}).`);
-    }
-    if (!uploadRes.ok) {
-      const bodyText = await uploadRes.text().catch(() => "");
-      throw new Error(`TikTok publish → échec de l'envoi du fichier (HTTP ${uploadRes.status}${bodyText ? `: ${bodyText.slice(0, 300)}` : ""}).`);
-    }
-
     return { externalId: json.data?.publish_id ?? "" };
   },
 };

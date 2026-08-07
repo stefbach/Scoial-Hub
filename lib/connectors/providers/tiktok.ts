@@ -52,6 +52,32 @@ const spec: OAuth2ProviderSpec = {
     if (!media?.url) {
       throw new Error("TikTok exige une vidéo. Ajoutez un média vidéo à votre publication.");
     }
+
+    // Étape obligatoire des guidelines TikTok avant tout /video/init/ : lire
+    // les infos du créateur (options de confidentialité, verrous éventuels).
+    // Sauter cet appel fait rejeter la publication avec un message générique
+    // renvoyant vers content-sharing-guidelines — exactement ce qu'on a eu.
+    const creatorRes = await fetch(`${TIKTOK_API}/post/publish/creator_info/query/`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+    });
+    const creatorJson = (await creatorRes.json()) as {
+      data?: { privacy_level_options?: string[]; max_video_post_duration_sec?: number };
+      error?: { code?: string; message?: string };
+    };
+    if (!creatorRes.ok || (creatorJson.error && creatorJson.error.code && creatorJson.error.code !== "ok")) {
+      throw new Error(`TikTok creator_info → ${creatorJson.error?.message ?? `HTTP ${creatorRes.status}`}`);
+    }
+    // SELF_ONLY est le seul niveau autorisé tant que l'app n'est pas auditée ;
+    // on vérifie qu'il fait bien partie des options renvoyées par le créateur
+    // plutôt que de le supposer aveuglément.
+    const options = creatorJson.data?.privacy_level_options ?? [];
+    if (options.length > 0 && !options.includes("SELF_ONLY")) {
+      throw new Error(
+        `TikTok : ce compte créateur n'autorise pas la visibilité SELF_ONLY (options reçues : ${options.join(", ")}).`
+      );
+    }
+
     // Content Posting API — direct post via PULL_FROM_URL.
     // NB : privacy_level SELF_ONLY est le seul autorisé tant que l'app n'est pas
     // auditée par TikTok ; une app auditée peut utiliser PUBLIC_TO_EVERYONE.

@@ -78,7 +78,18 @@ const spec: OAuth2ProviderSpec = {
       );
     }
 
-    // Content Posting API — direct post via PULL_FROM_URL.
+    // FILE_UPLOAD plutôt que PULL_FROM_URL : évite complètement d'avoir à faire
+    // vérifier le domaine d'hébergement (Supabase Storage) par TikTok — la
+    // vérification "Verify domains" côté Content Posting API restait ambiguë
+    // même une fois la propriété d'URL générale vérifiée. On envoie les octets
+    // directement, en un seul chunk (suffisant pour de courtes vidéos).
+    const videoRes = await fetch(media.url);
+    if (!videoRes.ok) {
+      throw new Error(`TikTok publish → impossible de récupérer la vidéo (HTTP ${videoRes.status}).`);
+    }
+    const videoBuf = new Uint8Array(await videoRes.arrayBuffer());
+    const videoSize = videoBuf.byteLength;
+
     // NB : privacy_level SELF_ONLY est le seul autorisé tant que l'app n'est pas
     // auditée par TikTok ; une app auditée peut utiliser PUBLIC_TO_EVERYONE.
     const res = await fetch(`${TIKTOK_API}/post/publish/video/init/`, {
@@ -86,16 +97,40 @@ const spec: OAuth2ProviderSpec = {
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
       body: JSON.stringify({
         post_info: { title: text, privacy_level: "SELF_ONLY" },
-        source_info: { source: "PULL_FROM_URL", video_url: media.url },
+        source_info: {
+          source: "FILE_UPLOAD",
+          video_size: videoSize,
+          chunk_size: videoSize,
+          total_chunk_count: 1,
+        },
       }),
     });
     const json = (await res.json()) as {
-      data?: { publish_id?: string };
+      data?: { publish_id?: string; upload_url?: string };
       error?: { code?: string; message?: string };
     };
     if (!res.ok || (json.error && json.error.code && json.error.code !== "ok")) {
       throw new Error(`TikTok publish → ${json.error?.message ?? `HTTP ${res.status}`}`);
     }
+    const uploadUrl = json.data?.upload_url;
+    if (!uploadUrl) {
+      throw new Error("TikTok publish → réponse sans upload_url.");
+    }
+
+    // Envoi effectif des octets — TikTok exige Content-Range même pour un
+    // upload en un seul morceau.
+    const uploadRes = await fetch(uploadUrl, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "video/mp4",
+        "Content-Range": `bytes 0-${videoSize - 1}/${videoSize}`,
+      },
+      body: videoBuf,
+    });
+    if (!uploadRes.ok) {
+      throw new Error(`TikTok publish → échec de l'envoi du fichier (HTTP ${uploadRes.status}).`);
+    }
+
     return { externalId: json.data?.publish_id ?? "" };
   },
 };

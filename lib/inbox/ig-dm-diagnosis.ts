@@ -35,19 +35,41 @@ export interface NodeProbe {
   id: string;
   conversations: number;
   error?: string;
+  /**
+   * L'erreur observée ne dit RIEN de la santé de la messagerie. Cas type :
+   * l'erreur (#3) « does not have the capability » sur le nœud Instagram, qui
+   * attend un token Instagram Login et non un token de Page — elle apparaît
+   * même quand tout fonctionne, et ne doit jamais être présentée comme la
+   * cause d'une boîte vide.
+   */
+  inconclusive?: boolean;
 }
 
 export interface IgDmDiagnosis {
   /** Un compte Instagram professionnel est lié à la Page connectée. */
   igLinked: boolean;
   igUsername?: string;
+  /** BUSINESS / MEDIA_CREATOR / PERSONAL — la messagerie exige un compte pro. */
+  igAccountType?: string;
   pageName?: string;
   /** null = indéterminable (aucun token utilisateur enregistré). */
   permissionGranted: boolean | null;
   /** La Page est abonnée au webhook « messages » de l'app. null = inconnu. */
   webhookSubscribed: boolean | null;
+  /**
+   * Conversations MESSENGER lues avec le même token. Contre-épreuve décisive :
+   * si Messenger répond et Instagram reste à zéro, l'edge, le token et la Page
+   * sont hors de cause — le blocage est propre au compte Instagram.
+   */
+  messengerConversations: number | null;
   probes: NodeProbe[];
   verdict: IgDmVerdict;
+}
+
+/** Une erreur Graph qui ne prouve rien sur l'état réel de la messagerie. */
+function isInconclusiveError(message: string | undefined, code: number | undefined): boolean {
+  if (code === 3) return true;
+  return Boolean(message && /does not have the capability|capability to make this API call/i.test(message));
 }
 
 /**
@@ -60,10 +82,12 @@ export function verdictFor(
   if (!input.igLinked) return "no-ig";
   if (input.permissionGranted === false) return "permission-missing";
   if (input.probes.some((p) => p.conversations > 0)) return "ok";
-  // Aucune conversation : soit tous les nœuds ont refusé (erreur exploitable),
-  // soit ils ont répondu « vide » — indiscernable d'une boîte sans message.
-  const answered = input.probes.filter((p) => !p.error);
-  if (input.probes.length > 0 && answered.length === 0) return "graph-error";
+  // Aucune conversation. Une erreur NON concluante (cf. NodeProbe.inconclusive)
+  // ne fait pas un diagnostic : seul un refus réel vaut « graph-error ». Si un
+  // nœud a répondu sans erreur — même « vide » — l'appel fonctionne, et le
+  // silence vient du compte, pas de l'API.
+  const meaningful = input.probes.filter((p) => !p.inconclusive);
+  if (meaningful.length > 0 && meaningful.every((p) => p.error)) return "graph-error";
   return "access-blocked-or-empty";
 }
 
@@ -85,18 +109,32 @@ export function explain(d: IgDmDiagnosis): string {
     case "graph-error":
       return (
         "Meta refuse la lecture des conversations Instagram : " +
-        (d.probes.find((p) => p.error)?.error ?? "erreur non détaillée") +
+        (d.probes.find((p) => p.error && !p.inconclusive)?.error ?? "erreur non détaillée") +
         ". Reconnectez Meta ; si l'erreur persiste, elle nomme la cause exacte."
       );
-    case "access-blocked-or-empty":
+    case "access-blocked-or-empty": {
+      // La contre-épreuve Messenger change la force de la conclusion : un
+      // Messenger qui répond prouve que le token, la Page et l'edge marchent.
+      const proof =
+        d.messengerConversations && d.messengerConversations > 0
+          ? `L'appel FONCTIONNE : le même token lit ${d.messengerConversations} conversation(s) Messenger sur cette Page. ` +
+            "Le token, la Page et la permission sont donc hors de cause — le silence est propre au compte Instagram. "
+          : "L'appel aboutit sans erreur, mais ne renvoie aucune conversation. ";
+      const creator =
+        d.igAccountType && d.igAccountType !== "BUSINESS"
+          ? `Le compte @${d.igUsername ?? ""} est de type ${d.igAccountType} : la messagerie via l'API exige un compte ` +
+            "PROFESSIONNEL (Business). Basculez-le en compte Business dans Instagram, puis reconnectez Meta. "
+          : "";
       return (
-        "Meta répond sans erreur mais ne renvoie AUCUNE conversation. Deux lectures " +
-        "possibles, que l'API ne distingue pas : soit le compte Instagram n'a reçu aucun " +
-        "message privé, soit l'accès est bloqué côté compte. Vérifiez dans l'application " +
-        "Instagram : Paramètres → Messages et réponses aux stories → Outils connectés → " +
-        "« Autoriser l'accès aux messages ». Pour trancher : envoyez-vous un message privé " +
-        "depuis un autre compte, puis relancez ce diagnostic — s'il reste à zéro, c'est le réglage."
+        proof +
+        creator +
+        "Deux lectures restent possibles, que l'API ne distingue pas : soit le compte n'a reçu aucun " +
+        "message privé, soit l'accès aux messages est bloqué côté compte (Instagram → Paramètres → " +
+        "Messages et réponses aux stories → Outils connectés → « Autoriser l'accès aux messages »). " +
+        "Pour trancher en deux minutes : envoyez un message privé à ce compte DEPUIS UN AUTRE COMPTE, " +
+        "puis relancez ce diagnostic. S'il reste à zéro alors qu'un message vient d'arriver, c'est le réglage."
       );
+    }
     case "ok":
     default:
       return (
@@ -108,7 +146,10 @@ export function explain(d: IgDmDiagnosis): string {
 
 // ── Sondes Graph ─────────────────────────────────────────────────────────────
 
-async function gget(path: string, token: string): Promise<{ json: Record<string, unknown>; error?: string }> {
+async function gget(
+  path: string,
+  token: string
+): Promise<{ json: Record<string, unknown>; error?: string; code?: number }> {
   try {
     const sep = path.includes("?") ? "&" : "?";
     const res = await fetch(
@@ -116,11 +157,18 @@ async function gget(path: string, token: string): Promise<{ json: Record<string,
       { cache: "no-store" }
     );
     const json = (await res.json()) as Record<string, unknown>;
-    const err = (json as { error?: { message?: string } }).error;
-    return { json, error: err?.message };
+    const err = (json as { error?: { message?: string; code?: number } }).error;
+    return { json, error: err?.message, code: err?.code };
   } catch (e) {
     return { json: {}, error: e instanceof Error ? e.message : "échec réseau" };
   }
+}
+
+/** Nombre d'éléments d'un edge, ou null si l'appel a échoué. */
+function edgeCount(json: Record<string, unknown>, error?: string): number | null {
+  if (error) return null;
+  const data = json.data as unknown[] | undefined;
+  return Array.isArray(data) ? data.length : 0;
 }
 
 /**
@@ -134,6 +182,7 @@ export async function diagnoseIgDm(companyId: string): Promise<IgDmDiagnosis> {
     pageName: ctx.pageName,
     permissionGranted: null,
     webhookSubscribed: null,
+    messengerConversations: null,
     probes: [],
     verdict: "no-ig",
   };
@@ -164,22 +213,54 @@ export async function diagnoseIgDm(companyId: string): Promise<IgDmDiagnosis> {
     }
   }
 
-  // Nom d'usage du compte Instagram lié (confirme QUEL compte est interrogé).
+  // Identité et TYPE du compte Instagram lié : confirme quel compte est
+  // interrogé, et si c'est bien un compte professionnel (seul type dont la
+  // messagerie est exposée par l'API).
   if (ctx.igId) {
-    const { json } = await gget(`${ctx.igId}?fields=username`, token);
+    const { json } = await gget(`${ctx.igId}?fields=username,account_type`, token);
     if (json.username) out.igUsername = String(json.username);
+    if (json.account_type) out.igAccountType = String(json.account_type);
   }
 
-  // Lecture des conversations sur les deux nœuds possibles.
-  const nodes: Array<{ node: "page" | "instagram"; id?: string }> = [
-    { node: "page", id: ctx.pageId },
-    { node: "instagram", id: ctx.igId },
-  ];
-  for (const { node, id } of nodes) {
-    if (!id) continue;
-    const { json, error } = await gget(`${id}/conversations?platform=instagram&fields=id&limit=25`, token);
-    const data = (json.data as unknown[]) ?? [];
-    out.probes.push({ node, id, conversations: Array.isArray(data) ? data.length : 0, error });
+  // Contre-épreuve MESSENGER : le même token, la même Page, le même edge —
+  // sans platform=instagram. S'il répond, l'infrastructure d'accès est prouvée
+  // saine, et un zéro côté Instagram ne peut plus être imputé au token.
+  if (ctx.pageId) {
+    const { json, error } = await gget(`${ctx.pageId}/conversations?fields=id&limit=25`, token);
+    out.messengerConversations = edgeCount(json, error);
+  }
+
+  // Conversations Instagram : le nœud de la PAGE est le chemin documenté du
+  // Messenger Platform avec un token de Page. Le nœud Instagram n'est sondé
+  // qu'en REPLI, s'il a échoué : interrogé avec un token de Page, il renvoie
+  // l'erreur (#3) « does not have the capability » même quand tout va bien —
+  // la faire figurer comme un échec brouillait la lecture du diagnostic.
+  if (ctx.pageId) {
+    const { json, error, code } = await gget(
+      `${ctx.pageId}/conversations?platform=instagram&fields=id&limit=25`,
+      token
+    );
+    out.probes.push({
+      node: "page",
+      id: ctx.pageId,
+      conversations: edgeCount(json, error) ?? 0,
+      error,
+      inconclusive: error ? isInconclusiveError(error, code) : undefined,
+    });
+  }
+  const pageProbe = out.probes[0];
+  if (ctx.igId && (!pageProbe || pageProbe.error)) {
+    const { json, error, code } = await gget(
+      `${ctx.igId}/conversations?platform=instagram&fields=id&limit=25`,
+      token
+    );
+    out.probes.push({
+      node: "instagram",
+      id: ctx.igId,
+      conversations: edgeCount(json, error) ?? 0,
+      error,
+      inconclusive: error ? isInconclusiveError(error, code) : undefined,
+    });
   }
 
   out.verdict = verdictFor(out);

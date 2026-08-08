@@ -19,9 +19,17 @@ type Filter = "pending" | "needs_human" | "answered" | "all";
 interface IgDmDiagnosisView {
   igLinked: boolean;
   igUsername?: string;
+  igAccountType?: string;
   permissionGranted: boolean | null;
   webhookSubscribed: boolean | null;
-  probes: Array<{ node: "page" | "instagram"; id: string; conversations: number; error?: string }>;
+  messengerConversations: number | null;
+  probes: Array<{
+    node: "page" | "instagram";
+    id: string;
+    conversations: number;
+    error?: string;
+    inconclusive?: boolean;
+  }>;
   verdict: "ok" | "no-ig" | "permission-missing" | "graph-error" | "access-blocked-or-empty";
   explanation: string;
 }
@@ -277,21 +285,45 @@ export default function InboxPage() {
               label={t("Page abonnée au webhook « messages » (temps réel)", "Page subscribed to the “messages” webhook (real time)")}
               unknown={t("inconnu", "unknown")}
             />
+            <DiagLine
+              ok={igDiag.igAccountType ? igDiag.igAccountType === "BUSINESS" : null}
+              label={t(
+                `Compte de type ${igDiag.igAccountType ?? "?"} (la messagerie exige un compte professionnel)`,
+                `Account type ${igDiag.igAccountType ?? "?"} (messaging requires a professional account)`
+              )}
+              unknown={t("type non communiqué par Meta", "type not reported by Meta")}
+            />
+            {/* Contre-épreuve : le même token sur le même edge, sans Instagram. */}
+            <DiagLine
+              ok={igDiag.messengerConversations === null ? null : igDiag.messengerConversations > 0}
+              label={t(
+                `Contre-épreuve Messenger avec le même token : ${igDiag.messengerConversations ?? 0} conversation(s)`,
+                `Messenger cross-check with the same token: ${igDiag.messengerConversations ?? 0} conversation(s)`
+              )}
+              unknown={t("appel en échec", "call failed")}
+            />
             {igDiag.probes.map((p) => (
               <DiagLine
                 key={p.node}
-                ok={p.error ? false : p.conversations > 0}
+                // Une erreur non concluante n'est PAS un échec : elle apparaît
+                // même quand la messagerie fonctionne (cf. #3 sur le nœud
+                // Instagram avec un token de Page).
+                ok={p.inconclusive ? null : p.error ? false : p.conversations > 0}
                 label={
                   p.error
                     ? t(
-                        `Conversations via le nœud ${p.node === "page" ? "Page" : "Instagram"} : refus de Meta — ${p.error}`,
-                        `Conversations via the ${p.node === "page" ? "Page" : "Instagram"} node: Meta refused — ${p.error}`
+                        `Conversations via le nœud ${p.node === "page" ? "Page" : "Instagram"} : ${p.error}`,
+                        `Conversations via the ${p.node === "page" ? "Page" : "Instagram"} node: ${p.error}`
                       )
                     : t(
                         `Conversations via le nœud ${p.node === "page" ? "Page" : "Instagram"} : ${p.conversations} fil(s)`,
                         `Conversations via the ${p.node === "page" ? "Page" : "Instagram"} node: ${p.conversations} thread(s)`
                       )
                 }
+                unknown={t(
+                  "sans portée : ce nœud attend un token Instagram Login, pas un token de Page",
+                  "not meaningful: this node expects an Instagram Login token, not a Page token"
+                )}
               />
             ))}
           </ul>

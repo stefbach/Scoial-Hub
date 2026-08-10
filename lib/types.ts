@@ -89,6 +89,7 @@ export interface ScheduledPost {
   automationName?: string; // present when source === "automation"
   media?: { kind: "image" | "video"; url?: string; tiktok?: TikTokPublishOptions }; // média attaché (url requise pour publier sur Instagram) ; tiktok = réglages de publication TikTok
   publishedAt?: string; // ISO timestamp set when published from the modal
+  externalId?: string; // identifiant du post côté plateforme (publish_id TikTok, post id Facebook…), renseigné après publication réussie
 }
 
 export type TemplateStatus = "unused" | "used" | "archived";

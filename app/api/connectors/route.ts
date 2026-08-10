@@ -14,6 +14,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { listConnectorStatus } from "@/lib/connectors/index";
 import { listConnections } from "@/lib/repositories/channel-connections";
+import { getTikTokConnection } from "@/lib/repositories/tiktok-connection";
 import { resolveCompanyUuid } from "@/lib/repositories/resolve-company";
 import { requireCompanyAccess } from "@/lib/auth/guard";
 import type { ConnectorStatus, ConnectorPlatform } from "@/lib/connectors/types";
@@ -26,7 +27,11 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       const guard = await requireCompanyAccess(companyId);
       if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
 
-      const rows = await listConnections(await resolveCompanyUuid(companyId));
+      const uuid = await resolveCompanyUuid(companyId);
+      // "tiktok" est exclu de sh_channel_connections depuis la Brique 2 (sa
+      // connexion vit dans sh_tiktok_connections, table dédiée) — lu à part
+      // et injecté ci-dessous.
+      const [rows, tiktokConn] = await Promise.all([listConnections(uuid), getTikTokConnection(uuid)]);
       const byChannel = new Map(rows.map((r) => [r.channel, r]));
       // Réseaux sociaux exposés au client (statut par société). Inclut les
       // réseaux déclaratifs récents — alignés sur les connecteurs enregistrés.
@@ -40,6 +45,24 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         "tiktok",
       ];
       const statuses: ConnectorStatus[] = platforms.map((p) => {
+        if (p === "tiktok") {
+          const connected = tiktokConn?.status === "connected";
+          return {
+            platform: p,
+            configured: true,
+            connectedAccounts: connected ? 1 : 0,
+            accounts: connected
+              ? [
+                  {
+                    id: tiktokConn!.id,
+                    accountName: tiktokConn!.account_name || "tiktok",
+                    externalId: tiktokConn!.external_id ?? undefined,
+                    status: "active" as const,
+                  },
+                ]
+              : [],
+          };
+        }
         const r = byChannel.get(p);
         const connected = r?.status === "connected";
         // URL de destination RÉELLE si la config en contient une (jamais fabriquée).

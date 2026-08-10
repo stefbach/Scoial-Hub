@@ -14,7 +14,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { getConnection } from "@/lib/repositories/channel-connections";
+import { getTikTokConnection } from "@/lib/repositories/tiktok-connection";
 import { fetchTikTokCreatorInfo } from "@/lib/connectors/providers/tiktok";
 import { requireCompanyAccess } from "@/lib/auth/guard";
 
@@ -28,8 +28,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const guard = await requireCompanyAccess(companyId);
     if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
 
-    const conn = await getConnection(guard.uuid ?? companyId, "tiktok");
-    const accessToken = conn?.config?.access_token;
+    const conn = await getTikTokConnection(guard.uuid ?? companyId);
+    const accessToken = conn?.access_token;
     if (!conn || conn.status !== "connected" || !accessToken) {
       return NextResponse.json(
         { error: "Compte TikTok non connecté. Connectez-le dans Comptes & connexions." },

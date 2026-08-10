@@ -16,6 +16,11 @@ import {
   getConnectionAdmin,
   markConnectionDisconnected,
 } from "@/lib/repositories/channel-connections";
+import {
+  getTikTokConnection,
+  getTikTokConnectionAdmin,
+  disconnectTikTokConnection,
+} from "@/lib/repositories/tiktok-connection";
 import { isConnectorAuthError } from "@/lib/connectors/types";
 import { updateScheduledPost } from "@/lib/repositories/scheduled-posts";
 import { ensurePublishableImageUrl } from "@/lib/repositories/media";
@@ -141,16 +146,16 @@ async function logHistory(
 }
 
 /** Marque le post comme publié via le client admin (cron — pas de session). */
-async function markPublishedAdmin(id: string, publishedAt: string): Promise<void> {
+async function markPublishedAdmin(id: string, publishedAt: string, externalId?: string): Promise<void> {
   if (!isSupabaseConfigured) {
-    await updateScheduledPost(id, { status: "published", publishedAt }).catch(() => {});
+    await updateScheduledPost(id, { status: "published", publishedAt, externalId }).catch(() => {});
     return;
   }
   const supabase = createAdminClient();
   if (!supabase) return;
   await supabase
     .from("sh_scheduled_posts")
-    .update({ status: "published", published_at: publishedAt })
+    .update({ status: "published", published_at: publishedAt, ...(externalId ? { external_id: externalId } : {}) })
     .eq("id", id);
 }
 
@@ -178,26 +183,53 @@ export async function publishScheduledPostNow(
 
   // Compte connecté = source de vérité pour les tokens (page_access_token…).
   const uuid = await resolveCompanyUuid(companyIdOrUuid);
-  const conn = opts.admin
-    ? await getConnectionAdmin(uuid, platform)
-    : await getConnection(uuid, platform);
-  if (!conn || conn.status !== "connected") {
-    return {
-      ok: false,
-      status: 409,
-      error: `Le compte ${label} n'est pas connecté. Connectez-le dans Connecteurs avant de publier.`,
-      platform,
-    };
-  }
 
-  const { externalAccountId, accessToken } = resolveCreds(platform, conn.config ?? {});
-  if (!externalAccountId || !accessToken) {
-    return {
-      ok: false,
-      status: 409,
-      error: `La connexion ${label} est incomplète (Page/token manquant). Reconnectez le compte.`,
-      platform,
-    };
+  let externalAccountId: string;
+  let accessToken: string;
+
+  if (platform === "tiktok") {
+    // Brique 2 (partielle) : TikTok lit sa connexion dans sa table DÉDIÉE
+    // (sh_tiktok_connections), isolée de sh_channel_connections que
+    // partagent les autres réseaux — le reste du pipeline (post, cron,
+    // historique) est inchangé.
+    const conn = opts.admin ? await getTikTokConnectionAdmin(uuid) : await getTikTokConnection(uuid);
+    if (!conn || conn.status !== "connected") {
+      return {
+        ok: false,
+        status: 409,
+        error: `Le compte ${label} n'est pas connecté. Connectez-le dans Connecteurs avant de publier.`,
+        platform,
+      };
+    }
+    externalAccountId = conn.external_id ?? "";
+    accessToken = conn.access_token ?? "";
+    if (!externalAccountId || !accessToken) {
+      return {
+        ok: false,
+        status: 409,
+        error: `La connexion ${label} est incomplète (Page/token manquant). Reconnectez le compte.`,
+        platform,
+      };
+    }
+  } else {
+    const conn = opts.admin ? await getConnectionAdmin(uuid, platform) : await getConnection(uuid, platform);
+    if (!conn || conn.status !== "connected") {
+      return {
+        ok: false,
+        status: 409,
+        error: `Le compte ${label} n'est pas connecté. Connectez-le dans Connecteurs avant de publier.`,
+        platform,
+      };
+    }
+    ({ externalAccountId, accessToken } = resolveCreds(platform, conn.config ?? {}));
+    if (!externalAccountId || !accessToken) {
+      return {
+        ok: false,
+        status: 409,
+        error: `La connexion ${label} est incomplète (Page/token manquant). Reconnectez le compte.`,
+        platform,
+      };
+    }
   }
 
   // Média attaché (URL) — requis par Instagram (pas de post texte seul),
@@ -246,7 +278,11 @@ export async function publishScheduledPostNow(
     // invalide la connexion (l'écran Connecteurs réclame alors une
     // reconnexion) et on renvoie un statut permanent pour arrêter la boucle.
     if (isConnectorAuthError(err)) {
-      await markConnectionDisconnected(uuid, platform, message);
+      if (platform === "tiktok") {
+        await disconnectTikTokConnection(uuid);
+      } else {
+        await markConnectionDisconnected(uuid, platform, message);
+      }
       return {
         ok: false,
         status: 409,
@@ -266,9 +302,9 @@ export async function publishScheduledPostNow(
   // Publication effectuée → on marque le post comme publié + trace Historique.
   const publishedAt = new Date().toISOString();
   if (opts.admin) {
-    await markPublishedAdmin(post.id, publishedAt).catch(() => {});
+    await markPublishedAdmin(post.id, publishedAt, result.externalId).catch(() => {});
   } else {
-    await updateScheduledPost(post.id, { status: "published", publishedAt }).catch(() => {});
+    await updateScheduledPost(post.id, { status: "published", publishedAt, externalId: result.externalId }).catch(() => {});
   }
   await logHistory(uuid, post, text, "published", result.url);
 

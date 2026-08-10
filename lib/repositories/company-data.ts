@@ -175,7 +175,7 @@ export async function getCompanyData(companyId: string): Promise<CompanyData> {
   try {
     const uuid = await resolveCompanyUuid(companyId);
 
-    const [campaignsR, scheduledR, historyR, automationsR, audiencesR, accountsR, templatesR, connectionsR] =
+    const [campaignsR, scheduledR, historyR, automationsR, audiencesR, accountsR, templatesR, connectionsR, tiktokConnR] =
       await Promise.all([
         supabase.from("sh_campaigns").select("*").eq("company_id", uuid).order("created_at", { ascending: false }),
         supabase.from("sh_scheduled_posts").select("*").eq("company_id", uuid).order("date", { ascending: true }),
@@ -184,7 +184,15 @@ export async function getCompanyData(companyId: string): Promise<CompanyData> {
         supabase.from("sh_audiences").select("*").eq("company_id", uuid),
         supabase.from("sh_social_accounts").select("id,platform,account_name,status").eq("company_id", uuid),
         supabase.from("sh_templates").select("*").eq("company_id", uuid),
-        supabase.from("sh_channel_connections").select("channel,status,config,connected_at").eq("company_id", uuid),
+        // "tiktok" est volontairement EXCLU ici : depuis la Brique 2, sa
+        // connexion vit dans sh_tiktok_connections (table dédiée), pas dans
+        // cette table générique partagée par Facebook/Instagram/LinkedIn.
+        supabase
+          .from("sh_channel_connections")
+          .select("channel,status,config,connected_at")
+          .eq("company_id", uuid)
+          .neq("channel", "tiktok"),
+        supabase.from("sh_tiktok_connections").select("status,account_name").eq("company_id", uuid).maybeSingle(),
       ]);
 
     const campaigns = arr<Row>(campaignsR.data).map(mapCampaign);
@@ -201,7 +209,7 @@ export async function getCompanyData(companyId: string): Promise<CompanyData> {
 
     // Comptes affichés : dérivés des connexions actives (sinon sh_social_accounts).
     const connAccounts: SocialAccount[] = connections
-      .filter((c) => s(c.status) === "connected" && ["facebook", "instagram", "linkedin", "tiktok"].includes(s(c.channel)))
+      .filter((c) => s(c.status) === "connected" && ["facebook", "instagram", "linkedin"].includes(s(c.channel)))
       .map((c) => {
         const cfg = (c.config as Record<string, unknown>) ?? {};
         return {
@@ -211,6 +219,16 @@ export async function getCompanyData(companyId: string): Promise<CompanyData> {
           status: "active" as const,
         };
       });
+    // TikTok (Brique 2) : connexion dédiée, table à part.
+    const tiktokRow = tiktokConnR.data as { status?: string; account_name?: string } | null;
+    if (tiktokRow?.status === "connected") {
+      connAccounts.push({
+        id: "tiktok-conn",
+        platform: "tiktok",
+        accountName: tiktokRow.account_name || "tiktok",
+        status: "active" as const,
+      });
+    }
     const accounts = connAccounts.length > 0 ? connAccounts : arr<Row>(accountsR.data).map(mapAccount);
 
     // ── Agrégats dashboard ──────────────────────────────────────────────

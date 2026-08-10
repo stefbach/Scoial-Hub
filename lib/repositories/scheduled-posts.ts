@@ -21,6 +21,7 @@ function rowToScheduledPost(row: DbScheduledPost): ScheduledPost {
     automationName: row.automation_name ?? undefined,
     media: row.media ?? undefined,
     publishedAt: row.published_at ?? undefined,
+    externalId: row.external_id ?? undefined,
   };
 }
 
@@ -197,6 +198,7 @@ export async function updateScheduledPost(
   if (patch.automationName !== undefined) dbPatch.automation_name = patch.automationName ?? null;
   if (patch.media !== undefined) dbPatch.media = patch.media ?? null;
   if (patch.publishedAt !== undefined) dbPatch.published_at = patch.publishedAt ?? null;
+  if (patch.externalId !== undefined) dbPatch.external_id = patch.externalId ?? null;
 
   const { data, error } = await supabase
     .from("sh_scheduled_posts")

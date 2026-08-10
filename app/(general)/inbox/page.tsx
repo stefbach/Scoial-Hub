@@ -32,6 +32,7 @@ interface IgDmDiagnosisView {
   }>;
   verdict: "ok" | "no-ig" | "permission-missing" | "graph-error" | "access-blocked-or-empty";
   explanation: string;
+  causes: Array<{ title: string; action: string }>;
 }
 
 const STATUS_FILTERS: { id: Filter; fr: string; en: string }[] = [
@@ -334,6 +335,23 @@ export default function InboxPage() {
           >
             {igDiag.explanation}
           </p>
+
+          {/* Causes classées par probabilité : à traiter dans l'ordre. */}
+          {igDiag.causes?.length > 0 && (
+            <ol className="mt-3 space-y-2.5">
+              {igDiag.causes.map((c, i) => (
+                <li key={c.title} className="flex gap-2.5 text-xs">
+                  <span className="mt-px flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-canvas text-[10px] font-semibold text-muted">
+                    {i + 1}
+                  </span>
+                  <span>
+                    <span className="font-semibold text-ink">{c.title}</span>
+                    <span className="block text-muted">{c.action}</span>
+                  </span>
+                </li>
+              ))}
+            </ol>
+          )}
         </section>
       )}
 

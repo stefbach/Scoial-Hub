@@ -66,6 +66,101 @@ export interface IgDmDiagnosis {
   verdict: IgDmVerdict;
 }
 
+/** Une cause possible, avec le geste qui la lève. */
+export interface ProbableCause {
+  title: string;
+  action: string;
+}
+
+/**
+ * Causes d'une liste de conversations VIDE alors que l'appel aboutit, dans
+ * l'ordre de probabilité documenté par Meta. Cet ordre n'est pas une intuition :
+ *
+ *  1. App en mode Développement / accès Standard — « In app development mode,
+ *     only Facebook users with a role on your app can send messages to your
+ *     business Instagram account ». Le message d'un expéditeur SANS rôle sur
+ *     l'app est filtré par Meta : l'API renvoie une liste vide, sans erreur.
+ *     C'est la signature exacte de ce symptôme, et l'état normal d'une app qui
+ *     n'a pas encore été soumise à vérification.
+ *  2. Conversation dans le dossier « Demandes » — Meta : « Conversations that
+ *     are within the Requests folder that have not been active for 30 days will
+ *     not be returned in API calls ». Un message d'un compte non suivi y atterrit.
+ *  3. Compte non professionnel Business — la messagerie n'est pas exposée.
+ *  4. Outils connectés désactivés côté compte Instagram.
+ *  5. Aucun message privé reçu : « 0 » est alors la réponse juste.
+ */
+export function probableCauses(d: IgDmDiagnosis): ProbableCause[] {
+  if (d.verdict === "no-ig") {
+    return [
+      {
+        title: "Aucun compte Instagram professionnel lié à la Page",
+        action:
+          "Liez-le depuis la Page Facebook (Paramètres → Comptes liés → Instagram), puis reconnectez Meta dans Comptes.",
+      },
+    ];
+  }
+  if (d.verdict === "permission-missing") {
+    return [
+      {
+        title: "La permission instagram_manage_messages n'est pas accordée au token",
+        action: "Reconnectez Facebook (Comptes) en acceptant l'accès aux messages Instagram.",
+      },
+    ];
+  }
+  if (d.verdict === "graph-error") {
+    return [
+      {
+        title: `Meta refuse la lecture : ${d.probes.find((p) => p.error && !p.inconclusive)?.error ?? "erreur non détaillée"}`,
+        action: "Reconnectez Meta ; si l'erreur persiste, son libellé nomme la cause exacte.",
+      },
+    ];
+  }
+  if (d.verdict === "ok") return [];
+
+  const causes: ProbableCause[] = [
+    {
+      title:
+        "L'app est en mode Développement (ou en accès Standard) — Meta masque les messages " +
+        "dont l'expéditeur n'a AUCUN rôle sur l'app",
+      action:
+        "Cause n°1 de ce symptôme, et état normal avant la vérification Meta. Ajoutez le profil " +
+        "Facebook de l'expéditeur comme Administrateur, Développeur ou Testeur de l'app " +
+        "(developers.facebook.com → Rôles), faites-lui ACCEPTER l'invitation, puis renvoyez le " +
+        "message privé depuis le compte Instagram rattaché à ce profil. C'est aussi ainsi que " +
+        "Meta attend que la démonstration soit filmée.",
+    },
+    {
+      title: "La conversation est dans le dossier « Demandes » d'Instagram",
+      action:
+        "Un message venant d'un compte que vous ne suivez pas y atterrit, et l'API ne le renvoie " +
+        "pas. Ouvrez Instagram → Messages → Demandes, et ACCEPTEZ la conversation.",
+    },
+  ];
+  if (d.igAccountType && d.igAccountType !== "BUSINESS") {
+    causes.push({
+      title: `Le compte est de type ${d.igAccountType}, pas BUSINESS`,
+      action:
+        "L'API n'expose la messagerie que d'un compte professionnel Business. Basculez-le dans " +
+        "Instagram (Paramètres → Type de compte), puis reconnectez Meta.",
+    });
+  }
+  causes.push(
+    {
+      title: "L'accès aux messages est refusé côté compte Instagram",
+      action:
+        "Instagram → Paramètres → Messages et réponses aux stories → Outils connectés → " +
+        "« Autoriser l'accès aux messages ».",
+    },
+    {
+      title: "Le compte n'a tout simplement reçu aucun message privé",
+      action:
+        "Dans ce cas « 0 » est la réponse juste : il n'y a rien à réparer, il faut créer un fil " +
+        "de conversation (indispensable pour la capture vidéo Meta).",
+    }
+  );
+  return causes;
+}
+
 /** Une erreur Graph qui ne prouve rien sur l'état réel de la messagerie. */
 function isInconclusiveError(message: string | undefined, code: number | undefined): boolean {
   if (code === 3) return true;
@@ -118,21 +213,13 @@ export function explain(d: IgDmDiagnosis): string {
       const proof =
         d.messengerConversations && d.messengerConversations > 0
           ? `L'appel FONCTIONNE : le même token lit ${d.messengerConversations} conversation(s) Messenger sur cette Page. ` +
-            "Le token, la Page et la permission sont donc hors de cause — le silence est propre au compte Instagram. "
-          : "L'appel aboutit sans erreur, mais ne renvoie aucune conversation. ";
-      const creator =
-        d.igAccountType && d.igAccountType !== "BUSINESS"
-          ? `Le compte @${d.igUsername ?? ""} est de type ${d.igAccountType} : la messagerie via l'API exige un compte ` +
-            "PROFESSIONNEL (Business). Basculez-le en compte Business dans Instagram, puis reconnectez Meta. "
-          : "";
+            "Le token, la Page et la permission sont hors de cause. "
+          : "L'appel aboutit sans erreur, mais Meta ne renvoie aucune conversation. ";
       return (
         proof +
-        creator +
-        "Deux lectures restent possibles, que l'API ne distingue pas : soit le compte n'a reçu aucun " +
-        "message privé, soit l'accès aux messages est bloqué côté compte (Instagram → Paramètres → " +
-        "Messages et réponses aux stories → Outils connectés → « Autoriser l'accès aux messages »). " +
-        "Pour trancher en deux minutes : envoyez un message privé à ce compte DEPUIS UN AUTRE COMPTE, " +
-        "puis relancez ce diagnostic. S'il reste à zéro alors qu'un message vient d'arriver, c'est le réglage."
+        "Meta filtre les conversations Instagram avant de les servir : une liste vide sans erreur " +
+        "ne signifie donc PAS que la boîte est vide. Les causes ci-dessous sont classées par " +
+        "probabilité — traitez-les dans l'ordre."
       );
     }
     case "ok":

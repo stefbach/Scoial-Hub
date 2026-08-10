@@ -5,7 +5,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireCompanyAccess } from "@/lib/auth/guard";
-import { diagnoseIgDm, explain } from "@/lib/inbox/ig-dm-diagnosis";
+import { diagnoseIgDm, explain, probableCauses } from "@/lib/inbox/ig-dm-diagnosis";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,7 +20,11 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   try {
     const diagnosis = await diagnoseIgDm(companyId);
-    return NextResponse.json({ ...diagnosis, explanation: explain(diagnosis) });
+    return NextResponse.json({
+      ...diagnosis,
+      explanation: explain(diagnosis),
+      causes: probableCauses(diagnosis),
+    });
   } catch (e) {
     console.error("[GET /api/inbox/diagnose-ig]", e);
     return NextResponse.json({ error: "Diagnostic indisponible." }, { status: 500 });

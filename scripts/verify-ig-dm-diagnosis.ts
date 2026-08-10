@@ -9,7 +9,13 @@
 // Lancement : npx tsx scripts/verify-ig-dm-diagnosis.ts
 
 import { upsertConnection } from "../lib/repositories/channel-connections";
-import { diagnoseIgDm, explain, verdictFor, type IgDmDiagnosis } from "../lib/inbox/ig-dm-diagnosis";
+import {
+  diagnoseIgDm,
+  explain,
+  probableCauses,
+  verdictFor,
+  type IgDmDiagnosis,
+} from "../lib/inbox/ig-dm-diagnosis";
 
 let failed = 0;
 function check(name: string, cond: boolean, detail = "") {
@@ -131,10 +137,57 @@ async function main() {
     explain({ ...base, verdict: "permission-missing" }).includes("instagram_manage_messages")
   );
   check(
-    "réponse vide → nomme « Outils connectés » ET le test par un message réel",
+    "réponse vide → l'explication dit que Meta FILTRE (vide ≠ boîte vide)",
+    explain({ ...base, verdict: "access-blocked-or-empty" }).includes("filtre")
+  );
+
+  // ── 2b) Causes classées par probabilité documentée ────────────────────────
+  console.log("\n— 2b) Causes ordonnées : le mode Développement d'abord —");
+  const empty = probableCauses({ ...base, verdict: "access-blocked-or-empty" });
+  check(
+    "cause n°1 = app en mode Développement / accès Standard",
+    empty[0]?.title.includes("mode Développement"),
+    empty[0]?.title ?? "(aucune)"
+  );
+  check(
+    "… avec le geste exact : donner un rôle sur l'app à l'expéditeur",
+    empty[0]?.action.includes("Testeur") && empty[0]?.action.includes("ACCEPTER"),
+    empty[0]?.action.slice(0, 80) ?? ""
+  );
+  check(
+    "cause n°2 = conversation dans le dossier « Demandes »",
+    empty[1]?.title.includes("Demandes"),
+    empty[1]?.title ?? "(aucune)"
+  );
+  check(
+    "« Outils connectés » rétrogradé après les causes plus probables",
+    empty.findIndex((c) => c.title.includes("accès aux messages est refusé")) >= 2
+  );
+  check(
+    "« aucun message reçu » reste envisagé, en dernier",
+    empty[empty.length - 1].title.includes("aucun message privé")
+  );
+  check(
+    "compte BUSINESS → la cause « type de compte » n'est PAS listée",
+    !empty.some((c) => c.title.includes("pas BUSINESS"))
+  );
+  check(
+    "compte Créateur → la cause « type de compte » est insérée",
+    probableCauses({
+      ...base,
+      verdict: "access-blocked-or-empty",
+      igAccountType: "MEDIA_CREATOR",
+    }).some((c) => c.title.includes("MEDIA_CREATOR"))
+  );
+  check(
+    "verdict ok → aucune cause à traiter",
+    probableCauses({ ...base, verdict: "ok" }).length === 0
+  );
+  check(
+    "permission manquante → une seule cause, ciblée",
     (() => {
-      const m = explain({ ...base, verdict: "access-blocked-or-empty" });
-      return m.includes("Outils connectés") && m.includes("DEPUIS UN AUTRE COMPTE");
+      const c = probableCauses({ ...base, verdict: "permission-missing" });
+      return c.length === 1 && c[0].title.includes("instagram_manage_messages");
     })()
   );
   check(
@@ -163,13 +216,16 @@ async function main() {
     ),
   );
   check(
-    "compte non professionnel → l'explication le signale en premier",
-    explain({
-      ...base,
-      verdict: "access-blocked-or-empty",
-      igAccountType: "MEDIA_CREATOR",
-      igUsername: "ma.marque",
-    }).includes("MEDIA_CREATOR")
+    "compte non professionnel → signalé dans les causes, avec le geste",
+    (() => {
+      const c = probableCauses({
+        ...base,
+        verdict: "access-blocked-or-empty",
+        igAccountType: "MEDIA_CREATOR",
+        igUsername: "ma.marque",
+      }).find((x) => x.title.includes("MEDIA_CREATOR"));
+      return Boolean(c && c.action.includes("Business"));
+    })()
   );
 
   // ── 3) Sondes réelles contre un Graph mocké ───────────────────────────────
@@ -236,8 +292,14 @@ async function main() {
     explain(d).includes("hors de cause")
   );
   check(
-    "… puis renvoie au réglage Instagram et au test décisif",
-    explain(d).includes("Autoriser l'accès aux messages") && explain(d).includes("DEPUIS UN AUTRE COMPTE")
+    "… puis livre les causes ordonnées, mode Développement en tête",
+    (() => {
+      const c = probableCauses(d);
+      return (
+        c[0]?.title.includes("mode Développement") &&
+        c.some((x) => x.action.includes("Autoriser l'accès aux messages"))
+      );
+    })()
   );
   check(
     "les conversations Instagram sont demandées avec platform=instagram",

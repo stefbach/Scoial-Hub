@@ -66,7 +66,9 @@ const spec: OAuth2ProviderSpec = {
       error?: { code?: string; message?: string };
     };
     if (!creatorRes.ok || (creatorJson.error && creatorJson.error.code && creatorJson.error.code !== "ok")) {
-      throw new Error(`TikTok creator_info → ${creatorJson.error?.message ?? `HTTP ${creatorRes.status}`}`);
+      throw new Error(
+        `TikTok creator_info → [${creatorJson.error?.code ?? `HTTP ${creatorRes.status}`}] ${creatorJson.error?.message ?? ""}`
+      );
     }
     // SELF_ONLY est le seul niveau autorisé tant que l'app n'est pas auditée ;
     // on vérifie qu'il fait bien partie des options renvoyées par le créateur
@@ -103,7 +105,7 @@ const spec: OAuth2ProviderSpec = {
       error?: { code?: string; message?: string };
     };
     if (!res.ok || (json.error && json.error.code && json.error.code !== "ok")) {
-      throw new Error(`TikTok publish → ${json.error?.message ?? `HTTP ${res.status}`}`);
+      throw new Error(`TikTok publish → [${json.error?.code ?? `HTTP ${res.status}`}] ${json.error?.message ?? ""}`);
     }
     return { externalId: json.data?.publish_id ?? "" };
   },

@@ -26,8 +26,31 @@ export type IgDmVerdict =
   | "ok"
   | "no-ig"
   | "permission-missing"
+  | "scope-excludes-account"
   | "graph-error"
   | "access-blocked-or-empty";
+
+/**
+ * Portée RÉELLE d'une permission, asset par asset (`granular_scopes` de
+ * debug_token).
+ *
+ * Piège majeur, et raison d'être de cette sonde : `me/permissions` répond
+ * « granted » dès que la permission a été acceptée dans la fenêtre OAuth —
+ * même si l'utilisateur n'a coché AUCUN compte Instagram à l'écran de
+ * sélection. La permission existe alors sans couvrir le moindre asset : Meta
+ * ne renvoie aucune conversation, et n'émet aucune erreur. Vu de
+ * `me/permissions`, tout est vert.
+ */
+export interface PermissionScope {
+  /** false quand debug_token n'a pas pu être lu (pas de token utilisateur). */
+  known: boolean;
+  /** Assets couverts. Vide AVEC known=true et unrestricted=false → aucun. */
+  targetIds: string[];
+  /** Meta n'a listé aucune restriction : la permission couvre tout. */
+  unrestricted: boolean;
+  /** Le compte Instagram (ou sa Page) figure-t-il dans la portée ? */
+  coversAccount: boolean | null;
+}
 
 /** Lecture de l'edge des conversations sur un nœud Graph donné. */
 export interface NodeProbe {
@@ -62,6 +85,8 @@ export interface IgDmDiagnosis {
    * sont hors de cause — le blocage est propre au compte Instagram.
    */
   messengerConversations: number | null;
+  /** Portée par asset de instagram_manage_messages (cf. PermissionScope). */
+  igMessagesScope: PermissionScope;
   probes: NodeProbe[];
   verdict: IgDmVerdict;
 }
@@ -104,6 +129,24 @@ export function probableCauses(d: IgDmDiagnosis): ProbableCause[] {
       {
         title: "La permission instagram_manage_messages n'est pas accordée au token",
         action: "Reconnectez Facebook (Comptes) en acceptant l'accès aux messages Instagram.",
+      },
+    ];
+  }
+  if (d.verdict === "scope-excludes-account") {
+    return [
+      {
+        title:
+          "La permission instagram_manage_messages est accordée, mais elle ne couvre PAS " +
+          `le compte @${d.igUsername ?? d.igAccountType ?? "connecté"}`,
+        action:
+          "Cause certaine, et invisible depuis la liste des permissions : au moment de la " +
+          "connexion Facebook, le compte Instagram n'a pas été coché dans l'écran de sélection " +
+          "des ressources. Allez dans Comptes → reconnecter Facebook, et à l'écran « Quelles " +
+          "ressources voulez-vous utiliser ? » COCHEZ explicitement la Page ET le compte " +
+          "Instagram, sans en laisser un seul décoché." +
+          (d.igMessagesScope.targetIds.length > 0
+            ? ` Portée actuelle : ${d.igMessagesScope.targetIds.join(", ")}.`
+            : " Portée actuelle : aucun compte."),
       },
     ];
   }
@@ -172,11 +215,16 @@ function isInconclusiveError(message: string | undefined, code: number | undefin
  * logique de décision, et elle est testée cas par cas.
  */
 export function verdictFor(
-  input: Pick<IgDmDiagnosis, "igLinked" | "permissionGranted" | "probes">
+  input: Pick<IgDmDiagnosis, "igLinked" | "permissionGranted" | "probes"> & {
+    igMessagesScope?: PermissionScope;
+  }
 ): IgDmVerdict {
   if (!input.igLinked) return "no-ig";
   if (input.permissionGranted === false) return "permission-missing";
   if (input.probes.some((p) => p.conversations > 0)) return "ok";
+  // Permission accordée mais ne couvrant PAS ce compte : cause certaine, et
+  // invisible depuis me/permissions. Elle prime sur toute hypothèse.
+  if (input.igMessagesScope?.coversAccount === false) return "scope-excludes-account";
   // Aucune conversation. Une erreur NON concluante (cf. NodeProbe.inconclusive)
   // ne fait pas un diagnostic : seul un refus réel vaut « graph-error ». Si un
   // nœud a répondu sans erreur — même « vide » — l'appel fonctionne, et le
@@ -200,6 +248,13 @@ export function explain(d: IgDmDiagnosis): string {
         "La permission instagram_manage_messages n'est PAS accordée au token actuel. " +
         "Reconnectez Facebook (Comptes) en acceptant l'accès aux messages Instagram — " +
         "sans elle, Meta ne servira jamais les conversations."
+      );
+    case "scope-excludes-account":
+      return (
+        "Cause identifiée. La permission instagram_manage_messages est bien accordée — " +
+        "d'où le ✓ dans la liste des permissions — mais sa portée réelle (granular_scopes) " +
+        "ne contient PAS ce compte Instagram. Meta refuse donc ses conversations tout en " +
+        "restant silencieux : ni erreur, ni avertissement, juste une liste vide."
       );
     case "graph-error":
       return (
@@ -270,6 +325,7 @@ export async function diagnoseIgDm(companyId: string): Promise<IgDmDiagnosis> {
     permissionGranted: null,
     webhookSubscribed: null,
     messengerConversations: null,
+    igMessagesScope: { known: false, targetIds: [], unrestricted: false, coversAccount: null },
     probes: [],
     verdict: "no-ig",
   };
@@ -288,6 +344,40 @@ export async function diagnoseIgDm(companyId: string): Promise<IgDmDiagnosis> {
       out.permissionGranted = rows.some(
         (r) => r.permission === "instagram_manage_messages" && r.status === "granted"
       );
+    }
+  }
+
+  // Portée RÉELLE de la permission, asset par asset. `me/permissions` ne dit
+  // que « accordée / refusée » ; debug_token dit sur QUOI elle porte. Une
+  // permission accordée mais ne couvrant aucun compte est indétectable
+  // autrement, et produit exactement le symptôme « zéro conversation, aucune
+  // erreur, permission ✓ ».
+  if (ctx.userToken) {
+    const { json } = await gget(
+      `debug_token?input_token=${encodeURIComponent(ctx.userToken)}`,
+      ctx.userToken
+    );
+    const data = json.data as
+      | { granular_scopes?: Array<{ scope?: string; target_ids?: string[] }> }
+      | undefined;
+    const scopes = data?.granular_scopes;
+    if (Array.isArray(scopes)) {
+      const entry = scopes.find((s) => s.scope === "instagram_manage_messages");
+      if (entry) {
+        // target_ids absent = aucune restriction : la permission porte sur tout.
+        const unrestricted = !Array.isArray(entry.target_ids);
+        const targetIds = (entry.target_ids ?? []).map(String);
+        // Meta liste selon les cas l'identifiant du compte Instagram ou celui
+        // de sa Page : les deux valent couverture.
+        const covered =
+          unrestricted ||
+          (ctx.igId ? targetIds.includes(ctx.igId) : false) ||
+          (ctx.pageId ? targetIds.includes(ctx.pageId) : false);
+        out.igMessagesScope = { known: true, targetIds, unrestricted, coversAccount: covered };
+      } else {
+        // La permission n'apparaît pas dans les scopes granulaires du token.
+        out.igMessagesScope = { known: true, targetIds: [], unrestricted: false, coversAccount: false };
+      }
     }
   }
 

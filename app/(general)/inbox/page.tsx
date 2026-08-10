@@ -23,6 +23,12 @@ interface IgDmDiagnosisView {
   permissionGranted: boolean | null;
   webhookSubscribed: boolean | null;
   messengerConversations: number | null;
+  igMessagesScope: {
+    known: boolean;
+    targetIds: string[];
+    unrestricted: boolean;
+    coversAccount: boolean | null;
+  };
   probes: Array<{
     node: "page" | "instagram";
     id: string;
@@ -30,7 +36,13 @@ interface IgDmDiagnosisView {
     error?: string;
     inconclusive?: boolean;
   }>;
-  verdict: "ok" | "no-ig" | "permission-missing" | "graph-error" | "access-blocked-or-empty";
+  verdict:
+    | "ok"
+    | "no-ig"
+    | "permission-missing"
+    | "scope-excludes-account"
+    | "graph-error"
+    | "access-blocked-or-empty";
   explanation: string;
   causes: Array<{ title: string; action: string }>;
 }
@@ -285,6 +297,31 @@ export default function InboxPage() {
               ok={igDiag.webhookSubscribed}
               label={t("Page abonnée au webhook « messages » (temps réel)", "Page subscribed to the “messages” webhook (real time)")}
               unknown={t("inconnu", "unknown")}
+            />
+            {/* La portée RÉELLE de la permission : « accordée » ne veut pas
+                dire « couvre ce compte ». */}
+            <DiagLine
+              ok={igDiag.igMessagesScope?.known ? igDiag.igMessagesScope.coversAccount : null}
+              label={
+                igDiag.igMessagesScope?.unrestricted
+                  ? t(
+                      "Portée de la permission : tous les comptes (aucune restriction)",
+                      "Permission scope: all accounts (unrestricted)"
+                    )
+                  : t(
+                      `Portée réelle de la permission : ${
+                        igDiag.igMessagesScope?.targetIds?.length
+                          ? igDiag.igMessagesScope.targetIds.join(", ")
+                          : "aucun compte"
+                      }`,
+                      `Actual permission scope: ${
+                        igDiag.igMessagesScope?.targetIds?.length
+                          ? igDiag.igMessagesScope.targetIds.join(", ")
+                          : "no account"
+                      }`
+                    )
+              }
+              unknown={t("non lisible (aucun token utilisateur)", "unreadable (no user token)")}
             />
             <DiagLine
               ok={igDiag.igAccountType ? igDiag.igAccountType === "BUSINESS" : null}

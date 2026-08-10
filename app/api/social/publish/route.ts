@@ -16,6 +16,7 @@ export const maxDuration = 60;
 import { NextRequest, NextResponse } from "next/server";
 import { requireCompanyAccess } from "@/lib/auth/guard";
 import { getConnection } from "@/lib/repositories/channel-connections";
+import { getTikTokConnection } from "@/lib/repositories/tiktok-connection";
 import { resolveCompanyUuid } from "@/lib/repositories/resolve-company";
 import { getConnector, isSupportedPlatform } from "@/lib/connectors/index";
 import { ensurePublishableImageUrl } from "@/lib/repositories/media";
@@ -36,12 +37,26 @@ export async function POST(req: NextRequest) {
     if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
 
     const uuid = await resolveCompanyUuid(companyId);
-    const conn = await getConnection(uuid, platform);
-    const token = conn?.config?.access_token;
-    // Pinterest : un board cible est requis (boardId prioritaire sur la config).
-    const externalId = boardId || conn?.config?.board_id || conn?.config?.external_id;
 
-    if (!conn || conn.status !== "connected" || !token) {
+    // TikTok (Brique 2) : connexion dédiée (sh_tiktok_connections), pas
+    // sh_channel_connections que partagent les autres réseaux de cette route.
+    let token: string | undefined;
+    let externalId: string | undefined;
+    let connected: boolean;
+    if (platform === "tiktok") {
+      const conn = await getTikTokConnection(uuid);
+      token = conn?.access_token ?? undefined;
+      externalId = conn?.external_id ?? undefined;
+      connected = !!conn && conn.status === "connected" && !!token;
+    } else {
+      const conn = await getConnection(uuid, platform);
+      token = conn?.config?.access_token;
+      // Pinterest : un board cible est requis (boardId prioritaire sur la config).
+      externalId = boardId || conn?.config?.board_id || conn?.config?.external_id;
+      connected = !!conn && conn.status === "connected" && !!token;
+    }
+
+    if (!connected || !token) {
       return NextResponse.json({ connected: false, error: `${platform} non connecté.` });
     }
 

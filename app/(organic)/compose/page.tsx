@@ -525,20 +525,29 @@ function ComposeContent() {
                   </button>
                 );
               })}
-              {/* TikTok : préparation + programmation (publication auto à venir) */}
-              <button
-                onClick={() => setTiktokOn((v) => !v)}
-                aria-pressed={tiktokOn}
-                title={t("TikTok — contenu préparé et programmé ici ; publication depuis l'app TikTok", "TikTok — content prepared & scheduled here; publish from the TikTok app")}
-                className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
-                  tiktokOn
-                    ? "bg-ai-textbg text-ai-text ring-1 ring-ai-text/30 shadow-xs"
-                    : "border border-hair bg-card text-muted hover:bg-canvas hover:text-ink"
-                }`}
-              >
-                <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: PLATFORM_DOT.tiktok }} />
-                <span className="font-semibold">TikTok</span>
-              </button>
+              {/* TikTok non encore connecté : place-holder pour préparer le
+                  contenu avant de connecter le compte (cf. /accounts). Une
+                  fois TikTok connecté, le vrai compte apparaît déjà dans la
+                  boucle ci-dessus (data.accounts) — cacher ce doublon évite
+                  deux chips "TikTok" et le risque de publier deux fois. */}
+              {!data.accounts.some((a) => a.platform === "tiktok") && (
+                <button
+                  onClick={() => setTiktokOn((v) => !v)}
+                  aria-pressed={tiktokOn}
+                  title={t(
+                    "TikTok n'est pas encore connecté — préparez le contenu ici, connectez le compte dans Comptes & connexions pour publier.",
+                    "TikTok isn't connected yet — prepare content here, connect the account in Accounts & connections to publish."
+                  )}
+                  className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
+                    tiktokOn
+                      ? "bg-ai-textbg text-ai-text ring-1 ring-ai-text/30 shadow-xs"
+                      : "border border-hair bg-card text-muted hover:bg-canvas hover:text-ink"
+                  }`}
+                >
+                  <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: PLATFORM_DOT.tiktok }} />
+                  <span className="font-semibold">TikTok</span>
+                </button>
+              )}
             </div>
             <p className="mt-2 text-2xs text-muted">
               {t("LinkedIn a son espace dédié →", "LinkedIn has its dedicated space →")}{" "}

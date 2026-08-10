@@ -91,6 +91,51 @@ async function main() {
       ],
     }) === "access-blocked-or-empty"
   );
+  // Le piège central : me/permissions répond « granted » alors que la portée
+  // réelle de la permission ne contient pas le compte. Symptôme identique à
+  // une boîte vide, cause pourtant certaine.
+  const scopeMiss = {
+    known: true,
+    targetIds: ["UNE_AUTRE_PAGE"],
+    unrestricted: false,
+    coversAccount: false,
+  };
+  check(
+    "permission accordée mais hors portée du compte → scope-excludes-account",
+    verdictFor({
+      igLinked: true,
+      permissionGranted: true,
+      probes: [{ node: "page", id: "P", conversations: 0 }],
+      igMessagesScope: scopeMiss,
+    }) === "scope-excludes-account"
+  );
+  check(
+    "portée sans restriction → aucune accusation de portée",
+    verdictFor({
+      igLinked: true,
+      permissionGranted: true,
+      probes: [{ node: "page", id: "P", conversations: 0 }],
+      igMessagesScope: { known: true, targetIds: [], unrestricted: true, coversAccount: true },
+    }) === "access-blocked-or-empty"
+  );
+  check(
+    "portée illisible ne vaut PAS portée absente",
+    verdictFor({
+      igLinked: true,
+      permissionGranted: true,
+      probes: [{ node: "page", id: "P", conversations: 0 }],
+      igMessagesScope: { known: false, targetIds: [], unrestricted: false, coversAccount: null },
+    }) === "access-blocked-or-empty"
+  );
+  check(
+    "des conversations reviennent → ok l'emporte sur un doute de portée",
+    verdictFor({
+      igLinked: true,
+      permissionGranted: true,
+      probes: [{ node: "page", id: "P", conversations: 4 }],
+      igMessagesScope: scopeMiss,
+    }) === "ok"
+  );
   check(
     "réponse vide SANS erreur → access-blocked-or-empty (jamais une certitude)",
     verdictFor({
@@ -129,6 +174,7 @@ async function main() {
     permissionGranted: true,
     webhookSubscribed: true,
     messengerConversations: null,
+    igMessagesScope: { known: true, targetIds: ["IGB"], unrestricted: false, coversAccount: true },
     probes: [],
     verdict: "ok",
   };
@@ -139,6 +185,28 @@ async function main() {
   check(
     "réponse vide → l'explication dit que Meta FILTRE (vide ≠ boîte vide)",
     explain({ ...base, verdict: "access-blocked-or-empty" }).includes("filtre")
+  );
+
+  check(
+    "hors portée → une cause UNIQUE et certaine, avec l'écran à recocher",
+    (() => {
+      const c = probableCauses({
+        ...base,
+        verdict: "scope-excludes-account",
+        igUsername: "tibok_mu",
+        igMessagesScope: scopeMiss,
+      });
+      return (
+        c.length === 1 &&
+        c[0].title.includes("ne couvre PAS") &&
+        c[0].action.includes("COCHEZ") &&
+        c[0].action.includes("UNE_AUTRE_PAGE")
+      );
+    })()
+  );
+  check(
+    "hors portée → l'explication dit que le ✓ des permissions est trompeur",
+    explain({ ...base, verdict: "scope-excludes-account" }).includes("granular_scopes")
   );
 
   // ── 2b) Causes classées par probabilité documentée ────────────────────────
@@ -250,6 +318,17 @@ async function main() {
         ],
       });
     }
+    if (url.includes("debug_token")) {
+      return json({
+        data: {
+          is_valid: true,
+          granular_scopes: [
+            { scope: "instagram_manage_messages", target_ids: ["IGB"] },
+            { scope: "pages_messaging", target_ids: ["PAGEB"] },
+          ],
+        },
+      });
+    }
     if (url.includes("/subscribed_apps")) return json({ data: [{ subscribed_fields: ["feed", "messages"] }] });
     if (url.includes("IGB?") || url.includes("IGB&")) {
       return json({ username: "ma.marque", account_type: "BUSINESS" });
@@ -277,6 +356,11 @@ async function main() {
   check("permission lue sur le token utilisateur", d.permissionGranted === true);
   check("abonnement webhook « messages » détecté", d.webhookSubscribed === true);
   check("contre-épreuve Messenger effectuée", d.messengerConversations === 2, `${d.messengerConversations}`);
+  check(
+    "portée de la permission lue via debug_token",
+    d.igMessagesScope.known && d.igMessagesScope.coversAccount === true,
+    JSON.stringify(d.igMessagesScope)
+  );
   check(
     "le nœud Page répond → le nœud Instagram n'est PAS sondé inutilement",
     d.probes.length === 1 && d.probes[0].node === "page",
@@ -352,6 +436,45 @@ async function main() {
   const d2 = await diagnoseIgDm("diag-co");
   check("permission absente → verdict permission-missing", d2.verdict === "permission-missing", d2.verdict);
   check("… et l'explication ne blâme PAS le réglage Instagram", !explain(d2).includes("Outils connectés"));
+
+  // Cas décisif de bout en bout : permission « granted », mais granular_scopes
+  // pointant une AUTRE ressource. Tout est vert côté permissions, et pourtant
+  // Meta ne renverra jamais les conversations de ce compte.
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.includes("me/permissions")) {
+      return json({ data: [{ permission: "instagram_manage_messages", status: "granted" }] });
+    }
+    if (url.includes("debug_token")) {
+      return json({
+        data: {
+          is_valid: true,
+          granular_scopes: [{ scope: "instagram_manage_messages", target_ids: ["UNE_AUTRE_PAGE"] }],
+        },
+      });
+    }
+    if (url.includes("IGB?") || url.includes("IGB&")) {
+      return json({ username: "tibok_mu", account_type: "BUSINESS" });
+    }
+    return json({ data: [] });
+  }) as typeof fetch;
+
+  const d4 = await diagnoseIgDm("diag-co");
+  check(
+    "permission « granted » mais hors portée → verdict scope-excludes-account",
+    d4.verdict === "scope-excludes-account",
+    d4.verdict
+  );
+  check(
+    "… la portée réelle est rapportée telle quelle",
+    d4.igMessagesScope.targetIds.join(",") === "UNE_AUTRE_PAGE",
+    JSON.stringify(d4.igMessagesScope)
+  );
+  check(
+    "… et la cause donne l'écran exact à corriger",
+    probableCauses(d4)[0]?.action.includes("ressources"),
+    probableCauses(d4)[0]?.action.slice(0, 90) ?? ""
+  );
 
   globalThis.fetch = realFetch;
 

@@ -707,15 +707,6 @@ function ComposeContent() {
                 )}
               </div>
 
-              {upload?.kind === "image" && (
-                <p className="text-2xs text-danger-600">
-                  {t(
-                    "TikTok ne prend en charge que la vidéo pour le moment — ajoutez une vidéo pour publier sur ce réseau (l'image sera refusée à la publication).",
-                    "TikTok only supports video for now — add a video to publish to this network (the image will be rejected at publish time)."
-                  )}
-                </p>
-              )}
-
               {tiktokCreatorInfoLoading && (
                 <p className="text-2xs text-muted">{t("Chargement des réglages du compte…", "Loading account settings…")}</p>
               )}
@@ -746,36 +737,42 @@ function ComposeContent() {
                     </select>
                   </label>
 
-                  {/* Interactions — décochées par défaut, grisées si verrouillées par le créateur */}
+                  {/* Interactions — décochées par défaut, grisées si verrouillées par le créateur.
+                      Duo/Stitch ne s'appliquent pas aux photos (guidelines TikTok) — masqués
+                      pour un média image, seul « Commentaires » reste affiché. */}
                   <div>
                     <div className="mb-1 text-xs font-medium text-ink">{t("Interactions autorisées", "Allowed interactions")}</div>
                     <div className="flex flex-wrap gap-x-4 gap-y-1.5">
-                      <label
-                        className={`flex items-center gap-1.5 text-xs ${tiktokCreatorInfo.duetDisabled ? "text-muted" : "text-ink"}`}
-                        title={tiktokCreatorInfo.duetDisabled ? t("Désactivé dans les réglages TikTok de ce compte.", "Disabled in this account's TikTok settings.") : undefined}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={tiktokAllowDuet && !tiktokCreatorInfo.duetDisabled}
-                          disabled={tiktokCreatorInfo.duetDisabled}
-                          onChange={(e) => setTiktokAllowDuet(e.target.checked)}
-                          className="h-3.5 w-3.5 accent-page"
-                        />
-                        {t("Duos", "Duet")}
-                      </label>
-                      <label
-                        className={`flex items-center gap-1.5 text-xs ${tiktokCreatorInfo.stitchDisabled ? "text-muted" : "text-ink"}`}
-                        title={tiktokCreatorInfo.stitchDisabled ? t("Désactivé dans les réglages TikTok de ce compte.", "Disabled in this account's TikTok settings.") : undefined}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={tiktokAllowStitch && !tiktokCreatorInfo.stitchDisabled}
-                          disabled={tiktokCreatorInfo.stitchDisabled}
-                          onChange={(e) => setTiktokAllowStitch(e.target.checked)}
-                          className="h-3.5 w-3.5 accent-page"
-                        />
-                        {t("Stitch", "Stitch")}
-                      </label>
+                      {upload?.kind !== "image" && (
+                        <>
+                          <label
+                            className={`flex items-center gap-1.5 text-xs ${tiktokCreatorInfo.duetDisabled ? "text-muted" : "text-ink"}`}
+                            title={tiktokCreatorInfo.duetDisabled ? t("Désactivé dans les réglages TikTok de ce compte.", "Disabled in this account's TikTok settings.") : undefined}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={tiktokAllowDuet && !tiktokCreatorInfo.duetDisabled}
+                              disabled={tiktokCreatorInfo.duetDisabled}
+                              onChange={(e) => setTiktokAllowDuet(e.target.checked)}
+                              className="h-3.5 w-3.5 accent-page"
+                            />
+                            {t("Duos", "Duet")}
+                          </label>
+                          <label
+                            className={`flex items-center gap-1.5 text-xs ${tiktokCreatorInfo.stitchDisabled ? "text-muted" : "text-ink"}`}
+                            title={tiktokCreatorInfo.stitchDisabled ? t("Désactivé dans les réglages TikTok de ce compte.", "Disabled in this account's TikTok settings.") : undefined}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={tiktokAllowStitch && !tiktokCreatorInfo.stitchDisabled}
+                              disabled={tiktokCreatorInfo.stitchDisabled}
+                              onChange={(e) => setTiktokAllowStitch(e.target.checked)}
+                              className="h-3.5 w-3.5 accent-page"
+                            />
+                            {t("Stitch", "Stitch")}
+                          </label>
+                        </>
+                      )}
                       <label
                         className={`flex items-center gap-1.5 text-xs ${tiktokCreatorInfo.commentDisabled ? "text-muted" : "text-ink"}`}
                         title={tiktokCreatorInfo.commentDisabled ? t("Désactivé dans les réglages TikTok de ce compte.", "Disabled in this account's TikTok settings.") : undefined}

@@ -67,6 +67,56 @@ export async function fetchTikTokCreatorInfo(accessToken: string): Promise<TikTo
   };
 }
 
+// ---------------------------------------------------------------------------
+// status/fetch — statut RÉEL d'une publication après l'appel init (init ne
+// fait QUE mettre en file : la vidéo/photo est ensuite téléchargée et traitée
+// de façon asynchrone côté TikTok, et peut échouer sans qu'aucune erreur ne
+// remonte à l'appel init — cf. l'incident "photo marquée publiée mais absente
+// du profil"). Utilisée par le cron de vérification post-publication.
+// ---------------------------------------------------------------------------
+
+export type TikTokPublishStatusValue =
+  | "PROCESSING_UPLOAD"
+  | "PROCESSING_DOWNLOAD"
+  | "SEND_TO_USER_INBOX"
+  | "PUBLISH_COMPLETE"
+  | "FAILED";
+
+export interface TikTokPublishStatus {
+  status: TikTokPublishStatusValue;
+  failReason?: string;
+  /** post_id publics — renseignés seulement une fois la modération TikTok terminée. */
+  publiclyAvailablePostIds: string[];
+}
+
+export async function fetchTikTokPublishStatus(
+  accessToken: string,
+  publishId: string
+): Promise<TikTokPublishStatus> {
+  const res = await fetch(`${TIKTOK_API}/post/publish/status/fetch/`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify({ publish_id: publishId }),
+  });
+  const json = (await res.json()) as {
+    data?: {
+      status?: string;
+      fail_reason?: string;
+      publicaly_available_post_id?: (number | string)[];
+    };
+    error?: { code?: string; message?: string };
+  };
+  if (!res.ok || (json.error && json.error.code && json.error.code !== "ok")) {
+    throw new Error(`TikTok status/fetch → [${json.error?.code ?? `HTTP ${res.status}`}] ${json.error?.message ?? ""}`);
+  }
+  const d = json.data ?? {};
+  return {
+    status: (d.status as TikTokPublishStatusValue) ?? "FAILED",
+    failReason: d.fail_reason,
+    publiclyAvailablePostIds: (d.publicaly_available_post_id ?? []).map(String),
+  };
+}
+
 const spec: OAuth2ProviderSpec = {
   platform: "tiktok",
   label: "TikTok",
@@ -99,27 +149,16 @@ const spec: OAuth2ProviderSpec = {
   },
 
   async publish({ accessToken, text, media, tiktok }) {
-    // TikTok est une plateforme vidéo : un média vidéo est obligatoire.
     if (!media?.url) {
-      throw new Error("TikTok exige une vidéo. Ajoutez un média vidéo à votre publication.");
+      throw new Error("TikTok exige un média (vidéo ou photo). Ajoutez-en un à votre publication.");
     }
-    // `/post/publish/video/init/` (utilisé plus bas) n'accepte QUE des vidéos —
-    // TikTok a un endpoint et un payload entièrement différents pour les
-    // photos (`/post/publish/content/init/`, non implémenté ici). Sans ce
-    // garde-fou, une image était acceptée silencieusement par l'appel
-    // (TikTok ne valide pas le contenu à l'init) puis rejetée en traitement
-    // asynchrone SANS jamais remonter d'erreur chez nous — le post restait
-    // marqué "publié" alors que rien n'apparaissait sur le profil.
-    if (media.mimeType?.startsWith("image/")) {
-      throw new Error(
-        "TikTok : la publication de photos n'est pas encore prise en charge (seule la vidéo l'est actuellement). Utilisez une vidéo."
-      );
-    }
+    const isPhoto = media.mimeType?.startsWith("image/") ?? false;
 
-    // Étape obligatoire des guidelines TikTok avant tout /video/init/ : lire
-    // les infos du créateur (options de confidentialité, verrous éventuels).
-    // Sauter cet appel fait rejeter la publication avec un message générique
-    // renvoyant vers content-sharing-guidelines — exactement ce qu'on a eu.
+    // Étape obligatoire des guidelines TikTok avant tout /video/init/ ou
+    // /content/init/ (même appel pour les deux) : lire les infos du créateur
+    // (options de confidentialité, verrous éventuels). Sauter cet appel fait
+    // rejeter la publication avec un message générique renvoyant vers
+    // content-sharing-guidelines — exactement ce qu'on a eu.
     const creatorInfo = await fetchTikTokCreatorInfo(accessToken);
     const options = creatorInfo.privacyLevelOptions;
 
@@ -134,6 +173,45 @@ const spec: OAuth2ProviderSpec = {
       throw new Error(
         `TikTok : la visibilité « ${privacyLevel} » n'est pas proposée par ce compte créateur (options reçues : ${options.join(", ")}).`
       );
+    }
+
+    if (isPhoto) {
+      // /post/publish/content/init/ — endpoint et format DISTINCTS de la
+      // vidéo (cf. API Reference → Photo). Duet/Stitch ne s'appliquent pas
+      // aux photos (absents du schéma) ; le texte va dans `description`
+      // (jusqu'à 4000 runes) plutôt que `title` (limité à 90 runes côté
+      // photo — bien plus court que la vidéo, où `title` porte tout le
+      // texte). Une seule image par post pour l'instant (photo_images
+      // n'accepte qu'un tableau, jusqu'à 35 — notre UI de composition ne
+      // gère qu'un seul média à la fois).
+      const postInfo: Record<string, unknown> = { description: text, privacy_level: privacyLevel };
+      if (tiktok) {
+        postInfo.disable_comment = !tiktok.allowComment;
+        if (tiktok.disclosure === "your_brand" || tiktok.disclosure === "both") {
+          postInfo.brand_organic_toggle = true;
+        }
+        if (tiktok.disclosure === "branded_content" || tiktok.disclosure === "both") {
+          postInfo.brand_content_toggle = true;
+        }
+      }
+      const res = await fetch(`${TIKTOK_API}/post/publish/content/init/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({
+          post_info: postInfo,
+          source_info: { source: "PULL_FROM_URL", photo_images: [media.url], photo_cover_index: 0 },
+          post_mode: "DIRECT_POST",
+          media_type: "PHOTO",
+        }),
+      });
+      const json = (await res.json()) as {
+        data?: { publish_id?: string };
+        error?: { code?: string; message?: string };
+      };
+      if (!res.ok || (json.error && json.error.code && json.error.code !== "ok")) {
+        throw new Error(`TikTok publish (photo) → [${json.error?.code ?? `HTTP ${res.status}`}] ${json.error?.message ?? ""}`);
+      }
+      return { externalId: json.data?.publish_id ?? "" };
     }
 
     const postInfo: Record<string, unknown> = { title: text, privacy_level: privacyLevel };

@@ -707,6 +707,15 @@ function ComposeContent() {
                 )}
               </div>
 
+              {upload?.kind === "image" && (
+                <p className="text-2xs text-danger-600">
+                  {t(
+                    "TikTok ne prend en charge que la vidéo pour le moment — ajoutez une vidéo pour publier sur ce réseau (l'image sera refusée à la publication).",
+                    "TikTok only supports video for now — add a video to publish to this network (the image will be rejected at publish time)."
+                  )}
+                </p>
+              )}
+
               {tiktokCreatorInfoLoading && (
                 <p className="text-2xs text-muted">{t("Chargement des réglages du compte…", "Loading account settings…")}</p>
               )}

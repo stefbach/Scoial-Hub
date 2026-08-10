@@ -103,6 +103,18 @@ const spec: OAuth2ProviderSpec = {
     if (!media?.url) {
       throw new Error("TikTok exige une vidéo. Ajoutez un média vidéo à votre publication.");
     }
+    // `/post/publish/video/init/` (utilisé plus bas) n'accepte QUE des vidéos —
+    // TikTok a un endpoint et un payload entièrement différents pour les
+    // photos (`/post/publish/content/init/`, non implémenté ici). Sans ce
+    // garde-fou, une image était acceptée silencieusement par l'appel
+    // (TikTok ne valide pas le contenu à l'init) puis rejetée en traitement
+    // asynchrone SANS jamais remonter d'erreur chez nous — le post restait
+    // marqué "publié" alors que rien n'apparaissait sur le profil.
+    if (media.mimeType?.startsWith("image/")) {
+      throw new Error(
+        "TikTok : la publication de photos n'est pas encore prise en charge (seule la vidéo l'est actuellement). Utilisez une vidéo."
+      );
+    }
 
     // Étape obligatoire des guidelines TikTok avant tout /video/init/ : lire
     // les infos du créateur (options de confidentialité, verrous éventuels).

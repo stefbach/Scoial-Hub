@@ -5,7 +5,7 @@
  * Chaque plateforme implémente `SocialConnector` pour un contrat unifié.
  */
 
-import type { Platform } from "@/lib/types";
+import type { Platform, TikTokPublishOptions } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
 // Plateformes gérées par la couche connecteurs
@@ -101,6 +101,8 @@ export interface PublishInput {
   linkTitle?: string;
   /** Description d'un lien (FB uniquement). */
   linkDescription?: string;
+  /** Réglages Content Posting API (TikTok uniquement) — ignoré par les autres connecteurs. */
+  tiktok?: TikTokPublishOptions;
 }
 
 /** Résultat d'une publication organique. */

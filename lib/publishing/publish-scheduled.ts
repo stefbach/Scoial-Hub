@@ -225,6 +225,11 @@ export async function publishScheduledPostNow(
     media: mediaUrl
       ? { url: mediaUrl, mimeType: post.media?.kind === "video" ? "video/mp4" : "image/jpeg" }
       : undefined,
+    // Réglages Content Posting API (confidentialité, interactions, divulgation
+    // commerciale) choisis par l'utilisateur dans /compose. Absents pour les
+    // posts créés avant cet ajout → le connecteur retombe sur son
+    // comportement historique (SELF_ONLY).
+    tiktok: platform === "tiktok" ? post.media?.tiktok : undefined,
   };
 
   let result;

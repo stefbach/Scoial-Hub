@@ -16,6 +16,57 @@ import { makeOAuth2Connector, type OAuth2ProviderSpec } from "@/lib/connectors/p
 
 const TIKTOK_API = "https://open.tiktokapis.com/v2";
 
+// ---------------------------------------------------------------------------
+// creator_info — infos du créateur requises par les guidelines TikTok avant
+// tout /video/init/ : options de confidentialité, interactions verrouillées
+// par le créateur, durée max. Exportée pour être réutilisée par l'UI de
+// composition (menu déroulant confidentialité + cases d'interaction, sans
+// valeur par défaut — cf. « Required UX Implementation » des guidelines).
+// ---------------------------------------------------------------------------
+
+export interface TikTokCreatorInfo {
+  privacyLevelOptions: string[];
+  /** Vrai si le créateur a désactivé les commentaires dans ses réglages TikTok. */
+  commentDisabled: boolean;
+  duetDisabled: boolean;
+  stitchDisabled: boolean;
+  maxVideoPostDurationSec?: number;
+  creatorNickname?: string;
+  creatorAvatarUrl?: string;
+}
+
+export async function fetchTikTokCreatorInfo(accessToken: string): Promise<TikTokCreatorInfo> {
+  const res = await fetch(`${TIKTOK_API}/post/publish/creator_info/query/`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+  });
+  const json = (await res.json()) as {
+    data?: {
+      privacy_level_options?: string[];
+      comment_disabled?: boolean;
+      duet_disabled?: boolean;
+      stitch_disabled?: boolean;
+      max_video_post_duration_sec?: number;
+      creator_nickname?: string;
+      creator_avatar_url?: string;
+    };
+    error?: { code?: string; message?: string };
+  };
+  if (!res.ok || (json.error && json.error.code && json.error.code !== "ok")) {
+    throw new Error(`TikTok creator_info → [${json.error?.code ?? `HTTP ${res.status}`}] ${json.error?.message ?? ""}`);
+  }
+  const d = json.data ?? {};
+  return {
+    privacyLevelOptions: d.privacy_level_options ?? [],
+    commentDisabled: !!d.comment_disabled,
+    duetDisabled: !!d.duet_disabled,
+    stitchDisabled: !!d.stitch_disabled,
+    maxVideoPostDurationSec: d.max_video_post_duration_sec,
+    creatorNickname: d.creator_nickname,
+    creatorAvatarUrl: d.creator_avatar_url,
+  };
+}
+
 const spec: OAuth2ProviderSpec = {
   platform: "tiktok",
   label: "TikTok",
@@ -47,7 +98,7 @@ const spec: OAuth2ProviderSpec = {
     };
   },
 
-  async publish({ accessToken, text, media }) {
+  async publish({ accessToken, text, media, tiktok }) {
     // TikTok est une plateforme vidéo : un média vidéo est obligatoire.
     if (!media?.url) {
       throw new Error("TikTok exige une vidéo. Ajoutez un média vidéo à votre publication.");
@@ -57,27 +108,36 @@ const spec: OAuth2ProviderSpec = {
     // les infos du créateur (options de confidentialité, verrous éventuels).
     // Sauter cet appel fait rejeter la publication avec un message générique
     // renvoyant vers content-sharing-guidelines — exactement ce qu'on a eu.
-    const creatorRes = await fetch(`${TIKTOK_API}/post/publish/creator_info/query/`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
-    });
-    const creatorJson = (await creatorRes.json()) as {
-      data?: { privacy_level_options?: string[]; max_video_post_duration_sec?: number };
-      error?: { code?: string; message?: string };
-    };
-    if (!creatorRes.ok || (creatorJson.error && creatorJson.error.code && creatorJson.error.code !== "ok")) {
+    const creatorInfo = await fetchTikTokCreatorInfo(accessToken);
+    const options = creatorInfo.privacyLevelOptions;
+
+    // `tiktok` porte le choix explicite de l'utilisateur fait dans l'UI de
+    // composition (menu déroulant confidentialité + cases Duet/Stitch/
+    // Commentaire + divulgation commerciale — Required UX Implementation des
+    // guidelines TikTok). Absent (anciens posts programmés avant l'ajout de
+    // ces réglages, ou appel direct de l'API) → comportement historique
+    // inchangé : SELF_ONLY, aucune interaction explicitement désactivée.
+    const privacyLevel = tiktok?.privacyLevel ?? "SELF_ONLY";
+    if (options.length > 0 && !options.includes(privacyLevel)) {
       throw new Error(
-        `TikTok creator_info → [${creatorJson.error?.code ?? `HTTP ${creatorRes.status}`}] ${creatorJson.error?.message ?? ""}`
+        `TikTok : la visibilité « ${privacyLevel} » n'est pas proposée par ce compte créateur (options reçues : ${options.join(", ")}).`
       );
     }
-    // SELF_ONLY est le seul niveau autorisé tant que l'app n'est pas auditée ;
-    // on vérifie qu'il fait bien partie des options renvoyées par le créateur
-    // plutôt que de le supposer aveuglément.
-    const options = creatorJson.data?.privacy_level_options ?? [];
-    if (options.length > 0 && !options.includes("SELF_ONLY")) {
-      throw new Error(
-        `TikTok : ce compte créateur n'autorise pas la visibilité SELF_ONLY (options reçues : ${options.join(", ")}).`
-      );
+
+    const postInfo: Record<string, unknown> = { title: text, privacy_level: privacyLevel };
+    if (tiktok) {
+      postInfo.disable_duet = !tiktok.allowDuet;
+      postInfo.disable_stitch = !tiktok.allowStitch;
+      postInfo.disable_comment = !tiktok.allowComment;
+      // Divulgation de contenu commercial (cf. guidelines, section 3) : le
+      // toggle est ÉTEINT par défaut ("none") — flags omis, comportement
+      // organique classique.
+      if (tiktok.disclosure === "your_brand" || tiktok.disclosure === "both") {
+        postInfo.brand_organic_toggle = true;
+      }
+      if (tiktok.disclosure === "branded_content" || tiktok.disclosure === "both") {
+        postInfo.brand_content_toggle = true;
+      }
     }
 
     // PULL_FROM_URL — la vidéo vit déjà sur NOTRE serveur (bucket Supabase),
@@ -89,14 +149,11 @@ const spec: OAuth2ProviderSpec = {
     // rejet générique "review our integration guidelines". Le domaine du
     // bucket est déjà vérifié via Manage URL properties (requis pour
     // PULL_FROM_URL).
-    //
-    // NB : privacy_level SELF_ONLY est le seul autorisé tant que l'app n'est pas
-    // auditée par TikTok ; une app auditée peut utiliser PUBLIC_TO_EVERYONE.
     const res = await fetch(`${TIKTOK_API}/post/publish/video/init/`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
       body: JSON.stringify({
-        post_info: { title: text, privacy_level: "SELF_ONLY" },
+        post_info: postInfo,
         source_info: { source: "PULL_FROM_URL", video_url: media.url },
       }),
     });

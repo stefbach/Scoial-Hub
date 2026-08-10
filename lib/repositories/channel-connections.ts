@@ -362,6 +362,44 @@ export async function markConnectionDisconnected(
   }
 }
 
+// ── Déconnexion (initiée par l'utilisateur) ───────────────────────────────────
+
+/**
+ * Déconnecte un canal à la demande de l'utilisateur (bouton « Déconnecter »
+ * de /accounts) : statut `disconnected` + config vidée (le token est donc
+ * révoqué immédiatement côté app — TikTok/Meta/LinkedIn continuent d'ignorer
+ * un token que nous ne présentons plus). Distincte de
+ * `markConnectionDisconnected` (invalidation automatique après un rejet de
+ * token par le fournisseur, qui elle conserve la config pour diagnostic).
+ *
+ * Ne throw jamais.
+ */
+export async function disconnectConnection(companyId: string, channel: string): Promise<void> {
+  const ts = now();
+
+  if (!isSupabaseConfigured) {
+    const existing = mockFind(companyId, channel);
+    if (existing) {
+      existing.status = "disconnected";
+      existing.config = {};
+      existing.updated_at = ts;
+    }
+    return;
+  }
+
+  try {
+    const supabase = createClient();
+    if (!supabase) return;
+    await supabase
+      .from("sh_channel_connections")
+      .update({ status: "disconnected", config: {}, updated_at: ts })
+      .eq("company_id", companyId)
+      .eq("channel", channel);
+  } catch (err) {
+    console.error("[channel-connections] disconnectConnection exception:", err);
+  }
+}
+
 // ── Utilitaire de merge config ────────────────────────────────────────────────
 
 /**

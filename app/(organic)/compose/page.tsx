@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { format } from "date-fns";
 import { useCompany } from "@/lib/company-context";
@@ -21,6 +21,29 @@ import { Toast } from "@/components/ui/Toast";
 import { findDraft, findPost } from "@/lib/draft-store";
 import { findTemplate } from "@/lib/template-store";
 import { findHistoryItem } from "@/lib/history-store";
+import type { TikTokPublishOptions } from "@/lib/types";
+
+/**
+ * Réponse de GET /api/connectors/tiktok/creator-info — exigée par les
+ * guidelines TikTok (Required UX Implementation) pour construire le menu
+ * déroulant de confidentialité et les cases Duet/Stitch/Commentaire SANS
+ * valeur par défaut.
+ */
+interface TikTokCreatorInfoView {
+  privacyLevelOptions: string[];
+  commentDisabled: boolean;
+  duetDisabled: boolean;
+  stitchDisabled: boolean;
+  maxVideoPostDurationSec?: number;
+  creatorNickname?: string;
+}
+
+const TIKTOK_PRIVACY_LABEL: Record<string, [string, string]> = {
+  PUBLIC_TO_EVERYONE: ["Tout le monde", "Everyone"],
+  MUTUAL_FOLLOW_FRIENDS: ["Amis (abonnements mutuels)", "Friends (mutual follows)"],
+  FOLLOWER_OF_CREATOR: ["Vos abonnés", "Your followers"],
+  SELF_ONLY: ["Vous uniquement (privé)", "Only you (private)"],
+};
 
 /** Langues de diffusion proposées pour la rédaction du contenu par l'IA. */
 const DIFFUSION_LANGUAGES = [
@@ -83,6 +106,20 @@ function ComposeContent() {
   const [bodies, setBodies] = useState<Partial<Record<ComposeNet, string>>>({});
   // TikTok : cible de préparation/programmation (publication auto à venir).
   const [tiktokOn, setTiktokOn] = useState(false);
+  // TikTok — Required UX Implementation (guidelines Content Posting API) :
+  // confidentialité SANS valeur par défaut, interactions décochées par défaut,
+  // divulgation commerciale éteinte par défaut, consentement obligatoire.
+  const [tiktokCreatorInfo, setTiktokCreatorInfo] = useState<TikTokCreatorInfoView | null>(null);
+  const [tiktokCreatorInfoError, setTiktokCreatorInfoError] = useState<string | null>(null);
+  const [tiktokCreatorInfoLoading, setTiktokCreatorInfoLoading] = useState(false);
+  const [tiktokPrivacy, setTiktokPrivacy] = useState("");
+  const [tiktokAllowDuet, setTiktokAllowDuet] = useState(false);
+  const [tiktokAllowStitch, setTiktokAllowStitch] = useState(false);
+  const [tiktokAllowComment, setTiktokAllowComment] = useState(false);
+  const [tiktokDisclosureOn, setTiktokDisclosureOn] = useState(false);
+  const [tiktokYourBrand, setTiktokYourBrand] = useState(false);
+  const [tiktokBrandedContent, setTiktokBrandedContent] = useState(false);
+  const [tiktokMusicConsent, setTiktokMusicConsent] = useState(false);
   // RAG opt-in pour l'agent : s'appuyer sur la mémoire stratégique de la marque.
   const [useMemory, setUseMemory] = useState(false);
   const [selected, setSelected] = useState<string[]>(() => {
@@ -140,6 +177,65 @@ function ComposeContent() {
     ],
     [data.accounts, selected, tiktokOn]
   );
+
+  // ── TikTok — Required UX Implementation ───────────────────────────────────
+  const tiktokSelected = selectedPlatforms.includes("tiktok");
+
+  // Charge les infos créateur (options de confidentialité + interactions
+  // verrouillées) dès que TikTok est ciblé — une fois par session de compose.
+  useEffect(() => {
+    if (!tiktokSelected || tiktokCreatorInfo || tiktokCreatorInfoLoading) return;
+    setTiktokCreatorInfoLoading(true);
+    setTiktokCreatorInfoError(null);
+    fetch(`/api/connectors/tiktok/creator-info?companyId=${encodeURIComponent(company.id)}`)
+      .then(async (res) => {
+        const d = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(d.error || `HTTP ${res.status}`);
+        setTiktokCreatorInfo(d as TikTokCreatorInfoView);
+      })
+      .catch((e) => setTiktokCreatorInfoError(e instanceof Error ? e.message : t("Erreur inconnue", "Unknown error")))
+      .finally(() => setTiktokCreatorInfoLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tiktokSelected, company.id]);
+
+  const tiktokBrandedContentDisabled = tiktokPrivacy === "" || tiktokPrivacy === "SELF_ONLY";
+  // Prête à publier : confidentialité choisie, consentement coché, et — si le
+  // toggle de divulgation commerciale est allumé — au moins une case cochée
+  // (sinon le bouton Publier doit rester désactivé, cf. guidelines TikTok).
+  const tiktokReady =
+    !tiktokSelected ||
+    (tiktokPrivacy !== "" &&
+      tiktokMusicConsent &&
+      (!tiktokDisclosureOn || tiktokYourBrand || tiktokBrandedContent));
+  const tiktokConsentText =
+    tiktokDisclosureOn && tiktokBrandedContent
+      ? t(
+          "En publiant, vous acceptez la Branded Content Policy et la Music Usage Confirmation de TikTok.",
+          "By posting, you agree to TikTok's Branded Content Policy and Music Usage Confirmation."
+        )
+      : t(
+          "En publiant, vous acceptez la Music Usage Confirmation de TikTok.",
+          "By posting, you agree to TikTok's Music Usage Confirmation."
+        );
+  const tiktokDisclosureLabel = tiktokBrandedContent
+    ? t("Votre photo/vidéo sera étiquetée « Partenariat rémunéré ».", "Your photo/video will be labeled as 'Paid partnership'.")
+    : tiktokYourBrand
+    ? t("Votre photo/vidéo sera étiquetée « Contenu promotionnel ».", "Your photo/video will be labeled as 'Promotional content'.")
+    : null;
+  const tiktokOptions: TikTokPublishOptions = {
+    privacyLevel: tiktokPrivacy,
+    allowDuet: tiktokAllowDuet,
+    allowStitch: tiktokAllowStitch,
+    allowComment: tiktokAllowComment,
+    disclosure: !tiktokDisclosureOn
+      ? "none"
+      : tiktokYourBrand && tiktokBrandedContent
+      ? "both"
+      : tiktokBrandedContent
+      ? "branded_content"
+      : "your_brand",
+    musicConsent: tiktokMusicConsent,
+  };
 
   // Keep the preview platform in sync with what's actually selected.
   const previewAccounts = data.accounts.filter((a) => selected.includes(a.id));
@@ -206,8 +302,13 @@ function ComposeContent() {
             status,
             source: "manual",
             // Média attaché (URL incluse) → indispensable pour publier sur
-            // Instagram, et utilisé aussi pour Facebook/LinkedIn.
-            media: upload ? { kind: upload.kind, url: upload.url } : undefined,
+            // Instagram, et utilisé aussi pour Facebook/LinkedIn. Pour TikTok,
+            // porte aussi les réglages de confidentialité/interactions/
+            // divulgation choisis dans le panneau ci-dessous (Required UX
+            // Implementation des guidelines TikTok).
+            media: upload
+              ? { kind: upload.kind, url: upload.url, ...(platform === "tiktok" ? { tiktok: tiktokOptions } : {}) }
+              : undefined,
           }),
         });
         if (!res.ok) return null;
@@ -220,7 +321,7 @@ function ComposeContent() {
   };
 
   const handleSubmit = async () => {
-    if (noneSelected || submitting) return;
+    if (noneSelected || submitting || !tiktokReady) return;
     setSubmitting(true);
     try {
       const { ok, ids } = await createPosts(when);
@@ -593,6 +694,172 @@ function ComposeContent() {
             onTimeChange={setTime}
           />
 
+          {/* Réglages TikTok — Required UX Implementation (guidelines Content
+              Posting API) : confidentialité, interactions, divulgation
+              commerciale, consentement. Visible UNIQUEMENT quand TikTok est
+              ciblé — n'affecte aucun autre réseau. */}
+          {tiktokSelected && (
+            <div className="space-y-3 rounded-xl border border-hair bg-canvas/60 p-4">
+              <div className="flex items-center justify-between gap-2">
+                <div className="section-label">{t("Réglages TikTok", "TikTok settings")}</div>
+                {tiktokCreatorInfo?.creatorNickname && (
+                  <span className="text-2xs text-muted">@{tiktokCreatorInfo.creatorNickname}</span>
+                )}
+              </div>
+
+              {tiktokCreatorInfoLoading && (
+                <p className="text-2xs text-muted">{t("Chargement des réglages du compte…", "Loading account settings…")}</p>
+              )}
+              {tiktokCreatorInfoError && (
+                <p className="text-2xs text-danger-600">
+                  {t("Impossible de charger les réglages TikTok :", "Unable to load TikTok settings:")} {tiktokCreatorInfoError}
+                </p>
+              )}
+
+              {tiktokCreatorInfo && (
+                <>
+                  {/* Confidentialité — obligatoire, AUCUNE valeur par défaut */}
+                  <label className="block text-xs font-medium text-ink">
+                    {t("Confidentialité", "Privacy")}
+                    <select
+                      value={tiktokPrivacy}
+                      onChange={(e) => setTiktokPrivacy(e.target.value)}
+                      className="input mt-1 text-sm"
+                    >
+                      <option value="" disabled>
+                        {t("Choisissez qui peut voir cette publication", "Select who can view this post")}
+                      </option>
+                      {tiktokCreatorInfo.privacyLevelOptions.map((opt) => (
+                        <option key={opt} value={opt}>
+                          {t(...(TIKTOK_PRIVACY_LABEL[opt] ?? [opt, opt]))}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  {/* Interactions — décochées par défaut, grisées si verrouillées par le créateur */}
+                  <div>
+                    <div className="mb-1 text-xs font-medium text-ink">{t("Interactions autorisées", "Allowed interactions")}</div>
+                    <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+                      <label
+                        className={`flex items-center gap-1.5 text-xs ${tiktokCreatorInfo.duetDisabled ? "text-muted" : "text-ink"}`}
+                        title={tiktokCreatorInfo.duetDisabled ? t("Désactivé dans les réglages TikTok de ce compte.", "Disabled in this account's TikTok settings.") : undefined}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={tiktokAllowDuet && !tiktokCreatorInfo.duetDisabled}
+                          disabled={tiktokCreatorInfo.duetDisabled}
+                          onChange={(e) => setTiktokAllowDuet(e.target.checked)}
+                          className="h-3.5 w-3.5 accent-page"
+                        />
+                        {t("Duos", "Duet")}
+                      </label>
+                      <label
+                        className={`flex items-center gap-1.5 text-xs ${tiktokCreatorInfo.stitchDisabled ? "text-muted" : "text-ink"}`}
+                        title={tiktokCreatorInfo.stitchDisabled ? t("Désactivé dans les réglages TikTok de ce compte.", "Disabled in this account's TikTok settings.") : undefined}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={tiktokAllowStitch && !tiktokCreatorInfo.stitchDisabled}
+                          disabled={tiktokCreatorInfo.stitchDisabled}
+                          onChange={(e) => setTiktokAllowStitch(e.target.checked)}
+                          className="h-3.5 w-3.5 accent-page"
+                        />
+                        {t("Stitch", "Stitch")}
+                      </label>
+                      <label
+                        className={`flex items-center gap-1.5 text-xs ${tiktokCreatorInfo.commentDisabled ? "text-muted" : "text-ink"}`}
+                        title={tiktokCreatorInfo.commentDisabled ? t("Désactivé dans les réglages TikTok de ce compte.", "Disabled in this account's TikTok settings.") : undefined}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={tiktokAllowComment && !tiktokCreatorInfo.commentDisabled}
+                          disabled={tiktokCreatorInfo.commentDisabled}
+                          onChange={(e) => setTiktokAllowComment(e.target.checked)}
+                          className="h-3.5 w-3.5 accent-page"
+                        />
+                        {t("Commentaires", "Comments")}
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Divulgation de contenu commercial — éteinte par défaut */}
+                  <div>
+                    <label className="flex items-center gap-1.5 text-xs font-medium text-ink">
+                      <input
+                        type="checkbox"
+                        checked={tiktokDisclosureOn}
+                        onChange={(e) => {
+                          setTiktokDisclosureOn(e.target.checked);
+                          if (!e.target.checked) {
+                            setTiktokYourBrand(false);
+                            setTiktokBrandedContent(false);
+                          }
+                        }}
+                        className="h-3.5 w-3.5 accent-page"
+                      />
+                      {t("Ce contenu fait la promotion de vous-même, d'une marque ou d'un service", "This content promotes yourself, a brand or a service")}
+                    </label>
+                    {tiktokDisclosureOn && (
+                      <div className="mt-1.5 ml-5 space-y-1">
+                        <label className="flex items-center gap-1.5 text-xs text-ink">
+                          <input
+                            type="checkbox"
+                            checked={tiktokYourBrand}
+                            onChange={(e) => setTiktokYourBrand(e.target.checked)}
+                            className="h-3.5 w-3.5 accent-page"
+                          />
+                          {t("Votre marque", "Your Brand")}
+                        </label>
+                        <label
+                          className={`flex items-center gap-1.5 text-xs ${tiktokBrandedContentDisabled ? "text-muted" : "text-ink"}`}
+                          title={
+                            tiktokBrandedContentDisabled
+                              ? t("Branded content visibility cannot be set to private.", "Branded content visibility cannot be set to private.")
+                              : undefined
+                          }
+                        >
+                          <input
+                            type="checkbox"
+                            checked={tiktokBrandedContent && !tiktokBrandedContentDisabled}
+                            disabled={tiktokBrandedContentDisabled}
+                            onChange={(e) => setTiktokBrandedContent(e.target.checked)}
+                            className="h-3.5 w-3.5 accent-page"
+                          />
+                          {t("Contenu de marque", "Branded Content")}
+                        </label>
+                        {tiktokDisclosureLabel && <p className="text-2xs text-muted">{tiktokDisclosureLabel}</p>}
+                        {tiktokDisclosureOn && !tiktokYourBrand && !tiktokBrandedContent && (
+                          <p className="text-2xs text-danger-600">
+                            {t("Sélectionnez au moins une option pour publier.", "Select at least one option to publish.")}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Consentement — obligatoire avant publication */}
+                  <label className="flex items-start gap-1.5 text-xs text-ink">
+                    <input
+                      type="checkbox"
+                      checked={tiktokMusicConsent}
+                      onChange={(e) => setTiktokMusicConsent(e.target.checked)}
+                      className="mt-0.5 h-3.5 w-3.5 accent-page"
+                    />
+                    <span>{tiktokConsentText}</span>
+                  </label>
+
+                  <p className="text-2xs text-muted">
+                    {t(
+                      "Après publication, le contenu peut prendre quelques minutes à être traité et visible sur le profil TikTok.",
+                      "After publishing, the content may take a few minutes to process and appear on the TikTok profile."
+                    )}
+                  </p>
+                </>
+              )}
+            </div>
+          )}
+
           {/* Footer actions — pas de conteneur bordé : le contour dessinait un
               rectangle vide au-dessus/autour des boutons (#24). */}
           <div className="flex justify-end gap-2">
@@ -602,8 +869,19 @@ function ComposeContent() {
             <Button
               variant="primary"
               onClick={handleSubmit}
-              disabled={noneSelected || submitting || !canEdit}
-              title={!canEdit ? t("Lecture seule", "View only") : noneSelected ? t("Sélectionnez au moins une plateforme", "Select at least one platform") : undefined}
+              disabled={noneSelected || submitting || !canEdit || !tiktokReady}
+              title={
+                !canEdit
+                  ? t("Lecture seule", "View only")
+                  : noneSelected
+                  ? t("Sélectionnez au moins une plateforme", "Select at least one platform")
+                  : !tiktokReady
+                  ? t(
+                      "Complétez les réglages TikTok (confidentialité, consentement) avant de publier.",
+                      "Complete the TikTok settings (privacy, consent) before publishing."
+                    )
+                  : undefined
+              }
             >
               {submitting && (
                 <span

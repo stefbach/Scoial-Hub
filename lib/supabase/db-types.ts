@@ -2,6 +2,8 @@
 // Utilisés uniquement dans les repositories pour le mapping snake_case ↔ camelCase.
 // NE PAS importer ces types dans les composants — utiliser lib/types.ts.
 
+import type { TikTokPublishOptions } from "@/lib/types";
+
 export interface DbOrganization {
   id: string;
   name: string;
@@ -34,7 +36,7 @@ export interface DbScheduledPost {
   status: string;
   needs_review: boolean | null;
   automation_name: string | null;
-  media: { kind: "image" | "video"; url?: string } | null;
+  media: { kind: "image" | "video"; url?: string; tiktok?: TikTokPublishOptions } | null;
   published_at: string | null;
   external_id: string | null;
   created_at: string;

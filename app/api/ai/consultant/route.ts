@@ -17,7 +17,7 @@ import { createAdminClient } from "@/lib/supabase/server";
 import { resolveCompanyUuid } from "@/lib/repositories/resolve-company";
 import { getBrandProfile, saveBrandProfile } from "@/lib/repositories/onboarding";
 import { getBrandKit } from "@/lib/repositories/brand-kit";
-import { callClaudeJSON } from "@/lib/ai/claude-json";
+import { callClaudeJSON, callClaudeJSONResult, extractJsonString } from "@/lib/ai/claude-json";
 import { getMemoryContext, appendMemory, type MemoryEntry, type MemoryKind } from "@/lib/memory";
 import { isAiConfigured } from "@/lib/env";
 import {
@@ -274,8 +274,16 @@ export async function POST(req: NextRequest) {
       website: existing.website,
     };
 
+    // Transcript BORNÉ aux derniers échanges : l'entretien peut durer, mais
+    // l'essentiel du passé est déjà condensé dans « CE QUI EST DÉJÀ CONNU ».
+    // Sans cette borne, le prompt grossit à chaque tour jusqu'à faire dériver
+    // latence et coût.
+    const RECENT_TURNS = 16;
+    const recent = messages.slice(-RECENT_TURNS);
+    const truncated = messages.length > recent.length;
     const transcript = messages.length
-      ? messages.map((m) => `${m.role === "user" ? "CLIENT" : "CONSULTANT"} : ${m.content}`).join("\n")
+      ? (truncated ? "(début de l'entretien résumé dans « CE QUI EST DÉJÀ CONNU »)\n" : "") +
+        recent.map((m) => `${m.role === "user" ? "CLIENT" : "CONSULTANT"} : ${m.content}`).join("\n")
       : "(la conversation commence)";
 
     const prompt = `# RÔLE
@@ -306,17 +314,20 @@ ${transcript}
 4. STRATÉGIE PAR RÉSEAU : chaque plateforme a ses codes. Quand tu as assez de matière, propose une stratégie DIFFÉRENTE et adaptée pour chaque réseau pertinent parmi instagram, facebook, tiktok, linkedin (angle, formats, ton, piliers de contenu, rythme, CTA). Ex. TikTok = spontané/vertical/tendances ; LinkedIn = expertise/preuve/posé ; Instagram = esthétique/communauté ; Facebook = proximité/offres/communauté locale. N'inclus que les réseaux pertinents pour la marque.
 5. VISUELS : dès qu'une direction artistique se dessine, propose 1 à 3 "visualPrompts" en ANGLAIS, photographiques/cinématographiques, premium, SANS texte incrusté. Affine-les quand la direction évolue.
 6. MÉMOIRE : à chaque tour, renvoie dans "memoryNotes" les insights et recommandations STRATÉGIQUES nouveaux et durables que tu produis (à conserver dans la mémoire de la marque). Sois sélectif : 0 à 3 notes vraiment utiles, jamais de banalités.
-7. Mets à jour "dna" à CHAQUE tour avec tout ce que tu as compris (même partiel). N'invente pas : laisse vide ce que tu ignores encore.
+7. "dna" est un CORRECTIF INCRÉMENTAL, pas un état complet : n'y mets QUE les champs NOUVEAUX ou MODIFIÉS à ce tour. Tout champ omis conserve automatiquement sa valeur déjà connue (cf. section ci-dessus) — ne le recopie pas. N'invente rien. Le plus souvent, 1 à 3 champs suffisent ; renvoie "dna": {} si rien n'a changé.
 8. Quand l'ADN est riche et cohérent (mission + cible + positionnement + message clé + ton + direction visuelle + au moins une stratégie réseau), passe "readyToLock" à true et invite à verrouiller.
 
 # STYLE DE "reply"
 Prise de parole naturelle, humaine, ${lang === "en" ? "EN ANGLAIS (the client's interface is in English — reply in English)" : "EN FRANÇAIS"}, 1 à 4 phrases, jamais de listes à puces froides. Ton de vrai consultant : précis, inspirant, utile. La langue de "reply" DOIT être ${lang === "en" ? "l'anglais" : "le français"} ; les champs "dna" peuvent rester en français.
 
-# FORMAT DE SORTIE — STRICTEMENT du JSON, sans aucun texte autour :
+# FORMAT DE SORTIE — STRICTEMENT du JSON, sans aucun texte autour.
+# "reply" est le PREMIER champ et reste court : c'est la seule chose que le
+# client attend à l'écran. Les champs suivants sont des annexes.
 {
   "reply": "ta prise de parole de consultant",
   "readyToLock": true|false,
   "dna": {
+    "//": "UNIQUEMENT les champs nouveaux ou modifiés — omets tous les autres",
     "summary": "synthèse 2-3 phrases de qui est la marque",
     "positioning": "", "mission": "", "keyMessage": "",
     "values": [], "personality": [], "tone": "",
@@ -331,18 +342,40 @@ Prise de parole naturelle, humaine, ${lang === "en" ? "EN ANGLAIS (the client's 
   "memoryNotes": [ { "kind": "insight|angle|format|recommendation|competitor|keyword", "title": "", "content": "", "network": "(optionnel) instagram|facebook|tiktok|linkedin" } ]
 }`;
 
-    // Modèle rapide, budget de tokens suffisant pour le JSON complet (un budget
-    // trop court tronquait la réponse → JSON invalide → « reformulez » en boucle),
-    // et un ré-essai automatique : un échec ponctuel ne doit pas bloquer l'entretien.
-    let result: ConsultantResult | null = null;
-    for (let attempt = 0; attempt < 2 && !result; attempt++) {
-      result = await callClaudeJSON<ConsultantResult>(prompt, {
-        model: "claude-sonnet-4-6",
-        maxTokens: 3000,
-        temperature: 0.7,
-        timeoutMs: 25_000,
-      });
+    // L'entretien ne doit JAMAIS s'arrêter parce que l'annexe structurée est
+    // trop lourde. Trois filets, du plus complet au plus minimal :
+    //   1. appel normal ;
+    //   2. RÉCUPÉRATION de "reply" dans une réponse tronquée — le message tient
+    //      au début du JSON et survit à une coupure de la fin ;
+    //   3. second appel DÉGRADÉ, réponse conversationnelle seule.
+    // Le ré-essai à l'identique de l'implémentation précédente ne servait à
+    // rien : une fois l'ADN volumineux, la troncature devenait systématique et
+    // les deux tentatives échouaient de la même façon — d'où une conversation
+    // définitivement bloquée après quelques tours.
+    const first = await callClaudeJSONResult<ConsultantResult>(prompt, {
+      model: "claude-sonnet-4-6",
+      maxTokens: 4000,
+      temperature: 0.7,
+      timeoutMs: 25_000,
+    });
+    let result: ConsultantResult | null = first.data;
+
+    if (!result && first.raw) {
+      const salvaged = extractJsonString(first.raw, "reply");
+      if (salvaged) {
+        console.warn("[consultant] réponse tronquée — « reply » récupéré :", first.error);
+        result = { reply: salvaged };
+      }
     }
+
+    if (!result) {
+      const replyOnly = await callClaudeJSON<ConsultantResult>(
+        `${prompt}\n\n# CONTRAINTE SUPPLÉMENTAIRE\nLa tentative précédente a échoué faute de place. Renvoie UNIQUEMENT {"reply": "…"} — pas de "dna", pas de "visualPrompts", pas de "memoryNotes".`,
+        { model: "claude-sonnet-4-6", maxTokens: 700, temperature: 0.7, timeoutMs: 20_000 }
+      );
+      if (replyOnly?.reply) result = { reply: replyOnly.reply };
+    }
+
     if (!result) {
       return NextResponse.json(
         {

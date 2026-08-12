@@ -26,153 +26,23 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/env";
 import { resolveCompanyUuid } from "@/lib/repositories/resolve-company";
+import { buildSimulatedResult, type Lang } from "@/lib/veille/simulated";
 
 /* ── Types exportés pour le composant Pilotage ─────────────────────────── */
 
-export interface VeilleInsight {
-  id: string;
-  type: "format" | "angle" | "benchmark";
-  label: string;
-  detail: string;
-  reseau?: string;
-}
-
-export interface VeilleReco {
-  id: string;
-  priorite: "haute" | "moyenne" | "basse";
-  titre: string;
-  detail: string;
-  action: string;
-}
-
-export interface VeilleLatestResult {
-  runId: string | null;
-  companyId: string;
-  finishedAt: string;
-  simulated: boolean;
-  resume: string;
-  insights: VeilleInsight[];
-  recommandations: VeilleReco[];
-}
-
-/* ── Mock déterministe ─────────────────────────────────────────────────── */
-
-function hashSeed(s: string): number {
-  let h = 2166136261 >>> 0;
-  for (let i = 0; i < s.length; i++) h = ((h ^ s.charCodeAt(i)) * 16777619) >>> 0;
-  return h;
-}
-
-function rng(seed: number) {
-  let s = seed | 0;
-  return () => {
-    s = (s * 1664525 + 1013904223) | 0;
-    return (s >>> 0) / 0xffffffff;
-  };
-}
-
-function buildSimulatedResult(companyId: string): VeilleLatestResult {
-  const r = rng(hashSeed(`${companyId}|veille-latest`));
-  const pick = <T,>(arr: T[]): T => arr[Math.floor(r() * arr.length)];
-
-  const insights: VeilleInsight[] = [
-    {
-      id: "vi-1",
-      type: "format",
-      label: pick([
-        "Les Reels < 60 s dominent l'engagement concurrent",
-        "Les carrousels éducatifs génèrent 2× plus de sauvegardes",
-        "Les vidéos coulisses surperforment sur Instagram",
-      ]),
-      detail: pick([
-        "Taux d'engagement moyen 8,3 % sur ce format chez vos concurrents directs.",
-        "Portée organique +42 % vs posts statiques sur les 30 derniers jours.",
-        "Format privilégié par 3 concurrents sur 4 dans la zone marché.",
-      ]),
-      reseau: pick(["instagram", "tiktok", "linkedin"]),
-    },
-    {
-      id: "vi-2",
-      type: "angle",
-      label: pick([
-        "Angle 'témoignage client' très porteur sur ce marché",
-        "Angle 'coulisses & transparence' en forte croissance",
-        "Angle 'chiffres & preuves' génère le plus de partages",
-      ]),
-      detail: pick([
-        "3 concurrents ont publié des témoignages vidéo cette semaine avec un ER moyen de 6,1 %.",
-        "Les posts authenticité cumulent 2 400 vues supplémentaires en moyenne.",
-        "Les infographies data génèrent 3× plus de partages organiques.",
-      ]),
-      reseau: pick(["facebook", "instagram", "linkedin"]),
-    },
-    {
-      id: "vi-3",
-      type: "benchmark",
-      label: pick([
-        "Concurrent en forte accélération détecté",
-        "Un concurrent a lancé une série hebdomadaire",
-        "Fréquence de publication concurrente en hausse",
-      ]),
-      detail: pick([
-        "Publication quotidienne depuis 2 semaines — +18 % de followers en 30 jours.",
-        "Série thématique le mardi + vendredi, ER 5,4 % en moyenne.",
-        "Cadence passée de 2 à 5 posts/semaine — algorithme plus favorable.",
-      ]),
-      reseau: "instagram",
-    },
-  ];
-
-  const recommandations: VeilleReco[] = [
-    {
-      id: "vr-1",
-      priorite: "haute",
-      titre: pick([
-        "Lancer une série Reels hebdomadaire",
-        "Produire 3 carrousels éducatifs ce mois-ci",
-        "Activer le format Stories quotidiennes",
-      ]),
-      detail: "Insight issu de la veille concurrentielle — format dominant identifié sur votre marché.",
-      action: pick([
-        "Planifier 2 Reels/semaine sur les 4 prochaines semaines.",
-        "Décliner les 3 angles thématiques détectés en carrousels.",
-        "Mettre en place un story-telling quotidien avec sondage intégré.",
-      ]),
-    },
-    {
-      id: "vr-2",
-      priorite: "moyenne",
-      titre: pick([
-        "Augmenter la fréquence de publication sur LinkedIn",
-        "Tester l'angle témoignage client sur Facebook",
-        "Répliquer l'angle 'coulisses' d'un concurrent performant",
-      ]),
-      detail: "La veille détecte un écart de cadence vs la concurrence — opportunité de rattrapage.",
-      action: pick([
-        "Passer de 2 à 4 posts/semaine sur LinkedIn pendant 30 jours.",
-        "Créer 2 posts témoignages avec avis clients réels d'ici 10 jours.",
-        "Produire une vidéo coulisses / processus interne cette semaine.",
-      ]),
-    },
-  ];
-
-  return {
-    runId: null,
-    companyId,
-    finishedAt: new Date().toISOString(),
-    simulated: true,
-    resume: `La veille concurrentielle simulée pour ${companyId} identifie 3 insights clés : les formats courts vidéo dominent l'engagement, l'angle authenticité est en forte croissance, et au moins un concurrent a accéléré sa cadence de publication. Opportunité d'agir rapidement.`,
-    insights,
-    recommandations,
-  };
-}
+// Les formes de données vivent dans lib/veille/types.ts et sont ré-exportées
+// ici pour les consommateurs existants de cette route.
+import type { VeilleInsight, VeilleReco, VeilleLatestResult } from "@/lib/veille/types";
+export type { VeilleInsight, VeilleReco, VeilleLatestResult };
 
 /* ── Mapper un run Supabase → VeilleLatestResult ──────────────────────── */
 
 function mapRunToResult(
   run: Record<string, unknown>,
-  companyId: string
+  companyId: string,
+  lang: Lang = "fr"
 ): VeilleLatestResult {
+  const en = lang === "en";
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const results = (run.results ?? {}) as any;
   const analysis = results?.analysis ?? null;
@@ -185,7 +55,7 @@ function mapRunToResult(
     insights.push({
       id: "vi-run-1",
       type: "format",
-      label: `Format gagnant : ${fg.type}`,
+      label: `${en ? "Winning format" : "Format gagnant"} : ${fg.type}`,
       detail: fg.description ?? "",
       reseau: fg.network,
     });
@@ -195,8 +65,8 @@ function mapRunToResult(
     insights.push({
       id: "vi-run-2",
       type: "angle",
-      label: `Angle porteur : ${at.angle}`,
-      detail: `Exemples : ${(at.exemples ?? []).slice(0, 2).join(", ")}.`,
+      label: `${en ? "Strong angle" : "Angle porteur"} : ${at.angle}`,
+      detail: `${en ? "Examples" : "Exemples"} : ${(at.exemples ?? []).slice(0, 2).join(", ")}.`,
     });
   }
   if (analysis?.benchmarkParReseau?.length) {
@@ -204,8 +74,10 @@ function mapRunToResult(
     insights.push({
       id: "vi-run-3",
       type: "benchmark",
-      label: `Benchmark ${bk.network} : ER moyen ${(bk.tauxEngagementMoyen * 100).toFixed(1)} %`,
-      detail: `Médiane likes : ${bk.medianeLikes}, fréquence : ${bk.fréquencePostsSemaine} posts/sem.`,
+      label: `Benchmark ${bk.network} : ${en ? "avg ER" : "ER moyen"} ${(bk.tauxEngagementMoyen * 100).toFixed(1)} %`,
+      detail: en
+        ? `Median likes: ${bk.medianeLikes}, frequency: ${bk.fréquencePostsSemaine} posts/week.`
+        : `Médiane likes : ${bk.medianeLikes}, fréquence : ${bk.fréquencePostsSemaine} posts/sem.`,
       reseau: bk.network,
     });
   }
@@ -218,14 +90,14 @@ function mapRunToResult(
       (rec: any, i: number): VeilleReco => ({
         id: `vr-run-${i}`,
         priorite: rec.priorite ?? "moyenne",
-        titre: rec.titre ?? "Recommandation issue de la veille",
+        titre: rec.titre ?? (en ? "Recommendation from competitive intelligence" : "Recommandation issue de la veille"),
         detail: rec.detail ?? "",
         action: rec.action ?? "",
       })
     );
 
   // Si l'analyse est absente ou incomplète, compléter avec du simulé
-  const sim = buildSimulatedResult(companyId);
+  const sim = buildSimulatedResult(companyId, lang);
   while (insights.length < 2) insights.push(sim.insights[insights.length]);
   if (recommandations.length === 0) recommandations.push(...sim.recommandations);
 
@@ -244,6 +116,8 @@ function mapRunToResult(
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const companyId = req.nextUrl.searchParams.get("companyId");
+  // Le contenu simulé et les libellés générés suivent la langue de l'interface.
+  const lang: Lang = req.nextUrl.searchParams.get("lang") === "en" ? "en" : "fr";
 
   if (!companyId) {
     return NextResponse.json(
@@ -272,7 +146,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
         if (!error && data) {
           return NextResponse.json(
-            mapRunToResult(data as Record<string, unknown>, companyId)
+            mapRunToResult(data as Record<string, unknown>, companyId, lang)
           );
         }
         // Pas de run "done" — on tombe sur le simulé ci-dessous
@@ -283,5 +157,5 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   }
 
   // Aucun run disponible → résumé simulé
-  return NextResponse.json(buildSimulatedResult(companyId));
+  return NextResponse.json(buildSimulatedResult(companyId, lang));
 }

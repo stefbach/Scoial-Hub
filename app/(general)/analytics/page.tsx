@@ -340,6 +340,13 @@ function AnalyticsContent() {
     [inScope, windowPoints, trendMetric]
   );
 
+  // Dates de l'axe des abscisses — celles de la société affichée, au format
+  // court du jour (ex. « 12/08 ») : un axe daté vaut mieux qu'un numéro de point.
+  const trendLabels = useMemo(() => {
+    const source = inScope[0] ? windowPoints(inScope[0].id) : [];
+    return source.map((p) => format(new Date(`${p.date}T00:00:00`), "dd/MM"));
+  }, [inScope, windowPoints]);
+
   // ── Export ────────────────────────────────────────────────────────────────
   const handleExport = (kind: "csv" | "json") => {
     const slug = scope === "all" ? "all-companies" : scope;
@@ -606,7 +613,7 @@ function AnalyticsContent() {
               })}
             </div>
           </div>
-          <MultiLineChart series={trendSeries} />
+          <MultiLineChart series={trendSeries} labels={trendLabels} />
           <p className="mt-3 text-2xs text-muted">
             {t(
               "L'engagement est rattaché au jour de publication : Meta n'horodate pas chaque interaction.",

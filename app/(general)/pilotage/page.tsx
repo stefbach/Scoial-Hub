@@ -7,7 +7,7 @@ import { AgentLauncher } from "@/components/agents/AgentLauncher";
 import { useScope } from "@/lib/scope";
 import { useLang, useT } from "@/lib/i18n";
 import { JourneyCampaignCard, zoneLabel } from "@/components/pilotage/JourneyCampaignCard";
-import { RecommendationModal, AGENT_LABEL, NET_LABEL } from "@/components/pilotage/RecommendationModal";
+import { RecommendationModal, agentLabel, NET_LABEL } from "@/components/pilotage/RecommendationModal";
 import type { Campaign } from "@/lib/types";
 import type { OnboardingState } from "@/lib/onboarding/types";
 import type { ConnectorStatus } from "@/lib/connectors/types";
@@ -36,6 +36,9 @@ interface VeilleReco {
   detail: string;
   action: string;
 }
+
+/** Le niveau de priorité est une valeur d'API (en français) : à traduire à l'affichage. */
+const PRIORITY_EN: Record<string, string> = { haute: "high", moyenne: "medium", basse: "low" };
 interface VeilleData {
   runId: string | null;
   finishedAt: string;
@@ -163,7 +166,9 @@ export default function PilotagePage() {
   useEffect(() => {
     let alive = true;
     setVeilleLoading(true);
-    fetch(`/api/veille/latest?companyId=${encodeURIComponent(company.id)}`)
+    // `lang` : le contenu de veille est rédigé côté serveur — sans ce paramètre
+    // il revenait toujours en français, quelle que soit la langue de l'interface.
+    fetch(`/api/veille/latest?companyId=${encodeURIComponent(company.id)}&lang=${lang}`)
       .then((r) => r.json())
       .then((data: VeilleData) => {
         if (!alive) return;
@@ -174,8 +179,8 @@ export default function PilotagePage() {
             id: `veille-${r.id}`,
             agent: "analyst",
             title: r.titre,
-            rationale: `${r.detail}${r.action ? " — Action : " + r.action : ""}`,
-            impact: `Priorité veille : ${r.priorite}`,
+            rationale: `${r.detail}${r.action ? `${t(" — Action : ", " — Action: ")}${r.action}` : ""}`,
+            impact: t(`Priorité veille : ${r.priorite}`, `Intelligence priority: ${PRIORITY_EN[r.priorite] ?? r.priorite}`),
             status: "pending",
           })
         );
@@ -524,7 +529,7 @@ export default function PilotagePage() {
                   >
                     <div className="mb-1 flex flex-wrap items-center gap-2">
                       <span className="rounded-md bg-page/10 px-1.5 py-0.5 text-2xs font-semibold text-page">
-                        {AGENT_LABEL[d.agent] ?? d.agent}
+                        {agentLabel(d.agent, lang)}
                       </span>
                       {d.channel && d.channel !== "sea" && (
                         <span className="text-2xs" style={{ color: NET_LABEL[d.channel as Network].color }}>

@@ -107,8 +107,14 @@ html[data-theme="light"] .bg-success-50  { background-color: rgb(var(--tile-succ
 html[data-theme="light"] .text-success-600,
 html[data-theme="light"] .text-success-700 { color: rgb(var(--tile-success-text)); }
 html[data-theme="light"] .bg-warning-50  { background-color: rgb(var(--tile-warning-bg)); }
+html[data-theme="light"] .text-warning-600,
 html[data-theme="light"] .text-warning-700 { color: rgb(var(--tile-warning-text)); }
 html[data-theme="light"] .bg-danger-50   { background-color: rgb(var(--tile-danger-bg)); }
+/* -600 AUTANT que -700 : les nuances 600 sont des textes CLAIRS pensés pour le
+   thème sombre (#fb7185, #fbbf24). Laissées telles quelles sur fond blanc,
+   elles donnent un rose ou un jaune délavé illisible — c'est le cas des
+   variations « DN 46 % » des cartes d'indicateurs. */
+html[data-theme="light"] .text-danger-600,
 html[data-theme="light"] .text-danger-700 { color: rgb(var(--tile-danger-text)); }
 html[data-theme="light"] .border-danger-200 { border-color: rgb(var(--tile-danger-border)); }
 html[data-theme="light"] .border-danger-300 { border-color: rgb(248 113 113); }

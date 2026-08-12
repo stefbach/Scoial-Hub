@@ -31,7 +31,7 @@ export function MetricCard({
       </div>
 
       <div
-        className={`mt-1.5 text-xl leading-none text-ink ${
+        className={`mt-1.5 text-xl leading-none ${alert ? "text-danger-700" : "text-ink"} ${
           active ? "font-bold" : "font-semibold"
         }`}
       >
@@ -60,10 +60,17 @@ export function MetricCard({
      UAT #16 : fond `bg-card` (surface, comme .card) et non `bg-canvas`
      (fond de page) — sinon les cartes se fondent dans la page et rien
      n'indique qu'elles sont cliquables. */
+  /* Carte en alerte : MÊME surface que les autres cartes (bg-card). L'alerte
+     passe par la bordure et la couleur du chiffre, pas par un aplat de fond.
+     Deux raisons : l'harmonie visuelle de la grille, et le fait que l'ancien
+     `bg-danger-50/60` échappait au thème clair — le remap ne cible que
+     `.bg-danger-50`, jamais la variante avec modificateur d'opacité, qui
+     restait donc au rouge SOMBRE du thème d'origine (aplat brunâtre illisible
+     sur fond blanc). */
   const base = [
     "block rounded-xl px-4 py-3 transition-all duration-[150ms]",
     alert
-      ? "border border-danger-200 bg-danger-50/60"
+      ? "border border-danger-300 bg-card shadow-sm"
       : active
       ? "border-2 border-ai-text bg-ai-textbg shadow-xs"
       : "border border-hair bg-card shadow-sm",

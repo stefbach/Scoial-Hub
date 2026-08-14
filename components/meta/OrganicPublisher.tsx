@@ -29,8 +29,14 @@ export function OrganicPublisher() {
   const [imgFormat, setImgFormat] = useState("4:5");
   const [text, setText] = useState("");
   const [imageUrl, setImageUrl] = useState("");
+  // Emplacement : fil, Story éphémère 24 h ou Reel — endpoints Meta distincts.
+  const [postType, setPostType] = useState<"feed" | "story" | "reel">("feed");
   const [toFb, setToFb] = useState(true);
   const [toIg, setToIg] = useState(false);
+
+  // Nature du média collé/généré (l'extension suffit : Meta refuse les URLs
+  // ambiguës de toute façon).
+  const mediaKind: "image" | "video" = /\.(mp4|mov|m4v|webm|avi|mkv)(\?|$)/i.test(imageUrl) ? "video" : "image";
 
   const [writing, setWriting] = useState(false);
   const [imaging, setImaging] = useState(false);
@@ -78,13 +84,29 @@ export function OrganicPublisher() {
   }
 
   async function publish() {
-    if (!text.trim() && !imageUrl) { setError(t("Écrivez un texte ou ajoutez une image.", "Write text or add an image.")); return; }
-    if (toIg && !imageUrl) { setError(t("Instagram exige une image.", "Instagram requires an image.")); return; }
+    if (!text.trim() && !imageUrl) { setError(t("Écrivez un texte ou ajoutez un média.", "Write text or add a media file.")); return; }
+    if (toIg && !imageUrl) { setError(t("Instagram exige un média.", "Instagram requires a media file.")); return; }
+    if (postType !== "feed" && !imageUrl) {
+      setError(postType === "story"
+        ? t("Une story exige une image ou une vidéo.", "A story requires an image or a video.")
+        : t("Un Reel exige une vidéo.", "A Reel requires a video."));
+      return;
+    }
+    if (postType === "reel" && mediaKind !== "video") {
+      setError(t("Un Reel exige une vidéo (9:16).", "A Reel requires a video (9:16).")); return;
+    }
     setPublishing(true); setError(null); setResult(null);
     try {
       const r = await fetch("/api/meta/publish", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyId, text, imageUrl: imageUrl || undefined, targets: { facebook: toFb, instagram: toIg } }),
+        body: JSON.stringify({
+          companyId,
+          text,
+          mediaUrl: imageUrl || undefined,
+          mediaKind: imageUrl ? mediaKind : undefined,
+          postType,
+          targets: { facebook: toFb, instagram: toIg },
+        }),
       });
       const d = await r.json();
       if (d.connected === false) { setError(t("Page Meta non connectée — connectez-la d'abord.", "Meta Page not connected — connect it first.")); return; }
@@ -101,8 +123,37 @@ export function OrganicPublisher() {
 
   const inputCls = "w-full rounded-lg border border-hair bg-canvas px-3 py-2 text-sm text-ink outline-none focus:border-primary-400";
 
+  const POST_TYPES = [
+    { id: "feed" as const, fr: "Publication", en: "Post" },
+    { id: "story" as const, fr: "Story (24 h)", en: "Story (24h)" },
+    { id: "reel" as const, fr: "Reel", en: "Reel" },
+  ];
+
   return (
     <div className="space-y-3">
+      {/* Emplacement — chaque choix vise un endpoint Meta différent. */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="text-2xs text-muted">{t("Emplacement :", "Placement:")}</span>
+        {POST_TYPES.map((p) => (
+          <button key={p.id} type="button"
+            onClick={() => { setPostType(p.id); if (p.id !== "feed") setImgFormat("9:16"); }}
+            className={`rounded-full px-2.5 py-1 text-2xs font-medium ${postType === p.id ? "bg-ink text-white" : "bg-card text-muted ring-1 ring-hair hover:text-ink"}`}>
+            {t(p.fr, p.en)}
+          </button>
+        ))}
+      </div>
+      {postType === "story" && (
+        <p className="rounded-lg bg-canvas px-3 py-2 text-2xs text-muted">
+          {t("Story : image ou vidéo verticale 9:16, visible 24 h. Le texte sert de légende sur Facebook et n'est pas repris par Instagram.",
+             "Story: vertical 9:16 image or video, visible for 24h. The text is used as a caption on Facebook and is ignored by Instagram.")}
+        </p>
+      )}
+      {postType === "reel" && (
+        <p className="rounded-lg bg-canvas px-3 py-2 text-2xs text-muted">
+          {t("Reel : vidéo verticale 9:16 obligatoire.", "Reel: vertical 9:16 video required.")}
+        </p>
+      )}
+
       <textarea value={text} onChange={(e) => setText(e.target.value)} rows={4}
         placeholder={t("Rédigez votre publication… (ou laissez l'IA écrire)", "Write your post… (or let the AI write it)")} className={inputCls} />
 
@@ -134,11 +185,18 @@ export function OrganicPublisher() {
 
       {imaging && <BusyHint label={t("Génération de votre visuel…", "Generating your visual…")} eta={t("~15–30 s", "~15–30 s")} />}
 
-      <input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder={t("URL d'image (optionnel — requis pour Instagram)", "Image URL (optional — required for Instagram)")} className={inputCls} />
-      {imageUrl && (
+      <input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)}
+        placeholder={postType === "reel"
+          ? t("URL de la vidéo (.mp4)", "Video URL (.mp4)")
+          : t("URL d'image ou de vidéo (requis pour Instagram, les stories et les Reels)", "Image or video URL (required for Instagram, stories and Reels)")}
+        className={inputCls} />
+      {imageUrl && (mediaKind === "video" ? (
+        // eslint-disable-next-line jsx-a11y/media-has-caption
+        <video src={imageUrl} controls preload="metadata" className="max-h-80 w-auto rounded-lg border border-hair" />
+      ) : (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={imageUrl} alt="" className="max-h-80 w-auto rounded-lg border border-hair object-contain" />
-      )}
+      ))}
 
       <div className="flex flex-wrap items-center gap-4">
         <label className="flex items-center gap-1.5 text-sm text-ink">
@@ -146,7 +204,7 @@ export function OrganicPublisher() {
         </label>
         <label className="flex items-center gap-1.5 text-sm text-ink">
           <input type="checkbox" checked={toIg} onChange={(e) => setToIg(e.target.checked)} className="accent-primary-600" /> Instagram
-          <span className="text-2xs text-muted">{t("(image requise)", "(image required)")}</span>
+          <span className="text-2xs text-muted">{t("(média requis)", "(media required)")}</span>
         </label>
         <button onClick={publish} disabled={publishing} className="btn-primary ml-auto inline-flex items-center gap-1.5 text-sm disabled:opacity-50">
           {publishing ? <><Spinner size={14} className="text-white" /> {t("Publication…", "Publishing…")}</> : t("Publier maintenant", "Publish now")}

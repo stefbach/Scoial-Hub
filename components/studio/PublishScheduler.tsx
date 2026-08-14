@@ -34,6 +34,8 @@ export function PublishScheduler({
 }) {
   const t = useT();
   const [nets, setNets] = useState<string[]>(["instagram"]);
+  // Emplacement Meta : fil, Story 24 h ou Reel (ignoré par LinkedIn).
+  const [postType, setPostType] = useState<"feed" | "story" | "reel">("feed");
   const [text, setText] = useState(defaultText);
   const [date, setDate] = useState(() => new Date(Date.now() + 86400000).toISOString().slice(0, 10));
   const [time, setTime] = useState("09:00");
@@ -49,7 +51,7 @@ export function PublishScheduler({
         companyId, platform: net,
         title: (body.slice(0, 48) || t("Création studio", "Studio creation")) + (body.length > 48 ? "…" : ""),
         body, date: d, time: tm, status: "scheduled", source: "manual",
-        media: { kind: mediaKind, url: mediaUrl },
+        media: { kind: mediaKind, url: mediaUrl, postType },
       }),
     });
     if (!r.ok) return null;
@@ -118,6 +120,28 @@ export function PublishScheduler({
           </button>
         ))}
       </div>
+
+      {/* Emplacement Meta — le fil, la Story et le Reel sont trois endpoints
+          distincts : sans ce choix, tout partait forcément dans le fil. */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="text-2xs text-muted">{t("Emplacement :", "Placement:")}</span>
+        {([
+          { id: "feed", fr: "Publication", en: "Post" },
+          { id: "story", fr: "Story (24 h)", en: "Story (24h)" },
+          ...(mediaKind === "video" ? [{ id: "reel", fr: "Reel", en: "Reel" }] : []),
+        ] as { id: "feed" | "story" | "reel"; fr: string; en: string }[]).map((p) => (
+          <button key={p.id} type="button" onClick={() => setPostType(p.id)}
+            className={`rounded-full px-2.5 py-1 text-2xs font-medium transition-colors ${postType === p.id ? "bg-page text-white" : "bg-card text-muted ring-1 ring-hair hover:text-ink"}`}>
+            {t(p.fr, p.en)}
+          </button>
+        ))}
+      </div>
+      {postType !== "feed" && nets.includes("linkedin") && (
+        <p className="text-2xs text-muted">
+          {t("LinkedIn n'a pas de stories : le média y partira en publication classique.",
+             "LinkedIn has no stories: the media will go out there as a regular post.")}
+        </p>
+      )}
 
       {/* Légende */}
       <textarea

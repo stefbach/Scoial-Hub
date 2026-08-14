@@ -5,10 +5,16 @@
 import { shotstack, isShotstackConfigured } from "@/lib/env";
 import type { CaptionSegment, MediaAsset, PlatformCut } from "./types";
 
+// Résolutions de sortie par ratio. Doit couvrir TOUS les ratios déclarés dans
+// VIDEO_PLATFORMS : un ratio manquant retombait silencieusement en 9:16, et le
+// rendu 4:5 (Instagram/Facebook portrait) ou 2:3 (Pinterest) sortait au mauvais
+// format, donc recadré par le réseau.
 const SIZE: Record<string, { width: number; height: number }> = {
   "9:16": { width: 1080, height: 1920 },
   "1:1": { width: 1080, height: 1080 },
   "16:9": { width: 1920, height: 1080 },
+  "4:5": { width: 1080, height: 1350 },
+  "2:3": { width: 1080, height: 1620 },
 };
 
 export type RenderState = "queued" | "rendering" | "done" | "failed" | "unsupported";
@@ -61,56 +67,51 @@ export function buildEdit(cut: PlatformCut, assets: MediaAsset[], captions: Capt
 
   const mediaClips: unknown[] = [];
 
-  if (cut.assemblyType === "slideshow" || (videos.length === 0 && images.length > 0)) {
+  /**
+   * Construit un plan du timeline. Le TYPE d'asset suit la nature RÉELLE du
+   * média : envoyer une photo déclarée `video` (ou l'inverse) fait échouer le
+   * rendu côté Shotstack — c'est ce qui rendait tout montage mêlant photos et
+   * clips inutilisable. Les photos reçoivent un léger zoom pour ne pas figer.
+   */
+  function pushClip(a: MediaAsset, start: number, length: number, index: number) {
+    const isImage = a.kind === "image";
+    mediaClips.push({
+      asset: { type: isImage ? "image" : "video", src: a.url },
+      start,
+      length,
+      fit: "cover",
+      ...(isImage ? { effect: index % 2 === 0 ? "zoomIn" : "zoomOut" } : {}),
+      transition: { in: "fade", out: "fade" },
+    });
+  }
+
+  if (cut.assemblyType === "video_montage") {
+    // MONTAGE : TOUS les médias déposés sur la timeline, dans l'ordre choisi
+    // par l'utilisateur — photos ET vidéos. Chaque plan joue `per` secondes ;
+    // le film = somme des plans, sans plafond.
+    const per = cut.secondsPerClip && cut.secondsPerClip > 0 ? cut.secondsPerClip : 5;
+    let cursor = 0;
+    assets.forEach((a, i) => {
+      pushClip(a, cursor, per, i);
+      cursor += per;
+    });
+    // La durée réelle du film est la somme des plans, pas la cible.
+    duration = cursor > 0 ? cursor : duration;
+  } else if (cut.assemblyType === "slideshow" || (videos.length === 0 && images.length > 0)) {
     // Diaporama : images en séquence, fondu + léger zoom.
     const slides = images.length > 0 ? images : assets;
     const per = Math.max(2, Math.round(duration / Math.max(slides.length, 1)));
-    slides.forEach((a, i) => {
-      mediaClips.push({
-        asset: { type: "image", src: a.url },
-        start: i * per,
-        length: per,
-        fit: "cover",
-        effect: i % 2 === 0 ? "zoomIn" : "zoomOut",
-        transition: { in: "fade", out: "fade" },
-      });
-    });
+    slides.forEach((a, i) => pushClip(a, i * per, per, i));
+    duration = per * slides.length;
   } else {
-    // Vidéo / montage : clips vidéo en séquence.
+    // Vidéo simple (ré-édition) : on répartit la durée cible sur les plans.
     const clips = videos.length > 0 ? videos : assets;
-    const isMontage = cut.assemblyType === "video_montage";
-    if (isMontage) {
-      // MONTAGE : chaque plan joue `per` secondes ; le film = somme des plans.
-      // Aucun plafond sur le nombre de clips → assemblage de durée illimitée.
-      const per = cut.secondsPerClip && cut.secondsPerClip > 0 ? cut.secondsPerClip : 5;
-      let cursor = 0;
-      clips.forEach((a) => {
-        mediaClips.push({
-          asset: { type: "video", src: a.url },
-          start: cursor,
-          length: per,
-          fit: "cover",
-          transition: { in: "fade", out: "fade" },
-        });
-        cursor += per;
-      });
-      // La durée réelle du film est la somme des plans, pas la cible.
-      duration = cursor > 0 ? cursor : duration;
-    } else {
-      // Vidéo simple (ré-édition) : on répartit la durée cible sur les plans.
-      const per = clips.length > 1 ? Math.max(3, Math.round(duration / clips.length)) : duration;
-      let cursor = 0;
-      clips.forEach((a) => {
-        mediaClips.push({
-          asset: { type: "video", src: a.url },
-          start: cursor,
-          length: per,
-          fit: "cover",
-          transition: { in: "fade", out: "fade" },
-        });
-        cursor += per;
-      });
-    }
+    const per = clips.length > 1 ? Math.max(3, Math.round(duration / clips.length)) : duration;
+    let cursor = 0;
+    clips.forEach((a, i) => {
+      pushClip(a, cursor, per, i);
+      cursor += per;
+    });
   }
 
   // Track texte : hook (0-3s) + sous-titres — colorés aux couleurs de la marque.

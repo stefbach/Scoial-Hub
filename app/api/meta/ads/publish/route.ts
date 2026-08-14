@@ -73,7 +73,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       publisherPlatforms: body.publisherPlatforms,
       facebookPositions: body.facebookPositions,
       instagramPositions: body.instagramPositions,
-      imageUrl: body.imageUrl ?? "",
+      imageUrl: body.imageUrl?.trim() || undefined,
       images: Array.isArray(body.images) ? body.images : undefined,
       videoUrl: body.videoUrl,
       videoThumbUrl: body.videoThumbUrl,

@@ -79,5 +79,40 @@ const reedit = buildEdit(baseCut({ assemblyType: "video", targetDurationSec: 20 
 const rm = tracksOf(reedit).media;
 check("vidéo simple : 4 plans répartis sur ~20s", Math.abs(totalLength(rm) - 20) <= 4, `${totalLength(rm)}s`);
 
+console.log("\n— 6) Montage MIXTE : les photos ne sont plus perdues, ni typées « vidéo » —");
+// Un montage assemble tout ce que l'utilisateur a déposé sur la timeline.
+// Auparavant les images étaient écartées (clips vidéo seuls) ou envoyées avec
+// le type "video" → rendu refusé par Shotstack.
+const mixed: MediaAsset[] = [...videoAssets(2), ...imageAssets(3)];
+const mixedEdit = buildEdit(baseCut({ assemblyType: "video_montage", secondsPerClip: 4 }), mixed, []);
+const mixedMedia = tracksOf(mixedEdit).media;
+check("5 médias (2 vidéos + 3 photos) → 5 plans", mixedMedia.length === 5, `${mixedMedia.length}`);
+check("film = 20s (aucun média écarté)", totalLength(mixedMedia) === 20, `${totalLength(mixedMedia)}s`);
+check(
+  "chaque plan porte le type réel de son média",
+  mixedMedia.every((c, i) => c.asset.type === (i < 2 ? "video" : "image")),
+  mixedMedia.map((c) => c.asset.type).join(", ")
+);
+
+// Montage 100 % photos (cas d'un utilisateur qui n'a que des images).
+const photoMontage = buildEdit(baseCut({ assemblyType: "video_montage", secondsPerClip: 3 }), imageAssets(4), []);
+const pmMedia = tracksOf(photoMontage).media;
+check("montage 100 % photos → 4 plans image", pmMedia.length === 4 && pmMedia.every((c) => c.asset.type === "image"));
+check("montage 100 % photos → 12s", totalLength(pmMedia) === 12, `${totalLength(pmMedia)}s`);
+
+console.log("\n— 7) Résolution de sortie fidèle au ratio du réseau —");
+const OUT: [string, number, number][] = [
+  ["9:16", 1080, 1920],
+  ["1:1", 1080, 1080],
+  ["16:9", 1920, 1080],
+  ["4:5", 1080, 1350],
+  ["2:3", 1080, 1620],
+];
+for (const [aspect, w, h] of OUT) {
+  const e = buildEdit(baseCut({ aspect, assemblyType: "video_montage", secondsPerClip: 5 }), videoAssets(2), []);
+  const size = (e.output as { size: { width: number; height: number } }).size;
+  check(`${aspect} → ${w}×${h}`, size.width === w && size.height === h, `${size.width}×${size.height}`);
+}
+
 console.log(`\n${failed === 0 ? "✓ TOUT VERT" : `✗ ${failed} échec(s)`}\n`);
 process.exit(failed === 0 ? 0 : 1);

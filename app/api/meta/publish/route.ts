@@ -2,8 +2,8 @@
 // connectés, via le token de Page stocké (getMetaContext). Distinct de la
 // publication via Ads (MetaAdsPublisher / Marketing API).
 //
-// - Facebook : texte seul → /{pageId}/feed ; avec image → /{pageId}/photos.
-// - Instagram : EXIGE une image (conteneur → publish en 2 étapes).
+// Trois emplacements : fil (feed), Story (24 h) et Reel — chacun a son propre
+// endpoint Graph, implémenté une seule fois dans lib/connectors/meta-publish.
 // Dégradation : si la Page n'est pas connectée → { connected:false }.
 
 export const runtime = "nodejs";
@@ -15,48 +15,13 @@ import { getMetaContext } from "@/lib/connectors/meta-pages";
 import { createAdminClient } from "@/lib/supabase/server";
 import { resolveCompanyUuid } from "@/lib/repositories/resolve-company";
 import { ensurePublishableImageUrl } from "@/lib/repositories/media";
-import { signFormBody, withAppSecretProof } from "@/lib/connectors/meta-appsecret";
-
-const V = process.env.META_API_VERSION ?? "v21.0";
-
-async function metaPost(path: string, params: Record<string, string>) {
-  const res = await fetch(`https://graph.facebook.com/${V}/${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: signFormBody(new URLSearchParams(params)).toString(),
-  });
-  return (await res.json()) as { id?: string; post_id?: string; error?: { message?: string } };
-}
-
-const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
-
-/**
- * Attend qu'un conteneur média Instagram soit prêt (status_code = FINISHED)
- * avant `media_publish`. Sans cette attente, Instagram renvoie « [9007] Media
- * ID is not available » car le conteneur est encore traité de façon asynchrone.
- * Renvoie un message d'erreur clair, ou null si le média est prêt.
- */
-async function waitForIgContainerReady(containerId: string, token: string): Promise<string | null> {
-  const deadline = Date.now() + 45_000;
-  let delay = 1200;
-  while (Date.now() < deadline) {
-    const res = await fetch(
-      withAppSecretProof(
-        `https://graph.facebook.com/${V}/${containerId}?fields=status_code,status&access_token=${encodeURIComponent(token)}`
-      ),
-      { cache: "no-store" }
-    );
-    const s = (await res.json()) as { status_code?: string; status?: string; error?: { message?: string } };
-    if (s.error) return s.error.message ?? "Statut du conteneur indisponible.";
-    if (s.status_code === "FINISHED") return null;
-    if (s.status_code === "ERROR" || s.status_code === "EXPIRED") {
-      return `Instagram n'a pas pu préparer le média (${s.status_code}). Vérifiez que l'image est publique et au bon format.`;
-    }
-    await sleep(delay);
-    delay = Math.min(Math.round(delay * 1.5), 5000);
-  }
-  return "Instagram met trop de temps à préparer le média (délai dépassé). Réessayez dans un instant.";
-}
+import {
+  inferMediaKind,
+  normalizePostType,
+  publishToFacebookPage,
+  publishToInstagram,
+  type MetaMediaKind,
+} from "@/lib/connectors/meta-publish";
 
 /** Trace une publication réussie dans l'Historique (vérifiable côté /history). */
 async function logPublished(companyId: string, platform: string, body: string, url?: string) {
@@ -80,16 +45,36 @@ async function logPublished(companyId: string, platform: string, body: string, u
 
 export async function POST(req: NextRequest) {
   try {
-    let { companyId, text, imageUrl, targets } = (await req.json()) as {
+    const body = (await req.json()) as {
       companyId?: string;
       text?: string;
+      /** Ancien champ (image seule) — conservé pour compatibilité. */
       imageUrl?: string;
+      /** Média joint, image OU vidéo. */
+      mediaUrl?: string;
+      mediaKind?: MetaMediaKind;
+      postType?: string;
       targets?: { facebook?: boolean; instagram?: boolean };
     };
+    const { companyId, text, targets } = body;
     if (!companyId) return NextResponse.json({ error: "companyId requis" }, { status: 400 });
-    if (!text?.trim() && !imageUrl) {
-      return NextResponse.json({ error: "Texte ou image requis" }, { status: 400 });
+
+    const postType = normalizePostType(body.postType);
+    let mediaUrl = (body.mediaUrl || body.imageUrl || "").trim() || undefined;
+    const mediaKind: MetaMediaKind | undefined = mediaUrl
+      ? body.mediaKind ?? inferMediaKind(mediaUrl)
+      : undefined;
+
+    if (!text?.trim() && !mediaUrl) {
+      return NextResponse.json({ error: "Texte ou média requis" }, { status: 400 });
     }
+    if (postType !== "feed" && !mediaUrl) {
+      return NextResponse.json(
+        { error: postType === "story" ? "Une story exige une image ou une vidéo." : "Un Reel exige une vidéo." },
+        { status: 400 }
+      );
+    }
+
     const guard = await requireCompanyAccess(companyId);
     if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
 
@@ -99,7 +84,10 @@ export async function POST(req: NextRequest) {
     }
 
     // WebP refusé par Instagram (JPEG requis) → conversion + rehébergement.
-    if (imageUrl) imageUrl = await ensurePublishableImageUrl(companyId, imageUrl);
+    // Ne concerne que les images : une vidéo passe telle quelle.
+    if (mediaUrl && mediaKind === "image") {
+      mediaUrl = await ensurePublishableImageUrl(companyId, mediaUrl);
+    }
 
     const wantFb = targets?.facebook !== false; // FB par défaut
     const wantIg = Boolean(targets?.instagram);
@@ -108,50 +96,25 @@ export async function POST(req: NextRequest) {
       instagram?: { ok: boolean; url?: string; error?: string };
     } = {};
 
-    // ── Facebook ───────────────────────────────────────────────────────────
+    const input = { text, mediaUrl, mediaKind, postType };
+
     if (wantFb && ctx.pageId) {
       try {
-        const r = imageUrl
-          ? await metaPost(`${ctx.pageId}/photos`, { url: imageUrl, caption: text ?? "", access_token: ctx.pageToken })
-          : await metaPost(`${ctx.pageId}/feed`, { message: text ?? "", access_token: ctx.pageToken });
-        if (r.error) out.facebook = { ok: false, error: r.error.message };
-        else {
-          const pid = r.post_id || r.id || "";
-          const url = pid ? `https://www.facebook.com/${pid}` : undefined;
-          out.facebook = { ok: true, url };
-          await logPublished(companyId, "facebook", text ?? "", url);
-        }
+        const r = await publishToFacebookPage(ctx.pageId, ctx.pageToken, input);
+        out.facebook = { ok: r.ok, url: r.url, error: r.error };
+        if (r.ok) await logPublished(companyId, "facebook", text ?? "", r.url);
       } catch (e) {
         out.facebook = { ok: false, error: e instanceof Error ? e.message : "Échec FB" };
       }
     }
 
-    // ── Instagram (image obligatoire) ────────────────────────────────────────
     if (wantIg && ctx.igId) {
-      if (!imageUrl) {
-        out.instagram = { ok: false, error: "Instagram exige une image." };
-      } else {
-        try {
-          const c = await metaPost(`${ctx.igId}/media`, { image_url: imageUrl, caption: text ?? "", access_token: ctx.pageToken });
-          if (c.error || !c.id) {
-            out.instagram = { ok: false, error: c.error?.message ?? "Conteneur IG refusé." };
-          } else {
-            // Attendre que le conteneur soit prêt avant de publier (évite [9007]).
-            const notReady = await waitForIgContainerReady(c.id, ctx.pageToken);
-            if (notReady) {
-              out.instagram = { ok: false, error: notReady };
-            } else {
-              const pub = await metaPost(`${ctx.igId}/media_publish`, { creation_id: c.id, access_token: ctx.pageToken });
-              if (pub.error) out.instagram = { ok: false, error: pub.error.message };
-              else {
-                out.instagram = { ok: true };
-                await logPublished(companyId, "instagram", text ?? "", undefined);
-              }
-            }
-          }
-        } catch (e) {
-          out.instagram = { ok: false, error: e instanceof Error ? e.message : "Échec IG" };
-        }
+      try {
+        const r = await publishToInstagram(ctx.igId, ctx.pageToken, input);
+        out.instagram = { ok: r.ok, url: r.url, error: r.error };
+        if (r.ok) await logPublished(companyId, "instagram", text ?? "", r.url);
+      } catch (e) {
+        out.instagram = { ok: false, error: e instanceof Error ? e.message : "Échec IG" };
       }
     }
 

@@ -100,13 +100,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         if (page) {
           await storeMetaConnections(companyId, page, tokenSet.accessToken);
         } else {
-          const { upsertConnection } = await import("@/lib/repositories/channel-connections");
-          await upsertConnection(
-            uuid,
-            "facebook",
-            { page_access_token: tokenSet.accessToken, account_name: tokenSet.accountName ?? "Facebook", connected_via: "oauth", no_page: "1" },
-            "pending"
-          );
+          // Plusieurs Pages, aucune ne correspondant à la société : le choix
+          // revient à l'utilisateur. Le token utilisateur est conservé pour que
+          // le sélecteur de Page puisse les lister.
+          const { storeUnpickedMetaConnection } = await import("@/lib/connectors/meta-pages");
+          await storeUnpickedMetaConnection(uuid, tokenSet.accessToken, tokenSet.accountName);
         }
       } catch (e) {
         console.warn("[Facebook callback] channel_connection:", e);

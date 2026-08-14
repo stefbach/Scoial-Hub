@@ -14,6 +14,11 @@ export default function AdminUsersPage() {
   const [orgName, setOrgName] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  // Réinitialisation du mot de passe d'un compte existant.
+  const [resetFor, setResetFor] = useState<User | null>(null);
+  const [newPassword, setNewPassword] = useState("");
+  const [resetBusy, setResetBusy] = useState(false);
+  const [resetMsg, setResetMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   async function load() {
     try {
@@ -45,8 +50,8 @@ export default function AdminUsersPage() {
           ok: true,
           text: d.emailSent
             ? t(
-                `Utilisateur ${email} créé — un e-mail d'accès (lien de définition du mot de passe) lui a été envoyé.`,
-                `User ${email} created — an access email (set-password link) has been sent to them.`
+                `Utilisateur ${email} créé. Le mot de passe saisi ici fonctionne immédiatement ; l'e-mail envoyé lui permet, s'il préfère, d'en choisir un autre.`,
+                `User ${email} created. The password you typed works right away; the email lets them pick their own instead if they prefer.`
               )
             : t(
                 `Utilisateur ${email} créé, mais l'e-mail d'accès n'a pas pu partir (service e-mail non configuré) : communiquez-lui son mot de passe et l'adresse /login.`,
@@ -60,6 +65,37 @@ export default function AdminUsersPage() {
       setMsg({ ok: false, text: t("Erreur réseau.", "Network error.") });
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function resetPassword(e: React.FormEvent) {
+    e.preventDefault();
+    if (!resetFor) return;
+    setResetBusy(true);
+    setResetMsg(null);
+    try {
+      const res = await fetch("/api/admin/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: resetFor.id, password: newPassword }),
+      });
+      const d = await res.json();
+      if (!res.ok) {
+        setResetMsg({ ok: false, text: d.error ?? t("Échec.", "Failed.") });
+        return;
+      }
+      setResetMsg({
+        ok: true,
+        text: t(
+          `Mot de passe redéfini pour ${resetFor.email}. Il est actif immédiatement.`,
+          `Password reset for ${resetFor.email}. It works immediately.`
+        ),
+      });
+      setNewPassword("");
+    } catch {
+      setResetMsg({ ok: false, text: t("Erreur réseau.", "Network error.") });
+    } finally {
+      setResetBusy(false);
     }
   }
 
@@ -107,14 +143,57 @@ export default function AdminUsersPage() {
             {users === null && <div className="px-4 py-6 text-sm text-muted">{t("Chargement…", "Loading…")}</div>}
             {users?.length === 0 && <div className="px-4 py-8 text-center text-sm text-muted">{t("Aucun utilisateur. Créez le premier compte.", "No users yet. Create the first account.")}</div>}
             {users?.map((u) => (
-              <div key={u.id} className="flex items-center gap-3 px-4 py-3 text-sm">
-                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-page text-2xs font-bold text-white">
-                  {u.email.slice(0, 2).toUpperCase()}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="truncate font-medium text-ink">{u.email}</div>
-                  <div className="text-2xs text-muted">{u.orgName ?? "—"} · {u.lastSignInAt ? t("déjà connecté", "signed in before") : t("jamais connecté", "never signed in")}</div>
+              <div key={u.id} className="px-4 py-3 text-sm">
+                <div className="flex items-center gap-3">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-page text-2xs font-bold text-white">
+                    {u.email.slice(0, 2).toUpperCase()}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate font-medium text-ink">{u.email}</div>
+                    <div className="text-2xs text-muted">{u.orgName ?? "—"} · {u.lastSignInAt ? t("déjà connecté", "signed in before") : t("jamais connecté", "never signed in")}</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setResetFor(resetFor?.id === u.id ? null : u);
+                      setNewPassword("");
+                      setResetMsg(null);
+                    }}
+                    className="btn-secondary shrink-0 text-2xs"
+                  >
+                    {t("Mot de passe", "Password")}
+                  </button>
                 </div>
+
+                {/* Redéfinition directe : le nouveau mot de passe est actif tout
+                    de suite, sans e-mail ni action de la part de l'utilisateur. */}
+                {resetFor?.id === u.id && (
+                  <form onSubmit={resetPassword} className="mt-3 flex flex-wrap items-center gap-2 rounded-lg bg-canvas p-3">
+                    <input
+                      type="text"
+                      required
+                      minLength={8}
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder={t("Nouveau mot de passe (8+ car.)", "New password (8+ chars)")}
+                      className="input min-w-[200px] flex-1 text-xs"
+                    />
+                    <button type="submit" disabled={resetBusy} className="btn-primary shrink-0 text-2xs disabled:opacity-50">
+                      {resetBusy ? t("Enregistrement…", "Saving…") : t("Redéfinir", "Reset")}
+                    </button>
+                    <p className="w-full text-2xs text-muted">
+                      {t(
+                        "Saisi en clair pour pouvoir être relu et communiqué sans erreur.",
+                        "Shown in plain text so it can be read back and shared without error."
+                      )}
+                    </p>
+                    {resetMsg && (
+                      <p className={`w-full rounded-md px-2.5 py-1.5 text-2xs ${resetMsg.ok ? "bg-success-50 text-success-700" : "bg-danger-50 text-danger-700"}`}>
+                        {resetMsg.text}
+                      </p>
+                    )}
+                  </form>
+                )}
               </div>
             ))}
           </div>

@@ -79,8 +79,15 @@ export async function POST(req: NextRequest) {
     if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
 
     const ctx = await getMetaContext(companyId);
-    if (!ctx.pageToken) {
-      return NextResponse.json({ connected: false, error: "Page Meta non connectée." });
+    if (!ctx.pageToken || (!ctx.pageId && !ctx.igId)) {
+      // Distingue « jamais connecté » de « connecté mais aucune Page choisie » :
+      // le second cas se règle en deux clics et ne demande pas de refaire l'OAuth.
+      return NextResponse.json({
+        connected: false,
+        error: ctx.userToken
+          ? "Compte Meta connecté, mais aucune Page sélectionnée. Choisissez votre Page dans « Mes Pages »."
+          : "Page Meta non connectée.",
+      });
     }
 
     // WebP refusé par Instagram (JPEG requis) → conversion + rehébergement.

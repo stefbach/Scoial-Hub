@@ -97,6 +97,12 @@ export interface PublishInput {
   link?: string;
   /** Média joint (image ou vidéo). */
   media?: MediaAttachment;
+  /**
+   * Emplacement de publication (Meta uniquement) : fil, Story éphémère 24 h ou
+   * Reel. Absent → "feed" (comportement historique). Les autres connecteurs
+   * l'ignorent.
+   */
+  postType?: "feed" | "story" | "reel";
   /** Titre d'un lien (FB uniquement). */
   linkTitle?: string;
   /** Description d'un lien (FB uniquement). */

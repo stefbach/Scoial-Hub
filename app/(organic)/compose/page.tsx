@@ -149,6 +149,13 @@ function ComposeContent() {
       ? { url: mediaParam, name: mediaKind === "video" ? "Vidéo" : "Image", size: 0, kind: mediaKind }
       : null
   );
+  // Emplacement Meta du média : fil (défaut), Story éphémère 24 h ou Reel.
+  const [postType, setPostType] = useState<"feed" | "story" | "reel">("feed");
+  // Un Reel exige une vidéo : changer de média pour une image annule le choix.
+  useEffect(() => {
+    if (postType === "reel" && upload?.kind !== "video") setPostType("feed");
+    if (postType !== "feed" && !upload) setPostType("feed");
+  }, [upload, postType]);
   const [editing, setEditing] = useState(false);
   const [language, setLanguage] = useState("Français");
   const [imageModel, setImageModel] = useState(DEFAULT_IMAGE_MODEL_ID);
@@ -307,7 +314,13 @@ function ComposeContent() {
             // divulgation choisis dans le panneau ci-dessous (Required UX
             // Implementation des guidelines TikTok).
             media: upload
-              ? { kind: upload.kind, url: upload.url, ...(platform === "tiktok" ? { tiktok: tiktokOptions } : {}) }
+              ? {
+                  kind: upload.kind,
+                  url: upload.url,
+                  // Emplacement Meta (fil / Story / Reel) — ignoré ailleurs.
+                  ...(platform === "facebook" || platform === "instagram" ? { postType } : {}),
+                  ...(platform === "tiktok" ? { tiktok: tiktokOptions } : {}),
+                }
               : undefined,
           }),
         });
@@ -691,6 +704,24 @@ function ComposeContent() {
           )}
           {editing && upload && (
             <MediaEditor media={upload} onExport={setUpload} onClose={() => setEditing(false)} />
+          )}
+
+          {/* Emplacement Meta — fil, Story 24 h ou Reel. Trois endpoints Graph
+              distincts : sans ce choix, tout partait forcément dans le fil. */}
+          {upload && (selectedPlatforms.includes("facebook") || selectedPlatforms.includes("instagram")) && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-2xs text-muted">{t("Emplacement (Facebook / Instagram) :", "Placement (Facebook / Instagram):")}</span>
+              {([
+                { id: "feed", fr: "Publication", en: "Post" },
+                { id: "story", fr: "Story (24 h)", en: "Story (24h)" },
+                ...(upload.kind === "video" ? [{ id: "reel", fr: "Reel", en: "Reel" }] : []),
+              ] as { id: "feed" | "story" | "reel"; fr: string; en: string }[]).map((p) => (
+                <button key={p.id} type="button" onClick={() => setPostType(p.id)}
+                  className={`rounded-full px-2.5 py-1 text-2xs font-medium transition-colors ${postType === p.id ? "bg-ink text-white" : "bg-card text-muted ring-1 ring-hair hover:text-ink"}`}>
+                  {t(p.fr, p.en)}
+                </button>
+              ))}
+            </div>
           )}
 
           {/* When to publish */}

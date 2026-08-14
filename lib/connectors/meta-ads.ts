@@ -140,7 +140,8 @@ export interface PublishAdInput {
   publisherPlatforms?: string[];   // ["facebook","instagram"]
   facebookPositions?: string[];    // ["feed","story"]
   instagramPositions?: string[];   // ["stream","story","reels"]
-  imageUrl: string;            // visuel principal
+  /** Visuel principal. Facultatif quand la pub est une VIDÉO (videoUrl). */
+  imageUrl?: string;
   /** Visuels supplémentaires → carrousel (2 à 10 cartes au total avec imageUrl). */
   images?: string[];
   /** Vidéo (URL publique) → créative vidéo (prioritaire sur l'image hors lead). */
@@ -171,11 +172,63 @@ export interface PublishAdResult {
   status: "PAUSED";
 }
 
-/** Upload d'une vidéo hébergée (URL publique) vers le compte pub → renvoie son id. */
-async function uploadAdVideo(act: string, token: string, fileUrl: string): Promise<string> {
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+/**
+ * Attend la fin du transcodage d'une vidéo publicitaire.
+ * Meta renvoie l'id AVANT d'avoir traité le fichier : créer la créative dans la
+ * foulée échoue (« video is still being processed »). On interroge donc
+ * `status.video_status` jusqu'à `ready`.
+ */
+async function waitForAdVideoReady(videoId: string, token: string): Promise<void> {
+  const deadline = Date.now() + 40_000;
+  let delay = 1500;
+  while (Date.now() < deadline) {
+    const res = await graphGet(videoId, "status", token);
+    const status = (res.status ?? {}) as { video_status?: string; processing_phase?: { status?: string } };
+    const v = status.video_status ?? status.processing_phase?.status ?? "";
+    if (v === "ready" || v === "complete") return;
+    if (v === "error") {
+      throw new Error("Meta n'a pas pu traiter la vidéo (format ou durée non supportés). Utilisez un MP4 (H.264/AAC).");
+    }
+    await sleep(delay);
+    delay = Math.min(Math.round(delay * 1.5), 5000);
+  }
+  throw new Error(
+    "Meta met trop de temps à traiter la vidéo. Réessayez dans une minute — la vidéo est encore en cours d'encodage."
+  );
+}
+
+/**
+ * Vignette générée automatiquement par Meta pour une vidéo publicitaire.
+ * Une créative vidéo EXIGE une image de couverture : sans elle, Meta refuse la
+ * création — c'est ce qui empêchait de promouvoir une vidéo sans image associée.
+ */
+async function fetchAdVideoThumbnail(videoId: string, token: string): Promise<string | undefined> {
+  try {
+    const res = await graphGet(`${videoId}/thumbnails`, "uri,is_preferred", token);
+    const rows = (res.data as Array<{ uri?: string; is_preferred?: boolean }>) ?? [];
+    const preferred = rows.find((r) => r.is_preferred && r.uri) ?? rows.find((r) => r.uri);
+    return preferred?.uri;
+  } catch {
+    return undefined; // pas bloquant : l'appelant retombe sur l'image fournie
+  }
+}
+
+/**
+ * Upload d'une vidéo hébergée (URL publique) vers le compte pub, ATTENTE de son
+ * traitement, et récupération d'une vignette exploitable.
+ */
+async function uploadAdVideo(
+  act: string,
+  token: string,
+  fileUrl: string
+): Promise<{ id: string; thumbUrl?: string }> {
   const res = await graphPost(`${act}/advideos`, { file_url: fileUrl }, token);
-  if (!res.id) throw new Error("Échec de l'upload de la vidéo.");
-  return String(res.id);
+  if (!res.id) throw new Error("Échec de l'upload de la vidéo. Vérifiez que son URL est publique.");
+  const id = String(res.id);
+  await waitForAdVideoReady(id, token);
+  return { id, thumbUrl: await fetchAdVideoThumbnail(id, token) };
 }
 
 /** Crée un formulaire de prospects (Instant Form) sur la Page et renvoie son id. */
@@ -262,6 +315,13 @@ export async function publishAd(input: PublishAdInput): Promise<PublishAdResult>
       ...spec,
       websiteUrl: destination && destination !== spec.privacyUrl?.trim() ? destination : undefined,
     });
+  }
+
+  // Vidéo : téléversée et transcodée AVANT toute création. Un échec ici ne doit
+  // pas laisser derrière lui une campagne et un ad set orphelins en pause.
+  let video: { id: string; thumbUrl?: string } | undefined;
+  if (input.videoUrl && !isLead) {
+    video = await uploadAdVideo(act, token, input.videoUrl);
   }
 
   // Mode « conversions de site » : objectif Ventes/Conversions + pixel fourni.
@@ -376,21 +436,19 @@ export async function publishAd(input: PublishAdInput): Promise<PublishAdResult>
   const allImages = [input.imageUrl, ...(input.images ?? [])].filter(Boolean);
   const isCarousel = !isLead && !input.videoUrl && allImages.length > 1;
 
-  // Vidéo : on l'upload une fois (réutilisée par toutes les variantes).
-  let videoId: string | undefined;
-  if (input.videoUrl && !isLead) videoId = await uploadAdVideo(act, token, input.videoUrl);
-
   // Construit l'object_story_spec pour un (message, titre) donné.
   const buildStorySpec = (message: string, head: string): Params => {
-    if (videoId) {
+    if (video) {
+      // Couverture : vignette explicite > vignette Meta > image de la pub.
+      const cover = input.videoThumbUrl || video.thumbUrl || input.imageUrl;
       return {
         page_id: ctx.pageId,
         video_data: {
-          video_id: videoId,
+          video_id: video.id,
           message,
           title: head,
           call_to_action: callToAction,
-          ...(input.videoThumbUrl || input.imageUrl ? { image_url: input.videoThumbUrl || input.imageUrl } : {}),
+          ...(cover ? { image_url: cover } : {}),
         },
       };
     }

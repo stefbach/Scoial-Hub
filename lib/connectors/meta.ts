@@ -13,6 +13,13 @@
 import type { Platform } from "@/lib/types";
 import { withAppSecretProof } from "@/lib/connectors/meta-appsecret";
 import { ConnectorAuthError } from "@/lib/connectors/types";
+import {
+  inferMediaKind,
+  publishToFacebookPage,
+  publishToInstagram,
+  META_INVALID_TOKEN_CODE,
+  type MetaPublishOutcome,
+} from "@/lib/connectors/meta-publish";
 import type {
   SocialConnector,
   TokenSet,
@@ -104,44 +111,28 @@ async function graphFetch<T = Record<string, unknown>>(
   return data;
 }
 
-const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
-
-/**
- * Attend qu'un conteneur média Instagram soit prêt à être publié.
- *
- * Instagram traite le conteneur de façon ASYNCHRONE (récupération de l'image/
- * vidéo depuis l'URL, transcodage…). Appeler `media_publish` avant la fin du
- * traitement renvoie « [9007] Media ID is not available ». On interroge donc
- * `status_code` jusqu'à `FINISHED`, dans une fenêtre compatible avec la durée
- * max d'une route serverless (~45 s : couvre images et vidéos courtes).
- */
-async function waitForIgContainerReady(containerId: string, accessToken: string): Promise<void> {
-  const deadline = Date.now() + 45_000;
-  let delay = 1200;
-  let last = "";
-  while (Date.now() < deadline) {
-    const s = await graphFetch<{ status_code?: string; status?: string }>(
-      `/${containerId}?fields=status_code,status&access_token=${encodeURIComponent(accessToken)}`
-    );
-    last = s.status_code ?? s.status ?? "";
-    if (last === "FINISHED") return;
-    if (last === "ERROR" || last === "EXPIRED") {
-      throw new Error(
-        `Instagram n'a pas pu préparer le média (${last}). Vérifiez que l'URL du média est publique et au bon format.`
-      );
-    }
-    // IN_PROGRESS → on patiente (backoff plafonné).
-    await sleep(delay);
-    delay = Math.min(Math.round(delay * 1.5), 5000);
-  }
-  throw new Error(
-    "Instagram met trop de temps à préparer le média (délai dépassé). Réessayez dans un instant — le visuel est peut-être encore en cours de traitement."
-  );
-}
-
 // ---------------------------------------------------------------------------
 // Valeurs simulées
 // ---------------------------------------------------------------------------
+
+/**
+ * Transforme un échec de publication en erreur typée.
+ *
+ * Le code 190 (« Invalid OAuth 2.0 Access Token ») n'est pas transitoire :
+ * réessayer à l'identique ne peut pas aboutir, seule une reconnexion le peut.
+ * L'appelant (cron de publication) marque alors la connexion `disconnected`
+ * au lieu de boucler toutes les 10 minutes.
+ */
+function throwPublishError(outcome: MetaPublishOutcome, fallback: string): never {
+  const message = outcome.error ?? fallback;
+  if (outcome.code === META_INVALID_TOKEN_CODE) {
+    throw new ConnectorAuthError(
+      "meta",
+      `Meta a refusé le token du compte (${message}). Reconnectez le compte dans Connecteurs.`
+    );
+  }
+  throw new Error(message);
+}
 
 /** Génère un identifiant simulé préfixé. */
 function simulatedId(prefix: string): string {
@@ -268,43 +259,21 @@ class FacebookConnector implements SocialConnector {
     }
 
     const pageId = input.externalAccountId;
+    const postType = input.postType ?? "feed";
 
-    // ── Média joint : Facebook exige des endpoints dédiés (≠ /feed) ──────────
-    if (input.media?.url) {
-      const isVideo =
-        input.media.mimeType?.startsWith("video") ??
-        /\.(mp4|mov|avi|m4v|webm)(\?|$)/i.test(input.media.url);
-
-      if (isVideo) {
-        // Vidéo de Page : POST /{page-id}/videos avec file_url public.
-        const vid = await graphFetch<{ id: string }>(`/${pageId}/videos`, {
-          method: "POST",
-          body: JSON.stringify({
-            file_url: input.media.url,
-            description: input.text,
-            access_token: input.accessToken,
-          }),
-        });
-        return {
-          externalId: vid.id,
-          url: `https://www.facebook.com/${vid.id}`,
-        };
-      }
-
-      // Photo de Page : POST /{page-id}/photos avec url publique + légende.
-      const photo = await graphFetch<{ id: string; post_id?: string }>(`/${pageId}/photos`, {
-        method: "POST",
-        body: JSON.stringify({
-          url: input.media.url,
-          caption: input.text,
-          access_token: input.accessToken,
-        }),
+    // ── Média joint (ou story/reel) : endpoints dédiés, ≠ /feed ───────────────
+    // Story et Reel passent par leurs propres edges (photo_stories /
+    // video_stories / video_reels) — implémentation partagée avec la
+    // publication directe pour qu'il n'existe qu'un seul chemin de code.
+    if (input.media?.url || postType !== "feed") {
+      const outcome = await publishToFacebookPage(pageId, input.accessToken, {
+        text: input.text,
+        mediaUrl: input.media?.url,
+        mediaKind: input.media?.url ? inferMediaKind(input.media.url, input.media.mimeType) : undefined,
+        postType,
       });
-      const id = photo.post_id ?? photo.id;
-      return {
-        externalId: id,
-        url: `https://www.facebook.com/${id}`,
-      };
+      if (!outcome.ok) throwPublishError(outcome, "Échec de la publication Facebook.");
+      return { externalId: outcome.id ?? "", url: outcome.url };
     }
 
     // ── Sinon : publication texte (+ lien) sur le mur (POST /{page-id}/feed) ──
@@ -491,63 +460,28 @@ class InstagramConnector implements SocialConnector {
       };
     }
 
-    const igUserId = input.externalAccountId;
-
-    // Étape 1 : créer le container média.
-    const containerParams: Record<string, string> = {
-      caption: input.text,
-      access_token: input.accessToken,
-    };
-
-    if (input.media?.url) {
-      // Détermine le type de média (image par défaut).
-      const isVideo =
-        input.media.mimeType?.startsWith("video") ??
-        input.media.url.match(/\.(mp4|mov|avi)$/i) != null;
-
-      if (isVideo) {
-        containerParams.media_type = "VIDEO";
-        containerParams.video_url = input.media.url;
-      } else {
-        containerParams.image_url = input.media.url;
-      }
-    } else {
-      // Instagram n'autorise pas la publication de texte seul : un média
-      // (image ou vidéo) est obligatoire. On renvoie une erreur claire plutôt
-      // que de publier une image placeholder factice à la place de l'utilisateur.
+    // Instagram n'autorise pas la publication de texte seul : un média
+    // (image ou vidéo) est obligatoire. On renvoie une erreur claire plutôt
+    // que de publier une image placeholder factice à la place de l'utilisateur.
+    if (!input.media?.url) {
       throw new Error(
         "Instagram exige un média (image ou vidéo). Ajoutez un visuel à votre publication."
       );
     }
 
-    const container = await graphFetch<{ id: string }>(
-      `/${igUserId}/media`,
-      {
-        method: "POST",
-        body: JSON.stringify(containerParams),
-      }
-    );
-
-    // Étape 1bis : ATTENDRE que le conteneur soit prêt. Instagram traite le
-    // média de façon asynchrone (téléchargement de l'URL, transcodage vidéo) ;
-    // publier trop tôt renvoie « [9007] Media ID is not available ».
-    await waitForIgContainerReady(container.id, input.accessToken);
-
-    // Étape 2 : publier le container.
-    const publish = await graphFetch<{ id: string }>(
-      `/${igUserId}/media_publish`,
-      {
-        method: "POST",
-        body: JSON.stringify({
-          creation_id: container.id,
-          access_token: input.accessToken,
-        }),
-      }
-    );
+    // Conteneur (fil / STORIES / REELS) + attente de fin de traitement +
+    // publication — implémentation partagée avec la publication directe.
+    const outcome = await publishToInstagram(input.externalAccountId, input.accessToken, {
+      text: input.text,
+      mediaUrl: input.media.url,
+      mediaKind: inferMediaKind(input.media.url, input.media.mimeType),
+      postType: input.postType ?? "feed",
+    });
+    if (!outcome.ok) throwPublishError(outcome, "Échec de la publication Instagram.");
 
     return {
-      externalId: publish.id,
-      url: `https://www.instagram.com/p/${publish.id}/`,
+      externalId: outcome.id ?? "",
+      url: `https://www.instagram.com/p/${outcome.id}/`,
     };
   }
 

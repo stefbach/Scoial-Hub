@@ -21,7 +21,9 @@
     "test:pilotage": "tsx scripts/verify-pilotage-seats.ts",
     "test:analytics": "tsx scripts/verify-analytics-real.ts",
     "test:igdm": "tsx scripts/verify-ig-dm-diagnosis.ts",
-    "test:uibugs": "tsx scripts/verify-ui-bugs.ts"
+    "test:uibugs": "tsx scripts/verify-ui-bugs.ts",
+    "test:stories": "tsx scripts/verify-stories-publish.ts",
+    "test:adsvideo": "tsx scripts/verify-ads-video.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.100.1",

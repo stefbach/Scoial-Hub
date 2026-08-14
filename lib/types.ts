@@ -87,7 +87,13 @@ export interface ScheduledPost {
   status?: "scheduled" | "draft" | "published" | "publishing" | "failed"; // defaults to "scheduled" when omitted
   body?: string; // full post text, used to resume editing a draft
   automationName?: string; // present when source === "automation"
-  media?: { kind: "image" | "video"; url?: string; tiktok?: TikTokPublishOptions }; // média attaché (url requise pour publier sur Instagram) ; tiktok = réglages de publication TikTok
+  media?: {
+    kind: "image" | "video";
+    url?: string;
+    /** Emplacement Meta : fil (défaut), Story éphémère 24 h ou Reel. */
+    postType?: "feed" | "story" | "reel";
+    tiktok?: TikTokPublishOptions;
+  }; // média attaché (url requise pour publier sur Instagram) ; tiktok = réglages de publication TikTok
   publishedAt?: string; // ISO timestamp set when published from the modal
   externalId?: string; // identifiant du post côté plateforme (publish_id TikTok, post id Facebook…), renseigné après publication réussie
 }

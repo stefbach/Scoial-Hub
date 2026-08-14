@@ -177,7 +177,9 @@ export async function publishScheduledPostNow(
   const label = PLATFORM_LABEL[platform] ?? platform;
 
   const text = (post.body || post.title || "").trim();
-  if (!text) {
+  // Une Story n'a pas de légende : elle est valide avec le seul média. Seule
+  // une publication SANS texte ET SANS média est réellement vide.
+  if (!text && !post.media?.url) {
     return { ok: false, status: 400, error: "La publication est vide.", platform };
   }
 
@@ -235,6 +237,18 @@ export async function publishScheduledPostNow(
   // Média attaché (URL) — requis par Instagram (pas de post texte seul),
   // optionnel mais pris en compte pour Facebook/LinkedIn.
   let mediaUrl = post.media?.url;
+  const postType = post.media?.postType ?? "feed";
+  if (postType !== "feed" && !mediaUrl) {
+    return {
+      ok: false,
+      status: 422,
+      error: `Une ${postType === "story" ? "Story" : "publication Reel"} exige un média (image ou vidéo).`,
+      platform,
+    };
+  }
+  if (postType === "reel" && post.media?.kind !== "video") {
+    return { ok: false, status: 422, error: "Un Reel exige une vidéo (format vertical 9:16).", platform };
+  }
   if (platform === "instagram" && !mediaUrl) {
     return {
       ok: false,
@@ -257,6 +271,9 @@ export async function publishScheduledPostNow(
     media: mediaUrl
       ? { url: mediaUrl, mimeType: post.media?.kind === "video" ? "video/mp4" : "image/jpeg" }
       : undefined,
+    // Emplacement Meta choisi à la création (fil / Story / Reel) — ignoré par
+    // les autres connecteurs.
+    postType: post.media?.postType,
     // Réglages Content Posting API (confidentialité, interactions, divulgation
     // commerciale) choisis par l'utilisateur dans /compose. Absents pour les
     // posts créés avant cet ajout → le connecteur retombe sur son

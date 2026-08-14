@@ -109,7 +109,9 @@ export function OrganicPublisher() {
         }),
       });
       const d = await r.json();
-      if (d.connected === false) { setError(t("Page Meta non connectée — connectez-la d'abord.", "Meta Page not connected — connect it first.")); return; }
+      // Le serveur sait POURQUOI ce n'est pas publiable (jamais connecté vs Page
+      // non choisie) : on affiche son message plutôt qu'un texte générique.
+      if (d.connected === false) { setError(d.error ?? t("Page Meta non connectée — connectez-la d'abord.", "Meta Page not connected — connect it first.")); return; }
       if (!r.ok) { setError(d.error ?? t("Échec.", "Failed.")); return; }
       const parts: string[] = [];
       if (d.results?.facebook) parts.push(`Facebook : ${d.results.facebook.ok ? t("publié ✓", "published ✓") : `✗ ${d.results.facebook.error}`}`);

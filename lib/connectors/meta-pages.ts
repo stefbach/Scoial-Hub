@@ -509,7 +509,43 @@ export function pickPageForCompany(
     });
     if (partial.length > 0) return partial.find((p) => p.id === previousPageId) ?? partial[0];
   }
+  // Une SEULE Page gérée : aucune ambiguïté possible, on la retient même si son
+  // nom ne ressemble pas à celui de la société (« FRCI TEST » vs « socialhubaxon »).
+  // Sans cette règle, l'utilisateur autorisait sa Page dans la fenêtre Meta puis
+  // la connexion restait « En attente » sans qu'aucun autre choix soit possible.
+  if (pages.length === 1) return pages[0];
   return previous ?? null;
+}
+
+/**
+ * Aucune Page n'a pu être choisie automatiquement (plusieurs Pages, aucune ne
+ * correspondant au nom de la société) : l'utilisateur devra trancher lui-même.
+ *
+ * On conserve alors le token UTILISATEUR sous sa vraie clé — c'est lui qui
+ * permet au sélecteur de Page (/pages-meta) de lister les Pages. L'ancien repli
+ * l'enregistrait sous `page_access_token`, si bien que `getMetaContext().userToken`
+ * restait vide : le sélecteur répondait « reconnexion nécessaire » avec une liste
+ * vide, et la connexion ne pouvait plus jamais quitter l'état « En attente ».
+ */
+export async function storeUnpickedMetaConnection(
+  companyId: string,
+  userToken: string,
+  accountName?: string
+): Promise<void> {
+  const { upsertConnection } = await import("@/lib/repositories/channel-connections");
+  const { resolveCompanyUuid } = await import("@/lib/repositories/resolve-company");
+  const uuid = await resolveCompanyUuid(companyId);
+  await upsertConnection(
+    uuid,
+    "facebook",
+    {
+      user_access_token: userToken,
+      account_name: accountName || "Facebook",
+      connected_via: "oauth",
+      no_page: "1",
+    },
+    "pending"
+  );
 }
 
 /** Récupère le nom de la société (pour le matching de Page). */

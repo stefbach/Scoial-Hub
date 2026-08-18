@@ -211,6 +211,64 @@ async function main() {
     check("IG erreur Meta → message d'origine conservé", !r.ok && r.error === "Le format de l'image n'est pas supporté.", r.error);
   }
 
+  // ── 8bis) Conteneur Instagram : reprise au lieu de tout refaire ───────────
+  // Incident TIBOK : 866 échecs « Instagram met trop de temps à préparer le
+  // média ». Chaque réessai recréait un conteneur et rebutait sur la même
+  // attente, 24 h durant, jusqu'à l'abandon.
+  {
+    const calls = stubFetch((c) => {
+      const p = pathOf(c.url);
+      if (p === "CONT_REPRIS") return { status_code: "FINISHED" };
+      if (p === "IG1/media_publish") return { id: "IG_OK" };
+      return {};
+    });
+    const r = await publishToInstagram("IG1", "PAGE_TOKEN", {
+      mediaUrl: "https://cdn.test/a.jpg",
+      igContainerId: "CONT_REPRIS",
+    });
+    check("conteneur repris → publication réussie", r.ok && r.id === "IG_OK", r.error);
+    check(
+      "aucun conteneur recréé",
+      !paths(calls).includes("IG1/media"),
+      paths(calls).join(" → ")
+    );
+  }
+
+  // Média encore en préparation : on tente quand même la publication, puis on
+  // rend le conteneur pour la prochaine tentative.
+  {
+    process.env.IG_CONTAINER_WAIT_MS = "300"; // budget d'attente écourté pour le test
+    const calls = stubFetch((c) => {
+      const p = pathOf(c.url);
+      if (p === "IG1/media") return { id: "CONT_LENT" };
+      if (p === "CONT_LENT") return { status_code: "IN_PROGRESS" };
+      if (p === "IG1/media_publish") return { error: { message: "Media ID is not available", code: 9007 } };
+      return {};
+    });
+    const r = await publishToInstagram("IG1", "PAGE_TOKEN", { mediaUrl: "https://cdn.test/lent.jpg" });
+    check("délai dépassé → échec signalé", !r.ok, r.error);
+    check(
+      "publication tentée malgré le délai (le média est souvent prêt juste après)",
+      paths(calls).includes("IG1/media_publish")
+    );
+    check("conteneur rendu pour la reprise", r.pendingContainerId === "CONT_LENT", r.pendingContainerId ?? "aucun");
+    delete process.env.IG_CONTAINER_WAIT_MS;
+  }
+
+  // Un média REFUSÉ ne doit pas être repris indéfiniment.
+  {
+    process.env.IG_CONTAINER_WAIT_MS = "300";
+    stubFetch((c) => {
+      const p = pathOf(c.url);
+      if (p === "IG1/media") return { id: "CONT_KO" };
+      if (p === "CONT_KO") return { status_code: "ERROR" };
+      return {};
+    });
+    const r = await publishToInstagram("IG1", "PAGE_TOKEN", { mediaUrl: "https://cdn.test/ko.jpg" });
+    check("média refusé → pas de reprise proposée", !r.ok && !r.pendingContainerId, r.error);
+    delete process.env.IG_CONTAINER_WAIT_MS;
+  }
+
   // ── 9) Token expiré (code 190) : erreur TYPÉE, pas un échec transitoire ────
   // Le cron doit couper la connexion plutôt que de réessayer toutes les 10 min.
   {

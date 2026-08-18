@@ -16,6 +16,8 @@ import { Spinner } from "@/components/ui/Spinner";
 import { DatePicker, TimePicker } from "@/components/ui/DateTimePicker";
 import { MediaLibraryButton } from "@/components/studio/MediaLibrary";
 import { UploadMediaButton } from "@/components/studio/UploadMediaButton";
+import { Modal } from "@/components/ui/Modal";
+import { ImageEditor } from "@/components/studio/ImageEditor";
 import { PublishLanguageSelect } from "@/components/ui/PublishLanguageSelect";
 import { SERIES_CONFIG, type SeriesPlatform } from "@/lib/social-series";
 
@@ -77,6 +79,9 @@ export function SeriesPlanner({ platform }: { platform: SeriesPlatform }) {
   // occupe LE PLUS de place dans le fil, donc le moins « petit ».
   const [imgFormat, setImgFormat] = useState("4:5");
   const [genImgIdx, setGenImgIdx] = useState<number | null>(null);
+  // Élément dont le visuel est ouvert en grand (aperçu + retouche).
+  const [previewIdx, setPreviewIdx] = useState<number | null>(null);
+  const [editingVisual, setEditingVisual] = useState(false);
   const [startDate, setStartDate] = useState<Date>(() => addDays(new Date(), 1));
   const [cadence, setCadence] = useState<Cadence>("daily");
   const [batchTime, setBatchTime] = useState("09:00");
@@ -320,12 +325,21 @@ export function SeriesPlanner({ platform }: { platform: SeriesPlatform }) {
                 <div className="mt-2 flex flex-wrap items-center gap-2 pl-7">
                   {d.media ? (
                     <span className="relative inline-block">
-                      {(d.mediaKind ?? (isVideo ? "video" : "image")) === "video" ? (
-                        <video src={d.media} className="h-12 w-12 rounded-lg border border-hair object-cover" muted />
-                      ) : (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={d.media} alt="" className="h-12 w-12 rounded-lg border border-hair object-cover" />
-                      )}
+                      {/* Vignette de 48 px : trop petite pour juger un visuel.
+                          Un clic l'ouvre en grand, avec l'édition à portée. */}
+                      <button
+                        type="button"
+                        onClick={() => setPreviewIdx(i)}
+                        title={t("Agrandir le visuel", "Enlarge the visual")}
+                        className="block cursor-zoom-in rounded-lg ring-offset-2 ring-offset-card transition-shadow hover:ring-2 hover:ring-primary-300"
+                      >
+                        {(d.mediaKind ?? (isVideo ? "video" : "image")) === "video" ? (
+                          <video src={d.media} className="h-12 w-12 rounded-lg border border-hair object-cover" muted />
+                        ) : (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={d.media} alt="" className="h-12 w-12 rounded-lg border border-hair object-cover" />
+                        )}
+                      </button>
                       <button type="button" onClick={() => patchDraft(i, { media: null })} title={t("Retirer le visuel", "Remove visual")}
                         className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-ink text-2xs text-white">✕</button>
                     </span>
@@ -358,6 +372,60 @@ export function SeriesPlanner({ platform }: { platform: SeriesPlatform }) {
           {t("+ Ajouter un élément", "+ Add an item")}
         </button>
       </div>
+
+      {/* Visuel en grand — et retouche sur place */}
+      <Modal
+        open={previewIdx !== null && Boolean(drafts[previewIdx]?.media)}
+        onClose={() => { setPreviewIdx(null); setEditingVisual(false); }}
+        width="max-w-3xl"
+      >
+        {previewIdx !== null && drafts[previewIdx]?.media && (() => {
+          const idx = previewIdx;
+          const url = drafts[idx].media as string;
+          const kind = drafts[idx].mediaKind ?? (isVideo ? "video" : "image");
+          return (
+            <div className="space-y-3 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm font-semibold text-ink">
+                  {t(`Visuel de l'élément ${idx + 1}`, `Item ${idx + 1} visual`)}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {kind === "image" && (
+                    <button
+                      type="button"
+                      onClick={() => setEditingVisual((v) => !v)}
+                      disabled={!canEdit}
+                      className="btn-secondary text-2xs disabled:opacity-50"
+                    >
+                      {editingVisual ? t("Masquer la retouche", "Hide editing") : t("✎ Modifier l'image", "✎ Edit image")}
+                    </button>
+                  )}
+                  <a href={url} target="_blank" rel="noopener noreferrer" className="btn-secondary text-2xs">
+                    {t("Ouvrir l'original", "Open original")}
+                  </a>
+                </div>
+              </div>
+
+              {kind === "video" ? (
+                // eslint-disable-next-line jsx-a11y/media-has-caption
+                <video src={url} controls className="max-h-[65vh] w-full rounded-xl border border-hair bg-canvas object-contain" />
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={url} alt="" className="max-h-[65vh] w-full rounded-xl border border-hair bg-canvas object-contain" />
+              )}
+
+              {/* Retouche IA : le résultat remplace le visuel de CET élément. */}
+              {editingVisual && kind === "image" && (
+                <ImageEditor
+                  imageUrl={url}
+                  aspect={imgFormat}
+                  onResult={(next) => patchDraft(idx, { media: next, mediaKind: "image" })}
+                />
+              )}
+            </div>
+          );
+        })()}
+      </Modal>
 
       {/* Pinterest : board cible */}
       {cfg.needsBoard && (

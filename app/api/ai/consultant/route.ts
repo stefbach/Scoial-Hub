@@ -17,7 +17,7 @@ import { createAdminClient } from "@/lib/supabase/server";
 import { resolveCompanyUuid } from "@/lib/repositories/resolve-company";
 import { getBrandProfile, saveBrandProfile } from "@/lib/repositories/onboarding";
 import { getBrandKit } from "@/lib/repositories/brand-kit";
-import { callClaudeJSON, callClaudeJSONResult, extractJsonString } from "@/lib/ai/claude-json";
+import { callClaudeJSONResult, extractJsonString } from "@/lib/ai/claude-json";
 import { getMemoryContext, appendMemory, type MemoryEntry, type MemoryKind } from "@/lib/memory";
 import { isAiConfigured } from "@/lib/env";
 import {
@@ -354,11 +354,16 @@ Prise de parole naturelle, humaine, ${lang === "en" ? "EN ANGLAIS (the client's 
     // définitivement bloquée après quelques tours.
     const first = await callClaudeJSONResult<ConsultantResult>(prompt, {
       model: "claude-sonnet-4-6",
-      maxTokens: 4000,
+      maxTokens: 3000,
       temperature: 0.7,
-      timeoutMs: 25_000,
+      // La fonction dispose de 60 s. L'ancien couple 25 s + 20 s laissait 15 s
+      // inutilisées tout en coupant le premier appel alors qu'il aboutissait
+      // souvent juste après : plus le prompt grossit (ADN accumulé), plus ce
+      // couperet tombait tôt — d'où un entretien définitivement bloqué.
+      timeoutMs: 34_000,
     });
     let result: ConsultantResult | null = first.data;
+    let failureReason = first.error;
 
     if (!result && first.raw) {
       const salvaged = extractJsonString(first.raw, "reply");
@@ -369,19 +374,31 @@ Prise de parole naturelle, humaine, ${lang === "en" ? "EN ANGLAIS (the client's 
     }
 
     if (!result) {
-      const replyOnly = await callClaudeJSON<ConsultantResult>(
-        `${prompt}\n\n# CONTRAINTE SUPPLÉMENTAIRE\nLa tentative précédente a échoué faute de place. Renvoie UNIQUEMENT {"reply": "…"} — pas de "dna", pas de "visualPrompts", pas de "memoryNotes".`,
-        { model: "claude-sonnet-4-6", maxTokens: 700, temperature: 0.7, timeoutMs: 20_000 }
+      // Repli COURT : uniquement la réponse conversationnelle, donc rapide.
+      const retry = await callClaudeJSONResult<ConsultantResult>(
+        `${prompt}\n\n# CONTRAINTE SUPPLÉMENTAIRE\nLa tentative précédente a échoué faute de place ou de temps. Réponds en 3 phrases MAXIMUM. Renvoie UNIQUEMENT {"reply": "…"} — pas de "dna", pas de "visualPrompts", pas de "memoryNotes".`,
+        { model: "claude-sonnet-4-6", maxTokens: 500, temperature: 0.7, timeoutMs: 18_000 }
       );
-      if (replyOnly?.reply) result = { reply: replyOnly.reply };
+      failureReason = retry.error ?? failureReason;
+      const replyText =
+        str(retry.data?.reply) ||
+        (retry.raw ? extractJsonString(retry.raw, "reply") : null) ||
+        // Dernier recours : le modèle a répondu en prose au lieu de JSON.
+        // Refuser cette réponse pour un simple défaut de format condamnait
+        // l'entretien alors que le contenu utile était là.
+        (retry.raw && !retry.raw.trimStart().startsWith("{") ? retry.raw.trim().slice(0, 1200) : "");
+      if (replyText) result = { reply: replyText };
     }
 
     if (!result) {
+      console.error("[consultant] aucune réponse exploitable :", failureReason);
       return NextResponse.json(
         {
           error: lang === "en"
-            ? "The AI consultant could not reply. Please try again."
-            : "Le consultant IA n'a pas pu répondre. Reformulez ou réessayez.",
+            ? "The AI consultant could not reply. Send your message again — the interview is saved."
+            : "Le consultant IA n'a pas pu répondre. Renvoyez votre message — l'entretien est conservé.",
+          // Cause technique : sans elle, un blocage récurrent était indiagnosticable.
+          reason: failureReason,
         },
         { status: 502 }
       );

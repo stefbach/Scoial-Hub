@@ -21,7 +21,7 @@ import {
   getTikTokConnectionAdmin,
   disconnectTikTokConnection,
 } from "@/lib/repositories/tiktok-connection";
-import { isConnectorAuthError } from "@/lib/connectors/types";
+import { isConnectorAuthError, isMetaContainerPendingError } from "@/lib/connectors/types";
 import { updateScheduledPost } from "@/lib/repositories/scheduled-posts";
 import { ensurePublishableImageUrl } from "@/lib/repositories/media";
 import { resolveCompanyUuid } from "@/lib/repositories/resolve-company";
@@ -274,6 +274,8 @@ export async function publishScheduledPostNow(
     // Emplacement Meta choisi à la création (fil / Story / Reel) — ignoré par
     // les autres connecteurs.
     postType: post.media?.postType,
+    // Conteneur Instagram d'un essai précédent, à reprendre s'il existe.
+    igContainerId: post.media?.igContainerId,
     // Réglages Content Posting API (confidentialité, interactions, divulgation
     // commerciale) choisis par l'utilisateur dans /compose. Absents pour les
     // posts créés avant cet ajout → le connecteur retombe sur son
@@ -288,6 +290,22 @@ export async function publishScheduledPostNow(
   } catch (err) {
     const message = err instanceof Error ? err.message : "Erreur inconnue";
     console.error(`[publish-scheduled] ${platform} (post ${post.id}):`, message);
+
+    // Instagram prépare encore le média : on MÉMORISE le conteneur pour que le
+    // prochain essai reprenne là où celui-ci s'est arrêté. Sans cela, chaque
+    // réessai recréait un conteneur et rebutait sur la même attente — c'est ce
+    // qui a fait échouer des publications pendant 24 h d'affilée.
+    if (isMetaContainerPendingError(err)) {
+      const media = { ...(post.media ?? { kind: "image" as const }), igContainerId: err.containerId };
+      await updateScheduledPost(post.id, { media }).catch(() => {});
+      return {
+        ok: false,
+        status: 503, // transitoire : le cron réessaiera
+        error: `${label} : ${message}`,
+        platform,
+      };
+    }
+
     await logHistory(uuid, post, text, "failed", undefined, message);
 
     // Token rejeté par la plateforme : ce n'est PAS transitoire. Réessayer
@@ -431,14 +449,31 @@ export async function reclaimStalePublishing(): Promise<number> {
   const supabase = createAdminClient();
   if (!supabase) return 0;
   const staleBefore = new Date(Date.now() - STALE_CLAIM_MINUTES * 60_000).toISOString();
-  const { data, error } = await supabase
+
+  // Deux requêtes SIMPLES plutôt qu'un `.or(...)` interpolant un horodatage ISO
+  // dans une chaîne de filtre : cette syntaxe est fragile (le format de la date
+  // y est réanalysé), et un filtre silencieusement inopérant laissait des posts
+  // bloqués en `publishing` pendant des jours — donc jamais publiés, jamais
+  // marqués en échec, invisibles.
+  let released = 0;
+
+  const { data: orphans } = await supabase
     .from("sh_scheduled_posts")
     .update({ status: "scheduled", claimed_at: null })
     .eq("status", "publishing")
-    .or(`claimed_at.is.null,claimed_at.lt.${staleBefore}`)
+    .is("claimed_at", null)
     .select("id");
-  if (error || !Array.isArray(data)) return 0;
-  return data.length;
+  if (Array.isArray(orphans)) released += orphans.length;
+
+  const { data: stale } = await supabase
+    .from("sh_scheduled_posts")
+    .update({ status: "scheduled", claimed_at: null })
+    .eq("status", "publishing")
+    .lt("claimed_at", staleBefore)
+    .select("id");
+  if (Array.isArray(stale)) released += stale.length;
+
+  return released;
 }
 
 // ── Posts arrivés à échéance (cron) ──────────────────────────────────────────

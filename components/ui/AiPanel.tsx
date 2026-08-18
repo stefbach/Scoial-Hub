@@ -8,6 +8,8 @@ import { useT, useLang } from "@/lib/i18n";
 import { isKnownLanguageCode } from "@/lib/publish-languages";
 import { useCompany } from "@/lib/company-context";
 import { generateVideoPolling } from "@/lib/ai/generate-video-client";
+import { UploadMediaButton } from "@/components/studio/UploadMediaButton";
+import { MediaLibraryButton } from "@/components/studio/MediaLibrary";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -286,6 +288,8 @@ export function AiVisualsPanel({
   const [count, setCount] = useState<1 | 2 | 4>(1);
   // Visuel actuellement attaché à la publication (pour le marquer comme choisi).
   const [usedUrl, setUsedUrl] = useState<string | null>(null);
+  // Image de référence : le générateur travaille alors en image → image.
+  const [refUrl, setRefUrl] = useState<string | null>(null);
   const isVideo = mode === "video";
 
   const handleUse = (url: string, kind: "image" | "video") => {
@@ -334,6 +338,8 @@ export function AiVisualsPanel({
           n: count,
           model: imageModel,
           companyId,
+          // Présente → génération image → image à partir de la référence.
+          imageUrl: refUrl ?? undefined,
         }),
       });
       if (!res.ok) {
@@ -412,6 +418,63 @@ export function AiVisualsPanel({
         }
         className="h-12 w-full resize-none rounded-md border-hair border-hair bg-card p-2 text-xs text-ink placeholder:text-muted focus:outline-none"
       />
+
+      {/* Image de RÉFÉRENCE (image → image). Le modèle part du visuel fourni et
+          y applique la consigne, au lieu de repartir d'une page blanche. */}
+      {!isVideo && (
+        <div className="mt-2 rounded-md border border-hair bg-card/60 p-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-muted">
+              {t("Image de référence", "Reference image")}
+            </span>
+            {refUrl ? (
+              <span className="relative inline-block">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={refUrl} alt="" className="h-10 w-10 rounded border border-hair object-cover" />
+                <button
+                  type="button"
+                  onClick={() => setRefUrl(null)}
+                  title={t("Retirer la référence", "Remove reference")}
+                  className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-ink text-[9px] text-white"
+                >
+                  ✕
+                </button>
+              </span>
+            ) : (
+              <span className="text-[10px] text-muted">{t("facultatif", "optional")}</span>
+            )}
+            {companyId && (
+              <>
+                <UploadMediaButton
+                  companyId={companyId}
+                  accept="image"
+                  label={t("📤 Téléverser", "📤 Upload")}
+                  className="btn-secondary text-[10px]"
+                  onUploaded={(url) => setRefUrl(url)}
+                />
+                <MediaLibraryButton
+                  companyId={companyId}
+                  accept="image"
+                  label={t("📚 Bibliothèque", "📚 Library")}
+                  className="btn-secondary text-[10px]"
+                  onPick={(a) => setRefUrl(a.url)}
+                />
+              </>
+            )}
+          </div>
+          <p className="mt-1 text-[10px] leading-relaxed text-muted">
+            {refUrl
+              ? t(
+                  "Le visuel généré partira de cette image. Décrivez ci-dessus ce qu'il faut en garder et ce qu'il faut changer.",
+                  "The generated visual will start from this image. Describe above what to keep and what to change."
+                )
+              : t(
+                  "Ajoutez une image dont l'IA doit s'inspirer (cadrage, ambiance, produit).",
+                  "Add an image for the AI to draw from (framing, mood, product)."
+                )}
+          </p>
+        </div>
+      )}
 
       {/* Style pills + cost */}
       <div className="mt-2 flex items-center justify-between">

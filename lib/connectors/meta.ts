@@ -12,7 +12,7 @@
 
 import type { Platform } from "@/lib/types";
 import { withAppSecretProof } from "@/lib/connectors/meta-appsecret";
-import { ConnectorAuthError } from "@/lib/connectors/types";
+import { ConnectorAuthError, MetaContainerPendingError } from "@/lib/connectors/types";
 import {
   inferMediaKind,
   publishToFacebookPage,
@@ -476,8 +476,19 @@ class InstagramConnector implements SocialConnector {
       mediaUrl: input.media.url,
       mediaKind: inferMediaKind(input.media.url, input.media.mimeType),
       postType: input.postType ?? "feed",
+      igContainerId: input.igContainerId,
     });
-    if (!outcome.ok) throwPublishError(outcome, "Échec de la publication Instagram.");
+    if (!outcome.ok) {
+      // Média encore en préparation : erreur typée porteuse du conteneur, pour
+      // que le prochain essai le reprenne au lieu d'en refabriquer un.
+      if (outcome.pendingContainerId) {
+        throw new MetaContainerPendingError(
+          outcome.pendingContainerId,
+          outcome.error ?? "Instagram prépare encore le média."
+        );
+      }
+      throwPublishError(outcome, "Échec de la publication Instagram.");
+    }
 
     return {
       externalId: outcome.id ?? "",

@@ -35,6 +35,13 @@ export interface MetaPublishInput {
   /** Déduit de l'URL / du mime si absent. */
   mediaKind?: MetaMediaKind;
   postType?: MetaPostType;
+  /**
+   * Conteneur Instagram déjà créé lors d'une tentative précédente, à REPRENDRE
+   * au lieu d'en fabriquer un nouveau. Instagram garde un conteneur valide 24 h :
+   * sans cette reprise, chaque réessai repartait de zéro et butait sur la même
+   * attente, indéfiniment.
+   */
+  igContainerId?: string;
 }
 
 export interface MetaPublishOutcome {
@@ -49,6 +56,12 @@ export interface MetaPublishOutcome {
    * connexion au lieu d'être réessayé indéfiniment par le cron.
    */
   code?: number;
+  /**
+   * Conteneur Instagram créé mais pas encore prêt. À conserver par l'appelant
+   * pour reprendre la publication au prochain essai plutôt que d'en créer un
+   * nouveau (et de repayer l'attente depuis le début).
+   */
+  pendingContainerId?: string;
 }
 
 /** Code Graph « Invalid OAuth 2.0 Access Token » : seule une reconnexion aide. */
@@ -231,7 +244,10 @@ export async function publishToFacebookPage(
  * Renvoie un message d'erreur, ou null si le conteneur est prêt.
  */
 export async function waitForIgContainerReady(containerId: string, token: string): Promise<string | null> {
-  const deadline = Date.now() + 45_000;
+  // Budget d'attente, réglable : il doit rester SOUS la durée max de la
+  // fonction serverless. Abaissé dans les tests pour ne pas les figer 45 s.
+  const budget = Number(process.env.IG_CONTAINER_WAIT_MS) || 45_000;
+  const deadline = Date.now() + budget;
   let delay = 1200;
   while (Date.now() < deadline) {
     const s = await graphGet(containerId, "status_code,status", token);
@@ -279,14 +295,33 @@ export async function publishToInstagram(
     params.caption = text;
   }
 
-  const container = await graphPost(`${igId}/media`, params);
-  if (container.error || !container.id) {
-    return fail(container, "Instagram a refusé le conteneur média.");
+  // Reprise d'un conteneur déjà créé (réessai) : on ne repaie pas la création
+  // ni l'attente initiale, on vérifie simplement s'il est prêt maintenant.
+  let containerId = input.igContainerId?.trim();
+  if (!containerId) {
+    const container = await graphPost(`${igId}/media`, params);
+    if (container.error || !container.id) {
+      return fail(container, "Instagram a refusé le conteneur média.");
+    }
+    containerId = String(container.id);
   }
-  const notReady = await waitForIgContainerReady(String(container.id), token);
-  if (notReady) return { ok: false, error: notReady };
 
-  const pub = await graphPost(`${igId}/media_publish`, { creation_id: String(container.id), access_token: token });
-  if (pub.error || !pub.id) return fail(pub, "Instagram a refusé la publication.");
+  const notReady = await waitForIgContainerReady(containerId, token);
+
+  // Le conteneur n'est pas annoncé prêt. Deux cas très différents :
+  //   • délai dépassé — Instagram finit souvent le traitement juste après. On
+  //     TENTE quand même la publication ; si elle passe, l'attente n'était
+  //     qu'un excès de prudence. Sinon on rend le conteneur à l'appelant pour
+  //     qu'il reprenne au prochain essai.
+  //   • média refusé (ERROR/EXPIRED) — inutile d'insister.
+  const timedOut = Boolean(notReady) && /délai dépassé/i.test(notReady!);
+  if (notReady && !timedOut) return { ok: false, error: notReady };
+
+  const pub = await graphPost(`${igId}/media_publish`, { creation_id: containerId, access_token: token });
+  if (pub.error || !pub.id) {
+    const failed = fail(pub, "Instagram a refusé la publication.");
+    // Encore en préparation : la prochaine tentative reprendra CE conteneur.
+    return timedOut ? { ...failed, error: notReady!, pendingContainerId: containerId } : failed;
+  }
   return { ok: true, id: String(pub.id) };
 }

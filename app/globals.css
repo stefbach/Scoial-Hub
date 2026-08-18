@@ -88,6 +88,25 @@ html[data-theme="light"] .text-primary-600,
 html[data-theme="light"] .text-primary-700 { color: rgb(var(--tile-primary-text)); }
 html[data-theme="light"] .ring-primary-200 { --tw-ring-color: rgb(var(--tile-primary-200)); }
 
+/* Variantes d'OPACITÉ et de HOVER de la tuile violette.
+   Le remap ci-dessus ne cible que la classe nue : `bg-primary-50/40` et
+   `hover:bg-primary-50` lui échappaient et retombaient sur la valeur du thème
+   SOMBRE (#1b1330). Posée à 40 % sur un fond blanc, elle donnait le gris boueux
+   du calendrier ; au survol, la tuile virait carrément au noir. Le sélecteur
+   `[class~="…"]` compare le jeton exact, donc la règle d'opacité n'attrape pas
+   les variantes `hover:` (traitées à part, uniquement au survol). */
+html[data-theme="light"] [class~="bg-primary-50/30"],
+html[data-theme="light"] [class~="bg-primary-50/40"],
+html[data-theme="light"] [class~="bg-primary-50/50"],
+html[data-theme="light"] [class~="bg-primary-50/60"],
+html[data-theme="light"] [class~="bg-primary-50/70"] {
+  background-color: rgb(var(--tile-primary-50));
+}
+html[data-theme="light"] [class~="hover:bg-primary-50"]:hover,
+html[data-theme="light"] [class~="hover:bg-primary-50/30"]:hover {
+  background-color: rgb(var(--tile-primary-50));
+}
+
 html[data-theme="light"] .bg-ai-textbg,
 html[data-theme="light"] .bg-ai-visualbg { background-color: rgb(var(--tile-ai-bg)); }
 html[data-theme="light"] .text-ai-text,

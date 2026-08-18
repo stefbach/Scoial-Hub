@@ -354,6 +354,7 @@ export default function VeillePage() {
           keywords,
           theme,
           competitorIds: competitors.map((c) => c.id),
+          language: lang,
         }),
       });
       const data = await res.json() as RunResult & { error?: string };
@@ -396,7 +397,7 @@ export default function VeillePage() {
           void fetch("/api/memory/synthesize", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ companyId: company.id }),
+            body: JSON.stringify({ companyId: company.id, language: lang }),
           })
             .catch((e) => console.warn("[veille synthesize]", e))
             .finally(() => setMemoryRefresh((n) => n + 1));

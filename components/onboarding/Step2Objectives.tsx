@@ -6,17 +6,22 @@
 
 import { useState, useCallback } from "react";
 import { useOnboardingCtx } from "@/components/onboarding/context";
-import { useT } from "@/lib/i18n";
+import { useT, useLang } from "@/lib/i18n";
 import { ALL_NETWORKS, type SocialNetwork } from "@/lib/onboarding/types";
 import type { SuggestedObjective } from "@/lib/onboarding/types";
 import { CountryCombobox } from "@/components/ui/CountryCombobox";
 import { CityCombobox } from "@/components/ui/CityCombobox";
-import { COUNTRIES } from "@/lib/scope";
+import { COUNTRIES, countryLabel as localizedCountryLabel } from "@/lib/scope";
 
-/** Nom complet d'un pays depuis son code ISO (sinon le code tel quel). */
-function countryLabel(code: string): string {
+/**
+ * Nom complet d'un pays, DANS LA LANGUE DE L'INTERFACE.
+ * L'ancienne version reprenait le libellé statique de COUNTRIES, rédigé en
+ * français : « Royaume-Uni » restait affiché sur une interface en anglais.
+ */
+function countryLabel(code: string, lang: string): string {
   const c = COUNTRIES.find((x) => x.id.toLowerCase() === code.toLowerCase());
-  return c ? `${c.flag} ${c.label}` : code;
+  const name = localizedCountryLabel(code, lang);
+  return c ? `${c.flag} ${name}` : name;
 }
 
 // ── Icônes SVG inline ───────────────────────────────────────────────────────
@@ -269,6 +274,7 @@ function RemovableChip({
 
 export default function Step2Objectives() {
   const t = useT();
+  const { lang } = useLang();
   const ctx = useOnboardingCtx();
   const { state, profile, patchState } = ctx;
 
@@ -584,7 +590,7 @@ export default function Step2Objectives() {
               {geo.countries.map((code) => (
                 <RemovableChip
                   key={code}
-                  label={countryLabel(code)}
+                  label={countryLabel(code, lang)}
                   onRemove={() => removeCountry(code)}
                 />
               ))}

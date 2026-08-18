@@ -370,7 +370,13 @@ class YouTubeCollector implements Collector {
       searchUrl.searchParams.set("type", "video");
       searchUrl.searchParams.set("maxResults", String(limit));
       searchUrl.searchParams.set("regionCode", regionCode);
-      searchUrl.searchParams.set("relevanceLanguage", query.geo.slice(0, 2));
+      // `relevanceLanguage` attend un code LANGUE (ISO-639-1), pas un code pays.
+      // Sans langue explicite, on n'envoie rien : mieux vaut ne pas filtrer que
+      // filtrer sur un code invalide.
+      const relevance = (query.language ?? "").slice(0, 2).toLowerCase();
+      if (/^[a-z]{2}$/.test(relevance)) {
+        searchUrl.searchParams.set("relevanceLanguage", relevance);
+      }
       searchUrl.searchParams.set("order", "relevance");
       searchUrl.searchParams.set("key", this.apiKey);
 

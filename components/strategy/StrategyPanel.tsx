@@ -6,7 +6,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { useT } from "@/lib/i18n";
+import { useT, useLang } from "@/lib/i18n";
 
 interface Brief {
   resume: string;
@@ -37,6 +37,7 @@ const SOURCE_LABEL: Record<string, string> = {
  */
 export function StrategyPanel({ companyId, refreshSignal }: { companyId: string; refreshSignal?: number }) {
   const t = useT();
+  const { lang } = useLang();
   const [brief, setBrief] = useState<Brief | null>(null);
   const [memory, setMemory] = useState<MemEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -98,7 +99,7 @@ export function StrategyPanel({ companyId, refreshSignal }: { companyId: string;
       const r = await fetch("/api/memory/synthesize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyId }),
+        body: JSON.stringify({ companyId, language: lang }),
       });
       const d = await r.json();
       if (d.brief) setBrief(d.brief);

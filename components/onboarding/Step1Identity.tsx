@@ -184,7 +184,17 @@ export default function Step1Identity() {
 
   // État local du formulaire, initialisé depuis le profil existant
   const [website, setWebsite] = useState<string>(profile.website ?? "");
-  const [description, setDescription] = useState<string>(profile.description ?? "");
+  // Descriptif prérempli par le consultant de l'étape précédente : à défaut du
+  // champ dédié, on reprend ce qu'il a produit (résumé, puis positionnement ou
+  // mission). Sans cela, l'utilisateur retrouvait un formulaire vierge juste
+  // après avoir construit toute son identité de marque.
+  const [description, setDescription] = useState<string>(
+    () =>
+      profile.description?.trim() ||
+      [profile.summary?.trim(), profile.positioning?.trim() || profile.mission?.trim()]
+        .filter(Boolean)
+        .join("\n\n")
+  );
   const [handles, setHandles] = useState<Record<SocialNetwork, string>>({
     instagram: profile.handles.instagram ?? "",
     facebook: profile.handles.facebook ?? "",
@@ -547,8 +557,11 @@ function ProfileResult({
               {profile.suggestedObjectives.length}
             </span>
           </div>
+          {/* Toutes les suggestions sont listées : le compteur ci-dessus les
+              annonçait déjà toutes, mais la liste s'arrêtait à trois — le
+              chiffre ne correspondait pas, et une suggestion restait cachée. */}
           <ul className="space-y-1.5">
-            {profile.suggestedObjectives.slice(0, 3).map((obj) => (
+            {profile.suggestedObjectives.map((obj) => (
               <li key={obj.id} className="flex items-center gap-2">
                 <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary-400" aria-hidden="true" />
                 <span className="text-sm font-medium text-ink">{obj.label}</span>

@@ -634,7 +634,10 @@ export function Sidebar({
                   aria-controls={panelId}
                   className="group/sec flex w-full items-center justify-between gap-2 rounded-md px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted/60 transition-colors hover:text-muted"
                 >
-                  <span className="flex items-center gap-1.5 select-none">
+                  {/* `text-left` + `min-w-0` : « Connexions & réglages » est le
+                      seul libellé assez long pour passer sur deux lignes, et il
+                      s'affichait alors centré, désaligné des autres sections. */}
+                  <span className="flex min-w-0 flex-1 items-center gap-1.5 text-left select-none">
                     {tr(group.label)}
                     {/* Pastille discrète si la page active est dans une section repliée. */}
                     {!open && hasActive && <span aria-hidden="true" className="h-1 w-1 rounded-full bg-page" />}

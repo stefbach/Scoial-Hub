@@ -204,13 +204,23 @@ export async function clearMemory(companyId: string): Promise<{ ok: boolean }> {
 }
 
 /** Régénère le brief stratégique à partir de toute la mémoire (analyse continue). */
-export async function synthesizeBrief(companyId: string, companyName = "la marque"): Promise<StrategyBrief> {
+export async function synthesizeBrief(
+  companyId: string,
+  companyName = "la marque",
+  lang: "fr" | "en" = "fr"
+): Promise<StrategyBrief> {
+  const en = lang === "en";
+  const LANG_NAME = en ? "ANGLAIS (English)" : "FRANÇAIS";
   const mem = await listMemory(companyId, { limit: 80 });
   const now = new Date().toISOString();
 
   const empty: StrategyBrief = {
     resume: mem.length === 0
-      ? "Aucune donnée de veille pour le moment. Lancez une analyse de veille, de pubs concurrentes ou de votre Page pour alimenter la mémoire stratégique."
+      ? en
+        ? "No market-watch data yet. Run a market watch, a competitor-ads analysis or a Page analysis to feed the strategic memory."
+        : "Aucune donnée de veille pour le moment. Lancez une analyse de veille, de pubs concurrentes ou de votre Page pour alimenter la mémoire stratégique."
+      : en
+      ? `${mem.length} strategic signals collected. Synthesis pending.`
       : `${mem.length} signaux stratégiques collectés. Synthèse en attente de l'IA.`,
     opportunites: [], anglesPrioritaires: [], formatsGagnants: [], concurrentsCles: [], recommandations: [],
     aiGenerated: false, generatedAt: now,
@@ -231,7 +241,9 @@ export async function synthesizeBrief(companyId: string, companyName = "la marqu
 MÉMOIRE (veille concurrentielle, pubs, analyse de Page) :
 ${JSON.stringify(compact, null, 2)}
 
-Retourne STRICTEMENT ce JSON (français, concret) :
+RÈGLE DE LANGUE ABSOLUE : rédige TOUS les textes de la réponse en ${LANG_NAME}. Ils sont affichés tels quels dans une interface en ${LANG_NAME}.
+
+Retourne STRICTEMENT ce JSON (concret) :
 {
   "resume": "3-4 phrases : où en est le marché, où se situe l'opportunité pour cette marque",
   "opportunites": ["opportunités concrètes à saisir"],

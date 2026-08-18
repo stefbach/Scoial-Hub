@@ -108,6 +108,9 @@ export default function Step3Competition() {
   // Mots-clés — état local seedé depuis le profil IA
   const [keywords, setKeywords] = useState<string[]>(profile.keywords ?? []);
   const [kwInput, setKwInput] = useState("");
+  // Mot-clé en cours de modification sur place, et son brouillon de saisie.
+  const [editingKw, setEditingKw] = useState<string | null>(null);
+  const [kwDraft, setKwDraft] = useState("");
 
   // Analyse concurrentielle
   const [running, setRunning] = useState(false);
@@ -125,6 +128,23 @@ export default function Step3Competition() {
 
   function removeKeyword(kw: string) {
     setKeywords((prev) => prev.filter((k) => k !== kw));
+  }
+
+  /**
+   * Applique la modification d'un mot-clé existant.
+   * Un champ vidé supprime le mot-clé ; un doublon est fusionné plutôt que
+   * dupliqué ; l'ORDRE de la liste est conservé (un mot-clé corrigé ne saute
+   * pas en fin de liste).
+   */
+  function commitKeywordEdit(original: string) {
+    const next = kwDraft.trim().replace(/^#/, "");
+    setEditingKw(null);
+    if (next === original) return;
+    setKeywords((prev) => {
+      if (!next) return prev.filter((k) => k !== original);
+      if (prev.includes(next)) return prev.filter((k) => k !== original);
+      return prev.map((k) => (k === original ? next : k));
+    });
   }
 
   // ── Lancement de l'analyse concurrentielle ────────────────────────────────
@@ -186,22 +206,48 @@ export default function Step3Competition() {
           role="group"
           aria-label={t("Mots-clés actifs", "Active keywords")}
         >
-          {keywords.map((kw) => (
-            <span
-              key={kw}
-              className="inline-flex items-center gap-1 rounded-full border border-primary-200 bg-primary-50 px-2.5 py-0.5 text-xs font-medium text-primary-700"
-            >
-              #{kw}
-              <button
-                type="button"
-                onClick={() => removeKeyword(kw)}
-                className="ml-0.5 leading-none text-primary-400 hover:text-primary-700 transition-colors"
-                aria-label={t(`Retirer le mot-clé ${kw}`, `Remove keyword ${kw}`)}
+          {keywords.map((kw) =>
+            editingKw === kw ? (
+              // Édition sur place : Entrée valide, Échap annule, la perte de
+              // focus valide aussi (on ne perd pas une saisie par inadvertance).
+              <input
+                key={kw}
+                autoFocus
+                value={kwDraft}
+                onChange={(e) => setKwDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") { e.preventDefault(); commitKeywordEdit(kw); }
+                  if (e.key === "Escape") { e.preventDefault(); setEditingKw(null); }
+                }}
+                onBlur={() => commitKeywordEdit(kw)}
+                aria-label={t(`Modifier le mot-clé ${kw}`, `Edit keyword ${kw}`)}
+                className="rounded-full border border-primary-400 bg-card px-2.5 py-0.5 text-xs font-medium text-ink outline-none"
+                size={Math.max(kwDraft.length + 2, 8)}
+              />
+            ) : (
+              <span
+                key={kw}
+                className="inline-flex items-center gap-1 rounded-full border border-primary-200 bg-primary-50 px-2.5 py-0.5 text-xs font-medium text-primary-700"
               >
-                ×
-              </button>
-            </span>
-          ))}
+                <button
+                  type="button"
+                  onClick={() => { setEditingKw(kw); setKwDraft(kw); }}
+                  title={t("Cliquer pour modifier", "Click to edit")}
+                  className="cursor-text leading-none hover:underline"
+                >
+                  #{kw}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => removeKeyword(kw)}
+                  className="ml-0.5 leading-none text-primary-400 hover:text-primary-700 transition-colors"
+                  aria-label={t(`Retirer le mot-clé ${kw}`, `Remove keyword ${kw}`)}
+                >
+                  ×
+                </button>
+              </span>
+            )
+          )}
           <input
             value={kwInput}
             onChange={(e) => setKwInput(e.target.value)}

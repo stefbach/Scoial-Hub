@@ -126,6 +126,18 @@ export function BrandConsultant({
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, sending]);
 
+  // Le fil est restauré depuis le stockage local : le message d'accueil restait
+  // figé dans la langue de sa première écriture, même après changement de langue
+  // ET rechargement de la page. Tant que l'entretien n'a pas commencé (aucune
+  // réponse du client), on le ré-émet dans la langue courante.
+  useEffect(() => {
+    setMessages((prev) => {
+      if (prev.length !== 1 || prev[0].role !== "assistant") return prev;
+      const next = greeting();
+      return prev[0].content === next ? prev : [{ role: "assistant", content: next }];
+    });
+  }, [greeting]);
+
   // ── Restauration de la conversation (persistée localement) ─────────────────
   // Persistée par companyId : un rechargement restaure le bon fil (#12/#17), et
   // changer d'entreprise réinitialise puis recharge le fil de l'entreprise

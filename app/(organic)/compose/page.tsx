@@ -21,7 +21,7 @@ import { Toast } from "@/components/ui/Toast";
 import { findDraft, findPost } from "@/lib/draft-store";
 import { findTemplate } from "@/lib/template-store";
 import { findHistoryItem } from "@/lib/history-store";
-import type { TikTokPublishOptions } from "@/lib/types";
+import type { ScheduledPost, TikTokPublishOptions } from "@/lib/types";
 
 /**
  * Réponse de GET /api/connectors/tiktok/creator-info — exigée par les
@@ -156,6 +156,53 @@ function ComposeContent() {
     if (postType === "reel" && upload?.kind !== "video") setPostType("feed");
     if (postType !== "feed" && !upload) setPostType("feed");
   }, [upload, postType]);
+  // Édition d'une publication programmée RÉELLE (« Edit in compose »).
+  // `findPost` ne lit que le magasin local de démonstration : pour une
+  // publication venue de la base, il renvoyait toujours undefined et le
+  // formulaire s'ouvrait entièrement vide. On va donc la chercher côté API.
+  const [prefilling, setPrefilling] = useState(Boolean(postId) && !post);
+  useEffect(() => {
+    if (!postId || post) return;
+    let alive = true;
+    setPrefilling(true);
+    fetch(`/api/scheduled-posts?companyId=${encodeURIComponent(company.id)}`, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!alive || !d) return;
+        const rows: ScheduledPost[] = Array.isArray(d?.posts) ? d.posts : Array.isArray(d) ? d : [];
+        const found = rows.find((p) => p.id === postId);
+        if (!found) return;
+        setBody(found.body ?? found.title ?? "");
+        const acc = data.accounts.find((a) => a.platform === found.platform);
+        if (acc) setSelected([acc.id]);
+        if (found.date) {
+          setDate(new Date(`${found.date}T00:00:00`));
+          setWhen("schedule");
+        }
+        if (found.time) setTime(found.time);
+        if (found.media?.url) {
+          setUpload({
+            url: found.media.url,
+            name: found.media.kind === "video" ? "Vidéo" : "Image",
+            size: 0,
+            kind: found.media.kind ?? "image",
+          });
+          if (found.media.postType) setPostType(found.media.postType);
+        }
+      })
+      .catch(() => {
+        /* dégradation : formulaire vierge plutôt qu'un écran bloqué */
+      })
+      .finally(() => {
+        if (alive) setPrefilling(false);
+      });
+    return () => {
+      alive = false;
+    };
+    // `data.accounts` est stable pour une société donnée.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [postId, post, company.id]);
+
   const [editing, setEditing] = useState(false);
   const [language, setLanguage] = useState("Français");
   const [imageModel, setImageModel] = useState(DEFAULT_IMAGE_MODEL_ID);
@@ -447,6 +494,13 @@ function ComposeContent() {
 
   return (
     <div className="animate-fade-in">
+      {/* Récupération de la publication en cours d'édition : évite de croire à
+          un formulaire vide pendant le chargement. */}
+      {prefilling && (
+        <p className="mb-4 rounded-lg bg-canvas px-3 py-2 text-xs text-muted">
+          {t("Chargement de la publication programmée…", "Loading the scheduled post…")}
+        </p>
+      )}
       {/* Page header */}
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-4">
         <div className="min-w-0 flex-1">

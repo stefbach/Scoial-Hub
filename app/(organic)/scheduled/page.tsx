@@ -13,9 +13,17 @@ import { groupDateLabel } from "@/lib/format";
 import { deletePost } from "@/lib/draft-store";
 import type { ScheduledPost } from "@/lib/types";
 
-type TabId = "all" | "scheduled" | "drafts";
+type TabId = "all" | "scheduled" | "failed" | "drafts";
 
 const isDraft = (p: ScheduledPost) => p.status === "draft";
+
+// Publication qui NE partira plus d'elle-même : le planificateur a abandonné
+// après la fenêtre de réessai. Elle n'a pas sa place parmi les « Planifiés »,
+// où elle laissait croire qu'une diffusion était encore prévue.
+const isFailed = (p: ScheduledPost) => p.status === "failed";
+
+// Publication réellement en attente de diffusion automatique.
+const isPending = (p: ScheduledPost) => !isDraft(p) && !isFailed(p);
 
 // Un post « scheduled » (statut par défaut) dont l'échéance date+heure est passée
 // n'est plus « planifié » mais EN RETARD : le cron le publiera au prochain passage,
@@ -90,7 +98,8 @@ function ScheduledContent() {
   }, [apiPosts, data.scheduled, removedIds, overrides]);
 
   const param = params.get("tab");
-  const tab: TabId = param === "scheduled" || param === "drafts" ? param : "all";
+  const tab: TabId =
+    param === "scheduled" || param === "drafts" || param === "failed" ? param : "all";
 
   const setTab = (id: TabId) => {
     router.push(id === "all" ? "/scheduled" : `/scheduled?tab=${id}`);
@@ -111,21 +120,23 @@ function ScheduledContent() {
     await fetchPosts();
   }, [company.id, fetchPosts, t, markRemoved]);
 
-  const isScheduledStatus = (p: ScheduledPost) => !isDraft(p);
   const counts = {
     all: visible.length,
-    scheduled: visible.filter(isScheduledStatus).length,
+    scheduled: visible.filter(isPending).length,
+    failed: visible.filter(isFailed).length,
     drafts: visible.filter(isDraft).length,
   };
 
   const TABS: { id: TabId; label: string }[] = [
     { id: "all", label: t("Tout", "All") },
     { id: "scheduled", label: t("Planifiés", "Scheduled") },
+    { id: "failed", label: t("Échecs", "Failed") },
     { id: "drafts", label: t("Brouillons", "Drafts") },
   ];
 
   const posts = useMemo(() => {
-    if (tab === "scheduled") return visible.filter(isScheduledStatus);
+    if (tab === "scheduled") return visible.filter(isPending);
+    if (tab === "failed") return visible.filter(isFailed);
     if (tab === "drafts") return visible.filter(isDraft);
     return visible;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -216,6 +227,8 @@ function ScheduledContent() {
                 <p className="mt-0.5 text-2xs text-muted">
                   {tab === "drafts"
                     ? t("Aucun brouillon enregistré. Commencez à composer pour sauvegarder un brouillon.", "No drafts saved. Start composing to save a draft.")
+                    : tab === "failed"
+                    ? t("Aucune publication en échec — tout est parti comme prévu.", "No failed posts — everything went out as planned.")
                     : t("Aucune publication ici. Créez et planifiez votre première publication.", "No posts here. Create and schedule your first post.")}
                 </p>
               </div>
@@ -284,6 +297,22 @@ function PostRow({
       {isDraft(p) ? (
         <span className="rounded-full bg-warning-100 px-2 py-0.5 text-2xs font-semibold text-warning-700">
           {t("Brouillon", "Draft")}
+        </span>
+      ) : isFailed(p) ? (
+        // Le planificateur a renoncé : afficher « Auto » ici laissait croire
+        // que la publication partirait encore, alors qu'elle ne partira plus.
+        <span
+          className="inline-flex items-center gap-1 rounded-full bg-danger-50 px-2 py-0.5 text-2xs font-semibold text-danger-700"
+          title={t(
+            "Échec — cette publication n'est pas partie et ne sera plus retentée. Ouvrez-la pour la reprogrammer ou la publier maintenant.",
+            "Failed — this post never went out and will not be retried. Open it to reschedule or publish it now."
+          )}
+        >
+          <svg viewBox="0 0 24 24" fill="none" className="h-2.5 w-2.5">
+            <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2.4" />
+            <path d="M9 9l6 6M15 9l-6 6" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
+          </svg>
+          {t("Échec", "Failed")}
         </span>
       ) : isOverdue(p) ? (
         // Échéance passée alors que le post est toujours « scheduled » : le badge

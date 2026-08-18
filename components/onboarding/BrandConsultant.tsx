@@ -490,7 +490,23 @@ export function BrandConsultant({
               {t("Envoyer", "Send")}
             </button>
           </div>
-          {error && <p className="mt-2 text-2xs text-danger-600">{error}</p>}
+          {error && (
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <p className="text-2xs text-danger-600">{error}</p>
+              {/* Votre message est déjà dans l'entretien : on relance le même
+                  tour, sans le retaper. */}
+              {messages.length > 0 && messages[messages.length - 1].role === "user" && (
+                <button
+                  type="button"
+                  onClick={() => turn(messages)}
+                  disabled={sending}
+                  className="btn-secondary text-2xs disabled:opacity-50"
+                >
+                  {sending ? t("Nouvel essai…", "Retrying…") : t("↻ Réessayer", "↻ Retry")}
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
 

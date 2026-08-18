@@ -92,6 +92,8 @@ export interface ScheduledPost {
     url?: string;
     /** Emplacement Meta : fil (défaut), Story éphémère 24 h ou Reel. */
     postType?: "feed" | "story" | "reel";
+    /** Conteneur Instagram créé mais pas encore prêt — repris au prochain essai. */
+    igContainerId?: string;
     tiktok?: TikTokPublishOptions;
   }; // média attaché (url requise pour publier sur Instagram) ; tiktok = réglages de publication TikTok
   publishedAt?: string; // ISO timestamp set when published from the modal

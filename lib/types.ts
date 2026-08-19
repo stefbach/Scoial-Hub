@@ -166,7 +166,8 @@ export interface HistoryItem {
     linkClicks: number;
   };
   externalUrl?: string; // public URL on the platform when known
-  media?: { kind: "image" | "video" };
+  /** Média publié — l'URL permet de le REVOIR depuis l'historique. */
+  media?: { kind: "image" | "video"; url?: string };
   error?: { title: string; detail: string };
 }
 

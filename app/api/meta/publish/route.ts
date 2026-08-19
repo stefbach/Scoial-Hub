@@ -24,7 +24,14 @@ import {
 } from "@/lib/connectors/meta-publish";
 
 /** Trace une publication réussie dans l'Historique (vérifiable côté /history). */
-async function logPublished(companyId: string, platform: string, body: string, url?: string) {
+async function logPublished(
+  companyId: string,
+  platform: string,
+  body: string,
+  url?: string,
+  // Média publié : sans lui, l'historique n'affichait aucune image (R24 #12).
+  media?: { kind: MetaMediaKind; url: string }
+) {
   try {
     const sb = createAdminClient();
     if (!sb) return;
@@ -37,6 +44,7 @@ async function logPublished(companyId: string, platform: string, body: string, u
       published_at: new Date().toISOString(),
       source: "manual",
       status: "published",
+      ...(media ? { media } : {}),
     });
   } catch {
     /* non bloquant */
@@ -104,12 +112,15 @@ export async function POST(req: NextRequest) {
     } = {};
 
     const input = { text, mediaUrl, mediaKind, postType };
+    // Média réellement envoyé (après conversion éventuelle) — mémorisé tel quel
+    // dans l'historique pour pouvoir revoir la publication.
+    const loggedMedia = mediaUrl && mediaKind ? { kind: mediaKind, url: mediaUrl } : undefined;
 
     if (wantFb && ctx.pageId) {
       try {
         const r = await publishToFacebookPage(ctx.pageId, ctx.pageToken, input);
         out.facebook = { ok: r.ok, url: r.url, error: r.error };
-        if (r.ok) await logPublished(companyId, "facebook", text ?? "", r.url);
+        if (r.ok) await logPublished(companyId, "facebook", text ?? "", r.url, loggedMedia);
       } catch (e) {
         out.facebook = { ok: false, error: e instanceof Error ? e.message : "Échec FB" };
       }
@@ -119,7 +130,7 @@ export async function POST(req: NextRequest) {
       try {
         const r = await publishToInstagram(ctx.igId, ctx.pageToken, input);
         out.instagram = { ok: r.ok, url: r.url, error: r.error };
-        if (r.ok) await logPublished(companyId, "instagram", text ?? "", r.url);
+        if (r.ok) await logPublished(companyId, "instagram", text ?? "", r.url, loggedMedia);
       } catch (e) {
         out.instagram = { ok: false, error: e instanceof Error ? e.message : "Échec IG" };
       }

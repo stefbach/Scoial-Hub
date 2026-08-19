@@ -107,6 +107,20 @@ html[data-theme="light"] [class~="hover:bg-primary-50/30"]:hover {
   background-color: rgb(var(--tile-primary-50));
 }
 
+/* ── `bg-ink` en thème SOMBRE : texte lisible (recette R24 #11) ─────────
+   `ink` est la couleur du TEXTE : claire sur le thème sombre (#ece7f5),
+   foncée sur le thème clair (#1c152e). Les pastilles « sélectionné » et les
+   infobulles s'écrivent `bg-ink text-white` : correct en clair, illisible en
+   sombre (blanc sur presque-blanc — d'où « trop vif, on ne lit rien » dans
+   les séries de posts). Une règle unique remet le texte à la couleur du fond
+   plutôt que de corriger 37 appels un par un. Spécificité (0,2,1) supérieure
+   à `.text-white` : le remap l'emporte, et les enfants sans couleur propre
+   héritent. Le sélecteur `[class~="…"]` compare le jeton EXACT : les voiles
+   de modale (`bg-ink/50`) ne sont pas touchés. */
+html:not([data-theme="light"]) [class~="bg-ink"] {
+  color: rgb(var(--color-canvas));
+}
+
 html[data-theme="light"] .bg-ai-textbg,
 html[data-theme="light"] .bg-ai-visualbg { background-color: rgb(var(--tile-ai-bg)); }
 html[data-theme="light"] .text-ai-text,

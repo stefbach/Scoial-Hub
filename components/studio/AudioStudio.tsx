@@ -18,7 +18,11 @@ export function AudioStudio({ onGenerated }: { onGenerated?: (url: string, kind:
   const [text, setText] = useState("");
   const [seconds, setSeconds] = useState(15);
   const [busy, setBusy] = useState(false);
-  const [url, setUrl] = useState<string | null>(null);
+  // Une piste CONSERVÉE par type : musique et voix off coexistent. Auparavant
+  // un seul `url` était gardé et il était effacé au changement d'onglet — la
+  // musique générée disparaissait dès qu'on passait à la voix off, alors que
+  // les deux sont faites pour être écoutées ensemble (recette R24 #9).
+  const [tracks, setTracks] = useState<{ music?: string; voice?: string }>({});
   const [note, setNote] = useState<string | null>(null);
 
   const models = kind === "music" ? MUSIC_MODELS : VOICE_MODELS;
@@ -28,7 +32,7 @@ export function AudioStudio({ onGenerated }: { onGenerated?: (url: string, kind:
     const first = (k === "music" ? MUSIC_MODELS : VOICE_MODELS)[0].id;
     setModel(first);
     setVoice(VOICE_PRESETS[first]?.[0]?.id ?? "");
-    setUrl(null);
+    setNote(null);
   }
   function switchModel(id: string) {
     setModel(id);
@@ -37,7 +41,7 @@ export function AudioStudio({ onGenerated }: { onGenerated?: (url: string, kind:
 
   async function generate() {
     if (!text.trim() || busy) return;
-    setBusy(true); setNote(null); setUrl(null);
+    setBusy(true); setNote(null);
     try {
       const r = await fetch("/api/ai/generate-audio", {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -46,7 +50,7 @@ export function AudioStudio({ onGenerated }: { onGenerated?: (url: string, kind:
       const d = await r.json();
       if (d.simulated) { setNote(t("Génération audio non configurée (REPLICATE_API_TOKEN).", "Audio generation not configured (REPLICATE_API_TOKEN).")); return; }
       if (!r.ok || !d.url) { setNote((d.error as string) || t("Aucun audio renvoyé.", "No audio returned.")); return; }
-      setUrl(d.url);
+      setTracks((prev) => ({ ...prev, [kind]: d.url as string }));
       onGenerated?.(d.url, kind);
     } catch {
       setNote(t("Erreur réseau.", "Network error."));
@@ -102,11 +106,27 @@ export function AudioStudio({ onGenerated }: { onGenerated?: (url: string, kind:
       </button>
 
       {note && <p className="rounded-lg bg-canvas px-3 py-2 text-2xs text-muted">{note}</p>}
-      {url && (
-        <div className="space-y-1.5">
-          {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-          <audio src={url} controls className="w-full" />
-          <a href={url} download className="text-2xs text-page hover:underline">⬇ {t("Télécharger l'audio", "Download audio")}</a>
+
+      {/* Les deux pistes restent affichées quel que soit l'onglet actif : on
+          peut lancer la musique et la voix off ensemble pour les entendre
+          telles qu'elles seront mixées. */}
+      {(tracks.music || tracks.voice) && (
+        <div className="space-y-2.5 rounded-lg border border-hair bg-canvas/60 p-3">
+          {([
+            { key: "music" as const, label: t("🎵 Musique générée", "🎵 Generated music") },
+            { key: "voice" as const, label: t("🎙️ Voix off générée", "🎙️ Generated voiceover") },
+          ]).map(({ key, label }) =>
+            tracks[key] ? (
+              <div key={key} className="space-y-1.5">
+                <p className="text-2xs font-semibold text-ink">{label}</p>
+                {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+                <audio src={tracks[key]} controls className="w-full" />
+                <a href={tracks[key]} download className="text-2xs text-page hover:underline">
+                  ⬇ {t("Télécharger", "Download")}
+                </a>
+              </div>
+            ) : null
+          )}
         </div>
       )}
     </div>

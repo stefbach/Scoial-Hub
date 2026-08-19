@@ -83,6 +83,107 @@ async function main() {
     );
   }
 
+  // ── #7 · Kit de marque IA rédigé dans la langue de l'interface ────────────
+  {
+    const { normalizeLang, langName, langRule } = await import("../lib/ai/lang");
+    check("langue · « en » reconnu", normalizeLang("en") === "en" && normalizeLang("EN-GB") === "en");
+    check("langue · défaut français", normalizeLang(undefined) === "fr" && normalizeLang("xx") === "fr");
+    check("langue · règle explicite pour l'anglais", /ANGLAIS/.test(langRule("en")) && langName("en") !== langName("fr"));
+
+    for (const route of ["app/api/ai/generate-brand-chart/route.ts", "app/api/ai/analyze-brand-visual/route.ts"]) {
+      const src = read(route);
+      check(`${route} · langue reçue du client`, /normalizeLang\(rawLang\)/.test(src));
+      check(`${route} · règle de langue injectée dans le prompt`, /langRule\(lang\)/.test(src));
+      check(`${route} · plus de sortie forcée en français`, !/en francais|phrases FR|mots de ton FR/i.test(src));
+    }
+    const panel = read("components/studio/BrandKitPanel.tsx");
+    check("kit de marque · la langue de l'interface est transmise", (panel.match(/lang \}\),?|, lang \}/g) ?? []).length >= 1);
+  }
+
+  // ── #8 · « Utiliser » écrit dans la publication ───────────────────────────
+  {
+    const panel = read("components/ui/AiPanel.tsx");
+    check("composer · le bouton « Utiliser » dispose d'un destinataire", /onUse\?: \(text: string\) => void/.test(panel));
+    check("composer · le texte est bien transmis au clic", /onUse\(result\)/.test(panel));
+    const compose = read("app/(organic)/compose/page.tsx");
+    check(
+      "composer · le texte généré rejoint le corps du post sans écraser la saisie",
+      /onUse=\{\(text\) => setBody\(\(prev\) =>/.test(compose)
+    );
+  }
+
+  // ── #9 · Musique et voix off coexistent ───────────────────────────────────
+  {
+    const src = read("components/studio/AudioStudio.tsx");
+    check("studio audio · une piste conservée par type", /tracks, setTracks\] = useState<\{ music\?: string; voice\?: string \}>/.test(src));
+    check("studio audio · changer d'onglet n'efface plus la piste", !/setUrl\(null\)/.test(src));
+    check("studio audio · les deux lecteurs restent affichés", /tracks\.music \|\| tracks\.voice/.test(src));
+  }
+
+  // ── #10 · Visuels calibrés sur l'identité enregistrée ─────────────────────
+  {
+    const { brandPromptHints } = await import("../lib/brand-kit/prompt");
+    const { makeEmptyBrandKit } = await import("../lib/brand-kit/types");
+
+    check("marque · kit vide → aucune consigne inventée", brandPromptHints(makeEmptyBrandKit("c")) === "");
+    check("marque · kit absent → chaîne vide", brandPromptHints(null) === "");
+
+    // Cas du bug : charte générée depuis le logo, mais AUCUNE analyse vision.
+    const kit = {
+      ...makeEmptyBrandKit("c"),
+      style: "minimaliste",
+      chart: {
+        palette: [{ hex: "#0d3b66", name: "Bleu nuit", role: "Principale" }],
+        headingFont: "Poppins", bodyFont: "Inter", typographyNote: "", toneWords: ["sobre"],
+        voice: "", logoUsage: [], dos: [], donts: [], imagery: "photos lumineuses",
+        tagline: "", aiGenerated: true, generatedAt: null,
+      },
+    };
+    const hints = brandPromptHints(kit);
+    check("marque · palette de la charte injectée", /#0d3b66 \(primary\)/.test(hints), hints);
+    check("marque · style et direction photo injectés", /minimaliste/.test(hints) && /photos lumineuses/.test(hints), hints);
+
+    const affiche = read("app/(general)/studio-affiche/page.tsx");
+    check("affiche · la génération utilise l'identité complète", /brandStyle\]\.filter\(Boolean\)/.test(affiche));
+    check("affiche · l'utilisateur voit si son identité est prise en compte", /Calibré sur l'identité de/.test(affiche));
+  }
+
+  // ── #11 · Pastilles sélectionnées lisibles en thème sombre ────────────────
+  {
+    const css = read("app/globals.css");
+    check(
+      "thème sombre · le texte posé sur `bg-ink` reprend la couleur du fond",
+      /html:not\(\[data-theme="light"\]\) \[class~="bg-ink"\] \{\s*\n?\s*color: rgb\(var\(--color-canvas\)\);/.test(css)
+    );
+  }
+
+  // ── #12 · Le média publié est conservé ET affiché ─────────────────────────
+  {
+    const types = read("lib/types.ts");
+    check("historique · l'URL du média fait partie du modèle", /media\?: \{ kind: "image" \| "video"; url\?: string \}/.test(types));
+
+    const mapper = read("lib/repositories/company-data.ts");
+    check(
+      "historique · l'URL n'est plus perdue à la lecture en base",
+      (mapper.match(/kind: media\.kind, url: media\.url \|\| undefined/g) ?? []).length === 2
+    );
+
+    // Les trois chemins d'écriture de l'historique doivent enregistrer l'URL.
+    const meta = read("app/api/meta/publish/route.ts");
+    check(
+      "meta · média publié transmis à l'historique",
+      /const loggedMedia = mediaUrl && mediaKind \? \{ kind: mediaKind, url: mediaUrl \}/.test(meta) &&
+        (meta.match(/logPublished\(companyId, "\w+", text \?\? "", r\.url, loggedMedia\)/g) ?? []).length === 2
+    );
+    check("linkedin · média publié transmis à l'historique", /media: \{ kind: "image", url: imageUrl \}/.test(read("app/api/linkedin/publish/route.ts")));
+    check("programmées · média publié transmis à l'historique", /url: post\.media\.url/.test(read("lib/publishing/publish-scheduled.ts")));
+
+    const modal = read("components/organic/HistoryDetailModal.tsx");
+    check("historique · le visuel est affiché, plus seulement nommé", /post\.media\.url \?/.test(modal) && /<img/.test(modal));
+    const list = read("app/(organic)/history/page.tsx");
+    check("historique · vignette dans la liste", /item\.media\?\.url &&/.test(list));
+  }
+
   console.log(`\n${failures === 0 ? "✓ TOUT VERT" : `✗ ${failures} échec(s)`}\n`);
   process.exit(failures === 0 ? 0 : 1);
 }

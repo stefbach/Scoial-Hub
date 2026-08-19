@@ -20,6 +20,7 @@ import {
 import { captionsToSrt } from "@/lib/video/srt";
 import PromptStudio from "@/components/studio/PromptStudio";
 import BrandKitPanel from "@/components/studio/BrandKitPanel";
+import { brandPromptHints } from "@/lib/brand-kit/prompt";
 import { StudioHero, StudioStep } from "@/components/studio/StudioUI";
 import { StudioCopilot, type CopilotSuggestion } from "@/components/studio/StudioCopilot";
 import { AudioStudio } from "@/components/studio/AudioStudio";
@@ -239,6 +240,10 @@ export default function StudioPage() {
         onKit={(k) => {
           setBrandLogoUrl(/^https?:\/\//.test(k.logoUrl) ? k.logoUrl : "");
           setBrandColors({ text: k.recommendedTextColor, accent: k.palette[0] });
+          // Même règle qu'au Studio Affiches : la consigne de style vient de
+          // TOUTE l'identité enregistrée, pas seulement de l'analyse vision.
+          const derived = brandPromptHints(k);
+          if (derived) setBrandHints(derived);
         }}
       />
 

@@ -13,6 +13,7 @@ import { ComposeAgent, type ComposeNet } from "@/components/compose/ComposeAgent
 import { MediaEditor } from "@/components/compose/MediaEditor";
 import { PostPreview, type PreviewPlatform } from "@/components/compose/PostPreview";
 import BrandKitPanel from "@/components/studio/BrandKitPanel";
+import { brandPromptHints } from "@/lib/brand-kit/prompt";
 import { AgentLauncher } from "@/components/agents/AgentLauncher";
 import { IMAGE_MODELS, VIDEO_MODELS, DEFAULT_IMAGE_MODEL_ID, DEFAULT_VIDEO_MODEL_ID } from "@/lib/ai/model-catalog";
 import { MediaUpload, type UploadedMedia } from "@/components/ui/MediaUpload";
@@ -714,7 +715,14 @@ function ComposeContent() {
           </label>
 
           {/* Brand kit persistant — logo / charte / palette réutilisés partout */}
-          <BrandKitPanel companyId={company.id} brandName={company.name} onPromptHints={setBrandHints} />
+          <BrandKitPanel
+            companyId={company.id}
+            brandName={company.name}
+            onPromptHints={setBrandHints}
+            // Les visuels du Composer suivent aussi l'identité enregistrée
+            // (palette de la charte, style, ton) — pas seulement l'analyse vision.
+            onKit={(k) => { const derived = brandPromptHints(k); if (derived) setBrandHints(derived); }}
+          />
 
           {/* Inspiration depuis une créa existante (vos pubs / concurrents / veille) */}
           <CreativeInspiration
@@ -731,7 +739,15 @@ function ComposeContent() {
           {/* Agent IA — rédige/planifie depuis la page Compose */}
           <AgentLauncher context={t("page Compose", "Compose page")} defaultObjective={t("Rédiger une série de posts pour les réseaux", "Draft a series of posts for the networks")} />
           {/* AI panels — réseau dérivé du 1er compte sélectionné (respecte le réseau). */}
-          <AiTextPanel brandVoiceLabel={company.code} platform={activePlatform} language={language} />
+          <AiTextPanel
+            brandVoiceLabel={company.code}
+            platform={activePlatform}
+            language={language}
+            // « Utiliser » écrit dans le texte commun de la publication. Un
+            // texte déjà saisi n'est jamais écrasé : le texte généré s'ajoute
+            // en dessous (recette R24 #8).
+            onUse={(text) => setBody((prev) => (prev.trim() ? `${prev.trimEnd()}\n\n${text}` : text))}
+          />
           <AiVisualsPanel
             used={data.library.aiBudgetUsed}
             cap={data.library.aiBudgetCap}

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useCompany } from "@/lib/company-context";
 import { AgentLauncher } from "@/components/agents/AgentLauncher";
-import { useScope } from "@/lib/scope";
+import { useScope, countryLabel, countryFlag } from "@/lib/scope";
 import { useLang, useT } from "@/lib/i18n";
 import { JourneyCampaignCard, zoneLabel } from "@/components/pilotage/JourneyCampaignCard";
 import { RecommendationModal, agentLabel, NET_LABEL } from "@/components/pilotage/RecommendationModal";
@@ -56,7 +56,6 @@ function fmt(n: number): string {
 export default function PilotagePage() {
   const { company } = useCompany();
   const { country, range } = useScope();
-  const market = country.label;
   const days = range ? Math.max(1, Math.round((+range.to - +range.from) / 86400000)) : 30;
 
   const t = useT();
@@ -113,9 +112,21 @@ export default function PilotagePage() {
   }, [company.id, company.name]);
 
   // Zone réelle de la société : pays du parcours si définis, sinon scope global.
-  const companyZone = journey?.state?.geo?.countries?.length
-    ? zoneLabel(journey.state.geo.countries, lang)
-    : market;
+  // Le sélecteur global est une simple préférence d'affichage (France par
+  // défaut) : il ne doit pas primer sur les pays choisis pour CETTE société.
+  const zoneCountries = journey?.state?.geo?.countries ?? [];
+  const fromOnboarding = zoneCountries.length > 0;
+  const companyZone = fromOnboarding
+    ? zoneLabel(zoneCountries, lang)
+    : countryLabel(country.id, lang);
+  // Drapeau cohérent avec la zone affichée : celui du pays quand il n'y en a
+  // qu'un, un globe pour une zone multi-pays. Afficher 🇫🇷 pour une société
+  // maltaise ou britannique (défaut du sélecteur global) induisait en erreur.
+  const zoneFlag = fromOnboarding
+    ? (zoneCountries.length === 1 ? countryFlag(zoneCountries[0]) : "🌍")
+    : country.flag;
+  // Tout ce qui parle du « marché » de la société parle de SA zone.
+  const market = companyZone;
   const objective = objectiveOverride ?? t(
     `Développer la notoriété et l'acquisition de ${company.name} sur ${companyZone}`,
     `Grow awareness and acquisition for ${company.name} in ${companyZone}`
@@ -360,7 +371,7 @@ export default function PilotagePage() {
               <span className="flex h-2 w-2 shrink-0 animate-pulse rounded-full bg-success-500" />
               <span className="section-label truncate text-ink">{t("Centre de pilotage", "Steering center")} · {company.name}</span>
             </div>
-            <span className="chip shrink-0">{country.flag} {market} · {days} {t("j", "d")}</span>
+            <span className="chip shrink-0">{zoneFlag} {market} · {days} {t("j", "d")}</span>
           </div>
         </div>
         <div className="grid gap-4 p-4 sm:p-5 md:grid-cols-[1fr_auto]">

@@ -64,6 +64,12 @@ export function countryLabel(code: string, lang: string): string {
   return regionNamesCache[lang]?.of(code.toUpperCase()) ?? code.toUpperCase();
 }
 
+/** Drapeau d'un code ISO-3166 alpha-2, quel que soit la casse. */
+export function countryFlag(code: string): string {
+  const c = code.trim();
+  return c.length === 2 ? flagFromCode(c) : "🌍";
+}
+
 export type DateRange = { from: Date; to: Date };
 
 interface ScopeValue {

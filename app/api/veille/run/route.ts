@@ -33,6 +33,7 @@ export async function POST(req: NextRequest) {
       keywords?: string[];
       theme?: string;
       competitorIds?: string[];
+      language?: "fr" | "en";
     };
 
     const {
@@ -41,6 +42,7 @@ export async function POST(req: NextRequest) {
       keywords = [],
       theme = "",
       competitorIds = [],
+      language,
     } = body;
 
     if (!companyId) {
@@ -102,6 +104,8 @@ export async function POST(req: NextRequest) {
     // 3. Collecter les contenus
     const scrapeResult = await collectAll({
       geo,
+      // Langue de recherche : distincte de la zone géographique.
+      language: language === "en" ? "en" : "fr",
       keywords,
       theme,
       competitors: queryCompetitors,

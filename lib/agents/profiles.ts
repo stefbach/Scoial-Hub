@@ -28,6 +28,8 @@ export interface ProProfile {
   id: string;
   /** Libellé affiché en français */
   label: string;
+  /** Libellé du secteur en anglais (interface EN). */
+  labelEn?: string;
   /** Description courte du secteur */
   description: string;
   /** Leviers d'acquisition typiques pour ce secteur */
@@ -40,6 +42,8 @@ export interface ProProfile {
   sectorKPIs: SectorKPIs;
   /** Audience typique (démographie, psychographie) */
   typicalAudience: string;
+  /** Audience type en anglais (interface EN). */
+  typicalAudienceEn?: string;
   /** Angles de contenu recommandés */
   contentAngles: string[];
   /** Ton de communication recommandé */
@@ -62,6 +66,7 @@ export const PRO_PROFILES: ProProfile[] = [
   {
     id: "generaliste",
     label: "Généraliste (tous secteurs)",
+    labelEn: "Generalist (all sectors)",
     description:
       "Profil neutre, adapté à toute marque ou activité. Aucune contrainte sectorielle imposée — la stratégie suit la voix et l'objectif de la marque.",
     acquisitionLevers: [
@@ -87,6 +92,7 @@ export const PRO_PROFILES: ProProfile[] = [
       roas: { min: 2, max: 6, unit: "x" },
     },
     typicalAudience: "Audience large, à préciser selon la marque et l'objectif.",
+    typicalAudienceEn: "Broad audience, to be refined by brand and objective.",
     contentAngles: [
       "Valeur et bénéfices concrets pour le client",
       "Storytelling de marque et coulisses",
@@ -100,6 +106,7 @@ export const PRO_PROFILES: ProProfile[] = [
   {
     id: "commerce_detail",
     label: "Commerce & retail",
+    labelEn: "Commerce & retail",
     description:
       "Boutiques, e-commerce et enseignes vendant des produits au grand public (hors secteurs réglementés santé).",
     acquisitionLevers: [
@@ -125,6 +132,7 @@ export const PRO_PROFILES: ProProfile[] = [
       roas: { min: 2.5, max: 8, unit: "x" },
     },
     typicalAudience: "Consommateurs intéressés par la catégorie de produit, 18–55 ans.",
+    typicalAudienceEn: "Consumers interested in the product category, aged 18–55.",
     contentAngles: [
       "Mise en scène produit et bénéfices",
       "Offres et urgence (stock limité)",
@@ -138,6 +146,7 @@ export const PRO_PROFILES: ProProfile[] = [
   {
     id: "restauration_hospitality",
     label: "Restauration & hospitality",
+    labelEn: "Food service & hospitality",
     description:
       "Restaurants, cafés, hôtels, lieux et expériences. Ancrage local et désir visuel.",
     acquisitionLevers: [
@@ -162,6 +171,7 @@ export const PRO_PROFILES: ProProfile[] = [
       conversionRate: { min: 2, max: 6, unit: "%" },
     },
     typicalAudience: "Habitants et visiteurs de la zone, gourmands et amateurs d'expériences.",
+    typicalAudienceEn: "Local residents and visitors, food lovers and experience seekers.",
     contentAngles: [
       "Plats/lieux en image (désir visuel)",
       "Coulisses, équipe et savoir-faire",
@@ -175,6 +185,7 @@ export const PRO_PROFILES: ProProfile[] = [
   {
     id: "services_b2b",
     label: "Services B2B & professionnels",
+    labelEn: "B2B & professional services",
     description:
       "Agences, cabinets de conseil, prestataires et services aux entreprises (hors santé réglementée).",
     acquisitionLevers: [
@@ -199,6 +210,7 @@ export const PRO_PROFILES: ProProfile[] = [
       conversionRate: { min: 2, max: 6, unit: "%" },
     },
     typicalAudience: "Décideurs et professionnels (dirigeants, managers), PME/ETI.",
+    typicalAudienceEn: "Decision-makers and professionals (executives, managers), SMEs and mid-caps.",
     contentAngles: [
       "Expertise et points de vue",
       "Études de cas et ROI client",
@@ -212,6 +224,7 @@ export const PRO_PROFILES: ProProfile[] = [
   {
     id: "immobilier",
     label: "Immobilier",
+    labelEn: "Real estate",
     description:
       "Agences immobilières, promoteurs et services liés au logement. Confiance et projection.",
     acquisitionLevers: [
@@ -236,6 +249,7 @@ export const PRO_PROFILES: ProProfile[] = [
       conversionRate: { min: 1.5, max: 5, unit: "%" },
     },
     typicalAudience: "Acheteurs, vendeurs et investisseurs, 28–60 ans, zone géographique ciblée.",
+    typicalAudienceEn: "Buyers, sellers and investors, aged 28–60, in the targeted area.",
     contentAngles: [
       "Biens en image et visites",
       "Conseils achat/vente/investissement",
@@ -250,6 +264,7 @@ export const PRO_PROFILES: ProProfile[] = [
     id: "sante_clinique",
     healthcare: true,
     label: "Clinique / Santé générale",
+    labelEn: "Clinic / General healthcare",
     description:
       "Établissements de soins, cliniques, centres médicaux pluridisciplinaires. Priorité à la confiance, à l'accessibilité et à la proximité patient.",
     acquisitionLevers: [
@@ -277,6 +292,8 @@ export const PRO_PROFILES: ProProfile[] = [
     },
     typicalAudience:
       "35–65 ans, toute CSP, préoccupations santé actives, géolocalisation urbaine/péri-urbaine France",
+    typicalAudienceEn:
+      "Aged 35–65, all income brackets, active health concerns, urban and peri-urban France",
     contentAngles: [
       "Prévention et dépistage",
       "Témoignages patients (avec consentement)",
@@ -303,6 +320,7 @@ export const PRO_PROFILES: ProProfile[] = [
     id: "teleconsultation",
     healthcare: true,
     label: "Téléconsultation médicale",
+    labelEn: "Medical teleconsultation",
     description:
       "Plateformes de médecine à distance, consultation vidéo, télésuivi. Accent sur la praticité, la rapidité et la déstigmatisation.",
     acquisitionLevers: [
@@ -332,6 +350,8 @@ export const PRO_PROFILES: ProProfile[] = [
     },
     typicalAudience:
       "18–45 ans, CSP+, urbains et ruraux sans médecin traitant, actifs pressés, parents de jeunes enfants",
+    typicalAudienceEn:
+      "Aged 18–45, higher income, urban and rural residents without a GP, time-pressed workers, parents of young children",
     contentAngles: [
       "Gain de temps / praticité",
       "Accès aux soins en zones sous-dotées",
@@ -358,6 +378,7 @@ export const PRO_PROFILES: ProProfile[] = [
     id: "medical_international",
     healthcare: true,
     label: "Médical international",
+    labelEn: "International medical",
     description:
       "Tourisme médical, centres de soin à l'international, cliniques recevant des patients étrangers. Multilinguisme et standards internationaux.",
     acquisitionLevers: [
@@ -386,6 +407,8 @@ export const PRO_PROFILES: ProProfile[] = [
     },
     typicalAudience:
       "25–60 ans, revenus moyens-élevés, diaspora africaine/moyen-orientale en Europe, expatriés, patients recherchant des soins abordables",
+    typicalAudienceEn:
+      "Aged 25–60, mid-to-high income, African and Middle-Eastern diaspora in Europe, expatriates, patients seeking affordable care",
     contentAngles: [
       "Expertise médicale et accréditations internationales",
       "Prise en charge complète (voyage + séjour + soin)",
@@ -410,6 +433,7 @@ export const PRO_PROFILES: ProProfile[] = [
   {
     id: "ecommerce_dtc",
     label: "E-commerce DTC (Direct-to-Consumer)",
+    labelEn: "DTC e-commerce (direct-to-consumer)",
     description:
       "Marques vendant directement au consommateur en ligne : cosmétiques, compléments alimentaires, dispositifs médicaux grand public.",
     acquisitionLevers: [
@@ -439,6 +463,8 @@ export const PRO_PROFILES: ProProfile[] = [
     },
     typicalAudience:
       "18–45 ans, femmes majoritairement, CSP+, sensibles au bien-être et à la beauté naturelle, acheteurs en ligne réguliers",
+    typicalAudienceEn:
+      "Aged 18–45, mostly women, higher income, drawn to wellness and natural beauty, regular online shoppers",
     contentAngles: [
       "Résultats visibles et mesurables (sans promesses médicales)",
       "Ingrédients et formulations transparentes",
@@ -464,6 +490,7 @@ export const PRO_PROFILES: ProProfile[] = [
   {
     id: "saas_b2b",
     label: "SaaS B2B",
+    labelEn: "B2B SaaS",
     description:
       "Logiciels en mode SaaS vendus aux entreprises : gestion médicale, CRM santé, outils de coordination de soins, télémédecine B2B.",
     acquisitionLevers: [
@@ -493,6 +520,8 @@ export const PRO_PROFILES: ProProfile[] = [
     },
     typicalAudience:
       "Décideurs 30–55 ans, DSI, DRH, DAF, directeurs médicaux, PME et ETI, secteur santé, médico-social",
+    typicalAudienceEn:
+      "Decision-makers aged 30–55: CIOs, HR and finance directors, medical directors, SMEs and mid-caps in healthcare and social care",
     contentAngles: [
       "ROI et gains d'efficacité chiffrés",
       "Cas clients et études de cas",
@@ -519,6 +548,7 @@ export const PRO_PROFILES: ProProfile[] = [
     id: "cabinet_liberal",
     healthcare: true,
     label: "Cabinet libéral médical",
+    labelEn: "Private medical practice",
     description:
       "Médecins, kinésithérapeutes, infirmiers, dentistes, psychologues en exercice libéral. Proximité locale et relation patient au cœur.",
     acquisitionLevers: [
@@ -547,6 +577,8 @@ export const PRO_PROFILES: ProProfile[] = [
     },
     typicalAudience:
       "Tous âges, géolocalisation stricte (2-8 km autour du cabinet), familles, personnes âgées, actifs",
+    typicalAudienceEn:
+      "All ages, tight geotargeting (2–8 km around the practice), families, older people, working adults",
     contentAngles: [
       "Présentation du praticien et de ses valeurs",
       "Conseils santé de saison",
@@ -571,6 +603,7 @@ export const PRO_PROFILES: ProProfile[] = [
   {
     id: "retail_local",
     label: "Retail local / Commerce de proximité",
+    labelEn: "Local retail / Neighbourhood shops",
     description:
       "Pharmacies, parapharmacies, magasins bio, boutiques de matériel médical. Ancrage territorial et conseil expert.",
     acquisitionLevers: [
@@ -600,6 +633,8 @@ export const PRO_PROFILES: ProProfile[] = [
     },
     typicalAudience:
       "Tous âges, géolocalisation très stricte (<8 km), familles avec enfants, seniors actifs",
+    typicalAudienceEn:
+      "All ages, very tight geotargeting (under 8 km), families with children, active seniors",
     contentAngles: [
       "Promotions et temps forts saisonniers",
       "Conseils pharmacien / expert conseil",
@@ -632,4 +667,14 @@ export function getProfile(id: string): ProProfile | undefined {
 /** Retourne le profil par défaut (généraliste, tous secteurs — non médical). */
 export function getDefaultProfile(): ProProfile {
   return PRO_PROFILES[0];
+}
+
+/** Libellé du profil dans la langue de l'interface. */
+export function profileLabel(profile: ProProfile, en: boolean): string {
+  return (en && profile.labelEn) || profile.label;
+}
+
+/** Audience type du profil dans la langue de l'interface. */
+export function profileAudience(profile: ProProfile, en: boolean): string {
+  return (en && profile.typicalAudienceEn) || profile.typicalAudience;
 }

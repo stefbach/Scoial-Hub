@@ -127,9 +127,18 @@ function computeProfiles(contents: CompetitorContent[]): CompetitorProfile[] {
    Mock déterministe
 ───────────────────────────────────────────────────────────────────────────── */
 
-function buildMockAnalysis(query: ScrapeQuery, contents: CompetitorContent[]): AnalysisResult {
+function buildMockAnalysis(
+  query: ScrapeQuery,
+  contents: CompetitorContent[],
+  language: "fr" | "en" = "fr"
+): AnalysisResult {
+  // Analyse de REPLI (aucune IA configurée, ou aucun contenu collecté). Ses
+  // textes étaient codés en dur en français et s'affichaient tels quels sur une
+  // interface en anglais — c'est le gros des « textes IA en français ».
+  const en = language === "en";
+  const L = (fr: string, engl: string) => (en ? engl : fr);
   const networks = [...new Set(contents.map((c) => c.network))];
-  const theme = query.theme || query.keywords[0] || "votre secteur";
+  const theme = query.theme || query.keywords[0] || L("votre secteur", "your sector");
 
   const benchmarkParReseau: BenchmarkMetrics[] = networks.map((network) => {
     const netContents = contents.filter((c) => c.network === network);
@@ -153,31 +162,45 @@ function buildMockAnalysis(query: ScrapeQuery, contents: CompetitorContent[]): A
   });
 
   return {
-    resume: `L'analyse de ${contents.length} contenus concurrents sur ${networks.join(", ")} révèle que la thématique "${theme}" génère un fort engagement dans la zone ${query.geo.toUpperCase()}. Les formats vidéo courts et les contenus éducatifs dominent les performances.`,
+    resume: contents.length === 0
+      ? L(
+          `Aucun contenu concurrent n'a pu être collecté pour "${theme}" dans la zone ${query.geo.toUpperCase()}. Ajoutez des concurrents à surveiller (ou utilisez « Identifier ») : sans eux, l'analyse ne repose sur aucune donnée réelle.`,
+          `No competitor content could be collected for "${theme}" in ${query.geo.toUpperCase()}. Add competitors to monitor (or use "Identify"): without them the analysis has no real data to work from.`
+        )
+      : L(
+          `L'analyse de ${contents.length} contenus concurrents sur ${networks.join(", ")} révèle que la thématique "${theme}" génère un fort engagement dans la zone ${query.geo.toUpperCase()}. Les formats vidéo courts et les contenus éducatifs dominent les performances.`,
+          `Analysing ${contents.length} competitor posts on ${networks.join(", ")} shows that "${theme}" drives strong engagement in ${query.geo.toUpperCase()}. Short-form video and educational content lead performance.`
+        ),
     formatsGagnants: [
-      { type: "Vidéo courte (< 60s)", network: "tiktok", engagementMoyen: 0.08, description: "Format dominant — taux d'engagement 2× supérieur aux autres formats." },
-      { type: "Carrousel éducatif", network: "instagram", engagementMoyen: 0.06, description: "Sauvegarde élevée, idéal pour contenus à valeur ajoutée." },
-      { type: "Thread long", network: "linkedin", engagementMoyen: 0.05, description: "Expertise visible, partages professionnels." },
-      { type: "Tutoriel vidéo", network: "youtube", engagementMoyen: 0.04, description: "Longue durée de vie, référencement naturel." },
+      { type: L("Vidéo courte (< 60s)", "Short video (< 60s)"), network: "tiktok", engagementMoyen: 0.08, description: L("Format dominant — taux d'engagement 2× supérieur aux autres formats.", "Leading format — twice the engagement rate of other formats.") },
+      { type: L("Carrousel éducatif", "Educational carousel"), network: "instagram", engagementMoyen: 0.06, description: L("Sauvegarde élevée, idéal pour contenus à valeur ajoutée.", "High save rate, ideal for value-driven content.") },
+      { type: L("Thread long", "Long-form thread"), network: "linkedin", engagementMoyen: 0.05, description: L("Expertise visible, partages professionnels.", "Visible expertise, professional shares.") },
+      { type: L("Tutoriel vidéo", "Video tutorial"), network: "youtube", engagementMoyen: 0.04, description: L("Longue durée de vie, référencement naturel.", "Long shelf life, organic search reach.") },
     ],
     anglesThematiques: [
-      { angle: `Coulisses & authenticité autour de "${theme}"`, exemples: ["Behind the scenes", "Processus de création", "Échecs et apprentissages"], potentiel: "fort" },
-      { angle: "Chiffres & études de cas sectoriels", exemples: ["Statistiques surprenantes", "Résultats concrets", "Comparatifs"], potentiel: "fort" },
-      { angle: "Tutoriels pratiques pas-à-pas", exemples: ["How-to", "Astuces rapides", "Checklist"], potentiel: "moyen" },
-      { angle: "Tendances & actualités du secteur", exemples: ["News commentées", "Prédictions", "Hot takes"], potentiel: "moyen" },
+      { angle: L(`Coulisses & authenticité autour de "${theme}"`, `Behind the scenes & authenticity around "${theme}"`), exemples: [L("Coulisses", "Behind the scenes"), L("Processus de création", "Creative process"), L("Échecs et apprentissages", "Failures and lessons")], potentiel: "fort" },
+      { angle: L("Chiffres & études de cas sectoriels", "Data & sector case studies"), exemples: [L("Statistiques surprenantes", "Surprising statistics"), L("Résultats concrets", "Concrete results"), L("Comparatifs", "Comparisons")], potentiel: "fort" },
+      { angle: L("Tutoriels pratiques pas-à-pas", "Step-by-step practical tutorials"), exemples: [L("Mode d'emploi", "How-to"), L("Astuces rapides", "Quick tips"), L("Checklist", "Checklist")], potentiel: "moyen" },
+      { angle: L("Tendances & actualités du secteur", "Sector trends & news"), exemples: [L("News commentées", "Commented news"), L("Prédictions", "Predictions"), L("Prises de position", "Hot takes")], potentiel: "moyen" },
     ],
-    frequenceRecommandee: "3 à 5 publications/semaine sur Instagram et TikTok, 2 à 3 sur LinkedIn, 1 vidéo YouTube hebdomadaire.",
+    frequenceRecommandee: L("3 à 5 publications/semaine sur Instagram et TikTok, 2 à 3 sur LinkedIn, 1 vidéo YouTube hebdomadaire.", "3 to 5 posts/week on Instagram and TikTok, 2 to 3 on LinkedIn, 1 YouTube video weekly."),
     benchmarkParReseau,
     recommandations: [
-      { priorite: "haute", titre: "Miser sur la vidéo courte", detail: "Les vidéos < 60s génèrent en moyenne 2,4× plus d'engagement que les posts statiques chez vos concurrents.", action: "Créer 3 Reels/TikToks par semaine sur les usages concrets de votre offre." },
-      { priorite: "haute", titre: "Augmenter la fréquence de publication", detail: "Vos concurrents publient 4,5× par semaine en moyenne. Vous êtes en dessous de ce rythme.", action: "Mettre en place un calendrier éditorial avec minimum 4 posts/semaine." },
-      { priorite: "moyenne", titre: "Exploiter les angles éducatifs", detail: "Les contenus \"comment faire\" génèrent +40 % de sauvegardes, signal fort pour l'algorithme.", action: "Produire une série de posts éducatifs sur les fondamentaux de votre secteur." },
-      { priorite: "basse", titre: "Tester les collaborations", detail: "Plusieurs concurrents utilisent les UGC et les collab-posts avec des micro-influenceurs locaux.", action: "Identifier 3 créateurs alignés avec votre marque pour des partenariats test." },
+      { priorite: "haute", titre: L("Miser sur la vidéo courte", "Bet on short-form video"), detail: L("Les vidéos < 60s génèrent en moyenne 2,4× plus d'engagement que les posts statiques chez vos concurrents.", "Videos under 60s average 2.4× the engagement of static posts among your competitors."), action: L("Créer 3 Reels/TikToks par semaine sur les usages concrets de votre offre.", "Produce 3 Reels/TikToks a week on concrete uses of your offer.") },
+      { priorite: "haute", titre: L("Augmenter la fréquence de publication", "Increase posting frequency"), detail: L("Vos concurrents publient 4,5× par semaine en moyenne. Vous êtes en dessous de ce rythme.", "Your competitors post 4.5 times a week on average. You are below that pace."), action: L("Mettre en place un calendrier éditorial avec minimum 4 posts/semaine.", "Set up an editorial calendar with at least 4 posts a week.") },
+      { priorite: "moyenne", titre: L("Exploiter les angles éducatifs", "Lean into educational angles"), detail: L("Les contenus \"comment faire\" génèrent +40 % de sauvegardes, signal fort pour l'algorithme.", "How-to content drives 40% more saves, a strong algorithmic signal."), action: L("Produire une série de posts éducatifs sur les fondamentaux de votre secteur.", "Produce a series of educational posts on your sector's fundamentals.") },
+      { priorite: "basse", titre: L("Tester les collaborations", "Test collaborations"), detail: L("Plusieurs concurrents utilisent les UGC et les collab-posts avec des micro-influenceurs locaux.", "Several competitors use UGC and collab posts with local micro-influencers."), action: L("Identifier 3 créateurs alignés avec votre marque pour des partenariats test.", "Identify 3 creators aligned with your brand for trial partnerships.") },
     ],
     competiteurs: computeProfiles(contents).map((p) => ({
       ...p,
-      strategie: `Publie majoritairement des ${p.formatDominant}s (${p.nbPosts} contenus analysés), avec un engagement moyen de ${p.engagementMoyen} par publication.`,
-      pourquoiPuissant: `Forte régularité et un engagement supérieur à la moyenne du marché — audience fidèle et formats calibrés pour l'algorithme.`,
+      strategie: L(
+        `Publie majoritairement des ${p.formatDominant}s (${p.nbPosts} contenus analysés), avec un engagement moyen de ${p.engagementMoyen} par publication.`,
+        `Mostly posts ${p.formatDominant}s (${p.nbPosts} items analysed), averaging ${p.engagementMoyen} engagement per post.`
+      ),
+      pourquoiPuissant: L(
+        `Forte régularité et un engagement supérieur à la moyenne du marché — audience fidèle et formats calibrés pour l'algorithme.`,
+        `Strong consistency and above-market engagement — a loyal audience and formats tuned for the algorithm.`
+      ),
     })),
     aiGenerated: false,
     analyzedAt: new Date().toISOString(),
@@ -301,13 +324,13 @@ export async function analyzeCompetition(
   language: "fr" | "en" = "fr"
 ): Promise<AnalysisResult> {
   if (!isAiConfigured || contents.length === 0) {
-    return buildMockAnalysis(query, contents);
+    return buildMockAnalysis(query, contents, language);
   }
 
   try {
     return await analyzeWithClaude(query, contents, language);
   } catch (err) {
     console.warn("[analyzeCompetition] Claude failed, fallback mock:", err);
-    return buildMockAnalysis(query, contents);
+    return buildMockAnalysis(query, contents, language);
   }
 }

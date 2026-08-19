@@ -179,6 +179,9 @@ export async function POST(req: NextRequest) {
     };
     const companyId = body.companyId;
     const lang: "fr" | "en" = body.language === "en" ? "en" : "fr";
+    // Nom de la langue en toutes lettres : bien plus fiable qu'un code ISO pour
+    // contraindre la langue de sortie du modèle.
+    const LANG_NAME = lang === "en" ? "ANGLAIS (English)" : "FRANÇAIS";
     if (!companyId) return NextResponse.json({ error: "companyId requis" }, { status: 400 });
 
     const guard = await requireCompanyAccess(companyId, { mode: "edit" });
@@ -211,8 +214,18 @@ export async function POST(req: NextRequest) {
     // ── Verrouillage : on persiste l'ADN comme socle + on l'écrit dans le RAG ─
     if (body.lock) {
       const merged = mergeDna(existing, body.dna);
+      // Le descriptif de société (étape 1 du parcours) restait vide après tout
+      // l'entretien : le consultant remplissait « summary / mission /
+      // positioning » mais jamais « description », le champ que l'étape 1 lit.
+      // On l'alimente ici, sans écraser un texte déjà saisi par l'utilisateur.
+      const derivedDescription =
+        str(merged.description) ||
+        [str(merged.summary), str(merged.positioning) || str(merged.mission)]
+          .filter(Boolean)
+          .join("\n\n");
       const profile: BrandProfile = {
         ...merged,
+        description: derivedDescription,
         companyId,
         philosophyLocked: true,
         aiGenerated: true,
@@ -318,7 +331,10 @@ ${transcript}
 8. Quand l'ADN est riche et cohérent (mission + cible + positionnement + message clé + ton + direction visuelle + au moins une stratégie réseau), passe "readyToLock" à true et invite à verrouiller.
 
 # STYLE DE "reply"
-Prise de parole naturelle, humaine, ${lang === "en" ? "EN ANGLAIS (the client's interface is in English — reply in English)" : "EN FRANÇAIS"}, 1 à 4 phrases, jamais de listes à puces froides. Ton de vrai consultant : précis, inspirant, utile. La langue de "reply" DOIT être ${lang === "en" ? "l'anglais" : "le français"} ; les champs "dna" peuvent rester en français.
+Prise de parole naturelle, humaine, 1 à 4 phrases, jamais de listes à puces froides. Ton de vrai consultant : précis, inspirant, utile.
+
+# LANGUE DE SORTIE — RÈGLE ABSOLUE
+TOUT ce que tu produis est rédigé en ${LANG_NAME} : "reply", MAIS AUSSI chaque champ de "dna" (summary, positioning, mission, values, keyMessage, personality, tone, audience, themes, visualDirection, keywords, networkStrategies) et chaque "memoryNotes". Ces textes sont affichés tels quels dans une interface en ${LANG_NAME} : une seule phrase dans une autre langue est un défaut. Seuls les "visualPrompts" restent en anglais (contrainte des modèles d'image).
 
 # FORMAT DE SORTIE — STRICTEMENT du JSON, sans aucun texte autour.
 # "reply" est le PREMIER champ et reste court : c'est la seule chose que le

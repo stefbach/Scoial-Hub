@@ -13,12 +13,12 @@ import { requireCompanyAccess } from "@/lib/auth/guard";
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
   try {
-    const { companyId } = (await req.json()) as { companyId?: string };
+    const { companyId, language } = (await req.json()) as { companyId?: string; language?: "fr" | "en" };
     if (!companyId) return NextResponse.json({ error: "companyId requis" }, { status: 400 });
     const guard = await requireCompanyAccess(companyId);
     if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
     const name = await getCompanyName(await resolveCompanyUuid(companyId));
-    const brief = await synthesizeBrief(companyId, name || "la marque");
+    const brief = await synthesizeBrief(companyId, name || "la marque", language === "en" ? "en" : "fr");
     return NextResponse.json({ brief });
   } catch (err) {
     console.error("[POST /api/memory/synthesize]", err);

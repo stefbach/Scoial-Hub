@@ -24,7 +24,8 @@
     "test:uibugs": "tsx scripts/verify-ui-bugs.ts",
     "test:stories": "tsx scripts/verify-stories-publish.ts",
     "test:adsvideo": "tsx scripts/verify-ads-video.ts",
-    "test:metapage": "tsx scripts/verify-meta-page-selection.ts"
+    "test:metapage": "tsx scripts/verify-meta-page-selection.ts",
+    "test:langue": "tsx scripts/verify-language.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.100.1",

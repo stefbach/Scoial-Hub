@@ -92,6 +92,37 @@ const AGENT_ICON: Record<AgentId, React.ReactNode> = {
 
 // ── Verdict conformité ─────────────────────────────────────────────────────
 
+/**
+ * Sortie d'un agent, avec les chemins internes rendus CLIQUABLES.
+ *
+ * Certains agents concluent par « Cliquez le lien pour créer la campagne » en
+ * écrivant un chemin de l'application (ex. `/campaigns/new?...`). Affiché dans
+ * un bloc de texte brut, ce chemin n'était pas cliquable : la consigne
+ * renvoyait à un lien inexistant.
+ */
+function StepOutput({ text }: { text: string }) {
+  // Chemins internes de l'app : /segment[/segment…][?query]
+  const LINK = /(\/[a-z0-9-]+(?:\/[a-z0-9-]+)*(?:\?[^\s]*)?)/gi;
+  const parts = text.split(LINK);
+  return (
+    <>
+      {parts.map((part, i) =>
+        i % 2 === 1 && part.startsWith("/") ? (
+          <a
+            key={i}
+            href={part}
+            className="font-medium text-page underline decoration-dotted underline-offset-2 hover:decoration-solid"
+          >
+            {part}
+          </a>
+        ) : (
+          <span key={i}>{part}</span>
+        )
+      )}
+    </>
+  );
+}
+
 function ComplianceBanner({
   verdict,
 }: {
@@ -812,7 +843,7 @@ export function RunTimeline({ result, companyId }: RunTimelineProps) {
                   </div>
 
                   <pre className="mt-1.5 whitespace-pre-wrap rounded-md bg-canvas px-3 py-2 text-xs text-ink leading-relaxed border border-hair">
-                    {step.output}
+                    <StepOutput text={step.output ?? ""} />
                   </pre>
 
                   {step.detail && (
@@ -860,9 +891,36 @@ export function RunTimeline({ result, companyId }: RunTimelineProps) {
             </span>
           </div>
           <div className="p-4">
-            <pre className="whitespace-pre-wrap rounded-lg border border-hair bg-canvas p-4 text-sm text-ink leading-relaxed">
-              {result.finalOutput}
-            </pre>
+            {/* La mention d'attente de validation était noyée en tête du texte,
+                sur la même ligne que la première phrase. Elle devient un
+                bandeau, et disparaît du corps du contenu (rien à effacer à la
+                main avant de publier). */}
+            {(() => {
+              const MARKS = ["[PENDING APPROVAL]", "[EN ATTENTE DE VALIDATION]"];
+              const raw = result.finalOutput ?? "";
+              const mark = MARKS.find((m) => raw.trimStart().startsWith(m));
+              const body = mark ? raw.trimStart().slice(mark.length).trimStart() : raw;
+              return (
+                <>
+                  {mark && (
+                    <p className="mb-3 flex items-center gap-2 rounded-lg border border-warning-500/30 bg-warning-50 px-3 py-2 text-xs font-semibold text-warning-700">
+                      <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4 shrink-0" aria-hidden>
+                        <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" />
+                        <path d="M12 7.5v5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                        <circle cx="12" cy="16.2" r="1.2" fill="currentColor" stroke="none" />
+                      </svg>
+                      {t(
+                        "En attente de votre validation — rien n'a été publié.",
+                        "Awaiting your approval — nothing has been published."
+                      )}
+                    </p>
+                  )}
+                  <pre className="whitespace-pre-wrap rounded-lg border border-hair bg-canvas p-4 text-sm text-ink leading-relaxed">
+                    {body}
+                  </pre>
+                </>
+              );
+            })()}
             <div className="mt-3 text-2xs text-muted">
               {result.autonomy === 1 &&
                 t(

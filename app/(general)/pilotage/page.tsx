@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useCompany } from "@/lib/company-context";
 import { AgentLauncher } from "@/components/agents/AgentLauncher";
 import { useScope, countryLabel, countryFlag } from "@/lib/scope";
+import { AUTONOMY_LEVELS, type AutonomyLevel } from "@/lib/agents/autonomy";
 import { useLang, useT } from "@/lib/i18n";
 import { JourneyCampaignCard, zoneLabel } from "@/components/pilotage/JourneyCampaignCard";
 import { RecommendationModal, agentLabel, NET_LABEL } from "@/components/pilotage/RecommendationModal";
@@ -60,7 +61,7 @@ export default function PilotagePage() {
 
   const t = useT();
   const { lang } = useLang();
-  const [autonomy, setAutonomy] = useState(1);
+  const [autonomy, setAutonomy] = useState<AutonomyLevel>(1);
   const [running, setRunning] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
@@ -385,7 +386,7 @@ export default function PilotagePage() {
             />
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <span className="text-2xs font-medium uppercase tracking-wide text-muted">{t("Autonomie", "Autonomy")}</span>
-              {[1, 2, 3].map((lvl) => {
+              {([1, 2, 3] as const).map((lvl) => {
                 const selected = autonomy === lvl;
                 return (
                   <button
@@ -399,11 +400,17 @@ export default function PilotagePage() {
                         : "border-hair bg-canvas text-ink hover:bg-white/[0.06] hover:border-page/50"
                     }`}
                   >
-                    {t("Niv.", "Lvl.")} {lvl} {lvl === 1 ? t("· Reco", "· Reco") : lvl === 2 ? t("· Semi", "· Semi") : t("· Auto", "· Auto")}
+                    {t("Niv.", "Lvl.")} {lvl} · {t(AUTONOMY_LEVELS[lvl].shortFr, AUTONOMY_LEVELS[lvl].shortEn)}
                   </button>
                 );
               })}
             </div>
+            {/* Le niveau choisi engage ce que les agents feront SANS vous :
+                il doit être décrit en clair, pas seulement nommé. */}
+            <p className="mt-1.5 text-2xs leading-snug text-muted">
+              <span className="font-semibold text-ink">{t("Niveau", "Level")} {autonomy} :</span>{" "}
+              {t(AUTONOMY_LEVELS[autonomy].fr, AUTONOMY_LEVELS[autonomy].en)}
+            </p>
           </div>
           <div className="flex flex-col justify-end gap-2">
             <button onClick={runCycle} disabled={running} className="btn-primary w-full md:w-auto">

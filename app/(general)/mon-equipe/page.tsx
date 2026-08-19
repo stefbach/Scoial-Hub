@@ -31,6 +31,10 @@ export default function MonEquipePage() {
   const [editing, setEditing] = useState<TeamMember | null>(null);
   const [removing, setRemoving] = useState<TeamMember | null>(null);
   const [note, setNote] = useState<string | null>(null);
+  // L'envoi automatique dépend d'un service e-mail configuré côté serveur.
+  // Tant qu'il ne l'est pas, l'invitation ne PEUT PAS partir toute seule : il
+  // faut le dire avant, pas après (recette R24 #6).
+  const [emailConfigured, setEmailConfigured] = useState(true);
 
   // Aucun email n'est envoyé automatiquement : on fournit un texte d'invitation
   // copiable (lien d'inscription + email) que l'admin partage lui-même.
@@ -51,6 +55,13 @@ export default function MonEquipePage() {
     }
   }, [inviteText, t]);
 
+  // Envoi depuis la messagerie de l'admin : ne dépend d'aucun service tiers,
+  // et l'e-mail part réellement (le presse-papiers, lui, se perd facilement).
+  const mailtoInvite = useCallback((email: string) => {
+    const subject = t("Invitation — AXON-AI Social Hub", "You're invited to AXON-AI Social Hub");
+    return `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(inviteText(email))}`;
+  }, [inviteText, t]);
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -60,6 +71,7 @@ export default function MonEquipePage() {
       setMembers(d.members ?? []);
       setInvitations(d.invitations ?? []);
       setCompanies(d.companies ?? []);
+      setEmailConfigured(d.emailConfigured !== false);
     } catch { /* ignore */ } finally {
       setLoading(false);
     }
@@ -112,6 +124,15 @@ export default function MonEquipePage() {
           "A user who already has an account is added immediately. Otherwise an invitation is created: copy it and send it to them — their access activates on first sign-in."
         )}
       </p>
+
+      {!emailConfigured && (
+        <p className="rounded-lg bg-warning-50 px-3 py-2 text-xs text-warning-700 ring-1 ring-warning-200">
+          {t(
+            "Envoi automatique d'e-mails inactif sur cet espace : les invitations ne partiront pas toutes seules. Utilisez « ✉️ Envoyer depuis ma messagerie » pour les transmettre. (Pour activer l'envoi automatique : variable RESEND_API_KEY à définir dans Vercel, cf. README.)",
+            "Automatic email sending is off on this workspace: invitations will not be sent on their own. Use “✉️ Send from my mailbox” to pass them on. (To enable automatic sending: set the RESEND_API_KEY variable in Vercel, see README.)"
+          )}
+        </p>
+      )}
 
       {note && (
         <p className="rounded-lg bg-canvas px-3 py-2 text-xs text-ink ring-1 ring-hair">{note}</p>
@@ -168,7 +189,8 @@ export default function MonEquipePage() {
                       <p className="text-2xs text-muted">{t("Rejoindra à la première connexion", "Will join on first sign-in")} · {inv.access.length} {t("société(s)", "company(ies)")}</p>
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
-                      <button onClick={() => copyInvite(inv.email)} className="btn-secondary text-2xs">{t("📋 Copier l'invitation", "📋 Copy invitation")}</button>
+                      <a href={mailtoInvite(inv.email)} className="btn-secondary text-2xs">{t("✉️ Envoyer depuis ma messagerie", "✉️ Send from my mailbox")}</a>
+                      <button onClick={() => copyInvite(inv.email)} className="btn-ghost text-2xs">{t("📋 Copier", "📋 Copy")}</button>
                       <button onClick={() => revokeInvite(inv.id)} className="btn-ghost text-2xs text-danger-600">{t("Annuler", "Cancel")}</button>
                     </div>
                   </div>
@@ -186,11 +208,24 @@ export default function MonEquipePage() {
           onSaved={(res) => {
             setAdding(false);
             load();
+            // Cause exacte de l'échec : « pas de service e-mail » se règle par
+            // une variable d'environnement, « envoi refusé » par le domaine
+            // expéditeur ou l'adresse. Un message générique envoyait l'admin
+            // sur la mauvaise piste (recette R24 #6).
+            const why =
+              res?.emailFailure === "rejected"
+                ? t(
+                    "le service e-mail a refusé l'envoi (adresse invalide ou domaine expéditeur non vérifié)",
+                    "the email service rejected the message (invalid address or unverified sender domain)"
+                  )
+                : res?.emailFailure === "network"
+                ? t("le service e-mail est injoignable", "the email service is unreachable")
+                : t(
+                    "le service e-mail n'est pas configuré (variable RESEND_API_KEY à définir dans Vercel, cf. README)",
+                    "the email service is not configured (set the RESEND_API_KEY variable in Vercel, see README)"
+                  );
             if (res?.invited && res.email) {
               copyInvite(res.email);
-              // #12 — Un e-mail d'invitation est envoyé (Supabase Auth, sinon
-              // service e-mail applicatif). En cas d'échec réel : message honnête
-              // + le lien d'invitation copiable reste disponible. Aucun succès simulé.
               setNote(
                 res.emailSent
                   ? t(
@@ -198,8 +233,8 @@ export default function MonEquipePage() {
                       `Invitation emailed to ${res.email} ✓ (the text was also copied, as a backup). Their access activates on first sign-in.`
                     )
                   : t(
-                      `Invitation créée pour ${res.email} — e-mail non envoyé : le service e-mail n'est pas configuré (variable RESEND_API_KEY à définir dans Vercel, cf. README). Le texte d'invitation a été copié : envoyez-le-lui vous-même en attendant.`,
-                      `Invitation created for ${res.email} — email not sent: the email service is not configured (set the RESEND_API_KEY variable in Vercel, see README). The invitation text was copied: send it to them yourself in the meantime.`
+                      `Invitation créée pour ${res.email} — e-mail NON envoyé : ${why}. Le texte a été copié ; utilisez « ✉️ Envoyer depuis ma messagerie » dans la liste ci-dessous pour la transmettre.`,
+                      `Invitation created for ${res.email} — email NOT sent: ${why}. The text was copied; use “✉️ Send from my mailbox” in the list below to pass it on.`
                     )
               );
             } else if (res?.added) {
@@ -209,8 +244,8 @@ export default function MonEquipePage() {
                 res.emailSent
                   ? t("Utilisateur ajouté à l'équipe ✓ — il a été prévenu par e-mail.", "User added to the team ✓ — they were notified by email.")
                   : t(
-                      "Utilisateur ajouté à l'équipe ✓ — e-mail de notification non envoyé : le service e-mail n'est pas configuré (variable RESEND_API_KEY à définir dans Vercel, cf. README).",
-                      "User added to the team ✓ — notification email not sent: the email service is not configured (set the RESEND_API_KEY variable in Vercel, see README)."
+                      `Utilisateur ajouté à l'équipe ✓ — e-mail de notification NON envoyé : ${why}. Ses accès sont actifs : prévenez-le vous-même.`,
+                      `User added to the team ✓ — notification email NOT sent: ${why}. Their access is active: let them know yourself.`
                     )
               );
             }
@@ -266,7 +301,13 @@ function MemberEditor({
   companies: TeamCompany[];
   member?: TeamMember;
   onClose: () => void;
-  onSaved: (res?: { added?: boolean; invited?: boolean; emailSent?: boolean; email?: string }) => void;
+  onSaved: (res?: {
+    added?: boolean;
+    invited?: boolean;
+    emailSent?: boolean;
+    emailFailure?: "not_configured" | "rejected" | "network";
+    email?: string;
+  }) => void;
 }) {
   const t = useT();
   const isEdit = Boolean(member);
@@ -295,7 +336,13 @@ function MemberEditor({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "fail");
-      onSaved({ added: data.added, invited: data.invited, emailSent: data.emailSent, email: email.trim() });
+      onSaved({
+        added: data.added,
+        invited: data.invited,
+        emailSent: data.emailSent,
+        emailFailure: data.emailFailure,
+        email: email.trim(),
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : t("Échec.", "Failed."));
     } finally {

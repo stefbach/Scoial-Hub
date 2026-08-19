@@ -11,7 +11,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAccountAdmin } from "@/lib/auth/guard";
 import { createClient } from "@/lib/supabase/server";
 import { env } from "@/lib/env";
-import { sendEmail, buildInvitationEmail, buildAddedToTeamEmail } from "@/lib/email";
+import { sendEmail, isEmailConfigured, buildInvitationEmail, buildAddedToTeamEmail } from "@/lib/email";
 import { listCompanies } from "@/lib/repositories/companies";
 import {
   listTeam,
@@ -50,6 +50,9 @@ export async function GET() {
     members,
     invitations,
     companies: companies.map((c) => ({ id: c.id, name: c.name, code: c.code })),
+    // L'écran doit dire AVANT d'inviter si l'envoi automatique est possible :
+    // découvrir après coup qu'aucun e-mail n'est parti est le pire moment.
+    emailConfigured: isEmailConfigured(),
   });
 }
 
@@ -91,7 +94,11 @@ export async function POST(req: NextRequest) {
     const { subject, text } = res.added
       ? buildAddedToTeamEmail({ email, loginUrl: `${base}/login`, inviterEmail })
       : buildInvitationEmail({ email, signupUrl: `${base}/signup`, inviterEmail });
-    res.emailSent = await sendEmail({ to: email, subject, text });
+    const sent = await sendEmail({ to: email, subject, text });
+    res.emailSent = sent.ok;
+    // Cause exacte de l'échec : « service absent » et « envoi refusé » ne se
+    // corrigent pas de la même façon, et l'admin doit savoir laquelle il subit.
+    if (!sent.ok) res.emailFailure = sent.failure;
   }
   return NextResponse.json(res);
 }

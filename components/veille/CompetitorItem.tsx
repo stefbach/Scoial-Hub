@@ -30,6 +30,8 @@ interface Props {
 
 export function CompetitorItem({ competitor, onRemove, removing }: Props) {
   const t = useT();
+  const raw = competitor.metrics?.website;
+  const website = typeof raw === "string" && /^https?:\/\//i.test(raw) ? raw : "";
   return (
     <div className="flex items-center justify-between gap-3 rounded-lg border border-hair bg-card px-3 py-2.5 shadow-xs">
       <div className="flex items-center gap-2.5 min-w-0">
@@ -39,6 +41,18 @@ export function CompetitorItem({ competitor, onRemove, removing }: Props) {
         <div className="min-w-0">
           <p className="truncate text-sm font-medium text-ink">{competitor.name}</p>
           <p className="truncate text-2xs text-muted">{competitor.handle}</p>
+          {/* Site web renseigné à l'ajout : accessible directement depuis la
+              fiche, sans avoir à le rechercher (R25 #7). */}
+          {website && (
+            <a
+              href={website}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block truncate text-2xs text-primary-600 hover:underline"
+            >
+              {website.replace(/^https?:\/\//, "").replace(/\/$/, "")} ↗
+            </a>
+          )}
         </div>
       </div>
       <button

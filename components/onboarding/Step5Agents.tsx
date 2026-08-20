@@ -6,7 +6,7 @@
 // contenu final, briefs créatifs. La transition vers l'étape 6 (Diffusion)
 // passe par la barre de navigation globale du parcours (« Continuer → »).
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useOnboardingCtx } from "@/components/onboarding/context";
 import { useT, useLang } from "@/lib/i18n";
 import type { AgentRunResult } from "@/lib/agents/types";
@@ -258,6 +258,16 @@ function LoadingAgents() {
           )}
         </p>
       </div>
+
+      {/* Le travail des agents se fait dans CET onglet : quitter la page avant
+          la fin perd la campagne en cours. L'avertissement doit être visible
+          pendant l'attente, pas découvert après coup (R25 #3). */}
+      <p className="rounded-lg border border-warning-200 bg-warning-50 px-3 py-2 text-2xs font-semibold text-warning-700">
+        {t(
+          "⚠️ Ne quittez pas cette page tant que la campagne n'est pas créée — la génération serait interrompue.",
+          "⚠️ Don't leave this page until the campaign is created — the generation would be interrupted."
+        )}
+      </p>
     </div>
   );
 }
@@ -427,6 +437,16 @@ export default function Step5Agents() {
   const [running, setRunning]   = useState(false);
   const [result, setResult]     = useState<AgentRunResult | null>(null);
   const [error, setError]       = useState<string | null>(null);
+
+  // Le message d'attente prévient ; ce garde-fou protège. La génération vit
+  // dans cet onglet : fermer ou recharger pendant qu'elle tourne la perd, sans
+  // aucun moyen de la reprendre. Le navigateur demande alors confirmation.
+  useEffect(() => {
+    if (!running) return;
+    const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [running]);
 
   // ── Construction de l'objectif textuel envoyé aux agents ──────────────────
   // Rédigé dans la langue de l'UI (bug 1 lot 17) : l'objectif est repris tel

@@ -27,7 +27,8 @@
     "test:metapage": "tsx scripts/verify-meta-page-selection.ts",
     "test:langue": "tsx scripts/verify-language.ts",
     "test:cloisonnement": "tsx scripts/verify-company-scoping.ts",
-    "test:r24": "tsx scripts/verify-r24.ts"
+    "test:r24": "tsx scripts/verify-r24.ts",
+    "test:r25": "tsx scripts/verify-r25.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.100.1",

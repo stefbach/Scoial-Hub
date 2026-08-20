@@ -8,8 +8,9 @@
 //
 // Réutilisable : page dédiée /identite ET étape 0 du démarrage guidé.
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useT, useLang } from "@/lib/i18n";
+import { detectTextLang } from "@/lib/ai/lang";
 import { generateVideoPolling } from "@/lib/ai/generate-video-client";
 import type { BrandProfile } from "@/lib/onboarding/types";
 
@@ -281,19 +282,20 @@ export function BrandConsultant({
     setRetranslating(true);
     setError(null);
     try {
-      const target = lang === "en" ? "English" : "français";
-      const instruction =
-        `Réexprime INTÉGRALEMENT l'ADN de marque suivant en ${target}, en conservant exactement le même sens et la même structure. ` +
-        `Renvoie uniquement l'ADN structuré traduit (champ "dna").\nADN actuel :\n${JSON.stringify(dna)}`;
-      const history = [...messages, { role: "user" as const, content: instruction }];
+      // Mode `translate` DÉDIÉ : un tour de conversation ordinaire ne renvoie
+      // que les champs MODIFIÉS, si bien qu'une demande de traduction repartait
+      // avec un ADN presque vide et le texte restait dans sa langue d'origine
+      // (R25 #2). Ici le serveur renvoie l'ADN complet, déjà traduit.
       const res = await fetch("/api/ai/consultant", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyId, messages: history, language: lang }),
+        body: JSON.stringify({ companyId, translate: true, dna, language: lang }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || `Erreur ${res.status}`);
       if (data.dna) {
+        // Remplacement (et non fusion) : une traduction porte sur TOUT l'ADN ;
+        // fusionner laisserait les champs non renvoyés dans l'ancienne langue.
         setDna((prev) => {
           const next: BrandDna = { ...prev };
           const d = data.dna as Record<string, unknown>;
@@ -310,7 +312,7 @@ export function BrandConsultant({
     } finally {
       setRetranslating(false);
     }
-  }, [retranslating, sending, lang, dna, messages, companyId, t]);
+  }, [retranslating, sending, lang, dna, companyId, t]);
 
   // ── Génération des tests visuels (moodboard) ───────────────────────────────
   const generateVisuals = useCallback(async () => {
@@ -429,6 +431,19 @@ export function BrandConsultant({
   const hasDna =
     Boolean(dna.positioning || dna.mission || dna.keyMessage || dna.audience || dna.tone);
 
+  // Langue RÉELLE de l'ADN, mesurée sur ses textes les plus longs. `null` quand
+  // le contenu est trop court ou trop ambigu : on n'affiche alors aucune alerte
+  // plutôt qu'une affirmation hasardeuse.
+  const dnaTextLang = useMemo(
+    () =>
+      detectTextLang(
+        [dna.summary, dna.positioning, dna.mission, dna.keyMessage, dna.audience, dna.tone]
+          .filter(Boolean)
+          .join(" ")
+      ),
+    [dna.summary, dna.positioning, dna.mission, dna.keyMessage, dna.audience, dna.tone]
+  );
+
   return (
     <div className="grid gap-5 lg:grid-cols-[1.15fr_0.85fr]">
       {/* ── Colonne conversation ─────────────────────────────────────────── */}
@@ -533,8 +548,11 @@ export function BrandConsultant({
             {locked && <span className="chip text-success-600">✓ {t("Verrouillé", "Locked")}</span>}
           </div>
 
-          {/* #4 — l'ADN a été rédigé dans une autre langue que celle sélectionnée */}
-          {hasDna && dnaLang && dnaLang !== lang && (
+          {/* #4 — l'ADN a été rédigé dans une autre langue que celle sélectionnée.
+              L'alerte se fonde sur la langue RÉELLEMENT détectée dans le texte,
+              plus sur l'étiquette posée au moment de la demande : celle-ci
+              mentait dès que le modèle ne suivait pas la consigne (R25 #1). */}
+          {hasDna && dnaTextLang && dnaTextLang !== lang && (
             <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-warning-200 bg-warning-50 px-3 py-2 text-2xs text-warning-700">
               <span className="flex-1">
                 {t(

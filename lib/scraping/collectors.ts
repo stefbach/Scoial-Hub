@@ -41,6 +41,48 @@ function clamp(v: number, min: number, max: number) {
   return Math.max(min, Math.min(max, v));
 }
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   Ciblage : pays réel et pertinence du contenu
+   La recherche par mots-clés ramenait des contenus sans rapport avec le pays
+   choisi ni avec la société analysée (R25 #4 et #6). Deux causes :
+   `regionCode` seul ne suffit pas à localiser une recherche YouTube, et TOUT
+   ce que l'API renvoyait était conservé, pertinent ou non.
+───────────────────────────────────────────────────────────────────────────── */
+
+/** Nom du pays dans la langue de recherche — bien plus discriminant qu'un code. */
+function countryName(geo: string, language: string): string {
+  const code = geo.trim().toUpperCase().slice(0, 2);
+  if (!/^[A-Z]{2}$/.test(code)) return "";
+  try {
+    return new Intl.DisplayNames([language || "en"], { type: "region" }).of(code) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+/** Mots significatifs d'un texte (accents neutralisés, mots outils écartés). */
+function tokens(text: string): string[] {
+  return text
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .split(/[^a-z0-9]+/)
+    .filter((w) => w.length >= 4);
+}
+
+/**
+ * Un contenu est retenu s'il évoque au moins un mot-clé ou la thématique de la
+ * société. Sans ce filtre, une recherche « pièces auto » à Maurice remontait
+ * n'importe quelle vidéo populaire de la région.
+ * Sujet vide (aucun mot-clé, aucun thème) → on ne filtre pas : il n'y a alors
+ * rien à quoi comparer, et masquer tout serait pire que tout montrer.
+ */
+function makeRelevanceFilter(query: ScrapeQuery): (text: string) => boolean {
+  const wanted = new Set([...query.keywords, query.theme].flatMap(tokens));
+  if (wanted.size === 0) return () => true;
+  return (text: string) => tokens(text).some((w) => wanted.has(w));
+}
+
 function isoDate(daysAgo: number): string {
   const d = new Date();
   d.setDate(d.getDate() - daysAgo);
@@ -361,7 +403,15 @@ class YouTubeCollector implements Collector {
 
     try {
       // 1. Recherche par mots-clés + région
-      const q = [...query.keywords, query.theme].filter(Boolean).slice(0, 3).join(" ");
+      // Le NOM du pays entre dans la requête : `regionCode` ne fait que
+      // pondérer les résultats selon la région de publication, il ne restreint
+      // pas le sujet. Une recherche « pièces auto » avec regionCode=MU
+      // remontait donc des contenus mondiaux (R25 #4).
+      const country = countryName(query.geo, query.language ?? "en");
+      const q = [...query.keywords, query.theme, country]
+        .filter(Boolean)
+        .slice(0, 4)
+        .join(" ");
       const regionCode = query.geo.toUpperCase().slice(0, 2);
 
       const searchUrl = new URL("https://www.googleapis.com/youtube/v3/search");
@@ -413,9 +463,14 @@ class YouTubeCollector implements Collector {
       for (const s of statsData.items ?? []) statsMap.set(s.id, s.statistics);
 
       // 3. Construction des CompetitorContent
+      // Seuls les contenus qui parlent RÉELLEMENT du sujet de la société sont
+      // retenus : l'API renvoie volontiers des vidéos populaires hors sujet, et
+      // les analyser revenait à décrire le marché de quelqu'un d'autre (R25 #6).
+      const isRelevant = makeRelevanceFilter(query);
       for (const item of items) {
         const videoId = item.id.videoId;
         if (!videoId) continue;
+        if (!isRelevant(`${item.snippet.title} ${item.snippet.description ?? ""}`)) continue;
 
         const stats  = statsMap.get(videoId) ?? {};
         const views    = parseInt(stats.viewCount   ?? "0", 10);

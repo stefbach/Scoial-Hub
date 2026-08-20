@@ -50,12 +50,19 @@ export function AiTextPanel({
   brandVoiceLabel,
   platform = "facebook",
   language,
+  onUse,
 }: {
   brandVoiceLabel: string;
   /** Réseau cible : respecte le réseau choisi au lieu de forcer Facebook. */
   platform?: Platform;
   /** Langue de diffusion dans laquelle l'IA doit rédiger (ex : "Français"). */
   language?: string;
+  /**
+   * Reçoit le texte généré quand l'utilisateur clique « Utiliser ». Sans ce
+   * rappel, le bouton ne pouvait que recycler le texte comme nouvelle
+   * consigne — la publication, elle, ne bougeait pas (recette R24 #8).
+   */
+  onUse?: (text: string) => void;
 }) {
   const t = useT();
   const { lang } = useLang();
@@ -69,6 +76,7 @@ export function AiTextPanel({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [used, setUsed] = useState(false);
   const [isMock, setIsMock] = useState(false);
 
   const ACTION_LABEL: Record<Action, string> = {
@@ -189,12 +197,21 @@ export function AiTextPanel({
               </button>
               <button
                 onClick={() => {
+                  // Avec un destinataire : le texte part dans la publication.
+                  // Sans (panneau isolé) : ancien comportement — il devient la
+                  // nouvelle consigne pour affiner la génération.
+                  if (onUse) {
+                    onUse(result);
+                    setUsed(true);
+                    setTimeout(() => setUsed(false), 2000);
+                    return;
+                  }
                   setPrompt(result);
                   setResult("");
                 }}
                 className="rounded-md bg-ai-text px-2 py-0.5 text-2xs font-medium text-white hover:opacity-90"
               >
-                {t("Utiliser", "Use")}
+                {used ? `✓ ${t("Ajouté", "Added")}` : t("Utiliser", "Use")}
               </button>
             </div>
           </div>

@@ -7,7 +7,7 @@
 // • notifie le parent : couleur de texte, logo (source canvas-safe), promptHints.
 
 import { useEffect, useRef, useState } from "react";
-import { useT } from "@/lib/i18n";
+import { useT, useLang } from "@/lib/i18n";
 import { Spinner, BusyHint } from "@/components/ui/Spinner";
 import { useBrandKit } from "@/lib/brand-kit/use-brand-kit";
 import BrandChartView from "@/components/studio/BrandChartView";
@@ -89,6 +89,7 @@ export default function BrandKitPanel({
   onKit,
 }: BrandKitPanelProps) {
   const t = useT();
+  const { lang } = useLang();
   const { kit, save, reset, uploadAsset } = useBrandKit(companyId);
 
   const [logoDataUrl, setLogoDataUrl] = useState("");
@@ -186,7 +187,7 @@ export default function BrandKitPanel({
       const r = await fetch("/api/ai/analyze-brand-visual", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyId, imageDataUrl, kind: charteDataUrl ? "charte" : "logo" }),
+        body: JSON.stringify({ companyId, imageDataUrl, kind: charteDataUrl ? "charte" : "logo", lang }),
       });
       const d = await r.json();
       if (!r.ok) {
@@ -232,7 +233,9 @@ export default function BrandKitPanel({
       const r = await fetch("/api/ai/generate-brand-chart", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyId, imageDataUrl: logoDataUrl || undefined, logoUrl: kit?.logoUrl || undefined }),
+        // La charte produite est affichée telle quelle : elle doit être rédigée
+        // dans la langue de l'interface (recette R24 #7).
+        body: JSON.stringify({ companyId, imageDataUrl: logoDataUrl || undefined, logoUrl: kit?.logoUrl || undefined, lang }),
       });
       const d = await r.json();
       if (!r.ok) {

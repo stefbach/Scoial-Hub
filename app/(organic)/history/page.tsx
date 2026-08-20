@@ -339,6 +339,17 @@ function List({
         >
           <div className="flex items-center gap-3 px-4 py-3">
             <PlatformTag platform={item.platform} />
+            {/* Vignette du média publié : reconnaître une publication à son
+                visuel est plus rapide qu'à ses 40 premiers caractères. */}
+            {item.media?.url && (
+              item.media.kind === "video" ? (
+                // eslint-disable-next-line jsx-a11y/media-has-caption
+                <video src={item.media.url} muted className="h-10 w-10 shrink-0 rounded-md border border-hair object-cover" />
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={item.media.url} alt="" className="h-10 w-10 shrink-0 rounded-md border border-hair object-cover" />
+              )
+            )}
             <div className="min-w-0 flex-1">
               <div className="truncate text-sm text-ink">{item.body}</div>
               <div className="mt-0.5 text-2xs text-muted">

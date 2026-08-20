@@ -174,6 +174,8 @@ export async function POST(req: NextRequest) {
       messages?: ChatMsg[];
       lock?: boolean;
       reset?: boolean;
+      /** Traduit l'ADN existant dans `language` et le renvoie COMPLET. */
+      translate?: boolean;
       dna?: BrandDna;
       language?: "fr" | "en";
     };
@@ -209,6 +211,68 @@ export async function POST(req: NextRequest) {
       };
       await saveBrandProfile(profile);
       return NextResponse.json({ reset: true, profile });
+    }
+
+    // ── Traduction de l'ADN dans la langue de l'interface ────────────────────
+    // Mode DÉDIÉ, et non un tour de conversation : le contrat conversationnel
+    // veut que "dna" ne contienne QUE les champs modifiés (règle 7). Demander
+    // une traduction dans ce cadre revenait à demander « qu'est-ce qui change
+    // ? » — le modèle répondait « rien » ou deux champs, la fusion non
+    // destructive gardait le reste, et le texte restait en français (R25 #2).
+    // Ici on exige l'objet COMPLET, sans historique de conversation pour ne pas
+    // ancrer le modèle dans la langue du fil.
+    if (body.translate) {
+      if (!isAiConfigured) {
+        return NextResponse.json(
+          { error: lang === "en" ? "AI not configured (ANTHROPIC_API_KEY)." : "IA non configurée (ANTHROPIC_API_KEY)." },
+          { status: 503 }
+        );
+      }
+      const source = mergeDna(existing, body.dna);
+      const toTranslate: BrandDna = {
+        summary: source.summary,
+        positioning: source.positioning,
+        mission: source.mission,
+        values: source.values,
+        keyMessage: source.keyMessage,
+        personality: source.personality,
+        tone: source.tone,
+        audience: source.audience,
+        themes: source.themes,
+        visualDirection: source.visualDirection,
+        keywords: source.keywords,
+        networkStrategies: source.networkStrategies,
+      };
+
+      const prompt = `Traduis l'ADN de marque ci-dessous en ${LANG_NAME}.
+RÈGLES :
+- Renvoie TOUS les champs présents dans l'entrée, aucun omis, aucun ajouté.
+- Conserve exactement le même sens, la même structure et le même nombre d'éléments dans les listes.
+- Traduis aussi le contenu des "networkStrategies" (angle, formats, ton, piliers, rythme, CTA), en gardant le champ "network" inchangé.
+- Un champ déjà en ${LANG_NAME} est recopié tel quel.
+- Réponds STRICTEMENT en JSON, sans texte autour, sous la forme {"dna": { ... }}.
+
+ADN à traduire :
+${JSON.stringify(toTranslate)}`;
+
+      const out = await callClaudeJSONResult<{ dna?: BrandDna }>(prompt, {
+        system: `Tu es traducteur professionnel. Tu produis du ${LANG_NAME} naturel et idiomatique, jamais du mot-à-mot.`,
+        maxTokens: 3000,
+        timeoutMs: 34_000,
+      });
+      const translated = out.data?.dna;
+      if (!translated) {
+        return NextResponse.json(
+          {
+            error: lang === "en" ? "Translation failed. Try again." : "Traduction impossible. Réessayez.",
+            reason: out.error,
+          },
+          { status: 502 }
+        );
+      }
+      const profile = mergeDna(existing, translated);
+      await saveBrandProfile({ ...profile, companyId }).catch(() => {});
+      return NextResponse.json({ dna: translated, translated: true });
     }
 
     // ── Verrouillage : on persiste l'ADN comme socle + on l'écrit dans le RAG ─

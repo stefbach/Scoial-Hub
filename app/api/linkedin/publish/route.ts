@@ -59,6 +59,13 @@ export async function POST(req: NextRequest) {
             published_at: new Date().toISOString(),
             source: "manual",
             status: "published",
+            // Média publié conservé : l'historique doit pouvoir le réafficher
+            // au lieu d'un cadre vide (recette R24 #12).
+            ...(videoUrl
+              ? { media: { kind: "video", url: videoUrl } }
+              : imageUrl
+              ? { media: { kind: "image", url: imageUrl } }
+              : {}),
           });
         }
       } catch {

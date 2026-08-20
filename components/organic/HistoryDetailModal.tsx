@@ -97,11 +97,35 @@ export function HistoryDetailModal({
         {post.media && (
           <div className="mt-3">
             <div className="section-label mb-1">{t("Média", "Media")}</div>
-            <div className="flex h-[110px] w-[150px] items-center justify-center rounded-md border-hair border-hair bg-canvas">
-              <span className="text-2xs text-muted">
-                {post.media.kind === "video" ? t("Vidéo", "Video") : t("Image", "Image")}
-              </span>
-            </div>
+            {/* Le média publié est AFFICHÉ, plus seulement nommé : jusqu'ici
+                l'historique montrait un cadre vide portant le mot « Image »
+                (recette R24 #12). Sans URL — publications antérieures à ce
+                correctif — on garde l'ancien repère textuel. */}
+            {post.media.url ? (
+              post.media.kind === "video" ? (
+                // eslint-disable-next-line jsx-a11y/media-has-caption
+                <video
+                  src={post.media.url}
+                  controls
+                  className="max-h-72 w-full rounded-md border border-hair bg-canvas object-contain"
+                />
+              ) : (
+                <a href={post.media.url} target="_blank" rel="noopener noreferrer" title={t("Ouvrir en grand", "Open full size")}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={post.media.url}
+                    alt={t("Visuel de la publication", "Post visual")}
+                    className="max-h-72 w-full cursor-zoom-in rounded-md border border-hair bg-canvas object-contain"
+                  />
+                </a>
+              )
+            ) : (
+              <div className="flex h-[110px] w-[150px] items-center justify-center rounded-md border-hair border-hair bg-canvas">
+                <span className="text-2xs text-muted">
+                  {post.media.kind === "video" ? t("Vidéo", "Video") : t("Image", "Image")}
+                </span>
+              </div>
+            )}
           </div>
         )}
 

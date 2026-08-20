@@ -65,8 +65,10 @@ export function ContentCard({ content }: Props) {
       {/* Caption */}
       <p className="text-sm text-ink leading-snug line-clamp-3">{content.caption}</p>
 
-      {/* Métriques */}
-      <div className="flex items-center gap-3 pt-1 border-t border-hair">
+      {/* Métriques — sans filet ni cadre : les indicateurs se lisent mieux dans
+          la continuité de la carte, l'encadrement gris ajoutait du bruit
+          visuel sans rien séparer d'utile (R25 #5). */}
+      <div className="flex items-center gap-3 pt-1">
         <Metric icon={<HeartIcon />} value={fmt(content.likes)} label="Likes" />
         <Metric icon={<EyeIcon />}   value={fmt(content.views)} label={t("Vues", "Views")} />
         <Metric icon={<ChatIcon />}  value={fmt(content.comments)} label={t("Comments", "Comments")} />

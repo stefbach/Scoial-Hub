@@ -26,6 +26,19 @@ export async function GET(req: NextRequest) {
   }
 }
 
+/** Complète le schéma manquant ; renvoie undefined si l'entrée n'est pas exploitable. */
+function normalizeWebsite(raw?: string): string | undefined {
+  const v = (raw ?? "").trim();
+  if (!v) return undefined;
+  const withScheme = /^https?:\/\//i.test(v) ? v : `https://${v}`;
+  try {
+    const u = new URL(withScheme);
+    return u.hostname.includes(".") ? u.toString() : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json() as {
@@ -34,9 +47,11 @@ export async function POST(req: NextRequest) {
       handle?: string;
       name?: string;
       source?: string;
+      /** Site web du concurrent (facultatif). */
+      website?: string;
     };
 
-    const { companyId, network, handle, name, source } = body;
+    const { companyId, network, handle, name, source, website } = body;
 
     if (!companyId || !network || !handle) {
       return NextResponse.json(
@@ -59,6 +74,9 @@ export async function POST(req: NextRequest) {
       handle: handle.startsWith("@") ? handle : `@${handle}`,
       name: name ?? handle,
       source: source ?? "manuel",
+      // Normalisé en URL absolue : un « exemple.com » saisi à la main doit
+      // rester cliquable depuis la fiche du concurrent.
+      website: normalizeWebsite(website),
     });
 
     return NextResponse.json({ competitor }, { status: 201 });

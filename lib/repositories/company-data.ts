@@ -65,7 +65,7 @@ function mapCampaign(r: Row): Campaign {
 }
 
 function mapScheduled(r: Row): ScheduledPost {
-  const media = r.media as { kind?: "image" | "video" } | null;
+  const media = r.media as { kind?: "image" | "video"; url?: string } | null;
   return {
     id: s(r.id),
     platform: plat(r.platform),
@@ -77,13 +77,15 @@ function mapScheduled(r: Row): ScheduledPost {
     status: (s(r.status, "scheduled") as ScheduledPost["status"]),
     body: s(r.body) || undefined,
     automationName: s(r.automation_name) || undefined,
-    media: media?.kind ? { kind: media.kind } : undefined,
+    // Même raison qu'à l'historique : sans l'URL, la vignette du média
+    // programmé ne peut pas être affichée ni rééditée.
+    media: media?.kind ? { kind: media.kind, url: media.url || undefined } : undefined,
     publishedAt: s(r.published_at) || undefined,
   };
 }
 
 function mapHistory(r: Row): HistoryItem {
-  const media = r.media as { kind?: "image" | "video" } | null;
+  const media = r.media as { kind?: "image" | "video"; url?: string } | null;
   const metrics = r.metrics as HistoryItem["metrics"] | null;
   const error = r.error as HistoryItem["error"] | null;
   const publishedAt = s(r.published_at) || undefined;
@@ -101,7 +103,9 @@ function mapHistory(r: Row): HistoryItem {
     status: (s(r.status, "published") as HistoryItem["status"]),
     metrics: metrics ?? undefined,
     externalUrl: s(r.external_url) || undefined,
-    media: media?.kind ? { kind: media.kind } : undefined,
+    // L'URL du média suit jusqu'à l'écran : c'est elle qui permet de revoir
+    // l'image publiée depuis l'historique (recette R24 #12).
+    media: media?.kind ? { kind: media.kind, url: media.url || undefined } : undefined,
     error: error ?? undefined,
   };
 }

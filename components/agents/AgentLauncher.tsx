@@ -11,11 +11,7 @@ import { useT, useLang } from "@/lib/i18n";
 import { Spinner, BusyHint } from "@/components/ui/Spinner";
 
 // Description courte de chaque niveau d'autonomie (affichée sous les boutons).
-const LEVELS: Record<1 | 2 | 3, { fr: string; en: string }> = {
-  1: { fr: "Recommandation — les agents proposent, vous décidez de tout. Rien n'est publié.", en: "Recommendation — the agents suggest, you decide everything. Nothing is published." },
-  2: { fr: "Semi-auto — les agents préparent tout (posts, pub) et attendent votre validation avant publication.", en: "Semi-auto — the agents prepare everything (posts, ad) and wait for your approval before publishing." },
-  3: { fr: "Auto — les agents exécutent automatiquement ce qui est conforme à vos règles ; le reste passe en validation.", en: "Auto — the agents automatically run what complies with your rules; the rest goes to review." },
-};
+import { AUTONOMY_LEVELS as LEVELS } from "@/lib/agents/autonomy";
 
 export function AgentLauncher({
   defaultObjective = "",
@@ -94,11 +90,13 @@ export function AgentLauncher({
         placeholder={t("Objectif (ex : générer 5 posts + une campagne prospects)…", "Objective (e.g. generate 5 posts + a leads campaign)…")}
         className="mt-2 w-full rounded-lg border border-hair bg-canvas px-3 py-2 text-sm text-ink outline-none focus:border-primary-400" />
       <div className="mt-2 flex flex-wrap items-center gap-2">
+        {/* Pas d'infobulle au survol : la description du niveau sélectionné est
+            déjà affichée juste sous les boutons — la répéter au survol faisait
+            double emploi. */}
         <div className="inline-flex rounded-lg border border-hair bg-canvas p-0.5">
           {([1, 2, 3] as const).map((a) => (
             <button key={a} onClick={() => setAutonomy(a)}
-              className={`rounded-md px-2.5 py-1 text-2xs font-semibold ${autonomy === a ? "bg-page text-white" : "text-muted hover:text-ink"}`}
-              title={t(LEVELS[a].fr, LEVELS[a].en)}>
+              className={`rounded-md px-2.5 py-1 text-2xs font-semibold ${autonomy === a ? "bg-page text-white" : "text-muted hover:text-ink"}`}>
               {t("Niveau", "Level")} {a}
             </button>
           ))}

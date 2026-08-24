@@ -135,7 +135,11 @@ async function logHistory(
       source: post.automationName ? "automation" : "manual",
       automation_name: post.automationName ?? null,
       status,
-      ...(post.media?.kind ? { media: { kind: post.media.kind } } : {}),
+      // L'URL du média est CONSERVÉE : sans elle, l'historique savait qu'il y
+      // avait une image mais ne pouvait plus l'afficher (recette R24 #12).
+      ...(post.media?.kind
+        ? { media: { kind: post.media.kind, ...(post.media.url ? { url: post.media.url } : {}) } }
+        : {}),
       ...(errorMessage
         ? { error: { title: "Échec de publication", detail: errorMessage.slice(0, 500) } }
         : {}),

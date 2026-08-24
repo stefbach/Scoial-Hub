@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
         }
         const loginUrl = `${env.appUrl.replace(/\/$/, "")}/login`;
         const { subject, text } = buildAccountCreatedEmail({ email, loginUrl, setPasswordUrl });
-        emailSent = await sendEmail({ to: email, subject, text });
+        emailSent = (await sendEmail({ to: email, subject, text })).ok;
       } catch {
         /* l'échec d'e-mail ne doit pas annuler la création du compte */
       }

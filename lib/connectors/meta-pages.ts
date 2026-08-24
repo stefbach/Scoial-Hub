@@ -111,23 +111,40 @@ export async function fetchAdAccounts(userToken: string): Promise<AdAccount[]> {
   }
 }
 
-export function pickAdAccountForCompany(accounts: AdAccount[], companyName: string): AdAccount | null {
+/**
+ * Rattache un compte publicitaire à une société — UNIQUEMENT sur preuve.
+ * `names` est ordonné par force de preuve (nom de société, puis nom de Page).
+ */
+export function pickAdAccountForCompany(
+  accounts: AdAccount[],
+  companyName: string | string[]
+): AdAccount | null {
   if (accounts.length === 0) return null;
   const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
-  const cn = norm(companyName);
+  const names = (Array.isArray(companyName) ? companyName : [companyName]).map(norm).filter(Boolean);
   const active = accounts.filter((a) => a.status === 1);
   const pool = active.length ? active : accounts;
-  if (cn) {
+  for (const cn of names) {
     const exact = pool.find((a) => norm(a.name) === cn);
     if (exact) return exact;
+  }
+  for (const cn of names) {
     const partial = pool.find((a) => {
       const an = norm(a.name);
       return an && (an.includes(cn) || cn.includes(an));
     });
     if (partial) return partial;
   }
-  // À défaut : le compte actif le plus utilisé.
-  return [...pool].sort((a, b) => b.amountSpent - a.amountSpent)[0];
+  // Un SEUL compte publicitaire : aucune ambiguïté possible.
+  if (pool.length === 1) return pool[0];
+  // Plusieurs comptes, aucun ne correspondant : AUCUN choix automatique.
+  //
+  // L'ancien repli retenait « le compte actif le plus utilisé ». Pour une
+  // société nouvellement créée, aucun nom ne correspond : elle était donc
+  // rattachée au compte qui DÉPENSE LE PLUS du portefeuille — c'est-à-dire
+  // celui d'un autre client. La performance publicitaire d'autrui s'affichait
+  // alors dans son centre de pilotage. Le rattachement doit être explicite.
+  return null;
 }
 
 /** Enregistre le connecteur Meta Ads (lecture) pour une société. */
@@ -146,6 +163,44 @@ export async function storeMetaAds(companyId: string, account: AdAccount, userTo
     },
     "connected"
   );
+}
+
+/**
+ * Comptes publicitaires DÉJÀ rattachés à une AUTRE société du portefeuille.
+ * Un compte Meta donne accès à tous les comptes pub du gestionnaire : sans ce
+ * repère, rien ne distingue « mon » compte de celui du client voisin.
+ * Clé = id du compte pub (sans act_), valeur = nom de la société qui l'utilise.
+ */
+export async function listAdAccountBindings(companyUuid: string): Promise<Record<string, string>> {
+  try {
+    const { createAdminClient } = await import("@/lib/supabase/server");
+    const sb = createAdminClient();
+    if (!sb) return {};
+
+    const { data: me } = await sb.from("sh_companies").select("org_id").eq("id", companyUuid).maybeSingle();
+    const orgId = me?.org_id ? String(me.org_id) : "";
+    if (!orgId) return {};
+
+    const { data: companies } = await sb.from("sh_companies").select("id, name").eq("org_id", orgId);
+    const others = (companies ?? []).filter((c) => String(c.id) !== companyUuid);
+    if (others.length === 0) return {};
+
+    const names = new Map(others.map((c) => [String(c.id), String(c.name ?? "")]));
+    const { data: rows } = await sb
+      .from("sh_channel_connections")
+      .select("company_id, config")
+      .eq("channel", "meta_ads")
+      .in("company_id", [...names.keys()]);
+
+    const out: Record<string, string> = {};
+    for (const r of rows ?? []) {
+      const id = String((r.config as Record<string, unknown> | null)?.ad_account_id ?? "").replace(/^act_/, "");
+      if (id) out[id] = names.get(String(r.company_id)) ?? "";
+    }
+    return out;
+  } catch {
+    return {};
+  }
 }
 
 export interface AdCampaignRow {
@@ -617,8 +672,8 @@ export async function storeMetaConnections(
   if (userToken) {
     try {
       const accounts = await fetchAdAccounts(userToken);
-      // Le nom de société n'est pas dispo ici → on matche sur le nom de la Page.
-      const acct = pickAdAccountForCompany(accounts, page.name);
+      // Preuve la plus forte d'abord : le nom de la SOCIÉTÉ, puis celui de la Page.
+      const acct = pickAdAccountForCompany(accounts, [await getCompanyName(uuid), page.name]);
       if (acct) await storeMetaAds(companyId, acct, userToken);
     } catch {
       /* non bloquant */

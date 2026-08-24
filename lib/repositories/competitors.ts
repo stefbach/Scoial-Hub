@@ -105,13 +105,18 @@ export async function listCompetitors(companyId: string): Promise<Competitor[]> 
 
 /** Ajoute un compétiteur. */
 export async function addCompetitor(
-  input: Pick<Competitor, "companyId" | "network" | "handle" | "name" | "source">
+  input: Pick<Competitor, "companyId" | "network" | "handle" | "name" | "source"> & {
+    /** Site web du concurrent — conservé dans `metrics`, aucun champ dédié en base. */
+    website?: string;
+  }
 ): Promise<Competitor> {
+  // `metrics` est un jsonb libre : le site web y tient sans migration.
+  const metrics: Record<string, unknown> = input.website ? { website: input.website } : {};
   if (!isSupabaseConfigured) {
     const newItem: Competitor = {
       id: `mock-${Date.now()}`,
       ...input,
-      metrics: {},
+      metrics,
       createdAt: new Date().toISOString(),
     };
     const list = getMock(input.companyId);
@@ -124,7 +129,7 @@ export async function addCompetitor(
     const newItem: Competitor = {
       id: `mock-${Date.now()}`,
       ...input,
-      metrics: {},
+      metrics,
       createdAt: new Date().toISOString(),
     };
     const list = getMock(input.companyId);
@@ -140,7 +145,7 @@ export async function addCompetitor(
       handle: input.handle,
       name: input.name,
       source: input.source,
-      metrics: {},
+      metrics,
     })
     .select("*")
     .single();
@@ -150,7 +155,7 @@ export async function addCompetitor(
     const newItem: Competitor = {
       id: `mock-${Date.now()}`,
       ...input,
-      metrics: {},
+      metrics,
       createdAt: new Date().toISOString(),
     };
     return newItem;

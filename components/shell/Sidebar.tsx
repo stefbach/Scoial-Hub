@@ -565,7 +565,10 @@ export function Sidebar({
     <nav
       aria-label="Navigation principale"
       className={[
-        "shrink-0 border-r border-hair py-5 transition-[width] duration-200",
+        // `h-full` + colonne flex : la barre occupe TOUTE la hauteur que lui
+        // donne le shell, donc son filet vertical descend jusqu'en bas de
+        // l'écran au lieu de s'arrêter à mi-hauteur (R26 #2).
+        "flex h-full flex-col shrink-0 border-r border-hair py-5 transition-[width] duration-200",
         rail ? "w-[3.75rem] px-2" : "w-[13.5rem] pl-3 pr-2",
       ].join(" ")}
     >
@@ -600,17 +603,22 @@ export function Sidebar({
         {SPINE.map((item) => renderItem(item, { entry: item.href === "/demarrage" }))}
       </ul>
 
-      {/* Séparateur colonne vertébrale / sections */}
-      <div className={rail ? "mx-auto my-3 h-px w-6 bg-hair" : "mt-5 mb-4 h-px bg-hair"} />
+      {/* Plus de filet HORIZONTAL dans la barre : seule la ligne verticale de
+          droite sépare la navigation du contenu (R26 #1). L'espacement suffit
+          à distinguer la colonne vertébrale des sections. */}
+      <div className={rail ? "my-3" : "mt-5 mb-4"} />
 
+      {/* Zone des sections : elle absorbe la hauteur restante et défile pour
+          elle-même. Le menu ne suit donc plus le défilement de la page — il
+          reste entier à l'écran (R26 #3). */}
+      <div className="min-h-0 flex-1 overflow-y-auto">
       {rail
         ? /* Rail : toutes les entrées en icônes, séparées par section. */
           GROUPS.map((group, i) => {
             const items = group.items.filter(canSee);
             if (items.length === 0) return null;
             return (
-              <div key={group.id}>
-                {i > 0 && <div className="mx-auto my-2 h-px w-6 bg-hair" />}
+              <div key={group.id} className={i > 0 ? "mt-3" : ""}>
                 <ul className="space-y-px" role="list" aria-label={tr(group.label)}>
                   {items.map((item) => renderItem(item))}
                 </ul>
@@ -625,7 +633,9 @@ export function Sidebar({
             const hasActive = items.some((it) => isActive(it.href));
             const panelId = `nav-group-${group.id}`;
             return (
-              <div key={group.id} className={i > 0 ? "mt-3" : ""}>
+              // Espacement plus généreux entre les titres de section : la
+              // colonne remplit la hauteur au lieu de s'entasser en haut (R26 #2).
+              <div key={group.id} className={i > 0 ? "mt-4" : ""}>
                 {/* En-tête de section CLIQUABLE : déplie/replie (accordéon). */}
                 <button
                   type="button"
@@ -656,8 +666,10 @@ export function Sidebar({
             );
           })}
 
-      {/* Déconnexion */}
-      <div className="mt-5">{logout}</div>
+      </div>
+
+      {/* Déconnexion — ancrée en bas de la colonne, hors de la zone défilante. */}
+      <div className="mt-4 shrink-0 pt-1">{logout}</div>
     </nav>
   );
 }

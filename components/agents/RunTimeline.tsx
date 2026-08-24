@@ -16,6 +16,7 @@ import { useState, useCallback } from "react";
 import type { AgentRunResult, AgentId, AgentStepStatus, Cadence, PublisherResult } from "@/lib/agents/types";
 import { AGENTS } from "@/lib/agents/roster";
 import { PRO_PROFILES } from "@/lib/agents/profiles";
+import { StepOutput, splitApprovalMark, PendingApprovalBanner } from "./StepOutput";
 import { EnvironmentAnalysis } from "./EnvironmentAnalysis";
 import { BenchmarkCard } from "./BenchmarkCard";
 import { Toast } from "@/components/ui/Toast";
@@ -100,29 +101,6 @@ const AGENT_ICON: Record<AgentId, React.ReactNode> = {
  * un bloc de texte brut, ce chemin n'était pas cliquable : la consigne
  * renvoyait à un lien inexistant.
  */
-function StepOutput({ text }: { text: string }) {
-  // Chemins internes de l'app : /segment[/segment…][?query]
-  const LINK = /(\/[a-z0-9-]+(?:\/[a-z0-9-]+)*(?:\?[^\s]*)?)/gi;
-  const parts = text.split(LINK);
-  return (
-    <>
-      {parts.map((part, i) =>
-        i % 2 === 1 && part.startsWith("/") ? (
-          <a
-            key={i}
-            href={part}
-            className="font-medium text-page underline decoration-dotted underline-offset-2 hover:decoration-solid"
-          >
-            {part}
-          </a>
-        ) : (
-          <span key={i}>{part}</span>
-        )
-      )}
-    </>
-  );
-}
-
 function ComplianceBanner({
   verdict,
 }: {
@@ -896,25 +874,10 @@ export function RunTimeline({ result, companyId }: RunTimelineProps) {
                 bandeau, et disparaît du corps du contenu (rien à effacer à la
                 main avant de publier). */}
             {(() => {
-              const MARKS = ["[PENDING APPROVAL]", "[EN ATTENTE DE VALIDATION]"];
-              const raw = result.finalOutput ?? "";
-              const mark = MARKS.find((m) => raw.trimStart().startsWith(m));
-              const body = mark ? raw.trimStart().slice(mark.length).trimStart() : raw;
+              const { pending, body } = splitApprovalMark(result.finalOutput ?? "");
               return (
                 <>
-                  {mark && (
-                    <p className="mb-3 flex items-center gap-2 rounded-lg border border-warning-500/30 bg-warning-50 px-3 py-2 text-xs font-semibold text-warning-700">
-                      <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4 shrink-0" aria-hidden>
-                        <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" />
-                        <path d="M12 7.5v5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                        <circle cx="12" cy="16.2" r="1.2" fill="currentColor" stroke="none" />
-                      </svg>
-                      {t(
-                        "En attente de votre validation — rien n'a été publié.",
-                        "Awaiting your approval — nothing has been published."
-                      )}
-                    </p>
-                  )}
+                  {pending && <PendingApprovalBanner className="mb-3" />}
                   <pre className="whitespace-pre-wrap rounded-lg border border-hair bg-canvas p-4 text-sm text-ink leading-relaxed">
                     {body}
                   </pre>

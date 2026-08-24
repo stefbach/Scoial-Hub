@@ -243,8 +243,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       {/* Corps : sidebar + contenu */}
       <div className="flex">
-        {/* Sidebar fixe sur desktop — repliable en rail d'icônes */}
-        <div className="hidden lg:block">
+        {/* Sidebar fixe sur desktop — repliable en rail d'icônes.
+            `sticky` sous l'en-tête + hauteur d'écran restante : sur une page
+            longue (Composer), le menu ne remontait plus avec le contenu au
+            point de disparaître — il reste maintenant entier à l'écran, et
+            défile pour lui-même s'il est plus haut que la fenêtre (R26 #3). */}
+        <div className="hidden shrink-0 self-start lg:block lg:sticky lg:top-[var(--app-header-h)] lg:h-[calc(100dvh-var(--app-header-h))]">
           <Sidebar collapsible />
         </div>
 

@@ -12,7 +12,11 @@ import { useT } from "@/lib/i18n";
 import { Spinner } from "@/components/ui/Spinner";
 import { Pagination } from "@/components/ui/Pagination";
 
-interface AdAccount { id: string; name: string; currency: string; active: boolean; amountSpent: number; }
+interface AdAccount {
+  id: string; name: string; currency: string; active: boolean; amountSpent: number;
+  /** Nom de l'AUTRE société du portefeuille qui pilote déjà ce compte, si applicable. */
+  boundTo?: string | null;
+}
 interface AdCampaignRow {
   id: string; name: string; status: string; objective: string;
   spend: number; impressions: number; reach: number; clicks: number;
@@ -34,6 +38,12 @@ export function MetaAdAccountsPanel({ showCampaigns = true }: { showCampaigns?: 
   const [loading, setLoading] = useState(true);
   const [selecting, setSelecting] = useState<string | null>(null);
   const [datePreset, setDatePreset] = useState("maximum");
+  // Cloisonnement par société : par défaut on n'affiche QUE le compte rattaché
+  // à la société active. Le compte Meta connecté donne souvent accès à tout le
+  // portefeuille d'une agence ; les lister tous laissait croire que ces
+  // budgets appartenaient à la société consultée.
+  const [showAll, setShowAll] = useState(false);
+  useEffect(() => { setShowAll(false); }, [companyId]);
   // Pagination client du tableau des campagnes (10 lignes par page).
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 10;
@@ -101,6 +111,11 @@ export function MetaAdAccountsPanel({ showCampaigns = true }: { showCampaigns?: 
   const selected = resp.selectedId;
   const data = resp.data;
 
+  // Sans compte rattaché, il FAUT montrer la liste pour pouvoir en choisir un.
+  const visibleAccounts =
+    selected && !showAll ? resp.accounts.filter((a) => a.id === selected) : resp.accounts;
+  const hidden = resp.accounts.length - visibleAccounts.length;
+
   // Découpage de la page courante — le total (tfoot) reste calculé sur TOUTES
   // les campagnes, pas seulement celles de la page affichée.
   const campaigns = data?.campaigns ?? [];
@@ -110,14 +125,31 @@ export function MetaAdAccountsPanel({ showCampaigns = true }: { showCampaigns?: 
 
   return (
     <section className="card overflow-hidden">
-      <div className="border-b border-hair bg-canvas px-5 py-3">
-        <span className="section-label text-primary-500">{t("Comptes publicitaires Meta", "Meta ad accounts")}</span>
-        <p className="mt-0.5 text-2xs text-muted">{t("Choisissez le compte à piloter — données réelles via Marketing API.", "Pick the account to manage — real data via Marketing API.")}</p>
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-hair bg-canvas px-5 py-3">
+        <div>
+          <span className="section-label text-primary-500">{t("Comptes publicitaires Meta", "Meta ad accounts")}</span>
+          <p className="mt-0.5 text-2xs text-muted">
+            {selected && !showAll
+              ? t(`Compte de ${company.name} — données réelles via Marketing API.`, `${company.name}'s account — real data via Marketing API.`)
+              : t("Choisissez le compte à piloter — données réelles via Marketing API.", "Pick the account to manage — real data via Marketing API.")}
+          </p>
+        </div>
+        {selected && resp.accounts.length > 1 && (
+          <button
+            type="button"
+            onClick={() => setShowAll((v) => !v)}
+            className="shrink-0 rounded-lg border border-hair px-2.5 py-1 text-2xs font-semibold text-muted transition-colors hover:border-primary-200 hover:text-ink"
+          >
+            {showAll
+              ? t("N'afficher que cette société", "Show this company only")
+              : t(`Afficher tous les comptes (${hidden + 1})`, `Show all accounts (${hidden + 1})`)}
+          </button>
+        )}
       </div>
 
       {/* Sélecteur de comptes */}
       <div className="grid grid-cols-1 gap-2 p-4 sm:grid-cols-2 lg:grid-cols-3">
-        {resp.accounts.map((a) => {
+        {visibleAccounts.map((a) => {
           const isSel = a.id === selected;
           return (
             <button
@@ -137,6 +169,11 @@ export function MetaAdAccountsPanel({ showCampaigns = true }: { showCampaigns?: 
               <p className="mt-1 text-2xs text-muted">
                 act_{a.id} · {a.currency} · {t("dépensé", "spent")} {nf(a.amountSpent / 100)} {a.currency}
               </p>
+              {a.boundTo && !isSel && (
+                <p className="mt-1 text-2xs font-semibold text-warning-700">
+                  {t(`Déjà piloté par ${a.boundTo}`, `Already managed by ${a.boundTo}`)}
+                </p>
+              )}
               {isSel ? (
                 <span className="mt-1 inline-block text-2xs font-semibold text-primary-700">{t("Sélectionné ✓", "Selected ✓")}</span>
               ) : selecting === a.id ? (

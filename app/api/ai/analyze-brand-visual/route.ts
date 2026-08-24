@@ -9,6 +9,7 @@ export const maxDuration = 60;
 import { NextRequest, NextResponse } from "next/server";
 import { requireCompanyAccess } from "@/lib/auth/guard";
 import { isAiConfigured, env } from "@/lib/env";
+import { normalizeLang, langName, langRule, pick } from "@/lib/ai/lang";
 
 interface BrandVisual {
   palette: string[];
@@ -34,9 +35,10 @@ function normHex(c: string | undefined, fallback: string): string {
 
 export async function POST(req: NextRequest) {
   try {
-    const { companyId, imageDataUrl, kind } = (await req.json()) as {
-      companyId?: string; imageDataUrl?: string; kind?: "logo" | "charte";
+    const { companyId, imageDataUrl, kind, lang: rawLang } = (await req.json()) as {
+      companyId?: string; imageDataUrl?: string; kind?: "logo" | "charte"; lang?: string;
     };
+    const lang = normalizeLang(rawLang);
     if (!companyId) return NextResponse.json({ error: "companyId requis" }, { status: 400 });
     if (!imageDataUrl) return NextResponse.json({ error: "image requise" }, { status: 400 });
     const guard = await requireCompanyAccess(companyId);
@@ -53,21 +55,30 @@ export async function POST(req: NextRequest) {
 
     const empty: BrandVisual = {
       palette: [], recommendedTextColor: "#ffffff", style: "", tone: "", promptHints: "",
-      summary: "Analyse IA non configuree — importez votre logo/charte et choisissez les couleurs manuellement.",
+      summary: pick(
+        lang,
+        "Analyse IA non configurée — importez votre logo/charte et choisissez les couleurs manuellement.",
+        "AI analysis is not configured — upload your logo/brand chart and pick the colors manually."
+      ),
       aiGenerated: false,
     };
     if (!isAiConfigured) return NextResponse.json({ visual: empty });
 
+    // « style », « tone » et « summary » sont affichés tels quels : ils suivent
+    // la langue de l'interface. Seul "promptHints" reste en anglais (contrainte
+    // des modèles d'image).
+    const L = langName(lang);
     const what = kind === "charte" ? "cette charte graphique" : "ce logo";
     const prompt = `Tu es directeur artistique. Analyse ${what} et extrais l'identite visuelle de la marque.
+${langRule(lang)} Seul le champ "promptHints" reste EN ANGLAIS (contrainte des modeles d'image).
 Retourne STRICTEMENT ce JSON :
 {
   "palette": ["#hex", "..."],
   "recommendedTextColor": "#hex",
-  "style": "ex. minimaliste, medical, premium, moderne...",
-  "tone": "ex. rassurant, expert, dynamique...",
+  "style": "style en ${L} (ex. minimaliste, medical, premium, moderne...)",
+  "tone": "ton en ${L} (ex. rassurant, expert, dynamique...)",
   "promptHints": "indications de style EN ANGLAIS a integrer dans un prompt d'image pour rester coherent avec cette marque (palette, ambiance, matieres, lumiere)",
-  "summary": "1-2 phrases en francais resumant l'identite visuelle"
+  "summary": "1-2 phrases en ${L} resumant l'identite visuelle"
 }`;
 
     try {
@@ -104,7 +115,14 @@ Retourne STRICTEMENT ce JSON :
       console.warn("[analyze-brand-visual] fallback:", detail);
       // On signale la vraie raison (au lieu de « non configuré ») pour le débogage.
       return NextResponse.json({
-        visual: { ...empty, summary: `Analyse indisponible : ${detail}. Réessayez ou choisissez les couleurs manuellement.` },
+        visual: {
+          ...empty,
+          summary: pick(
+            lang,
+            `Analyse indisponible : ${detail}. Réessayez ou choisissez les couleurs manuellement.`,
+            `Analysis unavailable: ${detail}. Try again or pick the colors manually.`
+          ),
+        },
       });
     }
   } catch (e) {

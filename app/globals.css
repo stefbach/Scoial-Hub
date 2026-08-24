@@ -32,6 +32,9 @@
   --transition-base: 180ms cubic-bezier(0.4, 0, 0.2, 1);
   --transition-slow: 300ms cubic-bezier(0.4, 0, 0.2, 1);
 
+  /* Hauteur de l'en-tête collant — partagée avec la barre latérale. */
+  --app-header-h: 3.75rem;
+
   /* Rayons */
   --radius-sm: 0.25rem;
   --radius-md: 0.5rem;
@@ -561,6 +564,11 @@ html[data-theme="light"] .studio-seg {
 .app-header {
   box-shadow: 0 1px 0 0 rgb(var(--color-hair));
   transition: box-shadow var(--transition-base);
+  /* Hauteur CONNUE de l'en-tête : la barre latérale s'y adosse pour se coller
+     juste dessous et occuper exactement le reste de l'écran (R26 #2 et #3).
+     `min-height` fige la valeur ici même : la variable ne peut pas dériver de
+     la hauteur réelle. */
+  min-height: var(--app-header-h);
 }
 
 /* ── App shell « Mission Control » — décor spatial sous toutes les pages ─── */

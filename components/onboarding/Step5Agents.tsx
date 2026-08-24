@@ -10,6 +10,12 @@ import { useEffect, useState } from "react";
 import { useOnboardingCtx } from "@/components/onboarding/context";
 import { useT, useLang } from "@/lib/i18n";
 import type { AgentRunResult } from "@/lib/agents/types";
+import {
+  StepOutput,
+  splitApprovalMark,
+  truncateKeepingLink,
+  PendingApprovalBanner,
+} from "@/components/agents/StepOutput";
 
 // ── Icônes SVG inline ────────────────────────────────────────────────────────
 
@@ -285,12 +291,15 @@ function StepCard({ step, isLast }: { step: AgentRunResult["steps"][number]; isL
     dot: "bg-muted",
   };
 
-  // Tronquer les sorties longues (> 300 chars)
+  // Tronquer les sorties longues (> 300 chars). Le lien de reprise, ajouté en
+  // FIN de sortie par l'orchestrateur, était systématiquement coupé : la carte
+  // « Média » disait « cliquez le lien » sans qu'aucun lien soit visible
+  // (recette R26 #4). La troncature le conserve désormais.
   const OUTPUT_LIMIT = 300;
   const rawOutput = step.output ?? step.detail ?? "";
   const needsTruncate = rawOutput.length > OUTPUT_LIMIT;
   const displayOutput = needsTruncate && !expanded
-    ? rawOutput.slice(0, OUTPUT_LIMIT) + "…"
+    ? truncateKeepingLink(rawOutput, OUTPUT_LIMIT)
     : rawOutput;
 
   const statusConfig = {
@@ -330,7 +339,9 @@ function StepCard({ step, isLast }: { step: AgentRunResult["steps"][number]; isL
           {/* Sortie de l'étape */}
           {displayOutput && (
             <pre className="mt-2 whitespace-pre-wrap rounded-lg bg-canvas/60 px-3 py-2 font-sans text-xs leading-relaxed text-ink ring-1 ring-hair/50">
-              {displayOutput}
+              {/* Même rendu que la timeline : les chemins internes sont des
+                  liens cliquables, pas des adresses à recopier. */}
+              <StepOutput text={displayOutput} />
             </pre>
           )}
 
@@ -377,9 +388,20 @@ function FinalOutputCard({ finalOutput }: { finalOutput: string }) {
         </span>
       </div>
       <div className="p-4">
-        <pre className="whitespace-pre-wrap rounded-xl bg-canvas/60 px-4 py-3 font-sans text-sm leading-relaxed text-ink ring-1 ring-hair/50">
-          {finalOutput}
-        </pre>
+        {/* La mention d'attente de validation devient un bandeau au lieu de
+            rester collée en tête du texte : elle doit sauter aux yeux, et le
+            corps du contenu reste publiable sans rien effacer (R26 #5). */}
+        {(() => {
+          const { pending, body } = splitApprovalMark(finalOutput);
+          return (
+            <>
+              {pending && <PendingApprovalBanner className="mb-3" />}
+              <pre className="whitespace-pre-wrap rounded-xl bg-canvas/60 px-4 py-3 font-sans text-sm leading-relaxed text-ink ring-1 ring-hair/50">
+                <StepOutput text={body} />
+              </pre>
+            </>
+          );
+        })()}
       </div>
     </div>
   );

@@ -10,7 +10,7 @@ import { Tabs } from "@/components/ui/Tabs";
 import { AiTextPanel, AiVisualsPanel } from "@/components/ui/AiPanel";
 import { CreativeInspiration } from "@/components/compose/CreativeInspiration";
 import { ComposeAgent, type ComposeNet } from "@/components/compose/ComposeAgent";
-import { MediaEditor } from "@/components/compose/MediaEditor";
+import { StudioEditor } from "@/components/editor/StudioEditor";
 import { PostPreview, type PreviewPlatform } from "@/components/compose/PostPreview";
 import BrandKitPanel from "@/components/studio/BrandKitPanel";
 import { brandPromptHints } from "@/lib/brand-kit/prompt";
@@ -772,15 +772,16 @@ function ComposeContent() {
               onClick={() => setEditing(true)}
               className="btn-secondary -mt-1 text-xs"
             >
-              ✏️ {t("Annoter (texte / musique)", "Annotate (text / music)")}
+              🎬 {t("Monter (texte, musique, découpe)", "Edit (text, music, cutting)")}
             </button>
           )}
-          {/* `companyId` : sans lui le rendu ne peut pas être hébergé, et la
-              publication réseau échouerait plus tard (audit A-06). */}
+          {/* Banc de montage : édition NON DESTRUCTIVE fondée sur un document
+              de projet. Le média source reste intact, le travail est repris à
+              tout moment, et le rendu est hébergé avant d'être transmis. */}
           {editing && upload && (
-            <MediaEditor
-              media={upload}
+            <StudioEditor
               companyId={company.id}
+              initialMedia={upload}
               onExport={setUpload}
               onClose={() => setEditing(false)}
             />

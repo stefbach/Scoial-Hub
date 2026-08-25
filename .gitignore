@@ -22,3 +22,6 @@ mcp/dist
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+
+# Cœur ffmpeg.wasm — copié depuis node_modules par scripts/copy-ffmpeg-core.mjs
+/public/ffmpeg/

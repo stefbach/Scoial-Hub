@@ -32,7 +32,8 @@
     "test:r26": "tsx scripts/verify-r26.ts",
     "audit:adaccounts": "tsx scripts/audit-ad-account-bindings.ts",
     "backfill:historique": "tsx scripts/backfill-history-media.ts",
-    "test:editeur": "tsx scripts/verify-media-editor.ts"
+    "test:editeur": "tsx scripts/verify-media-editor.ts",
+    "test:r27": "tsx scripts/verify-r27.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.100.1",

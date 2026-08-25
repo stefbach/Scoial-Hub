@@ -157,13 +157,16 @@ function ComposeContent() {
     if (postType === "reel" && upload?.kind !== "video") setPostType("feed");
     if (postType !== "feed" && !upload) setPostType("feed");
   }, [upload, postType]);
-  // Édition d'une publication programmée RÉELLE (« Edit in compose »).
-  // `findPost` ne lit que le magasin local de démonstration : pour une
-  // publication venue de la base, il renvoyait toujours undefined et le
-  // formulaire s'ouvrait entièrement vide. On va donc la chercher côté API.
-  const [prefilling, setPrefilling] = useState(Boolean(postId) && !post);
+  // Reprise d'une publication programmée OU d'un brouillon RÉELS.
+  // `findPost` et `findDraft` ne lisent que le magasin local de démonstration :
+  // pour une ligne venue de la base, ils renvoient undefined et le formulaire
+  // s'ouvre entièrement vide (recette R27 #9, même cause que « Edit in
+  // compose »). On va donc la chercher côté API — un seul chemin pour les deux.
+  const resumeId = postId ?? draftId;
+  const resumedLocally = Boolean(post ?? draft);
+  const [prefilling, setPrefilling] = useState(Boolean(resumeId) && !resumedLocally);
   useEffect(() => {
-    if (!postId || post) return;
+    if (!resumeId || resumedLocally) return;
     let alive = true;
     setPrefilling(true);
     fetch(`/api/scheduled-posts?companyId=${encodeURIComponent(company.id)}`, { cache: "no-store" })
@@ -171,7 +174,7 @@ function ComposeContent() {
       .then((d) => {
         if (!alive || !d) return;
         const rows: ScheduledPost[] = Array.isArray(d?.posts) ? d.posts : Array.isArray(d) ? d : [];
-        const found = rows.find((p) => p.id === postId);
+        const found = rows.find((p) => p.id === resumeId);
         if (!found) return;
         setBody(found.body ?? found.title ?? "");
         const acc = data.accounts.find((a) => a.platform === found.platform);
@@ -202,7 +205,7 @@ function ComposeContent() {
     };
     // `data.accounts` est stable pour une société donnée.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [postId, post, company.id]);
+  }, [resumeId, resumedLocally, company.id]);
 
   const [editing, setEditing] = useState(false);
   const [language, setLanguage] = useState("Français");

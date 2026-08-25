@@ -208,6 +208,15 @@ export function BrandConsultant({
         setReadyToLock(true);
         if (p.philosophyLocked) setLocked(true);
         kicked.current = true; // pas de message d'accueil : on a déjà un ADN
+
+        // Le FIL enregistré côté serveur prime : l'entretien reprend là où il
+        // s'est arrêté, même depuis un autre poste ou après un cache vidé
+        // (R27 #7). Sans lui, on retombe sur le simple message de reprise.
+        const saved = Array.isArray(p.consultantThread) ? p.consultantThread.filter((m) => m?.content) : [];
+        if (saved.length) {
+          setMessages(saved);
+          return;
+        }
         setMessages([{ role: "assistant", content: p.philosophyLocked
           ? t("Votre identité de marque verrouillée est chargée ci-dessous. Vous pouvez l'affiner ou la reverrouiller.", "Your locked brand identity is loaded below. You can refine or re-lock it.")
           : t("Votre identité de marque enregistrée est chargée ci-dessous. Reprenez l'entretien pour la compléter.", "Your saved brand identity is loaded below. Resume the interview to complete it.") }]);

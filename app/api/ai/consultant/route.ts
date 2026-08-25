@@ -487,8 +487,20 @@ TOUT ce que tu produis est rédigé en ${LANG_NAME} : "reply", MAIS AUSSI chaque
     // Sauvegarde du brouillon d'ADN (sans verrouiller) pour reprise ultérieure.
     const draft = mergeDna(existing, result.dna);
     if (messages.length) {
+      // Le FIL de conversation est conservé avec le brouillon : c'est ce qui
+      // permet de reprendre l'entretien depuis n'importe quel poste, là où il
+      // s'était arrêté (R27 #7). Borné aux 40 derniers tours — au-delà, le
+      // début de l'entretien est déjà résumé dans l'ADN.
+      const thread = [...messages, { role: "assistant" as const, content: result.reply ?? "" }]
+        .filter((m) => m.content)
+        .slice(-40);
       // On ne marque PAS analyzedAt : la philosophie n'est pas encore verrouillée.
-      await saveBrandProfile({ ...draft, companyId, philosophyLocked: false }).catch(() => {});
+      await saveBrandProfile({
+        ...draft,
+        companyId,
+        philosophyLocked: false,
+        consultantThread: thread,
+      }).catch(() => {});
     }
 
     // Réinjection dans le RAG : tout ce que le consultant récupère et conseille.

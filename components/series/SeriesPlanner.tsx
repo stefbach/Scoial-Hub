@@ -16,6 +16,7 @@ import { Spinner } from "@/components/ui/Spinner";
 import { DatePicker, TimePicker } from "@/components/ui/DateTimePicker";
 import { MediaLibraryButton } from "@/components/studio/MediaLibrary";
 import { UploadMediaButton } from "@/components/studio/UploadMediaButton";
+import { ThemeSuggestions, useBrandThemes } from "@/components/brand/ThemeSuggestions";
 import { Modal } from "@/components/ui/Modal";
 import { ImageEditor } from "@/components/studio/ImageEditor";
 import { PublishLanguageSelect } from "@/components/ui/PublishLanguageSelect";
@@ -68,6 +69,9 @@ export function SeriesPlanner({ platform }: { platform: SeriesPlatform }) {
 
   const [drafts, setDrafts] = useState<DraftItem[]>([{ body: "" }, { body: "" }, { body: "" }]);
   const [theme, setTheme] = useState("");
+  /** Vrai quand « Générer » a été tenté sans thème — signalé sous le champ. */
+  const [themeMissing, setThemeMissing] = useState(false);
+  const brandThemeList = useBrandThemes(companyId);
   const [count, setCount] = useState(5);
   const [seriesFormat, setSeriesFormat] = useState<"post" | "article">("post");
   // Langue de PUBLICATION (≠ langue de l'interface) ; défaut = langue de l'app.
@@ -102,7 +106,15 @@ export function SeriesPlanner({ platform }: { platform: SeriesPlatform }) {
   }
 
   async function generateSeries() {
-    if (!theme.trim()) { setMsg(t("Indiquez un thème pour la série.", "Enter a theme for the series.")); return; }
+    // Sans thème, « Générer » ne faisait RIEN de visible : le message partait
+    // dans une zone d'état éloignée du champ fautif. L'erreur se signale
+    // maintenant SOUS le champ à remplir (R27 #11).
+    if (!theme.trim()) {
+      setThemeMissing(true);
+      setMsg(null);
+      return;
+    }
+    setThemeMissing(false);
     setGenerating(true); setMsg(null);
     try {
       const r = await fetch("/api/ai/social-series", {
@@ -223,9 +235,21 @@ export function SeriesPlanner({ platform }: { platform: SeriesPlatform }) {
       {/* Génération IA */}
       <div className="rounded-xl border border-hair bg-canvas p-3 space-y-2">
         <p className="section-label text-ai-text">{t("✨ Générer la série avec l'IA", "✨ Generate the series with AI")}</p>
+        {/* Thèmes déjà définis par la marque : évite de repartir d'un champ
+            vide et d'avoir à les retrouver de mémoire (R27 #12). */}
+        <ThemeSuggestions
+          themes={brandThemeList}
+          value={theme}
+          onPick={(v) => { setTheme(v); setThemeMissing(false); }}
+        />
         <div className="flex flex-wrap items-center gap-2">
-          <input value={theme} onChange={(e) => setTheme(e.target.value)}
-            placeholder={t("Thème de la série", "Series theme")} className={`${inputCls} min-w-[200px] flex-1`} />
+          <input
+            value={theme}
+            onChange={(e) => { setTheme(e.target.value); if (e.target.value.trim()) setThemeMissing(false); }}
+            aria-invalid={themeMissing}
+            placeholder={t("Thème de la série", "Series theme")}
+            className={`${inputCls} min-w-[200px] flex-1 ${themeMissing ? "border-danger-500 ring-2 ring-danger-500/20" : ""}`}
+          />
           <select value={count} onChange={(e) => setCount(Number(e.target.value))}
             className="rounded-lg border border-hair bg-canvas px-2 py-2 text-sm text-ink outline-none focus:border-primary-400">
             {[3, 4, 5, 6, 7, 8, 9, 10].map((n) => <option key={n} value={n}>{n}</option>)}
@@ -244,6 +268,15 @@ export function SeriesPlanner({ platform }: { platform: SeriesPlatform }) {
             </button>
           )}
         </div>
+
+        {themeMissing && (
+          <p role="alert" className="text-2xs font-semibold text-danger-600">
+            {t(
+              "Indiquez un thème ci-dessus pour lancer la génération — ou choisissez-en un dans les thèmes de votre marque.",
+              "Enter a theme above to start generating — or pick one from your brand themes."
+            )}
+          </p>
+        )}
 
         <div className="flex flex-wrap items-center gap-3">
           <PublishLanguageSelect value={pubLang} onChange={setPubLang} />

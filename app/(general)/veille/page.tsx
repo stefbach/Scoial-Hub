@@ -18,6 +18,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { ContentCard } from "@/components/veille/ContentCard";
 import { AnalysisPanel } from "@/components/veille/AnalysisPanel";
 import { CompetitorItem } from "@/components/veille/CompetitorItem";
+import { ThemeSuggestions, useBrandThemes } from "@/components/brand/ThemeSuggestions";
 import { StrategyPanel } from "@/components/strategy/StrategyPanel";
 import type { Competitor } from "@/lib/repositories/competitors";
 import type { CompetitorContent } from "@/lib/scraping/types";
@@ -156,6 +157,7 @@ export default function VeillePage() {
   const [geo, setGeo] = useState(country.id);
   const [keywords, setKeywords] = useState<string[]>([]);
   const [theme, setTheme] = useState("");
+  const brandThemeList = useBrandThemes(company.id);
 
   // Compétiteurs
   const [competitors, setCompetitors] = useState<Competitor[]>([]);
@@ -507,6 +509,9 @@ export default function VeillePage() {
                   placeholder={t("ex. Mode durable, Fintech B2B...", "e.g. Sustainable fashion, B2B Fintech...")}
                   className="input"
                 />
+                {/* Thèmes déjà définis par la marque : sélectionnables en un
+                    clic, la saisie libre restant possible (R27 #4). */}
+                <ThemeSuggestions themes={brandThemeList} value={theme} onPick={setTheme} />
               </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted">{t("Mots-clés (Entrée pour valider)", "Keywords (Enter to confirm)")}</label>

@@ -246,7 +246,9 @@ function ScheduledContent() {
                     key={p.id}
                     post={p}
                     onOpen={() => setOpenPost(p)}
-                    onEdit={() => router.push(`/compose?post=${p.id}`)}
+                    // Un brouillon se reprend par `?draft=`, une programmée par
+                    // `?post=` : les deux mènent au même préremplissage.
+                    onEdit={() => router.push(isDraft(p) ? `/compose?draft=${p.id}` : `/compose?post=${p.id}`)}
                     onDelete={() => handleQuickDelete(p)}
                   />
                 ))}
@@ -357,16 +359,11 @@ function PostRow({
     </>
   );
 
-  if (isDraft(p)) {
-    return (
-      <Link
-        href={`/compose?draft=${p.id}`}
-        className="flex cursor-pointer items-center gap-3 px-4 py-3 text-sm transition-colors hover:bg-canvas"
-      >
-        {inner}
-      </Link>
-    );
-  }
+  // Un brouillon s'ouvre en APERÇU, comme une publication programmée : cliquer
+  // dessus basculait directement dans l'écran de rédaction, sans avoir pu
+  // vérifier de quoi il s'agissait (R27 #8). La modale porte le bouton
+  // « Modifier dans Compose », et la ligne offre les mêmes actions au survol
+  // que les autres (R27 #10).
   return (
     <div className="group/row relative">
       <button

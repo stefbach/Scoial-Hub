@@ -408,9 +408,12 @@ class YouTubeCollector implements Collector {
       // pas le sujet. Une recherche « pièces auto » avec regionCode=MU
       // remontait donc des contenus mondiaux (R25 #4).
       const country = countryName(query.geo, query.language ?? "en");
-      const q = [...query.keywords, query.theme, country]
+      // Le pays est ajouté APRÈS la troncature : placé dans la liste avant le
+      // `slice`, il disparaissait dès qu'il y avait quatre mots-clés ou plus —
+      // la recherche redevenait alors mondiale, ce que le correctif R25 #4
+      // visait précisément à empêcher.
+      const q = [...[...query.keywords, query.theme].filter(Boolean).slice(0, 4), country]
         .filter(Boolean)
-        .slice(0, 4)
         .join(" ");
       const regionCode = query.geo.toUpperCase().slice(0, 2);
 
@@ -790,8 +793,16 @@ class XpozCollector implements Collector {
 interface ScEndpoint {
   /** Chemin relatif de l'endpoint « posts/videos du compte ». */
   path: string;
-  /** Nom du paramètre de requête portant le handle du compte. */
+  /** Nom du paramètre de requête portant l'identifiant du compte. */
   handleParam: string;
+  /**
+   * Forme attendue de cet identifiant. Tous les endpoints n'acceptent pas un
+   * pseudo : celui de Facebook exige l'URL COMPLÈTE du profil, et rejetait
+   * chaque appel en 400 (« You must provide a 'url' or 'pageId' »). Aucun
+   * contenu Facebook ne remontait donc jamais — d'où une veille vide malgré
+   * des concurrents renseignés (R27 #5).
+   */
+  idShape?: "handle" | "profileUrl";
 }
 
 /** Endpoint « contenus d'un compte » par réseau. */
@@ -800,7 +811,7 @@ const SC_ENDPOINTS: Record<ScrapeNetwork, ScEndpoint> = {
   tiktok:    { path: "/v3/tiktok/profile/videos", handleParam: "handle" },
   youtube:   { path: "/v1/youtube/channel-videos", handleParam: "handle" },
   linkedin:  { path: "/v1/linkedin/company/posts", handleParam: "handle" },
-  facebook:  { path: "/v1/facebook/profile/posts", handleParam: "handle" },
+  facebook:  { path: "/v1/facebook/profile/posts", handleParam: "url", idShape: "profileUrl" },
   twitter:   { path: "/v1/twitter/user-tweets", handleParam: "handle" },
 };
 
@@ -850,12 +861,20 @@ class ScrapeCreatorsCollector implements Collector {
     name: string | undefined,
     per: number
   ): Promise<CompetitorContent[]> {
-    const username = handle.replace(/^@/, "").trim();
+    // Un « handle » saisi peut déjà être une URL de profil complète : on en
+    // extrait le pseudo pour les endpoints qui en attendent un, et on garde
+    // l'URL telle quelle pour ceux qui l'exigent.
+    const raw = handle.trim();
+    const username = raw.replace(/^https?:\/\/[^/]+\//i, "").replace(/\/.*$/, "").replace(/^@/, "").trim();
     if (!username) return [];
     const ep = SC_ENDPOINTS[this.network];
     try {
       const url = new URL(ScrapeCreatorsCollector.BASE + ep.path);
-      url.searchParams.set(ep.handleParam, username);
+      const identifier =
+        ep.idShape === "profileUrl"
+          ? (/^https?:\/\//i.test(raw) ? raw : this.fallbackUrl(username))
+          : username;
+      url.searchParams.set(ep.handleParam, identifier);
       url.searchParams.set("amount", String(per));
       url.searchParams.set("trim", "true");
       const res = await fetch(url.toString(), {

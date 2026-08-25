@@ -5,6 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "prebuild": "node scripts/copy-ffmpeg-core.mjs",
+    "postinstall": "node scripts/copy-ffmpeg-core.mjs",
     "start": "next start",
     "lint": "next lint",
     "test:affiche": "tsx scripts/verify-affiche-layout.ts",
@@ -33,10 +35,12 @@
     "audit:adaccounts": "tsx scripts/audit-ad-account-bindings.ts",
     "backfill:historique": "tsx scripts/backfill-history-media.ts",
     "test:editeur": "tsx scripts/verify-media-editor.ts",
-    "test:r27": "tsx scripts/verify-r27.ts"
+    "test:r27": "tsx scripts/verify-r27.ts",
+    "test:montageproj": "tsx scripts/verify-editor-project.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.100.1",
+    "@ffmpeg/core": "^0.12.6",
     "@ffmpeg/ffmpeg": "^0.12.10",
     "@ffmpeg/util": "^0.12.1",
     "@supabase/ssr": "^0.10.3",

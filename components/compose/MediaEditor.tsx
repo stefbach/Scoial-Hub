@@ -15,6 +15,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useT } from "@/lib/i18n";
+import { hostMedia } from "@/lib/media/host";
 import type { UploadedMedia } from "@/components/ui/MediaUpload";
 
 interface TextOverlay {
@@ -57,10 +58,13 @@ export function MediaEditor({
   media,
   onExport,
   onClose,
+  companyId,
 }: {
   media: UploadedMedia;
   onExport: (m: UploadedMedia) => void;
   onClose: () => void;
+  /** Requis pour héberger le rendu : une URL blob: n'est pas publiable (A-06). */
+  companyId?: string;
 }) {
   const t = useT();
   const isVideo = media.kind === "video";
@@ -70,10 +74,60 @@ export function MediaEditor({
   const [nat, setNat] = useState<{ w: number; h: number } | null>(null);
   const [boxW, setBoxW] = useState(320);
   const [music, setMusic] = useState<File | null>(null);
-  const [keepAudio, setKeepAudio] = useState(false);
+  // Le son d'origine est CONSERVÉ par défaut : ajouter une nappe musicale sous
+  // une interview effaçait jusqu'ici l'interview entière, sans avertissement
+  // (audit A-04). Le cas rare est de vouloir supprimer la voix, pas l'inverse.
+  const [keepAudio, setKeepAudio] = useState(true);
+  /** Volume de la musique par rapport à la voix, en pourcentage. */
+  const [musicVolume, setMusicVolume] = useState(25);
   const [exporting, setExporting] = useState(false);
   const [progress, setProgress] = useState(0);
   const [note, setNote] = useState<string | null>(null);
+
+  /**
+   * Publie le rendu : hébergement PUBLIC puis transmission de cette URL.
+   * Une adresse `blob:` n'existe que dans cet onglet — Instagram, Facebook et
+   * LinkedIn vont chercher le média depuis leurs serveurs et ne peuvent pas la
+   * lire. La transmettre revenait à programmer un échec de publication plus
+   * tard, loin de sa cause (audit A-06).
+   */
+  const publishRender = useCallback(
+    async (blob: Blob, name: string, kind: "image" | "video"): Promise<boolean> => {
+      if (!companyId) {
+        setNote(
+          t(
+            "Société non identifiée : le média ne peut pas être hébergé, et une publication réseau échouerait. Rouvrez l'éditeur depuis le composeur.",
+            "Company not identified: the media cannot be hosted, and network publishing would fail. Reopen the editor from the composer."
+          )
+        );
+        return false;
+      }
+      setNote(t("Hébergement du média…", "Hosting the media…"));
+      const res = await hostMedia(companyId, blob, name, "edited");
+      if (!res.url) {
+        setNote(
+          t(
+            `Hébergement impossible (${res.error ?? "erreur inconnue"}). Le média n'a pas été remplacé : réessayez.`,
+            `Hosting failed (${res.error ?? "unknown error"}). The media was not replaced: please retry.`
+          )
+        );
+        return false;
+      }
+      onExport({ url: res.url, name, size: blob.size, kind });
+      return true;
+    },
+    [companyId, onExport, t]
+  );
+
+  // URL locale de la musique, pour l'écouter dans l'éditeur. Révoquée au
+  // changement de fichier afin de ne pas fuir de blob.
+  const [musicUrl, setMusicUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!music) { setMusicUrl(null); return; }
+    const u = URL.createObjectURL(music);
+    setMusicUrl(u);
+    return () => URL.revokeObjectURL(u);
+  }, [music]);
 
   const boxRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ id: string; startX: number; startY: number; ox: number; oy: number } | null>(null);
@@ -153,9 +207,9 @@ export function MediaEditor({
       drawOverlays(ctx, nat.w, nat.h, overlays);
       const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, "image/png"));
       if (!blob) throw new Error("toBlob");
-      const url = URL.createObjectURL(blob);
-      onExport({ url, name: "edited.png", size: blob.size, kind: "image" });
-      onClose();
+      // La modale ne se ferme QUE si l'hébergement a réussi : sinon
+      // l'utilisateur perdait son travail en même temps que le média.
+      if (await publishRender(blob, "edited.png", "image")) onClose();
     } catch {
       setNote(t(
         "Export impossible (l'image source bloque peut-être l'accès cross-origin).",
@@ -164,7 +218,7 @@ export function MediaEditor({
     } finally {
       setExporting(false);
     }
-  }, [nat, overlays, media.url, onExport, onClose, t]);
+  }, [nat, overlays, media.url, publishRender, onClose, t]);
 
   // ── Export VIDÉO (ffmpeg.wasm) ───────────────────────────────────────────
   const exportVideo = useCallback(async () => {
@@ -205,9 +259,15 @@ export function MediaEditor({
       if (music) {
         await ffmpeg.writeFile("music", await fetchFile(music));
         if (keepAudio) {
+          // `amix` sans pondération atténue les deux sources de 50 % : la
+          // musique couvrait donc la parole à volume égal. On abaisse la
+          // musique au niveau choisi (25 % par défaut, ≈ −12 dB) et on
+          // normalise la somme pour ne pas saturer (audit A-04).
+          const gain = Math.max(0, Math.min(100, musicVolume)) / 100;
           args = [
             "-i", "in.mp4", "-i", "ov.png", "-i", "music",
-            "-filter_complex", "[0:v][1:v]overlay=0:0[v];[0:a][2:a]amix=inputs=2:duration=shortest[a]",
+            "-filter_complex",
+            `[0:v][1:v]overlay=0:0[v];[2:a]volume=${gain.toFixed(2)}[m];[0:a][m]amix=inputs=2:duration=shortest:weights=1 1:normalize=0[a]`,
             "-map", "[v]", "-map", "[a]",
           ];
         } else {
@@ -236,9 +296,7 @@ export function MediaEditor({
       const bytes = new Uint8Array(data.length);
       bytes.set(data);
       const blob = new Blob([bytes], { type: "video/mp4" });
-      const url = URL.createObjectURL(blob);
-      onExport({ url, name: "edited.mp4", size: blob.size, kind: "video" });
-      onClose();
+      if (await publishRender(blob, "edited.mp4", "video")) onClose();
     } catch (err) {
       setNote(
         t("Échec du rendu vidéo : ", "Video render failed: ") +
@@ -247,7 +305,7 @@ export function MediaEditor({
     } finally {
       setExporting(false);
     }
-  }, [nat, overlays, music, keepAudio, media.url, onExport, onClose, t]);
+  }, [nat, overlays, music, keepAudio, musicVolume, media.url, publishRender, onClose, t]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
@@ -257,7 +315,11 @@ export function MediaEditor({
       >
         <div className="flex items-center justify-between border-b border-hair px-4 py-3">
           <h3 className="text-sm font-semibold text-ink">
-            🎬 {t("Studio — texte & musique", "Studio — text & music")}
+            {/* « Studio » installait une attente que l'outil ne tient pas :
+                il annote un média, il ne monte pas une vidéo. Le libellé dit
+                ce que l'outil fait, le temps que le banc de montage arrive
+                (audit A-08). */}
+            ✏️ {t("Annotation rapide — texte & musique", "Quick annotation — text & music")}
           </h3>
           <button type="button" onClick={onClose} className="text-muted hover:text-ink">✕</button>
         </div>
@@ -297,6 +359,13 @@ export function MediaEditor({
                 <div
                   key={o.id}
                   onPointerDown={(e) => onPointerDown(e, o)}
+                  // `pointerdown` sélectionnait le bloc, puis le `click` qui
+                  // suit remontait au conteneur d'aperçu et le désélectionnait
+                  // aussitôt : le panneau d'édition s'affichait et disparaissait
+                  // dans le même geste. Six fonctions déjà développées (texte,
+                  // taille, couleur, gras, fond, suppression) étaient ainsi
+                  // inatteignables (audit A-02).
+                  onClick={(e) => e.stopPropagation()}
                   className={`absolute cursor-move whitespace-pre leading-tight ${selectedId === o.id ? "outline outline-2 outline-primary-400" : ""}`}
                   style={{
                     left: `${o.xPct * 100}%`,
@@ -377,10 +446,35 @@ export function MediaEditor({
                 {music && (
                   <>
                     <p className="truncate text-2xs text-muted">{music.name}</p>
+                    {/* Écoute AVANT le rendu : le résultat sonore ne se
+                        découvrait qu'après plusieurs minutes d'encodage. */}
+                    {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+                    <audio src={musicUrl ?? undefined} controls className="w-full" />
                     <label className="flex items-center gap-1">
                       <input type="checkbox" checked={keepAudio} onChange={(e) => setKeepAudio(e.target.checked)} />
-                      {t("Garder le son original (mixer)", "Keep original audio (mix)")}
+                      {t("Garder le son original de la vidéo", "Keep the video's original audio")}
                     </label>
+                    {keepAudio ? (
+                      <label className="flex items-center gap-2 text-2xs text-muted">
+                        {t("Volume musique", "Music volume")}
+                        <input
+                          type="range"
+                          min={0}
+                          max={100}
+                          value={musicVolume}
+                          onChange={(e) => setMusicVolume(Number(e.target.value))}
+                          className="flex-1 accent-primary-600"
+                        />
+                        <span className="w-8 text-right text-ink">{musicVolume}%</span>
+                      </label>
+                    ) : (
+                      <p className="text-2xs font-semibold text-warning-700">
+                        {t(
+                          "⚠️ Le son d'origine de la vidéo sera supprimé (voix comprise).",
+                          "⚠️ The video's original audio will be removed (including any speech)."
+                        )}
+                      </p>
+                    )}
                   </>
                 )}
               </div>

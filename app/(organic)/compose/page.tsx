@@ -769,11 +769,18 @@ function ComposeContent() {
               onClick={() => setEditing(true)}
               className="btn-secondary -mt-1 text-xs"
             >
-              🎬 {t("Éditer (texte / musique)", "Edit (text / music)")}
+              ✏️ {t("Annoter (texte / musique)", "Annotate (text / music)")}
             </button>
           )}
+          {/* `companyId` : sans lui le rendu ne peut pas être hébergé, et la
+              publication réseau échouerait plus tard (audit A-06). */}
           {editing && upload && (
-            <MediaEditor media={upload} onExport={setUpload} onClose={() => setEditing(false)} />
+            <MediaEditor
+              media={upload}
+              companyId={company.id}
+              onExport={setUpload}
+              onClose={() => setEditing(false)}
+            />
           )}
 
           {/* Emplacement Meta — fil, Story 24 h ou Reel. Trois endpoints Graph

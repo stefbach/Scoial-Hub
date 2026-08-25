@@ -224,7 +224,10 @@ function LoadingAgents() {
             {t("Les agents travaillent…", "Agents are working…")}
           </p>
           <p className="text-xs text-muted">
-            {t("Orchestration en cours — environ 45 secondes", "Orchestration in progress — about 45 seconds")}
+            {/* Durée mesurée sur les cycles réels : annoncer 45 s pour un
+                traitement qui en prend 90 fait croire à un blocage à mi-course
+                (recette R27 #1). Mieux vaut annoncer large et finir en avance. */}
+            {t("Orchestration en cours — environ 90 secondes", "Orchestration in progress — about 90 seconds")}
           </p>
         </div>
       </div>

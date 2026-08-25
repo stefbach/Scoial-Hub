@@ -229,7 +229,14 @@ export function ScheduledDetailModal({
           <Button variant="secondary" onClick={() => setRescheduling((r) => !r)}>
             {t("Replanifier", "Reschedule")}
           </Button>
-          <Button variant="secondary" onClick={() => router.push(`/compose?post=${post.id}`)}>
+          {/* Un brouillon se reprend par `?draft=` : c'est le paramètre que
+              l'écran de rédaction attend pour le retrouver (R27 #8). */}
+          <Button
+            variant="secondary"
+            onClick={() =>
+              router.push(post.status === "draft" ? `/compose?draft=${post.id}` : `/compose?post=${post.id}`)
+            }
+          >
             {t("Modifier dans Compose", "Edit in Compose")}
           </Button>
           <Button variant="primary" onClick={() => setConfirm("publish")}>

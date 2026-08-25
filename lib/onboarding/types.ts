@@ -87,6 +87,14 @@ export interface BrandProfile {
   aiGenerated: boolean;
   /** ISO timestamp, ou null si jamais analysé. */
   analyzedAt: string | null;
+  /**
+   * Fil de l'entretien avec le consultant IA, conservé CÔTÉ SERVEUR.
+   * Il n'existait qu'en `localStorage` : changer de poste ou vider le cache
+   * effaçait la conversation, et l'écran repartait d'une ligne d'accueil au
+   * lieu de reprendre où l'on s'était arrêté (recette R27 #7).
+   * Optionnel : les profils enregistrés avant cette version n'en ont pas.
+   */
+  consultantThread?: { role: "user" | "assistant"; content: string }[];
 }
 
 export interface GeoTarget {

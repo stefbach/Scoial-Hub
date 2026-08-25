@@ -18,6 +18,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { ContentCard } from "@/components/veille/ContentCard";
 import { AnalysisPanel } from "@/components/veille/AnalysisPanel";
 import { CompetitorItem } from "@/components/veille/CompetitorItem";
+import { ThemeSuggestions, useBrandThemes } from "@/components/brand/ThemeSuggestions";
 import { StrategyPanel } from "@/components/strategy/StrategyPanel";
 import type { Competitor } from "@/lib/repositories/competitors";
 import type { CompetitorContent } from "@/lib/scraping/types";
@@ -156,6 +157,7 @@ export default function VeillePage() {
   const [geo, setGeo] = useState(country.id);
   const [keywords, setKeywords] = useState<string[]>([]);
   const [theme, setTheme] = useState("");
+  const brandThemeList = useBrandThemes(company.id);
 
   // Compétiteurs
   const [competitors, setCompetitors] = useState<Competitor[]>([]);
@@ -174,6 +176,10 @@ export default function VeillePage() {
   const [identified, setIdentified] = useState<IdentifiedCompetitor[]>([]);
   // Handles saisis à la main pour les suggestions sans handle confirmé (clé = index).
   const [editedHandles, setEditedHandles] = useState<Record<number, string>>({});
+  // Site web saisi sur une suggestion de l'IA. Le champ existait à l'ajout
+  // manuel mais pas ici : un concurrent retenu depuis la liste identifiée
+  // arrivait donc toujours sans site (R27 #6).
+  const [editedSites, setEditedSites] = useState<Record<number, string>>({});
 
   // Run
   const [running, setRunning] = useState(false);
@@ -292,6 +298,7 @@ export default function VeillePage() {
           network: c.network,
           handle,
           name: c.name,
+          website: (editedSites[index] ?? "").trim() || undefined,
           source: "identifié",
         }),
       });
@@ -502,6 +509,9 @@ export default function VeillePage() {
                   placeholder={t("ex. Mode durable, Fintech B2B...", "e.g. Sustainable fashion, B2B Fintech...")}
                   className="input"
                 />
+                {/* Thèmes déjà définis par la marque : sélectionnables en un
+                    clic, la saisie libre restant possible (R27 #4). */}
+                <ThemeSuggestions themes={brandThemeList} value={theme} onPick={setTheme} />
               </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted">{t("Mots-clés (Entrée pour valider)", "Keywords (Enter to confirm)")}</label>
@@ -660,6 +670,16 @@ export default function VeillePage() {
                           className="w-full rounded-md border border-hair bg-card px-2 py-1 text-2xs text-ink placeholder:text-muted/60 outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-500/20"
                         />
                       )}
+                      {/* Site web du concurrent : renseignable au moment où on
+                          le retient, comme à l'ajout manuel (R27 #6). */}
+                      <input
+                        type="text"
+                        value={editedSites[i] ?? ""}
+                        onChange={(e) => setEditedSites((prev) => ({ ...prev, [i]: e.target.value }))}
+                        onKeyDown={(e) => { if (e.key === "Enter" && canAdd) handleAddIdentified(c, i); }}
+                        placeholder={t("Site web (optionnel) — ex. exemple.com", "Website (optional) — e.g. example.com")}
+                        className="w-full rounded-md border border-hair bg-card px-2 py-1 text-2xs text-ink placeholder:text-muted/60 outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-500/20"
+                      />
                       <p className="text-2xs text-muted leading-snug">{c.rationale}</p>
                       {/* #28 — vérification directe du compte sur le réseau concerné
                           (profil si un handle est connu/saisi, sinon recherche ciblée). */}

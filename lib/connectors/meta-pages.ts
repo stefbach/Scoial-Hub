@@ -111,6 +111,28 @@ export async function fetchAdAccounts(userToken: string): Promise<AdAccount[]> {
   }
 }
 
+const normName = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+/**
+ * Force de la preuve reliant un compte publicitaire à une société :
+ * `exact` (même nom), `partial` (l'un contient l'autre), `none` (aucun lien).
+ *
+ * Exporté pour que l'AUDIT des rattachements existants applique exactement la
+ * même règle que le rattachement automatique — une seule définition de « ce
+ * compte appartient à cette société », pas deux qui divergent avec le temps.
+ */
+export function adAccountNameEvidence(
+  accountName: string,
+  companyName: string | string[]
+): "exact" | "partial" | "none" {
+  const an = normName(accountName);
+  if (!an) return "none";
+  const names = (Array.isArray(companyName) ? companyName : [companyName]).map(normName).filter(Boolean);
+  if (names.some((cn) => an === cn)) return "exact";
+  if (names.some((cn) => an.includes(cn) || cn.includes(an))) return "partial";
+  return "none";
+}
+
 /**
  * Rattache un compte publicitaire à une société — UNIQUEMENT sur preuve.
  * `names` est ordonné par force de preuve (nom de société, puis nom de Page).
@@ -120,19 +142,15 @@ export function pickAdAccountForCompany(
   companyName: string | string[]
 ): AdAccount | null {
   if (accounts.length === 0) return null;
-  const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
-  const names = (Array.isArray(companyName) ? companyName : [companyName]).map(norm).filter(Boolean);
+  const names = (Array.isArray(companyName) ? companyName : [companyName]).filter(Boolean);
   const active = accounts.filter((a) => a.status === 1);
   const pool = active.length ? active : accounts;
   for (const cn of names) {
-    const exact = pool.find((a) => norm(a.name) === cn);
+    const exact = pool.find((a) => adAccountNameEvidence(a.name, cn) === "exact");
     if (exact) return exact;
   }
   for (const cn of names) {
-    const partial = pool.find((a) => {
-      const an = norm(a.name);
-      return an && (an.includes(cn) || cn.includes(an));
-    });
+    const partial = pool.find((a) => adAccountNameEvidence(a.name, cn) !== "none");
     if (partial) return partial;
   }
   // Un SEUL compte publicitaire : aucune ambiguïté possible.

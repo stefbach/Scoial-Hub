@@ -29,7 +29,8 @@
     "test:cloisonnement": "tsx scripts/verify-company-scoping.ts",
     "test:r24": "tsx scripts/verify-r24.ts",
     "test:r25": "tsx scripts/verify-r25.ts",
-    "test:r26": "tsx scripts/verify-r26.ts"
+    "test:r26": "tsx scripts/verify-r26.ts",
+    "audit:adaccounts": "tsx scripts/audit-ad-account-bindings.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.100.1",

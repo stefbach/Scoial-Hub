@@ -20,7 +20,7 @@ import { hostMedia, MAX_UPLOAD_BYTES, formatSize } from "@/lib/media/host";
 import {
   addAudio, addClip, addImageLayer, addText, duplicateClip, emptyProject,
   FORMAT_SIZE, projectDuration, removeAudio, removeClip, removeImageLayer,
-  removeText, reorderClip, setClipFraming, setClipSpeed, setClipTransition,
+  imagesAt, removeText, reorderClip, setClipFraming, setClipSpeed, setClipTransition,
   splitAt, textsAt, trimClip, updateAudio, updateImageLayer, updateText,
   type EditorFormat, type EditorProject, type TransitionKind,
 } from "@/lib/editor/project";
@@ -28,9 +28,10 @@ import {
   applyTemplate, brandStyleFrom, rescaleTextsForFormat, TEMPLATES, type BrandStyle,
 } from "@/lib/editor/templates";
 import { canRedo, canUndo, initHistory, push, redo, undo, type History } from "@/lib/editor/history";
-import { decideRenderTarget, toBrowserPlan, toServerEdit } from "@/lib/editor/render-plan";
+import { decideRenderTarget, overlayIntervals, toBrowserPlan, type OverlayInput } from "@/lib/editor/render-plan";
+import { drawImages, drawTexts, loadImage } from "@/lib/editor/draw";
 import { Timeline, type TimelineSelection } from "./Timeline";
-import { drawTexts, Preview } from "./Preview";
+import { Preview } from "./Preview";
 import { ProjectLibrary } from "./ProjectLibrary";
 import type { UploadedMedia } from "@/components/ui/MediaUpload";
 
@@ -247,20 +248,51 @@ export function StudioEditor({
   /* ── Export ────────────────────────────────────────────────────────────── */
   const decision = useMemo(() => decideRenderTarget(project, sourceBytes.current), [project]);
 
-  /** Compose le PNG des calques à la résolution de sortie. */
-  const buildOverlay = useCallback(async (): Promise<Uint8Array | null> => {
-    const layers = textsAt(project, playhead);
-    if (layers.length === 0) return null;
+  /**
+   * Compose un PNG de calques PAR INTERVALLE de temps.
+   *
+   * L'export ne composait qu'un seul calque, pris à la position de la tête de
+   * lecture, puis le gravait sur tout le film : les bornes d'apparition
+   * n'étaient pas respectées, et un texte hors de la position courante était
+   * perdu sans avertissement. Les incrustations d'image, elles, n'étaient tout
+   * simplement jamais dessinées.
+   */
+  const buildOverlays = useCallback(async (): Promise<{ overlay: OverlayInput; bytes: Uint8Array }[]> => {
+    const intervals = overlayIntervals(project);
+    if (intervals.length === 0) return [];
     const { width, height } = FORMAT_SIZE[project.format];
-    const canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return null;
-    drawTexts(ctx, width, height, layers);
-    const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, "image/png"));
-    return blob ? new Uint8Array(await blob.arrayBuffer()) : null;
-  }, [project, playhead]);
+
+    // Les images sont chargées UNE fois pour tout l'export, pas par intervalle.
+    const loaded = new Map<string, HTMLImageElement>();
+    for (const src of new Set(project.images.map((l) => l.src))) {
+      const img = await loadImage(src);
+      if (img) loaded.set(src, img);
+    }
+
+    const out: { overlay: OverlayInput; bytes: Uint8Array }[] = [];
+    for (const [i, span] of intervals.entries()) {
+      const mid = (span.start + span.end) / 2;
+      const texts = textsAt(project, mid);
+      const images = imagesAt(project, mid);
+      if (texts.length === 0 && images.length === 0) continue;
+
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) continue;
+      // Ordre de dessin identique à l'aperçu : incrustations, puis textes.
+      drawImages(ctx, width, height, images, loaded);
+      drawTexts(ctx, width, height, texts);
+      const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, "image/png"));
+      if (!blob) continue;
+      out.push({
+        overlay: { name: `ov${i}.png`, start: span.start, end: span.end },
+        bytes: new Uint8Array(await blob.arrayBuffer()),
+      });
+    }
+    return out;
+  }, [project]);
 
   const exportProject = useCallback(async () => {
     if (project.clips.length === 0) return;
@@ -271,10 +303,13 @@ export function StudioEditor({
     if (decision.target === "server") {
       setBusy(t("Rendu sur nos serveurs…", "Rendering on our servers…"));
       try {
+        // On transmet le DOCUMENT, pas une timeline déjà construite : c'est le
+        // serveur qui en fait la projection. Le contrat porte ainsi sur une
+        // structure qu'il sait valider, et la règle de rendu reste unique.
         const res = await fetch("/api/video/render", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ companyId, edit: toServerEdit(project) }),
+          body: JSON.stringify({ companyId, project }),
         });
         const d = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error((d as { error?: string }).error ?? `HTTP ${res.status}`);
@@ -293,8 +328,8 @@ export function StudioEditor({
     // Rendu NAVIGATEUR : gratuit, aucune donnée sortante.
     setBusy(t("Préparation du moteur vidéo…", "Loading video engine…"));
     try {
-      const overlay = await buildOverlay();
-      const plan = toBrowserPlan(project, overlay ? "ov.png" : null);
+      const composed = await buildOverlays();
+      const plan = toBrowserPlan(project, composed.map((c) => c.overlay));
 
       const { FFmpeg } = await import("@ffmpeg/ffmpeg");
       const { fetchFile, toBlobURL } = await import("@ffmpeg/util");
@@ -312,12 +347,11 @@ export function StudioEditor({
       });
 
       setBusy(t("Rendu de la vidéo…", "Rendering video…"));
+      const composedByName = new Map(composed.map((c) => [c.overlay.name, c.bytes]));
       for (const input of plan.inputs) {
-        if (input.name === "ov.png") {
-          if (overlay) await ffmpeg.writeFile("ov.png", overlay);
-        } else {
-          await ffmpeg.writeFile(input.name, await fetchFile(input.src));
-        }
+        const bytes = composedByName.get(input.name);
+        if (bytes) await ffmpeg.writeFile(input.name, bytes);
+        else await ffmpeg.writeFile(input.name, await fetchFile(input.src));
       }
 
       // `exec` de ffmpeg.wasm : arguments passés en TABLEAU à un module
@@ -352,7 +386,7 @@ export function StudioEditor({
     } finally {
       setBusy(null);
     }
-  }, [project, decision.target, companyId, savedId, buildOverlay, onExport, onClose, t]);
+  }, [project, decision.target, companyId, savedId, buildOverlays, onExport, onClose, t]);
 
   /* ── Rendu ─────────────────────────────────────────────────────────────── */
 

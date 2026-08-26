@@ -24,53 +24,6 @@ import {
 } from "@/lib/editor/project";
 import { formatTime } from "./Timeline";
 
-/**
- * Dessine les calques de texte visibles à un instant donné.
- * Partagée par l'aperçu et le rendu navigateur : c'est ce qui garantit que le
- * fichier exporté ressemble à ce qui était affiché.
- */
-export function drawTexts(
-  ctx: CanvasRenderingContext2D,
-  W: number,
-  H: number,
-  layers: TextLayer[]
-): void {
-  for (const o of layers) {
-    const fontPx = Math.max(8, o.sizePct * H);
-    ctx.font = `${o.bold ? "bold " : ""}${fontPx}px sans-serif`;
-    ctx.textBaseline = "top";
-    ctx.textAlign = o.align;
-    const lines = o.text.split("\n");
-    const x = o.x * W;
-    let y = o.y * H;
-    const lineH = fontPx * 1.25;
-    for (const line of lines) {
-      const w = ctx.measureText(line).width;
-      if (o.bg) {
-        const bx = o.align === "center" ? x - w / 2 : o.align === "right" ? x - w : x;
-        ctx.fillStyle = "rgba(0,0,0,0.5)";
-        ctx.fillRect(bx - fontPx * 0.15, y - fontPx * 0.08, w + fontPx * 0.3, lineH);
-      }
-      if (o.shadow) {
-        ctx.shadowColor = "rgba(0,0,0,0.6)";
-        ctx.shadowBlur = fontPx * 0.12;
-        ctx.shadowOffsetY = fontPx * 0.04;
-      }
-      if (o.outline) {
-        ctx.lineWidth = Math.max(1, fontPx * 0.06);
-        ctx.strokeStyle = "rgba(0,0,0,0.85)";
-        ctx.strokeText(line, x, y);
-      }
-      ctx.fillStyle = o.color;
-      ctx.fillText(line, x, y);
-      ctx.shadowColor = "transparent";
-      ctx.shadowBlur = 0;
-      ctx.shadowOffsetY = 0;
-      y += lineH;
-    }
-  }
-}
-
 export function Preview({
   project,
   playhead,

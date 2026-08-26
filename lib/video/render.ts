@@ -238,6 +238,48 @@ export async function submitRender(
   return { ok: false, error: lastErr };
 }
 
+/**
+ * Soumet une timeline DÉJÀ construite.
+ *
+ * Le banc de montage décrit son film dans un document de projet, dont la
+ * projection Shotstack est faite par lib/editor/render-plan. Sans ce point
+ * d'entrée, il n'avait d'autre choix que de se plier au format « cut » du
+ * Studio Créatif, qui ne sait pas exprimer un montage à plusieurs plans.
+ */
+export async function submitEdit(edit: unknown): Promise<RenderSubmit> {
+  if (!isShotstackConfigured) {
+    return { ok: false, error: "Aucun moteur de rendu configuré (SHOTSTACK_API_KEY)." };
+  }
+  const body = JSON.stringify(edit);
+  let lastErr = "Erreur Shotstack";
+  for (const env of envOrder()) {
+    try {
+      const res = await fetch(`${endpoint(env)}/render`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-api-key": shotstack.apiKey },
+        body,
+        cache: "no-store",
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        success?: boolean;
+        message?: string;
+        response?: { id?: string };
+      };
+      if (res.ok && data.success && data.response?.id) {
+        return { ok: true, id: `${env}:${data.response.id}`, status: "queued" };
+      }
+      if (res.status === 401 || res.status === 403) {
+        lastErr = `Clé refusée par l'environnement « ${env} » (${res.status}). Vérifiez SHOTSTACK_ENV (stage vs v1).`;
+        continue;
+      }
+      return { ok: false, error: data.message ?? `Erreur Shotstack (${res.status})` };
+    } catch (err) {
+      lastErr = err instanceof Error ? err.message : "Erreur réseau";
+    }
+  }
+  return { ok: false, error: lastErr };
+}
+
 export async function getRenderStatus(idWithEnv: string): Promise<RenderStatus> {
   if (!isShotstackConfigured) return { status: "failed", error: "Non configuré." };
 

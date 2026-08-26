@@ -122,6 +122,59 @@ async function main() {
     check("A-07 · le rendu est rattaché au projet", /renderUrl: hosted\.url/.test(editor));
   }
 
+  // ── B-01 · Un seul système de coordonnées sur la timeline ────────────────
+  {
+    const timeline = read("components/editor/Timeline.tsx");
+    check("B-01 · une seule conversion temps → pixels", /export function timeToPx/.test(timeline));
+    check("B-01 · une seule conversion pixels → temps", /export function pxToTime/.test(timeline));
+    check("B-01 · les libellés sont sortis du flux temporel",
+      /Colonne des libellés — HORS du flux temporel/.test(timeline) && !/<span className="w-12 shrink-0 text-\[9px\][^>]*>\{label\}/.test(timeline));
+    check("B-01 · la tête de lecture partage l'origine des blocs",
+      /left: timeToPx\(playhead, pxPerSec\)/.test(timeline));
+    check("B-01 · les blocs passent par la conversion partagée",
+      /left: timeToPx\(clip\.start, pxPerSec\)/.test(timeline) && /left: timeToPx\(start, pxPerSec\)/.test(timeline));
+    check("B-01 · la graduation aussi", /left: timeToPx\(s, pxPerSec\)/.test(timeline));
+    check("B-01 · le clic est converti sur l'élément du temps",
+      /timeRef\.current[\s\S]{0,220}getBoundingClientRect\(\)[\s\S]{0,160}pxToTime\(clientX - rect\.left, pxPerSec\)/.test(timeline));
+    check("B-01 · plus de correction manuelle du défilement", !/scrollLeft/.test(timeline));
+    check("B-01 · la tête de lecture se tire à la souris",
+      /type: "scrub"/.test(timeline) && /setPointerCapture/.test(timeline));
+    check("B-01 · la graduation est une zone de balayage",
+      /onPointerDown=\{onScrub\}/.test(timeline));
+    check("B-01 · la poignée reste saisissable sous le trait",
+      /pointer-events-auto/.test(timeline) && /aria-label=\{t\("Tête de lecture", "Playhead"\)\}/.test(timeline));
+    check("B-01 · déplacement au clavier", /e\.key === "ArrowLeft"/.test(timeline));
+  }
+
+  // ── C-01 · Le rendu serveur répond à l'appel qu'on lui adresse ───────────
+  {
+    const route = read("app/api/video/render/route.ts");
+    check("C-01 · le banc transmet son document", /body: JSON\.stringify\(\{ companyId, project \}\)/.test(editor));
+    check("C-01 · la route accepte le document", /if \(body\.project && Array\.isArray\(body\.project\.clips\)\)/.test(route));
+    check("C-01 · la projection est faite côté serveur", /toServerEdit\(project, job\.callback\)/.test(route));
+    check("C-01 · le document reçu est normalisé", /const project = normalize\(body\.project\)/.test(route));
+    check("C-01 · l'ancien contrat est conservé", /cut et assets requis, ou project/.test(route) && /submitRender\(body\.cut/.test(route));
+    check("C-01 · le suivi de rendu profite aux deux appelants", /async function openRenderJob/.test(route));
+  }
+
+  // ── C-02 / C-03 · L'export grave ce que l'aperçu montre ──────────────────
+  {
+    const draw = read("lib/editor/draw.ts");
+    check("C-02 · un calque par intervalle de temps", /const intervals = overlayIntervals\(project\)/.test(editor));
+    check("C-02 · la composition ne suit plus la tête de lecture",
+      !/textsAt\(project, playhead\)/.test(editor));
+    check("C-02 · chaque calque est activé sur ses bornes",
+      /enable='between\(t,/.test(read("lib/editor/render-plan.ts")));
+    check("C-03 · les incrustations sont dessinées", /drawImages\(ctx, width, height, images, loaded\)/.test(editor));
+    check("C-03 · le dessin des images existe", /export function drawImages/.test(draw));
+    check("C-03 · une image d'un autre domaine ne souille pas le canevas",
+      /img\.crossOrigin = "anonymous"/.test(draw));
+    check("C-03 · une incrustation introuvable ne perd pas l'export",
+      /img\.onerror = \(\) => resolve\(null\)/.test(draw));
+    check("dessin partagé entre l'aperçu et le rendu",
+      /from "@\/lib\/editor\/draw"/.test(editor) && /export function drawTexts/.test(draw));
+  }
+
   console.log(`\n${failures === 0 ? "✓ TOUT VERT" : `✗ ${failures} échec(s)`}\n`);
   process.exit(failures === 0 ? 0 : 1);
 }

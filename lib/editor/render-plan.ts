@@ -58,8 +58,14 @@ export type RenderTarget = "browser" | "server";
 export const BROWSER_LIMITS = {
   /** Poids cumulé des sources. */
   maxBytes: 80 * 1024 * 1024,
-  /** Nombre de plans : au-delà, l'assemblage devient coûteux dans l'onglet. */
-  maxClips: 3,
+  /**
+   * Nombre de plans. Le plan navigateur ne décrit QU'UN plan — dès qu'il y en
+   * a deux, seul le premier était encodé et les autres disparaissaient du
+   * fichier sans le moindre message. Le seuil était à 3 : un montage à deux ou
+   * trois plans passait donc par l'onglet et perdait la moitié du film.
+   * Tout montage assemblé part au serveur, qui sait les enchaîner.
+   */
+  maxClips: 1,
   /** Durée du film. */
   maxSeconds: 120,
 };
@@ -85,6 +91,9 @@ export function decideRenderTarget(p: EditorProject, totalSourceBytes: number): 
   }
   if (duration > BROWSER_LIMITS.maxSeconds) {
     return { target: "server", reason: "film long" };
+  }
+  if (overlayIntervals(p).length > MAX_BROWSER_OVERLAYS) {
+    return { target: "server", reason: "calques nombreux" };
   }
   return { target: "browser", reason: "montage léger" };
 }
@@ -200,16 +209,67 @@ export interface BrowserRenderPlan {
   output: string;
 }
 
+/** Un PNG de calques, valable sur un intervalle de temps précis. */
+export interface OverlayInput {
+  name: string;
+  start: number;
+  end: number;
+}
+
+/**
+ * Découpe le film aux instants où la composition des calques CHANGE.
+ *
+ * L'export navigateur composait un seul PNG, pris à la position de la tête de
+ * lecture, puis le gravait sur toute la durée. Deux conséquences : les bornes
+ * d'apparition — pourtant modélisées et réglables — n'étaient pas respectées,
+ * et un texte dont la plage ne couvrait pas la tête de lecture disparaissait du
+ * fichier produit sans le moindre avertissement.
+ *
+ * En découpant aux bornes, chaque intervalle porte SA composition. C'est la
+ * traduction exacte du document, et non un instantané de l'aperçu.
+ */
+export function overlayIntervals(p: EditorProject): { start: number; end: number }[] {
+  const total = projectDuration(p);
+  if (total <= 0) return [];
+
+  const layers = [...p.texts, ...p.images];
+  if (layers.length === 0) return [];
+
+  const bounds = new Set<number>([0, total]);
+  for (const l of layers) {
+    if (l.start > 0 && l.start < total) bounds.add(Number(l.start.toFixed(2)));
+    if (l.end > 0 && l.end < total) bounds.add(Number(l.end.toFixed(2)));
+  }
+  const marks = [...bounds].sort((a, b) => a - b);
+
+  const out: { start: number; end: number }[] = [];
+  for (let i = 0; i < marks.length - 1; i += 1) {
+    const start = marks[i];
+    const end = marks[i + 1];
+    if (end - start < 0.01) continue;
+    // Un intervalle sans calque visible n'a pas besoin d'être composé : on
+    // épargne une entrée au moteur et un aller-retour au canvas.
+    const mid = (start + end) / 2;
+    const visible = layers.some((l) => mid >= l.start && mid <= l.end);
+    if (visible) out.push({ start, end });
+  }
+  return out;
+}
+
+/** Au-delà, la chaîne de filtres devient trop longue pour l'onglet. */
+export const MAX_BROWSER_OVERLAYS = 12;
+
 /**
  * Construit le plan d'un montage à UN plan — le cas que le navigateur prend en
  * charge. Les montages multi-plans partent au serveur (voir l'aiguillage), ce
  * qui évite de réimplémenter une chaîne de concaténation fragile dans l'onglet.
  *
- * `overlayName` est le PNG des calques, composé par le canvas de l'aperçu :
- * la même fonction de dessin sert à l'aperçu et au rendu, ce qui garantit que
- * l'un ressemble à l'autre.
+ * `overlays` sont les PNG de calques composés par le canvas, chacun avec ses
+ * bornes : le moteur ne les affiche que sur leur intervalle. La même fonction
+ * de dessin sert à l'aperçu et au rendu, ce qui garantit que l'un ressemble à
+ * l'autre.
  */
-export function toBrowserPlan(p: EditorProject, overlayName: string | null): BrowserRenderPlan {
+export function toBrowserPlan(p: EditorProject, overlays: OverlayInput[] = []): BrowserRenderPlan {
   const clip = p.clips[0];
   if (!clip) return { inputs: [], args: [], output: "out.mp4" };
 
@@ -224,9 +284,11 @@ export function toBrowserPlan(p: EditorProject, overlayName: string | null): Bro
   if (clip.trimStart > 0) args.push("-ss", String(clip.trimStart));
   args.push("-i", "in0");
 
-  if (overlayName) {
-    inputs.push({ name: overlayName, src: "" });
-    args.push("-i", overlayName);
+  // Les PNG de calques sont des images fixes : `-loop 1` les rend disponibles
+  // sur toute la durée, l'activation temporelle se joue ensuite dans `overlay`.
+  for (const o of overlays) {
+    inputs.push({ name: o.name, src: "" });
+    args.push("-loop", "1", "-i", o.name);
   }
 
   const audible = p.audios.filter((a) => !a.muted && a.role !== "original" && a.length > 0);
@@ -248,16 +310,22 @@ export function toBrowserPlan(p: EditorProject, overlayName: string | null): Bro
     filters.push(`[0:v]${vSteps.join(",")}[vs]`);
     vLabel = "vs";
   }
-  if (overlayName) {
-    filters.push(`[${vLabel}][1:v]overlay=0:0[v]`);
-    vLabel = "v";
-  }
+  // Un calque par intervalle, chacun activé sur SES bornes : c'est ce qui fait
+  // enfin apparaître un titre sur les trois premières secondes seulement, et
+  // qui empêche un texte de fin d'être silencieusement perdu à l'export.
+  overlays.forEach((o, i) => {
+    const next = `ov${i}`;
+    filters.push(
+      `[${vLabel}][${i + 1}:v]overlay=0:0:enable='between(t,${o.start.toFixed(2)},${o.end.toFixed(2)})'[${next}]`
+    );
+    vLabel = next;
+  });
 
   // Audio : chaque piste ajoutée reçoit son volume et ses fondus, puis on mixe.
   const audioLabels: string[] = [];
   if (keepOriginal && clip.kind === "video") audioLabels.push("0:a");
   audible.forEach((a, i) => {
-    const idx = (overlayName ? 2 : 1) + i;
+    const idx = 1 + overlays.length + i;
     const steps = [`volume=${a.volume.toFixed(2)}`];
     if (a.fadeIn > 0) steps.push(`afade=t=in:st=0:d=${a.fadeIn}`);
     if (a.fadeOut > 0) steps.push(`afade=t=out:st=${Math.max(0, a.length - a.fadeOut).toFixed(2)}:d=${a.fadeOut}`);

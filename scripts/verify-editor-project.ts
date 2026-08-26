@@ -10,12 +10,13 @@ import {
   addAudio, addClip, addText, clipAt, duplicateClip, emptyProject, imagesAt,
   addImageLayer, MIN_CLIP_SECONDS, normalize, projectDuration, removeClip,
   reorderClip, setClipFraming, setClipSpeed, setClipTransition, splitAt, textsAt,
-  trimClip, updateAudio, updateText,
+  trimClip, updateAudio, updateImageLayer, updateText,
   type Clip, type EditorProject,
 } from "../lib/editor/project";
 import { canRedo, canUndo, HISTORY_LIMIT, initHistory, push, redo, undo } from "../lib/editor/history";
 import {
-  BROWSER_LIMITS, decideRenderTarget, frameFilterSteps, toBrowserPlan, toServerEdit,
+  BROWSER_LIMITS, decideRenderTarget, frameFilterSteps, MAX_BROWSER_OVERLAYS,
+  overlayIntervals, toBrowserPlan, toServerEdit,
 } from "../lib/editor/render-plan";
 import {
   applyTemplate, brandStyleFrom, rescaleTextsForFormat, sizePctFor, TEMPLATES,
@@ -207,6 +208,11 @@ function main() {
     for (let i = 0; i < 5; i++) many = addClip(many, { id: `c${i}`, src: `${i}.mp4`, kind: "video", sourceDuration: 5 });
     check("plusieurs plans → serveur", decideRenderTarget(many, 1024).target === "server");
 
+    // Le plan navigateur ne décrit qu'UN plan : dès deux, il en perdait un.
+    check("deux plans partent déjà au serveur", decideRenderTarget(light, 1024).target === "server");
+    check("le plan navigateur ne couvre qu'un plan",
+      toBrowserPlan(light).inputs.filter((i) => i.name.startsWith("in")).length === 1);
+
     const longP = addClip(emptyProject("c", "p"), { id: "l", src: "l.mp4", kind: "video", sourceDuration: 300 });
     check("film long → serveur", decideRenderTarget(longP, 1024).target === "server");
     check("le motif du basculement est explicite", decideRenderTarget(longP, 1024).reason.length > 0);
@@ -234,7 +240,7 @@ function main() {
     let p = addClip(emptyProject("c", "p"), { id: "a", src: "a.mp4", kind: "video", sourceDuration: 10 });
     p = trimClip(p, "a", { head: 2 });
     p = addAudio(p, { id: "m", src: "m.mp3", name: "M", role: "music", sourceDuration: 60 });
-    const plan = toBrowserPlan(p, "ov.png");
+    const plan = toBrowserPlan(p, [{ name: "ov0.png", start: 0, end: 8 }]);
     const args = plan.args.join(" ");
 
     check("le rognage positionne la lecture avant le décodage", args.indexOf("-ss") < args.indexOf("-i"), args.slice(0, 40));
@@ -244,11 +250,11 @@ function main() {
     check("le mixage ne rabaisse plus la voix", /normalize=0/.test(args));
     check("encodage plus compact qu'ultrafast", /-preset veryfast/.test(args) && /-crf 23/.test(args));
     check("lecture progressive facilitée", /\+faststart/.test(args));
-    check("les entrées suivent l'ordre des -i", plan.inputs.map((i) => i.name).join(",") === "in0,ov.png,aud0", plan.inputs.map((i) => i.name).join(","));
+    check("les entrées suivent l'ordre des -i", plan.inputs.map((i) => i.name).join(",") === "in0,ov0.png,aud0", plan.inputs.map((i) => i.name).join(","));
 
-    const muted = toBrowserPlan(updateAudio(p, "m", { muted: true }), null);
+    const muted = toBrowserPlan(updateAudio(p, "m", { muted: true }));
     check("une piste coupée n'est pas envoyée au moteur", !muted.args.join(" ").includes("aud0"));
-    check("projet vide → plan vide", toBrowserPlan(emptyProject("c", "p"), null).args.length === 0);
+    check("projet vide → plan vide", toBrowserPlan(emptyProject("c", "p")).args.length === 0);
   }
 
   // ── Cadrage et formats (lot 3) ───────────────────────────────────────────
@@ -295,11 +301,11 @@ function main() {
     check("« entier » complète par des bandes", /force_original_aspect_ratio=decrease/.test(contain) && /pad=1080:1920/.test(contain), contain);
 
     const single = addClip(emptyProject("c", "p", "9:16"), { id: "a", src: "a.mp4", kind: "video", sourceDuration: 8 });
-    const args = toBrowserPlan(single, null).args.join(" ");
+    const args = toBrowserPlan(single).args.join(" ");
     check("le rendu navigateur applique enfin le format", /scale=1080:1920/.test(args), args);
 
     const photo = addClip(emptyProject("c", "p", "1:1"), { id: "i", src: "i.jpg", kind: "image" });
-    const pargs = toBrowserPlan(photo, null).args;
+    const pargs = toBrowserPlan(photo).args;
     check("une photo est bouclée puis bornée",
       pargs.indexOf("-loop") >= 0 && pargs.indexOf("-loop") < pargs.indexOf("-i") && pargs.includes("-t"));
     check("une photo reçoit une cadence", pargs.includes("-r"));
@@ -356,6 +362,63 @@ function main() {
       `${hooked.texts[0].sizePct} → ${wide.texts[0].sizePct}`);
     check("un format inchangé ne retouche rien", rescaleTextsForFormat(hooked, "9:16") === hooked);
     check("changer de format ne perd aucun calque", wide.texts.length === hooked.texts.length);
+  }
+
+  // ── C-02 · Les calques suivent LEURS bornes, pas la tête de lecture ──────
+  {
+    // Film de 20 s : un titre sur [0,3], un rappel sur [17,20].
+    let p = addClip(emptyProject("c", "p"), { id: "a", src: "a.mp4", kind: "video", sourceDuration: 20 });
+    p = addText(p, "t1", "Titre");
+    p = updateText(p, "t1", { start: 0, end: 3 });
+    p = addText(p, "t2", "Rappel");
+    p = updateText(p, "t2", { start: 17, end: 20 });
+
+    const spans = overlayIntervals(p);
+    check("le film est découpé aux bornes des calques", spans.length === 2, JSON.stringify(spans));
+    check("le premier intervalle couvre le titre", near(spans[0].start, 0) && near(spans[0].end, 3));
+    check("le dernier intervalle couvre le rappel", near(spans[1].start, 17) && near(spans[1].end, 20));
+    check("un intervalle sans calque n'est pas composé",
+      !spans.some((s) => s.start >= 3 && s.end <= 17));
+
+    // Le scénario exact du rapport : l'utilisateur revient au début puis
+    // exporte. Le rappel de fin doit être dans le fichier produit.
+    const plan = toBrowserPlan(p, spans.map((s, i) => ({ name: `ov${i}.png`, start: s.start, end: s.end })));
+    const args = plan.args.join(" ");
+    check("chaque calque est activé sur ses bornes", /enable='between\(t,0\.00,3\.00\)'/.test(args), args);
+    check("un texte hors de la tête de lecture n'est plus perdu",
+      /enable='between\(t,17\.00,20\.00\)'/.test(args), args);
+    check("les calques s'enchaînent sans écraser la vidéo", /\[ov0\]\[2:v\]overlay/.test(args), args);
+    check("les entrées suivent l'ordre des calques",
+      plan.inputs.map((i) => i.name).join(",") === "in0,ov0.png,ov1.png", plan.inputs.map((i) => i.name).join(","));
+    check("un PNG de calque est bouclé pour couvrir le film",
+      plan.args.filter((a) => a === "-loop").length === 2);
+
+    check("un projet sans calque ne compose rien",
+      overlayIntervals(addClip(emptyProject("c", "p"), { id: "a", src: "a.mp4", kind: "video", sourceDuration: 5 })).length === 0);
+  }
+
+  // ── C-03 · Les incrustations comptent dans la composition ────────────────
+  {
+    let p = addClip(emptyProject("c", "p"), { id: "a", src: "a.mp4", kind: "video", sourceDuration: 10 });
+    p = addImageLayer(p, "i1", "logo.png");
+    p = updateImageLayer(p, "i1", { start: 2, end: 6 });
+
+    const spans = overlayIntervals(p);
+    check("une incrustation seule déclenche une composition", spans.length === 1, JSON.stringify(spans));
+    check("l'incrustation porte ses propres bornes", near(spans[0].start, 2) && near(spans[0].end, 6));
+    check("les incrustations visibles sont retrouvées à l'instant voulu",
+      imagesAt(p, 4).length === 1 && imagesAt(p, 8).length === 0);
+  }
+
+  // ── Aiguillage : trop de calques pour l'onglet ───────────────────────────
+  {
+    let p = addClip(emptyProject("c", "p"), { id: "a", src: "a.mp4", kind: "video", sourceDuration: 60 });
+    for (let i = 0; i < MAX_BROWSER_OVERLAYS + 2; i += 1) {
+      p = addText(p, `t${i}`, `T${i}`);
+      p = updateText(p, `t${i}`, { start: i * 2, end: i * 2 + 1 });
+    }
+    check("un montage très chargé part au serveur",
+      decideRenderTarget(p, 1000).target === "server", decideRenderTarget(p, 1000).reason);
   }
 
   console.log(`\n${failures === 0 ? "✓ TOUT VERT" : `✗ ${failures} échec(s)`}\n`);

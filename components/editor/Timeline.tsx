@@ -4,8 +4,19 @@
 //
 // La timeline ne porte aucune logique de montage : elle affiche le document et
 // émet des intentions. Rogner, scinder, déplacer sont des opérations pures du
-// modèle (lib/editor/project.ts), déjà testées. Ce composant reste donc simple
-// — c'est précisément l'intérêt d'avoir un document.
+// modèle (lib/editor/project.ts), déjà testées.
+//
+// UN SEUL SYSTÈME DE COORDONNÉES
+// La version précédente en comptait quatre. Le libellé de piste était posé DANS
+// le flux temporel : les blocs commençaient donc 56 px plus loin que la
+// graduation, la tête de lecture partait de 8 px, et la conversion clic → temps
+// du bord du conteneur. Au zoom médian, l'écart entre le trait affiché et le
+// plan qu'il désignait valait plus d'une seconde — d'où l'impression que la
+// scission « coupait à côté » alors que le calcul, lui, était juste.
+//
+// Ici, les libellés sont sortis du flux temporel, dans une colonne fixe. Tout
+// ce qui vit dans le temps — graduation, blocs, tête de lecture, conversion du
+// clic — passe par `timeToPx` / `pxToTime`, mesurés sur le MÊME élément.
 
 import { useCallback, useMemo, useRef, useState } from "react";
 import { useT } from "@/lib/i18n";
@@ -22,6 +33,10 @@ const ZOOM_LEVELS = [10, 20, 40, 80, 160];
 /** Aimantation : distance en secondes sous laquelle on colle à un repère. */
 const SNAP_SECONDS = 0.15;
 
+/** Hauteurs partagées par la colonne des libellés et par les pistes. */
+const RULER_H = 20;
+const LANE_H = 40;
+
 export type TimelineSelection =
   | { kind: "clip"; id: string }
   | { kind: "text"; id: string }
@@ -34,6 +49,16 @@ export function formatTime(seconds: number): string {
   const m = Math.floor(s / 60);
   const rest = s - m * 60;
   return `${m}:${rest.toFixed(1).padStart(4, "0")}`;
+}
+
+/** LA conversion temps → pixels. Aucune autre ne doit exister. */
+export function timeToPx(time: number, pxPerSec: number): number {
+  return time * pxPerSec;
+}
+
+/** LA conversion pixels → temps. Réciproque exacte de `timeToPx`. */
+export function pxToTime(px: number, pxPerSec: number): number {
+  return pxPerSec > 0 ? px / pxPerSec : 0;
 }
 
 /** Colle une valeur au repère le plus proche s'il est assez près. */
@@ -72,7 +97,8 @@ export function Timeline({
   const [zoomIdx, setZoomIdx] = useState(1);
   const pxPerSec = ZOOM_LEVELS[zoomIdx];
   const duration = projectDuration(project);
-  const laneRef = useRef<HTMLDivElement>(null);
+  /** Élément qui porte le temps : origine unique de toutes les coordonnées. */
+  const timeRef = useRef<HTMLDivElement>(null);
 
   /** Repères d'aimantation : bornes de plans, tête de lecture, zéro. */
   const marks = useMemo(() => {
@@ -84,30 +110,51 @@ export function Timeline({
   const drag = useRef<
     | { type: "trim"; clipId: string; edge: "head" | "tail"; startX: number }
     | { type: "move"; clipId: string; startX: number; fromIndex: number }
+    | { type: "scrub" }
     | null
   >(null);
 
+  /**
+   * Instant désigné par un point de l'écran.
+   * `getBoundingClientRect` est mesuré sur l'élément du temps lui-même : il
+   * tient donc compte du défilement horizontal sans correction manuelle — la
+   * cause du décrochage du trait sur une timeline plus large que l'écran.
+   */
   const timeFromEvent = useCallback(
     (clientX: number): number => {
-      const lane = laneRef.current;
-      if (!lane) return 0;
-      const rect = lane.getBoundingClientRect();
-      const raw = (clientX - rect.left + lane.scrollLeft) / pxPerSec;
-      return Math.max(0, Math.min(duration, raw));
+      const el = timeRef.current;
+      if (!el) return 0;
+      const rect = el.getBoundingClientRect();
+      return Math.max(0, Math.min(duration, pxToTime(clientX - rect.left, pxPerSec)));
     },
     [pxPerSec, duration]
   );
 
+  const seekTo = useCallback(
+    (clientX: number) => onSeek(snap(timeFromEvent(clientX), marks)),
+    [onSeek, timeFromEvent, marks]
+  );
+
+  /** Démarre un balayage : la lecture suit le geste jusqu'au relâchement. */
+  function startScrub(e: React.PointerEvent) {
+    drag.current = { type: "scrub" };
+    (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+    seekTo(e.clientX);
+  }
+
   function onLanePointerDown(e: React.PointerEvent) {
-    // Un clic dans le vide déplace la tête de lecture et désélectionne.
-    onSeek(snap(timeFromEvent(e.clientX), marks));
     onSelect(null);
+    startScrub(e);
   }
 
   function onPointerMove(e: React.PointerEvent) {
     const d = drag.current;
     if (!d) return;
-    const deltaSec = (e.clientX - d.startX) / pxPerSec;
+    if (d.type === "scrub") {
+      seekTo(e.clientX);
+      return;
+    }
+    const deltaSec = pxToTime(e.clientX - d.startX, pxPerSec);
     if (d.type === "trim") {
       if (Math.abs(deltaSec) < 0.02) return;
       onTrim(d.clipId, d.edge, d.edge === "head" ? deltaSec : -deltaSec);
@@ -128,7 +175,88 @@ export function Timeline({
     drag.current = null;
   }
 
-  const width = Math.max(240, duration * pxPerSec);
+  const width = Math.max(240, timeToPx(duration, pxPerSec));
+
+  /** Pistes affichées — une seule source pour les libellés et les blocs. */
+  const lanes: { key: string; label: string; blocks: React.ReactNode }[] = [
+    {
+      key: "video",
+      label: t("Vidéo", "Video"),
+      blocks: project.clips.map((c, i) => (
+        <ClipBlock
+          key={c.id}
+          clip={c}
+          pxPerSec={pxPerSec}
+          selected={selection?.kind === "clip" && selection.id === c.id}
+          onSelect={() => onSelect({ kind: "clip", id: c.id })}
+          onTrimStart={(edge, e) => {
+            drag.current = { type: "trim", clipId: c.id, edge, startX: e.clientX };
+          }}
+          onMoveStart={(e) => {
+            drag.current = { type: "move", clipId: c.id, startX: e.clientX, fromIndex: i };
+          }}
+        />
+      )),
+    },
+  ];
+
+  if (project.texts.length > 0) {
+    lanes.push({
+      key: "text",
+      label: t("Texte", "Text"),
+      blocks: project.texts.map((l) => (
+        <LayerBlock
+          key={l.id}
+          label={l.text.split("\n")[0] || t("Texte", "Text")}
+          start={l.start}
+          length={Math.max(MIN_CLIP_SECONDS, l.end - l.start)}
+          pxPerSec={pxPerSec}
+          tone="text"
+          selected={selection?.kind === "text" && selection.id === l.id}
+          onSelect={() => onSelect({ kind: "text", id: l.id })}
+        />
+      )),
+    });
+  }
+
+  if (project.images.length > 0) {
+    lanes.push({
+      key: "image",
+      label: t("Image", "Image"),
+      blocks: project.images.map((l) => (
+        <LayerBlock
+          key={l.id}
+          label={t("Incrustation", "Overlay")}
+          start={l.start}
+          length={Math.max(MIN_CLIP_SECONDS, l.end - l.start)}
+          pxPerSec={pxPerSec}
+          tone="image"
+          selected={selection?.kind === "image" && selection.id === l.id}
+          onSelect={() => onSelect({ kind: "image", id: l.id })}
+        />
+      )),
+    });
+  }
+
+  if (project.audios.length > 0) {
+    lanes.push({
+      key: "audio",
+      label: t("Audio", "Audio"),
+      blocks: project.audios.map((a) => (
+        <LayerBlock
+          key={a.id}
+          label={a.name}
+          start={a.start}
+          length={Math.max(MIN_CLIP_SECONDS, a.length)}
+          pxPerSec={pxPerSec}
+          tone="audio"
+          muted={a.muted}
+          selected={selection?.kind === "audio" && selection.id === a.id}
+          onSelect={() => onSelect({ kind: "audio", id: a.id })}
+        />
+      )),
+    });
+  }
 
   return (
     <div className="space-y-2">
@@ -161,98 +289,67 @@ export function Timeline({
       </div>
 
       <div
-        ref={laneRef}
-        className="relative overflow-x-auto rounded-lg border border-hair bg-canvas/60 p-2"
+        className="flex gap-2 rounded-lg border border-hair bg-canvas/60 p-2"
         onPointerMove={onPointerMove}
         onPointerUp={endDrag}
         onPointerLeave={endDrag}
       >
-        <div style={{ width }} className="space-y-1.5">
-          {/* Graduation */}
-          <Ruler duration={duration} pxPerSec={pxPerSec} />
-
-          {/* Piste vidéo */}
-          <Lane label={t("Vidéo", "Video")} onPointerDown={onLanePointerDown}>
-            {project.clips.map((c, i) => (
-              <ClipBlock
-                key={c.id}
-                clip={c}
-                pxPerSec={pxPerSec}
-                selected={selection?.kind === "clip" && selection.id === c.id}
-                onSelect={() => onSelect({ kind: "clip", id: c.id })}
-                onTrimStart={(edge, e) => {
-                  drag.current = { type: "trim", clipId: c.id, edge, startX: e.clientX };
-                }}
-                onMoveStart={(e) => {
-                  drag.current = { type: "move", clipId: c.id, startX: e.clientX, fromIndex: i };
-                }}
-              />
-            ))}
-          </Lane>
-
-          {/* Piste texte */}
-          {project.texts.length > 0 && (
-            <Lane label={t("Texte", "Text")} onPointerDown={onLanePointerDown}>
-              {project.texts.map((l) => (
-                <LayerBlock
-                  key={l.id}
-                  label={l.text.split("\n")[0] || t("Texte", "Text")}
-                  start={l.start}
-                  length={Math.max(MIN_CLIP_SECONDS, l.end - l.start)}
-                  pxPerSec={pxPerSec}
-                  tone="text"
-                  selected={selection?.kind === "text" && selection.id === l.id}
-                  onSelect={() => onSelect({ kind: "text", id: l.id })}
-                />
-              ))}
-            </Lane>
-          )}
-
-          {/* Piste incrustations */}
-          {project.images.length > 0 && (
-            <Lane label={t("Image", "Image")} onPointerDown={onLanePointerDown}>
-              {project.images.map((l) => (
-                <LayerBlock
-                  key={l.id}
-                  label={t("Incrustation", "Overlay")}
-                  start={l.start}
-                  length={Math.max(MIN_CLIP_SECONDS, l.end - l.start)}
-                  pxPerSec={pxPerSec}
-                  tone="image"
-                  selected={selection?.kind === "image" && selection.id === l.id}
-                  onSelect={() => onSelect({ kind: "image", id: l.id })}
-                />
-              ))}
-            </Lane>
-          )}
-
-          {/* Piste audio */}
-          {project.audios.length > 0 && (
-            <Lane label={t("Audio", "Audio")} onPointerDown={onLanePointerDown}>
-              {project.audios.map((a) => (
-                <LayerBlock
-                  key={a.id}
-                  label={a.name}
-                  start={a.start}
-                  length={Math.max(MIN_CLIP_SECONDS, a.length)}
-                  pxPerSec={pxPerSec}
-                  tone="audio"
-                  muted={a.muted}
-                  selected={selection?.kind === "audio" && selection.id === a.id}
-                  onSelect={() => onSelect({ kind: "audio", id: a.id })}
-                />
-              ))}
-            </Lane>
-          )}
+        {/* Colonne des libellés — HORS du flux temporel */}
+        <div className="shrink-0 space-y-1.5">
+          <div style={{ height: RULER_H }} />
+          {lanes.map((l) => (
+            <div
+              key={l.key}
+              style={{ height: LANE_H }}
+              className="flex w-12 items-center text-[9px] uppercase tracking-wide text-muted"
+            >
+              {l.label}
+            </div>
+          ))}
         </div>
 
-        {/* Tête de lecture — au-dessus de toutes les pistes */}
-        <div
-          className="pointer-events-none absolute inset-y-0 z-10 w-px bg-danger-500"
-          style={{ left: 8 + playhead * pxPerSec }}
-          aria-hidden
-        >
-          <span className="absolute -left-1 top-0 h-2 w-2 rounded-full bg-danger-500" />
+        {/* Zone du temps — origine unique de toutes les coordonnées */}
+        <div className="relative flex-1 overflow-x-auto">
+          <div ref={timeRef} style={{ width }} className="relative space-y-1.5">
+            {/* Graduation : balayage direct, c'est la zone toujours disponible
+                même quand les pistes sont pleines. */}
+            <Ruler
+              duration={duration}
+              pxPerSec={pxPerSec}
+              onScrub={startScrub}
+              label={t("Se déplacer dans le film", "Scrub the film")}
+            />
+
+            {lanes.map((l) => (
+              <div key={l.key} style={{ height: LANE_H }} className="relative" onPointerDown={onLanePointerDown}>
+                {l.blocks}
+              </div>
+            ))}
+
+            {/* Tête de lecture — même origine que tout le reste */}
+            <div
+              className="pointer-events-none absolute inset-y-0 z-10 w-px bg-danger-500"
+              style={{ left: timeToPx(playhead, pxPerSec) }}
+            >
+              {/* Seule la poignée capte le pointeur : le trait ne doit pas
+                  empêcher de sélectionner ce qui se trouve dessous. */}
+              <span
+                role="slider"
+                tabIndex={0}
+                aria-label={t("Tête de lecture", "Playhead")}
+                aria-valuemin={0}
+                aria-valuemax={Math.max(0, duration)}
+                aria-valuenow={playhead}
+                onPointerDown={(e) => { e.stopPropagation(); startScrub(e); }}
+                onKeyDown={(e) => {
+                  const step = e.shiftKey ? 1 : 0.1;
+                  if (e.key === "ArrowLeft") { e.preventDefault(); onSeek(Math.max(0, playhead - step)); }
+                  if (e.key === "ArrowRight") { e.preventDefault(); onSeek(Math.min(duration, playhead + step)); }
+                }}
+                className="pointer-events-auto absolute -left-1.5 -top-0.5 h-3 w-3 cursor-ew-resize rounded-full bg-danger-500 ring-2 ring-card"
+              />
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -261,41 +358,38 @@ export function Timeline({
 
 /* ── Sous-composants ─────────────────────────────────────────────────────── */
 
-function Ruler({ duration, pxPerSec }: { duration: number; pxPerSec: number }) {
+function Ruler({
+  duration,
+  pxPerSec,
+  onScrub,
+  label,
+}: {
+  duration: number;
+  pxPerSec: number;
+  onScrub: (e: React.PointerEvent) => void;
+  label: string;
+}) {
   // Un repère par seconde tant que c'est lisible, sinon toutes les 5 ou 10 s.
   const step = pxPerSec >= 80 ? 1 : pxPerSec >= 40 ? 2 : pxPerSec >= 20 ? 5 : 10;
   const ticks: number[] = [];
   for (let s = 0; s <= Math.ceil(duration); s += step) ticks.push(s);
   return (
-    <div className="relative h-4">
+    <div
+      role="presentation"
+      onPointerDown={onScrub}
+      title={label}
+      style={{ height: RULER_H }}
+      className="relative cursor-ew-resize select-none border-b border-hair"
+    >
       {ticks.map((s) => (
         <span
           key={s}
-          className="absolute top-0 border-l border-hair pl-1 text-[9px] leading-none text-muted"
-          style={{ left: s * pxPerSec }}
+          className="pointer-events-none absolute top-0 border-l border-hair pl-1 text-[9px] leading-none text-muted"
+          style={{ left: timeToPx(s, pxPerSec) }}
         >
           {s}s
         </span>
       ))}
-    </div>
-  );
-}
-
-function Lane({
-  label,
-  children,
-  onPointerDown,
-}: {
-  label: string;
-  children: React.ReactNode;
-  onPointerDown: (e: React.PointerEvent) => void;
-}) {
-  return (
-    <div className="flex items-center gap-2">
-      <span className="w-12 shrink-0 text-[9px] uppercase tracking-wide text-muted">{label}</span>
-      <div className="relative h-10 flex-1" onPointerDown={onPointerDown}>
-        {children}
-      </div>
     </div>
   );
 }
@@ -321,7 +415,7 @@ function ClipBlock({
       className={`absolute inset-y-0 overflow-hidden rounded-md border text-[10px] ${
         selected ? "border-page ring-2 ring-page/40" : "border-hair"
       } ${clip.kind === "image" ? "bg-ai-visualbg" : "bg-ai-textbg"}`}
-      style={{ left: clip.start * pxPerSec, width: Math.max(12, clip.length * pxPerSec) }}
+      style={{ left: timeToPx(clip.start, pxPerSec), width: Math.max(12, timeToPx(clip.length, pxPerSec)) }}
       onPointerDown={(e) => {
         e.stopPropagation();
         onSelect();
@@ -382,7 +476,7 @@ function LayerBlock({
       className={`absolute inset-y-1 overflow-hidden rounded-md border px-2 text-left text-[10px] ${TONE[tone]} ${
         selected ? "ring-2 ring-page/40" : ""
       } ${muted ? "opacity-40" : ""}`}
-      style={{ left: start * pxPerSec, width: Math.max(12, length * pxPerSec) }}
+      style={{ left: timeToPx(start, pxPerSec), width: Math.max(12, timeToPx(length, pxPerSec)) }}
     >
       <span className="block truncate">{muted ? "🔇 " : ""}{label}</span>
     </button>

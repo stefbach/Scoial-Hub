@@ -23,6 +23,7 @@ import { useT } from "@/lib/i18n";
 import {
   MIN_CLIP_SECONDS,
   projectDuration,
+  usedTracks,
   type Clip,
   type EditorProject,
 } from "@/lib/editor/project";
@@ -42,6 +43,7 @@ export type TimelineSelection =
   | { kind: "text"; id: string }
   | { kind: "audio"; id: string }
   | { kind: "image"; id: string }
+  | { kind: "shape"; id: string }
   | null;
 
 export function formatTime(seconds: number): string {
@@ -82,7 +84,7 @@ export function Timeline({
   onSeek,
   onSelect,
   onTrim,
-  onReorder,
+  onMoveClip,
 }: {
   project: EditorProject;
   playhead: number;
@@ -91,7 +93,8 @@ export function Timeline({
   onSelect: (sel: TimelineSelection) => void;
   /** Rognage par une extrémité, en secondes (positif = raccourcit). */
   onTrim: (clipId: string, edge: "head" | "tail", delta: number) => void;
-  onReorder: (clipId: string, toIndex: number) => void;
+  /** Déplacement d'un plan : changement de piste et/ou d'instant. */
+  onMoveClip: (clipId: string, patch: { track: number; start: number }) => void;
 }) {
   const t = useT();
   const [zoomIdx, setZoomIdx] = useState(1);
@@ -109,7 +112,7 @@ export function Timeline({
 
   const drag = useRef<
     | { type: "trim"; clipId: string; edge: "head" | "tail"; startX: number }
-    | { type: "move"; clipId: string; startX: number; fromIndex: number }
+    | { type: "move"; clipId: string; startX: number; startY: number; fromStart: number; fromTrack: number }
     | { type: "scrub" }
     | null
   >(null);
@@ -159,15 +162,19 @@ export function Timeline({
       if (Math.abs(deltaSec) < 0.02) return;
       onTrim(d.clipId, d.edge, d.edge === "head" ? deltaSec : -deltaSec);
       drag.current = { ...d, startX: e.clientX };
-    } else {
-      // Déplacement : on change d'index dès que le curseur dépasse la moitié
-      // du plan voisin — le geste reste prévisible.
-      const width = project.clips[d.fromIndex]?.length ?? 1;
-      const steps = Math.round(deltaSec / Math.max(width, 0.5));
-      if (steps !== 0) {
-        onReorder(d.clipId, Math.max(0, d.fromIndex + steps));
-        drag.current = null;
-      }
+      return;
+    }
+
+    // Déplacement libre : un plan se pose où on le lâche, et change de piste
+    // quand le geste franchit une rangée. C'est ce qui rend l'incrustation
+    // vidéo possible — auparavant, tout retombait au bout de la séquence.
+    const rows = Math.round((e.clientY - d.startY) / (LANE_H + 6));
+    // Les pistes sont affichées de la plus haute vers le bas : descendre à
+    // l'écran, c'est descendre dans la pile.
+    const track = Math.max(0, d.fromTrack - rows);
+    const start = Math.max(0, snap(d.fromStart + deltaSec, marks));
+    if (Math.abs(start - d.fromStart) > 0.02 || track !== d.fromTrack) {
+      onMoveClip(d.clipId, { track, start });
     }
   }
 
@@ -177,12 +184,24 @@ export function Timeline({
 
   const width = Math.max(240, timeToPx(duration, pxPerSec));
 
-  /** Pistes affichées — une seule source pour les libellés et les blocs. */
-  const lanes: { key: string; label: string; blocks: React.ReactNode }[] = [
-    {
-      key: "video",
-      label: t("Vidéo", "Video"),
-      blocks: project.clips.map((c, i) => (
+  /**
+   * Pistes affichées — une seule source pour les libellés et les blocs.
+   *
+   * `rows` est le nombre de RANGÉES d'une piste : les calques qui se
+   * chevauchent sont répartis en sous-pistes par le modèle, la vue n'a plus
+   * qu'à leur donner de la place. Sans cela, deux textes posés au même instant
+   * se dessinaient l'un sur l'autre et le second devenait inatteignable.
+   */
+  const lanes: { key: string; label: string; rows: number; blocks: React.ReactNode }[] = [];
+
+  // Les pistes vidéo, de la plus haute vers la piste de base — comme à l'écran.
+  for (const track of [...usedTracks(project)].reverse()) {
+    const onTrack = project.clips.filter((c) => c.track === track);
+    lanes.push({
+      key: `video-${track}`,
+      label: track === 0 ? t("Vidéo", "Video") : `${t("Vidéo", "Video")} ${track + 1}`,
+      rows: 1,
+      blocks: onTrack.map((c) => (
         <ClipBlock
           key={c.id}
           clip={c}
@@ -193,23 +212,34 @@ export function Timeline({
             drag.current = { type: "trim", clipId: c.id, edge, startX: e.clientX };
           }}
           onMoveStart={(e) => {
-            drag.current = { type: "move", clipId: c.id, startX: e.clientX, fromIndex: i };
+            drag.current = {
+              type: "move",
+              clipId: c.id,
+              startX: e.clientX,
+              startY: e.clientY,
+              fromStart: c.start,
+              fromTrack: c.track,
+            };
           }}
         />
       )),
-    },
-  ];
+    });
+  }
+
+  const rowsOf = (items: { lane: number }[]) => Math.max(1, ...items.map((l) => l.lane + 1));
 
   if (project.texts.length > 0) {
     lanes.push({
       key: "text",
       label: t("Texte", "Text"),
+      rows: rowsOf(project.texts),
       blocks: project.texts.map((l) => (
         <LayerBlock
           key={l.id}
           label={l.text.split("\n")[0] || t("Texte", "Text")}
           start={l.start}
           length={Math.max(MIN_CLIP_SECONDS, l.end - l.start)}
+          lane={l.lane}
           pxPerSec={pxPerSec}
           tone="text"
           selected={selection?.kind === "text" && selection.id === l.id}
@@ -219,16 +249,39 @@ export function Timeline({
     });
   }
 
+  if (project.shapes.length > 0) {
+    lanes.push({
+      key: "shape",
+      label: t("Forme", "Shape"),
+      rows: rowsOf(project.shapes),
+      blocks: project.shapes.map((l) => (
+        <LayerBlock
+          key={l.id}
+          label={t("Forme", "Shape")}
+          start={l.start}
+          length={Math.max(MIN_CLIP_SECONDS, l.end - l.start)}
+          lane={l.lane}
+          pxPerSec={pxPerSec}
+          tone="shape"
+          selected={selection?.kind === "shape" && selection.id === l.id}
+          onSelect={() => onSelect({ kind: "shape", id: l.id })}
+        />
+      )),
+    });
+  }
+
   if (project.images.length > 0) {
     lanes.push({
       key: "image",
       label: t("Image", "Image"),
+      rows: rowsOf(project.images),
       blocks: project.images.map((l) => (
         <LayerBlock
           key={l.id}
           label={t("Incrustation", "Overlay")}
           start={l.start}
           length={Math.max(MIN_CLIP_SECONDS, l.end - l.start)}
+          lane={l.lane}
           pxPerSec={pxPerSec}
           tone="image"
           selected={selection?.kind === "image" && selection.id === l.id}
@@ -242,12 +295,14 @@ export function Timeline({
     lanes.push({
       key: "audio",
       label: t("Audio", "Audio"),
+      rows: rowsOf(project.audios),
       blocks: project.audios.map((a) => (
         <LayerBlock
           key={a.id}
           label={a.name}
           start={a.start}
           length={Math.max(MIN_CLIP_SECONDS, a.length)}
+          lane={a.lane}
           pxPerSec={pxPerSec}
           tone="audio"
           muted={a.muted}
@@ -300,8 +355,8 @@ export function Timeline({
           {lanes.map((l) => (
             <div
               key={l.key}
-              style={{ height: LANE_H }}
-              className="flex w-12 items-center text-[9px] uppercase tracking-wide text-muted"
+              style={{ height: LANE_H * l.rows }}
+              className="flex w-14 items-center text-[9px] uppercase tracking-wide text-muted"
             >
               {l.label}
             </div>
@@ -321,7 +376,12 @@ export function Timeline({
             />
 
             {lanes.map((l) => (
-              <div key={l.key} style={{ height: LANE_H }} className="relative" onPointerDown={onLanePointerDown}>
+              <div
+                key={l.key}
+                style={{ height: LANE_H * l.rows }}
+                className="relative"
+                onPointerDown={onLanePointerDown}
+              >
                 {l.blocks}
               </div>
             ))}
@@ -446,6 +506,7 @@ function ClipBlock({
 const TONE: Record<string, string> = {
   text: "bg-primary-50 text-primary-700 border-primary-200",
   image: "bg-ai-visualbg text-ai-visual border-hair",
+  shape: "bg-warning-50 text-warning-700 border-warning-200",
   audio: "bg-success-50 text-success-700 border-success-200",
 };
 
@@ -453,6 +514,7 @@ function LayerBlock({
   label,
   start,
   length,
+  lane,
   pxPerSec,
   tone,
   selected,
@@ -462,8 +524,10 @@ function LayerBlock({
   label: string;
   start: number;
   length: number;
+  /** Rangée au sein de la piste — calculée par le modèle. */
+  lane: number;
   pxPerSec: number;
-  tone: "text" | "image" | "audio";
+  tone: "text" | "image" | "shape" | "audio";
   selected: boolean;
   muted?: boolean;
   onSelect: () => void;
@@ -473,10 +537,15 @@ function LayerBlock({
       type="button"
       onPointerDown={(e) => e.stopPropagation()}
       onClick={onSelect}
-      className={`absolute inset-y-1 overflow-hidden rounded-md border px-2 text-left text-[10px] ${TONE[tone]} ${
+      className={`absolute overflow-hidden rounded-md border px-2 text-left text-[10px] ${TONE[tone]} ${
         selected ? "ring-2 ring-page/40" : ""
       } ${muted ? "opacity-40" : ""}`}
-      style={{ left: timeToPx(start, pxPerSec), width: Math.max(12, timeToPx(length, pxPerSec)) }}
+      style={{
+        left: timeToPx(start, pxPerSec),
+        width: Math.max(12, timeToPx(length, pxPerSec)),
+        top: lane * LANE_H + 4,
+        height: LANE_H - 8,
+      }}
     >
       <span className="block truncate">{muted ? "🔇 " : ""}{label}</span>
     </button>

@@ -9,7 +9,98 @@
 // Une seule implémentation, appelée des deux côtés, rend cette divergence
 // impossible par construction.
 
-import type { ImageLayer, TextLayer } from "./project";
+import type { FontKey, ImageLayer, ShapeLayer, TextLayer } from "./project";
+
+/**
+ * Familles proposées à l'utilisateur.
+ *
+ * Chaque entrée est une PILE de polices largement disponibles, pas un fichier à
+ * télécharger : c'est ce qui garantit que l'aperçu et le fichier exporté
+ * s'accordent, sans faire dépendre le rendu d'un chargement réseau qui peut
+ * échouer au pire moment. Le rendu serveur reçoit la même pile.
+ */
+export const FONT_STACKS: Record<FontKey, { label: string; stack: string }> = {
+  sans: { label: "Sans", stack: `system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif` },
+  serif: { label: "Serif", stack: `Georgia, "Times New Roman", "Nimbus Roman", serif` },
+  mono: { label: "Mono", stack: `ui-monospace, "SF Mono", Menlo, Consolas, "DejaVu Sans Mono", monospace` },
+  condensed: { label: "Étroite", stack: `"Arial Narrow", "Liberation Sans Narrow", "Helvetica Neue Condensed", sans-serif` },
+  rounded: { label: "Arrondie", stack: `ui-rounded, "SF Pro Rounded", "Varela Round", "Trebuchet MS", sans-serif` },
+  display: { label: "Titrage", stack: `Impact, "Haettenschweiler", "Arial Black", "DejaVu Sans", sans-serif` },
+};
+
+export function fontStack(key: FontKey | undefined): string {
+  return FONT_STACKS[key ?? "sans"]?.stack ?? FONT_STACKS.sans.stack;
+}
+
+/**
+ * Attend que les polices demandées soient utilisables par le canevas.
+ *
+ * Sans cette attente, `ctx.font` retombe silencieusement sur une police de
+ * secours et le fichier exporté ne ressemble plus à l'aperçu — la divergence
+ * la plus difficile à diagnostiquer, parce qu'elle ne produit aucune erreur.
+ */
+export async function ensureFontsReady(keys: (FontKey | undefined)[]): Promise<void> {
+  if (typeof document === "undefined" || !document.fonts) return;
+  const wanted = new Set(keys.map((k) => fontStack(k)));
+  try {
+    await Promise.all([...wanted].map((stack) => document.fonts.load(`700 64px ${stack}`)));
+    await document.fonts.ready;
+  } catch {
+    // Une police indisponible ne doit pas faire échouer un export.
+  }
+}
+
+/**
+ * Découpe un texte pour qu'il tienne dans une largeur donnée.
+ * `wrapPct` à 0 signifie « pas de retour à la ligne » : seuls les sauts de
+ * ligne saisis comptent.
+ */
+function wrapLines(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
+  const paragraphs = text.split("\n");
+  if (maxWidth <= 0) return paragraphs;
+  const out: string[] = [];
+  for (const paragraph of paragraphs) {
+    let line = "";
+    for (const word of paragraph.split(" ")) {
+      const candidate = line ? `${line} ${word}` : word;
+      if (line && ctx.measureText(candidate).width > maxWidth) {
+        out.push(line);
+        line = word;
+      } else {
+        line = candidate;
+      }
+    }
+    out.push(line);
+  }
+  return out;
+}
+
+/**
+ * Applique la rotation d'un calque autour de son centre, exécute le dessin,
+ * puis rend le contexte tel qu'il était.
+ */
+function rotated(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  degrees: number,
+  opacity: number,
+  paint: () => void
+): void {
+  const previous = ctx.globalAlpha;
+  ctx.globalAlpha = previous * opacity;
+  if (degrees) {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate((degrees * Math.PI) / 180);
+    ctx.translate(-cx, -cy);
+    paint();
+    ctx.restore();
+  } else {
+    paint();
+  }
+  ctx.globalAlpha = previous;
+}
 
 /**
  * Dessine les calques de texte visibles à un instant donné.
@@ -24,13 +115,18 @@ export function drawTexts(
 ): void {
   for (const o of layers) {
     const fontPx = Math.max(8, o.sizePct * H);
-    ctx.font = `${o.bold ? "bold " : ""}${fontPx}px sans-serif`;
+    ctx.font = `${o.bold ? "bold " : ""}${fontPx}px ${fontStack(o.font)}`;
     ctx.textBaseline = "top";
     ctx.textAlign = o.align;
-    const lines = o.text.split("\n");
+    const lines = wrapLines(ctx, o.text, (o.wrapPct ?? 0) * W);
     const x = o.x * W;
-    let y = o.y * H;
-    const lineH = fontPx * 1.25;
+    const y0 = o.y * H;
+    let y = y0;
+    const lineH = fontPx * (o.lineHeight || 1.25);
+    const blockH = lineH * lines.length;
+    const cx = o.align === "center" ? x : o.align === "right" ? x - ((o.wrapPct ?? 0.5) * W) / 2 : x + ((o.wrapPct || 0.5) * W) / 2;
+
+    rotated(ctx, cx, y0 + blockH / 2, o.rotation ?? 0, o.opacity ?? 1, () => {
     for (const line of lines) {
       const w = ctx.measureText(line).width;
       if (o.bg) {
@@ -55,6 +151,7 @@ export function drawTexts(
       ctx.shadowOffsetY = 0;
       y += lineH;
     }
+    });
   }
 }
 
@@ -93,10 +190,81 @@ export function drawImages(
     if (!img) continue;
     const w = l.scale * W;
     const ratio = img.naturalHeight > 0 ? img.naturalHeight / img.naturalWidth : 1;
-    const h = w * ratio;
-    const previous = ctx.globalAlpha;
-    ctx.globalAlpha = l.opacity;
-    ctx.drawImage(img, l.x * W, l.y * H, w, h);
-    ctx.globalAlpha = previous;
+    // Hauteur libre : réglée explicitement, ou déduite du rapport natif pour
+    // ne jamais déformer l'image par accident.
+    const h = l.heightPct > 0 ? l.heightPct * H : w * ratio;
+    const x = l.x * W;
+    const y = l.y * H;
+    rotated(ctx, x + w / 2, y + h / 2, l.rotation ?? 0, l.opacity ?? 1, () => {
+      ctx.drawImage(img, x, y, w, h);
+    });
+  }
+}
+
+/**
+ * Dessine les formes vectorielles.
+ * Elles sont composées ici — et non importées comme images préparées ailleurs —
+ * ce qui les rend modifiables après coup : couleur, taille, rayon d'angle.
+ */
+export function drawShapes(
+  ctx: CanvasRenderingContext2D,
+  W: number,
+  H: number,
+  layers: ShapeLayer[]
+): void {
+  for (const l of layers) {
+    const x = l.x * W;
+    const y = l.y * H;
+    const w = l.w * W;
+    const h = l.h * H;
+    const stroke = l.strokeWidth * W;
+
+    rotated(ctx, x + w / 2, y + h / 2, l.rotation ?? 0, l.opacity ?? 1, () => {
+      ctx.fillStyle = l.fill;
+      ctx.strokeStyle = l.stroke;
+      ctx.lineWidth = stroke;
+
+      if (l.shape === "ellipse") {
+        ctx.beginPath();
+        ctx.ellipse(x + w / 2, y + h / 2, w / 2, h / 2, 0, 0, Math.PI * 2);
+        ctx.fill();
+        if (stroke > 0) ctx.stroke();
+        return;
+      }
+      if (l.shape === "line") {
+        ctx.beginPath();
+        ctx.moveTo(x, y + h / 2);
+        ctx.lineTo(x + w, y + h / 2);
+        ctx.lineWidth = Math.max(1, h);
+        ctx.strokeStyle = l.fill;
+        ctx.stroke();
+        return;
+      }
+      if (l.shape === "arrow") {
+        const headW = Math.min(w * 0.3, h * 2.2);
+        const shaftH = h * 0.35;
+        ctx.beginPath();
+        ctx.moveTo(x, y + h / 2 - shaftH / 2);
+        ctx.lineTo(x + w - headW, y + h / 2 - shaftH / 2);
+        ctx.lineTo(x + w - headW, y);
+        ctx.lineTo(x + w, y + h / 2);
+        ctx.lineTo(x + w - headW, y + h);
+        ctx.lineTo(x + w - headW, y + h / 2 + shaftH / 2);
+        ctx.lineTo(x, y + h / 2 + shaftH / 2);
+        ctx.closePath();
+        ctx.fill();
+        return;
+      }
+
+      const r = l.shape === "round" ? Math.min(l.radius * W, w / 2, h / 2) : 0;
+      ctx.beginPath();
+      if (typeof ctx.roundRect === "function") {
+        ctx.roundRect(x, y, w, h, r);
+      } else {
+        ctx.rect(x, y, w, h);
+      }
+      ctx.fill();
+      if (stroke > 0) ctx.stroke();
+    });
   }
 }

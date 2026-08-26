@@ -1,61 +1,120 @@
 "use client";
 
-// Aperçu du projet — lecteur contrôlé, avec son.
+// Zone de travail — aperçu contrôlé, sonore et manipulable.
 //
-// L'ancien aperçu était en lecture automatique MUETTE, sans aucune commande :
-// impossible de juger d'un contenu, de repérer un temps fort ou de synchroniser
-// un texte avec une parole. Le `muted` était un contournement de la restriction
-// des navigateurs sur l'autoplay ; la vraie réponse est de ne pas démarrer tout
-// seul (audit A-03).
+// TROIS DÉFAUTS D'ORIGINE, UNE MÊME CAUSE
+// L'aperçu était une vignette de 320 pixels de large, sans zoom, qui ne pilotait
+// que l'élément vidéo. Positionner finement un logo y était impraticable, les
+// pistes son ajoutées restaient muettes jusqu'à l'export, et rien ne permettait
+// de redimensionner ou de faire pivoter un calque. La cause commune : l'aperçu
+// était traité comme une IMAGE de contrôle, pas comme un plan de travail.
 //
-// L'aperçu lit le DOCUMENT : à chaque instant il affiche le plan courant et les
-// calques dont les bornes couvrent cet instant. Ce qu'on voit ici est donc ce
-// que le rendu produira — les deux lisent la même description.
+// Ici, la scène est rendue à la définition NATIVE du format et mise à l'échelle
+// par une transformation. Toutes les positions restent donc exprimées dans les
+// pixels du fichier final : ce qu'on voit et ce qu'on exporte partagent le même
+// repère, à un facteur d'échelle près.
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useT } from "@/lib/i18n";
 import {
-  clipAt,
+  clipsAt,
+  FORMAT_SIZE,
   imagesAt,
+  layerProgress,
   projectDuration,
+  shapesAt,
   textsAt,
   type EditorProject,
+  type ImageLayer,
+  type ShapeLayer,
   type TextLayer,
+  type VisualLayer,
 } from "@/lib/editor/project";
-import { formatTime } from "./Timeline";
+import { fontStack } from "@/lib/editor/draw";
+import { formatTime, type TimelineSelection } from "./Timeline";
+
+/** Distance d'aimantation, en fraction du cadre. */
+const SNAP = 0.012;
+
+export type LayerPatch = Partial<Pick<VisualLayer, "x" | "y" | "rotation">> & {
+  w?: number;
+  h?: number;
+};
+
+/** Repères d'alignement : centres, bords, marges. */
+const GUIDES_X = [0, 0.05, 0.5, 0.95, 1];
+const GUIDES_Y = [0, 0.05, 0.5, 0.95, 1];
+
+function snapTo(value: number, guides: number[]): { value: number; hit: number | null } {
+  for (const g of guides) {
+    if (Math.abs(value - g) < SNAP) return { value: g, hit: g };
+  }
+  return { value, hit: null };
+}
 
 export function Preview({
   project,
   playhead,
+  selection,
   onSeek,
-  onDragText,
-  onDragImage,
+  onSelect,
+  onLayerChange,
 }: {
   project: EditorProject;
   playhead: number;
+  selection: TimelineSelection;
   onSeek: (t: number) => void;
-  /** Déplacement d'un calque texte à la souris (fraction de cadre). */
-  onDragText?: (id: string, x: number, y: number) => void;
-  /** Déplacement d'une incrustation à la souris (fraction de cadre). */
-  onDragImage?: (id: string, x: number, y: number) => void;
+  onSelect: (sel: TimelineSelection) => void;
+  /** Manipulation directe d'un calque dans la zone de travail. */
+  onLayerChange?: (sel: NonNullable<TimelineSelection>, patch: LayerPatch) => void;
 }) {
   const t = useT();
   const duration = projectDuration(project);
   const [playing, setPlaying] = useState(false);
   const [volume, setVolume] = useState(1);
   const [muted, setMuted] = useState(false);
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [guides, setGuides] = useState<{ x: number | null; y: number | null }>({ x: null, y: null });
 
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const frame = FORMAT_SIZE[project.format];
   const boxRef = useRef<HTMLDivElement>(null);
+  const [box, setBox] = useState({ w: 320, h: 480 });
   const rafRef = useRef<number | null>(null);
   const lastTick = useRef<number>(0);
 
-  const current = clipAt(project, playhead);
+  const active = clipsAt(project, playhead);
   const visibleTexts = textsAt(project, playhead);
   const visibleImages = imagesAt(project, playhead);
+  const visibleShapes = shapesAt(project, playhead);
 
-  // Avance la tête de lecture. On cadence sur `requestAnimationFrame` avec un
-  // delta-time réel : la lecture reste juste même si une image est sautée.
+  /* ── Mise à l'échelle ──────────────────────────────────────────────────── */
+  useEffect(() => {
+    const el = boxRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(([entry]) => {
+      setBox({ w: entry.contentRect.width, h: entry.contentRect.height });
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  /** Échelle d'ajustement : la scène entière tient dans l'espace disponible. */
+  const fitScale = useMemo(
+    () => Math.min(box.w / frame.width, box.h / frame.height) || 0.1,
+    [box.w, box.h, frame.width, frame.height]
+  );
+  const scale = fitScale * zoom;
+
+  const resetView = useCallback(() => { setZoom(1); setPan({ x: 0, y: 0 }); }, []);
+  useEffect(() => { resetView(); }, [project.format, resetView]);
+
+  function onWheel(e: React.WheelEvent) {
+    if (!e.ctrlKey && !e.metaKey && Math.abs(e.deltaY) < 2) return;
+    setZoom((z) => Math.min(6, Math.max(0.25, z * (e.deltaY < 0 ? 1.12 : 0.89))));
+  }
+
+  /* ── Lecture ───────────────────────────────────────────────────────────── */
   const step = useCallback(
     (ts: number) => {
       const dt = lastTick.current ? (ts - lastTick.current) / 1000 : 0;
@@ -85,130 +144,318 @@ export function Preview({
     };
   }, [playing, step]);
 
-  // Synchronise l'élément vidéo sur le plan courant et sa position source.
-  useEffect(() => {
-    const v = videoRef.current;
-    if (!v || !current || current.clip.kind !== "video") return;
-    if (Math.abs(v.currentTime - current.sourceTime) > 0.25) {
-      v.currentTime = current.sourceTime;
-    }
-    v.playbackRate = current.clip.speed;
-    v.volume = volume;
-    v.muted = muted || project.audios.some((a) => a.role === "original" && a.muted);
-    if (playing && v.paused) void v.play().catch(() => setPlaying(false));
-    if (!playing && !v.paused) v.pause();
-  }, [current, playing, volume, muted, project.audios]);
+  /* ── Vidéos : une par piste active ─────────────────────────────────────── */
+  const videoRefs = useRef(new Map<string, HTMLVideoElement>());
+  const originalMuted = project.audios.some((a) => a.role === "original" && a.muted);
 
-  // Un seul mécanisme de déplacement, quel que soit le type de calque : c'est
-  // la même intention — « place ça là » — et donc le même geste.
-  const dragRef = useRef<
-    { kind: "text" | "image"; id: string; ox: number; oy: number; sx: number; sy: number } | null
+  useEffect(() => {
+    for (const { clip, sourceTime } of active) {
+      const v = videoRefs.current.get(clip.id);
+      if (!v || clip.kind !== "video") continue;
+      if (Math.abs(v.currentTime - sourceTime) > 0.25) v.currentTime = sourceTime;
+      v.playbackRate = clip.speed;
+      v.volume = volume;
+      // Seule la piste de base porte le son d'origine : superposer deux bandes
+      // son de plans différents produirait une bouillie.
+      v.muted = muted || originalMuted || clip.track !== 0;
+      if (playing && v.paused) void v.play().catch(() => setPlaying(false));
+      if (!playing && !v.paused) v.pause();
+    }
+  }, [active, playing, volume, muted, originalMuted]);
+
+  /* ── Pistes son ajoutées ───────────────────────────────────────────────── */
+  // L'aperçu ne pilotait QUE l'élément vidéo : volume, rognage et fondus se
+  // réglaient à l'aveugle, leur effet n'apparaissant qu'après un export complet.
+  const audioRefs = useRef(new Map<string, HTMLAudioElement>());
+  useEffect(() => {
+    for (const a of project.audios) {
+      if (a.role === "original") continue;
+      const el = audioRefs.current.get(a.id);
+      if (!el) continue;
+
+      const inside = playhead >= a.start && playhead < a.start + a.length;
+      if (!inside || a.muted || muted) {
+        if (!el.paused) el.pause();
+        continue;
+      }
+      const sourceTime = a.trimStart + (playhead - a.start);
+      if (Math.abs(el.currentTime - sourceTime) > 0.25) el.currentTime = sourceTime;
+
+      // Le fondu est appliqué ICI aussi : c'est la seule façon d'entendre le
+      // mixage avant l'export, et donc de le régler.
+      const sinceStart = playhead - a.start;
+      const untilEnd = a.start + a.length - playhead;
+      const fadeIn = a.fadeIn > 0 ? Math.min(1, sinceStart / a.fadeIn) : 1;
+      const fadeOut = a.fadeOut > 0 ? Math.min(1, untilEnd / a.fadeOut) : 1;
+      el.volume = Math.max(0, Math.min(1, a.volume * volume * fadeIn * fadeOut));
+
+      if (playing && el.paused) void el.play().catch(() => {});
+      if (!playing && !el.paused) el.pause();
+    }
+  }, [project.audios, playhead, playing, volume, muted]);
+
+  /* ── Manipulation directe ──────────────────────────────────────────────── */
+  const drag = useRef<
+    | { mode: "move"; sel: NonNullable<TimelineSelection>; ox: number; oy: number; sx: number; sy: number }
+    | { mode: "resize"; sel: NonNullable<TimelineSelection>; ow: number; oh: number; sx: number; sy: number }
+    | { mode: "rotate"; sel: NonNullable<TimelineSelection>; cx: number; cy: number; base: number; or: number }
+    | { mode: "pan"; sx: number; sy: number; ox: number; oy: number }
+    | null
   >(null);
 
-  function onLayerPointerDown(
-    e: React.PointerEvent,
-    kind: "text" | "image",
-    l: { id: string; x: number; y: number }
-  ) {
-    if (kind === "text" ? !onDragText : !onDragImage) return;
+  function startMove(e: React.PointerEvent, sel: NonNullable<TimelineSelection>, l: VisualLayer) {
+    if (!onLayerChange) return;
     e.stopPropagation();
-    dragRef.current = { kind, id: l.id, ox: l.x, oy: l.y, sx: e.clientX, sy: e.clientY };
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    onSelect(sel);
+    drag.current = { mode: "move", sel, ox: l.x, oy: l.y, sx: e.clientX, sy: e.clientY };
+    (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
   }
+
   function onPointerMove(e: React.PointerEvent) {
-    const d = dragRef.current;
-    const box = boxRef.current;
-    if (!d || !box) return;
-    const rect = box.getBoundingClientRect();
-    const x = Math.min(0.98, Math.max(0, d.ox + (e.clientX - d.sx) / rect.width));
-    const y = Math.min(0.98, Math.max(0, d.oy + (e.clientY - d.sy) / rect.height));
-    if (d.kind === "text") onDragText?.(d.id, x, y);
-    else onDragImage?.(d.id, x, y);
+    const d = drag.current;
+    if (!d) return;
+    if (d.mode === "pan") {
+      setPan({ x: d.ox + (e.clientX - d.sx), y: d.oy + (e.clientY - d.sy) });
+      return;
+    }
+    if (!onLayerChange) return;
+    if (d.mode === "rotate") {
+      const angle = (Math.atan2(e.clientY - d.cy, e.clientX - d.cx) * 180) / Math.PI;
+      const next = Math.round(d.or + (angle - d.base));
+      // Multiples de 15° à portée de main : les angles ronds sont les plus
+      // demandés, et viser au degré près à la souris est illusoire.
+      onLayerChange(d.sel, { rotation: Math.abs(next % 15) < 4 ? Math.round(next / 15) * 15 : next });
+      return;
+    }
+
+    const dx = (e.clientX - d.sx) / (frame.width * scale);
+    const dy = (e.clientY - d.sy) / (frame.height * scale);
+
+    if (d.mode === "move") {
+      // Aimantation sur les centres, les bords et les marges — avec un repère
+      // visuel, faute de quoi l'utilisateur ne sait pas pourquoi ça « colle ».
+      const sx = snapTo(d.ox + dx, GUIDES_X);
+      const sy = snapTo(d.oy + dy, GUIDES_Y);
+      setGuides({ x: sx.hit, y: sy.hit });
+      onLayerChange(d.sel, { x: sx.value, y: sy.value });
+      return;
+    }
+    if (d.mode === "resize") {
+      onLayerChange(d.sel, {
+        w: Math.max(0.02, d.ow + dx),
+        h: d.oh > 0 ? Math.max(0.01, d.oh + dy) : undefined,
+      });
+    }
   }
 
-  const aspect = project.format.replace(":", " / ");
+  function endDrag() {
+    drag.current = null;
+    setGuides({ x: null, y: null });
+  }
 
-  // Le cadrage de l'aperçu reprend celui du rendu : `cover` rogne autour du
-  // point d'intérêt, `contain` montre tout. Sans cela, l'aperçu promettait un
-  // cadrage que le fichier exporté ne tenait pas.
-  const frame = current
-    ? {
-        className: current.clip.fit === "contain" ? "object-contain" : "object-cover",
-        style: { objectPosition: `${current.clip.focusX * 100}% ${current.clip.focusY * 100}%` },
-      }
-    : { className: "object-contain", style: undefined };
+  const stageW = frame.width * scale;
+  const stageH = frame.height * scale;
+
+  /** Style commun d'un calque : position, rotation, opacité, animation. */
+  function layerStyle(l: VisualLayer, extra: React.CSSProperties = {}): React.CSSProperties {
+    const anim = layerProgress(l, playhead);
+    return {
+      position: "absolute",
+      left: `${(l.x + anim.offsetX) * frame.width}px`,
+      top: `${(l.y + anim.offsetY) * frame.height}px`,
+      opacity: anim.opacity,
+      transform: `rotate(${l.rotation}deg) scale(${anim.scale})`,
+      transformOrigin: "center",
+      ...extra,
+    };
+  }
+
+  const selectedId = selection?.id;
 
   return (
-    <div className="space-y-2">
+    <div className="flex h-full min-h-0 flex-col gap-2">
+      {/* Scène */}
       <div
         ref={boxRef}
+        onWheel={onWheel}
         onPointerMove={onPointerMove}
-        onPointerUp={() => { dragRef.current = null; }}
-        className="relative mx-auto w-full max-w-[320px] overflow-hidden rounded-lg bg-black"
-        style={{ aspectRatio: aspect }}
+        onPointerUp={endDrag}
+        onPointerLeave={endDrag}
+        onPointerDown={(e) => {
+          // Clic dans le vide : on désélectionne, ou on déplace la vue si
+          // l'utilisateur a zoomé au-delà de l'espace disponible.
+          if (zoom > 1) {
+            drag.current = { mode: "pan", sx: e.clientX, sy: e.clientY, ox: pan.x, oy: pan.y };
+          } else {
+            onSelect(null);
+          }
+        }}
+        className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-lg bg-black/90"
       >
-        {current?.clip.kind === "video" && (
-          // eslint-disable-next-line jsx-a11y/media-has-caption
-          <video
-            ref={videoRef}
-            src={current.clip.src}
-            className={`h-full w-full ${frame.className}`}
-            style={frame.style}
-            playsInline
-            preload="metadata"
-          />
-        )}
-        {current?.clip.kind === "image" && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={current.clip.src} alt="" className={`h-full w-full ${frame.className}`} style={frame.style} />
-        )}
-        {!current && (
-          <p className="flex h-full items-center justify-center px-4 text-center text-2xs text-white/60">
-            {t("Ajoutez un média pour commencer le montage.", "Add a media file to start editing.")}
-          </p>
-        )}
-
-        {/* Incrustations — déplaçables comme les textes */}
-        {visibleImages.map((l) => (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            key={l.id}
-            src={l.src}
-            alt=""
-            onPointerDown={(e) => onLayerPointerDown(e, "image", l)}
-            className={`absolute ${onDragImage ? "cursor-move" : "pointer-events-none"}`}
-            style={{ left: `${l.x * 100}%`, top: `${l.y * 100}%`, width: `${l.scale * 100}%`, opacity: l.opacity }}
-          />
-        ))}
-
-        {/* Calques de texte — déplaçables à la souris */}
-        {visibleTexts.map((l) => (
+        <div
+          style={{
+            width: stageW,
+            height: stageH,
+            transform: `translate(${pan.x}px, ${pan.y}px)`,
+          }}
+          className="relative shrink-0"
+        >
           <div
-            key={l.id}
-            onPointerDown={(e) => onLayerPointerDown(e, "text", l)}
-            className={`absolute whitespace-pre leading-tight ${onDragText ? "cursor-move" : ""}`}
             style={{
-              left: `${l.x * 100}%`,
-              top: `${l.y * 100}%`,
-              fontSize: `${l.sizePct * 100}cqh`,
-              color: l.color,
-              fontWeight: l.bold ? 700 : 400,
-              textAlign: l.align,
-              background: l.bg ? "rgba(0,0,0,0.5)" : "transparent",
-              padding: l.bg ? "0 0.15em" : 0,
-              textShadow: l.shadow ? "0 1px 3px rgba(0,0,0,0.6)" : undefined,
-              WebkitTextStroke: l.outline ? "1px rgba(0,0,0,0.85)" : undefined,
-              containerType: "size",
+              width: frame.width,
+              height: frame.height,
+              transform: `scale(${scale})`,
+              transformOrigin: "top left",
             }}
+            className="absolute left-0 top-0 overflow-hidden bg-black"
           >
-            {l.text}
+            {/* Plans, de la piste de base vers le dessus */}
+            {active.map(({ clip }) =>
+              clip.kind === "video" ? (
+                // eslint-disable-next-line jsx-a11y/media-has-caption
+                <video
+                  key={clip.id}
+                  ref={(el) => { if (el) videoRefs.current.set(clip.id, el); }}
+                  src={clip.src}
+                  playsInline
+                  preload="metadata"
+                  style={{ objectPosition: `${clip.focusX * 100}% ${clip.focusY * 100}%` }}
+                  className={`absolute inset-0 h-full w-full ${clip.fit === "contain" ? "object-contain" : "object-cover"}`}
+                />
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  key={clip.id}
+                  src={clip.src}
+                  alt=""
+                  style={{ objectPosition: `${clip.focusX * 100}% ${clip.focusY * 100}%` }}
+                  className={`absolute inset-0 h-full w-full ${clip.fit === "contain" ? "object-contain" : "object-cover"}`}
+                />
+              )
+            )}
+
+            {active.length === 0 && (
+              <p className="flex h-full items-center justify-center px-8 text-center text-white/60"
+                 style={{ fontSize: frame.height * 0.025 }}>
+                {t("Ajoutez un média pour commencer le montage.", "Add a media file to start editing.")}
+              </p>
+            )}
+
+            {/* Formes */}
+            {visibleShapes.map((l) => (
+              <ShapeView
+                key={l.id}
+                layer={l}
+                frame={frame}
+                style={layerStyle(l, { width: l.w * frame.width, height: l.h * frame.height })}
+                selected={selectedId === l.id}
+                onPointerDown={(e) => startMove(e, { kind: "shape", id: l.id }, l)}
+              />
+            ))}
+
+            {/* Incrustations */}
+            {visibleImages.map((l) => (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                key={l.id}
+                src={l.src}
+                alt=""
+                onPointerDown={(e) => startMove(e, { kind: "image", id: l.id }, l)}
+                style={layerStyle(l, {
+                  width: l.scale * frame.width,
+                  height: l.heightPct > 0 ? l.heightPct * frame.height : undefined,
+                })}
+                className={`${onLayerChange ? "cursor-move" : "pointer-events-none"} ${
+                  selectedId === l.id ? "outline outline-[3px] outline-page" : ""
+                }`}
+              />
+            ))}
+
+            {/* Textes */}
+            {visibleTexts.map((l) => (
+              <div
+                key={l.id}
+                onPointerDown={(e) => startMove(e, { kind: "text", id: l.id }, l)}
+                style={layerStyle(l, {
+                  fontSize: `${l.sizePct * frame.height}px`,
+                  fontFamily: fontStack(l.font),
+                  color: l.color,
+                  fontWeight: l.bold ? 700 : 400,
+                  textAlign: l.align,
+                  lineHeight: l.lineHeight,
+                  width: l.wrapPct > 0 ? l.wrapPct * frame.width : undefined,
+                  whiteSpace: l.wrapPct > 0 ? "pre-wrap" : "pre",
+                  background: l.bg ? "rgba(0,0,0,0.5)" : "transparent",
+                  padding: l.bg ? "0 0.15em" : 0,
+                  textShadow: l.shadow ? "0 1px 3px rgba(0,0,0,0.6)" : undefined,
+                  WebkitTextStroke: l.outline ? `${l.sizePct * frame.height * 0.06}px rgba(0,0,0,0.85)` : undefined,
+                })}
+                className={`${onLayerChange ? "cursor-move" : ""} ${
+                  selectedId === l.id ? "outline outline-[3px] outline-page" : ""
+                }`}
+              >
+                {l.text}
+              </div>
+            ))}
+
+            {/* Repères d'alignement */}
+            {guides.x !== null && (
+              <div className="pointer-events-none absolute inset-y-0 w-[2px] bg-ai-visual"
+                   style={{ left: guides.x * frame.width }} />
+            )}
+            {guides.y !== null && (
+              <div className="pointer-events-none absolute inset-x-0 h-[2px] bg-ai-visual"
+                   style={{ top: guides.y * frame.height }} />
+            )}
           </div>
-        ))}
+
+          {/* Poignées — hors de la mise à l'échelle pour rester saisissables */}
+          {onLayerChange && selection && (
+            <Handles
+              project={project}
+              selection={selection}
+              scale={scale}
+              frame={frame}
+              onResizeStart={(e, sel, ow, oh) => {
+                e.stopPropagation();
+                drag.current = { mode: "resize", sel, ow, oh, sx: e.clientX, sy: e.clientY };
+                (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+              }}
+              onRotateStart={(e, sel, cx, cy, or) => {
+                e.stopPropagation();
+                const base = (Math.atan2(e.clientY - cy, e.clientX - cx) * 180) / Math.PI;
+                drag.current = { mode: "rotate", sel, cx, cy, base, or };
+                (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+              }}
+            />
+          )}
+        </div>
+
+        {/* Zoom */}
+        <div className="absolute bottom-2 right-2 flex items-center gap-1 rounded-md bg-black/60 px-1.5 py-1">
+          <button type="button" onClick={() => setZoom((z) => Math.max(0.25, z * 0.8))}
+            aria-label={t("Dézoomer l'aperçu", "Zoom out preview")}
+            className="h-5 w-5 rounded text-xs text-white/80 hover:text-white">−</button>
+          <button type="button" onClick={resetView}
+            className="min-w-[3rem] text-center text-2xs tabular-nums text-white/80 hover:text-white"
+            title={t("Ajuster à la fenêtre", "Fit to window")}>
+            {Math.round(zoom * 100)}%
+          </button>
+          <button type="button" onClick={() => setZoom((z) => Math.min(6, z * 1.25))}
+            aria-label={t("Zoomer l'aperçu", "Zoom in preview")}
+            className="h-5 w-5 rounded text-xs text-white/80 hover:text-white">+</button>
+        </div>
       </div>
+
+      {/* Éléments sonores — invisibles, pilotés par la tête de lecture */}
+      {project.audios.filter((a) => a.role !== "original").map((a) => (
+        // eslint-disable-next-line jsx-a11y/media-has-caption
+        <audio key={a.id} ref={(el) => { if (el) audioRefs.current.set(a.id, el); }} src={a.src} preload="metadata" className="hidden" />
+      ))}
 
       {/* Commandes de lecture — la lecture démarre sur ACTION, donc le son est
           autorisé par le navigateur (A-03). */}
-      <div className="flex items-center gap-2">
+      <div className="flex shrink-0 items-center gap-2">
         <button
           type="button"
           onClick={() => setPlaying((p) => !p)}
@@ -253,3 +500,128 @@ export function Preview({
     </div>
   );
 }
+
+/* ── Sous-composants ─────────────────────────────────────────────────────── */
+
+function ShapeView({
+  layer,
+  frame,
+  style,
+  selected,
+  onPointerDown,
+}: {
+  layer: ShapeLayer;
+  frame: { width: number; height: number };
+  style: React.CSSProperties;
+  selected: boolean;
+  onPointerDown: (e: React.PointerEvent) => void;
+}) {
+  const w = layer.w * frame.width;
+  const h = layer.h * frame.height;
+  const common: React.CSSProperties = {
+    ...style,
+    background: layer.shape === "arrow" ? "transparent" : layer.fill,
+    border: layer.strokeWidth > 0 ? `${layer.strokeWidth * frame.width}px solid ${layer.stroke}` : undefined,
+    borderRadius:
+      layer.shape === "ellipse" ? "50%" : layer.shape === "round" ? `${layer.radius * frame.width}px` : 0,
+  };
+
+  if (layer.shape === "arrow") {
+    // La flèche est un tracé : la reproduire en CSS donnerait une forme
+    // différente de celle du rendu, qui la dessine au canevas.
+    const head = Math.min(w * 0.3, h * 2.2);
+    const shaft = h * 0.35;
+    return (
+      <svg
+        onPointerDown={onPointerDown}
+        style={{ ...style, width: w, height: h }}
+        viewBox={`0 0 ${w} ${h}`}
+        className={`cursor-move ${selected ? "outline outline-[3px] outline-page" : ""}`}
+      >
+        <polygon
+          fill={layer.fill}
+          points={`0,${h / 2 - shaft / 2} ${w - head},${h / 2 - shaft / 2} ${w - head},0 ${w},${h / 2} ${w - head},${h} ${w - head},${h / 2 + shaft / 2} 0,${h / 2 + shaft / 2}`}
+        />
+      </svg>
+    );
+  }
+
+  return (
+    <div
+      onPointerDown={onPointerDown}
+      style={common}
+      className={`cursor-move ${selected ? "outline outline-[3px] outline-page" : ""}`}
+    />
+  );
+}
+
+/** Poignées de redimensionnement et de rotation du calque sélectionné. */
+function Handles({
+  project,
+  selection,
+  scale,
+  frame,
+  onResizeStart,
+  onRotateStart,
+}: {
+  project: EditorProject;
+  selection: NonNullable<TimelineSelection>;
+  scale: number;
+  frame: { width: number; height: number };
+  onResizeStart: (e: React.PointerEvent, sel: NonNullable<TimelineSelection>, ow: number, oh: number) => void;
+  onRotateStart: (e: React.PointerEvent, sel: NonNullable<TimelineSelection>, cx: number, cy: number, or: number) => void;
+}) {
+  const t = useT();
+  const ref = useRef<HTMLDivElement>(null);
+
+  const found = ((): { l: VisualLayer; w: number; h: number } | null => {
+    if (selection.kind === "text") {
+      const l = project.texts.find((x) => x.id === selection.id);
+      // Un texte n'a pas de largeur propre tant qu'il n'a pas de retour à la
+      // ligne : la poignée agit alors sur la largeur de retour.
+      return l ? { l, w: l.wrapPct || 0.4, h: 0 } : null;
+    }
+    if (selection.kind === "image") {
+      const l = project.images.find((x) => x.id === selection.id);
+      return l ? { l, w: l.scale, h: l.heightPct } : null;
+    }
+    if (selection.kind === "shape") {
+      const l = project.shapes.find((x) => x.id === selection.id) as ShapeLayer | undefined;
+      return l ? { l, w: l.w, h: l.h } : null;
+    }
+    return null;
+  })();
+
+  if (!found) return null;
+  const { l, w, h } = found;
+  const left = l.x * frame.width * scale;
+  const top = l.y * frame.height * scale;
+  const width = w * frame.width * scale;
+  const height = (h > 0 ? h * frame.height : 40) * scale;
+
+  return (
+    <div
+      ref={ref}
+      className="pointer-events-none absolute"
+      style={{ left, top, width, height, transform: `rotate(${l.rotation}deg)`, transformOrigin: "center" }}
+    >
+      <span
+        role="separator"
+        aria-label={t("Redimensionner", "Resize")}
+        onPointerDown={(e) => onResizeStart(e, selection, w, h)}
+        className="pointer-events-auto absolute -bottom-1.5 -right-1.5 h-3 w-3 cursor-nwse-resize rounded-sm bg-page ring-2 ring-white"
+      />
+      <span
+        role="separator"
+        aria-label={t("Pivoter", "Rotate")}
+        onPointerDown={(e) => {
+          const r = (e.currentTarget.parentElement as HTMLElement).getBoundingClientRect();
+          onRotateStart(e, selection, r.left + r.width / 2, r.top + r.height / 2, l.rotation);
+        }}
+        className="pointer-events-auto absolute -top-5 left-1/2 h-3 w-3 -translate-x-1/2 cursor-grab rounded-full bg-ai-visual ring-2 ring-white"
+      />
+    </div>
+  );
+}
+
+export type { TextLayer, ImageLayer };

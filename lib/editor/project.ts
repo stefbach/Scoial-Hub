@@ -37,12 +37,59 @@ export type TransitionKind = "none" | "fade" | "dissolve";
  */
 export type ClipFit = "cover" | "contain";
 
-/** Plan vidéo ou photo posé sur la piste principale. */
+/** Animation d'entrée ou de sortie d'un calque. */
+export type AnimationKind = "none" | "fade" | "slide-up" | "slide-down" | "slide-left" | "slide-right" | "zoom";
+
+/** Durée d'une animation d'entrée ou de sortie, en secondes. */
+export const ANIMATION_SECONDS = 0.4;
+
+/** Familles de police proposées. La clé est stable, le nom peut changer. */
+export type FontKey = "sans" | "serif" | "mono" | "condensed" | "rounded" | "display";
+
+/** Formes vectorielles disponibles. */
+export type ShapeKind = "rect" | "round" | "ellipse" | "line" | "arrow";
+
+/**
+ * Propriétés communes à tout élément visuel — c'est le « bloc de propriétés »
+ * réclamé par l'audit. Les avoir sur une seule interface garantit qu'ajouter
+ * une propriété la rend disponible partout d'un coup, au lieu d'être présente
+ * sur les incrustations et absente des textes comme c'était le cas.
+ */
+export interface VisualLayer {
+  /** Position du coin haut-gauche, en fraction du cadre (0..1). */
+  x: number;
+  y: number;
+  /** Rotation en degrés, autour du centre de l'élément. */
+  rotation: number;
+  /** 0..1 */
+  opacity: number;
+  /** Bornes d'apparition sur la timeline, en secondes. */
+  start: number;
+  end: number;
+  animIn: AnimationKind;
+  animOut: AnimationKind;
+  /**
+   * Sous-piste d'affichage, CALCULÉE par `normalize`. Deux calques de même type
+   * qui se chevauchent se dessinaient l'un par-dessus l'autre sur une piste
+   * unique : le second devenait inatteignable. La valeur n'est pas éditée par
+   * l'utilisateur — elle découle du minutage.
+   */
+  lane: number;
+}
+
+/** Plan vidéo ou photo. */
 export interface Clip {
   id: string;
   src: string;
   kind: ClipKind;
-  /** Position sur la timeline, en secondes. Recalculée par `normalize`. */
+  /**
+   * Piste vidéo. 0 est la piste de base ; les pistes supérieures se
+   * superposent. Sans elle, `normalize` reposait tous les plans bout à bout et
+   * l'incrustation vidéo — image dans l'image, écran partagé — était
+   * structurellement impossible.
+   */
+  track: number;
+  /** Position sur la timeline, en secondes. */
   start: number;
   /** Durée À L'ÉCRAN, en secondes (après application de la vitesse). */
   length: number;
@@ -65,16 +112,16 @@ export interface Clip {
   focusY: number;
 }
 
-/** Calque de texte, avec bornes d'apparition. */
-export interface TextLayer {
+/** Calque de texte. */
+export interface TextLayer extends VisualLayer {
   id: string;
   text: string;
-  /** Position du coin haut-gauche, en fraction du cadre (0..1). */
-  x: number;
-  y: number;
   /** Taille de police en fraction de la hauteur du cadre. */
   sizePct: number;
+  /** Largeur de retour à la ligne, en fraction du cadre. 0 = pas de retour. */
+  wrapPct: number;
   color: string;
+  font: FontKey;
   bold: boolean;
   /** Bandeau semi-transparent derrière le texte. */
   bg: boolean;
@@ -82,22 +129,37 @@ export interface TextLayer {
   /** Contour et ombre : lisibilité sur fond clair comme sur fond chargé. */
   outline: boolean;
   shadow: boolean;
-  /** Bornes d'apparition sur la timeline, en secondes. */
-  start: number;
-  end: number;
+  /** Interligne, en multiple de la taille de police. */
+  lineHeight: number;
 }
 
 /** Image incrustée (logo, pastille, filigrane). */
-export interface ImageLayer {
+export interface ImageLayer extends VisualLayer {
   id: string;
   src: string;
-  x: number;
-  y: number;
   /** Largeur en fraction du cadre (0..1). */
   scale: number;
-  opacity: number;
-  start: number;
-  end: number;
+  /** Hauteur en fraction du cadre. 0 = déduite du rapport natif de l'image. */
+  heightPct: number;
+}
+
+/**
+ * Forme vectorielle — bandeau, pastille, cadre, trait, flèche.
+ * Sans ce type, un simple aplat de couleur derrière un titre obligeait à
+ * préparer une image dans un autre outil et à l'importer.
+ */
+export interface ShapeLayer extends VisualLayer {
+  id: string;
+  shape: ShapeKind;
+  /** Dimensions en fraction du cadre. */
+  w: number;
+  h: number;
+  fill: string;
+  stroke: string;
+  /** Épaisseur du contour, en fraction de la largeur du cadre. */
+  strokeWidth: number;
+  /** Rayon d'angle d'un rectangle arrondi, en fraction de la largeur. */
+  radius: number;
 }
 
 export type AudioRole = "original" | "music" | "voice";
@@ -119,6 +181,8 @@ export interface AudioTrack {
   fadeIn: number;
   fadeOut: number;
   muted: boolean;
+  /** Sous-piste d'affichage, calculée par `normalize`. */
+  lane: number;
 }
 
 export interface EditorProject {
@@ -130,6 +194,7 @@ export interface EditorProject {
   clips: Clip[];
   texts: TextLayer[];
   images: ImageLayer[];
+  shapes: ShapeLayer[];
   audios: AudioTrack[];
   updatedAt: string;
 }
@@ -156,6 +221,7 @@ export function emptyProject(companyId: string, id: string, format: EditorFormat
     clips: [],
     texts: [],
     images: [],
+    shapes: [],
     audios: [],
     updatedAt: "",
   };
@@ -177,58 +243,140 @@ function round(v: number): number {
 }
 
 /**
- * Remet les plans bout à bout à partir de zéro, sans trou ni recouvrement,
- * et borne les calques sur la durée réelle du film.
+ * Range des éléments minutés en sous-pistes, de sorte que deux éléments qui se
+ * chevauchent n'occupent jamais la même rangée.
+ *
+ * Algorithme d'empilement classique : on trie par instant de début, et chacun
+ * prend la première rangée libre à cet instant. Sans cela, deux textes posés au
+ * même moment se dessinaient l'un par-dessus l'autre et le second devenait
+ * impossible à sélectionner.
+ */
+function packLanes<T extends { start: number; end: number }>(items: T[]): (T & { lane: number })[] {
+  const order = items.map((item, index) => ({ item, index })).sort((a, b) =>
+    a.item.start === b.item.start ? a.index - b.index : a.item.start - b.item.start
+  );
+  /** Instant de fin occupé par chaque rangée. */
+  const busyUntil: number[] = [];
+  const lanes = new Map<number, number>();
+  for (const { item, index } of order) {
+    let lane = busyUntil.findIndex((until) => item.start >= until - EPS);
+    if (lane < 0) lane = busyUntil.length;
+    busyUntil[lane] = item.end;
+    lanes.set(index, lane);
+  }
+  return items.map((item, index) => ({ ...item, lane: lanes.get(index) ?? 0 }));
+}
+
+/**
+ * Résout les recouvrements À L'INTÉRIEUR d'une piste vidéo : deux plans ne
+ * peuvent pas jouer au même instant sur la même piste. Le plan en retard est
+ * décalé plutôt que supprimé — l'intention de l'utilisateur est conservée.
+ */
+function layTrack(clips: Clip[]): Clip[] {
+  let cursor = 0;
+  return clips
+    .slice()
+    .sort((a, b) => a.start - b.start)
+    .map((c) => {
+      const start = round(Math.max(c.start, cursor));
+      cursor = start + c.length;
+      return { ...c, start };
+    });
+}
+
+/**
+ * Remet le document d'aplomb : plans rangés par piste, calques bornés sur la
+ * durée du film, sous-pistes recalculées.
  *
  * Toute opération de montage se termine par un passage ici : c'est ce qui
  * garantit qu'un projet est TOUJOURS cohérent, quel que soit l'ordre des
  * manipulations.
  */
 export function normalize(p: EditorProject): EditorProject {
-  let cursor = 0;
-  const clips = p.clips
+  // Les plans portent maintenant leur piste et leur instant de début. Un projet
+  // enregistré avant le multi-piste n'en a pas : on les reconstitue en reposant
+  // la séquence bout à bout, ce qui reproduit exactement l'ancien comportement.
+  const legacySequential = p.clips.some((c) => !Number.isFinite(c.track));
+  let legacyCursor = 0;
+
+  const prepared = p.clips
     .filter((c) => c.length > EPS)
     .map((c) => {
-      const clip: Clip = {
+      const length = round(c.length);
+      const start = legacySequential ? round(legacyCursor) : round(Math.max(0, c.start));
+      if (legacySequential) legacyCursor += length;
+      return {
         ...c,
+        track: Number.isFinite(c.track) ? Math.max(0, Math.round(c.track)) : 0,
         speed: clamp(c.speed || 1, 0.5, 2),
         trimStart: Math.max(0, round(c.trimStart)),
-        length: round(c.length),
-        start: round(cursor),
+        length,
+        start,
         // Un projet enregistré avant le cadrage n'en porte pas : on le complète
         // ici plutôt que de le refuser. Rouvrir un ancien montage doit marcher.
         fit: c.fit === "contain" ? "contain" : "cover",
         focusX: clamp(Number.isFinite(c.focusX) ? c.focusX : 0.5, 0, 1),
         focusY: clamp(Number.isFinite(c.focusY) ? c.focusY : 0.5, 0, 1),
-      };
-      cursor += clip.length;
-      return clip;
+      } as Clip;
     });
-  const total = round(cursor);
 
-  const bound = <T extends { start: number; end: number }>(layer: T): T => {
+  const tracks = [...new Set(prepared.map((c) => c.track))].sort((a, b) => a - b);
+  const clips = tracks.flatMap((track) => layTrack(prepared.filter((c) => c.track === track)));
+  // La durée du film est la fin la plus tardive, toutes pistes confondues.
+  const total = round(clips.reduce((max, c) => Math.max(max, c.start + c.length), 0));
+
+  const bound = <T extends VisualLayer>(layer: T): T => {
     const start = clamp(round(layer.start), 0, total);
     // Une borne de fin à 0 ou inversée signifie « jusqu'à la fin du film ».
     const rawEnd = layer.end > start ? round(layer.end) : total;
-    return { ...layer, start, end: clamp(rawEnd, start, total) };
+    return {
+      ...layer,
+      start,
+      end: clamp(rawEnd, start, total),
+      // Champs apparus après coup : complétés, jamais exigés.
+      rotation: Number.isFinite(layer.rotation) ? layer.rotation : 0,
+      opacity: Number.isFinite(layer.opacity) ? clamp(layer.opacity, 0, 1) : 1,
+      animIn: layer.animIn ?? "none",
+      animOut: layer.animOut ?? "none",
+    };
   };
 
   return {
     ...p,
     clips,
-    texts: p.texts.map(bound),
-    images: p.images.map(bound),
-    audios: p.audios.map((a) => {
+    texts: packLanes(p.texts.map(bound)).map((l) => ({
+      ...l,
+      font: l.font ?? "sans",
+      wrapPct: Number.isFinite(l.wrapPct) ? clamp(l.wrapPct, 0, 1) : 0,
+      lineHeight: Number.isFinite(l.lineHeight) && l.lineHeight > 0 ? l.lineHeight : 1.25,
+    })),
+    images: packLanes(p.images.map(bound)).map((l) => ({
+      ...l,
+      heightPct: Number.isFinite(l.heightPct) ? Math.max(0, l.heightPct) : 0,
+    })),
+    shapes: packLanes((p.shapes ?? []).map(bound)),
+    audios: packLanes(p.audios.map((a) => {
       const start = clamp(round(a.start), 0, total);
       const length = clamp(round(a.length), 0, Math.max(0, total - start));
-      return { ...a, start, length, volume: clamp(a.volume, 0, 1) };
-    }),
+      return { ...a, start, length, volume: clamp(a.volume, 0, 1), end: start + length };
+    })).map(({ end, ...a }) => { void end; return a; }),
   };
 }
 
-/** Durée totale du film, en secondes. */
+/**
+ * Durée totale du film, en secondes — la fin la plus tardive, toutes pistes
+ * confondues. Additionner les durées ne vaut plus : deux plans superposés
+ * occupent le même temps.
+ */
 export function projectDuration(p: EditorProject): number {
-  return round(p.clips.reduce((sum, c) => sum + c.length, 0));
+  return round(p.clips.reduce((max, c) => Math.max(max, c.start + c.length), 0));
+}
+
+/** Numéros de pistes vidéo utilisés, de la base vers le dessus. */
+export function usedTracks(p: EditorProject): number[] {
+  const set = new Set(p.clips.map((c) => c.track));
+  if (set.size === 0) set.add(0);
+  return [...set].sort((a, b) => a - b);
 }
 
 /** Vrai si le projet ne contient rien à rendre. */
@@ -240,22 +388,41 @@ export function isEmptyProject(p: EditorProject): boolean {
    Opérations de montage — toutes PURES : elles renvoient un nouveau projet
    ──────────────────────────────────────────────────────────────────────── */
 
+/** Fin de la piste demandée — position d'ajout par défaut. */
+export function trackEnd(p: EditorProject, track: number): number {
+  return round(
+    p.clips.filter((c) => c.track === track).reduce((max, c) => Math.max(max, c.start + c.length), 0)
+  );
+}
+
 export function addClip(
   p: EditorProject,
-  input: { id: string; src: string; kind: ClipKind; sourceDuration?: number }
+  input: {
+    id: string;
+    src: string;
+    kind: ClipKind;
+    sourceDuration?: number;
+    /** Piste de destination. Par défaut la piste de base. */
+    track?: number;
+    /** Instant de pose. Par défaut, à la suite de ce que porte la piste. */
+    start?: number;
+  }
 ): EditorProject {
   const sourceDuration = input.kind === "image" ? 0 : Math.max(0, input.sourceDuration ?? 0);
   const length = input.kind === "image" ? DEFAULT_IMAGE_SECONDS : sourceDuration || DEFAULT_IMAGE_SECONDS;
+  const track = Math.max(0, Math.round(input.track ?? 0));
+  const onTrack = p.clips.filter((c) => c.track === track);
   const clip: Clip = {
     id: input.id,
     src: input.src,
     kind: input.kind,
-    start: 0,
+    track,
+    start: input.start !== undefined ? Math.max(0, input.start) : trackEnd(p, track),
     length,
     trimStart: 0,
     sourceDuration,
     speed: 1,
-    transitionIn: p.clips.length === 0 ? "none" : "fade",
+    transitionIn: onTrack.length === 0 ? "none" : "fade",
     fit: "cover",
     focusX: 0.5,
     focusY: 0.5,
@@ -263,8 +430,49 @@ export function addClip(
   return normalize({ ...p, clips: [...p.clips, clip] });
 }
 
+/**
+ * Déplace un plan : changement de piste et/ou d'instant de début.
+ * C'est ce qui permet l'incrustation vidéo, l'image dans l'image et l'écran
+ * partagé — impossibles tant que la position était imposée par la séquence.
+ */
+export function moveClip(
+  p: EditorProject,
+  clipId: string,
+  patch: { track?: number; start?: number }
+): EditorProject {
+  const clips = p.clips.map((c) =>
+    c.id === clipId
+      ? {
+          ...c,
+          track: patch.track === undefined ? c.track : Math.max(0, Math.round(patch.track)),
+          start: patch.start === undefined ? c.start : Math.max(0, round(patch.start)),
+        }
+      : c
+  );
+  return normalize({ ...p, clips });
+}
+
+/**
+ * Décale ce qui suit sur la même piste — le « ripple » des bancs de montage.
+ *
+ * Les plans portent désormais leur instant de début, mais raccourcir un plan ne
+ * doit pas ouvrir un trou noir au milieu du film : ce qui vient après se
+ * rapproche. Les autres pistes ne bougent pas, elles ne sont pas la séquence.
+ */
+function ripple(clips: Clip[], track: number, afterStart: number, delta: number): Clip[] {
+  if (delta === 0) return clips;
+  return clips.map((c) =>
+    c.track === track && c.start > afterStart + EPS
+      ? { ...c, start: Math.max(0, round(c.start + delta)) }
+      : c
+  );
+}
+
 export function removeClip(p: EditorProject, clipId: string): EditorProject {
-  return normalize({ ...p, clips: p.clips.filter((c) => c.id !== clipId) });
+  const gone = p.clips.find((c) => c.id === clipId);
+  if (!gone) return p;
+  const clips = ripple(p.clips.filter((c) => c.id !== clipId), gone.track, gone.start, -gone.length);
+  return normalize({ ...p, clips });
 }
 
 /**
@@ -280,6 +488,9 @@ export function trimClip(
   clipId: string,
   { head = 0, tail = 0 }: { head?: number; tail?: number }
 ): EditorProject {
+  const before = p.clips.find((c) => c.id === clipId);
+  if (!before) return p;
+
   const clips = p.clips.map((c) => {
     if (c.id !== clipId) return c;
     const maxHead = c.length - MIN_CLIP_SECONDS;
@@ -294,7 +505,9 @@ export function trimClip(
       : Infinity;
     return { ...afterHead, length: Math.min(length, available) };
   });
-  return normalize({ ...p, clips });
+
+  const after = clips.find((c) => c.id === clipId)!;
+  return normalize({ ...p, clips: ripple(clips, before.track, before.start, after.length - before.length) });
 }
 
 /**
@@ -315,6 +528,7 @@ export function splitAt(p: EditorProject, time: number, newIdFor: (base: string)
     id: newIdFor(target.id),
     // La seconde moitié démarre plus loin DANS LA SOURCE, à la vitesse près.
     trimStart: round(target.trimStart + offset * target.speed),
+    start: round(target.start + offset),
     length: round(target.length - offset),
     transitionIn: "none",
   };
@@ -323,22 +537,37 @@ export function splitAt(p: EditorProject, time: number, newIdFor: (base: string)
   return normalize({ ...p, clips });
 }
 
-/** Déplace un plan dans l'ordre de lecture. */
+/**
+ * Déplace un plan dans l'ordre de lecture de SA piste. Les plans de la piste
+ * sont ensuite reposés bout à bout depuis le début de la séquence.
+ */
 export function reorderClip(p: EditorProject, clipId: string, toIndex: number): EditorProject {
-  const from = p.clips.findIndex((c) => c.id === clipId);
-  if (from < 0) return p;
-  const clips = [...p.clips];
-  const [moved] = clips.splice(from, 1);
-  clips.splice(clamp(toIndex, 0, clips.length), 0, moved);
+  const moved = p.clips.find((c) => c.id === clipId);
+  if (!moved) return p;
+
+  const onTrack = p.clips.filter((c) => c.track === moved.track).sort((a, b) => a.start - b.start);
+  const from = onTrack.findIndex((c) => c.id === clipId);
+  const reordered = [...onTrack];
+  reordered.splice(from, 1);
+  reordered.splice(clamp(toIndex, 0, reordered.length), 0, moved);
+
+  let cursor = onTrack[0]?.start ?? 0;
+  const relaid = new Map<string, number>();
+  for (const c of reordered) {
+    relaid.set(c.id, round(cursor));
+    cursor += c.length;
+  }
+  const clips = p.clips.map((c) => (relaid.has(c.id) ? { ...c, start: relaid.get(c.id)! } : c));
   return normalize({ ...p, clips });
 }
 
 export function duplicateClip(p: EditorProject, clipId: string, newId: string): EditorProject {
-  const idx = p.clips.findIndex((c) => c.id === clipId);
-  if (idx < 0) return p;
-  const copy: Clip = { ...p.clips[idx], id: newId };
-  const clips = [...p.clips.slice(0, idx + 1), copy, ...p.clips.slice(idx + 1)];
-  return normalize({ ...p, clips });
+  const source = p.clips.find((c) => c.id === clipId);
+  if (!source) return p;
+  // La copie se pose juste après l'original, et repousse la suite de la piste.
+  const copy: Clip = { ...source, id: newId, start: round(source.start + source.length) };
+  const clips = ripple([...p.clips, copy], source.track, source.start, source.length);
+  return normalize({ ...p, clips: clips.map((c) => (c.id === newId ? copy : c)) });
 }
 
 /**
@@ -378,22 +607,59 @@ export function setClipFraming(
   return normalize({ ...p, clips });
 }
 
-/** Transition à l'entrée d'un plan. Sans effet sur le tout premier. */
+/** Transition à l'entrée d'un plan. Sans effet sur le premier de sa piste. */
 export function setClipTransition(p: EditorProject, clipId: string, kind: TransitionKind): EditorProject {
-  const clips = p.clips.map((c, i) => (c.id === clipId ? { ...c, transitionIn: i === 0 ? "none" : kind } : c));
+  const clips = p.clips.map((c) => {
+    if (c.id !== clipId) return c;
+    const isFirst = !p.clips.some((o) => o.track === c.track && o.start < c.start - EPS);
+    return { ...c, transitionIn: isFirst ? ("none" as TransitionKind) : kind };
+  });
+  return normalize({ ...p, clips });
+}
+
+/**
+ * Change la durée d'un plan par saisie directe, sans passer par la poignée.
+ * Régler une photo à la seconde près demandait de viser une poignée de deux
+ * pixels sur une timeline dont les coordonnées, en plus, étaient fausses.
+ */
+export function setClipLength(p: EditorProject, clipId: string, seconds: number): EditorProject {
+  const before = p.clips.find((c) => c.id === clipId);
+  if (!before) return p;
+  const available = before.kind === "video" && before.sourceDuration > 0
+    ? Math.max(MIN_CLIP_SECONDS, (before.sourceDuration - before.trimStart) / before.speed)
+    : Infinity;
+  const length = round(clamp(seconds, MIN_CLIP_SECONDS, available));
+  const clips = ripple(
+    p.clips.map((c) => (c.id === clipId ? { ...c, length } : c)),
+    before.track,
+    before.start,
+    length - before.length
+  );
   return normalize({ ...p, clips });
 }
 
 /* ── Calques ─────────────────────────────────────────────────────────────── */
 
+/** Valeurs communes à tout calque visuel neuf. */
+function newVisual(total: number): Omit<VisualLayer, "x" | "y"> {
+  return {
+    rotation: 0,
+    opacity: 1,
+    start: 0,
+    end: total || DEFAULT_IMAGE_SECONDS,
+    animIn: "none",
+    animOut: "none",
+    lane: 0,
+  };
+}
+
 export function addText(p: EditorProject, id: string, text: string): EditorProject {
-  const total = projectDuration(p);
   const layer: TextLayer = {
+    ...newVisual(projectDuration(p)),
     id, text,
-    x: 0.1, y: 0.1, sizePct: 0.08,
-    color: "#ffffff", bold: true, bg: true,
-    align: "left", outline: false, shadow: true,
-    start: 0, end: total || DEFAULT_IMAGE_SECONDS,
+    x: 0.1, y: 0.1, sizePct: 0.08, wrapPct: 0,
+    color: "#ffffff", font: "sans", bold: true, bg: true,
+    align: "left", outline: false, shadow: true, lineHeight: 1.25,
   };
   return normalize({ ...p, texts: [...p.texts, layer] });
 }
@@ -407,8 +673,10 @@ export function removeText(p: EditorProject, id: string): EditorProject {
 }
 
 export function addImageLayer(p: EditorProject, id: string, src: string): EditorProject {
-  const total = projectDuration(p);
-  const layer: ImageLayer = { id, src, x: 0.05, y: 0.05, scale: 0.2, opacity: 1, start: 0, end: total || DEFAULT_IMAGE_SECONDS };
+  const layer: ImageLayer = {
+    ...newVisual(projectDuration(p)),
+    id, src, x: 0.05, y: 0.05, scale: 0.2, heightPct: 0,
+  };
   return normalize({ ...p, images: [...p.images, layer] });
 }
 
@@ -418,6 +686,73 @@ export function updateImageLayer(p: EditorProject, id: string, patch: Partial<Im
 
 export function removeImageLayer(p: EditorProject, id: string): EditorProject {
   return normalize({ ...p, images: p.images.filter((l) => l.id !== id) });
+}
+
+/* ── Formes ──────────────────────────────────────────────────────────────── */
+
+/** Proportions de départ, par type de forme. */
+const SHAPE_DEFAULTS: Record<ShapeKind, { w: number; h: number }> = {
+  rect: { w: 0.6, h: 0.12 },
+  round: { w: 0.4, h: 0.1 },
+  ellipse: { w: 0.3, h: 0.3 },
+  line: { w: 0.5, h: 0.008 },
+  arrow: { w: 0.4, h: 0.06 },
+};
+
+export function addShape(p: EditorProject, id: string, shape: ShapeKind, fill = "#5b2d8e"): EditorProject {
+  const { w, h } = SHAPE_DEFAULTS[shape];
+  const layer: ShapeLayer = {
+    ...newVisual(projectDuration(p)),
+    id, shape,
+    // Centrée : c'est la position d'où l'on part le plus souvent.
+    x: (1 - w) / 2, y: (1 - h) / 2,
+    w, h,
+    fill,
+    stroke: "transparent",
+    strokeWidth: 0,
+    radius: shape === "round" ? 0.03 : 0,
+  };
+  return normalize({ ...p, shapes: [...p.shapes, layer] });
+}
+
+export function updateShape(p: EditorProject, id: string, patch: Partial<ShapeLayer>): EditorProject {
+  return normalize({ ...p, shapes: p.shapes.map((l) => (l.id === id ? { ...l, ...patch } : l)) });
+}
+
+export function removeShape(p: EditorProject, id: string): EditorProject {
+  return normalize({ ...p, shapes: p.shapes.filter((l) => l.id !== id) });
+}
+
+/**
+ * Bouton d'appel à l'action : une pastille et son texte, posés d'un geste.
+ * C'est le besoin réel derrière la demande de « formes et boutons » — obtenir
+ * un bouton supposait jusqu'ici de préparer une image dans un autre outil.
+ */
+export function addButton(
+  p: EditorProject,
+  ids: { shape: string; text: string },
+  label: string,
+  colors: { fill: string; text: string }
+): EditorProject {
+  const w = 0.46;
+  const h = 0.09;
+  const x = (1 - w) / 2;
+  const y = 0.8;
+  let next = addShape(p, ids.shape, "round", colors.fill);
+  next = updateShape(next, ids.shape, { x, y, w, h, radius: h / 2 });
+  next = addText(next, ids.text, label);
+  next = updateText(next, ids.text, {
+    x: 0.5,
+    // Le texte est centré verticalement dans la pastille.
+    y: y + h * 0.28,
+    align: "center",
+    sizePct: h * 0.42,
+    color: colors.text,
+    bg: false,
+    shadow: false,
+    bold: true,
+  });
+  return next;
 }
 
 /* ── Audio ───────────────────────────────────────────────────────────────── */
@@ -445,6 +780,7 @@ export function addAudio(
     fadeIn: input.role === "music" ? 0.5 : 0,
     fadeOut: input.role === "music" ? 1 : 0,
     muted: false,
+    lane: 0,
   };
   return normalize({ ...p, audios: [...p.audios, track] });
 }
@@ -461,26 +797,89 @@ export function removeAudio(p: EditorProject, id: string): EditorProject {
    Lecture : ce qui est visible à un instant donné
    ──────────────────────────────────────────────────────────────────────── */
 
-/** Plan joué à l'instant `time`, et position correspondante dans sa source. */
-export function clipAt(p: EditorProject, time: number): { clip: Clip; sourceTime: number } | null {
-  for (const c of p.clips) {
-    if (time >= c.start - EPS && time < c.start + c.length - EPS) {
-      return { clip: c, sourceTime: c.trimStart + (time - c.start) * c.speed };
-    }
-  }
-  const last = p.clips[p.clips.length - 1];
+export interface ActiveClip {
+  clip: Clip;
+  /** Position correspondante DANS LA SOURCE. */
+  sourceTime: number;
+}
+
+/**
+ * Tous les plans joués à l'instant `time`, de la piste de base vers le dessus.
+ * Le dernier de la liste est celui qu'on voit par-dessus les autres.
+ */
+export function clipsAt(p: EditorProject, time: number): ActiveClip[] {
+  return p.clips
+    .filter((c) => time >= c.start - EPS && time < c.start + c.length - EPS)
+    .sort((a, b) => a.track - b.track)
+    .map((c) => ({ clip: c, sourceTime: c.trimStart + (time - c.start) * c.speed }));
+}
+
+/**
+ * Plan de la piste de BASE joué à l'instant `time`.
+ * Conservé pour tout ce qui n'a besoin que du fond : cadrage, son d'origine.
+ */
+export function clipAt(p: EditorProject, time: number): ActiveClip | null {
+  const active = clipsAt(p, time);
+  if (active.length > 0) return active[0];
+
+  // Après la fin du film, on reste sur la dernière image plutôt que sur du noir.
+  const base = p.clips.filter((c) => c.track === 0);
+  const last = base.reduce<Clip | null>((acc, c) => (!acc || c.start > acc.start ? c : acc), null);
   if (last && time >= last.start + last.length - EPS) {
     return { clip: last, sourceTime: last.trimStart + last.length * last.speed };
   }
   return null;
 }
 
+/** Vrai si le calque est visible à cet instant. */
+function visible(l: VisualLayer, time: number): boolean {
+  return time >= l.start - EPS && time <= l.end + EPS;
+}
+
 /** Calques de texte visibles à l'instant `time`. */
 export function textsAt(p: EditorProject, time: number): TextLayer[] {
-  return p.texts.filter((l) => time >= l.start - EPS && time <= l.end + EPS);
+  return p.texts.filter((l) => visible(l, time));
 }
 
 /** Incrustations visibles à l'instant `time`. */
 export function imagesAt(p: EditorProject, time: number): ImageLayer[] {
-  return p.images.filter((l) => time >= l.start - EPS && time <= l.end + EPS);
+  return p.images.filter((l) => visible(l, time));
+}
+
+/** Formes visibles à l'instant `time`. */
+export function shapesAt(p: EditorProject, time: number): ShapeLayer[] {
+  return p.shapes.filter((l) => visible(l, time));
+}
+
+/**
+ * Opacité effective d'un calque à un instant, animations comprises.
+ * Une seule fonction pour l'aperçu et pour le rendu : les deux ne peuvent pas
+ * diverger sur le moment où un titre finit d'apparaître.
+ */
+export function layerProgress(l: VisualLayer, time: number): { opacity: number; offsetX: number; offsetY: number; scale: number } {
+  const span = Math.max(EPS, l.end - l.start);
+  const d = Math.min(ANIMATION_SECONDS, span / 2);
+  const sinceStart = time - l.start;
+  const untilEnd = l.end - time;
+
+  let phase = 1;
+  let kind: AnimationKind = "none";
+  if (l.animIn !== "none" && sinceStart >= 0 && sinceStart < d) {
+    phase = sinceStart / d;
+    kind = l.animIn;
+  } else if (l.animOut !== "none" && untilEnd >= 0 && untilEnd < d) {
+    phase = untilEnd / d;
+    kind = l.animOut;
+  }
+  if (kind === "none") return { opacity: l.opacity, offsetX: 0, offsetY: 0, scale: 1 };
+
+  // Progression adoucie : un démarrage linéaire se remarque à l'œil.
+  const e = 1 - Math.pow(1 - clamp(phase, 0, 1), 3);
+  const slide = (1 - e) * 0.12;
+  return {
+    opacity: l.opacity * e,
+    offsetX: kind === "slide-left" ? slide : kind === "slide-right" ? -slide : 0,
+    offsetY: kind === "slide-up" ? slide : kind === "slide-down" ? -slide : 0,
+    scale: kind === "zoom" ? 0.85 + 0.15 * e : 1,
+  };
 }

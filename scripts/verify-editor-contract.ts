@@ -33,7 +33,7 @@ import {
   updateText,
   type EditorProject,
 } from "../lib/editor/project";
-import { overlayIntervals, toServerEdit } from "../lib/editor/render-plan";
+import { browserOverlays, toServerEdit } from "../lib/editor/render-plan";
 
 let failures = 0;
 function check(label: string, ok: boolean, detail?: string) {
@@ -125,7 +125,7 @@ async function main() {
     p = addImageLayer(p, "i1", "logo.png");
     p = updateImageLayer(p, "i1", { start: 5, end: 12 });
 
-    const spans = overlayIntervals(p);
+    const spans = browserOverlays(p);
 
     // Pour chaque instant échantillonné, ce que l'aperçu affiche doit être
     // exactement ce que l'intervalle qui le couvre grave dans le fichier.

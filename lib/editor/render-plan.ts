@@ -8,11 +8,14 @@
 // Module PUR : il ne rend rien, il décrit ce qu'il faut rendre.
 
 import {
+  ANIMATION_SECONDS,
   FORMAT_SIZE,
   projectDuration,
+  type AnimationKind,
   type AudioTrack,
   type Clip,
   type EditorProject,
+  type ShapeLayer,
 } from "./project";
 
 /**
@@ -92,8 +95,11 @@ export function decideRenderTarget(p: EditorProject, totalSourceBytes: number): 
   if (duration > BROWSER_LIMITS.maxSeconds) {
     return { target: "server", reason: "film long" };
   }
-  if (overlayIntervals(p).length > MAX_BROWSER_OVERLAYS) {
+  if (browserOverlays(p).length > MAX_BROWSER_OVERLAYS) {
     return { target: "server", reason: "calques nombreux" };
+  }
+  if (needsServerAnimation(p)) {
+    return { target: "server", reason: "animations" };
   }
   return { target: "browser", reason: "montage léger" };
 }
@@ -120,6 +126,34 @@ function bandFor(y: number): "top" | "center" | "bottom" {
  * qui permet enfin à un titre de n'apparaître que sur les trois premières
  * secondes, ce que l'ancien aplatissement en une image unique interdisait.
  */
+/** Correspondance des animations vers les transitions du moteur serveur. */
+const SERVER_TRANSITION: Record<AnimationKind, string | undefined> = {
+  none: undefined,
+  fade: "fade",
+  "slide-up": "slideUp",
+  "slide-down": "slideDown",
+  "slide-left": "slideLeft",
+  "slide-right": "slideRight",
+  zoom: "zoom",
+};
+
+function transitionFor(l: { animIn: AnimationKind; animOut: AnimationKind }) {
+  const inKind = SERVER_TRANSITION[l.animIn];
+  const outKind = SERVER_TRANSITION[l.animOut];
+  if (!inKind && !outKind) return {};
+  return { transition: { ...(inKind ? { in: inKind } : {}), ...(outKind ? { out: outKind } : {}) } };
+}
+
+/** Élément HTML d'une forme — le moteur ne connaît pas de type « forme ». */
+function shapeHtml(l: ShapeLayer, size: { width: number; height: number }): string {
+  const w = Math.round(l.w * size.width);
+  const h = Math.round(l.h * size.height);
+  const stroke = l.strokeWidth > 0 ? `border:${Math.round(l.strokeWidth * size.width)}px solid ${safeHex(l.stroke, "#000000")};` : "";
+  const radius =
+    l.shape === "ellipse" ? "50%" : l.shape === "round" ? `${Math.round(l.radius * size.width)}px` : "0";
+  return `<div style="width:${w}px;height:${h}px;background:${safeHex(l.fill, "#000000")};border-radius:${radius};${stroke}"></div>`;
+}
+
 export function toServerEdit(p: EditorProject, callback?: string) {
   const size = FORMAT_SIZE[p.format];
 
@@ -154,6 +188,8 @@ export function toServerEdit(p: EditorProject, callback?: string) {
     },
     start: l.start,
     length: Math.max(0.1, l.end - l.start),
+    ...(l.opacity !== 1 ? { opacity: l.opacity } : {}),
+    ...transitionFor(l),
   }));
 
   const imageClips = p.images.map((l) => ({
@@ -164,6 +200,21 @@ export function toServerEdit(p: EditorProject, callback?: string) {
     scale: l.scale,
     opacity: l.opacity,
     offset: { x: l.x - 0.5, y: 0.5 - l.y },
+    ...transitionFor(l),
+  }));
+
+  const shapeClips = p.shapes.map((l) => ({
+    asset: {
+      type: "html",
+      html: shapeHtml(l, size),
+      width: Math.round(l.w * size.width),
+      height: Math.round(l.h * size.height),
+    },
+    start: l.start,
+    length: Math.max(0.1, l.end - l.start),
+    opacity: l.opacity,
+    offset: { x: l.x + l.w / 2 - 0.5, y: 0.5 - (l.y + l.h / 2) },
+    ...transitionFor(l),
   }));
 
   const audioTracks = p.audios
@@ -180,12 +231,19 @@ export function toServerEdit(p: EditorProject, callback?: string) {
       length: a.length,
     }));
 
-  // Ordre des pistes : la PREMIÈRE est au-dessus. Les incrustations et les
-  // textes doivent donc précéder les plans vidéo.
+  // Ordre des pistes : la PREMIÈRE est au-dessus. Les calques précèdent donc
+  // les plans vidéo, et parmi ceux-ci la piste la PLUS HAUTE du montage passe
+  // en premier — c'est ce qui rend l'incrustation vidéo visible.
+  const videoTracks = [...new Set(p.clips.map((c) => c.track))]
+    .sort((a, b) => b - a)
+    .map((track) => ({ clips: videoClips.filter((_, i) => p.clips[i].track === track) }))
+    .filter((t) => t.clips.length > 0);
+
   const tracks = [
     ...(textClips.length ? [{ clips: textClips }] : []),
     ...(imageClips.length ? [{ clips: imageClips }] : []),
-    { clips: videoClips },
+    ...(shapeClips.length ? [{ clips: shapeClips }] : []),
+    ...(videoTracks.length ? videoTracks : [{ clips: [] }]),
     ...(audioTracks.length ? [{ clips: audioTracks }] : []),
   ];
 
@@ -209,55 +267,66 @@ export interface BrowserRenderPlan {
   output: string;
 }
 
-/** Un PNG de calques, valable sur un intervalle de temps précis. */
+/** Un PNG portant UN calque, avec ses bornes et son animation. */
 export interface OverlayInput {
   name: string;
+  /** Identifiant du calque composé — l'appelant sait quoi dessiner. */
+  layerId: string;
+  kind: "shape" | "image" | "text";
   start: number;
   end: number;
+  animIn: AnimationKind;
+  animOut: AnimationKind;
 }
 
 /**
- * Découpe le film aux instants où la composition des calques CHANGE.
+ * Liste les calques à composer, dans l'ordre de dessin.
  *
  * L'export navigateur composait un seul PNG, pris à la position de la tête de
- * lecture, puis le gravait sur toute la durée. Deux conséquences : les bornes
- * d'apparition — pourtant modélisées et réglables — n'étaient pas respectées,
- * et un texte dont la plage ne couvrait pas la tête de lecture disparaissait du
- * fichier produit sans le moindre avertissement.
+ * lecture, puis le gravait sur toute la durée : les bornes d'apparition
+ * n'étaient pas respectées, et un texte hors de cette position disparaissait
+ * du fichier produit sans le moindre avertissement.
  *
- * En découpant aux bornes, chaque intervalle porte SA composition. C'est la
- * traduction exacte du document, et non un instantané de l'aperçu.
+ * Un PNG PAR CALQUE plutôt que par intervalle : chacun porte alors ses propres
+ * bornes ET sa propre animation, sans que deux calques superposés aient à
+ * partager le même sort.
  */
-export function overlayIntervals(p: EditorProject): { start: number; end: number }[] {
-  const total = projectDuration(p);
-  if (total <= 0) return [];
-
-  const layers = [...p.texts, ...p.images];
-  if (layers.length === 0) return [];
-
-  const bounds = new Set<number>([0, total]);
-  for (const l of layers) {
-    if (l.start > 0 && l.start < total) bounds.add(Number(l.start.toFixed(2)));
-    if (l.end > 0 && l.end < total) bounds.add(Number(l.end.toFixed(2)));
-  }
-  const marks = [...bounds].sort((a, b) => a - b);
-
-  const out: { start: number; end: number }[] = [];
-  for (let i = 0; i < marks.length - 1; i += 1) {
-    const start = marks[i];
-    const end = marks[i + 1];
-    if (end - start < 0.01) continue;
-    // Un intervalle sans calque visible n'a pas besoin d'être composé : on
-    // épargne une entrée au moteur et un aller-retour au canvas.
-    const mid = (start + end) / 2;
-    const visible = layers.some((l) => mid >= l.start && mid <= l.end);
-    if (visible) out.push({ start, end });
-  }
-  return out;
+export function browserOverlays(p: EditorProject): OverlayInput[] {
+  if (projectDuration(p) <= 0) return [];
+  // Ordre de dessin : formes au fond, puis incrustations, puis textes.
+  const ordered = [
+    ...p.shapes.map((l) => ({ l, kind: "shape" as const })),
+    ...p.images.map((l) => ({ l, kind: "image" as const })),
+    ...p.texts.map((l) => ({ l, kind: "text" as const })),
+  ];
+  return ordered.map(({ l, kind }, i) => ({
+    name: `ov${i}.png`,
+    layerId: l.id,
+    kind,
+    start: l.start,
+    end: l.end,
+    animIn: l.animIn,
+    animOut: l.animOut,
+  }));
 }
 
 /** Au-delà, la chaîne de filtres devient trop longue pour l'onglet. */
 export const MAX_BROWSER_OVERLAYS = 12;
+
+/**
+ * Animations que le moteur du navigateur sait rendre FIDÈLEMENT.
+ * Un fondu se traduit exactement par un fondu sur la couche alpha. Un
+ * glissement ou un zoom demanderaient des expressions temporelles par calque :
+ * plutôt que de les approximer — et de faire mentir l'aperçu — le montage part
+ * au serveur, qui les rend nativement.
+ */
+const BROWSER_ANIMATIONS = new Set<AnimationKind>(["none", "fade"]);
+
+function needsServerAnimation(p: EditorProject): boolean {
+  return [...p.texts, ...p.images, ...p.shapes].some(
+    (l) => !BROWSER_ANIMATIONS.has(l.animIn) || !BROWSER_ANIMATIONS.has(l.animOut)
+  );
+}
 
 /**
  * Construit le plan d'un montage à UN plan — le cas que le navigateur prend en
@@ -310,14 +379,33 @@ export function toBrowserPlan(p: EditorProject, overlays: OverlayInput[] = []): 
     filters.push(`[0:v]${vSteps.join(",")}[vs]`);
     vLabel = "vs";
   }
-  // Un calque par intervalle, chacun activé sur SES bornes : c'est ce qui fait
-  // enfin apparaître un titre sur les trois premières secondes seulement, et
-  // qui empêche un texte de fin d'être silencieusement perdu à l'export.
+  // Un calque par PNG, chacun activé sur SES bornes : c'est ce qui fait enfin
+  // apparaître un titre sur les trois premières secondes seulement, et qui
+  // empêche un texte de fin d'être silencieusement perdu à l'export.
   overlays.forEach((o, i) => {
+    const idx = i + 1;
+    const start = o.start.toFixed(2);
+    const end = o.end.toFixed(2);
+    let src = `${idx}:v`;
+
+    // Le fondu porte sur la couche ALPHA : le calque s'efface, il ne noircit
+    // pas. Les instants sont ceux du film — l'image bouclée partage sa base de
+    // temps avec la vidéo.
+    const fades: string[] = [];
+    if (o.animIn === "fade") {
+      fades.push(`fade=t=in:st=${start}:d=${ANIMATION_SECONDS}:alpha=1`);
+    }
+    if (o.animOut === "fade") {
+      const from = Math.max(o.start, o.end - ANIMATION_SECONDS).toFixed(2);
+      fades.push(`fade=t=out:st=${from}:d=${ANIMATION_SECONDS}:alpha=1`);
+    }
+    if (fades.length > 0) {
+      filters.push(`[${idx}:v]format=rgba,${fades.join(",")}[fa${i}]`);
+      src = `fa${i}`;
+    }
+
     const next = `ov${i}`;
-    filters.push(
-      `[${vLabel}][${i + 1}:v]overlay=0:0:enable='between(t,${o.start.toFixed(2)},${o.end.toFixed(2)})'[${next}]`
-    );
+    filters.push(`[${vLabel}][${src}]overlay=0:0:enable='between(t,${start},${end})'[${next}]`);
     vLabel = next;
   });
 

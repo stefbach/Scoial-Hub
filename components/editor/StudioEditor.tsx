@@ -7,35 +7,47 @@
 // projections de rendu (lib/editor/render-plan.ts) — tous purs et testés.
 // Ce composant se contente de câbler des gestes sur des opérations.
 //
-// Ce que cela apporte, sans code spécifique :
-//   • non-destructivité — le média source n'est jamais modifié ;
-//   • annuler / rétablir — restaurer un état antérieur ;
-//   • minutage — chaque élément porte ses bornes ;
-//   • reprise — le document est rechargeable des jours plus tard.
+// UNE DISPOSITION D'ÉDITEUR, PLUS UNE MODALE DE FORMULAIRE
+// La version précédente vivait dans une fenêtre de 1 152 pixels au maximum, dont
+// le contenu défilait d'un bloc : sur un écran de 1 920 pixels, 40 % de la
+// largeur était perdue et la timeline passait sous la ligne de flottaison dès
+// qu'un panneau s'ouvrait. Ici, trois zones à défilement indépendant occupent
+// tout l'écran et la timeline reste ancrée en bas, toujours visible.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useT } from "@/lib/i18n";
 import { Spinner } from "@/components/ui/Spinner";
 import { hostMedia, MAX_UPLOAD_BYTES, formatSize } from "@/lib/media/host";
 import {
-  addAudio, addClip, addImageLayer, addText, duplicateClip, emptyProject,
-  FORMAT_SIZE, projectDuration, removeAudio, removeClip, removeImageLayer,
-  removeText, reorderClip, setClipFraming, setClipSpeed, setClipTransition,
-  splitAt, textsAt, trimClip, updateAudio, updateImageLayer, updateText,
-  type EditorFormat, type EditorProject, type TransitionKind,
+  addAudio, addButton, addClip, addImageLayer, addShape, addText, duplicateClip,
+  emptyProject, FORMAT_SIZE, moveClip, projectDuration, removeAudio, removeClip,
+  removeImageLayer, removeShape, removeText, setClipFraming, setClipLength,
+  setClipSpeed, setClipTransition, shapesAt, splitAt, trimClip, updateAudio,
+  updateImageLayer, updateShape, updateText, usedTracks,
+  type AnimationKind, type EditorFormat, type EditorProject, type ShapeKind,
+  type TransitionKind, type VisualLayer,
 } from "@/lib/editor/project";
 import {
   applyTemplate, brandStyleFrom, rescaleTextsForFormat, TEMPLATES, type BrandStyle,
 } from "@/lib/editor/templates";
 import { canRedo, canUndo, initHistory, push, redo, undo, type History } from "@/lib/editor/history";
-import { decideRenderTarget, toBrowserPlan, toServerEdit } from "@/lib/editor/render-plan";
+import { browserOverlays, decideRenderTarget, toBrowserPlan, type OverlayInput } from "@/lib/editor/render-plan";
+import { drawImages, drawShapes, drawTexts, ensureFontsReady, FONT_STACKS, loadImage } from "@/lib/editor/draw";
 import { Timeline, type TimelineSelection } from "./Timeline";
-import { drawTexts, Preview } from "./Preview";
+import { Preview, type LayerPatch } from "./Preview";
 import { ProjectLibrary } from "./ProjectLibrary";
+import { TemplateGallery } from "./TemplateGallery";
+import { PropertyPanel } from "./PropertyPanel";
 import type { UploadedMedia } from "@/components/ui/MediaUpload";
 
 const FORMATS: EditorFormat[] = ["9:16", "1:1", "4:5", "16:9"];
-const PRESET_COLORS = ["#ffffff", "#000000", "#ff3b30", "#ffcc00", "#34c759", "#0a84ff"];
+const SHAPES: { kind: ShapeKind; glyph: string; fr: string; en: string }[] = [
+  { kind: "rect", glyph: "▭", fr: "Bandeau", en: "Bar" },
+  { kind: "round", glyph: "▢", fr: "Pastille", en: "Pill" },
+  { kind: "ellipse", glyph: "◯", fr: "Cercle", en: "Circle" },
+  { kind: "line", glyph: "─", fr: "Trait", en: "Line" },
+  { kind: "arrow", glyph: "➜", fr: "Flèche", en: "Arrow" },
+];
 
 /** Compteur d'identifiants, stable pour une session d'édition. */
 let seq = 0;
@@ -69,6 +81,7 @@ export function StudioEditor({
   const [loading, setLoading] = useState(Boolean(projectId));
   const [brand, setBrand] = useState<BrandStyle>(() => brandStyleFrom(null));
   const [libraryOpen, setLibraryOpen] = useState(false);
+  const [tool, setTool] = useState<"media" | "templates" | "shapes">("media");
   /** Poids cumulé des sources — décide du moteur de rendu. */
   const sourceBytes = useRef(0);
   const lang: "fr" | "en" = t("fr", "en") === "en" ? "en" : "fr";
@@ -79,7 +92,7 @@ export function StudioEditor({
   }, []);
 
   /**
-   * Change le format de publication. Les textes sont retranspostés : leur taille
+   * Change le format de publication. Les textes sont retransposés : leur taille
    * est stockée en fraction de HAUTEUR, qui ne veut pas dire la même chose d'un
    * cadre à l'autre — sans cela, un titre réglé en 9:16 devenait minuscule en
    * 16:9. Le média source, lui, n'est pas touché : le cadrage est une intention.
@@ -89,8 +102,6 @@ export function StudioEditor({
   }, [apply]);
 
   /* ── Identité de marque ────────────────────────────────────────────────── */
-  // Les modèles de composition s'y calibrent. Un kit absent ne bloque rien :
-  // `brandStyleFrom` retombe sur un réglage lisible.
   useEffect(() => {
     let alive = true;
     fetch(`/api/brand-kit?companyId=${encodeURIComponent(companyId)}`)
@@ -155,8 +166,6 @@ export function StudioEditor({
   }, [initialMedia, projectId]);
 
   /* ── Enregistrement automatique ────────────────────────────────────────── */
-  // Toutes les 10 secondes après une modification : aucune perte de travail,
-  // sans marteler l'API à chaque geste.
   const dirty = useRef(false);
   useEffect(() => { dirty.current = true; }, [project]);
   useEffect(() => {
@@ -244,23 +253,100 @@ export function StudioEditor({
     [apply, companyId, t]
   );
 
+  /* ── Sous-titrage automatique ──────────────────────────────────────────── */
+  const transcribe = useCallback(async () => {
+    // On transcrit la voix off si elle existe, sinon le son du premier plan.
+    const voice = project.audios.find((a) => a.role === "voice" && !a.muted);
+    const source = voice?.src ?? project.clips.find((c) => c.track === 0 && c.kind === "video")?.src;
+    if (!source) {
+      setNote(t("Aucune piste parlée à transcrire.", "No spoken track to transcribe."));
+      return;
+    }
+    setBusy(t("Transcription en cours…", "Transcribing…"));
+    try {
+      const res = await fetch("/api/editor/subtitles", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyId, src: source, lang }),
+      });
+      const d = (await res.json().catch(() => ({}))) as { segments?: { start: number; end: number; text: string }[]; error?: string };
+      if (!res.ok || !d.segments?.length) throw new Error(d.error ?? t("aucun segment", "no segment"));
+
+      apply((p) => {
+        let next = p;
+        for (const seg of d.segments!) {
+          const id = nextId("t");
+          next = addText(next, id, seg.text);
+          // Bandeau bas, lisible sur n'importe quel fond — la convention du
+          // sous-titrage social.
+          next = updateText(next, id, {
+            x: 0.5, y: 0.78, align: "center", sizePct: 0.045,
+            bg: true, bold: true, shadow: false, wrapPct: 0.86,
+            start: seg.start, end: seg.end,
+          });
+        }
+        return next;
+      });
+      setNote(t(`${d.segments.length} sous-titres posés — relisez-les avant publication.`,
+        `${d.segments.length} subtitles added — proofread before publishing.`));
+    } catch (e) {
+      setNote(t("Transcription impossible : ", "Transcription failed: ") + (e instanceof Error ? e.message.slice(0, 140) : ""));
+    } finally {
+      setBusy(null);
+    }
+  }, [project.audios, project.clips, companyId, lang, apply, t]);
+
   /* ── Export ────────────────────────────────────────────────────────────── */
   const decision = useMemo(() => decideRenderTarget(project, sourceBytes.current), [project]);
 
-  /** Compose le PNG des calques à la résolution de sortie. */
-  const buildOverlay = useCallback(async (): Promise<Uint8Array | null> => {
-    const layers = textsAt(project, playhead);
-    if (layers.length === 0) return null;
+  /**
+   * Compose un PNG PAR CALQUE.
+   *
+   * L'export ne composait qu'un seul calque, pris à la position de la tête de
+   * lecture, puis le gravait sur tout le film : les bornes d'apparition
+   * n'étaient pas respectées, et un texte hors de cette position était perdu
+   * sans avertissement. Les incrustations d'image n'étaient jamais dessinées.
+   */
+  const buildOverlays = useCallback(async (): Promise<{ overlay: OverlayInput; bytes: Uint8Array }[]> => {
+    const wanted = browserOverlays(project);
+    if (wanted.length === 0) return [];
     const { width, height } = FORMAT_SIZE[project.format];
-    const canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return null;
-    drawTexts(ctx, width, height, layers);
-    const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, "image/png"));
-    return blob ? new Uint8Array(await blob.arrayBuffer()) : null;
-  }, [project, playhead]);
+
+    const loaded = new Map<string, HTMLImageElement>();
+    for (const src of new Set(project.images.map((l) => l.src))) {
+      const img = await loadImage(src);
+      if (img) loaded.set(src, img);
+    }
+    // Les polices doivent être PRÊTES avant le dessin : sans cela le canevas
+    // retombe sur une police de secours et le fichier ne ressemble plus à
+    // l'aperçu — une divergence qui ne produit aucune erreur.
+    await ensureFontsReady(project.texts.map((l) => l.font));
+
+    const out: { overlay: OverlayInput; bytes: Uint8Array }[] = [];
+    for (const overlay of wanted) {
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) continue;
+
+      if (overlay.kind === "shape") {
+        const l = project.shapes.find((s) => s.id === overlay.layerId);
+        if (l) drawShapes(ctx, width, height, [l]);
+      } else if (overlay.kind === "image") {
+        const l = project.images.find((s) => s.id === overlay.layerId);
+        if (l) drawImages(ctx, width, height, [l], loaded);
+      } else {
+        const l = project.texts.find((s) => s.id === overlay.layerId);
+        if (l) drawTexts(ctx, width, height, [l]);
+      }
+
+      const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, "image/png"));
+      if (!blob) continue;
+      out.push({ overlay, bytes: new Uint8Array(await blob.arrayBuffer()) });
+    }
+    return out;
+  }, [project]);
 
   const exportProject = useCallback(async () => {
     if (project.clips.length === 0) return;
@@ -271,10 +357,13 @@ export function StudioEditor({
     if (decision.target === "server") {
       setBusy(t("Rendu sur nos serveurs…", "Rendering on our servers…"));
       try {
+        // On transmet le DOCUMENT, pas une timeline déjà construite : c'est le
+        // serveur qui en fait la projection. Le contrat porte ainsi sur une
+        // structure qu'il sait valider, et la règle de rendu reste unique.
         const res = await fetch("/api/video/render", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ companyId, edit: toServerEdit(project) }),
+          body: JSON.stringify({ companyId, project }),
         });
         const d = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error((d as { error?: string }).error ?? `HTTP ${res.status}`);
@@ -293,8 +382,8 @@ export function StudioEditor({
     // Rendu NAVIGATEUR : gratuit, aucune donnée sortante.
     setBusy(t("Préparation du moteur vidéo…", "Loading video engine…"));
     try {
-      const overlay = await buildOverlay();
-      const plan = toBrowserPlan(project, overlay ? "ov.png" : null);
+      const composed = await buildOverlays();
+      const plan = toBrowserPlan(project, composed.map((c) => c.overlay));
 
       const { FFmpeg } = await import("@ffmpeg/ffmpeg");
       const { fetchFile, toBlobURL } = await import("@ffmpeg/util");
@@ -312,12 +401,11 @@ export function StudioEditor({
       });
 
       setBusy(t("Rendu de la vidéo…", "Rendering video…"));
+      const composedByName = new Map(composed.map((c) => [c.overlay.name, c.bytes]));
       for (const input of plan.inputs) {
-        if (input.name === "ov.png") {
-          if (overlay) await ffmpeg.writeFile("ov.png", overlay);
-        } else {
-          await ffmpeg.writeFile(input.name, await fetchFile(input.src));
-        }
+        const bytes = composedByName.get(input.name);
+        if (bytes) await ffmpeg.writeFile(input.name, bytes);
+        else await ffmpeg.writeFile(input.name, await fetchFile(input.src));
       }
 
       // `exec` de ffmpeg.wasm : arguments passés en TABLEAU à un module
@@ -337,6 +425,7 @@ export function StudioEditor({
         setNote(t(`Hébergement impossible (${hosted.error ?? "erreur"}). Le média n'a pas été remplacé.`, `Hosting failed (${hosted.error ?? "error"}). The media was not replaced.`));
         return;
       }
+
       // Le rendu est rattaché au projet : la bibliothèque peut le proposer sans
       // refaire un export, et on garde la trace de ce qu'a produit ce montage.
       await fetch("/api/editor/projects", {
@@ -352,305 +441,250 @@ export function StudioEditor({
     } finally {
       setBusy(null);
     }
-  }, [project, decision.target, companyId, savedId, buildOverlay, onExport, onClose, t]);
+  }, [project, decision.target, companyId, savedId, buildOverlays, onExport, onClose, t]);
 
-  /* ── Rendu ─────────────────────────────────────────────────────────────── */
+  /* ── Manipulation directe dans la zone de travail ──────────────────────── */
+  const onLayerChange = useCallback((sel: NonNullable<TimelineSelection>, patch: LayerPatch) => {
+    apply((p) => {
+      const box: Partial<VisualLayer> = {};
+      if (patch.x !== undefined) box.x = patch.x;
+      if (patch.y !== undefined) box.y = patch.y;
+      if (patch.rotation !== undefined) box.rotation = patch.rotation;
 
-  const selectedText = selection?.kind === "text" ? project.texts.find((l) => l.id === selection.id) : null;
-  const selectedClip = selection?.kind === "clip" ? project.clips.find((c) => c.id === selection.id) : null;
-  const selectedAudio = selection?.kind === "audio" ? project.audios.find((a) => a.id === selection.id) : null;
-  const selectedImage = selection?.kind === "image" ? project.images.find((l) => l.id === selection.id) : null;
+      if (sel.kind === "text") {
+        return updateText(p, sel.id, { ...box, ...(patch.w !== undefined ? { wrapPct: patch.w } : {}) });
+      }
+      if (sel.kind === "image") {
+        return updateImageLayer(p, sel.id, {
+          ...box,
+          ...(patch.w !== undefined ? { scale: patch.w } : {}),
+          ...(patch.h !== undefined ? { heightPct: patch.h } : {}),
+        });
+      }
+      if (sel.kind === "shape") {
+        return updateShape(p, sel.id, {
+          ...box,
+          ...(patch.w !== undefined ? { w: patch.w } : {}),
+          ...(patch.h !== undefined ? { h: patch.h } : {}),
+        });
+      }
+      return p;
+    });
+  }, [apply]);
+
+  const duration = projectDuration(project);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-3" onClick={onClose}>
-      <div
-        className="flex max-h-[94vh] w-full max-w-6xl flex-col overflow-hidden rounded-xl bg-card shadow-xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* En-tête */}
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-hair px-4 py-2.5">
-          <div className="flex items-center gap-2">
-            <h3 className="text-sm font-semibold text-ink">🎬 {t("Banc de montage", "Editing bench")}</h3>
-            <input
-              value={project.name}
-              onChange={(e) => apply((p) => ({ ...p, name: e.target.value }))}
-              placeholder={t("Nom du montage", "Edit name")}
-              aria-label={t("Nom du montage", "Edit name")}
-              className="w-40 rounded-md border border-hair bg-transparent px-2 py-0.5 text-2xs text-ink placeholder:text-muted"
-            />
-            <span className="text-2xs text-muted">
-              {projectDuration(project).toFixed(1)}s · {project.clips.length} {t("plan(s)", "clip(s)")}
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button" onClick={() => setLibraryOpen(true)}
-              title={t("Mes montages", "My edits")} aria-label={t("Mes montages", "My edits")}
-              className="flex h-7 w-7 items-center justify-center rounded-md text-muted ring-1 ring-hair hover:text-ink"
-            >📁</button>
-            <button
-              type="button" onClick={() => setHistory(undo)} disabled={!canUndo(history)}
-              title={t("Annuler (Ctrl+Z)", "Undo (Ctrl+Z)")} aria-label={t("Annuler", "Undo")}
-              className="flex h-7 w-7 items-center justify-center rounded-md text-muted ring-1 ring-hair hover:text-ink disabled:opacity-40"
-            >↺</button>
-            <button
-              type="button" onClick={() => setHistory(redo)} disabled={!canRedo(history)}
-              title={t("Rétablir (Ctrl+Maj+Z)", "Redo (Ctrl+Shift+Z)")} aria-label={t("Rétablir", "Redo")}
-              className="flex h-7 w-7 items-center justify-center rounded-md text-muted ring-1 ring-hair hover:text-ink disabled:opacity-40"
-            >↻</button>
-            <div className="mx-1 inline-flex rounded-lg border border-hair p-0.5">
-              {FORMATS.map((f) => (
-                <button
-                  key={f} type="button"
-                  onClick={() => changeFormat(f)}
-                  className={`rounded-md px-2 py-0.5 text-2xs font-semibold ${project.format === f ? "bg-page text-white" : "text-muted hover:text-ink"}`}
-                >{f}</button>
-              ))}
-            </div>
-            <button type="button" onClick={onClose} className="px-1 text-muted hover:text-ink" aria-label={t("Fermer", "Close")}>✕</button>
-          </div>
+    <div className="fixed inset-0 z-50 flex flex-col bg-canvas">
+      {/* En-tête */}
+      <header className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-hair bg-card px-4 py-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <h3 className="shrink-0 text-sm font-semibold text-ink">🎬 {t("Banc de montage", "Editing bench")}</h3>
+          <input
+            value={project.name}
+            onChange={(e) => apply((p) => ({ ...p, name: e.target.value }))}
+            placeholder={t("Nom du montage", "Edit name")}
+            aria-label={t("Nom du montage", "Edit name")}
+            className="w-44 rounded-md border border-hair bg-transparent px-2 py-0.5 text-2xs text-ink placeholder:text-muted"
+          />
+          <span className="hidden text-2xs text-muted sm:inline">
+            {duration.toFixed(1)}s · {project.clips.length} {t("plan(s)", "clip(s)")} · {usedTracks(project).length} {t("piste(s)", "track(s)")}
+          </span>
         </div>
 
-        {loading ? (
-          <div className="flex items-center justify-center gap-2 p-10 text-sm text-muted">
-            <Spinner size={16} className="text-page" /> {t("Chargement du projet…", "Loading project…")}
-          </div>
-        ) : (
-          <div className="grid flex-1 gap-4 overflow-y-auto p-4 lg:grid-cols-[320px_1fr]">
-            {/* Colonne gauche : aperçu */}
-            <div className="space-y-3">
-              <Preview
-                project={project}
-                playhead={playhead}
-                onSeek={setPlayhead}
-                onDragText={(id, x, y) => apply((p) => updateText(p, id, { x, y }))}
-                onDragImage={(id, x, y) => apply((p) => updateImageLayer(p, id, { x, y }))}
-              />
-              <div className="grid grid-cols-2 gap-1.5">
-                <ImportButton label={t("＋ Plan", "＋ Clip")} accept="video/*,image/*" onFile={(f) => importFile(f, "clip")} />
-                <ImportButton label={t("♪ Musique", "♪ Music")} accept="audio/*" onFile={(f) => importFile(f, "music")} />
-                <ImportButton label={t("🎙 Voix off", "🎙 Voiceover")} accept="audio/*" onFile={(f) => importFile(f, "voice")} />
-                <ImportButton label={t("🖼 Incrustation", "🖼 Overlay")} accept="image/*" onFile={(f) => importFile(f, "overlay")} />
-              </div>
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button" onClick={() => setLibraryOpen(true)}
+            title={t("Mes montages", "My edits")} aria-label={t("Mes montages", "My edits")}
+            className="flex h-7 w-7 items-center justify-center rounded-md text-muted ring-1 ring-hair hover:text-ink"
+          >📁</button>
+          <button
+            type="button" onClick={() => setHistory(undo)} disabled={!canUndo(history)}
+            title={t("Annuler (Ctrl+Z)", "Undo (Ctrl+Z)")} aria-label={t("Annuler", "Undo")}
+            className="flex h-7 w-7 items-center justify-center rounded-md text-muted ring-1 ring-hair hover:text-ink disabled:opacity-40"
+          >↺</button>
+          <button
+            type="button" onClick={() => setHistory(redo)} disabled={!canRedo(history)}
+            title={t("Rétablir (Ctrl+Maj+Z)", "Redo (Ctrl+Shift+Z)")} aria-label={t("Rétablir", "Redo")}
+            className="flex h-7 w-7 items-center justify-center rounded-md text-muted ring-1 ring-hair hover:text-ink disabled:opacity-40"
+          >↻</button>
+          <div className="mx-1 inline-flex rounded-lg border border-hair p-0.5">
+            {FORMATS.map((f) => (
               <button
-                type="button"
-                onClick={() => apply((p) => addText(p, nextId("t"), t("Votre texte", "Your text")))}
-                className="btn-secondary w-full text-xs"
-              >
-                ➕ {t("Ajouter un texte", "Add text")}
-              </button>
+                key={f} type="button"
+                onClick={() => changeFormat(f)}
+                className={`rounded-md px-2 py-0.5 text-2xs font-semibold ${project.format === f ? "bg-page text-white" : "text-muted hover:text-ink"}`}
+              >{f}</button>
+            ))}
+          </div>
+          <button
+            type="button" onClick={exportProject}
+            disabled={Boolean(busy) || project.clips.length === 0}
+            className="btn-primary text-xs disabled:opacity-50"
+          >
+            {t("Exporter", "Export")}
+          </button>
+          <button type="button" onClick={onClose} className="px-1 text-muted hover:text-ink" aria-label={t("Fermer", "Close")}>✕</button>
+        </div>
+      </header>
 
-              {/* Modèles calibrés sur l'identité de marque. Ils AJOUTENT des
-                  calques — donc annulables, et sans effacer le travail en cours. */}
-              <div className="space-y-1.5 rounded-lg border border-hair p-2.5">
-                <p className="text-2xs font-semibold uppercase tracking-wide text-muted">
-                  {t("Modèles de marque", "Brand templates")}
-                </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {TEMPLATES.map((tpl) => (
-                    <button
-                      key={tpl.key}
-                      type="button"
-                      title={lang === "en" ? tpl.hint.en : tpl.hint.fr}
-                      onClick={() => apply((p) => applyTemplate(p, tpl.key, brand, nextId, lang))}
-                      className="btn-secondary text-2xs"
-                    >
-                      {lang === "en" ? tpl.label.en : tpl.label.fr}
-                    </button>
-                  ))}
-                </div>
-                <p className="text-2xs text-muted">
-                  {brand.palette.length > 0 || brand.logoUrl
-                    ? t("Couleurs et logo repris du kit de marque.", "Colours and logo taken from the brand kit.")
-                    : t("Kit de marque absent — modèles en blanc lisible.", "No brand kit — templates use readable white.")}
-                </p>
+      {loading ? (
+        <div className="flex flex-1 items-center justify-center gap-2 text-sm text-muted">
+          <Spinner size={16} className="text-page" /> {t("Chargement du projet…", "Loading project…")}
+        </div>
+      ) : (
+        <>
+          {/* Trois zones à défilement INDÉPENDANT */}
+          <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[240px_1fr_300px]">
+            {/* Colonne gauche : outils */}
+            <aside className="hidden min-h-0 flex-col overflow-y-auto border-r border-hair bg-card p-3 lg:flex">
+              <div className="studio-seg mb-3">
+                <button type="button" data-active={tool === "media"} onClick={() => setTool("media")} className="studio-seg-btn">{t("Médias", "Media")}</button>
+                <button type="button" data-active={tool === "templates"} onClick={() => setTool("templates")} className="studio-seg-btn">{t("Modèles", "Templates")}</button>
+                <button type="button" data-active={tool === "shapes"} onClick={() => setTool("shapes")} className="studio-seg-btn">{t("Formes", "Shapes")}</button>
               </div>
-            </div>
 
-            {/* Colonne droite : timeline + réglages */}
-            <div className="space-y-3">
-              <div className="flex flex-wrap gap-1.5">
+              {tool === "media" && (
+                <div className="space-y-2">
+                  <ImportButton label={t("＋ Plan vidéo ou photo", "＋ Video or photo")} accept="video/*,image/*" onFile={(f) => importFile(f, "clip")} />
+                  <ImportButton label={t("♪ Musique", "♪ Music")} accept="audio/*" onFile={(f) => importFile(f, "music")} />
+                  <ImportButton label={t("🎙 Voix off", "🎙 Voiceover")} accept="audio/*" onFile={(f) => importFile(f, "voice")} />
+                  <ImportButton label={t("🖼 Incrustation", "🖼 Overlay")} accept="image/*" onFile={(f) => importFile(f, "overlay")} />
+                  <hr className="border-hair" />
+                  <button
+                    type="button"
+                    onClick={() => apply((p) => addText(p, nextId("t"), t("Votre texte", "Your text")))}
+                    className="btn-secondary w-full text-xs"
+                  >
+                    ➕ {t("Ajouter un texte", "Add text")}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={transcribe}
+                    disabled={Boolean(busy)}
+                    className="btn-secondary w-full text-xs disabled:opacity-50"
+                    title={t("Transcrit la parole et pose des sous-titres minutés", "Transcribes speech into timed subtitles")}
+                  >
+                    💬 {t("Sous-titrer automatiquement", "Auto-subtitle")}
+                  </button>
+                </div>
+              )}
+
+              {tool === "templates" && (
+                <TemplateGallery
+                  templates={TEMPLATES}
+                  brand={brand}
+                  format={project.format}
+                  lang={lang}
+                  onApply={(key) => apply((p) => applyTemplate(p, key, brand, nextId, lang))}
+                />
+              )}
+
+              {tool === "shapes" && (
+                <div className="space-y-2">
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {SHAPES.map((s) => (
+                      <button
+                        key={s.kind}
+                        type="button"
+                        onClick={() => apply((p) => addShape(p, nextId("s"), s.kind, brand.palette[0] ?? "#5b2d8e"))}
+                        className="flex flex-col items-center gap-1 rounded-lg border border-hair py-2 text-lg hover:border-page"
+                      >
+                        <span aria-hidden>{s.glyph}</span>
+                        <span className="text-[9px] text-muted">{lang === "en" ? s.en : s.fr}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => apply((p) => addButton(
+                      p,
+                      { shape: nextId("s"), text: nextId("t") },
+                      t("En savoir plus", "Learn more"),
+                      { fill: brand.palette[0] ?? "#5b2d8e", text: brand.textColor }
+                    ))}
+                    className="btn-secondary w-full text-xs"
+                  >
+                    🔘 {t("Bouton d'appel à l'action", "Call-to-action button")}
+                  </button>
+                </div>
+              )}
+            </aside>
+
+            {/* Colonne centrale : zone de travail */}
+            <main className="flex min-h-0 flex-col gap-2 p-3">
+              <div className="flex shrink-0 flex-wrap gap-1.5">
                 <ToolButton onClick={() => apply((p) => splitAt(p, playhead, () => nextId("c")))} disabled={project.clips.length === 0}>
                   ✂ {t("Scinder", "Split")}
                 </ToolButton>
-                <ToolButton onClick={() => selectedClip && apply((p) => removeClip(p, selectedClip.id))} disabled={!selectedClip}>
-                  🗑 {t("Supprimer le plan", "Delete clip")}
-                </ToolButton>
-                <ToolButton onClick={() => selectedClip && apply((p) => duplicateClip(p, selectedClip.id, nextId("c")))} disabled={!selectedClip}>
+                <ToolButton
+                  onClick={() => selection?.kind === "clip" && apply((p) => duplicateClip(p, selection.id, nextId("c")))}
+                  disabled={selection?.kind !== "clip"}
+                >
                   ⧉ {t("Dupliquer", "Duplicate")}
                 </ToolButton>
+                <ToolButton onClick={() => removeSelection()} disabled={!selection}>
+                  🗑 {t("Supprimer", "Delete")}
+                </ToolButton>
               </div>
-
-              <Timeline
+              <Preview
                 project={project}
                 playhead={playhead}
                 selection={selection}
                 onSeek={setPlayhead}
                 onSelect={setSelection}
-                onTrim={(clipId, edge, delta) => apply((p) => trimClip(p, clipId, edge === "head" ? { head: delta } : { tail: delta }))}
-                onReorder={(clipId, toIndex) => apply((p) => reorderClip(p, clipId, toIndex))}
+                onLayerChange={onLayerChange}
               />
+            </main>
 
-              {/* Panneau contextuel — dépend de la sélection */}
-              {selectedClip && (
-                <Panel title={t("Plan", "Clip")}>
-                  <Range
-                    label={t("Vitesse", "Speed")} min={0.5} max={2} step={0.1} value={selectedClip.speed}
-                    display={`${selectedClip.speed.toFixed(1)}×`}
-                    onChange={(v) => apply((p) => setClipSpeed(p, selectedClip.id, v))}
-                  />
-                  {/* Cadrage — c'est ce qui permet de publier une source
-                      horizontale en vertical sans décapiter le sujet. */}
-                  <div className="flex flex-wrap items-center gap-2 text-2xs text-muted">
-                    <span className="w-24 shrink-0">{t("Cadrage", "Framing")}</span>
-                    <Toggle on={selectedClip.fit === "cover"}
-                      onClick={() => apply((p) => setClipFraming(p, selectedClip.id, { fit: "cover" }))}>
-                      {t("Remplir", "Fill")}
-                    </Toggle>
-                    <Toggle on={selectedClip.fit === "contain"}
-                      onClick={() => apply((p) => setClipFraming(p, selectedClip.id, { fit: "contain" }))}>
-                      {t("Entier", "Whole")}
-                    </Toggle>
-                  </div>
-                  {selectedClip.fit === "cover" && (
-                    <>
-                      <Range label={t("Recadrage ↔", "Reframe ↔")} min={0} max={1} step={0.05} value={selectedClip.focusX}
-                        display={`${Math.round(selectedClip.focusX * 100)}%`}
-                        onChange={(v) => apply((p) => setClipFraming(p, selectedClip.id, { focusX: v }))} />
-                      <Range label={t("Recadrage ↕", "Reframe ↕")} min={0} max={1} step={0.05} value={selectedClip.focusY}
-                        display={`${Math.round(selectedClip.focusY * 100)}%`}
-                        onChange={(v) => apply((p) => setClipFraming(p, selectedClip.id, { focusY: v }))} />
-                    </>
-                  )}
-                  {project.clips.indexOf(selectedClip) > 0 && (
-                    <label className="flex items-center gap-2 text-2xs text-muted">
-                      <span className="w-24 shrink-0">{t("Transition", "Transition")}</span>
-                      <select
-                        value={selectedClip.transitionIn}
-                        onChange={(e) => apply((p) => setClipTransition(p, selectedClip.id, e.target.value as TransitionKind))}
-                        className="input flex-1 py-0.5 text-2xs"
-                      >
-                        <option value="none">{t("Coupe franche", "Hard cut")}</option>
-                        <option value="fade">{t("Fondu", "Fade")}</option>
-                        <option value="dissolve">{t("Fondu enchaîné", "Dissolve")}</option>
-                      </select>
-                    </label>
-                  )}
-                  <p className="text-2xs text-muted">
-                    {t("Entrée dans la source", "Source in-point")} : {selectedClip.trimStart.toFixed(1)}s ·{" "}
-                    {t("durée", "length")} {selectedClip.length.toFixed(1)}s
-                  </p>
-                </Panel>
-              )}
-
-              {selectedText && (
-                <Panel title={t("Texte", "Text")}>
-                  <textarea
-                    value={selectedText.text}
-                    onChange={(e) => apply((p) => updateText(p, selectedText.id, { text: e.target.value }))}
-                    rows={2}
-                    className="input resize-none text-xs"
-                  />
-                  <Range label={t("Taille", "Size")} min={0.03} max={0.2} step={0.005} value={selectedText.sizePct}
-                    display={`${Math.round(selectedText.sizePct * 100)}%`}
-                    onChange={(v) => apply((p) => updateText(p, selectedText.id, { sizePct: v }))} />
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    {PRESET_COLORS.map((c) => (
-                      <button key={c} type="button" aria-label={c}
-                        onClick={() => apply((p) => updateText(p, selectedText.id, { color: c }))}
-                        className={`h-5 w-5 rounded-full ring-1 ring-hair ${selectedText.color === c ? "ring-2 ring-page" : ""}`}
-                        style={{ background: c }} />
-                    ))}
-                    <Toggle on={selectedText.bold} onClick={() => apply((p) => updateText(p, selectedText.id, { bold: !selectedText.bold }))}>G</Toggle>
-                    <Toggle on={selectedText.bg} onClick={() => apply((p) => updateText(p, selectedText.id, { bg: !selectedText.bg }))}>▬</Toggle>
-                    <Toggle on={selectedText.outline} onClick={() => apply((p) => updateText(p, selectedText.id, { outline: !selectedText.outline }))}>◌</Toggle>
-                    <Toggle on={selectedText.shadow} onClick={() => apply((p) => updateText(p, selectedText.id, { shadow: !selectedText.shadow }))}>◍</Toggle>
-                  </div>
-                  <BoundsRow
-                    start={selectedText.start} end={selectedText.end} max={projectDuration(project)} playhead={playhead}
-                    onStart={(v) => apply((p) => updateText(p, selectedText.id, { start: v }))}
-                    onEnd={(v) => apply((p) => updateText(p, selectedText.id, { end: v }))}
-                  />
-                  <button type="button" onClick={() => { apply((p) => removeText(p, selectedText.id)); setSelection(null); }}
-                    className="text-2xs text-danger-600 hover:underline">🗑 {t("Supprimer", "Delete")}</button>
-                </Panel>
-              )}
-
-              {selectedAudio && (
-                <Panel title={selectedAudio.name}>
-                  {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-                  <audio src={selectedAudio.src} controls className="w-full" />
-                  <Range label={t("Volume", "Volume")} min={0} max={1} step={0.05} value={selectedAudio.volume}
-                    display={`${Math.round(selectedAudio.volume * 100)}%`}
-                    onChange={(v) => apply((p) => updateAudio(p, selectedAudio.id, { volume: v }))} />
-                  <Range label={t("Fondu d'entrée", "Fade in")} min={0} max={5} step={0.1} value={selectedAudio.fadeIn}
-                    display={`${selectedAudio.fadeIn.toFixed(1)}s`}
-                    onChange={(v) => apply((p) => updateAudio(p, selectedAudio.id, { fadeIn: v }))} />
-                  <Range label={t("Fondu de sortie", "Fade out")} min={0} max={5} step={0.1} value={selectedAudio.fadeOut}
-                    display={`${selectedAudio.fadeOut.toFixed(1)}s`}
-                    onChange={(v) => apply((p) => updateAudio(p, selectedAudio.id, { fadeOut: v }))} />
-                  <div className="flex items-center gap-2">
-                    <Toggle on={selectedAudio.muted} onClick={() => apply((p) => updateAudio(p, selectedAudio.id, { muted: !selectedAudio.muted }))}>
-                      {selectedAudio.muted ? "🔇" : "🔊"}
-                    </Toggle>
-                    <button type="button" onClick={() => { apply((p) => removeAudio(p, selectedAudio.id)); setSelection(null); }}
-                      className="text-2xs text-danger-600 hover:underline">🗑 {t("Retirer la piste", "Remove track")}</button>
-                  </div>
-                </Panel>
-              )}
-
-              {selectedImage && (
-                <Panel title={t("Incrustation", "Overlay")}>
-                  <Range label={t("Taille", "Size")} min={0.05} max={1} step={0.05} value={selectedImage.scale}
-                    display={`${Math.round(selectedImage.scale * 100)}%`}
-                    onChange={(v) => apply((p) => updateImageLayer(p, selectedImage.id, { scale: v }))} />
-                  <Range label={t("Opacité", "Opacity")} min={0.1} max={1} step={0.05} value={selectedImage.opacity}
-                    display={`${Math.round(selectedImage.opacity * 100)}%`}
-                    onChange={(v) => apply((p) => updateImageLayer(p, selectedImage.id, { opacity: v }))} />
-                  <BoundsRow
-                    start={selectedImage.start} end={selectedImage.end} max={projectDuration(project)} playhead={playhead}
-                    onStart={(v) => apply((p) => updateImageLayer(p, selectedImage.id, { start: v }))}
-                    onEnd={(v) => apply((p) => updateImageLayer(p, selectedImage.id, { end: v }))}
-                  />
-                  <button type="button" onClick={() => { apply((p) => removeImageLayer(p, selectedImage.id)); setSelection(null); }}
-                    className="text-2xs text-danger-600 hover:underline">🗑 {t("Supprimer", "Delete")}</button>
-                </Panel>
-              )}
-            </div>
+            {/* Colonne droite : propriétés */}
+            <aside className="hidden min-h-0 overflow-y-auto border-l border-hair bg-card p-3 lg:block">
+              <PropertyPanel
+                project={project}
+                selection={selection}
+                playhead={playhead}
+                brand={brand}
+                onChange={apply}
+                onDeselect={() => setSelection(null)}
+              />
+            </aside>
           </div>
-        )}
 
-        {/* Pied : export */}
-        <div className="space-y-2 border-t border-hair px-4 py-3">
-          {note && <p className="text-2xs text-muted">{note}</p>}
+          {/* Timeline ANCRÉE en bas — toujours visible */}
+          <div className="shrink-0 border-t border-hair bg-card px-3 py-2">
+            <Timeline
+              project={project}
+              playhead={playhead}
+              selection={selection}
+              onSeek={setPlayhead}
+              onSelect={setSelection}
+              onTrim={(clipId, edge, delta) => apply((p) => trimClip(p, clipId, edge === "head" ? { head: delta } : { tail: delta }))}
+              onMoveClip={(clipId, patch) => apply((p) => moveClip(p, clipId, patch))}
+            />
+          </div>
+        </>
+      )}
+
+      {/* Pied : état du rendu */}
+      <footer className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-hair bg-card px-4 py-2">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="text-2xs text-muted">
+            {t("Rendu", "Render")} : {decision.target === "server" ? t("nos serveurs", "our servers") : t("votre navigateur", "your browser")}
+            {" · "}{decision.reason}
+          </span>
           {busy && (
-            <p className="flex items-center gap-2 text-2xs text-muted">
+            <span className="flex items-center gap-2 text-2xs text-muted">
               <Spinner size={12} className="text-page" /> {busy}
-            </p>
+            </span>
           )}
           {progress > 0 && progress < 100 && (
-            <div className="h-1.5 w-full overflow-hidden rounded-full bg-canvas">
-              <div className="h-full bg-page transition-all" style={{ width: `${progress}%` }} />
-            </div>
-          )}
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-2xs text-muted">
-              {t("Rendu", "Render")} : {decision.target === "server" ? t("nos serveurs", "our servers") : t("votre navigateur", "your browser")}
-              {" · "}{decision.reason}
+            <span className="h-1.5 w-32 overflow-hidden rounded-full bg-canvas">
+              <span className="block h-full bg-page transition-all" style={{ width: `${progress}%` }} />
             </span>
-            <div className="flex gap-2">
-              <button type="button" onClick={onClose} className="btn-secondary text-xs">{t("Fermer", "Close")}</button>
-              <button
-                type="button" onClick={exportProject}
-                disabled={Boolean(busy) || project.clips.length === 0}
-                className="btn-primary text-xs disabled:opacity-50"
-              >
-                {t("Exporter", "Export")}
-              </button>
-            </div>
-          </div>
+          )}
         </div>
-      </div>
+        {note && <p className="min-w-0 flex-1 truncate text-right text-2xs text-muted" title={note}>{note}</p>}
+      </footer>
 
       {libraryOpen && (
         <ProjectLibrary
@@ -662,18 +696,22 @@ export function StudioEditor({
       )}
     </div>
   );
+
+  function removeSelection() {
+    if (!selection) return;
+    const sel = selection;
+    apply((p) => {
+      if (sel.kind === "clip") return removeClip(p, sel.id);
+      if (sel.kind === "text") return removeText(p, sel.id);
+      if (sel.kind === "image") return removeImageLayer(p, sel.id);
+      if (sel.kind === "shape") return removeShape(p, sel.id);
+      return removeAudio(p, sel.id);
+    });
+    setSelection(null);
+  }
 }
 
 /* ── Petits composants d'interface ───────────────────────────────────────── */
-
-function Panel({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="space-y-2 rounded-lg border border-hair p-3">
-      <p className="text-2xs font-semibold uppercase tracking-wide text-muted">{title}</p>
-      {children}
-    </div>
-  );
-}
 
 function ToolButton({ children, onClick, disabled }: { children: React.ReactNode; onClick: () => void; disabled?: boolean }) {
   return (
@@ -682,57 +720,11 @@ function ToolButton({ children, onClick, disabled }: { children: React.ReactNode
   );
 }
 
-function Toggle({ on, onClick, children }: { on: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button type="button" onClick={onClick} aria-pressed={on}
-      className={`h-5 min-w-[1.25rem] rounded px-1 text-2xs font-bold ${on ? "bg-page text-white" : "text-muted ring-1 ring-hair"}`}>
-      {children}
-    </button>
-  );
-}
-
-function Range({
-  label, min, max, step, value, display, onChange,
-}: {
-  label: string; min: number; max: number; step: number; value: number; display: string;
-  onChange: (v: number) => void;
-}) {
-  return (
-    <label className="flex items-center gap-2 text-2xs text-muted">
-      <span className="w-24 shrink-0">{label}</span>
-      <input type="range" min={min} max={max} step={step} value={value}
-        onChange={(e) => onChange(Number(e.target.value))} className="flex-1 accent-page" />
-      <span className="w-10 text-right text-ink">{display}</span>
-    </label>
-  );
-}
-
-/** Bornes d'apparition d'un calque, posables à la tête de lecture. */
-function BoundsRow({
-  start, end, max, playhead, onStart, onEnd,
-}: {
-  start: number; end: number; max: number; playhead: number;
-  onStart: (v: number) => void; onEnd: (v: number) => void;
-}) {
-  const t = useT();
-  return (
-    <div className="flex flex-wrap items-center gap-2 text-2xs text-muted">
-      <span>{t("Visible de", "Visible from")} {start.toFixed(1)}s {t("à", "to")} {end.toFixed(1)}s</span>
-      <button type="button" onClick={() => onStart(Math.min(playhead, end - 0.1))}
-        className="rounded px-1.5 py-0.5 ring-1 ring-hair hover:text-ink">{t("Début ici", "Start here")}</button>
-      <button type="button" onClick={() => onEnd(Math.max(playhead, start + 0.1))}
-        className="rounded px-1.5 py-0.5 ring-1 ring-hair hover:text-ink">{t("Fin ici", "End here")}</button>
-      <button type="button" onClick={() => { onStart(0); onEnd(max); }}
-        className="rounded px-1.5 py-0.5 ring-1 ring-hair hover:text-ink">{t("Tout le film", "Whole film")}</button>
-    </div>
-  );
-}
-
 function ImportButton({ label, accept, onFile }: { label: string; accept: string; onFile: (f: File) => void }) {
   const ref = useRef<HTMLInputElement>(null);
   return (
     <>
-      <button type="button" onClick={() => ref.current?.click()} className="btn-secondary text-2xs">{label}</button>
+      <button type="button" onClick={() => ref.current?.click()} className="btn-secondary w-full text-2xs">{label}</button>
       <input ref={ref} type="file" accept={accept} className="hidden"
         onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); e.target.value = ""; }} />
     </>

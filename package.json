@@ -36,7 +36,8 @@
     "backfill:historique": "tsx scripts/backfill-history-media.ts",
     "test:editeur": "tsx scripts/verify-media-editor.ts",
     "test:r27": "tsx scripts/verify-r27.ts",
-    "test:montageproj": "tsx scripts/verify-editor-project.ts"
+    "test:montageproj": "tsx scripts/verify-editor-project.ts",
+    "test:montagecontrat": "tsx scripts/verify-editor-contract.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.100.1",

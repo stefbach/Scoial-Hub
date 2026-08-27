@@ -12,6 +12,7 @@ import Link from "next/link";
 import { useT } from "@/lib/i18n";
 import { LanguageSwitcher } from "@/lib/i18n";
 import { NetworkCanvas } from "@/components/visual/NetworkCanvas";
+import { LogoMark } from "@/components/brand/Logo";
 const AgentConstellation3D = dynamic(() => import("@/components/landing/AgentConstellation3D").then((m) => m.AgentConstellation3D), { ssr: false });
 import { IconLink, IconChat, IconTrendingUp, IconLock, IconShieldCheck, IconMic, IconAward } from "@/components/visual/Icons";
 
@@ -158,7 +159,7 @@ export default function Home() {
 
       {/* ── Nav ── */}
       <header className="mc-nav">
-        <Link href="/" className="mc-brand"><span className="mc-brand-dot" /> AXON<span>·AI</span></Link>
+        <Link href="/" className="mc-brand"><LogoMark size={26} onDark /> AXON<span>·AI</span></Link>
         <nav className="mc-navlinks">
           <a href="#reseau">{t("Le réseau", "The network")}</a>
           <a href="#capabilities">{t("Fonctionnalités", "Features")}</a>

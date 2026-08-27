@@ -11,28 +11,28 @@ export function LogoMark({ size = 28, onDark = false }: { size?: number; onDark?
       <svg width={size} height={size} viewBox="0 0 32 32" fill="none" aria-hidden="true">
         <defs>
           <linearGradient id={id} x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
-            <stop stopColor="#9b6eff" />
+            <stop stopColor="#a684ff" />
             <stop offset="1" stopColor="#5b2d8e" />
           </linearGradient>
         </defs>
         <rect width="32" height="32" rx="8" fill={`url(#${id})`} />
         {/* connexions synaptiques */}
-        <g stroke="#ffffff" strokeWidth="1.4" strokeLinecap="round" opacity="0.85">
-          <line x1="16" y1="16" x2="8" y2="9" />
-          <line x1="16" y1="16" x2="24" y2="9" />
-          <line x1="16" y1="16" x2="9" y2="24" />
-          <line x1="16" y1="16" x2="23" y2="23" />
+        <g stroke="#ffffff" strokeWidth="1.3" strokeLinecap="round" opacity="0.9">
+          <line x1="16" y1="16" x2="8.5" y2="9.5" />
+          <line x1="16" y1="16" x2="23.5" y2="9.5" />
+          <line x1="16" y1="16" x2="9.5" y2="23.5" />
+          <line x1="16" y1="16" x2="22.5" y2="22.5" />
         </g>
         {/* terminaisons */}
         <g fill="#ffffff">
-          <circle cx="8" cy="9" r="2" opacity="0.95" />
-          <circle cx="24" cy="9" r="2" opacity="0.95" />
-          <circle cx="9" cy="24" r="1.7" opacity="0.8" />
-          <circle cx="23" cy="23" r="1.7" opacity="0.8" />
+          <circle cx="8.5" cy="9.5" r="2" />
+          <circle cx="23.5" cy="9.5" r="2" />
+          <circle cx="9.5" cy="23.5" r="1.7" />
+          <circle cx="22.5" cy="22.5" r="1.7" />
         </g>
         {/* noyau */}
-        <circle cx="16" cy="16" r="3.4" fill="#ffffff" />
-        <circle cx="16" cy="16" r="1.6" fill="#5b2d8e" />
+        <circle cx="16" cy="16" r="3.5" fill="#ffffff" />
+        <circle cx="16" cy="16" r="1.6" fill="#4c2a80" />
       </svg>
     </span>
   );

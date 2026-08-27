@@ -13,6 +13,7 @@ import { Fragment } from "react";
 import Link from "next/link";
 import { useT } from "@/lib/i18n";
 import { LanguageSwitcher } from "@/lib/i18n";
+import { LogoMark } from "@/components/brand/Logo";
 
 /* ── Types ────────────────────────────────────────────────────────────────── */
 
@@ -371,7 +372,7 @@ export default function TarifsPage() {
 
       {/* ── Nav ── */}
       <header className="mc-nav">
-        <Link href="/" className="mc-brand"><span className="mc-brand-dot" /> AXON<span>·AI</span></Link>
+        <Link href="/" className="mc-brand"><LogoMark size={26} onDark /> AXON<span>·AI</span></Link>
         <nav className="mc-navlinks">
           <Link href="/">{t("Accueil", "Home")}</Link>
           <a href="#formules">{t("Formules", "Plans")}</a>

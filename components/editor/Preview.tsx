@@ -32,6 +32,7 @@ import {
 } from "@/lib/editor/project";
 import { fontStack } from "@/lib/editor/draw";
 import { formatTime, type TimelineSelection } from "./Timeline";
+import { Tooltip } from "./Tooltip";
 
 /** Distance d'aimantation, en fraction du cadre. */
 const SNAP = 0.012;
@@ -56,21 +57,35 @@ export function Preview({
   project,
   playhead,
   selection,
+  playing,
+  onPlayingChange,
   onSeek,
   onSelect,
   onLayerChange,
+  onDragStart,
+  onDragEnd,
 }: {
   project: EditorProject;
   playhead: number;
   selection: TimelineSelection;
+  /**
+   * État de lecture — remonté au niveau de l'éditeur plutôt que local à
+   * l'aperçu, pour que la barre d'espace (itération 3, C-05) puisse la piloter
+   * depuis l'en-tête, la timeline ou n'importe où dans l'éditeur.
+   */
+  playing: boolean;
+  onPlayingChange: (playing: boolean) => void;
   onSeek: (t: number) => void;
   onSelect: (sel: TimelineSelection) => void;
   /** Manipulation directe d'un calque dans la zone de travail. */
   onLayerChange?: (sel: NonNullable<TimelineSelection>, patch: LayerPatch) => void;
+  /** Début / fin d'un geste continu (glisser, redimensionner, pivoter) — une
+      seule entrée d'historique par geste plutôt qu'une par pixel parcouru. */
+  onDragStart?: () => void;
+  onDragEnd?: () => void;
 }) {
   const t = useT();
   const duration = projectDuration(project);
-  const [playing, setPlaying] = useState(false);
   const [volume, setVolume] = useState(1);
   const [muted, setMuted] = useState(false);
   const [zoom, setZoom] = useState(1);
@@ -109,10 +124,60 @@ export function Preview({
   const resetView = useCallback(() => { setZoom(1); setPan({ x: 0, y: 0 }); }, []);
   useEffect(() => { resetView(); }, [project.format, resetView]);
 
-  function onWheel(e: React.WheelEvent) {
-    if (!e.ctrlKey && !e.metaKey && Math.abs(e.deltaY) < 2) return;
-    setZoom((z) => Math.min(6, Math.max(0.25, z * (e.deltaY < 0 ? 1.12 : 0.89))));
-  }
+  /**
+   * Molette sur l'aperçu — zoom ancré sur le curseur (itération 3, §4.2).
+   *
+   * DEUX DÉFAUTS CUMULÉS DANS LA VERSION PRÉCÉDENTE
+   * `onWheel` React est un gestionnaire SYNTHÉTIQUE : React attache l'écouteur
+   * de molette natif en mode passif au niveau racine, et un `preventDefault()`
+   * y est silencieusement ignoré par le navigateur. Ajouter l'appel n'aurait
+   * donc rien changé — la page continuait de défiler PENDANT le zoom. Il faut
+   * un écouteur natif non passif, posé directement sur l'élément.
+   *
+   * Un ref tient toujours l'état courant : l'écouteur n'est posé qu'UNE fois au
+   * montage, sans se raccrocher à chaque frappe de molette.
+   */
+  const latest = useRef({ zoom, pan, box, frame, fitScale });
+  latest.current = { zoom, pan, box, frame, fitScale };
+
+  useEffect(() => {
+    const el = boxRef.current;
+    if (!el) return;
+    function onWheelNative(e: WheelEvent) {
+      // Empêche systématiquement le défilement de la page ET le zoom du
+      // navigateur (Ctrl+molette / pincement) : la molette n'agit ICI que sur
+      // l'aperçu, jamais ailleurs.
+      e.preventDefault();
+      const { zoom: z, pan: p, box: b, frame: f, fitScale: fs } = latest.current;
+      const rect = el!.getBoundingClientRect();
+      const cx = e.clientX - rect.left;
+      const cy = e.clientY - rect.top;
+      const scale = fs * z;
+      const stageW = f.width * scale;
+      const stageH = f.height * scale;
+      const stageLeft = b.w / 2 - stageW / 2 + p.x;
+      const stageTop = b.h / 2 - stageH / 2 + p.y;
+      // Point du contenu (en pixels de cadre, non mis à l'échelle) sous le
+      // curseur : c'est CE point qui doit rester sous le curseur après le zoom.
+      const contentX = (cx - stageLeft) / scale;
+      const contentY = (cy - stageTop) / scale;
+
+      const nextZoom = Math.min(6, Math.max(0.25, z * (e.deltaY < 0 ? 1.12 : 0.89)));
+      const nextScale = fs * nextZoom;
+      const nextStageW = f.width * nextScale;
+      const nextStageH = f.height * nextScale;
+      const nextStageLeft = cx - contentX * nextScale;
+      const nextStageTop = cy - contentY * nextScale;
+
+      setZoom(nextZoom);
+      setPan({
+        x: nextStageLeft - b.w / 2 + nextStageW / 2,
+        y: nextStageTop - b.h / 2 + nextStageH / 2,
+      });
+    }
+    el.addEventListener("wheel", onWheelNative, { passive: false });
+    return () => el.removeEventListener("wheel", onWheelNative);
+  }, []);
 
   /* ── Lecture ───────────────────────────────────────────────────────────── */
   const step = useCallback(
@@ -121,14 +186,14 @@ export function Preview({
       lastTick.current = ts;
       const next = playhead + dt;
       if (next >= duration) {
-        setPlaying(false);
+        onPlayingChange(false);
         onSeek(duration);
         return;
       }
       onSeek(next);
       rafRef.current = requestAnimationFrame(step);
     },
-    [playhead, duration, onSeek]
+    [playhead, duration, onSeek, onPlayingChange]
   );
 
   useEffect(() => {
@@ -158,10 +223,10 @@ export function Preview({
       // Seule la piste de base porte le son d'origine : superposer deux bandes
       // son de plans différents produirait une bouillie.
       v.muted = muted || originalMuted || clip.track !== 0;
-      if (playing && v.paused) void v.play().catch(() => setPlaying(false));
+      if (playing && v.paused) void v.play().catch(() => onPlayingChange(false));
       if (!playing && !v.paused) v.pause();
     }
-  }, [active, playing, volume, muted, originalMuted]);
+  }, [active, playing, volume, muted, originalMuted, onPlayingChange]);
 
   /* ── Pistes son ajoutées ───────────────────────────────────────────────── */
   // L'aperçu ne pilotait QUE l'élément vidéo : volume, rognage et fondus se
@@ -207,6 +272,7 @@ export function Preview({
     if (!onLayerChange) return;
     e.stopPropagation();
     onSelect(sel);
+    onDragStart?.();
     drag.current = { mode: "move", sel, ox: l.x, oy: l.y, sx: e.clientX, sy: e.clientY };
     (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
   }
@@ -249,6 +315,9 @@ export function Preview({
   }
 
   function endDrag() {
+    // Referme le geste ouvert par startMove/onResizeStart/onRotateStart —
+    // jamais un simple panoramique de la vue, qui ne touche pas au projet.
+    if (drag.current && drag.current.mode !== "pan") onDragEnd?.();
     drag.current = null;
     setGuides({ x: null, y: null });
   }
@@ -277,7 +346,6 @@ export function Preview({
       {/* Scène */}
       <div
         ref={boxRef}
-        onWheel={onWheel}
         onPointerMove={onPointerMove}
         onPointerUp={endDrag}
         onPointerLeave={endDrag}
@@ -418,11 +486,13 @@ export function Preview({
               frame={frame}
               onResizeStart={(e, sel, ow, oh) => {
                 e.stopPropagation();
+                onDragStart?.();
                 drag.current = { mode: "resize", sel, ow, oh, sx: e.clientX, sy: e.clientY };
                 (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
               }}
               onRotateStart={(e, sel, cx, cy, or) => {
                 e.stopPropagation();
+                onDragStart?.();
                 const base = (Math.atan2(e.clientY - cy, e.clientX - cx) * 180) / Math.PI;
                 drag.current = { mode: "rotate", sel, cx, cy, base, or };
                 (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
@@ -433,17 +503,22 @@ export function Preview({
 
         {/* Zoom */}
         <div className="absolute bottom-2 right-2 flex items-center gap-1 rounded-md bg-black/60 px-1.5 py-1">
-          <button type="button" onClick={() => setZoom((z) => Math.max(0.25, z * 0.8))}
-            aria-label={t("Dézoomer l'aperçu", "Zoom out preview")}
-            className="h-5 w-5 rounded text-xs text-white/80 hover:text-white">−</button>
-          <button type="button" onClick={resetView}
-            className="min-w-[3rem] text-center text-2xs tabular-nums text-white/80 hover:text-white"
-            title={t("Ajuster à la fenêtre", "Fit to window")}>
-            {Math.round(zoom * 100)}%
-          </button>
-          <button type="button" onClick={() => setZoom((z) => Math.min(6, z * 1.25))}
-            aria-label={t("Zoomer l'aperçu", "Zoom in preview")}
-            className="h-5 w-5 rounded text-xs text-white/80 hover:text-white">+</button>
+          <Tooltip label={t("Dézoomer l'aperçu — molette", "Zoom out preview — wheel")}>
+            <button type="button" onClick={() => setZoom((z) => Math.max(0.25, z * 0.8))}
+              aria-label={t("Dézoomer l'aperçu", "Zoom out preview")}
+              className="h-5 w-5 rounded text-xs text-white/80 hover:text-white">−</button>
+          </Tooltip>
+          <Tooltip label={t("Ajuster à la fenêtre", "Fit to window")}>
+            <button type="button" onClick={resetView}
+              className="min-w-[3rem] text-center text-2xs tabular-nums text-white/80 hover:text-white">
+              {Math.round(zoom * 100)}%
+            </button>
+          </Tooltip>
+          <Tooltip label={t("Zoomer l'aperçu — molette", "Zoom in preview — wheel")}>
+            <button type="button" onClick={() => setZoom((z) => Math.min(6, z * 1.25))}
+              aria-label={t("Zoomer l'aperçu", "Zoom in preview")}
+              className="h-5 w-5 rounded text-xs text-white/80 hover:text-white">+</button>
+          </Tooltip>
         </div>
       </div>
 
@@ -456,36 +531,40 @@ export function Preview({
       {/* Commandes de lecture — la lecture démarre sur ACTION, donc le son est
           autorisé par le navigateur (A-03). */}
       <div className="flex shrink-0 items-center gap-2">
-        <button
-          type="button"
-          onClick={() => setPlaying((p) => !p)}
-          disabled={duration === 0}
-          aria-label={playing ? t("Pause", "Pause") : t("Lecture", "Play")}
-          className="flex h-8 w-8 items-center justify-center rounded-full bg-page text-white disabled:opacity-40"
-        >
-          {playing ? "❚❚" : "▶"}
-        </button>
+        <Tooltip label={playing ? t("Pause — Espace", "Pause — Space") : t("Lecture — Espace", "Play — Space")}>
+          <button
+            type="button"
+            onClick={() => onPlayingChange(!playing)}
+            disabled={duration === 0}
+            aria-label={playing ? t("Pause", "Pause") : t("Lecture", "Play")}
+            className="flex h-8 w-8 items-center justify-center rounded-full bg-page text-white disabled:opacity-40"
+          >
+            {playing ? "❚❚" : "▶"}
+          </button>
+        </Tooltip>
         <input
           type="range"
           min={0}
           max={Math.max(0.1, duration)}
           step={0.05}
           value={playhead}
-          onChange={(e) => { setPlaying(false); onSeek(Number(e.target.value)); }}
+          onChange={(e) => { onPlayingChange(false); onSeek(Number(e.target.value)); }}
           aria-label={t("Position de lecture", "Playback position")}
           className="flex-1 accent-page"
         />
         <span className="w-20 shrink-0 text-right text-2xs tabular-nums text-muted">
           {formatTime(playhead)} / {formatTime(duration)}
         </span>
-        <button
-          type="button"
-          onClick={() => setMuted((m) => !m)}
-          aria-label={muted ? t("Réactiver le son", "Unmute") : t("Couper le son", "Mute")}
-          className="flex h-7 w-7 items-center justify-center rounded-md text-muted ring-1 ring-hair hover:text-ink"
-        >
-          {muted ? "🔇" : "🔊"}
-        </button>
+        <Tooltip label={muted ? t("Réactiver le son", "Unmute") : t("Couper le son", "Mute")}>
+          <button
+            type="button"
+            onClick={() => setMuted((m) => !m)}
+            aria-label={muted ? t("Réactiver le son", "Unmute") : t("Couper le son", "Mute")}
+            className="flex h-7 w-7 items-center justify-center rounded-md text-muted ring-1 ring-hair hover:text-ink"
+          >
+            {muted ? "🔇" : "🔊"}
+          </button>
+        </Tooltip>
         <input
           type="range"
           min={0}

@@ -37,7 +37,9 @@
     "test:editeur": "tsx scripts/verify-media-editor.ts",
     "test:r27": "tsx scripts/verify-r27.ts",
     "test:montageproj": "tsx scripts/verify-editor-project.ts",
-    "test:montagecontrat": "tsx scripts/verify-editor-contract.ts"
+    "test:montagecontrat": "tsx scripts/verify-editor-contract.ts",
+    "test:montageparite": "tsx scripts/verify-editor-timeline-parity.ts",
+    "test:montagegeste": "tsx scripts/verify-editor-history-gesture.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.100.1",

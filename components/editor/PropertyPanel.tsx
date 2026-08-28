@@ -290,6 +290,26 @@ export function PropertyPanel({
           <Range label={t("Contour", "Stroke")} min={0} max={0.02} step={0.001} value={shape.strokeWidth}
             display={shape.strokeWidth === 0 ? t("aucun", "none") : `${(shape.strokeWidth * 100).toFixed(1)}%`}
             onChange={(v) => onChange((p) => updateShape(p, shape.id, { strokeWidth: v, stroke: v > 0 && shape.stroke === "transparent" ? "#000000" : shape.stroke }))} />
+          {/* Couleur du contour — le champ existait dans le modèle sans être
+              jamais exposé : le code forçait le noir sans que l'utilisateur
+              puisse le changer (itération 3, C-07). Même palette que le
+              remplissage, plus une option « aucun » qui rend le contour
+              transparent sans toucher à son épaisseur. */}
+          {shape.strokeWidth > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <button type="button" aria-label={t("Aucun contour", "No stroke")}
+                title={t("Aucun contour", "No stroke")}
+                onClick={() => onChange((p) => updateShape(p, shape.id, { stroke: "transparent" }))}
+                className={`flex h-5 w-5 items-center justify-center rounded-full bg-[length:8px_8px] bg-[linear-gradient(45deg,transparent_45%,rgb(var(--color-hair))_45%,rgb(var(--color-hair))_55%,transparent_55%)] ring-1 ring-hair ${shape.stroke === "transparent" ? "ring-2 ring-page" : ""}`}
+              />
+              {[...PRESET_COLORS, ...brand.palette].slice(0, 10).map((c, i) => (
+                <button key={`stroke-${c}-${i}`} type="button" aria-label={c}
+                  onClick={() => onChange((p) => updateShape(p, shape.id, { stroke: c }))}
+                  className={`h-5 w-5 rounded-full ring-1 ring-hair ${shape.stroke === c ? "ring-2 ring-page" : ""}`}
+                  style={{ background: c }} />
+              ))}
+            </div>
+          )}
         </Panel>
       )}
 

@@ -91,6 +91,8 @@ export function Timeline({
   onMoveLayer,
   onDragStart,
   onDragEnd,
+  onToggleTrackLock,
+  onToggleTrackHidden,
 }: {
   project: EditorProject;
   playhead: number;
@@ -113,6 +115,9 @@ export function Timeline({
       entrée d'historique par geste plutôt qu'une par pixel parcouru. */
   onDragStart?: () => void;
   onDragEnd?: () => void;
+  /** Verrouillage et masquage d'une piste vidéo (chapitre 8.1). */
+  onToggleTrackLock: (track: number) => void;
+  onToggleTrackHidden: (track: number) => void;
 }) {
   const t = useT();
   const [zoomIdx, setZoomIdx] = useState(1);
@@ -301,7 +306,7 @@ export function Timeline({
    * qu'à leur donner de la place. Sans cela, deux textes posés au même instant
    * se dessinaient l'un sur l'autre et le second devenait inatteignable.
    */
-  const lanes: { key: string; label: string; rows: number; blocks: React.ReactNode }[] = [];
+  const lanes: { key: string; label: React.ReactNode; rows: number; dim?: boolean; blocks: React.ReactNode }[] = [];
 
   /** Ouvre un geste continu — une seule entrée d'historique le scellera. */
   function beginDrag<T extends { type: string }>(state: T) {
@@ -312,9 +317,20 @@ export function Timeline({
   // Les pistes vidéo, de la plus haute vers la piste de base — comme à l'écran.
   for (const track of [...usedTracks(project)].reverse()) {
     const onTrack = project.clips.filter((c) => c.track === track);
+    const locked = Boolean(project.trackMeta?.[track]?.locked);
+    const hidden = Boolean(project.trackMeta?.[track]?.hidden);
     lanes.push({
       key: `video-${track}`,
-      label: track === 0 ? t("Vidéo", "Video") : `${t("Vidéo", "Video")} ${track + 1}`,
+      dim: hidden,
+      label: (
+        <TrackLabel
+          name={track === 0 ? t("Vidéo", "Video") : `${t("Vidéo", "Video")} ${track + 1}`}
+          locked={locked}
+          hidden={hidden}
+          onToggleLock={() => onToggleTrackLock(track)}
+          onToggleHidden={() => onToggleTrackHidden(track)}
+        />
+      ),
       rows: 1,
       blocks: onTrack.map((c) => (
         <ClipBlock
@@ -322,9 +338,12 @@ export function Timeline({
           clip={c}
           pxPerSec={pxPerSec}
           selected={selection?.kind === "clip" && selection.id === c.id}
+          locked={locked}
+          dim={hidden}
           onSelect={() => onSelect({ kind: "clip", id: c.id })}
-          onTrimStart={(edge, e) => beginDrag({ type: "trim", clipId: c.id, edge, startX: e.clientX })}
-          onMoveStart={(e) =>
+          onTrimStart={(edge, e) => { if (!locked) beginDrag({ type: "trim", clipId: c.id, edge, startX: e.clientX }); }}
+          onMoveStart={(e) => {
+            if (locked) return;
             beginDrag({
               type: "move",
               clipId: c.id,
@@ -332,8 +351,8 @@ export function Timeline({
               startY: e.clientY,
               fromStart: c.start,
               fromTrack: c.track,
-            })
-          }
+            });
+          }}
         />
       )),
     });
@@ -463,12 +482,21 @@ export function Timeline({
           — jamais de croissance du bloc, sinon le total dépasse la fenêtre
           dès qu'on empile pistes vidéo, textes, formes et audios (§3.2). */}
       <div
-        className="flex gap-2 overflow-y-auto overscroll-contain rounded-lg border border-hair bg-canvas/60 p-2"
+        className="relative flex gap-2 overflow-y-auto overscroll-contain rounded-lg border border-hair bg-canvas/60 p-2"
         style={{ minHeight: 180, maxHeight: "38vh" }}
         onPointerMove={onPointerMove}
         onPointerUp={endDrag}
         onPointerLeave={endDrag}
       >
+        {/* État vide explicite — un cadre nu, sans le moindre repère, ne dit
+            pas à l'utilisateur ce qu'il doit faire (itération 3, chapitre 9,
+            point 6). */}
+        {lanes.length === 0 && (
+          <p className="pointer-events-none absolute inset-0 flex items-center justify-center px-6 text-center text-2xs text-muted">
+            {t("Ajoutez un plan vidéo ou photo pour commencer le montage.", "Add a video or photo clip to start editing.")}
+          </p>
+        )}
+
         {/* Colonne des libellés — HORS du flux temporel */}
         <div className="shrink-0 space-y-1.5">
           <div style={{ height: RULER_H }} />
@@ -476,7 +504,7 @@ export function Timeline({
             <div
               key={l.key}
               style={{ height: LANE_H * l.rows }}
-              className="flex w-14 items-center text-[9px] uppercase tracking-wide text-muted"
+              className={`flex w-16 items-center text-[9px] uppercase tracking-wide text-muted ${l.dim ? "opacity-40" : ""}`}
             >
               {l.label}
             </div>
@@ -499,7 +527,7 @@ export function Timeline({
               <div
                 key={l.key}
                 style={{ height: LANE_H * l.rows }}
-                className="relative"
+                className={`relative ${l.dim ? "opacity-40" : ""}`}
                 onPointerDown={onLanePointerDown}
               >
                 {l.blocks}
@@ -578,6 +606,8 @@ function ClipBlock({
   clip,
   pxPerSec,
   selected,
+  locked,
+  dim,
   onSelect,
   onTrimStart,
   onMoveStart,
@@ -585,6 +615,10 @@ function ClipBlock({
   clip: Clip;
   pxPerSec: number;
   selected: boolean;
+  /** Piste verrouillée — le plan se sélectionne toujours, mais ne bouge plus. */
+  locked?: boolean;
+  /** Piste masquée — indication visuelle seule, la piste reste sélectionnable. */
+  dim?: boolean;
   onSelect: () => void;
   onTrimStart: (edge: "head" | "tail", e: React.PointerEvent) => void;
   onMoveStart: (e: React.PointerEvent) => void;
@@ -594,7 +628,7 @@ function ClipBlock({
     <div
       className={`absolute inset-y-0 overflow-hidden rounded-md border text-[10px] ${
         selected ? "border-page ring-2 ring-page/40" : "border-hair"
-      } ${clip.kind === "image" ? "bg-ai-visualbg" : "bg-ai-textbg"}`}
+      } ${clip.kind === "image" ? "bg-ai-visualbg" : "bg-ai-textbg"} ${locked ? "cursor-not-allowed" : ""}`}
       style={{ left: timeToPx(clip.start, pxPerSec), width: Math.max(12, timeToPx(clip.length, pxPerSec)) }}
       onPointerDown={(e) => {
         e.stopPropagation();
@@ -603,22 +637,75 @@ function ClipBlock({
       }}
     >
       <span className="pointer-events-none block truncate px-2 py-1 text-ink">
-        {clip.kind === "image" ? "🖼" : "🎬"} {clip.length.toFixed(1)}s
+        {locked ? "🔒 " : dim ? "🚫 " : ""}{clip.kind === "image" ? "🖼" : "🎬"} {clip.length.toFixed(1)}s
         {clip.speed !== 1 && ` · ${clip.speed}×`}
       </span>
-      {/* Poignées de rognage : une par extrémité. */}
-      <span
-        role="separator"
-        aria-label={t("Rogner le début", "Trim start")}
-        onPointerDown={(e) => { e.stopPropagation(); onSelect(); onTrimStart("head", e); }}
-        className="absolute inset-y-0 left-0 w-2 cursor-ew-resize bg-page/50 hover:bg-page"
-      />
-      <span
-        role="separator"
-        aria-label={t("Rogner la fin", "Trim end")}
-        onPointerDown={(e) => { e.stopPropagation(); onSelect(); onTrimStart("tail", e); }}
-        className="absolute inset-y-0 right-0 w-2 cursor-ew-resize bg-page/50 hover:bg-page"
-      />
+      {/* Poignées de rognage : une par extrémité — retirées si la piste est
+          verrouillée, pour ne pas promettre un geste qui ne fera rien. */}
+      {!locked && (
+        <>
+          <span
+            role="separator"
+            aria-label={t("Rogner le début", "Trim start")}
+            onPointerDown={(e) => { e.stopPropagation(); onSelect(); onTrimStart("head", e); }}
+            className="absolute inset-y-0 left-0 w-2 cursor-ew-resize bg-page/50 hover:bg-page"
+          />
+          <span
+            role="separator"
+            aria-label={t("Rogner la fin", "Trim end")}
+            onPointerDown={(e) => { e.stopPropagation(); onSelect(); onTrimStart("tail", e); }}
+            className="absolute inset-y-0 right-0 w-2 cursor-ew-resize bg-page/50 hover:bg-page"
+          />
+        </>
+      )}
+    </div>
+  );
+}
+
+/** Nom de piste vidéo + verrouillage/masquage (chapitre 8.1). */
+function TrackLabel({
+  name,
+  locked,
+  hidden,
+  onToggleLock,
+  onToggleHidden,
+}: {
+  name: string;
+  locked: boolean;
+  hidden: boolean;
+  onToggleLock: () => void;
+  onToggleHidden: () => void;
+}) {
+  const t = useT();
+  return (
+    <div className="flex w-full flex-col gap-0.5">
+      <span className="truncate">{name}</span>
+      <div className="flex gap-1">
+        <Tooltip label={locked ? t("Déverrouiller la piste", "Unlock track") : t("Verrouiller la piste", "Lock track")}>
+          <button
+            type="button"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={onToggleLock}
+            aria-pressed={locked}
+            aria-label={locked ? t("Déverrouiller la piste", "Unlock track") : t("Verrouiller la piste", "Lock track")}
+            className={`flex h-3.5 w-3.5 items-center justify-center rounded text-[9px] ${locked ? "text-page" : "text-muted hover:text-ink"}`}
+          >
+            {locked ? "🔒" : "🔓"}
+          </button>
+        </Tooltip>
+        <Tooltip label={hidden ? t("Réafficher la piste", "Show track") : t("Masquer la piste", "Hide track")}>
+          <button
+            type="button"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={onToggleHidden}
+            aria-pressed={hidden}
+            aria-label={hidden ? t("Réafficher la piste", "Show track") : t("Masquer la piste", "Hide track")}
+            className={`flex h-3.5 w-3.5 items-center justify-center rounded text-[9px] ${hidden ? "text-page" : "text-muted hover:text-ink"}`}
+          >
+            {hidden ? "🚫" : "👁"}
+          </button>
+        </Tooltip>
+      </div>
     </div>
   );
 }

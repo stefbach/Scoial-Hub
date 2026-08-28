@@ -62,6 +62,7 @@ export function Preview({
   onSeek,
   onSelect,
   onLayerChange,
+  onTextEdit,
   onDragStart,
   onDragEnd,
 }: {
@@ -79,6 +80,9 @@ export function Preview({
   onSelect: (sel: TimelineSelection) => void;
   /** Manipulation directe d'un calque dans la zone de travail. */
   onLayerChange?: (sel: NonNullable<TimelineSelection>, patch: LayerPatch) => void;
+  /** Double-clic sur un texte : édition du contenu au fil de l'eau, à même
+      l'aperçu — attendu d'un banc de montage même basique (chapitre 8.1). */
+  onTextEdit?: (id: string, text: string) => void;
   /** Début / fin d'un geste continu (glisser, redimensionner, pivoter) — une
       seule entrée d'historique par geste plutôt qu'une par pixel parcouru. */
   onDragStart?: () => void;
@@ -91,6 +95,9 @@ export function Preview({
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [guides, setGuides] = useState<{ x: number | null; y: number | null }>({ x: null, y: null });
+  /** Édition d'un texte au double-clic — voir la textarea superposée plus bas. */
+  const [editingTextId, setEditingTextId] = useState<string | null>(null);
+  const [draftText, setDraftText] = useState("");
 
   const frame = FORMAT_SIZE[project.format];
   const boxRef = useRef<HTMLDivElement>(null);
@@ -440,31 +447,72 @@ export function Preview({
             ))}
 
             {/* Textes */}
-            {visibleTexts.map((l) => (
-              <div
-                key={l.id}
-                onPointerDown={(e) => startMove(e, { kind: "text", id: l.id }, l)}
-                style={layerStyle(l, {
-                  fontSize: `${l.sizePct * frame.height}px`,
-                  fontFamily: fontStack(l.font),
-                  color: l.color,
-                  fontWeight: l.bold ? 700 : 400,
-                  textAlign: l.align,
-                  lineHeight: l.lineHeight,
-                  width: l.wrapPct > 0 ? l.wrapPct * frame.width : undefined,
-                  whiteSpace: l.wrapPct > 0 ? "pre-wrap" : "pre",
-                  background: l.bg ? "rgba(0,0,0,0.5)" : "transparent",
-                  padding: l.bg ? "0 0.15em" : 0,
-                  textShadow: l.shadow ? "0 1px 3px rgba(0,0,0,0.6)" : undefined,
-                  WebkitTextStroke: l.outline ? `${l.sizePct * frame.height * 0.06}px rgba(0,0,0,0.85)` : undefined,
-                })}
-                className={`${onLayerChange ? "cursor-move" : ""} ${
-                  selectedId === l.id ? "outline outline-[3px] outline-page" : ""
-                }`}
-              >
-                {l.text}
-              </div>
-            ))}
+            {visibleTexts.map((l) =>
+              editingTextId === l.id ? (
+                // Édition au double-clic — attendu d'un banc de montage même
+                // basique (chapitre 8.1) : pas besoin de rouvrir le panneau de
+                // propriétés pour corriger une faute de frappe.
+                <textarea
+                  key={l.id}
+                  autoFocus
+                  value={draftText}
+                  onFocus={(e) => e.currentTarget.select()}
+                  onChange={(e) => setDraftText(e.target.value)}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onBlur={() => { onTextEdit?.(l.id, draftText); setEditingTextId(null); }}
+                  onKeyDown={(e) => {
+                    e.stopPropagation();
+                    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); e.currentTarget.blur(); }
+                    else if (e.key === "Escape") { e.preventDefault(); setEditingTextId(null); }
+                  }}
+                  style={layerStyle(l, {
+                    fontSize: `${l.sizePct * frame.height}px`,
+                    fontFamily: fontStack(l.font),
+                    color: l.color,
+                    fontWeight: l.bold ? 700 : 400,
+                    textAlign: l.align,
+                    lineHeight: l.lineHeight,
+                    width: l.wrapPct > 0 ? l.wrapPct * frame.width : `${Math.max(4, draftText.length)}ch`,
+                    background: "rgba(0,0,0,0.55)",
+                    padding: "0 0.15em",
+                    border: "1px dashed rgba(255,255,255,0.6)",
+                    resize: "none",
+                    outline: "none",
+                  })}
+                  className="min-h-[1.4em]"
+                />
+              ) : (
+                <div
+                  key={l.id}
+                  onPointerDown={(e) => startMove(e, { kind: "text", id: l.id }, l)}
+                  onDoubleClick={(e) => {
+                    e.stopPropagation();
+                    onSelect({ kind: "text", id: l.id });
+                    setDraftText(l.text);
+                    setEditingTextId(l.id);
+                  }}
+                  style={layerStyle(l, {
+                    fontSize: `${l.sizePct * frame.height}px`,
+                    fontFamily: fontStack(l.font),
+                    color: l.color,
+                    fontWeight: l.bold ? 700 : 400,
+                    textAlign: l.align,
+                    lineHeight: l.lineHeight,
+                    width: l.wrapPct > 0 ? l.wrapPct * frame.width : undefined,
+                    whiteSpace: l.wrapPct > 0 ? "pre-wrap" : "pre",
+                    background: l.bg ? "rgba(0,0,0,0.5)" : "transparent",
+                    padding: l.bg ? "0 0.15em" : 0,
+                    textShadow: l.shadow ? "0 1px 3px rgba(0,0,0,0.6)" : undefined,
+                    WebkitTextStroke: l.outline ? `${l.sizePct * frame.height * 0.06}px rgba(0,0,0,0.85)` : undefined,
+                  })}
+                  className={`${onLayerChange ? "cursor-move" : ""} ${
+                    selectedId === l.id ? "outline outline-[3px] outline-page" : ""
+                  }`}
+                >
+                  {l.text}
+                </div>
+              )
+            )}
 
             {/* Repères d'alignement */}
             {guides.x !== null && (

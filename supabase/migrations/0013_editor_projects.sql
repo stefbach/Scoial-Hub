@@ -10,9 +10,15 @@
 --
 -- Elle est accédée via le client SESSION (lib/supabase/server.ts#createClient,
 -- clé anon + cookies), pas le client service-role : sans policy, RLS activée
--- bloquerait alors tout accès, y compris légitime. On applique donc la même
--- isolation par organisation que les autres tables sh_* rattachées à une
--- société (0005_tenant_isolation_identity.sql).
+-- bloquerait alors tout accès, y compris légitime.
+--
+-- La policy reprend le modèle d'accès PAR SOCIÉTÉ posé par 0006_rbac.sql —
+-- pas le simple `company_in_my_org` des tables antérieures au RBAC — parce que
+-- c'est celui que suit réellement `requireCompanyAccess`/`getEffectiveMode`
+-- (lib/auth/guard.ts, lib/repositories/access.ts) à la porte des routes API :
+-- un octroi explicite dans sh_company_access, ou l'appartenance active à
+-- l'organisation de la société. Utiliser l'ancien helper ici aurait bloqué en
+-- RLS un accès que la garde applicative venait d'autoriser.
 
 create table if not exists public.sh_editor_projects (
   id          uuid primary key default gen_random_uuid(),
@@ -34,6 +40,27 @@ create index if not exists sh_editor_projects_company_idx
 alter table public.sh_editor_projects enable row level security;
 
 drop policy if exists sh_editor_projects_rw on public.sh_editor_projects;
-create policy sh_editor_projects_rw on public.sh_editor_projects for all
-  using (public.company_in_my_org(company_id))
-  with check (public.company_in_my_org(company_id));
+drop policy if exists sh_editor_projects_access on public.sh_editor_projects;
+create policy sh_editor_projects_access on public.sh_editor_projects for all
+  using (
+    exists (
+      select 1 from public.sh_company_access a
+      where a.company_id = sh_editor_projects.company_id and a.user_id = auth.uid()
+    )
+    or exists (
+      select 1 from public.sh_companies c
+      join public.sh_memberships m on m.org_id = c.org_id
+      where c.id = sh_editor_projects.company_id and m.user_id = auth.uid() and m.status = 'active'
+    )
+  )
+  with check (
+    exists (
+      select 1 from public.sh_company_access a
+      where a.company_id = sh_editor_projects.company_id and a.user_id = auth.uid()
+    )
+    or exists (
+      select 1 from public.sh_companies c
+      join public.sh_memberships m on m.org_id = c.org_id
+      where c.id = sh_editor_projects.company_id and m.user_id = auth.uid() and m.status = 'active'
+    )
+  );

@@ -7,7 +7,7 @@
 // l'overlay ferment (fournis par components/ui/Modal).
 
 import { Modal } from "@/components/ui/Modal";
-import { useT } from "@/lib/i18n";
+import { useLang, useT } from "@/lib/i18n";
 import type { Decision, Network } from "@/lib/pilotage";
 
 export const NET_LABEL: Record<Network, { label: string; color: string }> = {
@@ -21,6 +21,17 @@ export const AGENT_LABEL: Record<string, string> = {
   media_buyer: "Media Buyer", analyst: "Analyste", compliance: "Conformité",
 };
 
+/** Mêmes agents, libellés anglais — l'interface en anglais ne doit rien laisser en français. */
+export const AGENT_LABEL_EN: Record<string, string> = {
+  strategist: "Strategist", copywriter: "Copywriter", creative: "Creative",
+  media_buyer: "Media Buyer", analyst: "Analyst", compliance: "Compliance",
+};
+
+/** Libellé d'agent dans la langue courante. */
+export function agentLabel(agent: string, lang: "fr" | "en"): string {
+  return (lang === "en" ? AGENT_LABEL_EN[agent] : AGENT_LABEL[agent]) ?? agent;
+}
+
 export function RecommendationModal({
   decision,
   onClose,
@@ -31,6 +42,7 @@ export function RecommendationModal({
   onSetStatus: (id: string, status: Decision["status"]) => void;
 }) {
   const t = useT();
+  const { lang } = useLang();
   return (
     <Modal open={!!decision} onClose={onClose} width="max-w-lg">
       {decision && (
@@ -52,7 +64,7 @@ export function RecommendationModal({
 
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <span className="rounded-md bg-page/10 px-1.5 py-0.5 text-2xs font-semibold text-page">
-              {AGENT_LABEL[decision.agent] ?? decision.agent}
+              {agentLabel(decision.agent, lang)}
             </span>
             {decision.channel && decision.channel !== "sea" && (
               <span className="text-2xs font-medium" style={{ color: NET_LABEL[decision.channel].color }}>

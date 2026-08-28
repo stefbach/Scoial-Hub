@@ -86,7 +86,16 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         const { getMetaContext } = await import("@/lib/connectors/meta-pages");
         const prev = (await getMetaContext(companyId)).pageId;
         const page = pickPageForCompany(pages, name, prev);
-        if (page) await storeMetaConnections(companyId, page, tokenSet.accessToken);
+        if (page) {
+          await storeMetaConnections(companyId, page, tokenSet.accessToken);
+        } else {
+          // Sans Page identifiable, on ne laissait AUCUNE trace : l'utilisateur
+          // revenait sur un connecteur « Non configuré » sans explication. On
+          // conserve désormais le token utilisateur pour qu'il puisse choisir
+          // sa Page depuis Mes Pages.
+          const { storeUnpickedMetaConnection } = await import("@/lib/connectors/meta-pages");
+          await storeUnpickedMetaConnection(uuid, tokenSet.accessToken, tokenSet.accountName);
+        }
       } catch (e) {
         console.warn("[Instagram callback] channel_connection:", e);
       }

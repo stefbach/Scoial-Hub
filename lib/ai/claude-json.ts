@@ -56,6 +56,45 @@ export interface CallClaudeJSONResult<T> {
   data: T | null;
   /** Message d'erreur lisible si `data` est null (modèle invalide, JSON…). */
   error?: string;
+  /**
+   * Texte brut renvoyé par le modèle, conservé même quand le parsing échoue.
+   * Permet à l'appelant de RÉCUPÉRER un champ utile d'une réponse tronquée
+   * (cf. `extractJsonString`) plutôt que de tout jeter.
+   */
+  raw?: string;
+}
+
+/**
+ * Extrait la valeur d'un champ chaîne de premier niveau dans un JSON même
+ * INVALIDE ou tronqué (ex. réponse coupée par max_tokens).
+ *
+ * Utile parce que l'échec de parsing porte presque toujours sur la FIN de la
+ * réponse — les gros objets structurés — alors que le champ vraiment attendu
+ * par l'utilisateur (une phrase de réponse) se trouve au début et est, lui,
+ * parfaitement intact.
+ */
+export function extractJsonString(raw: string, key: string): string | null {
+  const start = raw.indexOf(`"${key}"`);
+  if (start < 0) return null;
+  const colon = raw.indexOf(":", start + key.length + 2);
+  if (colon < 0) return null;
+  const open = raw.indexOf('"', colon + 1);
+  if (open < 0) return null;
+  let out = "";
+  let esc = false;
+  for (let i = open + 1; i < raw.length; i++) {
+    const ch = raw[i];
+    if (esc) {
+      out += ch === "n" ? "\n" : ch === "t" ? "\t" : ch === "r" ? "" : ch;
+      esc = false;
+      continue;
+    }
+    if (ch === "\\") { esc = true; continue; }
+    if (ch === '"') return out.trim() || null;
+    out += ch;
+  }
+  // Chaîne jamais refermée (troncature en plein milieu) : on garde ce qu'on a.
+  return out.trim() || null;
 }
 
 /**
@@ -118,7 +157,7 @@ export async function callClaudeJSONResult<T>(
     if (!jsonMatch) {
       const stop = (message as { stop_reason?: string }).stop_reason;
       console.warn(`[callClaudeJSON] aucun JSON (stop_reason=${stop}):`, rawText.slice(0, 160));
-      return { data: null, error: `no JSON in response (stop_reason=${stop})` };
+      return { data: null, error: `no JSON in response (stop_reason=${stop})`, raw: rawText };
     }
 
     // Tentatives en cascade, de la plus fidèle à la plus permissive :
@@ -139,7 +178,7 @@ export async function callClaudeJSONResult<T>(
     }
     const stop = (message as { stop_reason?: string }).stop_reason;
     console.warn(`[callClaudeJSON] JSON non parsable (stop_reason=${stop}):`, candidate.slice(0, 220));
-    return { data: null, error: `unparsable JSON (stop_reason=${stop})` };
+    return { data: null, error: `unparsable JSON (stop_reason=${stop})`, raw: rawText };
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     console.error("[callClaudeJSON] appel IA échoué:", message);

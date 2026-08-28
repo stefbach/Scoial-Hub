@@ -21,6 +21,7 @@ import { StudioDistribution } from "@/components/studio/StudioDistribution";
 import { FORMATS, GROUPS, SOCIAL_DECLINE_IDS, coverRect, containRect, type Format } from "@/lib/affiche/layout";
 import { IconFrame } from "@/components/visual/Icons";
 import type { BrandKit } from "@/lib/brand-kit/types";
+import { brandPromptHints } from "@/lib/brand-kit/prompt";
 
 const TEXT_COLORS = ["#ffffff", "#0f172a", "#60a5fa", "#5b2d8e", "#be123c", "#f59e0b"];
 
@@ -91,6 +92,12 @@ export default function StudioAffichePage() {
   const [promptHints, setPromptHints] = useState<string>("");
   const [brandKit, setBrandKit] = useState<BrandKit | null>(null);
 
+  // Directive de style dérivée de TOUTE l'identité enregistrée (palette de la
+  // charte, style, ton, direction photo), et pas seulement du champ rempli par
+  // l'analyse vision : une affiche doit toujours ressembler à la marque
+  // (recette R24 #10).
+  const brandStyle = brandPromptHints(brandKit) || promptHints;
+
   const [headline, setHeadline] = useState("");
   const [subtitle, setSubtitle] = useState("");
   const [color, setColor] = useState("#ffffff");
@@ -100,6 +107,8 @@ export default function StudioAffichePage() {
 
   const [note, setNote] = useState<string | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  /** Vrai dès que l'utilisateur choisit une couleur : sa décision prime. */
+  const colorPicked = useRef(false);
 
   // ── Zoom & déplacement de l'aperçu (#23) ────────────────────────────────────
   const [zoom, setZoom] = useState(1);
@@ -146,7 +155,16 @@ export default function StudioAffichePage() {
   // ── Génération du fond par IA ───────────────────────────────────────────────
   // `o` permet au copilote de générer immédiatement avec SES valeurs (axe :
   // « le copilote déclenche la génération »), sans attendre le re-render React.
+  // Aucune société active (sentinelle "" avant hydratation / espace vierge) :
+  // les API par-société répondraient 400 — on explique au lieu d'échouer en silence.
+  const noCompanyNote = () =>
+    setNote(t(
+      "Aucune société active : sélectionnez ou créez d'abord une société (menu Sociétés).",
+      "No active company: select or create a company first (Companies menu)."
+    ));
+
   async function generateBackground(o?: { prompt?: string; model?: string; ar?: string }) {
+    if (!companyId) { noCompanyNote(); return; }
     setGenerating(true); setNote(null);
     try {
       const effPrompt = o?.prompt ?? prompt;
@@ -155,7 +173,7 @@ export default function StudioAffichePage() {
         // companyId → l'image générée est PERSISTÉE (stockage durable + médiathèque).
         // Sans lui, le fond restait une URL Replicate éphémère (~1 h) : la retouche
         // qui la prend en entrée échouait dès l'expiration.
-        body: JSON.stringify({ companyId, prompt: [effPrompt || `affiche professionnelle pour ${company.name}`, promptHints].filter(Boolean).join(". "), format: o?.ar ?? format.ar, n: 1, model: o?.model ?? modelId }),
+        body: JSON.stringify({ companyId, prompt: [effPrompt || `affiche professionnelle pour ${company.name}`, brandStyle].filter(Boolean).join(". "), format: o?.ar ?? format.ar, n: 1, model: o?.model ?? modelId }),
       });
       const d = await r.json();
       if (!r.ok) { setNote(d.error || t("Échec de génération.", "Generation failed.")); return; }
@@ -182,12 +200,13 @@ export default function StudioAffichePage() {
 
   // ── Prompt généré par l'IA (puis utilisé pour générer l'image) ──────────────
   async function suggestPrompt() {
+    if (!companyId) { noCompanyNote(); return; }
     setSuggesting(true); setNote(null);
     try {
       const r = await fetch("/api/ai/suggest-image-prompt", {
         method: "POST", headers: { "Content-Type": "application/json" },
         // `language` : le prompt suggéré doit sortir dans la langue de l'UI.
-        body: JSON.stringify({ companyId, brief: [prompt, promptHints].filter(Boolean).join(" — "), format: format.label, kind: format.print ? "affiche" : "visuel réseau social", language: lang }),
+        body: JSON.stringify({ companyId, brief: [prompt, brandStyle].filter(Boolean).join(" — "), format: format.label, kind: format.print ? "affiche" : "visuel réseau social", language: lang }),
       });
       const d = await r.json();
       if (d.prompt) setPrompt(d.prompt);
@@ -401,6 +420,7 @@ export default function StudioAffichePage() {
   async function saveToLibrary() {
     const canvas = canvasRef.current;
     if (!canvas) return;
+    if (!companyId) { noCompanyNote(); return; }
     setSavingLib(true); setNote(null);
     try {
       const blob: Blob | null = await new Promise((res) => canvas.toBlob((b) => res(b), "image/png"));
@@ -422,6 +442,7 @@ export default function StudioAffichePage() {
   const declineSet = FORMATS.filter((f) => SOCIAL_DECLINE_IDS.includes(f.id));
   async function declineAll() {
     if (declining) return;
+    if (!companyId) { noCompanyNote(); return; }
     if (!bgImg && !headline && !subtitle) { setNote(t("Composez d'abord l'affiche (fond ou texte).", "Compose the poster first (background or text).")); return; }
     setDeclining(true); setDeclineDone(0); setNote(null);
     let ok = 0;
@@ -475,6 +496,7 @@ export default function StudioAffichePage() {
 
   async function declineAds() {
     if (decliningAds || declining) return;
+    if (!companyId) { noCompanyNote(); return; }
     if (!bgUrl) { setNote(t("Générez d'abord un fond (IA) pour décliner en pub plein cadre.", "Generate a background (AI) first to create full-frame ads.")); return; }
     setDecliningAds(true); setAdsDone(0); setNote(null);
     let okIA = 0;
@@ -638,6 +660,13 @@ export default function StudioAffichePage() {
                 <input type="file" accept="image/*" className="hidden" onChange={(e) => onUpload(e.target.files?.[0], "bg")} />
               </label>
             </div>
+            {/* L'utilisateur doit savoir si son identité est réellement prise
+                en compte — et sinon, quoi faire pour qu'elle le soit. */}
+            <p className="text-2xs text-muted">
+              {brandStyle
+                ? t(`🎨 Calibré sur l'identité de ${company.name} (palette, style et ton enregistrés).`, `🎨 Calibrated on ${company.name}'s identity (saved palette, style and tone).`)
+                : t("🎨 Aucune identité enregistrée : renseignez le brand kit ci-dessous pour que les visuels suivent votre marque.", "🎨 No saved identity: fill in the brand kit below so the visuals follow your brand.")}
+            </p>
             {generating && <BusyHint label={t("Création du visuel…", "Creating the visual…")} eta={t("~15–40 s", "~15–40 s")} />}
           </StudioStep>
 
@@ -695,10 +724,15 @@ export default function StudioAffichePage() {
             companyId={companyId}
             brandName={company.name}
             textColor={color}
-            onPickColor={setColor}
+            onPickColor={(hex) => { colorPicked.current = true; setColor(hex); }}
             onLogo={onBrandLogo}
             onPromptHints={setPromptHints}
-            onKit={(k) => setBrandKit(k)}
+            onKit={(k) => {
+              setBrandKit(k);
+              // Tant que l'utilisateur n'a pas choisi lui-même une couleur, le
+              // texte de l'affiche prend celle recommandée par la marque.
+              if (!colorPicked.current && k.recommendedTextColor) setColor(k.recommendedTextColor);
+            }}
           />
 
           <button onClick={exportPng} className="btn-primary w-full">{t("⬇︎ Télécharger (PNG haute déf)", "⬇︎ Download (high-res PNG)")}</button>

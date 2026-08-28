@@ -4,6 +4,7 @@
 import { createAdminClient } from "@/lib/supabase/server";
 import { resolveCompanyUuid } from "@/lib/repositories/resolve-company";
 import { isSafeRemoteUrl } from "@/lib/security/url-guard";
+import { isWebpUrl, isWebpBytes, toJpeg } from "@/lib/media/image-format";
 
 export interface MediaAsset {
   url: string;
@@ -48,11 +49,53 @@ export async function persistRemoteMedia(
     if (!uuid) return url;
     const resp = await fetch(url);
     if (!resp.ok) return url;
-    const ct = resp.headers.get("content-type") || (kind === "video" ? "video/mp4" : "image/png");
+    let ct = resp.headers.get("content-type") || (kind === "video" ? "video/mp4" : "image/png");
+    let buf: Buffer = Buffer.from(await resp.arrayBuffer());
+    // WebP → JPEG dès la persistance : LinkedIn (JPG/PNG/GIF) et Instagram
+    // (JPEG) refusent le WebP — un visuel stocké en WebP partirait sans image.
+    if (kind === "image" && isWebpBytes(buf)) {
+      try {
+        buf = await toJpeg(buf);
+        ct = "image/jpeg";
+      } catch { /* conversion impossible → on stocke tel quel */ }
+    }
     const ext = extFromContentType(ct, kind);
-    const buf = Buffer.from(await resp.arrayBuffer());
     const path = `${uuid}/persist/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
     const { error } = await sb.storage.from(STORAGE_BUCKET).upload(path, buf, { contentType: ct, upsert: true });
+    if (error) return url;
+    const { data } = sb.storage.from(STORAGE_BUCKET).getPublicUrl(path);
+    return data?.publicUrl || url;
+  } catch {
+    return url;
+  }
+}
+
+/**
+ * Garantit qu'une URL d'image est PUBLIABLE sur les réseaux (LinkedIn,
+ * Instagram, Facebook) : si elle pointe vers un WebP — format refusé par ces
+ * APIs — l'image est convertie en JPEG, rehébergée sur le bucket public, et la
+ * nouvelle URL est renvoyée. Sinon (ou en cas d'échec), l'URL d'origine est
+ * renvoyée telle quelle. Couvre les posts programmés AVANT le passage de la
+ * génération IA au JPEG, dont le média en base référence encore un .webp.
+ */
+export async function ensurePublishableImageUrl(
+  companyId: string,
+  url: string
+): Promise<string> {
+  if (!url || !isWebpUrl(url)) return url;
+  if (!isSafeRemoteUrl(url)) return url;
+  try {
+    const sb = createAdminClient();
+    if (!sb) return url;
+    const uuid = await resolveCompanyUuid(companyId);
+    if (!uuid) return url;
+    const resp = await fetch(url);
+    if (!resp.ok) return url;
+    const jpeg = await toJpeg(Buffer.from(await resp.arrayBuffer()));
+    const path = `${uuid}/persist/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;
+    const { error } = await sb.storage
+      .from(STORAGE_BUCKET)
+      .upload(path, jpeg, { contentType: "image/jpeg", upsert: true });
     if (error) return url;
     const { data } = sb.storage.from(STORAGE_BUCKET).getPublicUrl(path);
     return data?.publicUrl || url;

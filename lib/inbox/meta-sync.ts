@@ -3,6 +3,7 @@
 // réponses vers la plateforme.
 // Utilise le token de PAGE stocké pour la société (cf. meta-pages.getMetaContext).
 
+import { signFormBody, withAppSecretProof } from "@/lib/connectors/meta-appsecret";
 import { getMetaContext } from "@/lib/connectors/meta-pages";
 import { ingestMessage } from "@/lib/repositories/inbox";
 import type { InboxChannel } from "@/lib/inbox/types";
@@ -28,7 +29,9 @@ async function gget(
   try {
     const sep = path.includes("?") ? "&" : "?";
     const res = await fetch(
-      `https://graph.facebook.com/${V}/${path}${sep}access_token=${encodeURIComponent(token)}`,
+      withAppSecretProof(
+        `https://graph.facebook.com/${V}/${path}${sep}access_token=${encodeURIComponent(token)}`
+      ),
       { cache: "no-store" }
     );
     const j = (await res.json()) as Record<string, unknown>;
@@ -50,7 +53,11 @@ export interface SyncResult {
   scanned: number;
   available: boolean;
   comments: number;
+  /** Total des messages privés importés (Messenger + Instagram). */
   dms: number;
+  /** Détail par plateforme — un « 0 côté Instagram » doit être visible. */
+  dmsMessenger: number;
+  dmsInstagram: number;
   reviews: number;
   note?: string;
 }
@@ -72,7 +79,7 @@ async function gpaged(
     if (!next || data.length === 0) break;
     guard++;
     try {
-      const res = await fetch(next, { cache: "no-store" });
+      const res = await fetch(withAppSecretProof(next), { cache: "no-store" });
       page = (await res.json()) as Record<string, unknown>;
       if ((page as { error?: unknown }).error) break;
     } catch {
@@ -98,7 +105,7 @@ async function drainEdge(
   while (next && guard < maxPages) {
     guard++;
     try {
-      const res = await fetch(next, { cache: "no-store" });
+      const res = await fetch(withAppSecretProof(next), { cache: "no-store" });
       const j = (await res.json()) as GraphEdge & { error?: { message?: string } };
       if (j.error) {
         if (j.error.message) errs?.push(j.error.message);
@@ -191,11 +198,15 @@ export async function syncMetaComments(companyId: string, budgetMs = 48_000): Pr
   const ctx = await getMetaContext(companyId);
   const token = ctx.pageToken;
   if (!token) {
-    return { imported: 0, scanned: 0, comments: 0, dms: 0, reviews: 0, available: false, note: "Page Meta non connectée." };
+    return {
+      imported: 0, scanned: 0, comments: 0, dms: 0, dmsMessenger: 0, dmsInstagram: 0,
+      reviews: 0, available: false, note: "Page Meta non connectée.",
+    };
   }
 
   let comments = 0;
-  let dms = 0;
+  let dmsMessenger = 0;
+  let dmsInstagram = 0;
   let reviews = 0;
   let scanned = 0;
   const errs: string[] = [];
@@ -269,7 +280,8 @@ export async function syncMetaComments(companyId: string, budgetMs = 48_000): Pr
         if (verdict === "other") {
           const label = ctx.pageName ? `« ${ctx.pageName} »` : ctx.pageId;
           return {
-            imported: 0, scanned: 0, comments: 0, dms: 0, reviews: 0, available: true,
+            imported: 0, scanned: 0, comments: 0, dms: 0, dmsMessenger: 0, dmsInstagram: 0,
+            reviews: 0, available: true,
             note:
               `Import bloqué : la Page connectée à cette société (${label}) appartient à une autre de vos sociétés — ` +
               `importer ici mélangerait les boîtes de réception. Allez dans « Mes Pages & données » et sélectionnez la Page ` +
@@ -329,7 +341,7 @@ export async function syncMetaComments(companyId: string, budgetMs = 48_000): Pr
       if (!next || data.length === 0) break;
       guard++;
       try {
-        const res = await fetch(next, { cache: "no-store" });
+        const res = await fetch(withAppSecretProof(next), { cache: "no-store" });
         page = (await res.json()) as Record<string, unknown>;
         if ((page as { error?: { message?: string } }).error) {
           const msg = (page as { error?: { message?: string } }).error?.message;
@@ -463,7 +475,7 @@ export async function syncMetaComments(companyId: string, budgetMs = 48_000): Pr
       }
       {
         const n = await ingestAll(inputs);
-        dms += n;
+        dmsMessenger += n;
       }
     }
   }
@@ -808,14 +820,26 @@ export async function syncMetaComments(companyId: string, budgetMs = 48_000): Pr
     }
   }
 
-  // ── Instagram DM : conversations privées (via la Page, platform=instagram) ──
+  // ── Instagram DM : conversations privées (platform=instagram) ───────────────
+  // Deux nœuds servent cet edge selon la configuration du compte : celui de la
+  // PAGE liée (cas documenté du Messenger Platform) et celui du compte IG
+  // lui-même. Un compte qui ne répond que sur le second renvoyait ici une liste
+  // vide sans erreur — d'où des DM Instagram « jamais synchronisés ».
+  const igDmDiag = { attempted: false, conversations: 0, error: "" };
   async function igDms(): Promise<void> {
-    const igConvos = await gpaged(
-      `${ctx.pageId}/conversations?platform=instagram&fields=updated_time,messages.limit(25){id,message,from,created_time}&limit=50`,
-      token!,
-      3,
-      errs
-    );
+    igDmDiag.attempted = true;
+    const local: string[] = [];
+    const fields = "fields=updated_time,messages.limit(25){id,message,from,created_time}";
+    let igConvos: Array<Record<string, unknown>> = [];
+    for (const node of [ctx.pageId, ctx.igId].filter(Boolean) as string[]) {
+      igConvos = await gpaged(`${node}/conversations?platform=instagram&${fields}&limit=50`, token!, 3, local);
+      if (igConvos.length > 0) break;
+    }
+    igDmDiag.conversations = igConvos.length;
+    // L'erreur n'est retenue que si AUCUN nœud n'a rien renvoyé : sinon un
+    // premier nœud muet ferait passer une synchronisation réussie pour un échec.
+    if (igConvos.length === 0 && local.length > 0) igDmDiag.error = local[local.length - 1];
+    errs.push(...local);
     for (const conv of igConvos) {
       if (timeUp()) return;
       const msgs = await drainEdge(conv.messages as GraphEdge | undefined, 3, errs);
@@ -841,7 +865,7 @@ export async function syncMetaComments(companyId: string, budgetMs = 48_000): Pr
       }
       {
         const n = await ingestAll(inputs);
-        dms += n;
+        dmsInstagram += n;
       }
     }
   }
@@ -858,10 +882,12 @@ export async function syncMetaComments(companyId: string, budgetMs = 48_000): Pr
       const res = await fetch(`https://graph.facebook.com/${V}/${ctx.pageId}/subscribed_apps`, {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({
-          subscribed_fields: "feed,messages,message_echoes",
-          access_token: token!,
-        }).toString(),
+        body: signFormBody(
+          new URLSearchParams({
+            subscribed_fields: "feed,messages,message_echoes",
+            access_token: token!,
+          })
+        ).toString(),
       });
       const j = (await res.json()) as { success?: boolean; error?: { message?: string } };
       if (j.error?.message) errs.push(`Webhook non abonné : ${j.error.message}`);
@@ -929,6 +955,21 @@ export async function syncMetaComments(companyId: string, budgetMs = 48_000): Pr
       `Comptes → reconnecter Facebook → cocher cette Page.` +
       (note ? ` ${note}` : "");
   }
+  // Instagram connecté mais AUCUNE conversation privée renvoyée : c'est le
+  // symptôme silencieux le plus fréquent de la messagerie IG. Meta ne renvoie
+  // pas d'erreur quand l'accès aux messages n'est pas autorisé côté compte
+  // Instagram — la liste est simplement vide. On nomme donc les deux réglages
+  // qui conditionnent cet accès plutôt que de laisser croire à une boîte vide.
+  if (igDmDiag.attempted && igDmDiag.conversations === 0) {
+    note =
+      (igDmDiag.error
+        ? `Messages privés Instagram illisibles : ${igDmDiag.error}. `
+        : `Aucune conversation privée Instagram renvoyée par Meta. `) +
+      `Deux réglages les conditionnent : la permission instagram_manage_messages sur le token ` +
+      `(Comptes → reconnecter Facebook) et, dans l'application Instagram, Paramètres → ` +
+      `Messages et réponses aux stories → Outils connectés → « Autoriser l'accès aux messages ».` +
+      (note ? ` ${note}` : "");
+  }
   if (missing.length > 0) {
     note =
       `Permissions Meta manquantes sur le token actuel : ${missing.join(", ")}. ` +
@@ -949,13 +990,16 @@ export async function syncMetaComments(companyId: string, budgetMs = 48_000): Pr
   if (sharedPageWarning) {
     note = sharedPageWarning + (note ? ` ${note}` : "");
   }
-  console.warn("[inbox/sync]", JSON.stringify({ companyId, comments, dms, reviews, scanned, partial, siblings: [...siblingPages].slice(0, 5), ads: adStats, missing, errs: [...new Set(errs)].slice(0, 5) }));
+  const dms = dmsMessenger + dmsInstagram;
+  console.warn("[inbox/sync]", JSON.stringify({ companyId, comments, dmsMessenger, dmsInstagram, igDm: igDmDiag, reviews, scanned, partial, siblings: [...siblingPages].slice(0, 5), ads: adStats, missing, errs: [...new Set(errs)].slice(0, 5) }));
 
   return {
     imported: comments + dms + reviews,
     scanned,
     comments,
     dms,
+    dmsMessenger,
+    dmsInstagram,
     reviews,
     available: true,
     note,
@@ -1015,7 +1059,7 @@ async function metaPost(path: string, params: Record<string, string>): Promise<D
     const res = await fetch(`https://graph.facebook.com/${V}/${path}`, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams(params).toString(),
+      body: signFormBody(new URLSearchParams(params)).toString(),
     });
     const json = (await res.json()) as { id?: string; message_id?: string; error?: { message?: string } };
     if (json.error) return { delivered: false, error: json.error.message ?? "Erreur Meta." };

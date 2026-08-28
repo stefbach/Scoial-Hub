@@ -56,6 +56,12 @@ export interface ScrapeQuery {
   limit?: number;
   /** Auth Instagram Business Discovery (API Meta officielle, données réelles). */
   igAuth?: { businessId: string; token: string };
+  /**
+   * Langue de recherche (ISO-639-1 : "fr", "en"…). DISTINCTE de `geo`, qui est
+   * un code PAYS. Confondre les deux faisait envoyer « gb » comme langue à
+   * YouTube, qui ne connaît pas ce code — d'où zéro résultat au Royaume-Uni.
+   */
+  language?: string;
 }
 
 /** Résultat d'une collecte. */

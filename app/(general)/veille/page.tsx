@@ -18,6 +18,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { ContentCard } from "@/components/veille/ContentCard";
 import { AnalysisPanel } from "@/components/veille/AnalysisPanel";
 import { CompetitorItem } from "@/components/veille/CompetitorItem";
+import { ThemeSuggestions, useBrandThemes } from "@/components/brand/ThemeSuggestions";
 import { StrategyPanel } from "@/components/strategy/StrategyPanel";
 import type { Competitor } from "@/lib/repositories/competitors";
 import type { CompetitorContent } from "@/lib/scraping/types";
@@ -156,6 +157,7 @@ export default function VeillePage() {
   const [geo, setGeo] = useState(country.id);
   const [keywords, setKeywords] = useState<string[]>([]);
   const [theme, setTheme] = useState("");
+  const brandThemeList = useBrandThemes(company.id);
 
   // Compétiteurs
   const [competitors, setCompetitors] = useState<Competitor[]>([]);
@@ -163,6 +165,9 @@ export default function VeillePage() {
   const [addNetwork, setAddNetwork] = useState<ScrapeNetwork>("instagram");
   const [addHandle, setAddHandle] = useState("");
   const [addName, setAddName] = useState("");
+  // Site web du concurrent : c'est souvent la seule information dont dispose
+  // l'utilisateur au moment où il le repère (R25 #7).
+  const [addWebsite, setAddWebsite] = useState("");
   const [adding, setAdding] = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
 
@@ -171,6 +176,10 @@ export default function VeillePage() {
   const [identified, setIdentified] = useState<IdentifiedCompetitor[]>([]);
   // Handles saisis à la main pour les suggestions sans handle confirmé (clé = index).
   const [editedHandles, setEditedHandles] = useState<Record<number, string>>({});
+  // Site web saisi sur une suggestion de l'IA. Le champ existait à l'ajout
+  // manuel mais pas ici : un concurrent retenu depuis la liste identifiée
+  // arrivait donc toujours sans site (R27 #6).
+  const [editedSites, setEditedSites] = useState<Record<number, string>>({});
 
   // Run
   const [running, setRunning] = useState(false);
@@ -209,6 +218,7 @@ export default function VeillePage() {
   // pour que la page soit immédiatement utilisable (bouton actif).
   useEffect(() => {
     let alive = true;
+    if (!company.id) return; // aucune société active → pas d'appel (400 sinon)
     fetch(`/api/onboarding/state?companyId=${encodeURIComponent(company.id)}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
@@ -256,6 +266,7 @@ export default function VeillePage() {
           network: addNetwork,
           handle: addHandle.trim(),
           name: addName.trim() || addHandle.trim(),
+          website: addWebsite.trim() || undefined,
           source: "manuel",
         }),
       });
@@ -264,6 +275,7 @@ export default function VeillePage() {
         setCompetitors((prev) => [data.competitor, ...prev]);
         setAddHandle("");
         setAddName("");
+        setAddWebsite("");
       }
     } finally {
       setAdding(false);
@@ -286,6 +298,7 @@ export default function VeillePage() {
           network: c.network,
           handle,
           name: c.name,
+          website: (editedSites[index] ?? "").trim() || undefined,
           source: "identifié",
         }),
       });
@@ -353,6 +366,7 @@ export default function VeillePage() {
           keywords,
           theme,
           competitorIds: competitors.map((c) => c.id),
+          language: lang,
         }),
       });
       const data = await res.json() as RunResult & { error?: string };
@@ -395,7 +409,7 @@ export default function VeillePage() {
           void fetch("/api/memory/synthesize", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ companyId: company.id }),
+            body: JSON.stringify({ companyId: company.id, language: lang }),
           })
             .catch((e) => console.warn("[veille synthesize]", e))
             .finally(() => setMemoryRefresh((n) => n + 1));
@@ -449,28 +463,12 @@ export default function VeillePage() {
   return (
     <div className="min-h-full bg-canvas">
       <div className="mx-auto max-w-6xl px-4 sm:px-6 py-6 sm:py-8 space-y-6">
-        <PageHeader
-          title={t("Veille & Marché", "Market Intelligence")}
-          actions={
-            <button
-              onClick={handleRun}
-              disabled={running || !hasEnough}
-              className="btn-primary flex items-center gap-2 disabled:opacity-50"
-            >
-              {running ? (
-                <>
-                  <Spinner />
-                  {t("Analyse en cours...", "Analysis in progress...")}
-                </>
-              ) : (
-                <>
-                  <BarIcon />
-                  {t("Lancer l'analyse", "Run analysis")}
-                </>
-              )}
-            </button>
-          }
-        />
+        {/* Le bouton d'analyse ne vit plus ici : il clôt la colonne « 1 ·
+            Collecter », là où l'on vient d'ajouter et de choisir ses
+            concurrents. En haut de page, il précédait tout ce qu'il consomme
+            (R25 #8). Une fois des résultats affichés, « Relancer » reste
+            disponible dans la barre de statut. */}
+        <PageHeader title={t("Veille & Marché", "Market Intelligence")} />
 
         {/* ── Fil conducteur : collecter → analyser → mémoire → campagne ── */}
         <FlowBanner t={t} />
@@ -511,6 +509,9 @@ export default function VeillePage() {
                   placeholder={t("ex. Mode durable, Fintech B2B...", "e.g. Sustainable fashion, B2B Fintech...")}
                   className="input"
                 />
+                {/* Thèmes déjà définis par la marque : sélectionnables en un
+                    clic, la saisie libre restant possible (R27 #4). */}
+                <ThemeSuggestions themes={brandThemeList} value={theme} onPick={setTheme} />
               </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted">{t("Mots-clés (Entrée pour valider)", "Keywords (Enter to confirm)")}</label>
@@ -554,6 +555,14 @@ export default function VeillePage() {
                   value={addName}
                   onChange={(e) => setAddName(e.target.value)}
                   placeholder={t("Nom affiché (optionnel)", "Display name (optional)")}
+                  className="input"
+                />
+                <input
+                  type="text"
+                  value={addWebsite}
+                  onChange={(e) => setAddWebsite(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleAddCompetitor()}
+                  placeholder={t("Site web (optionnel) — ex. exemple.com", "Website (optional) — e.g. example.com")}
                   className="input"
                 />
                 <button
@@ -661,6 +670,16 @@ export default function VeillePage() {
                           className="w-full rounded-md border border-hair bg-card px-2 py-1 text-2xs text-ink placeholder:text-muted/60 outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-500/20"
                         />
                       )}
+                      {/* Site web du concurrent : renseignable au moment où on
+                          le retient, comme à l'ajout manuel (R27 #6). */}
+                      <input
+                        type="text"
+                        value={editedSites[i] ?? ""}
+                        onChange={(e) => setEditedSites((prev) => ({ ...prev, [i]: e.target.value }))}
+                        onKeyDown={(e) => { if (e.key === "Enter" && canAdd) handleAddIdentified(c, i); }}
+                        placeholder={t("Site web (optionnel) — ex. exemple.com", "Website (optional) — e.g. example.com")}
+                        className="w-full rounded-md border border-hair bg-card px-2 py-1 text-2xs text-ink placeholder:text-muted/60 outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-500/20"
+                      />
                       <p className="text-2xs text-muted leading-snug">{c.rationale}</p>
                       {/* #28 — vérification directe du compte sur le réseau concerné
                           (profil si un handle est connu/saisi, sinon recherche ciblée). */}
@@ -678,6 +697,34 @@ export default function VeillePage() {
                 </div>
               )}
             </div>
+
+            {/* Fin de la colonne « Collecter » : le geste suivant, à l'endroit
+                où l'on vient de composer sa liste de concurrents (R25 #8). */}
+            <button
+              onClick={handleRun}
+              disabled={running || !hasEnough}
+              className="btn-primary flex w-full items-center justify-center gap-2 disabled:opacity-50"
+            >
+              {running ? (
+                <>
+                  <Spinner />
+                  {t("Analyse en cours...", "Analysis in progress...")}
+                </>
+              ) : (
+                <>
+                  <BarIcon />
+                  {t("Lancer l'analyse", "Run analysis")}
+                </>
+              )}
+            </button>
+            {!hasEnough && (
+              <p className="text-2xs text-muted">
+                {t(
+                  "Renseignez une thématique ou au moins un mot-clé pour lancer l'analyse.",
+                  "Enter a theme or at least one keyword to run the analysis."
+                )}
+              </p>
+            )}
           </aside>
 
           {/* ── Zone de résultats ── */}

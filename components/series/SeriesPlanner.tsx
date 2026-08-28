@@ -16,6 +16,9 @@ import { Spinner } from "@/components/ui/Spinner";
 import { DatePicker, TimePicker } from "@/components/ui/DateTimePicker";
 import { MediaLibraryButton } from "@/components/studio/MediaLibrary";
 import { UploadMediaButton } from "@/components/studio/UploadMediaButton";
+import { ThemeSuggestions, useBrandThemes } from "@/components/brand/ThemeSuggestions";
+import { Modal } from "@/components/ui/Modal";
+import { ImageEditor } from "@/components/studio/ImageEditor";
 import { PublishLanguageSelect } from "@/components/ui/PublishLanguageSelect";
 import { SERIES_CONFIG, type SeriesPlatform } from "@/lib/social-series";
 
@@ -66,6 +69,9 @@ export function SeriesPlanner({ platform }: { platform: SeriesPlatform }) {
 
   const [drafts, setDrafts] = useState<DraftItem[]>([{ body: "" }, { body: "" }, { body: "" }]);
   const [theme, setTheme] = useState("");
+  /** Vrai quand « Générer » a été tenté sans thème — signalé sous le champ. */
+  const [themeMissing, setThemeMissing] = useState(false);
+  const brandThemeList = useBrandThemes(companyId);
   const [count, setCount] = useState(5);
   const [seriesFormat, setSeriesFormat] = useState<"post" | "article">("post");
   // Langue de PUBLICATION (≠ langue de l'interface) ; défaut = langue de l'app.
@@ -77,6 +83,9 @@ export function SeriesPlanner({ platform }: { platform: SeriesPlatform }) {
   // occupe LE PLUS de place dans le fil, donc le moins « petit ».
   const [imgFormat, setImgFormat] = useState("4:5");
   const [genImgIdx, setGenImgIdx] = useState<number | null>(null);
+  // Élément dont le visuel est ouvert en grand (aperçu + retouche).
+  const [previewIdx, setPreviewIdx] = useState<number | null>(null);
+  const [editingVisual, setEditingVisual] = useState(false);
   const [startDate, setStartDate] = useState<Date>(() => addDays(new Date(), 1));
   const [cadence, setCadence] = useState<Cadence>("daily");
   const [batchTime, setBatchTime] = useState("09:00");
@@ -97,7 +106,15 @@ export function SeriesPlanner({ platform }: { platform: SeriesPlatform }) {
   }
 
   async function generateSeries() {
-    if (!theme.trim()) { setMsg(t("Indiquez un thème pour la série.", "Enter a theme for the series.")); return; }
+    // Sans thème, « Générer » ne faisait RIEN de visible : le message partait
+    // dans une zone d'état éloignée du champ fautif. L'erreur se signale
+    // maintenant SOUS le champ à remplir (R27 #11).
+    if (!theme.trim()) {
+      setThemeMissing(true);
+      setMsg(null);
+      return;
+    }
+    setThemeMissing(false);
     setGenerating(true); setMsg(null);
     try {
       const r = await fetch("/api/ai/social-series", {
@@ -218,9 +235,21 @@ export function SeriesPlanner({ platform }: { platform: SeriesPlatform }) {
       {/* Génération IA */}
       <div className="rounded-xl border border-hair bg-canvas p-3 space-y-2">
         <p className="section-label text-ai-text">{t("✨ Générer la série avec l'IA", "✨ Generate the series with AI")}</p>
+        {/* Thèmes déjà définis par la marque : évite de repartir d'un champ
+            vide et d'avoir à les retrouver de mémoire (R27 #12). */}
+        <ThemeSuggestions
+          themes={brandThemeList}
+          value={theme}
+          onPick={(v) => { setTheme(v); setThemeMissing(false); }}
+        />
         <div className="flex flex-wrap items-center gap-2">
-          <input value={theme} onChange={(e) => setTheme(e.target.value)}
-            placeholder={t("Thème de la série", "Series theme")} className={`${inputCls} min-w-[200px] flex-1`} />
+          <input
+            value={theme}
+            onChange={(e) => { setTheme(e.target.value); if (e.target.value.trim()) setThemeMissing(false); }}
+            aria-invalid={themeMissing}
+            placeholder={t("Thème de la série", "Series theme")}
+            className={`${inputCls} min-w-[200px] flex-1 ${themeMissing ? "border-danger-500 ring-2 ring-danger-500/20" : ""}`}
+          />
           <select value={count} onChange={(e) => setCount(Number(e.target.value))}
             className="rounded-lg border border-hair bg-canvas px-2 py-2 text-sm text-ink outline-none focus:border-primary-400">
             {[3, 4, 5, 6, 7, 8, 9, 10].map((n) => <option key={n} value={n}>{n}</option>)}
@@ -239,6 +268,15 @@ export function SeriesPlanner({ platform }: { platform: SeriesPlatform }) {
             </button>
           )}
         </div>
+
+        {themeMissing && (
+          <p role="alert" className="text-2xs font-semibold text-danger-600">
+            {t(
+              "Indiquez un thème ci-dessus pour lancer la génération — ou choisissez-en un dans les thèmes de votre marque.",
+              "Enter a theme above to start generating — or pick one from your brand themes."
+            )}
+          </p>
+        )}
 
         <div className="flex flex-wrap items-center gap-3">
           <PublishLanguageSelect value={pubLang} onChange={setPubLang} />
@@ -320,12 +358,21 @@ export function SeriesPlanner({ platform }: { platform: SeriesPlatform }) {
                 <div className="mt-2 flex flex-wrap items-center gap-2 pl-7">
                   {d.media ? (
                     <span className="relative inline-block">
-                      {(d.mediaKind ?? (isVideo ? "video" : "image")) === "video" ? (
-                        <video src={d.media} className="h-12 w-12 rounded-lg border border-hair object-cover" muted />
-                      ) : (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={d.media} alt="" className="h-12 w-12 rounded-lg border border-hair object-cover" />
-                      )}
+                      {/* Vignette de 48 px : trop petite pour juger un visuel.
+                          Un clic l'ouvre en grand, avec l'édition à portée. */}
+                      <button
+                        type="button"
+                        onClick={() => setPreviewIdx(i)}
+                        title={t("Agrandir le visuel", "Enlarge the visual")}
+                        className="block cursor-zoom-in rounded-lg ring-offset-2 ring-offset-card transition-shadow hover:ring-2 hover:ring-primary-300"
+                      >
+                        {(d.mediaKind ?? (isVideo ? "video" : "image")) === "video" ? (
+                          <video src={d.media} className="h-12 w-12 rounded-lg border border-hair object-cover" muted />
+                        ) : (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={d.media} alt="" className="h-12 w-12 rounded-lg border border-hair object-cover" />
+                        )}
+                      </button>
                       <button type="button" onClick={() => patchDraft(i, { media: null })} title={t("Retirer le visuel", "Remove visual")}
                         className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-ink text-2xs text-white">✕</button>
                     </span>
@@ -358,6 +405,60 @@ export function SeriesPlanner({ platform }: { platform: SeriesPlatform }) {
           {t("+ Ajouter un élément", "+ Add an item")}
         </button>
       </div>
+
+      {/* Visuel en grand — et retouche sur place */}
+      <Modal
+        open={previewIdx !== null && Boolean(drafts[previewIdx]?.media)}
+        onClose={() => { setPreviewIdx(null); setEditingVisual(false); }}
+        width="max-w-3xl"
+      >
+        {previewIdx !== null && drafts[previewIdx]?.media && (() => {
+          const idx = previewIdx;
+          const url = drafts[idx].media as string;
+          const kind = drafts[idx].mediaKind ?? (isVideo ? "video" : "image");
+          return (
+            <div className="space-y-3 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm font-semibold text-ink">
+                  {t(`Visuel de l'élément ${idx + 1}`, `Item ${idx + 1} visual`)}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {kind === "image" && (
+                    <button
+                      type="button"
+                      onClick={() => setEditingVisual((v) => !v)}
+                      disabled={!canEdit}
+                      className="btn-secondary text-2xs disabled:opacity-50"
+                    >
+                      {editingVisual ? t("Masquer la retouche", "Hide editing") : t("✎ Modifier l'image", "✎ Edit image")}
+                    </button>
+                  )}
+                  <a href={url} target="_blank" rel="noopener noreferrer" className="btn-secondary text-2xs">
+                    {t("Ouvrir l'original", "Open original")}
+                  </a>
+                </div>
+              </div>
+
+              {kind === "video" ? (
+                // eslint-disable-next-line jsx-a11y/media-has-caption
+                <video src={url} controls className="max-h-[65vh] w-full rounded-xl border border-hair bg-canvas object-contain" />
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={url} alt="" className="max-h-[65vh] w-full rounded-xl border border-hair bg-canvas object-contain" />
+              )}
+
+              {/* Retouche IA : le résultat remplace le visuel de CET élément. */}
+              {editingVisual && kind === "image" && (
+                <ImageEditor
+                  imageUrl={url}
+                  aspect={imgFormat}
+                  onResult={(next) => patchDraft(idx, { media: next, mediaKind: "image" })}
+                />
+              )}
+            </div>
+          );
+        })()}
+      </Modal>
 
       {/* Pinterest : board cible */}
       {cfg.needsBoard && (

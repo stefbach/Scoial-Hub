@@ -4,22 +4,22 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useCompany } from "@/lib/company-context";
 import { AgentLauncher } from "@/components/agents/AgentLauncher";
-import { useScope } from "@/lib/scope";
+import { useScope, countryLabel, countryFlag } from "@/lib/scope";
+import { AUTONOMY_LEVELS, type AutonomyLevel } from "@/lib/agents/autonomy";
 import { useLang, useT } from "@/lib/i18n";
 import { JourneyCampaignCard, zoneLabel } from "@/components/pilotage/JourneyCampaignCard";
-import { RecommendationModal, AGENT_LABEL, NET_LABEL } from "@/components/pilotage/RecommendationModal";
+import { RecommendationModal, agentLabel, NET_LABEL } from "@/components/pilotage/RecommendationModal";
 import type { Campaign } from "@/lib/types";
 import type { OnboardingState } from "@/lib/onboarding/types";
 import type { ConnectorStatus } from "@/lib/connectors/types";
 import {
-  computeNetworkKpis,
   aggregateKpis,
   computeBenchmark,
   generateDecisions,
-  generateAlerts,
   type Decision,
   type NetworkKpis,
   type Network,
+  type PilotAlert,
 } from "@/lib/pilotage";
 
 /* ── Types veille (miroir du endpoint GET /api/veille/latest) ─────────── */
@@ -37,6 +37,9 @@ interface VeilleReco {
   detail: string;
   action: string;
 }
+
+/** Le niveau de priorité est une valeur d'API (en français) : à traduire à l'affichage. */
+const PRIORITY_EN: Record<string, string> = { haute: "high", moyenne: "medium", basse: "low" };
 interface VeilleData {
   runId: string | null;
   finishedAt: string;
@@ -54,12 +57,11 @@ function fmt(n: number): string {
 export default function PilotagePage() {
   const { company } = useCompany();
   const { country, range } = useScope();
-  const market = country.label;
   const days = range ? Math.max(1, Math.round((+range.to - +range.from) / 86400000)) : 30;
 
   const t = useT();
   const { lang } = useLang();
-  const [autonomy, setAutonomy] = useState(1);
+  const [autonomy, setAutonomy] = useState<AutonomyLevel>(1);
   const [running, setRunning] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
@@ -87,6 +89,7 @@ export default function PilotagePage() {
   useEffect(() => {
     let alive = true;
     setJourney(null);
+    if (!company.id) return; // aucune société active → pas d'appel (400 sinon)
     Promise.all([
       fetch(`/api/campaigns?companyId=${encodeURIComponent(company.id)}`)
         .then((r) => (r.ok ? (r.json() as Promise<Campaign[]>) : []))
@@ -110,9 +113,21 @@ export default function PilotagePage() {
   }, [company.id, company.name]);
 
   // Zone réelle de la société : pays du parcours si définis, sinon scope global.
-  const companyZone = journey?.state?.geo?.countries?.length
-    ? zoneLabel(journey.state.geo.countries, lang)
-    : market;
+  // Le sélecteur global est une simple préférence d'affichage (France par
+  // défaut) : il ne doit pas primer sur les pays choisis pour CETTE société.
+  const zoneCountries = journey?.state?.geo?.countries ?? [];
+  const fromOnboarding = zoneCountries.length > 0;
+  const companyZone = fromOnboarding
+    ? zoneLabel(zoneCountries, lang)
+    : countryLabel(country.id, lang);
+  // Drapeau cohérent avec la zone affichée : celui du pays quand il n'y en a
+  // qu'un, un globe pour une zone multi-pays. Afficher 🇫🇷 pour une société
+  // maltaise ou britannique (défaut du sélecteur global) induisait en erreur.
+  const zoneFlag = fromOnboarding
+    ? (zoneCountries.length === 1 ? countryFlag(zoneCountries[0]) : "🌍")
+    : country.flag;
+  // Tout ce qui parle du « marché » de la société parle de SA zone.
+  const market = companyZone;
   const objective = objectiveOverride ?? t(
     `Développer la notoriété et l'acquisition de ${company.name} sur ${companyZone}`,
     `Grow awareness and acquisition for ${company.name} in ${companyZone}`
@@ -127,10 +142,31 @@ export default function PilotagePage() {
     } catch { /* ignore */ }
   }
 
-  const kpis = useMemo(() => computeNetworkKpis(company.id, market, days), [company.id, market, days]);
+  // Indicateurs et alertes calculés côté SERVEUR sur les vraies données des
+  // réseaux connectés : les tokens de Page ne doivent pas passer au navigateur.
+  // Auparavant cet écran appelait des fonctions locales qui renvoyaient zéro.
+  const [kpis, setKpis] = useState<NetworkKpis[]>([]);
+  const [alerts, setAlerts] = useState<PilotAlert[]>([]);
+  const [kpisLoading, setKpisLoading] = useState(true);
+
+  useEffect(() => {
+    let alive = true;
+    setKpisLoading(true);
+    fetch(`/api/pilotage?companyId=${encodeURIComponent(company.id)}`)
+      .then((r) => r.json())
+      .then((d: { kpis?: NetworkKpis[]; alerts?: PilotAlert[] }) => {
+        if (!alive) return;
+        setKpis(Array.isArray(d.kpis) ? d.kpis : []);
+        setAlerts(Array.isArray(d.alerts) ? d.alerts : []);
+      })
+      .catch(() => { if (alive) { setKpis([]); setAlerts([]); } })
+      .finally(() => { if (alive) setKpisLoading(false); });
+    return () => { alive = false; };
+  }, [company.id, days]);
+
   const agg = useMemo(() => aggregateKpis(kpis), [kpis]);
   const bench = useMemo(() => computeBenchmark(company.id, market, kpis), [company.id, market, kpis]);
-  const alerts = useMemo(() => generateAlerts(company.id, market, kpis), [company.id, market, kpis]);
+  void kpisLoading;
 
   const [decisions, setDecisions] = useState<Decision[]>([]);
   useEffect(() => { setDecisions(generateDecisions(company.id, market)); }, [company.id, market]);
@@ -142,7 +178,9 @@ export default function PilotagePage() {
   useEffect(() => {
     let alive = true;
     setVeilleLoading(true);
-    fetch(`/api/veille/latest?companyId=${encodeURIComponent(company.id)}`)
+    // `lang` : le contenu de veille est rédigé côté serveur — sans ce paramètre
+    // il revenait toujours en français, quelle que soit la langue de l'interface.
+    fetch(`/api/veille/latest?companyId=${encodeURIComponent(company.id)}&lang=${lang}`)
       .then((r) => r.json())
       .then((data: VeilleData) => {
         if (!alive) return;
@@ -153,8 +191,8 @@ export default function PilotagePage() {
             id: `veille-${r.id}`,
             agent: "analyst",
             title: r.titre,
-            rationale: `${r.detail}${r.action ? " — Action : " + r.action : ""}`,
-            impact: `Priorité veille : ${r.priorite}`,
+            rationale: `${r.detail}${r.action ? `${t(" — Action : ", " — Action: ")}${r.action}` : ""}`,
+            impact: t(`Priorité veille : ${r.priorite}`, `Intelligence priority: ${PRIORITY_EN[r.priorite] ?? r.priorite}`),
             status: "pending",
           })
         );
@@ -334,7 +372,7 @@ export default function PilotagePage() {
               <span className="flex h-2 w-2 shrink-0 animate-pulse rounded-full bg-success-500" />
               <span className="section-label truncate text-ink">{t("Centre de pilotage", "Steering center")} · {company.name}</span>
             </div>
-            <span className="chip shrink-0">{country.flag} {market} · {days} {t("j", "d")}</span>
+            <span className="chip shrink-0">{zoneFlag} {market} · {days} {t("j", "d")}</span>
           </div>
         </div>
         <div className="grid gap-4 p-4 sm:p-5 md:grid-cols-[1fr_auto]">
@@ -348,7 +386,7 @@ export default function PilotagePage() {
             />
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <span className="text-2xs font-medium uppercase tracking-wide text-muted">{t("Autonomie", "Autonomy")}</span>
-              {[1, 2, 3].map((lvl) => {
+              {([1, 2, 3] as const).map((lvl) => {
                 const selected = autonomy === lvl;
                 return (
                   <button
@@ -362,11 +400,17 @@ export default function PilotagePage() {
                         : "border-hair bg-canvas text-ink hover:bg-white/[0.06] hover:border-page/50"
                     }`}
                   >
-                    {t("Niv.", "Lvl.")} {lvl} {lvl === 1 ? t("· Reco", "· Reco") : lvl === 2 ? t("· Semi", "· Semi") : t("· Auto", "· Auto")}
+                    {t("Niv.", "Lvl.")} {lvl} · {t(AUTONOMY_LEVELS[lvl].shortFr, AUTONOMY_LEVELS[lvl].shortEn)}
                   </button>
                 );
               })}
             </div>
+            {/* Le niveau choisi engage ce que les agents feront SANS vous :
+                il doit être décrit en clair, pas seulement nommé. */}
+            <p className="mt-1.5 text-2xs leading-snug text-muted">
+              <span className="font-semibold text-ink">{t("Niveau", "Level")} {autonomy} :</span>{" "}
+              {t(AUTONOMY_LEVELS[autonomy].fr, AUTONOMY_LEVELS[autonomy].en)}
+            </p>
           </div>
           <div className="flex flex-col justify-end gap-2">
             <button onClick={runCycle} disabled={running} className="btn-primary w-full md:w-auto">
@@ -503,7 +547,7 @@ export default function PilotagePage() {
                   >
                     <div className="mb-1 flex flex-wrap items-center gap-2">
                       <span className="rounded-md bg-page/10 px-1.5 py-0.5 text-2xs font-semibold text-page">
-                        {AGENT_LABEL[d.agent] ?? d.agent}
+                        {agentLabel(d.agent, lang)}
                       </span>
                       {d.channel && d.channel !== "sea" && (
                         <span className="text-2xs" style={{ color: NET_LABEL[d.channel as Network].color }}>

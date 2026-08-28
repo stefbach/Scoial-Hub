@@ -169,7 +169,13 @@ export async function addOrInviteMember(
   role: OrgRole,
   access: CompanyAccessGrant[],
   invitedBy?: string
-): Promise<{ added?: boolean; invited?: boolean; emailSent?: boolean; error?: string }> {
+): Promise<{
+  added?: boolean;
+  invited?: boolean;
+  emailSent?: boolean;
+  emailFailure?: "not_configured" | "rejected" | "network";
+  error?: string;
+}> {
   if (!isSupabaseConfigured) return { error: "Supabase non configuré" };
   const sb = createAdminClient();
   if (!sb) return { error: "Supabase non configuré" };

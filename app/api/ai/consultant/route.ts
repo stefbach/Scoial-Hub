@@ -17,7 +17,7 @@ import { createAdminClient } from "@/lib/supabase/server";
 import { resolveCompanyUuid } from "@/lib/repositories/resolve-company";
 import { getBrandProfile, saveBrandProfile } from "@/lib/repositories/onboarding";
 import { getBrandKit } from "@/lib/repositories/brand-kit";
-import { callClaudeJSON } from "@/lib/ai/claude-json";
+import { callClaudeJSONResult, extractJsonString } from "@/lib/ai/claude-json";
 import { getMemoryContext, appendMemory, type MemoryEntry, type MemoryKind } from "@/lib/memory";
 import { isAiConfigured } from "@/lib/env";
 import {
@@ -174,11 +174,16 @@ export async function POST(req: NextRequest) {
       messages?: ChatMsg[];
       lock?: boolean;
       reset?: boolean;
+      /** Traduit l'ADN existant dans `language` et le renvoie COMPLET. */
+      translate?: boolean;
       dna?: BrandDna;
       language?: "fr" | "en";
     };
     const companyId = body.companyId;
     const lang: "fr" | "en" = body.language === "en" ? "en" : "fr";
+    // Nom de la langue en toutes lettres : bien plus fiable qu'un code ISO pour
+    // contraindre la langue de sortie du modèle.
+    const LANG_NAME = lang === "en" ? "ANGLAIS (English)" : "FRANÇAIS";
     if (!companyId) return NextResponse.json({ error: "companyId requis" }, { status: 400 });
 
     const guard = await requireCompanyAccess(companyId, { mode: "edit" });
@@ -208,11 +213,83 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ reset: true, profile });
     }
 
+    // ── Traduction de l'ADN dans la langue de l'interface ────────────────────
+    // Mode DÉDIÉ, et non un tour de conversation : le contrat conversationnel
+    // veut que "dna" ne contienne QUE les champs modifiés (règle 7). Demander
+    // une traduction dans ce cadre revenait à demander « qu'est-ce qui change
+    // ? » — le modèle répondait « rien » ou deux champs, la fusion non
+    // destructive gardait le reste, et le texte restait en français (R25 #2).
+    // Ici on exige l'objet COMPLET, sans historique de conversation pour ne pas
+    // ancrer le modèle dans la langue du fil.
+    if (body.translate) {
+      if (!isAiConfigured) {
+        return NextResponse.json(
+          { error: lang === "en" ? "AI not configured (ANTHROPIC_API_KEY)." : "IA non configurée (ANTHROPIC_API_KEY)." },
+          { status: 503 }
+        );
+      }
+      const source = mergeDna(existing, body.dna);
+      const toTranslate: BrandDna = {
+        summary: source.summary,
+        positioning: source.positioning,
+        mission: source.mission,
+        values: source.values,
+        keyMessage: source.keyMessage,
+        personality: source.personality,
+        tone: source.tone,
+        audience: source.audience,
+        themes: source.themes,
+        visualDirection: source.visualDirection,
+        keywords: source.keywords,
+        networkStrategies: source.networkStrategies,
+      };
+
+      const prompt = `Traduis l'ADN de marque ci-dessous en ${LANG_NAME}.
+RÈGLES :
+- Renvoie TOUS les champs présents dans l'entrée, aucun omis, aucun ajouté.
+- Conserve exactement le même sens, la même structure et le même nombre d'éléments dans les listes.
+- Traduis aussi le contenu des "networkStrategies" (angle, formats, ton, piliers, rythme, CTA), en gardant le champ "network" inchangé.
+- Un champ déjà en ${LANG_NAME} est recopié tel quel.
+- Réponds STRICTEMENT en JSON, sans texte autour, sous la forme {"dna": { ... }}.
+
+ADN à traduire :
+${JSON.stringify(toTranslate)}`;
+
+      const out = await callClaudeJSONResult<{ dna?: BrandDna }>(prompt, {
+        system: `Tu es traducteur professionnel. Tu produis du ${LANG_NAME} naturel et idiomatique, jamais du mot-à-mot.`,
+        maxTokens: 3000,
+        timeoutMs: 34_000,
+      });
+      const translated = out.data?.dna;
+      if (!translated) {
+        return NextResponse.json(
+          {
+            error: lang === "en" ? "Translation failed. Try again." : "Traduction impossible. Réessayez.",
+            reason: out.error,
+          },
+          { status: 502 }
+        );
+      }
+      const profile = mergeDna(existing, translated);
+      await saveBrandProfile({ ...profile, companyId }).catch(() => {});
+      return NextResponse.json({ dna: translated, translated: true });
+    }
+
     // ── Verrouillage : on persiste l'ADN comme socle + on l'écrit dans le RAG ─
     if (body.lock) {
       const merged = mergeDna(existing, body.dna);
+      // Le descriptif de société (étape 1 du parcours) restait vide après tout
+      // l'entretien : le consultant remplissait « summary / mission /
+      // positioning » mais jamais « description », le champ que l'étape 1 lit.
+      // On l'alimente ici, sans écraser un texte déjà saisi par l'utilisateur.
+      const derivedDescription =
+        str(merged.description) ||
+        [str(merged.summary), str(merged.positioning) || str(merged.mission)]
+          .filter(Boolean)
+          .join("\n\n");
       const profile: BrandProfile = {
         ...merged,
+        description: derivedDescription,
         companyId,
         philosophyLocked: true,
         aiGenerated: true,
@@ -274,8 +351,16 @@ export async function POST(req: NextRequest) {
       website: existing.website,
     };
 
+    // Transcript BORNÉ aux derniers échanges : l'entretien peut durer, mais
+    // l'essentiel du passé est déjà condensé dans « CE QUI EST DÉJÀ CONNU ».
+    // Sans cette borne, le prompt grossit à chaque tour jusqu'à faire dériver
+    // latence et coût.
+    const RECENT_TURNS = 16;
+    const recent = messages.slice(-RECENT_TURNS);
+    const truncated = messages.length > recent.length;
     const transcript = messages.length
-      ? messages.map((m) => `${m.role === "user" ? "CLIENT" : "CONSULTANT"} : ${m.content}`).join("\n")
+      ? (truncated ? "(début de l'entretien résumé dans « CE QUI EST DÉJÀ CONNU »)\n" : "") +
+        recent.map((m) => `${m.role === "user" ? "CLIENT" : "CONSULTANT"} : ${m.content}`).join("\n")
       : "(la conversation commence)";
 
     const prompt = `# RÔLE
@@ -306,17 +391,23 @@ ${transcript}
 4. STRATÉGIE PAR RÉSEAU : chaque plateforme a ses codes. Quand tu as assez de matière, propose une stratégie DIFFÉRENTE et adaptée pour chaque réseau pertinent parmi instagram, facebook, tiktok, linkedin (angle, formats, ton, piliers de contenu, rythme, CTA). Ex. TikTok = spontané/vertical/tendances ; LinkedIn = expertise/preuve/posé ; Instagram = esthétique/communauté ; Facebook = proximité/offres/communauté locale. N'inclus que les réseaux pertinents pour la marque.
 5. VISUELS : dès qu'une direction artistique se dessine, propose 1 à 3 "visualPrompts" en ANGLAIS, photographiques/cinématographiques, premium, SANS texte incrusté. Affine-les quand la direction évolue.
 6. MÉMOIRE : à chaque tour, renvoie dans "memoryNotes" les insights et recommandations STRATÉGIQUES nouveaux et durables que tu produis (à conserver dans la mémoire de la marque). Sois sélectif : 0 à 3 notes vraiment utiles, jamais de banalités.
-7. Mets à jour "dna" à CHAQUE tour avec tout ce que tu as compris (même partiel). N'invente pas : laisse vide ce que tu ignores encore.
+7. "dna" est un CORRECTIF INCRÉMENTAL, pas un état complet : n'y mets QUE les champs NOUVEAUX ou MODIFIÉS à ce tour. Tout champ omis conserve automatiquement sa valeur déjà connue (cf. section ci-dessus) — ne le recopie pas. N'invente rien. Le plus souvent, 1 à 3 champs suffisent ; renvoie "dna": {} si rien n'a changé.
 8. Quand l'ADN est riche et cohérent (mission + cible + positionnement + message clé + ton + direction visuelle + au moins une stratégie réseau), passe "readyToLock" à true et invite à verrouiller.
 
 # STYLE DE "reply"
-Prise de parole naturelle, humaine, ${lang === "en" ? "EN ANGLAIS (the client's interface is in English — reply in English)" : "EN FRANÇAIS"}, 1 à 4 phrases, jamais de listes à puces froides. Ton de vrai consultant : précis, inspirant, utile. La langue de "reply" DOIT être ${lang === "en" ? "l'anglais" : "le français"} ; les champs "dna" peuvent rester en français.
+Prise de parole naturelle, humaine, 1 à 4 phrases, jamais de listes à puces froides. Ton de vrai consultant : précis, inspirant, utile.
 
-# FORMAT DE SORTIE — STRICTEMENT du JSON, sans aucun texte autour :
+# LANGUE DE SORTIE — RÈGLE ABSOLUE
+TOUT ce que tu produis est rédigé en ${LANG_NAME} : "reply", MAIS AUSSI chaque champ de "dna" (summary, positioning, mission, values, keyMessage, personality, tone, audience, themes, visualDirection, keywords, networkStrategies) et chaque "memoryNotes". Ces textes sont affichés tels quels dans une interface en ${LANG_NAME} : une seule phrase dans une autre langue est un défaut. Seuls les "visualPrompts" restent en anglais (contrainte des modèles d'image).
+
+# FORMAT DE SORTIE — STRICTEMENT du JSON, sans aucun texte autour.
+# "reply" est le PREMIER champ et reste court : c'est la seule chose que le
+# client attend à l'écran. Les champs suivants sont des annexes.
 {
   "reply": "ta prise de parole de consultant",
   "readyToLock": true|false,
   "dna": {
+    "//": "UNIQUEMENT les champs nouveaux ou modifiés — omets tous les autres",
     "summary": "synthèse 2-3 phrases de qui est la marque",
     "positioning": "", "mission": "", "keyMessage": "",
     "values": [], "personality": [], "tone": "",
@@ -331,24 +422,63 @@ Prise de parole naturelle, humaine, ${lang === "en" ? "EN ANGLAIS (the client's 
   "memoryNotes": [ { "kind": "insight|angle|format|recommendation|competitor|keyword", "title": "", "content": "", "network": "(optionnel) instagram|facebook|tiktok|linkedin" } ]
 }`;
 
-    // Modèle rapide, budget de tokens suffisant pour le JSON complet (un budget
-    // trop court tronquait la réponse → JSON invalide → « reformulez » en boucle),
-    // et un ré-essai automatique : un échec ponctuel ne doit pas bloquer l'entretien.
-    let result: ConsultantResult | null = null;
-    for (let attempt = 0; attempt < 2 && !result; attempt++) {
-      result = await callClaudeJSON<ConsultantResult>(prompt, {
-        model: "claude-sonnet-4-6",
-        maxTokens: 3000,
-        temperature: 0.7,
-        timeoutMs: 25_000,
-      });
+    // L'entretien ne doit JAMAIS s'arrêter parce que l'annexe structurée est
+    // trop lourde. Trois filets, du plus complet au plus minimal :
+    //   1. appel normal ;
+    //   2. RÉCUPÉRATION de "reply" dans une réponse tronquée — le message tient
+    //      au début du JSON et survit à une coupure de la fin ;
+    //   3. second appel DÉGRADÉ, réponse conversationnelle seule.
+    // Le ré-essai à l'identique de l'implémentation précédente ne servait à
+    // rien : une fois l'ADN volumineux, la troncature devenait systématique et
+    // les deux tentatives échouaient de la même façon — d'où une conversation
+    // définitivement bloquée après quelques tours.
+    const first = await callClaudeJSONResult<ConsultantResult>(prompt, {
+      model: "claude-sonnet-4-6",
+      maxTokens: 3000,
+      temperature: 0.7,
+      // La fonction dispose de 60 s. L'ancien couple 25 s + 20 s laissait 15 s
+      // inutilisées tout en coupant le premier appel alors qu'il aboutissait
+      // souvent juste après : plus le prompt grossit (ADN accumulé), plus ce
+      // couperet tombait tôt — d'où un entretien définitivement bloqué.
+      timeoutMs: 34_000,
+    });
+    let result: ConsultantResult | null = first.data;
+    let failureReason = first.error;
+
+    if (!result && first.raw) {
+      const salvaged = extractJsonString(first.raw, "reply");
+      if (salvaged) {
+        console.warn("[consultant] réponse tronquée — « reply » récupéré :", first.error);
+        result = { reply: salvaged };
+      }
     }
+
     if (!result) {
+      // Repli COURT : uniquement la réponse conversationnelle, donc rapide.
+      const retry = await callClaudeJSONResult<ConsultantResult>(
+        `${prompt}\n\n# CONTRAINTE SUPPLÉMENTAIRE\nLa tentative précédente a échoué faute de place ou de temps. Réponds en 3 phrases MAXIMUM. Renvoie UNIQUEMENT {"reply": "…"} — pas de "dna", pas de "visualPrompts", pas de "memoryNotes".`,
+        { model: "claude-sonnet-4-6", maxTokens: 500, temperature: 0.7, timeoutMs: 18_000 }
+      );
+      failureReason = retry.error ?? failureReason;
+      const replyText =
+        str(retry.data?.reply) ||
+        (retry.raw ? extractJsonString(retry.raw, "reply") : null) ||
+        // Dernier recours : le modèle a répondu en prose au lieu de JSON.
+        // Refuser cette réponse pour un simple défaut de format condamnait
+        // l'entretien alors que le contenu utile était là.
+        (retry.raw && !retry.raw.trimStart().startsWith("{") ? retry.raw.trim().slice(0, 1200) : "");
+      if (replyText) result = { reply: replyText };
+    }
+
+    if (!result) {
+      console.error("[consultant] aucune réponse exploitable :", failureReason);
       return NextResponse.json(
         {
           error: lang === "en"
-            ? "The AI consultant could not reply. Please try again."
-            : "Le consultant IA n'a pas pu répondre. Reformulez ou réessayez.",
+            ? "The AI consultant could not reply. Send your message again — the interview is saved."
+            : "Le consultant IA n'a pas pu répondre. Renvoyez votre message — l'entretien est conservé.",
+          // Cause technique : sans elle, un blocage récurrent était indiagnosticable.
+          reason: failureReason,
         },
         { status: 502 }
       );
@@ -357,8 +487,20 @@ Prise de parole naturelle, humaine, ${lang === "en" ? "EN ANGLAIS (the client's 
     // Sauvegarde du brouillon d'ADN (sans verrouiller) pour reprise ultérieure.
     const draft = mergeDna(existing, result.dna);
     if (messages.length) {
+      // Le FIL de conversation est conservé avec le brouillon : c'est ce qui
+      // permet de reprendre l'entretien depuis n'importe quel poste, là où il
+      // s'était arrêté (R27 #7). Borné aux 40 derniers tours — au-delà, le
+      // début de l'entretien est déjà résumé dans l'ADN.
+      const thread = [...messages, { role: "assistant" as const, content: result.reply ?? "" }]
+        .filter((m) => m.content)
+        .slice(-40);
       // On ne marque PAS analyzedAt : la philosophie n'est pas encore verrouillée.
-      await saveBrandProfile({ ...draft, companyId, philosophyLocked: false }).catch(() => {});
+      await saveBrandProfile({
+        ...draft,
+        companyId,
+        philosophyLocked: false,
+        consultantThread: thread,
+      }).catch(() => {});
     }
 
     // Réinjection dans le RAG : tout ce que le consultant récupère et conseille.

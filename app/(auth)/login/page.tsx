@@ -176,6 +176,23 @@ function LoginPageInner() {
             {t("Retour à l'accueil", "Back to home")}
           </Link>
         </p>
+
+        <nav
+          aria-label={t("Liens légaux", "Legal links")}
+          className="mt-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-2xs text-muted"
+        >
+          <Link href="/legal/conditions" className="hover:text-ink transition-colors">
+            {t("Conditions", "Terms")}
+          </Link>
+          <span aria-hidden="true">·</span>
+          <Link href="/legal/confidentialite" className="hover:text-ink transition-colors">
+            {t("Confidentialité", "Privacy")}
+          </Link>
+          <span aria-hidden="true">·</span>
+          <Link href="/legal/suppression-donnees" className="hover:text-ink transition-colors">
+            {t("Suppression des données", "Data deletion")}
+          </Link>
+        </nav>
       </div>
     </div>
   );

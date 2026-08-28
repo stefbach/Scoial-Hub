@@ -4,6 +4,8 @@
 // les Pages de l'utilisateur, on choisit celle qui correspond à la société, et
 // on enregistre les bons identifiants dans sh_channel_connections.
 
+import { withAppSecretProof } from "@/lib/connectors/meta-appsecret";
+
 const V = process.env.META_API_VERSION ?? "v21.0";
 
 export interface MetaPage {
@@ -18,10 +20,11 @@ export interface MetaPage {
 
 /** Liste les Pages gérées par l'utilisateur (avec token de page + IG lié). */
 export async function fetchMetaPages(userToken: string): Promise<MetaPage[]> {
-  const url =
+  const url = withAppSecretProof(
     `https://graph.facebook.com/${V}/me/accounts` +
-    `?fields=id,name,access_token,fan_count,picture{url},instagram_business_account{id,username}` +
-    `&limit=100&access_token=${encodeURIComponent(userToken)}`;
+      `?fields=id,name,access_token,fan_count,picture{url},instagram_business_account{id,username}` +
+      `&limit=100&access_token=${encodeURIComponent(userToken)}`
+  );
   try {
     const res = await fetch(url, { cache: "no-store" });
     const json = (await res.json()) as { data?: Array<Record<string, unknown>> };
@@ -88,9 +91,10 @@ export interface AdAccount {
 }
 
 export async function fetchAdAccounts(userToken: string): Promise<AdAccount[]> {
-  const url =
+  const url = withAppSecretProof(
     `https://graph.facebook.com/${V}/me/adaccounts` +
-    `?fields=account_id,name,currency,account_status,amount_spent&limit=100&access_token=${encodeURIComponent(userToken)}`;
+      `?fields=account_id,name,currency,account_status,amount_spent&limit=100&access_token=${encodeURIComponent(userToken)}`
+  );
   try {
     const res = await fetch(url, { cache: "no-store" });
     const json = (await res.json()) as { data?: Array<Record<string, unknown>> };
@@ -107,23 +111,58 @@ export async function fetchAdAccounts(userToken: string): Promise<AdAccount[]> {
   }
 }
 
-export function pickAdAccountForCompany(accounts: AdAccount[], companyName: string): AdAccount | null {
+const normName = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+/**
+ * Force de la preuve reliant un compte publicitaire à une société :
+ * `exact` (même nom), `partial` (l'un contient l'autre), `none` (aucun lien).
+ *
+ * Exporté pour que l'AUDIT des rattachements existants applique exactement la
+ * même règle que le rattachement automatique — une seule définition de « ce
+ * compte appartient à cette société », pas deux qui divergent avec le temps.
+ */
+export function adAccountNameEvidence(
+  accountName: string,
+  companyName: string | string[]
+): "exact" | "partial" | "none" {
+  const an = normName(accountName);
+  if (!an) return "none";
+  const names = (Array.isArray(companyName) ? companyName : [companyName]).map(normName).filter(Boolean);
+  if (names.some((cn) => an === cn)) return "exact";
+  if (names.some((cn) => an.includes(cn) || cn.includes(an))) return "partial";
+  return "none";
+}
+
+/**
+ * Rattache un compte publicitaire à une société — UNIQUEMENT sur preuve.
+ * `names` est ordonné par force de preuve (nom de société, puis nom de Page).
+ */
+export function pickAdAccountForCompany(
+  accounts: AdAccount[],
+  companyName: string | string[]
+): AdAccount | null {
   if (accounts.length === 0) return null;
-  const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
-  const cn = norm(companyName);
+  const names = (Array.isArray(companyName) ? companyName : [companyName]).filter(Boolean);
   const active = accounts.filter((a) => a.status === 1);
   const pool = active.length ? active : accounts;
-  if (cn) {
-    const exact = pool.find((a) => norm(a.name) === cn);
+  for (const cn of names) {
+    const exact = pool.find((a) => adAccountNameEvidence(a.name, cn) === "exact");
     if (exact) return exact;
-    const partial = pool.find((a) => {
-      const an = norm(a.name);
-      return an && (an.includes(cn) || cn.includes(an));
-    });
+  }
+  for (const cn of names) {
+    const partial = pool.find((a) => adAccountNameEvidence(a.name, cn) !== "none");
     if (partial) return partial;
   }
-  // À défaut : le compte actif le plus utilisé.
-  return [...pool].sort((a, b) => b.amountSpent - a.amountSpent)[0];
+  // Un SEUL compte publicitaire : aucune ambiguïté possible.
+  if (pool.length === 1) return pool[0];
+  // Plusieurs comptes, aucun ne correspondant : AUCUN choix automatique.
+  //
+  // L'ancien repli retenait « le compte actif le plus utilisé ». Pour une
+  // société nouvellement créée, aucun nom ne correspond : elle était donc
+  // rattachée au compte qui DÉPENSE LE PLUS du portefeuille — c'est-à-dire
+  // celui d'un autre client. La performance publicitaire d'autrui s'affichait
+  // alors dans son centre de pilotage. Le rattachement doit être explicite.
+  return null;
 }
 
 /** Enregistre le connecteur Meta Ads (lecture) pour une société. */
@@ -142,6 +181,44 @@ export async function storeMetaAds(companyId: string, account: AdAccount, userTo
     },
     "connected"
   );
+}
+
+/**
+ * Comptes publicitaires DÉJÀ rattachés à une AUTRE société du portefeuille.
+ * Un compte Meta donne accès à tous les comptes pub du gestionnaire : sans ce
+ * repère, rien ne distingue « mon » compte de celui du client voisin.
+ * Clé = id du compte pub (sans act_), valeur = nom de la société qui l'utilise.
+ */
+export async function listAdAccountBindings(companyUuid: string): Promise<Record<string, string>> {
+  try {
+    const { createAdminClient } = await import("@/lib/supabase/server");
+    const sb = createAdminClient();
+    if (!sb) return {};
+
+    const { data: me } = await sb.from("sh_companies").select("org_id").eq("id", companyUuid).maybeSingle();
+    const orgId = me?.org_id ? String(me.org_id) : "";
+    if (!orgId) return {};
+
+    const { data: companies } = await sb.from("sh_companies").select("id, name").eq("org_id", orgId);
+    const others = (companies ?? []).filter((c) => String(c.id) !== companyUuid);
+    if (others.length === 0) return {};
+
+    const names = new Map(others.map((c) => [String(c.id), String(c.name ?? "")]));
+    const { data: rows } = await sb
+      .from("sh_channel_connections")
+      .select("company_id, config")
+      .eq("channel", "meta_ads")
+      .in("company_id", [...names.keys()]);
+
+    const out: Record<string, string> = {};
+    for (const r of rows ?? []) {
+      const id = String((r.config as Record<string, unknown> | null)?.ad_account_id ?? "").replace(/^act_/, "");
+      if (id) out[id] = names.get(String(r.company_id)) ?? "";
+    }
+    return out;
+  } catch {
+    return {};
+  }
 }
 
 export interface AdCampaignRow {
@@ -383,7 +460,10 @@ export interface MetaInsights {
 async function gget(path: string, token: string): Promise<Record<string, unknown> | null> {
   try {
     const sep = path.includes("?") ? "&" : "?";
-    const res = await fetch(`https://graph.facebook.com/${V}/${path}${sep}access_token=${encodeURIComponent(token)}`, { cache: "no-store" });
+    const url = withAppSecretProof(
+      `https://graph.facebook.com/${V}/${path}${sep}access_token=${encodeURIComponent(token)}`
+    );
+    const res = await fetch(url, { cache: "no-store" });
     const j = (await res.json()) as Record<string, unknown>;
     if (j && (j as { error?: unknown }).error) return null;
     return j;
@@ -502,7 +582,43 @@ export function pickPageForCompany(
     });
     if (partial.length > 0) return partial.find((p) => p.id === previousPageId) ?? partial[0];
   }
+  // Une SEULE Page gérée : aucune ambiguïté possible, on la retient même si son
+  // nom ne ressemble pas à celui de la société (« FRCI TEST » vs « socialhubaxon »).
+  // Sans cette règle, l'utilisateur autorisait sa Page dans la fenêtre Meta puis
+  // la connexion restait « En attente » sans qu'aucun autre choix soit possible.
+  if (pages.length === 1) return pages[0];
   return previous ?? null;
+}
+
+/**
+ * Aucune Page n'a pu être choisie automatiquement (plusieurs Pages, aucune ne
+ * correspondant au nom de la société) : l'utilisateur devra trancher lui-même.
+ *
+ * On conserve alors le token UTILISATEUR sous sa vraie clé — c'est lui qui
+ * permet au sélecteur de Page (/pages-meta) de lister les Pages. L'ancien repli
+ * l'enregistrait sous `page_access_token`, si bien que `getMetaContext().userToken`
+ * restait vide : le sélecteur répondait « reconnexion nécessaire » avec une liste
+ * vide, et la connexion ne pouvait plus jamais quitter l'état « En attente ».
+ */
+export async function storeUnpickedMetaConnection(
+  companyId: string,
+  userToken: string,
+  accountName?: string
+): Promise<void> {
+  const { upsertConnection } = await import("@/lib/repositories/channel-connections");
+  const { resolveCompanyUuid } = await import("@/lib/repositories/resolve-company");
+  const uuid = await resolveCompanyUuid(companyId);
+  await upsertConnection(
+    uuid,
+    "facebook",
+    {
+      user_access_token: userToken,
+      account_name: accountName || "Facebook",
+      connected_via: "oauth",
+      no_page: "1",
+    },
+    "pending"
+  );
 }
 
 /** Récupère le nom de la société (pour le matching de Page). */
@@ -574,8 +690,8 @@ export async function storeMetaConnections(
   if (userToken) {
     try {
       const accounts = await fetchAdAccounts(userToken);
-      // Le nom de société n'est pas dispo ici → on matche sur le nom de la Page.
-      const acct = pickAdAccountForCompany(accounts, page.name);
+      // Preuve la plus forte d'abord : le nom de la SOCIÉTÉ, puis celui de la Page.
+      const acct = pickAdAccountForCompany(accounts, [await getCompanyName(uuid), page.name]);
       if (acct) await storeMetaAds(companyId, acct, userToken);
     } catch {
       /* non bloquant */

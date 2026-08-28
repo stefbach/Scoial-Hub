@@ -16,6 +16,7 @@ import { useState, useCallback } from "react";
 import type { AgentRunResult, AgentId, AgentStepStatus, Cadence, PublisherResult } from "@/lib/agents/types";
 import { AGENTS } from "@/lib/agents/roster";
 import { PRO_PROFILES } from "@/lib/agents/profiles";
+import { StepOutput, splitApprovalMark, PendingApprovalBanner } from "./StepOutput";
 import { EnvironmentAnalysis } from "./EnvironmentAnalysis";
 import { BenchmarkCard } from "./BenchmarkCard";
 import { Toast } from "@/components/ui/Toast";
@@ -92,6 +93,14 @@ const AGENT_ICON: Record<AgentId, React.ReactNode> = {
 
 // ── Verdict conformité ─────────────────────────────────────────────────────
 
+/**
+ * Sortie d'un agent, avec les chemins internes rendus CLIQUABLES.
+ *
+ * Certains agents concluent par « Cliquez le lien pour créer la campagne » en
+ * écrivant un chemin de l'application (ex. `/campaigns/new?...`). Affiché dans
+ * un bloc de texte brut, ce chemin n'était pas cliquable : la consigne
+ * renvoyait à un lien inexistant.
+ */
 function ComplianceBanner({
   verdict,
 }: {
@@ -812,7 +821,7 @@ export function RunTimeline({ result, companyId }: RunTimelineProps) {
                   </div>
 
                   <pre className="mt-1.5 whitespace-pre-wrap rounded-md bg-canvas px-3 py-2 text-xs text-ink leading-relaxed border border-hair">
-                    {step.output}
+                    <StepOutput text={step.output ?? ""} />
                   </pre>
 
                   {step.detail && (
@@ -860,9 +869,21 @@ export function RunTimeline({ result, companyId }: RunTimelineProps) {
             </span>
           </div>
           <div className="p-4">
-            <pre className="whitespace-pre-wrap rounded-lg border border-hair bg-canvas p-4 text-sm text-ink leading-relaxed">
-              {result.finalOutput}
-            </pre>
+            {/* La mention d'attente de validation était noyée en tête du texte,
+                sur la même ligne que la première phrase. Elle devient un
+                bandeau, et disparaît du corps du contenu (rien à effacer à la
+                main avant de publier). */}
+            {(() => {
+              const { pending, body } = splitApprovalMark(result.finalOutput ?? "");
+              return (
+                <>
+                  {pending && <PendingApprovalBanner className="mb-3" />}
+                  <pre className="whitespace-pre-wrap rounded-lg border border-hair bg-canvas p-4 text-sm text-ink leading-relaxed">
+                    {body}
+                  </pre>
+                </>
+              );
+            })()}
             <div className="mt-3 text-2xs text-muted">
               {result.autonomy === 1 &&
                 t(

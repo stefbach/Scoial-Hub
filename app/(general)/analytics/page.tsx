@@ -1,93 +1,117 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+// Écran Analytiques — données RÉELLES des réseaux connectés.
+//
+// Cet écran lisait auparavant un jeu de séries de DÉMONSTRATION indexé par des
+// identifiants de sociétés fictives : pour une vraie société, l'index ne
+// contenait rien, tous les compteurs valaient zéro et la page affichait « Pas
+// encore de données » alors que Meta montrait de l'activité. Les séries
+// viennent désormais de /api/analytics (publications réellement diffusées,
+// engagement porté par ces publications, dépenses et conversions du compte
+// publicitaire). Aucun chiffre n'est extrapolé : une source non mesurée est
+// annoncée comme telle plutôt que remplie de zéros.
+
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { format } from "date-fns";
-import {
-  ANALYTICS_PLATFORM_SHARE,
-  ANALYTICS_SERIES,
-  ANALYTICS_SUMMARY,
-  COMPANIES,
-} from "@/lib/mock-data";
 import { MetricCard } from "@/components/ui/MetricCard";
 import { Dropdown, DropdownItem } from "@/components/ui/Dropdown";
 import { DatePicker } from "@/components/ui/DateTimePicker";
 import { BarRow } from "@/components/charts/BarRow";
 import { MultiLineChart, type ChartSeries } from "@/components/charts/MultiLineChart";
 import { downloadFile } from "@/lib/history-store";
-import { eur } from "@/lib/format";
+import { moneyFromCents } from "@/lib/format";
+import { useCompany } from "@/lib/company-context";
 import { useT } from "@/lib/i18n";
 
-type RangeId = "7d" | "30d" | "90d" | "1y" | "all" | "custom";
+type RangeId = "7d" | "30d" | "90d" | "1y" | "custom";
+const RANGE_DAYS: Record<Exclude<RangeId, "custom">, number> = {
+  "7d": 7,
+  "30d": 30,
+  "90d": 90,
+  "1y": 365,
+};
 
 type MetricId = "engagement" | "postsPublished" | "adSpend" | "conversions";
-const METRICS: Record<
-  MetricId,
-  { labelFr: string; labelEn: string; color: string; format: (n: number) => string }
-> = {
-  engagement: {
-    labelFr: "Engagement",
-    labelEn: "Engagement",
-    color: "#4ade80",
-    format: (n) => n.toLocaleString(),
-  },
-  postsPublished: {
-    labelFr: "Publications",
-    labelEn: "Posts published",
-    color: "#60a5fa",
-    format: (n) => `${n}`,
-  },
-  adSpend: {
-    labelFr: "Dépenses pub.",
-    labelEn: "Ad spend",
-    color: "#7c3aed",
-    format: (n) => eur(n),
-  },
-  conversions: {
-    labelFr: "Conversions",
-    labelEn: "Conversions",
-    color: "#ea580c",
-    format: (n) => `${n}`,
-  },
-};
 
-const COMPANY_COLOR: Record<string, string> = {
-  occ: "#1e3a5f",
-  tibok: "#6b1f3a",
-  cvmi: "#4ade80",
-};
-
-// "Now" is dynamic so date-range filters stay correct over time.
-function nowDate(): Date {
-  return new Date();
+/** Un jour renvoyé par /api/analytics. */
+interface ApiPoint {
+  date: string;
+  postsPublished: number;
+  engagement: number;
+  engagementFacebook: number;
+  engagementInstagram: number;
+  adSpendCents: number;
+  conversions: number;
 }
 
-function rangeDays(range: RangeId, customFrom: Date | null, customTo: Date | null) {
-  if (range === "all") return 30;
-  if (range === "custom") {
-    if (!customFrom) return 30;
-    const end = customTo ?? nowDate();
-    return Math.min(30, Math.max(1, Math.round((end.getTime() - customFrom.getTime()) / 86400000)));
-  }
-  if (range === "7d") return 7;
-  if (range === "30d") return 30;
-  if (range === "90d") return 30; // mock has 30 days; broaden gracefully
-  return 30; // 1y same
+interface ApiAnalytics {
+  companyId: string;
+  connected: boolean;
+  adsMeasured: boolean;
+  currency: string;
+  series: ApiPoint[];
+  followers: number;
+  reach?: number;
+  views?: number;
 }
 
-function sliceWindow<T>(arr: T[], days: number): T[] {
-  if (days >= arr.length) return arr.slice();
-  return arr.slice(-days);
+/** Totaux d'une fenêtre, dans les unités de stockage (centimes pour l'argent). */
+interface Totals {
+  postsPublished: number;
+  engagement: number;
+  adSpendCents: number;
+  conversions: number;
 }
 
-function sum(arr: number[]) {
-  return arr.reduce((s, n) => s + n, 0);
+const ZERO: Totals = { postsPublished: 0, engagement: 0, adSpendCents: 0, conversions: 0 };
+
+const PALETTE = ["#1e3a5f", "#6b1f3a", "#4ade80", "#7c3aed", "#ea580c", "#0891b2"];
+
+const DAY_MS = 86_400_000;
+
+/** Jour UTC (yyyy-MM-dd) décalé de `offset` jours. */
+function dayString(base: Date, offset = 0): string {
+  const utc = Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), base.getUTCDate());
+  return new Date(utc + offset * DAY_MS).toISOString().slice(0, 10);
 }
 
-function trend(curr: number, prev: number): string {
-  if (prev <= 0) return "UP 0%";
-  const pct = Math.round(((curr - prev) / prev) * 100);
-  return pct >= 0 ? `UP ${pct}%` : `DN ${Math.abs(pct)}%`;
+/** Nombre de jours inclusifs entre deux jours yyyy-MM-dd (>= 1). */
+function daysBetween(from: string, to: string): number {
+  const d = Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / DAY_MS);
+  return Math.max(1, d + 1);
+}
+
+function sumTotals(points: ApiPoint[]): Totals {
+  return points.reduce<Totals>(
+    (acc, p) => ({
+      postsPublished: acc.postsPublished + p.postsPublished,
+      engagement: acc.engagement + p.engagement,
+      adSpendCents: acc.adSpendCents + p.adSpendCents,
+      conversions: acc.conversions + p.conversions,
+    }),
+    { ...ZERO }
+  );
+}
+
+function addTotals(a: Totals, b: Totals): Totals {
+  return {
+    postsPublished: a.postsPublished + b.postsPublished,
+    engagement: a.engagement + b.engagement,
+    adSpendCents: a.adSpendCents + b.adSpendCents,
+    conversions: a.conversions + b.conversions,
+  };
+}
+
+/**
+ * Variation par rapport à la période précédente de MÊME durée. Sans période
+ * précédente exploitable (aucune activité), aucune variation n'est affichée :
+ * une tendance inventée dans un tableau de bord est pire que pas de tendance.
+ */
+function trend(curr: number, prev: number): string | undefined {
+  if (prev <= 0) return undefined;
+  const p = Math.round(((curr - prev) / prev) * 100);
+  return p >= 0 ? `UP ${p}%` : `DN ${Math.abs(p)}%`;
 }
 
 export default function AnalyticsPage() {
@@ -102,28 +126,30 @@ function AnalyticsContent() {
   const t = useT();
   const router = useRouter();
   const params = useSearchParams();
+  const { companies } = useCompany();
+
+  const METRICS: Record<MetricId, { label: string; color: string; format: (n: number) => string }> = {
+    engagement: { label: t("Engagement", "Engagement"), color: "#4ade80", format: (n) => n.toLocaleString() },
+    postsPublished: { label: t("Publications", "Posts published"), color: "#60a5fa", format: (n) => `${n}` },
+    adSpend: { label: t("Dépenses pub.", "Ad spend"), color: "#7c3aed", format: (n) => moneyFromCents(n) },
+    conversions: { label: t("Conversions", "Conversions"), color: "#ea580c", format: (n) => `${n}` },
+  };
 
   const RANGE_LABEL: Record<RangeId, string> = {
     "7d": t("7 derniers jours", "Last 7 days"),
     "30d": t("30 derniers jours", "Last 30 days"),
     "90d": t("90 derniers jours", "Last 90 days"),
     "1y": t("Dernière année", "Last year"),
-    all: t("Toute la période", "All time"),
     custom: t("Période personnalisée", "Custom range"),
   };
 
-  // URL-driven state
+  // ── État piloté par l'URL ─────────────────────────────────────────────────
   const scopeParam = params.get("scope");
-  const initialScope =
-    scopeParam && (scopeParam === "all" || COMPANIES.some((c) => c.id === scopeParam))
-      ? scopeParam
-      : "all";
-  const [scope, setScope] = useState(initialScope);
+  const [scope, setScope] = useState(scopeParam ?? "all");
   const [scopeOpen, setScopeOpen] = useState(false);
 
   const rangeParam = params.get("range") as RangeId | null;
-  const initialRange: RangeId = rangeParam && RANGE_LABEL[rangeParam] ? rangeParam : "30d";
-  const [range, setRange] = useState<RangeId>(initialRange);
+  const [range, setRange] = useState<RangeId>(rangeParam && RANGE_LABEL[rangeParam] ? rangeParam : "30d");
   const [customFrom, setCustomFrom] = useState<Date | null>(
     params.get("from") ? new Date(`${params.get("from")}T00:00:00`) : null
   );
@@ -131,12 +157,11 @@ function AnalyticsContent() {
     params.get("to") ? new Date(`${params.get("to")}T00:00:00`) : null
   );
 
-  const trendMetricParam = params.get("metric") as MetricId | null;
+  const metricParam = params.get("metric") as MetricId | null;
   const [trendMetric, setTrendMetric] = useState<MetricId>(
-    trendMetricParam && METRICS[trendMetricParam] ? trendMetricParam : "engagement"
+    metricParam && METRICS[metricParam] ? metricParam : "engagement"
   );
 
-  // Keep URL in sync.
   useEffect(() => {
     const qs = new URLSearchParams();
     if (scope !== "all") qs.set("scope", scope);
@@ -151,172 +176,199 @@ function AnalyticsContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scope, range, customFrom, customTo, trendMetric]);
 
-  const days = rangeDays(range, customFrom, customTo);
-
-  // Companies in scope.
-  const inScope = scope === "all" ? COMPANIES : COMPANIES.filter((c) => c.id === scope);
-
-  // Per-company, in-window series for each metric.
-  const inWindow = useMemo(() => {
-    const out: Record<string, Record<MetricId, number[]>> = {};
-    for (const c of inScope) {
-      const s = ANALYTICS_SERIES[c.id];
-      out[c.id] = {
-        postsPublished: sliceWindow(s.postsPublished, days),
-        engagement: sliceWindow(s.engagement, days),
-        adSpend: sliceWindow(s.adSpend, days),
-        conversions: sliceWindow(s.conversions, days),
-      };
+  // ── Fenêtre observée ──────────────────────────────────────────────────────
+  // La série renvoyée par l'API se termine AUJOURD'HUI ; la fenêtre affichée
+  // (et la fenêtre précédente, de même durée) en sont découpées par date.
+  const { windowStart, windowEnd, fetchDays } = useMemo(() => {
+    const today = new Date();
+    if (range === "custom" && customFrom) {
+      const from = format(customFrom, "yyyy-MM-dd");
+      const to = format(customTo ?? today, "yyyy-MM-dd");
+      const span = daysBetween(from, to);
+      // Profondeur à demander : de aujourd'hui jusqu'au début de la période
+      // PRÉCÉDENTE de même durée.
+      const depth = daysBetween(from, dayString(today)) + span;
+      return { windowStart: from, windowEnd: to, fetchDays: Math.min(365, depth) };
     }
-    return out;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scope, days]);
+    const span = RANGE_DAYS[(range === "custom" ? "30d" : range) as Exclude<RangeId, "custom">];
+    return {
+      windowStart: dayString(today, -(span - 1)),
+      windowEnd: dayString(today),
+      fetchDays: Math.min(365, span * 2),
+    };
+  }, [range, customFrom, customTo]);
 
-  // Whether ANY data exists at all (used to display the empty state).
-  const hasData = useMemo(() => {
-    for (const c of inScope) {
-      const s = ANALYTICS_SERIES[c.id];
-      if (s.engagement.some((v) => v > 0)) return true;
-    }
-    return false;
-  }, [inScope]);
+  const inScope = useMemo(
+    () => (scope === "all" ? companies : companies.filter((c) => c.id === scope)),
+    [companies, scope]
+  );
 
-  // Statut RÉEL de connexion des réseaux pour les sociétés de la portée.
-  // Conditionne le message d'état vide : on n'invite pas à « connecter vos
-  // réseaux » s'ils le sont déjà. null = encore inconnu (chargement).
-  const [networksConnected, setNetworksConnected] = useState<boolean | null>(null);
+  // ── Chargement des séries réelles ─────────────────────────────────────────
+  const [byCompanyData, setByCompanyData] = useState<Record<string, ApiAnalytics>>({});
+  const [loading, setLoading] = useState(true);
+
+  const scopeKey = inScope.map((c) => c.id).join(",");
   useEffect(() => {
-    if (hasData) return; // statut inutile quand des données existent déjà
+    if (inScope.length === 0) {
+      setByCompanyData({});
+      setLoading(false);
+      return;
+    }
     let cancelled = false;
+    setLoading(true);
     (async () => {
-      try {
-        const results = await Promise.all(
-          inScope.map(async (c) => {
-            const res = await fetch(`/api/connectors?companyId=${encodeURIComponent(c.id)}`);
-            if (!res.ok) return false;
-            const arr: Array<{ connectedAccounts?: number }> = await res.json();
-            return Array.isArray(arr) && arr.some((s) => (s.connectedAccounts ?? 0) > 0);
-          })
-        );
-        if (!cancelled) setNetworksConnected(results.some(Boolean));
-      } catch {
-        if (!cancelled) setNetworksConnected(false);
-      }
+      const entries = await Promise.all(
+        inScope.map(async (c) => {
+          try {
+            const res = await fetch(
+              `/api/analytics?companyId=${encodeURIComponent(c.id)}&days=${fetchDays}`
+            );
+            if (!res.ok) return null;
+            const json = (await res.json()) as ApiAnalytics & { error?: string };
+            if (json.error || !Array.isArray(json.series)) return null;
+            return [c.id, json] as const;
+          } catch {
+            return null;
+          }
+        })
+      );
+      if (cancelled) return;
+      setByCompanyData(Object.fromEntries(entries.filter(Boolean) as Array<readonly [string, ApiAnalytics]>));
+      setLoading(false);
     })();
     return () => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scope, hasData]);
+  }, [scopeKey, fetchDays]);
 
-  // Overview totals + trend (vs previous equivalent window).
-  const totals = useMemo(() => {
-    const acc: Record<MetricId, number> = {
-      postsPublished: 0, engagement: 0, adSpend: 0, conversions: 0,
-    };
-    for (const c of inScope) for (const m of Object.keys(METRICS) as MetricId[])
-      acc[m] += sum(inWindow[c.id][m]);
-    return acc;
-  }, [inScope, inWindow]);
+  /** Points de la fenêtre courante pour une société. */
+  const windowPoints = useCallback(
+    (companyId: string): ApiPoint[] => {
+      const s = byCompanyData[companyId]?.series ?? [];
+      return s.filter((p) => p.date >= windowStart && p.date <= windowEnd);
+    },
+    [byCompanyData, windowStart, windowEnd]
+  );
 
-  const prevTotals = useMemo(() => {
-    const acc: Record<MetricId, number> = {
-      postsPublished: 0, engagement: 0, adSpend: 0, conversions: 0,
-    };
-    for (const c of inScope) {
-      const s = ANALYTICS_SERIES[c.id];
-      const total = s.engagement.length;
-      const prevStart = Math.max(0, total - days * 2);
-      const prevEnd = Math.max(0, total - days);
-      const r = (a: number[]) => a.slice(prevStart, prevEnd);
-      acc.postsPublished += sum(r(s.postsPublished));
-      acc.engagement += sum(r(s.engagement));
-      acc.adSpend += sum(r(s.adSpend));
-      acc.conversions += sum(r(s.conversions));
-    }
-    // If the previous window doesn't exist, fall back to ~80% of current.
-    for (const m of Object.keys(acc) as MetricId[]) {
-      if (acc[m] === 0) acc[m] = Math.max(1, Math.round(totals[m] * 0.8));
-    }
-    return acc;
-  }, [inScope, totals, days]);
+  /** Points de la période PRÉCÉDENTE, de même durée, pour une société. */
+  const previousPoints = useCallback(
+    (companyId: string): ApiPoint[] => {
+      const span = daysBetween(windowStart, windowEnd);
+      const prevEnd = dayString(new Date(`${windowStart}T00:00:00Z`), -1);
+      const prevStart = dayString(new Date(`${windowStart}T00:00:00Z`), -span);
+      const s = byCompanyData[companyId]?.series ?? [];
+      return s.filter((p) => p.date >= prevStart && p.date <= prevEnd);
+    },
+    [byCompanyData, windowStart, windowEnd]
+  );
 
-  // Engagement by company within current window.
-  const byCompany = useMemo(() => {
-    const rows = COMPANIES.map((c) => {
+  const totals = useMemo(
+    () => inScope.reduce<Totals>((acc, c) => addTotals(acc, sumTotals(windowPoints(c.id))), { ...ZERO }),
+    [inScope, windowPoints]
+  );
+  const prevTotals = useMemo(
+    () => inScope.reduce<Totals>((acc, c) => addTotals(acc, sumTotals(previousPoints(c.id))), { ...ZERO }),
+    [inScope, previousPoints]
+  );
+
+  const loaded = inScope.filter((c) => byCompanyData[c.id]);
+  const anyConnected = loaded.some((c) => byCompanyData[c.id].connected);
+  const adsMeasured = loaded.some((c) => byCompanyData[c.id].adsMeasured);
+  const currency =
+    loaded.map((c) => byCompanyData[c.id]).find((d) => d.adsMeasured)?.currency ?? "EUR";
+  const followers = loaded.reduce((s, c) => s + (byCompanyData[c.id].followers ?? 0), 0);
+  const reach = loaded.reduce((s, c) => s + (byCompanyData[c.id].reach ?? 0), 0);
+
+  const hasData =
+    totals.engagement > 0 || totals.postsPublished > 0 || totals.adSpendCents > 0 || totals.conversions > 0;
+
+  // ── Répartitions ──────────────────────────────────────────────────────────
+  const byCompanyBars = useMemo(() => {
+    const rows = companies.map((c, i) => {
       const visible = scope === "all" || scope === c.id;
-      const total = visible ? sum(inWindow[c.id]?.engagement ?? []) : 0;
-      return { id: c.id, name: c.code, value: total, visible };
+      const value = visible ? sumTotals(windowPoints(c.id)).engagement : 0;
+      return { id: c.id, name: c.code || c.name, value, visible, color: PALETTE[i % PALETTE.length] };
     });
     const max = Math.max(1, ...rows.map((r) => r.value));
-    const grandTotal = rows.reduce((s, r) => s + r.value, 0) || 1;
-    return rows.map((r) => ({
-      ...r,
-      max,
-      pct: Math.round((r.value / grandTotal) * 100),
-    }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inWindow, scope]);
+    const grand = rows.reduce((s, r) => s + r.value, 0) || 1;
+    return rows.map((r) => ({ ...r, max, pct: Math.round((r.value / grand) * 100) }));
+  }, [companies, scope, windowPoints]);
 
-  // Engagement by platform (sum across in-scope companies × share).
   const byPlatform = useMemo(() => {
-    let fb = 0, ig = 0;
+    // Répartition réelle : engagement mesuré sur chaque réseau, sur la période
+    // affichée. LinkedIn n'expose pas de statistiques de page sans
+    // l'approbation Community Management → « non mesuré », pas « zéro ».
+    let fb = 0;
+    let ig = 0;
     for (const c of inScope) {
-      const eng = sum(inWindow[c.id]?.engagement ?? []);
-      const share = ANALYTICS_PLATFORM_SHARE[c.id];
-      fb += eng * share.facebook;
-      ig += eng * share.instagram;
+      for (const p of windowPoints(c.id)) {
+        fb += p.engagementFacebook;
+        ig += p.engagementInstagram;
+      }
     }
     const max = Math.max(1, fb, ig);
     return [
-      { name: "Facebook", value: Math.round(fb), max, color: "#1877f2", connected: true, target: "facebook" as const },
-      { name: "Instagram", value: Math.round(ig), max, color: "#d62976", connected: true, target: "instagram" as const },
-      { name: "LinkedIn", value: 0, max, color: "#0a66c2", connected: false, target: "linkedin" as const },
+      { name: "Facebook", value: fb, max, color: "#1877f2", measured: true, target: "facebook" as const },
+      { name: "Instagram", value: ig, max, color: "#d62976", measured: true, target: "instagram" as const },
+      { name: "LinkedIn", value: 0, max, color: "#0a66c2", measured: false, target: "linkedin" as const },
     ];
-  }, [inScope, inWindow]);
+  }, [inScope, windowPoints]);
 
-  // Trend chart series. When scope is "all" → one line per company.
-  // When scoped → a single line for that company.
-  const trendSeries: ChartSeries[] = useMemo(() => {
-    return inScope.map((c) => ({
-      id: c.id,
-      label: c.code,
-      color: COMPANY_COLOR[c.id] ?? "#1e3a5f",
-      data: inWindow[c.id]?.[trendMetric] ?? [],
-      format: METRICS[trendMetric].format,
-    }));
-  }, [inScope, inWindow, trendMetric]);
+  const trendSeries: ChartSeries[] = useMemo(
+    () =>
+      inScope.map((c, i) => {
+        const points = windowPoints(c.id);
+        const data = points.map((p) =>
+          trendMetric === "adSpend"
+            ? p.adSpendCents
+            : trendMetric === "engagement"
+              ? p.engagement
+              : trendMetric === "postsPublished"
+                ? p.postsPublished
+                : p.conversions
+        );
+        return {
+          id: c.id,
+          label: c.code || c.name,
+          color: PALETTE[i % PALETTE.length],
+          data,
+          format: METRICS[trendMetric].format,
+        };
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [inScope, windowPoints, trendMetric]
+  );
 
-  // Export.
+  // Dates de l'axe des abscisses — celles de la société affichée, au format
+  // court du jour (ex. « 12/08 ») : un axe daté vaut mieux qu'un numéro de point.
+  const trendLabels = useMemo(() => {
+    const source = inScope[0] ? windowPoints(inScope[0].id) : [];
+    return source.map((p) => format(new Date(`${p.date}T00:00:00`), "dd/MM"));
+  }, [inScope, windowPoints]);
+
+  // ── Export ────────────────────────────────────────────────────────────────
   const handleExport = (kind: "csv" | "json") => {
-    const today = format(new Date(), "yyyy-MM-dd");
     const slug = scope === "all" ? "all-companies" : scope;
-    const file = `social-hub-analytics-${slug}-${today}.${kind === "csv" ? "csv" : "json"}`;
-    const now = nowDate();
-    const periodEnd = format(now, "yyyy-MM-dd");
-    const periodStart = format(new Date(now.getTime() - (days - 1) * 86400000), "yyyy-MM-dd");
-    const rows = inScope.map((c) => ({
-      company: c.code,
-      posts_published: sum(inWindow[c.id].postsPublished),
-      engagement: sum(inWindow[c.id].engagement),
-      ad_spend: sum(inWindow[c.id].adSpend),
-      conversions: sum(inWindow[c.id].conversions),
-      period_start: periodStart,
-      period_end: periodEnd,
-    }));
-    if (scope === "all" && rows.length > 1) {
-      rows.push({
-        company: "Total",
-        posts_published: rows.reduce((s, r) => s + r.posts_published, 0),
-        engagement: rows.reduce((s, r) => s + r.engagement, 0),
-        ad_spend: rows.reduce((s, r) => s + r.ad_spend, 0),
-        conversions: rows.reduce((s, r) => s + r.conversions, 0),
-        period_start: periodStart,
-        period_end: periodEnd,
-      });
-    }
+    const file = `social-hub-analytics-${slug}-${windowEnd}.${kind === "csv" ? "csv" : "json"}`;
+    const rows = inScope.map((c) => {
+      const s = sumTotals(windowPoints(c.id));
+      return {
+        company: c.code || c.name,
+        posts_published: s.postsPublished,
+        engagement: s.engagement,
+        ad_spend_minor_units: s.adSpendCents,
+        currency,
+        conversions: s.conversions,
+        period_start: windowStart,
+        period_end: windowEnd,
+      };
+    });
     if (kind === "csv") {
-      const columns = ["company", "posts_published", "engagement", "ad_spend", "conversions", "period_start", "period_end"];
+      const columns = [
+        "company", "posts_published", "engagement", "ad_spend_minor_units",
+        "currency", "conversions", "period_start", "period_end",
+      ];
       const esc = (v: unknown) => {
         const s = String(v);
         return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
@@ -331,7 +383,6 @@ function AnalyticsContent() {
     }
   };
 
-  // Helpers
   const goToPlatform = (target: "facebook" | "instagram" | "linkedin") => {
     if (target === "linkedin") router.push("/accounts");
     else router.push(`/ad-performance?platform=${target}`);
@@ -340,16 +391,15 @@ function AnalyticsContent() {
   const scopeLabel =
     scope === "all"
       ? t("Toutes les entreprises", "All companies")
-      : COMPANIES.find((c) => c.id === scope)?.name ?? t("Toutes les entreprises", "All companies");
+      : companies.find((c) => c.id === scope)?.name ?? t("Toutes les entreprises", "All companies");
 
   return (
     <div className="animate-fade-in">
-      {/* Header */}
+      {/* En-tête */}
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <h1 className="text-lg font-bold tracking-tight text-ink">{t("Analytiques", "Analytics")}</h1>
           <span aria-hidden="true" className="h-4 w-px shrink-0 rounded-full bg-hair" />
-          {/* Scope selector */}
           <div className="relative">
             <button
               onClick={() => setScopeOpen((o) => !o)}
@@ -374,7 +424,7 @@ function AnalyticsContent() {
                     {t("Toutes les entreprises", "All companies")}
                   </button>
                   <div className="mx-2 my-1 border-t border-hair" />
-                  {COMPANIES.map((c) => (
+                  {companies.map((c) => (
                     <button
                       key={c.id}
                       onClick={() => { setScope(c.id); setScopeOpen(false); }}
@@ -407,11 +457,7 @@ function AnalyticsContent() {
           >
             {(close) =>
               (Object.keys(RANGE_LABEL) as RangeId[]).map((r) => (
-                <DropdownItem
-                  key={r}
-                  active={r === range}
-                  onClick={() => { setRange(r); close(); }}
-                >
+                <DropdownItem key={r} active={r === range} onClick={() => { setRange(r); close(); }}>
                   {RANGE_LABEL[r]}
                 </DropdownItem>
               ))
@@ -445,53 +491,89 @@ function AnalyticsContent() {
         <div className="mb-4 flex items-center gap-2">
           <span className="text-2xs text-muted">{t("Du", "From")}</span>
           <div className="w-40">
-            <DatePicker value={customFrom ?? nowDate()} onChange={setCustomFrom} />
+            <DatePicker value={customFrom ?? new Date()} onChange={setCustomFrom} />
           </div>
           <span className="text-2xs text-muted">{t("au", "to")}</span>
           <div className="w-40">
-            <DatePicker value={customTo ?? nowDate()} onChange={setCustomTo} />
+            <DatePicker value={customTo ?? new Date()} onChange={setCustomTo} />
           </div>
         </div>
       )}
 
-      {/* Overview metrics — only when real data exists (no invented numbers) */}
-      {hasData && (
+      {/* Chargement */}
+      {loading && (
+        <div className="mb-6 rounded-xl border border-hair bg-card px-6 py-14 text-center text-xs text-muted">
+          {t("Lecture des données réelles de vos réseaux…", "Reading real data from your networks…")}
+        </div>
+      )}
+
+      {/* Vue d'ensemble — uniquement sur des chiffres mesurés */}
+      {!loading && hasData && (
         <>
           <div className="section-label mb-3">{t("Vue d'ensemble", "Overview")}</div>
           <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
-            <MetricCard label={t("Publications", "Posts published")} value={totals.postsPublished} trend={trend(totals.postsPublished, prevTotals.postsPublished)} />
-            <MetricCard label={t("Engagement", "Engagement")} value={totals.engagement.toLocaleString()} trend={trend(totals.engagement, prevTotals.engagement)} />
-            <MetricCard label={t("Dépenses pub.", "Ad spend")} value={eur(totals.adSpend)} trend={trend(totals.adSpend, prevTotals.adSpend)} />
-            <MetricCard label={t("Conversions", "Conversions")} value={totals.conversions} trend={trend(totals.conversions, prevTotals.conversions)} />
+            <MetricCard
+              label={t("Publications", "Posts published")}
+              value={totals.postsPublished}
+              trend={trend(totals.postsPublished, prevTotals.postsPublished)}
+            />
+            <MetricCard
+              label={t("Engagement", "Engagement")}
+              value={totals.engagement.toLocaleString()}
+              sub={followers > 0 ? `${followers.toLocaleString()} ${t("abonnés", "followers")}` : undefined}
+              trend={trend(totals.engagement, prevTotals.engagement)}
+            />
+            <MetricCard
+              label={t("Dépenses pub.", "Ad spend")}
+              value={adsMeasured ? moneyFromCents(totals.adSpendCents, currency) : t("Non mesuré", "Not measured")}
+              sub={adsMeasured ? undefined : t("Aucun compte publicitaire connecté", "No ad account connected")}
+              trend={adsMeasured ? trend(totals.adSpendCents, prevTotals.adSpendCents) : undefined}
+            />
+            <MetricCard
+              label={t("Conversions", "Conversions")}
+              value={adsMeasured ? totals.conversions : t("Non mesuré", "Not measured")}
+              trend={adsMeasured ? trend(totals.conversions, prevTotals.conversions) : undefined}
+            />
           </div>
         </>
       )}
 
-      {/* Empty state — shown when no analytics data exists yet */}
-      {!hasData && (
+      {/* États vides */}
+      {!loading && !hasData && (
         <div className="mb-6 flex flex-col items-center justify-center rounded-xl border border-hair bg-card px-6 py-14 text-center">
           <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-canvas">
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" className="text-muted">
-              <path d="M3 20h18M3 14l5-5 4 4 5-7 4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M3 20h18M3 14l5-5 4 4 5-7 4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </div>
-          {networksConnected ? (
+          {companies.length === 0 ? (
             <>
-              <h3 className="mb-1 text-sm font-semibold text-ink">{t("Pas encore de données", "No data yet")}</h3>
+              <h3 className="mb-1 text-sm font-semibold text-ink">{t("Aucune société", "No company yet")}</h3>
+              <p className="max-w-sm text-xs text-muted">
+                {t("Créez une société pour commencer à mesurer son activité.", "Create a company to start measuring its activity.")}
+              </p>
+            </>
+          ) : anyConnected ? (
+            <>
+              <h3 className="mb-1 text-sm font-semibold text-ink">
+                {t("Aucune activité sur la période", "No activity in this period")}
+              </h3>
               <p className="max-w-sm text-xs text-muted">
                 {t(
-                  "Vos graphiques apparaîtront dès que vos posts ou campagnes génèrent de l'activité.",
-                  "Your charts will appear once your posts or campaigns generate activity."
+                  `Vos réseaux sont connectés, mais aucune publication n'a paru entre le ${windowStart} et le ${windowEnd}. Élargissez la période pour voir l'historique.`,
+                  `Your networks are connected, but no post was published between ${windowStart} and ${windowEnd}. Widen the period to see history.`
                 )}
               </p>
             </>
           ) : (
             <>
-              <h3 className="mb-1 text-sm font-semibold text-ink">{t("Pas encore de données analytiques — connectez vos réseaux", "No analytics data yet — connect your networks")}</h3>
+              <h3 className="mb-1 text-sm font-semibold text-ink">
+                {t("Connectez vos réseaux", "Connect your networks")}
+              </h3>
               <p className="max-w-sm text-xs text-muted">
                 {t(
-                  "Les graphiques et indicateurs apparaîtront dès que vos réseaux seront connectés et que vos premières publications ou campagnes génèreront de l'activité.",
-                  "Charts and metrics will appear once your networks are connected and your first posts or campaigns generate activity."
+                  "Les graphiques et indicateurs s'appuient sur les données réelles de vos comptes : connectez Meta pour les alimenter.",
+                  "Charts and metrics are built from your accounts' real data: connect Meta to feed them."
                 )}
               </p>
               <a
@@ -505,12 +587,12 @@ function AnalyticsContent() {
         </div>
       )}
 
-      {/* Trend chart — only when data exists */}
-      {hasData && (
+      {/* Courbe */}
+      {!loading && hasData && (
         <div className="card mb-6 p-4">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
             <div className="text-sm font-semibold text-ink">
-              {t(METRICS[trendMetric].labelFr, METRICS[trendMetric].labelEn)} {t("dans le temps", "over time")}
+              {METRICS[trendMetric].label} {t("dans le temps", "over time")}
             </div>
             <div className="flex flex-wrap gap-1.5">
               {(Object.keys(METRICS) as MetricId[]).map((m) => {
@@ -525,33 +607,35 @@ function AnalyticsContent() {
                         : "border border-hair bg-card text-muted hover:bg-canvas hover:text-ink"
                     }`}
                   >
-                    {t(METRICS[m].labelFr, METRICS[m].labelEn)}
+                    {METRICS[m].label}
                   </button>
                 );
               })}
             </div>
           </div>
-          <MultiLineChart series={trendSeries} />
+          <MultiLineChart series={trendSeries} labels={trendLabels} />
+          <p className="mt-3 text-2xs text-muted">
+            {t(
+              "L'engagement est rattaché au jour de publication : Meta n'horodate pas chaque interaction.",
+              "Engagement is attributed to the publication day: Meta does not timestamp each interaction."
+            )}
+          </p>
         </div>
       )}
 
-      {/* Bar charts — only when data exists */}
-      {hasData && (
+      {/* Répartitions */}
+      {!loading && hasData && (
         <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="card p-4">
             <div className="mb-4 text-sm font-semibold text-ink">{t("Engagement par entreprise", "Engagement by company")}</div>
-            {byCompany.map((c) => (
+            {byCompanyBars.map((c) => (
               <BarRow
                 key={c.id}
                 label={c.name}
                 value={c.visible ? c.value : 0}
                 max={c.max}
-                color={COMPANY_COLOR[c.id]}
-                caption={
-                  c.visible
-                    ? `${c.value.toLocaleString()} · ${c.pct}%`
-                    : t("Masqué par la portée", "Hidden by scope")
-                }
+                color={c.color}
+                caption={c.visible ? `${c.value.toLocaleString()} · ${c.pct}%` : t("Masqué par la portée", "Hidden by scope")}
                 muted={!c.visible}
                 onClick={c.visible ? () => setScope(c.id) : undefined}
                 title={c.visible ? `${t("Filtrer sur", "Scope to")} ${c.name}` : undefined}
@@ -567,13 +651,13 @@ function AnalyticsContent() {
                 value={p.value}
                 max={p.max}
                 color={p.color}
-                caption={p.connected ? p.value.toLocaleString() : t("Non connecté", "Not connected")}
-                muted={!p.connected}
+                caption={p.measured ? p.value.toLocaleString() : t("Non mesuré", "Not measured")}
+                muted={!p.measured}
                 onClick={() => goToPlatform(p.target)}
                 title={
-                  p.connected
+                  p.measured
                     ? `${t("Voir les performances", "View performance")} ${p.name}`
-                    : t("Connectez LinkedIn pour voir les performances", "Connect LinkedIn to see performance")
+                    : t("LinkedIn n'expose pas de statistiques de page sans l'approbation Community Management", "LinkedIn exposes no page statistics without Community Management approval")
                 }
               />
             ))}
@@ -581,10 +665,20 @@ function AnalyticsContent() {
         </div>
       )}
 
-      {/* AI summary — only when real data exists */}
-      {hasData && (
+      {/* Lecture factuelle — calculée sur les chiffres affichés, rien d'inventé */}
+      {!loading && hasData && (
         <div className="rounded-xl border border-ai-text/20 bg-ai-textbg px-4 py-3.5 text-xs text-ai-text shadow-xs">
-          <span className="font-semibold">{t("Synthèse IA :", "AI summary:")}</span> {ANALYTICS_SUMMARY}
+          <span className="font-semibold">{t("Lecture :", "Reading:")}</span>{" "}
+          {t(
+            `${totals.postsPublished} publication(s) du ${windowStart} au ${windowEnd}, ${totals.engagement.toLocaleString()} interaction(s)` +
+              (reach > 0 ? `, ${reach.toLocaleString()} personne(s) touchée(s) sur 28 jours` : "") +
+              (adsMeasured ? `, ${moneyFromCents(totals.adSpendCents, currency)} investis pour ${totals.conversions} conversion(s)` : "") +
+              ".",
+            `${totals.postsPublished} post(s) from ${windowStart} to ${windowEnd}, ${totals.engagement.toLocaleString()} interaction(s)` +
+              (reach > 0 ? `, ${reach.toLocaleString()} people reached over 28 days` : "") +
+              (adsMeasured ? `, ${moneyFromCents(totals.adSpendCents, currency)} spent for ${totals.conversions} conversion(s)` : "") +
+              "."
+          )}
         </div>
       )}
     </div>

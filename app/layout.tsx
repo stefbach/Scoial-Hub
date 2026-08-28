@@ -47,15 +47,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="fr" className={`${fraunces.variable} ${manrope.variable}`} suppressHydrationWarning>
+    <html lang="fr" data-theme="light" className={`${fraunces.variable} ${manrope.variable}`} suppressHydrationWarning>
       <head>
-        {/* Applique le thème (jour/nuit) AVANT la première peinture — aucun flash.
-            Sombre par défaut ; « light » si l'utilisateur l'a choisi.
+        {/* Thème CLAIR par défaut, posé sur <html> dès le rendu serveur : aucun
+            flash sombre, et le bon thème même sans JavaScript. Ce script ne fait
+            que rétablir le mode sombre pour qui l'a explicitement choisi.
             NOTE sécurité : contenu 100% statique (aucune donnée utilisateur). */}
         <script
           dangerouslySetInnerHTML={{
             __html:
-              'try{if(localStorage.getItem("axon_theme")==="light")document.documentElement.dataset.theme="light"}catch(e){}',
+              'try{if(localStorage.getItem("axon_theme")==="dark")delete document.documentElement.dataset.theme}catch(e){}',
           }}
         />
       </head>

@@ -86,9 +86,11 @@ function buildMock(input: MarketizeInput): VideoMarketingPackage {
       ]
     : [];
 
-  // Montage : durée de chaque plan. Le film = nb de clips × PER_CLIP (illimité).
+  // Montage : durée de chaque plan. Le film = nb de plans × PER_CLIP (illimité).
+  // Un montage assemble TOUS les médias déposés (photos comprises), pas
+  // seulement les vidéos : compter les seules vidéos sous-estimait la durée.
   const PER_CLIP = 5;
-  const videoCount = input.assets.filter((a) => a.kind === "video").length;
+  const clipCount = input.assets.length;
   // Durée du diaporama / vidéo simple = curseur de l'utilisateur (sans plafond 28s).
   const hintSec = Math.max(5, Math.round(Number(input.durationHintSec) || 20));
 
@@ -101,7 +103,7 @@ function buildMock(input: MarketizeInput): VideoMarketingPackage {
     const targetSec = staticMode
       ? 0
       : mode === "video_montage"
-      ? Math.max(videoCount, 1) * PER_CLIP
+      ? Math.max(clipCount, 1) * PER_CLIP
       : hintSec;
 
     return {
@@ -243,7 +245,7 @@ Limites STRICTES : slides ≤ 5, hookVariants ≤ 2, editNotes ≤ 4, captions �
   const PER_CLIP = 5;
   const targetDurationSec =
     assemblyType === "video_montage"
-      ? Math.max(videos, 1) * PER_CLIP
+      ? Math.max(input.assets.length, 1) * PER_CLIP
       : Math.min(Math.max(0, Math.round(Number(c.targetDurationSec) || 0)), m.maxSeconds);
   const cut: PlatformCut = {
     platform,

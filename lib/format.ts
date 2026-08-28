@@ -9,6 +9,20 @@ export function pct(value: number) {
   return `${value}%`;
 }
 
+/**
+ * Formate un montant exprimé en unités MINEURES entières (centimes). La monnaie
+ * n'est jamais manipulée en flottant : la partie entière et les centimes sont
+ * séparés par division entière, le point décimal n'apparaît qu'à l'affichage.
+ */
+export function moneyFromCents(cents: number, currency = "EUR") {
+  const n = Math.trunc(cents);
+  const sign = n < 0 ? "-" : "";
+  const abs = Math.abs(n);
+  const units = Math.trunc(abs / 100);
+  const rest = abs % 100;
+  return `${sign}${currency} ${units.toLocaleString("en-US")}.${String(rest).padStart(2, "0")}`;
+}
+
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 

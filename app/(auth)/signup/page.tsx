@@ -263,6 +263,18 @@ export default function SignupPage() {
             >
               {loading ? t("Création en cours…", "Creating account…") : t("Créer mon compte", "Create my account")}
             </button>
+
+            <p className="text-2xs text-muted text-center leading-relaxed">
+              {t("En créant votre compte, vous acceptez nos", "By creating an account, you agree to our")}{" "}
+              <Link href="/legal/conditions" className="text-primary-600 hover:text-primary-700 underline-offset-2 hover:underline">
+                {t("Conditions", "Terms")}
+              </Link>{" "}
+              {t("et notre", "and our")}{" "}
+              <Link href="/legal/confidentialite" className="text-primary-600 hover:text-primary-700 underline-offset-2 hover:underline">
+                {t("Politique de confidentialité", "Privacy Policy")}
+              </Link>
+              .
+            </p>
           </form>
 
           <p className="mt-6 text-center text-sm text-muted">
@@ -279,6 +291,23 @@ export default function SignupPage() {
             {t("Retour à l'accueil", "Back to home")}
           </Link>
         </p>
+
+        <nav
+          aria-label={t("Liens légaux", "Legal links")}
+          className="mt-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-2xs text-muted"
+        >
+          <Link href="/legal/conditions" className="hover:text-ink transition-colors">
+            {t("Conditions", "Terms")}
+          </Link>
+          <span aria-hidden="true">·</span>
+          <Link href="/legal/confidentialite" className="hover:text-ink transition-colors">
+            {t("Confidentialité", "Privacy")}
+          </Link>
+          <span aria-hidden="true">·</span>
+          <Link href="/legal/suppression-donnees" className="hover:text-ink transition-colors">
+            {t("Suppression des données", "Data deletion")}
+          </Link>
+        </nav>
       </div>
     </div>
   );

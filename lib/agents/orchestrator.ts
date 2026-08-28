@@ -42,7 +42,7 @@ import type {
   BenchmarkKPIRow,
   PublisherResult,
 } from "./types";
-import { getProfile, getDefaultProfile, type ProProfile } from "./profiles";
+import { getProfile, getDefaultProfile, profileLabel, profileAudience, type ProProfile } from "./profiles";
 
 // ── Constantes ────────────────────────────────────────────────────────────────
 
@@ -117,6 +117,13 @@ function resolveCadence(cadence?: Cadence): Required<Cadence> {
 }
 
 const DAY_NAMES = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
+const DAY_NAMES_EN = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+/** Jours de diffusion dans la langue de l'interface. */
+function formatDays(days: number[], en: boolean): string {
+  const names = en ? DAY_NAMES_EN : DAY_NAMES;
+  return days.map((d) => names[d] ?? String(d)).join(", ");
+}
 
 function formatCadence(cadence: Required<Cadence>): string {
   const days = cadence.postingDays.map((d) => DAY_NAMES[d] ?? d).join(", ");
@@ -754,7 +761,7 @@ async function runCreative(
 • Accroche visuelle : "${copyText.split("\n")[0].slice(0, 80)}…"
 • Variantes : Story 9:16 (1080×1920) + Réels 4:5 (1080×1350)
 • Tonalité visuelle : ${profile.recommendedTone}`,
-    `Creative brief — Profile: ${profile.label}
+    `Creative brief — Profile: ${profileLabel(profile, true)}
 • Main format: square image 1080×1080 px (${platforms} feed) + banner 1200×628 px
 • Palette: professional tones consistent with the brand
 • Style: authentic professional photography, tailored to the sector
@@ -955,6 +962,7 @@ async function runMediaBuyer(
   const budgetMatch = input.objective.match(/(\d+)\s*€\s*\/?\s*j/i);
   const dailyBudget = budgetMatch ? parseInt(budgetMatch[1], 10) : 50;
   const L = makeL(input.language);
+  const en = input.language === "en";
 
   if (autonomy === 3 && dailyBudget > BUDGET_CAP_EUR) {
     return {
@@ -995,7 +1003,7 @@ async function runMediaBuyer(
     .filter((p) => ["Facebook", "Instagram"].includes(p))
     .join(", ") || "Facebook, Instagram";
 
-  const days = cadence.postingDays.map((d) => DAY_NAMES[d] ?? d).join(", ");
+  const days = formatDays(cadence.postingDays, en);
   const hours = cadence.postingHours.join(L(" et ", " and "));
 
   const output = L(
@@ -1018,11 +1026,11 @@ ${
         : "\n✅ Autonomie 3 — Campagne transmise à Meta Ads API (connecteur requis pour exécution réelle)."
     }`,
     `${actionVerb} — Meta Ads campaign setup:
-• Profile: ${profile.label}
+• Profile: ${profileLabel(profile, true)}
 • Campaign name: "DDS_IA_${new Date().toISOString().slice(0, 10)}"
 • Objective: CONVERSIONS (Lead Generation)
 • Daily budget: €${dailyBudget}/day
-• Target audience: ${profile.typicalAudience}
+• Target audience: ${profileAudience(profile, true)}
 • Placements: ${platforms} Feed + Stories
 • Schedule: ${days} — ${hours}
 • Cadence: ${cadence.postingPerDay} post(s)/day

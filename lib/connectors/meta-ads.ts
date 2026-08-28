@@ -4,6 +4,7 @@
 // action explicite séparée, plafonnée par un budget max.
 
 import { getMetaContext } from "@/lib/connectors/meta-pages";
+import { signFormBody, withAppSecretProof } from "@/lib/connectors/meta-appsecret";
 
 // Version DÉDIÉE à l'API Marketing (création de campagnes/ad sets/pubs) :
 // le champ is_adset_budget_sharing_enabled — désormais EXIGÉ par Meta quand le
@@ -51,7 +52,9 @@ function metaError(json: Record<string, unknown>): Error {
 
 async function graphGet(path: string, fields: string, token: string): Promise<Record<string, unknown>> {
   const sep = path.includes("?") ? "&" : "?";
-  const url = `${BASE}/${path}${sep}fields=${encodeURIComponent(fields)}&access_token=${encodeURIComponent(token)}`;
+  const url = withAppSecretProof(
+    `${BASE}/${path}${sep}fields=${encodeURIComponent(fields)}&access_token=${encodeURIComponent(token)}`
+  );
   const res = await fetch(url, { cache: "no-store" });
   const json = (await res.json()) as Record<string, unknown>;
   if (json && (json as { error?: unknown }).error) throw metaError(json);
@@ -65,6 +68,7 @@ async function graphPost(path: string, params: Params, token: string): Promise<R
     form.set(k, typeof v === "object" ? JSON.stringify(v) : String(v));
   }
   form.set("access_token", token);
+  signFormBody(form);
   const res = await fetch(`${BASE}/${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -96,6 +100,10 @@ export interface LeadFormSpec {
   fields: LeadFieldType[];       // questions (au moins EMAIL recommandé)
   thankYouTitle?: string;
   thankYouBody?: string;
+  /** Destination du bouton de la page de remerciement. Absent → aucun bouton. */
+  websiteUrl?: string;
+  /** Libellé du bouton (ignoré sans websiteUrl). */
+  thankYouButtonText?: string;
   locale?: string;               // ex "fr_FR"
 }
 
@@ -132,7 +140,8 @@ export interface PublishAdInput {
   publisherPlatforms?: string[];   // ["facebook","instagram"]
   facebookPositions?: string[];    // ["feed","story"]
   instagramPositions?: string[];   // ["stream","story","reels"]
-  imageUrl: string;            // visuel principal
+  /** Visuel principal. Facultatif quand la pub est une VIDÉO (videoUrl). */
+  imageUrl?: string;
   /** Visuels supplémentaires → carrousel (2 à 10 cartes au total avec imageUrl). */
   images?: string[];
   /** Vidéo (URL publique) → créative vidéo (prioritaire sur l'image hors lead). */
@@ -163,11 +172,63 @@ export interface PublishAdResult {
   status: "PAUSED";
 }
 
-/** Upload d'une vidéo hébergée (URL publique) vers le compte pub → renvoie son id. */
-async function uploadAdVideo(act: string, token: string, fileUrl: string): Promise<string> {
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+/**
+ * Attend la fin du transcodage d'une vidéo publicitaire.
+ * Meta renvoie l'id AVANT d'avoir traité le fichier : créer la créative dans la
+ * foulée échoue (« video is still being processed »). On interroge donc
+ * `status.video_status` jusqu'à `ready`.
+ */
+async function waitForAdVideoReady(videoId: string, token: string): Promise<void> {
+  const deadline = Date.now() + 40_000;
+  let delay = 1500;
+  while (Date.now() < deadline) {
+    const res = await graphGet(videoId, "status", token);
+    const status = (res.status ?? {}) as { video_status?: string; processing_phase?: { status?: string } };
+    const v = status.video_status ?? status.processing_phase?.status ?? "";
+    if (v === "ready" || v === "complete") return;
+    if (v === "error") {
+      throw new Error("Meta n'a pas pu traiter la vidéo (format ou durée non supportés). Utilisez un MP4 (H.264/AAC).");
+    }
+    await sleep(delay);
+    delay = Math.min(Math.round(delay * 1.5), 5000);
+  }
+  throw new Error(
+    "Meta met trop de temps à traiter la vidéo. Réessayez dans une minute — la vidéo est encore en cours d'encodage."
+  );
+}
+
+/**
+ * Vignette générée automatiquement par Meta pour une vidéo publicitaire.
+ * Une créative vidéo EXIGE une image de couverture : sans elle, Meta refuse la
+ * création — c'est ce qui empêchait de promouvoir une vidéo sans image associée.
+ */
+async function fetchAdVideoThumbnail(videoId: string, token: string): Promise<string | undefined> {
+  try {
+    const res = await graphGet(`${videoId}/thumbnails`, "uri,is_preferred", token);
+    const rows = (res.data as Array<{ uri?: string; is_preferred?: boolean }>) ?? [];
+    const preferred = rows.find((r) => r.is_preferred && r.uri) ?? rows.find((r) => r.uri);
+    return preferred?.uri;
+  } catch {
+    return undefined; // pas bloquant : l'appelant retombe sur l'image fournie
+  }
+}
+
+/**
+ * Upload d'une vidéo hébergée (URL publique) vers le compte pub, ATTENTE de son
+ * traitement, et récupération d'une vignette exploitable.
+ */
+async function uploadAdVideo(
+  act: string,
+  token: string,
+  fileUrl: string
+): Promise<{ id: string; thumbUrl?: string }> {
   const res = await graphPost(`${act}/advideos`, { file_url: fileUrl }, token);
-  if (!res.id) throw new Error("Échec de l'upload de la vidéo.");
-  return String(res.id);
+  if (!res.id) throw new Error("Échec de l'upload de la vidéo. Vérifiez que son URL est publique.");
+  const id = String(res.id);
+  await waitForAdVideoReady(id, token);
+  return { id, thumbUrl: await fetchAdVideoThumbnail(id, token) };
 }
 
 /** Crée un formulaire de prospects (Instant Form) sur la Page et renvoie son id. */
@@ -196,10 +257,22 @@ async function createLeadForm(pageId: string, pageToken: string, spec: LeadFormS
           };
   }
   if (spec.thankYouTitle || spec.thankYouBody) {
+    // Meta valide le COUPLE (button_type, champs associés) : un bouton
+    // "VIEW_WEBSITE" EXIGE button_text ET website_url. Les envoyer manquants
+    // faisait échouer toute création de Lead Ad avec
+    // « (#100) Button text is missing for Thank You Page ».
+    // Sans destination fournie → NO_BUTTON, qui n'attend aucun champ.
+    const websiteUrl = spec.websiteUrl?.trim();
     params.thank_you_page = {
       title: spec.thankYouTitle || "Merci !",
       body: spec.thankYouBody || "Nous vous recontactons rapidement.",
-      button_type: "VIEW_WEBSITE",
+      ...(websiteUrl
+        ? {
+            button_type: "VIEW_WEBSITE",
+            button_text: spec.thankYouButtonText?.trim() || "Visiter le site",
+            website_url: websiteUrl,
+          }
+        : { button_type: "NO_BUTTON" }),
     };
   }
   const res = await graphPost(`${pageId}/leadgen_forms`, params, pageToken);
@@ -232,7 +305,23 @@ export async function publishAd(input: PublishAdInput): Promise<PublishAdResult>
   let leadFormId: string | undefined;
   if (isLead) {
     if (!ctx.pageToken) throw new Error("Token de Page requis pour créer un formulaire de prospects.");
-    leadFormId = await createLeadForm(ctx.pageId, ctx.pageToken, input.leadForm!);
+    const spec = input.leadForm!;
+    // Le bouton de remerciement ne renvoie vers le site QUE si une vraie
+    // destination existe : `input.link` retombe sur l'URL de confidentialité en
+    // mode formulaire (cf. /api/meta/ads/publish) — y envoyer le prospect
+    // serait absurde, on préfère alors aucun bouton.
+    const destination = spec.websiteUrl?.trim() || input.link?.trim();
+    leadFormId = await createLeadForm(ctx.pageId, ctx.pageToken, {
+      ...spec,
+      websiteUrl: destination && destination !== spec.privacyUrl?.trim() ? destination : undefined,
+    });
+  }
+
+  // Vidéo : téléversée et transcodée AVANT toute création. Un échec ici ne doit
+  // pas laisser derrière lui une campagne et un ad set orphelins en pause.
+  let video: { id: string; thumbUrl?: string } | undefined;
+  if (input.videoUrl && !isLead) {
+    video = await uploadAdVideo(act, token, input.videoUrl);
   }
 
   // Mode « conversions de site » : objectif Ventes/Conversions + pixel fourni.
@@ -347,21 +436,19 @@ export async function publishAd(input: PublishAdInput): Promise<PublishAdResult>
   const allImages = [input.imageUrl, ...(input.images ?? [])].filter(Boolean);
   const isCarousel = !isLead && !input.videoUrl && allImages.length > 1;
 
-  // Vidéo : on l'upload une fois (réutilisée par toutes les variantes).
-  let videoId: string | undefined;
-  if (input.videoUrl && !isLead) videoId = await uploadAdVideo(act, token, input.videoUrl);
-
   // Construit l'object_story_spec pour un (message, titre) donné.
   const buildStorySpec = (message: string, head: string): Params => {
-    if (videoId) {
+    if (video) {
+      // Couverture : vignette explicite > vignette Meta > image de la pub.
+      const cover = input.videoThumbUrl || video.thumbUrl || input.imageUrl;
       return {
         page_id: ctx.pageId,
         video_data: {
-          video_id: videoId,
+          video_id: video.id,
           message,
           title: head,
           call_to_action: callToAction,
-          ...(input.videoThumbUrl || input.imageUrl ? { image_url: input.videoThumbUrl || input.imageUrl } : {}),
+          ...(cover ? { image_url: cover } : {}),
         },
       };
     }

@@ -11,7 +11,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAccountAdmin } from "@/lib/auth/guard";
 import { createClient } from "@/lib/supabase/server";
 import { env } from "@/lib/env";
-import { sendEmail, buildInvitationEmail, buildAddedToTeamEmail, isEmailConfigured } from "@/lib/email";
+import { sendEmail, isEmailConfigured, buildInvitationEmail, buildAddedToTeamEmail } from "@/lib/email";
 import { listCompanies } from "@/lib/repositories/companies";
 import {
   listTeam,
@@ -21,6 +21,7 @@ import {
   revokeInvitation,
 } from "@/lib/repositories/access";
 import { CompanyAccessGrant, OrgRole } from "@/lib/rbac/types";
+import { checkSeatAvailable } from "@/lib/quota/seats";
 
 function coerceAccess(v: unknown): CompanyAccessGrant[] {
   if (!Array.isArray(v)) return [];
@@ -49,8 +50,8 @@ export async function GET() {
     members,
     invitations,
     companies: companies.map((c) => ({ id: c.id, name: c.name, code: c.code })),
-    // Bugs 1/8 lot 19 : l'UI prévient AVANT l'ajout si aucun e-mail ne partira
-    // (service e-mail applicatif non configuré côté serveur).
+    // L'écran doit dire AVANT d'inviter si l'envoi automatique est possible :
+    // découvrir après coup qu'aucun e-mail n'est parti est le pire moment.
     emailConfigured: isEmailConfigured(),
   });
 }
@@ -61,6 +62,18 @@ export async function POST(req: NextRequest) {
   const body = (await req.json()) as { email?: string; role?: string; access?: unknown };
   const email = (body.email ?? "").trim();
   if (!email) return NextResponse.json({ error: "Email requis" }, { status: 400 });
+
+  // Plafond de sièges de la formule. Contrôlé AVANT l'ajout : les invitations
+  // en attente comptent, sinon le plafond se contournerait en invitant sans
+  // limite et serait dépassé au fil des acceptations, sans jamais rien bloquer.
+  const seats = await checkSeatAvailable(g.orgId);
+  if (!seats.allowed) {
+    return NextResponse.json(
+      { error: seats.reason, seats: { used: seats.used, limit: seats.limit } },
+      { status: 402 }
+    );
+  }
+
   const res = await addOrInviteMember(g.orgId, email, coerceRole(body.role), coerceAccess(body.access), g.userId);
   if (res.error) return NextResponse.json({ error: res.error }, { status: 400 });
 
@@ -81,7 +94,11 @@ export async function POST(req: NextRequest) {
     const { subject, text } = res.added
       ? buildAddedToTeamEmail({ email, loginUrl: `${base}/login`, inviterEmail })
       : buildInvitationEmail({ email, signupUrl: `${base}/signup`, inviterEmail });
-    res.emailSent = await sendEmail({ to: email, subject, text });
+    const sent = await sendEmail({ to: email, subject, text });
+    res.emailSent = sent.ok;
+    // Cause exacte de l'échec : « service absent » et « envoi refusé » ne se
+    // corrigent pas de la même façon, et l'admin doit savoir laquelle il subit.
+    if (!sent.ok) res.emailFailure = sent.failure;
   }
   return NextResponse.json(res);
 }

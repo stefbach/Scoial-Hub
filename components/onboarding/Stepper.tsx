@@ -92,7 +92,15 @@ export function Stepper({ steps }: { steps: StepMeta[] }) {
                     s.n
                   )}
                 </span>
-                <span className={`min-w-0 flex-col ${active ? "flex" : "hidden lg:flex"}`}>
+                {/* Les étapes non consultées sont atténuées : l'étape courante
+                    ressort ainsi du rail au lieu de se fondre dans les autres.
+                    Les étapes franchies gardent leur lisibilité (repère de
+                    progression), sans concurrencer l'étape active. */}
+                <span
+                  className={`min-w-0 flex-col transition-opacity ${active ? "flex" : "hidden lg:flex"} ${
+                    active ? "opacity-100" : done ? "opacity-75" : "opacity-45 group-hover:opacity-80"
+                  }`}
+                >
                   <span
                     className={`truncate text-2xs font-semibold uppercase tracking-wide ${
                       active ? "text-primary-700" : done ? "text-success-700" : "text-muted"

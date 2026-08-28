@@ -13,7 +13,9 @@ import {
   getMetaContext,
   storeMetaAds,
   fetchAdAccountData,
+  listAdAccountBindings,
 } from "@/lib/connectors/meta-pages";
+import { resolveCompanyUuid } from "@/lib/repositories/resolve-company";
 import { requireCompanyAccess } from "@/lib/auth/guard";
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
@@ -33,6 +35,9 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const selectedId = ctx.adAccountId ?? null;
     const datePreset = req.nextUrl.searchParams.get("datePreset") ?? "maximum";
     const data = selectedId ? await fetchAdAccountData(ctx.userToken, selectedId, datePreset) : null;
+    // Comptes déjà rattachés à une autre société : signalés à l'écran pour
+    // éviter qu'une société pilote par erreur le budget d'une autre.
+    const boundElsewhere = await listAdAccountBindings(await resolveCompanyUuid(companyId));
 
     return NextResponse.json({
       accounts: accounts.map((a) => ({
@@ -41,6 +46,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         currency: a.currency,
         active: a.status === 1,
         amountSpent: a.amountSpent,
+        boundTo: boundElsewhere[a.id] || null,
       })),
       selectedId,
       data,

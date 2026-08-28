@@ -229,6 +229,34 @@ function AccountsPageInner() {
   const viewFor = (platform: PlatformId): PlatformView | undefined =>
     platformViews?.find((v) => v.platform === platform);
 
+  // Déconnexion — révoque la connexion enregistrée (sh_channel_connections) et
+  // rafraîchit le statut. Confirmation requise : action destructrice (le
+  // token est vidé, il faudra reconnecter le compte pour publier à nouveau).
+  const [disconnecting, setDisconnecting] = useState<PlatformId | null>(null);
+  const handleDisconnect = async (platform: PlatformId) => {
+    const label = PLATFORM_META[platform].label;
+    const ok = window.confirm(
+      t(
+        `Déconnecter ${label} ? Il faudra reconnecter le compte pour publier à nouveau.`,
+        `Disconnect ${label}? You'll need to reconnect the account to publish again.`
+      )
+    );
+    if (!ok) return;
+    setDisconnecting(platform);
+    try {
+      const res = await fetch(`/api/connectors/${platform}?companyId=${encodeURIComponent(company.id)}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setToast(`${label} ${t("déconnecté.", "disconnected.")}`);
+      await fetchStatuses();
+    } catch {
+      setToast(t("Échec de la déconnexion. Réessayez.", "Disconnect failed. Please retry."));
+    } finally {
+      setDisconnecting(null);
+    }
+  };
+
   // État vide : aucune plateforme connectée (et chargement terminé sans erreur).
   const noneConnected =
     !!platformViews && platformViews.every((v) => !v.connected);
@@ -305,6 +333,8 @@ function AccountsPageInner() {
                 platform={platform}
                 view={viewFor(platform)}
                 onConnect={(via) => setGuidePlatform(via)}
+                onDisconnect={() => handleDisconnect(platform)}
+                disconnecting={disconnecting === platform}
               />
             ))}
           </div>
@@ -359,10 +389,14 @@ function ConnectorCard({
   platform,
   view,
   onConnect,
+  onDisconnect,
+  disconnecting,
 }: {
   platform: PlatformId;
   view: PlatformView | undefined;
   onConnect: (via: ConnectHelpKey) => void;
+  onDisconnect: () => void;
+  disconnecting: boolean;
 }) {
   const t = useT();
   const meta = PLATFORM_META[platform];
@@ -440,7 +474,16 @@ function ConnectorCard({
         </div>
 
         {/* Right: bouton « Connecter » — ouvre l'assistant guidé en UN clic */}
-        <div className="shrink-0">
+        <div className="flex shrink-0 items-center gap-2">
+          {connected && (
+            <button
+              onClick={onDisconnect}
+              disabled={disconnecting}
+              className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-danger-600 hover:bg-danger-50 disabled:opacity-50"
+            >
+              {disconnecting ? t("Déconnexion…", "Disconnecting…") : t("Déconnecter", "Disconnect")}
+            </button>
+          )}
           <button
             onClick={() => onConnect(meta.connectVia)}
             className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold ${

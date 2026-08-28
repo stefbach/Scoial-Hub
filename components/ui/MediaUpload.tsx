@@ -2,21 +2,13 @@
 
 import { useRef, useState } from "react";
 import { useT } from "@/lib/i18n";
-import { createClient } from "@/lib/supabase/client";
-
-const MAX_BYTES = 25 * 1024 * 1024;
-const ACCEPT = "image/png,image/jpeg,video/mp4";
+import { hostMedia, formatSize, MAX_UPLOAD_BYTES, MEDIA_ACCEPT } from "@/lib/media/host";
 
 export interface UploadedMedia {
   url: string;
   name: string;
   size: number;
   kind: "image" | "video";
-}
-
-function formatSize(bytes: number) {
-  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  return `${Math.max(1, Math.round(bytes / 1024))} KB`;
 }
 
 export function MediaUpload({
@@ -38,8 +30,15 @@ export function MediaUpload({
 
   const accept = async (file: File) => {
     setError(null);
-    if (file.size > MAX_BYTES) {
-      setError(t("Fichier supérieur à 25 Mo. Choisissez un fichier plus léger.", "File is over 25MB. Please choose a smaller file."));
+    if (file.size > MAX_UPLOAD_BYTES) {
+      // Rejet EXPLIQUÉ : l'ancien message disait seulement « choisissez un
+      // fichier plus léger », sans dire pourquoi ni de combien (audit A-01).
+      setError(
+        t(
+          `Fichier de ${formatSize(file.size)} — au-delà de ${formatSize(MAX_UPLOAD_BYTES)}, le montage se fait dans votre navigateur et dépasse sa mémoire. Réduisez la durée ou la définition, ou découpez la vidéo.`,
+          `File is ${formatSize(file.size)} — above ${formatSize(MAX_UPLOAD_BYTES)}, editing runs in your browser and exceeds its memory. Shorten the clip, lower the resolution, or split the video.`
+        )
+      );
       return;
     }
     const kind: "image" | "video" = file.type.startsWith("video") ? "video" : "image";
@@ -49,21 +48,11 @@ export function MediaUpload({
     // Hébergement public : indispensable pour publier sur les réseaux (les
     // plateformes récupèrent l'image côté serveur — une URL blob: ne marche pas).
     if (!companyId) return;
-    const sb = createClient();
-    if (!sb) return;
     setHosting(true);
     try {
-      const safe = file.name.replace(/[^a-zA-Z0-9.\-_]/g, "_");
-      const path = `${companyId}/compose/${Date.now()}-${safe}`;
-      const { error: upErr } = await sb.storage.from("sh-videos").upload(path, file, { upsert: true, contentType: file.type });
-      if (upErr) {
-        setError(t("Hébergement de l'image échoué — la publication réseau pourrait ne pas fonctionner.", "Image hosting failed — network publishing may not work."));
-        return;
-      }
-      const { data } = sb.storage.from("sh-videos").getPublicUrl(path);
-      if (data?.publicUrl) {
-        onChange({ url: data.publicUrl, name: file.name, size: file.size, kind });
-      }
+      const res = await hostMedia(companyId, file, file.name, "compose");
+      if (res.url) onChange({ url: res.url, name: file.name, size: file.size, kind });
+      else setError(t("Hébergement du média échoué — la publication réseau pourrait ne pas fonctionner.", "Media hosting failed — network publishing may not work."));
     } finally {
       setHosting(false);
     }
@@ -121,12 +110,12 @@ export function MediaUpload({
           <path d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
         </svg>
         <span className="text-xs text-ink">{t("Ou importez votre propre image/vidéo", "Or upload your own image/video")}</span>
-        <span className="text-2xs text-muted">{t("PNG, JPG, MP4 · jusqu'à 25 Mo", "PNG, JPG, MP4 · up to 25MB")}</span>
+        <span className="text-2xs text-muted">{t("PNG, JPG, WebP, MP4, MOV, WebM · jusqu'à 100 Mo", "PNG, JPG, WebP, MP4, MOV, WebM · up to 100MB")}</span>
       </button>
       <input
         ref={inputRef}
         type="file"
-        accept={ACCEPT}
+        accept={MEDIA_ACCEPT}
         className="hidden"
         onChange={(e) => {
           const file = e.target.files?.[0];

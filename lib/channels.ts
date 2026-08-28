@@ -3,7 +3,7 @@
 // dans public.sh_channel_connections (config jsonb).
 
 export type ChannelId =
-  | "facebook" | "instagram" | "linkedin" | "tiktok"
+  | "facebook" | "instagram" | "linkedin"
   | "twitter" | "pinterest" | "threads"
   | "meta_pixel" | "ga4" | "meta_app" | "telegram";
 
@@ -50,15 +50,6 @@ export const CHANNELS: ChannelDef[] = [
     where: "linkedin.com/developers → app → Marketing Developer Platform",
     fields: [
       { key: "organization_urn", label: "Organization URN", placeholder: "urn:li:organization:123" },
-      { key: "access_token", label: "Access Token", secret: true },
-    ],
-  },
-  {
-    id: "tiktok", label: "TikTok", group: "social", color: "#000000",
-    description: "TikTok for Business / Marketing API.",
-    where: "business-api.tiktok.com → app → advertiser",
-    fields: [
-      { key: "advertiser_id", label: "Advertiser ID", placeholder: "70123..." },
       { key: "access_token", label: "Access Token", secret: true },
     ],
   },

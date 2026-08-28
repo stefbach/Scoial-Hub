@@ -12,6 +12,21 @@ export interface GenModel {
   label: string;
   note?: string;
   buildInput: (prompt: string, opts: { aspect?: string; seconds?: number; imageUrl?: string; voice?: string }) => Record<string, unknown>;
+  /**
+   * Durée RÉELLEMENT produite, en secondes, pour les modèles vidéo.
+   * Sert d'unité de facturation du quota : la durée demandée par l'appelant
+   * n'est pas celle que le modèle produit (Veo 3 sort toujours ~8 s, Kling
+   * arrondit à 5 ou 10…). Défaut si absent : DEFAULT_VIDEO_SECONDS.
+   */
+  seconds?: (opts: { seconds?: number }) => number;
+}
+
+/** Durée facturée par défaut quand un modèle vidéo ne la précise pas. */
+export const DEFAULT_VIDEO_SECONDS = 8;
+
+/** Durée facturée d'une génération vidéo, pour le décompte du quota. */
+export function videoSecondsFor(model: GenModel, opts: { seconds?: number } = {}): number {
+  return model.seconds ? model.seconds(opts) : DEFAULT_VIDEO_SECONDS;
 }
 
 /* ── Helpers ratio ─────────────────────────────────────────────────────────── */
@@ -57,19 +72,20 @@ export const IMAGE_MODELS: GenModel[] = [
     id: "black-forest-labs/flux-1.1-pro",
     label: "Flux 1.1 Pro",
     note: "Photoréaliste, polyvalent",
-    buildInput: (p, o) => ({ prompt: p, aspect_ratio: imgRatio(o.aspect), output_format: "webp", output_quality: 90, safety_tolerance: 5 }),
+    // jpg (pas webp) : LinkedIn/Instagram refusent le WebP à la publication.
+    buildInput: (p, o) => ({ prompt: p, aspect_ratio: imgRatio(o.aspect), output_format: "jpg", output_quality: 90, safety_tolerance: 5 }),
   },
   {
     id: "black-forest-labs/flux-1.1-pro-ultra",
     label: "Flux 1.1 Pro Ultra",
     note: "Ultra-net (jusqu'à 4 MP)",
-    buildInput: (p, o) => ({ prompt: p, aspect_ratio: imgRatio(o.aspect), output_format: "webp", safety_tolerance: 5 }),
+    buildInput: (p, o) => ({ prompt: p, aspect_ratio: imgRatio(o.aspect), output_format: "jpg", safety_tolerance: 5 }),
   },
   {
     id: "black-forest-labs/flux-schnell",
     label: "Flux Schnell",
     note: "Rapide & économique",
-    buildInput: (p, o) => ({ prompt: p, aspect_ratio: imgRatio(o.aspect), output_format: "webp", num_outputs: 1 }),
+    buildInput: (p, o) => ({ prompt: p, aspect_ratio: imgRatio(o.aspect), output_format: "jpg", num_outputs: 1 }),
   },
   {
     id: "google/imagen-4",
@@ -99,7 +115,7 @@ export const IMAGE_MODELS: GenModel[] = [
     id: "stability-ai/stable-diffusion-3.5-large",
     label: "Stable Diffusion 3.5",
     note: "Open, polyvalent",
-    buildInput: (p, o) => ({ prompt: p, aspect_ratio: imgRatio(o.aspect), output_format: "webp" }),
+    buildInput: (p, o) => ({ prompt: p, aspect_ratio: imgRatio(o.aspect), output_format: "jpg" }),
   },
   {
     id: "bytedance/seedream-3",
@@ -221,48 +237,56 @@ export const VIDEO_MODELS: GenModel[] = [
     label: "Google Veo 3",
     note: "Qualité max + son (~8 s)",
     buildInput: (p) => ({ prompt: p }),
+    seconds: () => 8,
   },
   {
     id: "google/veo-3-fast",
     label: "Veo 3 Fast",
     note: "Veo 3 plus rapide/éco",
     buildInput: (p) => ({ prompt: p }),
+    seconds: () => 8,
   },
   {
     id: "kwaivgi/kling-v2.1",
     label: "Kling v2.1",
     note: "Très bonne qualité (5/10 s)",
     buildInput: (p, o) => ({ prompt: p, duration: o.seconds && o.seconds >= 10 ? 10 : 5, aspect_ratio: vidRatio(o.aspect) }),
+    seconds: (o) => (o.seconds && o.seconds >= 10 ? 10 : 5),
   },
   {
     id: "bytedance/seedance-1-pro",
     label: "Seedance 1 Pro",
     note: "Excellent mouvement (5-10 s)",
     buildInput: (p, o) => ({ prompt: p, duration: o.seconds && o.seconds >= 10 ? 10 : 5, aspect_ratio: vidRatio(o.aspect), resolution: "1080p" }),
+    seconds: (o) => (o.seconds && o.seconds >= 10 ? 10 : 5),
   },
   {
     id: "bytedance/seedance-1-lite",
     label: "Seedance 1 Lite",
     note: "Plus économique",
     buildInput: (p, o) => ({ prompt: p, duration: o.seconds && o.seconds >= 10 ? 10 : 5, aspect_ratio: vidRatio(o.aspect) }),
+    seconds: (o) => (o.seconds && o.seconds >= 10 ? 10 : 5),
   },
   {
     id: "minimax/hailuo-02",
     label: "Hailuo 02 (MiniMax)",
     note: "Bon rapport qualité/prix (6/10 s)",
     buildInput: (p, o) => ({ prompt: p, duration: o.seconds && o.seconds >= 10 ? 10 : 6 }),
+    seconds: (o) => (o.seconds && o.seconds >= 10 ? 10 : 6),
   },
   {
     id: "minimax/video-01",
     label: "MiniMax Video-01",
     note: "Économique (~6 s)",
     buildInput: (p) => ({ prompt: p, prompt_optimizer: true }),
+    seconds: () => 6,
   },
   {
     id: "wan-video/wan-2.2-t2v-fast",
     label: "Wan 2.2 (rapide)",
     note: "Open, rapide",
     buildInput: (p) => ({ prompt: p }),
+    seconds: () => 5,
   },
 ];
 

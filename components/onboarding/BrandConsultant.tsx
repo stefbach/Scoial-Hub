@@ -8,8 +8,9 @@
 //
 // Réutilisable : page dédiée /identite ET étape 0 du démarrage guidé.
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useT, useLang } from "@/lib/i18n";
+import { detectTextLang } from "@/lib/ai/lang";
 import { generateVideoPolling } from "@/lib/ai/generate-video-client";
 import type { BrandProfile } from "@/lib/onboarding/types";
 
@@ -126,6 +127,18 @@ export function BrandConsultant({
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, sending]);
 
+  // Le fil est restauré depuis le stockage local : le message d'accueil restait
+  // figé dans la langue de sa première écriture, même après changement de langue
+  // ET rechargement de la page. Tant que l'entretien n'a pas commencé (aucune
+  // réponse du client), on le ré-émet dans la langue courante.
+  useEffect(() => {
+    setMessages((prev) => {
+      if (prev.length !== 1 || prev[0].role !== "assistant") return prev;
+      const next = greeting();
+      return prev[0].content === next ? prev : [{ role: "assistant", content: next }];
+    });
+  }, [greeting]);
+
   // ── Restauration de la conversation (persistée localement) ─────────────────
   // Persistée par companyId : un rechargement restaure le bon fil (#12/#17), et
   // changer d'entreprise réinitialise puis recharge le fil de l'entreprise
@@ -169,6 +182,7 @@ export function BrandConsultant({
   // disparaisse pas au rechargement. Le fil local, s'il existe, reste prioritaire.
   useEffect(() => {
     let alive = true;
+    if (!companyId) return; // aucune société active → pas d'appel (400 sinon)
     try { if (localStorage.getItem(storageKey)) return; } catch { /* continue */ }
     fetch(`/api/onboarding/state?companyId=${encodeURIComponent(companyId)}`)
       .then((r) => (r.ok ? r.json() : null))
@@ -194,6 +208,15 @@ export function BrandConsultant({
         setReadyToLock(true);
         if (p.philosophyLocked) setLocked(true);
         kicked.current = true; // pas de message d'accueil : on a déjà un ADN
+
+        // Le FIL enregistré côté serveur prime : l'entretien reprend là où il
+        // s'est arrêté, même depuis un autre poste ou après un cache vidé
+        // (R27 #7). Sans lui, on retombe sur le simple message de reprise.
+        const saved = Array.isArray(p.consultantThread) ? p.consultantThread.filter((m) => m?.content) : [];
+        if (saved.length) {
+          setMessages(saved);
+          return;
+        }
         setMessages([{ role: "assistant", content: p.philosophyLocked
           ? t("Votre identité de marque verrouillée est chargée ci-dessous. Vous pouvez l'affiner ou la reverrouiller.", "Your locked brand identity is loaded below. You can refine or re-lock it.")
           : t("Votre identité de marque enregistrée est chargée ci-dessous. Reprenez l'entretien pour la compléter.", "Your saved brand identity is loaded below. Resume the interview to complete it.") }]);
@@ -268,19 +291,20 @@ export function BrandConsultant({
     setRetranslating(true);
     setError(null);
     try {
-      const target = lang === "en" ? "English" : "français";
-      const instruction =
-        `Réexprime INTÉGRALEMENT l'ADN de marque suivant en ${target}, en conservant exactement le même sens et la même structure. ` +
-        `Renvoie uniquement l'ADN structuré traduit (champ "dna").\nADN actuel :\n${JSON.stringify(dna)}`;
-      const history = [...messages, { role: "user" as const, content: instruction }];
+      // Mode `translate` DÉDIÉ : un tour de conversation ordinaire ne renvoie
+      // que les champs MODIFIÉS, si bien qu'une demande de traduction repartait
+      // avec un ADN presque vide et le texte restait dans sa langue d'origine
+      // (R25 #2). Ici le serveur renvoie l'ADN complet, déjà traduit.
       const res = await fetch("/api/ai/consultant", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyId, messages: history, language: lang }),
+        body: JSON.stringify({ companyId, translate: true, dna, language: lang }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || `Erreur ${res.status}`);
       if (data.dna) {
+        // Remplacement (et non fusion) : une traduction porte sur TOUT l'ADN ;
+        // fusionner laisserait les champs non renvoyés dans l'ancienne langue.
         setDna((prev) => {
           const next: BrandDna = { ...prev };
           const d = data.dna as Record<string, unknown>;
@@ -297,7 +321,7 @@ export function BrandConsultant({
     } finally {
       setRetranslating(false);
     }
-  }, [retranslating, sending, lang, dna, messages, companyId, t]);
+  }, [retranslating, sending, lang, dna, companyId, t]);
 
   // ── Génération des tests visuels (moodboard) ───────────────────────────────
   const generateVisuals = useCallback(async () => {
@@ -416,6 +440,19 @@ export function BrandConsultant({
   const hasDna =
     Boolean(dna.positioning || dna.mission || dna.keyMessage || dna.audience || dna.tone);
 
+  // Langue RÉELLE de l'ADN, mesurée sur ses textes les plus longs. `null` quand
+  // le contenu est trop court ou trop ambigu : on n'affiche alors aucune alerte
+  // plutôt qu'une affirmation hasardeuse.
+  const dnaTextLang = useMemo(
+    () =>
+      detectTextLang(
+        [dna.summary, dna.positioning, dna.mission, dna.keyMessage, dna.audience, dna.tone]
+          .filter(Boolean)
+          .join(" ")
+      ),
+    [dna.summary, dna.positioning, dna.mission, dna.keyMessage, dna.audience, dna.tone]
+  );
+
   return (
     <div className="grid gap-5 lg:grid-cols-[1.15fr_0.85fr]">
       {/* ── Colonne conversation ─────────────────────────────────────────── */}
@@ -489,7 +526,23 @@ export function BrandConsultant({
               {t("Envoyer", "Send")}
             </button>
           </div>
-          {error && <p className="mt-2 text-2xs text-danger-600">{error}</p>}
+          {error && (
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <p className="text-2xs text-danger-600">{error}</p>
+              {/* Votre message est déjà dans l'entretien : on relance le même
+                  tour, sans le retaper. */}
+              {messages.length > 0 && messages[messages.length - 1].role === "user" && (
+                <button
+                  type="button"
+                  onClick={() => turn(messages)}
+                  disabled={sending}
+                  className="btn-secondary text-2xs disabled:opacity-50"
+                >
+                  {sending ? t("Nouvel essai…", "Retrying…") : t("↻ Réessayer", "↻ Retry")}
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -504,8 +557,11 @@ export function BrandConsultant({
             {locked && <span className="chip text-success-600">✓ {t("Verrouillé", "Locked")}</span>}
           </div>
 
-          {/* #4 — l'ADN a été rédigé dans une autre langue que celle sélectionnée */}
-          {hasDna && dnaLang && dnaLang !== lang && (
+          {/* #4 — l'ADN a été rédigé dans une autre langue que celle sélectionnée.
+              L'alerte se fonde sur la langue RÉELLEMENT détectée dans le texte,
+              plus sur l'étiquette posée au moment de la demande : celle-ci
+              mentait dès que le modèle ne suivait pas la consigne (R25 #1). */}
+          {hasDna && dnaTextLang && dnaTextLang !== lang && (
             <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-warning-200 bg-warning-50 px-3 py-2 text-2xs text-warning-700">
               <span className="flex-1">
                 {t(

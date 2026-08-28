@@ -44,6 +44,13 @@ interface LibTemplate {
   body?: string;
   platform?: string;
 }
+/** Média de la bibliothèque de la société (Studio, IA, imports) — images ET vidéos. */
+interface LibMedia {
+  url: string;
+  type: "image" | "video";
+  format?: string;
+  source?: string;
+}
 interface PublishIds {
   campaignId: string;
   adSetId: string;
@@ -91,6 +98,9 @@ export default function MetaAdsPublisher() {
 
   // ── Visuels (bibliothèque) ──────────────────────────────────────────────────
   const [visuals, setVisuals] = useState<LibTemplate[]>([]);
+  // Médias de la société (Studio Créatif, générations IA, imports) : c'est là
+  // que vivent les VIDÉOS produites par l'app.
+  const [library, setLibrary] = useState<LibMedia[]>([]);
 
   // ── Formulaire de création ──────────────────────────────────────────────────
   const [name, setName] = useState("");
@@ -101,6 +111,10 @@ export default function MetaAdsPublisher() {
   const [ageMin, setAgeMin] = useState(18);
   const [ageMax, setAgeMax] = useState(65);
   const [imageUrl, setImageUrl] = useState("");
+  // Créative vidéo : une pub vidéo remplace l'image (Meta upload la vidéo puis
+  // en tire une vignette). `videoThumbUrl` reste facultatif.
+  const [videoUrl, setVideoUrl] = useState("");
+  const [videoThumbUrl, setVideoThumbUrl] = useState("");
   const [primaryText, setPrimaryText] = useState("");
   const [headline, setHeadline] = useState("");
   const [link, setLink] = useState("");
@@ -144,6 +158,16 @@ export default function MetaAdsPublisher() {
       })
       .catch(() => {
         /* dégradation : pas de visuels pré-remplis */
+      });
+    fetch(`/api/media?companyId=${encodeURIComponent(companyId)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!alive || !d) return;
+        const assets: LibMedia[] = Array.isArray(d?.assets) ? d.assets : [];
+        setLibrary(assets.filter((a) => a?.url));
+      })
+      .catch(() => {
+        /* dégradation : bibliothèque indisponible */
       });
     return () => {
       alive = false;
@@ -192,8 +216,15 @@ export default function MetaAdsPublisher() {
     setCountries((prev) => prev.filter((c) => c !== code));
   }
 
+  // Une créative = une image OU une vidéo. Exiger l'image interdisait de
+  // promouvoir ses propres vidéos (montages du Studio, vidéos IA).
   const canPublish =
-    name.trim() && primaryText.trim() && link.trim() && imageUrl.trim() && budgetEuros >= 1 && countries.length > 0;
+    name.trim() &&
+    primaryText.trim() &&
+    link.trim() &&
+    (imageUrl.trim() || videoUrl.trim()) &&
+    budgetEuros >= 1 &&
+    countries.length > 0;
 
   async function publish() {
     setPublishError(null);
@@ -210,7 +241,9 @@ export default function MetaAdsPublisher() {
           countries,
           ageMin,
           ageMax,
-          imageUrl: imageUrl.trim(),
+          imageUrl: imageUrl.trim() || undefined,
+          videoUrl: videoUrl.trim() || undefined,
+          videoThumbUrl: videoThumbUrl.trim() || undefined,
           primaryText: primaryText.trim(),
           headline: headline.trim() || undefined,
           link: link.trim(),
@@ -540,6 +573,76 @@ export default function MetaAdsPublisher() {
             placeholder={t("…ou collez une URL d'image", "…or paste an image URL")}
             className="mt-2 w-full rounded-lg border border-hair bg-card px-3 py-2 text-sm text-ink"
           />
+        </div>
+
+        {/* Vidéo — vos propres contenus (Studio Créatif, générations IA, imports) */}
+        <div className="mt-4">
+          <span className="block text-2xs font-semibold uppercase tracking-wide text-muted">
+            {t("Vidéo (facultatif — remplace l'image)", "Video (optional — replaces the image)")}
+          </span>
+          {library.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {library.slice(0, 24).map((m) => {
+                const isVideo = m.type === "video";
+                const selected = isVideo ? videoUrl === m.url : imageUrl === m.url && !videoUrl;
+                return (
+                  <button
+                    key={m.url}
+                    type="button"
+                    onClick={() => {
+                      if (isVideo) {
+                        setVideoUrl((prev) => (prev === m.url ? "" : m.url));
+                      } else {
+                        setImageUrl(m.url);
+                        setVideoUrl("");
+                      }
+                    }}
+                    title={isVideo ? t("Promouvoir cette vidéo", "Promote this video") : t("Utiliser cette image", "Use this image")}
+                    className={`relative h-20 w-20 shrink-0 overflow-hidden rounded-lg border-2 transition-all ${
+                      selected ? "border-primary-500 ring-2 ring-primary-200" : "border-hair hover:border-primary-200"
+                    }`}
+                  >
+                    {isVideo ? (
+                      // eslint-disable-next-line jsx-a11y/media-has-caption
+                      <video src={m.url} preload="metadata" muted className="h-full w-full object-cover" />
+                    ) : (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={m.url} alt="" className="h-full w-full object-cover" />
+                    )}
+                    {isVideo && (
+                      <span className="absolute bottom-0 left-0 right-0 bg-ink/60 px-1 py-0.5 text-center text-[10px] text-white">
+                        ▶ {t("vidéo", "video")}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          <input
+            type="url"
+            value={videoUrl}
+            onChange={(e) => setVideoUrl(e.target.value)}
+            placeholder={t("…ou collez une URL de vidéo (.mp4)", "…or paste a video URL (.mp4)")}
+            className="mt-2 w-full rounded-lg border border-hair bg-card px-3 py-2 text-sm text-ink"
+          />
+          {videoUrl && (
+            <div className="mt-2 space-y-2">
+              {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+              <video src={videoUrl} controls preload="metadata" className="max-h-56 w-auto rounded-lg border border-hair" />
+              <input
+                type="url"
+                value={videoThumbUrl}
+                onChange={(e) => setVideoThumbUrl(e.target.value)}
+                placeholder={t("Vignette (facultatif — Meta en génère une)", "Thumbnail (optional — Meta generates one)")}
+                className="w-full rounded-lg border border-hair bg-card px-3 py-2 text-sm text-ink"
+              />
+              <p className="text-2xs text-muted">
+                {t("La vidéo est téléversée puis encodée par Meta avant création de la pub (jusqu'à ~40 s).",
+                   "The video is uploaded then encoded by Meta before the ad is created (up to ~40s).")}
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Texte principal */}

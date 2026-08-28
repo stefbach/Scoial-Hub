@@ -93,13 +93,42 @@ export async function POST(req: NextRequest) {
         }
         const loginUrl = `${env.appUrl.replace(/\/$/, "")}/login`;
         const { subject, text } = buildAccountCreatedEmail({ email, loginUrl, setPasswordUrl });
-        emailSent = await sendEmail({ to: email, subject, text });
+        emailSent = (await sendEmail({ to: email, subject, text })).ok;
       } catch {
         /* l'échec d'e-mail ne doit pas annuler la création du compte */
       }
     }
 
     return NextResponse.json({ ok: true, id: data.user?.id, emailSent }, { status: 201 });
+  } catch (e) {
+    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+  }
+}
+
+// PATCH /api/admin/users — redéfinit le mot de passe d'un compte { id, password }
+//
+// Sans cette route, un mot de passe qui ne correspond pas à celui communiqué à
+// l'utilisateur (faute de frappe à la création, mot de passe oublié côté
+// administrateur) était sans issue : la création échoue puisque l'e-mail existe
+// déjà, et rien dans l'interface ne permettait de le corriger.
+export async function PATCH(req: NextRequest) {
+  if (!requireAdmin()) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+  const supabase = createAdminClient();
+  if (!supabase) return NextResponse.json({ error: "Supabase service role non configuré" }, { status: 400 });
+  try {
+    const { id, password } = await req.json();
+    if (!id) return NextResponse.json({ error: "Identifiant utilisateur requis" }, { status: 400 });
+    if (!password || String(password).length < 8) {
+      return NextResponse.json({ error: "Mot de passe de 8 caractères minimum requis" }, { status: 400 });
+    }
+    // email_confirm : un compte encore non confirmé (créé par invitation) doit
+    // pouvoir se connecter immédiatement avec le mot de passe qu'on lui pose.
+    const { error } = await supabase.auth.admin.updateUserById(String(id), {
+      password: String(password),
+      email_confirm: true,
+    });
+    if (error) throw error;
+    return NextResponse.json({ ok: true });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });
   }

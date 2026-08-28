@@ -26,6 +26,19 @@ export const env = {
   // URL de l'instance backend (ex. http://mirofish-host:5001) + clé optionnelle.
   mirofishBaseUrl: process.env.MIROFISH_BASE_URL ?? "",
   mirofishApiKey: process.env.MIROFISH_API_KEY ?? "",
+  // Bibliothèque d'assets du banc de montage (mission bibliothèque, chapitre 10).
+  // Un fournisseur non configuré est masqué dans la bibliothèque, sans erreur —
+  // voir isXxxConfigured ci-dessous et la dégradation obligatoire du chapitre 10.
+  pexelsApiKey: process.env.PEXELS_API_KEY ?? "",
+  coverrApiKey: process.env.COVERR_API_KEY ?? "",
+  pixabayApiKey: process.env.PIXABAY_API_KEY ?? "",
+  unsplashAccessKey: process.env.UNSPLASH_ACCESS_KEY ?? "",
+  // Durée du cache mutualisé de recherche — jamais sous 24h tant que Pixabay
+  // est actif (leur politique de fichier l'impose, chapitre 5).
+  assetsCacheTtlSeconds: (() => {
+    const raw = Number(process.env.ASSETS_CACHE_TTL_SECONDS);
+    return Number.isFinite(raw) && raw >= 86_400 ? raw : 86_400;
+  })(),
 };
 
 /** True quand Supabase est configuré (URL + clé anon présentes). */
@@ -57,3 +70,9 @@ export const shotstack = {
   env: process.env.SHOTSTACK_ENV === "v1" ? "v1" : "stage",
 };
 export const isShotstackConfigured = Boolean(shotstack.apiKey);
+
+/** Un fournisseur d'assets non configuré est simplement absent des résultats. */
+export const isPexelsConfigured = Boolean(env.pexelsApiKey);
+export const isCoverrConfigured = Boolean(env.coverrApiKey);
+export const isPixabayConfigured = Boolean(env.pixabayApiKey);
+export const isUnsplashConfigured = Boolean(env.unsplashAccessKey);

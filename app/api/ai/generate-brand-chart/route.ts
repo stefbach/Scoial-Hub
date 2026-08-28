@@ -12,6 +12,7 @@ import { createAdminClient } from "@/lib/supabase/server";
 import { resolveCompanyUuid } from "@/lib/repositories/resolve-company";
 import { isAiConfigured, env } from "@/lib/env";
 import { isSafeRemoteUrl } from "@/lib/security/url-guard";
+import { normalizeLang, langName, langRule, pick } from "@/lib/ai/lang";
 import type { BrandChart } from "@/lib/brand-kit/types";
 
 const SUPPORTED = ["image/png", "image/jpeg", "image/gif", "image/webp"];
@@ -45,9 +46,10 @@ function strArr(v: unknown, max: number): string[] {
 
 export async function POST(req: NextRequest) {
   try {
-    const { companyId, imageDataUrl, logoUrl } = (await req.json()) as {
-      companyId?: string; imageDataUrl?: string; logoUrl?: string;
+    const { companyId, imageDataUrl, logoUrl, lang: rawLang } = (await req.json()) as {
+      companyId?: string; imageDataUrl?: string; logoUrl?: string; lang?: string;
     };
+    const lang = normalizeLang(rawLang);
     if (!companyId) return NextResponse.json({ error: "companyId requis" }, { status: 400 });
     const guard = await requireCompanyAccess(companyId);
     if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
@@ -59,7 +61,12 @@ export async function POST(req: NextRequest) {
       if (p) img = { mediaType: SUPPORTED.includes(p.mediaType) ? p.mediaType : "image/png", data: p.data };
     }
     if (!img && logoUrl && isSafeRemoteUrl(logoUrl)) img = await fetchAsBase64(logoUrl);
-    if (!img) return NextResponse.json({ error: "Logo introuvable — importez d'abord un logo." }, { status: 400 });
+    if (!img) {
+      return NextResponse.json(
+        { error: pick(lang, "Logo introuvable — importez d'abord un logo.", "Logo not found — upload a logo first.") },
+        { status: 400 }
+      );
+    }
 
     // Contexte marque (nom) pour une charte coherente.
     let name = "";
@@ -78,21 +85,30 @@ export async function POST(req: NextRequest) {
     };
     if (!isAiConfigured) return NextResponse.json({ chart: empty });
 
+    // La charte est AFFICHÉE telle quelle : ses textes suivent la langue de
+    // l'interface, jamais le français par défaut (recette R24 #7).
+    const L = langName(lang);
+    const roles = pick(
+      lang,
+      "Principale|Secondaire|Accent|Fond|Texte",
+      "Primary|Secondary|Accent|Background|Text"
+    );
     const prompt = `Tu es directeur artistique senior. A partir de CE LOGO${name ? ` de la marque « ${name} »` : ""}, construis une CHARTE GRAPHIQUE professionnelle et coherente.
 Deduis les couleurs de marque depuis le logo et complete par des couleurs neutres/fonctionnelles harmonieuses.
+${langRule(lang)}
 Retourne STRICTEMENT ce JSON (sans texte autour) :
 {
-  "palette": [{"hex":"#xxxxxx","name":"nom FR","role":"Principale|Secondaire|Accent|Fond|Texte"}],
+  "palette": [{"hex":"#xxxxxx","name":"nom de la couleur en ${L}","role":"${roles}"}],
   "headingFont": "police de titres (Google Fonts, ex. Poppins)",
   "bodyFont": "police de texte (Google Fonts, ex. Inter)",
-  "typographyNote": "1 phrase FR sur l'usage typographique",
-  "toneWords": ["3 a 5 mots de ton FR"],
-  "voice": "1-2 phrases FR decrivant la voix de marque",
-  "logoUsage": ["3-4 regles FR (zone de protection, taille mini, fonds autorises)"],
-  "dos": ["3 bonnes pratiques FR"],
-  "donts": ["3 erreurs a eviter FR"],
-  "imagery": "1-2 phrases FR sur le style d'images/photos",
-  "tagline": "une baseline courte FR alignee a la marque"
+  "typographyNote": "1 phrase en ${L} sur l'usage typographique",
+  "toneWords": ["3 a 5 mots de ton en ${L}"],
+  "voice": "1-2 phrases en ${L} decrivant la voix de marque",
+  "logoUsage": ["3-4 regles en ${L} (zone de protection, taille mini, fonds autorises)"],
+  "dos": ["3 bonnes pratiques en ${L}"],
+  "donts": ["3 erreurs a eviter en ${L}"],
+  "imagery": "1-2 phrases en ${L} sur le style d'images/photos",
+  "tagline": "une baseline courte en ${L} alignee a la marque"
 }`;
 
     try {
@@ -140,7 +156,12 @@ Retourne STRICTEMENT ce JSON (sans texte autour) :
     } catch (e) {
       const detail = e instanceof Error ? e.message : String(e);
       console.warn("[generate-brand-chart] fallback:", detail);
-      return NextResponse.json({ chart: { ...empty, voice: `Generation indisponible : ${detail}.` } });
+      return NextResponse.json({
+        chart: {
+          ...empty,
+          voice: pick(lang, `Génération indisponible : ${detail}.`, `Generation unavailable: ${detail}.`),
+        },
+      });
     }
   } catch (e) {
     console.error("[POST /api/ai/generate-brand-chart]", e);

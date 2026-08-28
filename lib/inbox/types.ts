@@ -8,6 +8,7 @@ export type InboxChannel =
   | "linkedin"
   | "telegram"
   | "twitter"
+  | "web"
   | "other";
 
 export type AgentScope = "all" | "channel";
@@ -78,5 +79,6 @@ export const CHANNEL_LABELS: Record<InboxChannel, string> = {
   linkedin: "LinkedIn",
   telegram: "Telegram",
   twitter: "X / Twitter",
+  web: "Web & presse",
   other: "Autre",
 };

@@ -20,6 +20,7 @@ import {
 import { captionsToSrt } from "@/lib/video/srt";
 import PromptStudio from "@/components/studio/PromptStudio";
 import BrandKitPanel from "@/components/studio/BrandKitPanel";
+import { brandPromptHints } from "@/lib/brand-kit/prompt";
 import { StudioHero, StudioStep } from "@/components/studio/StudioUI";
 import { StudioCopilot, type CopilotSuggestion } from "@/components/studio/StudioCopilot";
 import { AudioStudio } from "@/components/studio/AudioStudio";
@@ -239,6 +240,10 @@ export default function StudioPage() {
         onKit={(k) => {
           setBrandLogoUrl(/^https?:\/\//.test(k.logoUrl) ? k.logoUrl : "");
           setBrandColors({ text: k.recommendedTextColor, accent: k.palette[0] });
+          // Même règle qu'au Studio Affiches : la consigne de style vient de
+          // TOUTE l'identité enregistrée, pas seulement de l'analyse vision.
+          const derived = brandPromptHints(k);
+          if (derived) setBrandHints(derived);
         }}
       />
 
@@ -482,7 +487,7 @@ export default function StudioPage() {
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             {pkg.cuts.map((c) => (
-              <CutCard key={c.platform} cut={c} assets={pkg.assets} captions={pkg.captions} brandLogoUrl={brandLogoUrl} brandColors={brandColors} companyId={company.id} onCopy={copy} t={t} extraTracks={genAudios} />
+              <CutCard key={c.platform} cut={c} assets={pkg.assets} captions={pkg.captions} brandLogoUrl={brandLogoUrl} brandColors={brandColors} companyId={company.id} onCopy={copy} t={t} extraTracks={genAudios} renderConfigured={pkg.renderConfigured} />
             ))}
           </div>
         </section>
@@ -517,9 +522,12 @@ function CutCard({
   onCopy,
   t,
   extraTracks,
+  renderConfigured = true,
 }: {
   cut: PlatformCut;
   extraTracks?: { url: string; label: string }[];
+  /** Faux quand aucun moteur de rendu n'est branché : on l'annonce AVANT le clic. */
+  renderConfigured?: boolean;
   assets: MediaAsset[];
   captions: CaptionSegment[];
   brandLogoUrl?: string;
@@ -811,7 +819,14 @@ function CutCard({
       {/* Rendu vidéo réel */}
       {renderable && (
         <div className="mt-3 border-t border-hair pt-3">
-          {rState === "idle" && (
+          {/* Sans moteur de rendu, le bouton ne pouvait qu'échouer : on l'annonce. */}
+          {!renderConfigured && (
+            <p className="rounded-lg bg-warning-50 px-2.5 py-2 text-2xs text-warning-700">
+              {t("Aucun moteur de rendu configuré (SHOTSTACK_API_KEY) — le montage ne peut pas être fabriqué. Le plan, les textes et les sous-titres restent exploitables.",
+                 "No render engine configured (SHOTSTACK_API_KEY) — the montage cannot be produced. The plan, texts and subtitles remain usable.")}
+            </p>
+          )}
+          {renderConfigured && rState === "idle" && (
             <button className="btn-primary w-full justify-center text-2xs" onClick={startRender}>
               🎬 {t("Générer la vidéo (avec mes ajustements)", "Render the video (with my edits)")}
             </button>

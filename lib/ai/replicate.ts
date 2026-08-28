@@ -266,7 +266,8 @@ export async function generateImage(
   const input = {
     prompt,
     aspect_ratio: aspectRatio,
-    output_format: "webp",
+    // jpg (pas webp) : LinkedIn/Instagram refusent le WebP à la publication.
+    output_format: "jpg",
     output_quality: 80,
     safety_tolerance: 2,
   };
@@ -634,6 +635,58 @@ export async function startSubtitles(
   if (pred.status === "succeeded") return { id: pred.id, status: "succeeded", videoUrl: firstUrl(pred.output) ?? undefined };
   if (pred.status === "failed" || pred.status === "canceled") return { id: pred.id, status: "failed", error: pred.error ?? "failed" };
   return { id: pred.id, status: pred.status };
+}
+
+/** Modèle de transcription. Renvoie des segments minutés, pas une vidéo. */
+export const TRANSCRIBE_MODEL = "openai/whisper";
+
+export interface TranscriptSegment {
+  start: number;
+  end: number;
+  text: string;
+}
+
+/**
+ * Transcrit une piste parlée en segments MINUTÉS.
+ *
+ * Distinct de `startSubtitles`, qui incruste des sous-titres dans une vidéo et
+ * rend un fichier fini : ici on veut des données, pour en faire des calques de
+ * texte que l'utilisateur pourra corriger, déplacer et re-styler. Un sous-titre
+ * gravé n'est plus modifiable — c'est exactement le défaut que la refonte de
+ * l'éditeur cherchait à éliminer.
+ */
+export async function transcribe(
+  audioUrl: string,
+  language?: string
+): Promise<{ segments?: TranscriptSegment[]; error?: string }> {
+  if (!isReplicateConfigured) return { error: "not-configured" };
+  try {
+    const pred = await createPrediction(
+      TRANSCRIBE_MODEL,
+      {
+        audio: audioUrl,
+        // `transcribe` (et non `translate`) : on garde la langue d'origine.
+        task: "transcribe",
+        ...(language ? { language } : {}),
+      },
+      true
+    );
+    if (pred.status !== "succeeded") {
+      return { error: pred.error ?? `transcription ${pred.status}` };
+    }
+    const out = pred.output as { segments?: { start?: number; end?: number; text?: string }[] } | undefined;
+    const segments = (out?.segments ?? [])
+      .map((s) => ({
+        start: Number(s.start ?? 0),
+        end: Number(s.end ?? 0),
+        text: String(s.text ?? "").trim(),
+      }))
+      .filter((s) => s.text.length > 0 && s.end > s.start);
+    if (segments.length === 0) return { error: "aucun segment exploitable" };
+    return { segments };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Échec de la transcription." };
+  }
 }
 
 export interface AvatarResult {

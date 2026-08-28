@@ -57,6 +57,25 @@ export interface DashboardData {
   };
 }
 
+/**
+ * Réglages TikTok obligatoires par les guidelines Content Posting API
+ * (Required UX Implementation) : statut de confidentialité choisi par
+ * l'utilisateur (sans valeur par défaut), permissions d'interaction, et
+ * divulgation de contenu commercial. Absent = comportement historique du
+ * connecteur (SELF_ONLY, aucune interaction désactivée explicitement).
+ */
+export interface TikTokPublishOptions {
+  /** Doit appartenir aux `privacy_level_options` renvoyées par creator_info. */
+  privacyLevel: string;
+  allowDuet: boolean;
+  allowStitch: boolean;
+  allowComment: boolean;
+  /** "none" = disclosure toggle éteint (post organique classique, cas par défaut). */
+  disclosure: "none" | "your_brand" | "branded_content" | "both";
+  /** Consentement à la Music Usage Confirmation (et Branded Content Policy si applicable). */
+  musicConsent: boolean;
+}
+
 export interface ScheduledPost {
   id: string;
   platform: Platform;
@@ -68,8 +87,17 @@ export interface ScheduledPost {
   status?: "scheduled" | "draft" | "published" | "publishing" | "failed"; // defaults to "scheduled" when omitted
   body?: string; // full post text, used to resume editing a draft
   automationName?: string; // present when source === "automation"
-  media?: { kind: "image" | "video"; url?: string }; // média attaché (url requise pour publier sur Instagram)
+  media?: {
+    kind: "image" | "video";
+    url?: string;
+    /** Emplacement Meta : fil (défaut), Story éphémère 24 h ou Reel. */
+    postType?: "feed" | "story" | "reel";
+    /** Conteneur Instagram créé mais pas encore prêt — repris au prochain essai. */
+    igContainerId?: string;
+    tiktok?: TikTokPublishOptions;
+  }; // média attaché (url requise pour publier sur Instagram) ; tiktok = réglages de publication TikTok
   publishedAt?: string; // ISO timestamp set when published from the modal
+  externalId?: string; // identifiant du post côté plateforme (publish_id TikTok, post id Facebook…), renseigné après publication réussie
 }
 
 export type TemplateStatus = "unused" | "used" | "archived";
@@ -138,7 +166,8 @@ export interface HistoryItem {
     linkClicks: number;
   };
   externalUrl?: string; // public URL on the platform when known
-  media?: { kind: "image" | "video" };
+  /** Média publié — l'URL permet de le REVOIR depuis l'historique. */
+  media?: { kind: "image" | "video"; url?: string };
   error?: { title: string; detail: string };
 }
 

@@ -5,7 +5,7 @@
  * Chaque plateforme implémente `SocialConnector` pour un contrat unifié.
  */
 
-import type { Platform } from "@/lib/types";
+import type { Platform, TikTokPublishOptions } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
 // Plateformes gérées par la couche connecteurs
@@ -22,6 +22,55 @@ import type { Platform } from "@/lib/types";
  * (aucune nouvelle route, aucun nouveau connecteur écrit à la main).
  */
 export type ConnectorPlatform = Platform | "twitter" | "pinterest" | "threads";
+
+// ---------------------------------------------------------------------------
+// Erreurs d'authentification
+// ---------------------------------------------------------------------------
+
+/**
+ * Le fournisseur a rejeté le token du compte (expiré, révoqué, mauvais profil).
+ *
+ * Distincte d'une erreur réseau : réessayer à l'identique ne peut PAS aboutir,
+ * seule une reconnexion du compte le peut. La couche publication s'en sert pour
+ * marquer la connexion `disconnected` et arrêter la boucle de réessais, au lieu
+ * d'échouer silencieusement toutes les 10 minutes (cas Tibok : jeton Facebook
+ * invalide depuis le 13/07 sans que personne ne le voie).
+ */
+export class ConnectorAuthError extends Error {
+  readonly platform: string;
+
+  constructor(platform: string, message: string) {
+    super(message);
+    this.name = "ConnectorAuthError";
+    this.platform = platform;
+  }
+}
+
+/** Vrai si l'erreur signale un token rejeté par le fournisseur. */
+export function isConnectorAuthError(err: unknown): err is ConnectorAuthError {
+  return err instanceof ConnectorAuthError;
+}
+
+/**
+ * Instagram a bien accepté le média mais ne l'a pas fini de préparer dans le
+ * temps imparti. L'échec est TRANSITOIRE et le conteneur reste valide 24 h :
+ * l'appelant le conserve pour reprendre la publication au prochain essai, au
+ * lieu d'en recréer un et de repartir de zéro à chaque fois.
+ */
+export class MetaContainerPendingError extends Error {
+  readonly containerId: string;
+
+  constructor(containerId: string, message: string) {
+    super(message);
+    this.name = "MetaContainerPendingError";
+    this.containerId = containerId;
+  }
+}
+
+/** Vrai si l'erreur porte un conteneur Instagram réutilisable. */
+export function isMetaContainerPendingError(err: unknown): err is MetaContainerPendingError {
+  return err instanceof MetaContainerPendingError;
+}
 
 // ---------------------------------------------------------------------------
 // Token OAuth
@@ -69,10 +118,20 @@ export interface PublishInput {
   link?: string;
   /** Média joint (image ou vidéo). */
   media?: MediaAttachment;
+  /**
+   * Emplacement de publication (Meta uniquement) : fil, Story éphémère 24 h ou
+   * Reel. Absent → "feed" (comportement historique). Les autres connecteurs
+   * l'ignorent.
+   */
+  postType?: "feed" | "story" | "reel";
+  /** Conteneur Instagram d'une tentative précédente, à reprendre (Meta uniquement). */
+  igContainerId?: string;
   /** Titre d'un lien (FB uniquement). */
   linkTitle?: string;
   /** Description d'un lien (FB uniquement). */
   linkDescription?: string;
+  /** Réglages Content Posting API (TikTok uniquement) — ignoré par les autres connecteurs. */
+  tiktok?: TikTokPublishOptions;
 }
 
 /** Résultat d'une publication organique. */

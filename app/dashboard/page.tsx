@@ -68,10 +68,11 @@ export default function DashboardPage() {
             <span className="font-semibold text-ink">{company.name}</span>.
           </p>
         </div>
+        {/* « Nouvelle campagne » n'est PAS repris ici : le bandeau de pilotage,
+            juste au-dessus, porte déjà ce même bouton. Deux appels à l'action
+            identiques à trois centimètres l'un de l'autre font hésiter au lieu
+            d'orienter. */}
         <div className="flex shrink-0 flex-wrap gap-2">
-          <Button variant="secondary" onClick={() => router.push("/campaigns?new=true")}>
-            {t("Nouvelle campagne", "New campaign")}
-          </Button>
           <Button variant="primary" onClick={() => router.push("/compose")}>
             {t("Nouveau post", "New post")}
           </Button>

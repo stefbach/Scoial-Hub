@@ -16,6 +16,8 @@
 
 import type { Platform } from "@/lib/types";
 import { formatForLinkedIn } from "@/lib/linkedin-format";
+import { isWebpBytes, toJpeg } from "@/lib/media/image-format";
+import { ConnectorAuthError } from "@/lib/connectors/types";
 import type {
   SocialConnector,
   TokenSet,
@@ -134,6 +136,55 @@ async function linkedinFetch<T = Record<string, unknown>>(
 }
 
 /**
+ * Message d'erreur actionnable quand LinkedIn rejette le token du compte.
+ * Toujours porté par ConnectorAuthError : la couche publication marque alors la
+ * connexion `disconnected` et cesse de réessayer (au lieu de boucler en silence).
+ */
+function authError(step: string): ConnectorAuthError {
+  return new ConnectorAuthError(
+    "linkedin",
+    `LinkedIn a refusé le token du compte (${step}). Reconnectez LinkedIn dans Connecteurs.`
+  );
+}
+
+/**
+ * PUT binaire des octets d'un média vers l'URL d'upload renvoyée par
+ * `initializeUpload`.
+ *
+ * CETTE URL EST DÉJÀ SIGNÉE : elle porte sa propre autorisation, et y ajouter un
+ * en-tête `Authorization: Bearer` fait répondre **401** au service d'upload
+ * LinkedIn. C'était la cause des échecs de publication programmée AVEC VISUEL
+ * (« LinkedIn image upload → HTTP 401 » en boucle depuis le 27/07) : l'appel
+ * `initializeUpload` juste avant réussissait, donc le token était valide — seul
+ * le PUT était rejeté. Le chemin VIDÉO n'envoyait déjà pas l'en-tête, ce qui
+ * explique que seules les publications avec image échouaient.
+ *
+ * Repli : si LinkedIn venait à exiger de nouveau l'en-tête, on réessaie une fois
+ * avec — la correction reste donc valable dans les deux sens.
+ */
+async function putUploadBytes(
+  uploadUrl: string,
+  bytes: Buffer,
+  contentType: string,
+  token: string,
+  what: string
+): Promise<Response> {
+  const send = (headers: Record<string, string>) =>
+    fetch(uploadUrl, { method: "PUT", headers, body: new Uint8Array(bytes) });
+
+  let res = await send({ "Content-Type": contentType });
+  if (res.status === 401 || res.status === 403) {
+    res = await send({ "Content-Type": contentType, Authorization: `Bearer ${token}` });
+  }
+  if (!res.ok) {
+    throw new Error(
+      `Upload ${what} vers LinkedIn refusé (HTTP ${res.status}). Le visuel n'a pas été envoyé — publication annulée.`
+    );
+  }
+  return res;
+}
+
+/**
  * Upload d'une image vers LinkedIn (Images API) et renvoi de son URN
  * (`urn:li:image:...`) à référencer dans le post. Flux officiel en 3 temps :
  *   1) initializeUpload → { uploadUrl, image }
@@ -151,6 +202,8 @@ async function uploadLinkedInImage(author: string, imageUrl: string, token: stri
     },
     body: JSON.stringify({ initializeUploadRequest: { owner: author } }),
   });
+  // 401/403 ICI = token réellement invalide (contrairement au PUT ci-dessous).
+  if (init.status === 401 || init.status === 403) throw authError("initialisation de l'upload image");
   if (!init.ok) throw new Error(`LinkedIn images initializeUpload → HTTP ${init.status}`);
   const initJson = (await init.json()) as { value?: { uploadUrl?: string; image?: string } };
   const uploadUrl = initJson.value?.uploadUrl;
@@ -160,17 +213,17 @@ async function uploadLinkedInImage(author: string, imageUrl: string, token: stri
   // Récupère les octets du visuel source (doit être une URL publique).
   const imgRes = await fetch(imageUrl);
   if (!imgRes.ok) throw new Error(`Téléchargement du visuel échoué (HTTP ${imgRes.status}).`);
-  const bytes = Buffer.from(await imgRes.arrayBuffer());
+  let bytes: Buffer = Buffer.from(await imgRes.arrayBuffer());
+  let contentType = imgRes.headers.get("content-type") || "application/octet-stream";
 
-  const up = await fetch(uploadUrl, {
-    method: "PUT",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": imgRes.headers.get("content-type") || "application/octet-stream",
-    },
-    body: bytes,
-  });
-  if (!up.ok) throw new Error(`LinkedIn image upload → HTTP ${up.status}`);
+  // LinkedIn n'accepte que JPG/PNG/GIF : un WebP (visuel généré par IA) est
+  // rejeté au traitement et le post partirait sans image → conversion JPEG.
+  if (isWebpBytes(bytes)) {
+    bytes = await toJpeg(bytes);
+    contentType = "image/jpeg";
+  }
+
+  await putUploadBytes(uploadUrl, bytes, contentType, token, "de l'image");
   return imageUrn;
 }
 
@@ -216,6 +269,7 @@ async function uploadLinkedInVideo(author: string, videoUrl: string, token: stri
       },
     }),
   });
+  if (init.status === 401 || init.status === 403) throw authError("initialisation de l'upload vidéo");
   if (!init.ok) throw new Error(`LinkedIn videos initializeUpload → HTTP ${init.status}`);
   const initJson = (await init.json()) as {
     value?: {
@@ -234,12 +288,13 @@ async function uploadLinkedInVideo(author: string, videoUrl: string, token: stri
   const etags: string[] = [];
   for (const part of instructions) {
     const slice = bytes.subarray(part.firstByte, part.lastByte + 1);
-    const up = await fetch(part.uploadUrl, {
-      method: "PUT",
-      headers: { "Content-Type": "application/octet-stream" },
-      body: slice,
-    });
-    if (!up.ok) throw new Error(`LinkedIn video upload (octets ${part.firstByte}-${part.lastByte}) → HTTP ${up.status}`);
+    const up = await putUploadBytes(
+      part.uploadUrl,
+      slice,
+      "application/octet-stream",
+      token,
+      `de la vidéo (octets ${part.firstByte}-${part.lastByte})`
+    );
     const etag = up.headers.get("etag");
     if (etag) etags.push(etag);
   }
@@ -444,16 +499,14 @@ class LinkedInConnector implements SocialConnector {
         };
         mediaAttached = true;
       } else {
-        try {
-          const imageUrn = await uploadLinkedInImage(author, input.media.url, input.accessToken);
-          postBody.content = {
-            media: { id: imageUrn, ...(input.linkTitle ? { title: input.linkTitle } : {}) },
-          };
-          mediaAttached = true;
-        } catch (e) {
-          // Repli : si l'upload de l'image échoue, on publie au moins le texte.
-          console.warn("[linkedin] upload image échoué, publication en texte seul :", (e as Error).message);
-        }
+        // Image : comme la vidéo, AUCUN repli texte silencieux — publier sans
+        // le visuel choisi à l'insu de l'utilisateur est pire qu'un échec
+        // visible (le post « réussissait » mais l'image manquait sur LinkedIn).
+        const imageUrn = await uploadLinkedInImage(author, input.media.url, input.accessToken);
+        postBody.content = {
+          media: { id: imageUrn, ...(input.linkTitle ? { title: input.linkTitle } : {}) },
+        };
+        mediaAttached = true;
       }
     }
     if (!mediaAttached && input.link) {
@@ -479,6 +532,8 @@ class LinkedInConnector implements SocialConnector {
     });
 
     if (!res.ok) {
+      // Token rejeté → erreur typée : inutile de réessayer, il faut reconnecter.
+      if (res.status === 401 || res.status === 403) throw authError("création du post");
       let errMsg = `LinkedIn Posts API → HTTP ${res.status}`;
       try {
         const errBody = (await res.json()) as { message?: string };

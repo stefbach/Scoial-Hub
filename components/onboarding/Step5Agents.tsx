@@ -6,10 +6,16 @@
 // contenu final, briefs créatifs. La transition vers l'étape 6 (Diffusion)
 // passe par la barre de navigation globale du parcours (« Continuer → »).
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useOnboardingCtx } from "@/components/onboarding/context";
 import { useT, useLang } from "@/lib/i18n";
 import type { AgentRunResult } from "@/lib/agents/types";
+import {
+  StepOutput,
+  splitApprovalMark,
+  truncateKeepingLink,
+  PendingApprovalBanner,
+} from "@/components/agents/StepOutput";
 
 // ── Icônes SVG inline ────────────────────────────────────────────────────────
 
@@ -218,7 +224,10 @@ function LoadingAgents() {
             {t("Les agents travaillent…", "Agents are working…")}
           </p>
           <p className="text-xs text-muted">
-            {t("Orchestration en cours — environ 45 secondes", "Orchestration in progress — about 45 seconds")}
+            {/* Durée mesurée sur les cycles réels : annoncer 45 s pour un
+                traitement qui en prend 90 fait croire à un blocage à mi-course
+                (recette R27 #1). Mieux vaut annoncer large et finir en avance. */}
+            {t("Orchestration en cours — environ 90 secondes", "Orchestration in progress — about 90 seconds")}
           </p>
         </div>
       </div>
@@ -258,6 +267,16 @@ function LoadingAgents() {
           )}
         </p>
       </div>
+
+      {/* Le travail des agents se fait dans CET onglet : quitter la page avant
+          la fin perd la campagne en cours. L'avertissement doit être visible
+          pendant l'attente, pas découvert après coup (R25 #3). */}
+      <p className="rounded-lg border border-warning-200 bg-warning-50 px-3 py-2 text-2xs font-semibold text-warning-700">
+        {t(
+          "⚠️ Ne quittez pas cette page tant que la campagne n'est pas créée — la génération serait interrompue.",
+          "⚠️ Don't leave this page until the campaign is created — the generation would be interrupted."
+        )}
+      </p>
     </div>
   );
 }
@@ -275,12 +294,15 @@ function StepCard({ step, isLast }: { step: AgentRunResult["steps"][number]; isL
     dot: "bg-muted",
   };
 
-  // Tronquer les sorties longues (> 300 chars)
+  // Tronquer les sorties longues (> 300 chars). Le lien de reprise, ajouté en
+  // FIN de sortie par l'orchestrateur, était systématiquement coupé : la carte
+  // « Média » disait « cliquez le lien » sans qu'aucun lien soit visible
+  // (recette R26 #4). La troncature le conserve désormais.
   const OUTPUT_LIMIT = 300;
   const rawOutput = step.output ?? step.detail ?? "";
   const needsTruncate = rawOutput.length > OUTPUT_LIMIT;
   const displayOutput = needsTruncate && !expanded
-    ? rawOutput.slice(0, OUTPUT_LIMIT) + "…"
+    ? truncateKeepingLink(rawOutput, OUTPUT_LIMIT)
     : rawOutput;
 
   const statusConfig = {
@@ -320,7 +342,9 @@ function StepCard({ step, isLast }: { step: AgentRunResult["steps"][number]; isL
           {/* Sortie de l'étape */}
           {displayOutput && (
             <pre className="mt-2 whitespace-pre-wrap rounded-lg bg-canvas/60 px-3 py-2 font-sans text-xs leading-relaxed text-ink ring-1 ring-hair/50">
-              {displayOutput}
+              {/* Même rendu que la timeline : les chemins internes sont des
+                  liens cliquables, pas des adresses à recopier. */}
+              <StepOutput text={displayOutput} />
             </pre>
           )}
 
@@ -367,9 +391,20 @@ function FinalOutputCard({ finalOutput }: { finalOutput: string }) {
         </span>
       </div>
       <div className="p-4">
-        <pre className="whitespace-pre-wrap rounded-xl bg-canvas/60 px-4 py-3 font-sans text-sm leading-relaxed text-ink ring-1 ring-hair/50">
-          {finalOutput}
-        </pre>
+        {/* La mention d'attente de validation devient un bandeau au lieu de
+            rester collée en tête du texte : elle doit sauter aux yeux, et le
+            corps du contenu reste publiable sans rien effacer (R26 #5). */}
+        {(() => {
+          const { pending, body } = splitApprovalMark(finalOutput);
+          return (
+            <>
+              {pending && <PendingApprovalBanner className="mb-3" />}
+              <pre className="whitespace-pre-wrap rounded-xl bg-canvas/60 px-4 py-3 font-sans text-sm leading-relaxed text-ink ring-1 ring-hair/50">
+                <StepOutput text={body} />
+              </pre>
+            </>
+          );
+        })()}
       </div>
     </div>
   );
@@ -427,6 +462,16 @@ export default function Step5Agents() {
   const [running, setRunning]   = useState(false);
   const [result, setResult]     = useState<AgentRunResult | null>(null);
   const [error, setError]       = useState<string | null>(null);
+
+  // Le message d'attente prévient ; ce garde-fou protège. La génération vit
+  // dans cet onglet : fermer ou recharger pendant qu'elle tourne la perd, sans
+  // aucun moyen de la reprendre. Le navigateur demande alors confirmation.
+  useEffect(() => {
+    if (!running) return;
+    const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [running]);
 
   // ── Construction de l'objectif textuel envoyé aux agents ──────────────────
   // Rédigé dans la langue de l'UI (bug 1 lot 17) : l'objectif est repris tel

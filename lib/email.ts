@@ -19,14 +19,29 @@ export interface EmailPayload {
 }
 
 /**
- * Envoie un e-mail via Resend. Retourne true UNIQUEMENT si l'API a accepté
- * l'envoi (2xx). Jamais d'exception : les erreurs sont loguées et renvoient false.
+ * Pourquoi un envoi n'a pas abouti. Distinguer ces cas est ce qui manquait :
+ * « service absent » se règle par une variable d'environnement, « refusé » par
+ * le domaine expéditeur ou l'adresse — le message affiché n'est pas le même.
  */
-export async function sendEmail({ to, subject, text, html }: EmailPayload): Promise<boolean> {
+export type EmailFailure = "not_configured" | "rejected" | "network";
+
+export interface EmailResult {
+  ok: boolean;
+  failure?: EmailFailure;
+  /** Détail technique (statut HTTP, message du fournisseur) pour le diagnostic. */
+  detail?: string;
+}
+
+/**
+ * Envoie un e-mail via Resend. `ok` n'est vrai QUE si l'API a accepté l'envoi
+ * (2xx). Jamais d'exception : les erreurs sont loguées et décrites dans le
+ * résultat.
+ */
+export async function sendEmail({ to, subject, text, html }: EmailPayload): Promise<EmailResult> {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
     console.warn("[email] RESEND_API_KEY absente — e-mail non envoyé à", to, "(configurez Resend dans Vercel)");
-    return false;
+    return { ok: false, failure: "not_configured" };
   }
   const from = process.env.EMAIL_FROM ?? "AXON-AI Social Hub <onboarding@resend.dev>";
   try {
@@ -35,13 +50,13 @@ export async function sendEmail({ to, subject, text, html }: EmailPayload): Prom
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({ from, to: [to], subject, text, ...(html ? { html } : {}) }),
     });
-    if (!res.ok) {
-      console.error("[email] Resend a refusé l'envoi:", res.status, await res.text().catch(() => ""));
-    }
-    return res.ok;
+    if (res.ok) return { ok: true };
+    const body = await res.text().catch(() => "");
+    console.error("[email] Resend a refusé l'envoi:", res.status, body);
+    return { ok: false, failure: "rejected", detail: `${res.status} ${body}`.trim().slice(0, 300) };
   } catch (e) {
     console.error("[email] envoi impossible:", e);
-    return false;
+    return { ok: false, failure: "network", detail: String(e).slice(0, 300) };
   }
 }
 

@@ -12,6 +12,7 @@ import Link from "next/link";
 import { useT } from "@/lib/i18n";
 import { LanguageSwitcher } from "@/lib/i18n";
 import { NetworkCanvas } from "@/components/visual/NetworkCanvas";
+import { LogoMark } from "@/components/brand/Logo";
 const AgentConstellation3D = dynamic(() => import("@/components/landing/AgentConstellation3D").then((m) => m.AgentConstellation3D), { ssr: false });
 import { IconLink, IconChat, IconTrendingUp, IconLock, IconShieldCheck, IconMic, IconAward } from "@/components/visual/Icons";
 
@@ -158,12 +159,13 @@ export default function Home() {
 
       {/* ── Nav ── */}
       <header className="mc-nav">
-        <Link href="/" className="mc-brand"><span className="mc-brand-dot" /> AXON<span>·AI</span></Link>
+        <Link href="/" className="mc-brand"><LogoMark size={26} onDark /> AXON<span>·AI</span></Link>
         <nav className="mc-navlinks">
           <a href="#reseau">{t("Le réseau", "The network")}</a>
           <a href="#capabilities">{t("Fonctionnalités", "Features")}</a>
           <a href="#showcase">{t("Aperçu", "Preview")}</a>
           <Link href="/agents">{t("Agents", "Agents")}</Link>
+          <Link href="/tarifs">{t("Tarifs", "Pricing")}</Link>
         </nav>
         <div className="mc-navcta">
           <LanguageSwitcher />
@@ -441,7 +443,13 @@ export default function Home() {
       </section>
 
       <footer className="mc-foot">
-        <span>© {new Date().getFullYear()} AXON·AI</span>
+        <span>© {new Date().getFullYear()} AXON·AI · Social Hub — Digital Data Solutions Ltd</span>
+        <nav className="mc-foot-links" aria-label={t("Liens légaux", "Legal links")}>
+          <Link href="/tarifs">{t("Tarifs", "Pricing")}</Link>
+          <Link href="/legal/conditions">{t("Conditions", "Terms")}</Link>
+          <Link href="/legal/confidentialite">{t("Confidentialité", "Privacy")}</Link>
+          <Link href="/legal/suppression-donnees">{t("Suppression des données", "Data deletion")}</Link>
+        </nav>
         <span className="mc-foot-net">{NETWORKS.map((L, i) => <L key={i} s={18} />)}</span>
       </footer>
     </div>

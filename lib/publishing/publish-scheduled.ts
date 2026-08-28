@@ -14,8 +14,16 @@
 import {
   getConnection,
   getConnectionAdmin,
+  markConnectionDisconnected,
 } from "@/lib/repositories/channel-connections";
+import {
+  getTikTokConnection,
+  getTikTokConnectionAdmin,
+  disconnectTikTokConnection,
+} from "@/lib/repositories/tiktok-connection";
+import { isConnectorAuthError, isMetaContainerPendingError } from "@/lib/connectors/types";
 import { updateScheduledPost } from "@/lib/repositories/scheduled-posts";
+import { ensurePublishableImageUrl } from "@/lib/repositories/media";
 import { resolveCompanyUuid } from "@/lib/repositories/resolve-company";
 import { getConnector } from "@/lib/connectors/index";
 import { createAdminClient } from "@/lib/supabase/server";
@@ -127,7 +135,11 @@ async function logHistory(
       source: post.automationName ? "automation" : "manual",
       automation_name: post.automationName ?? null,
       status,
-      ...(post.media?.kind ? { media: { kind: post.media.kind } } : {}),
+      // L'URL du média est CONSERVÉE : sans elle, l'historique savait qu'il y
+      // avait une image mais ne pouvait plus l'afficher (recette R24 #12).
+      ...(post.media?.kind
+        ? { media: { kind: post.media.kind, ...(post.media.url ? { url: post.media.url } : {}) } }
+        : {}),
       ...(errorMessage
         ? { error: { title: "Échec de publication", detail: errorMessage.slice(0, 500) } }
         : {}),
@@ -138,16 +150,16 @@ async function logHistory(
 }
 
 /** Marque le post comme publié via le client admin (cron — pas de session). */
-async function markPublishedAdmin(id: string, publishedAt: string): Promise<void> {
+async function markPublishedAdmin(id: string, publishedAt: string, externalId?: string): Promise<void> {
   if (!isSupabaseConfigured) {
-    await updateScheduledPost(id, { status: "published", publishedAt }).catch(() => {});
+    await updateScheduledPost(id, { status: "published", publishedAt, externalId }).catch(() => {});
     return;
   }
   const supabase = createAdminClient();
   if (!supabase) return;
   await supabase
     .from("sh_scheduled_posts")
-    .update({ status: "published", published_at: publishedAt })
+    .update({ status: "published", published_at: publishedAt, ...(externalId ? { external_id: externalId } : {}) })
     .eq("id", id);
 }
 
@@ -169,37 +181,78 @@ export async function publishScheduledPostNow(
   const label = PLATFORM_LABEL[platform] ?? platform;
 
   const text = (post.body || post.title || "").trim();
-  if (!text) {
+  // Une Story n'a pas de légende : elle est valide avec le seul média. Seule
+  // une publication SANS texte ET SANS média est réellement vide.
+  if (!text && !post.media?.url) {
     return { ok: false, status: 400, error: "La publication est vide.", platform };
   }
 
   // Compte connecté = source de vérité pour les tokens (page_access_token…).
   const uuid = await resolveCompanyUuid(companyIdOrUuid);
-  const conn = opts.admin
-    ? await getConnectionAdmin(uuid, platform)
-    : await getConnection(uuid, platform);
-  if (!conn || conn.status !== "connected") {
-    return {
-      ok: false,
-      status: 409,
-      error: `Le compte ${label} n'est pas connecté. Connectez-le dans Connecteurs avant de publier.`,
-      platform,
-    };
-  }
 
-  const { externalAccountId, accessToken } = resolveCreds(platform, conn.config ?? {});
-  if (!externalAccountId || !accessToken) {
-    return {
-      ok: false,
-      status: 409,
-      error: `La connexion ${label} est incomplète (Page/token manquant). Reconnectez le compte.`,
-      platform,
-    };
+  let externalAccountId: string;
+  let accessToken: string;
+
+  if (platform === "tiktok") {
+    // Brique 2 (partielle) : TikTok lit sa connexion dans sa table DÉDIÉE
+    // (sh_tiktok_connections), isolée de sh_channel_connections que
+    // partagent les autres réseaux — le reste du pipeline (post, cron,
+    // historique) est inchangé.
+    const conn = opts.admin ? await getTikTokConnectionAdmin(uuid) : await getTikTokConnection(uuid);
+    if (!conn || conn.status !== "connected") {
+      return {
+        ok: false,
+        status: 409,
+        error: `Le compte ${label} n'est pas connecté. Connectez-le dans Connecteurs avant de publier.`,
+        platform,
+      };
+    }
+    externalAccountId = conn.external_id ?? "";
+    accessToken = conn.access_token ?? "";
+    if (!externalAccountId || !accessToken) {
+      return {
+        ok: false,
+        status: 409,
+        error: `La connexion ${label} est incomplète (Page/token manquant). Reconnectez le compte.`,
+        platform,
+      };
+    }
+  } else {
+    const conn = opts.admin ? await getConnectionAdmin(uuid, platform) : await getConnection(uuid, platform);
+    if (!conn || conn.status !== "connected") {
+      return {
+        ok: false,
+        status: 409,
+        error: `Le compte ${label} n'est pas connecté. Connectez-le dans Connecteurs avant de publier.`,
+        platform,
+      };
+    }
+    ({ externalAccountId, accessToken } = resolveCreds(platform, conn.config ?? {}));
+    if (!externalAccountId || !accessToken) {
+      return {
+        ok: false,
+        status: 409,
+        error: `La connexion ${label} est incomplète (Page/token manquant). Reconnectez le compte.`,
+        platform,
+      };
+    }
   }
 
   // Média attaché (URL) — requis par Instagram (pas de post texte seul),
   // optionnel mais pris en compte pour Facebook/LinkedIn.
-  const mediaUrl = post.media?.url;
+  let mediaUrl = post.media?.url;
+  const postType = post.media?.postType ?? "feed";
+  if (postType !== "feed" && !mediaUrl) {
+    return {
+      ok: false,
+      status: 422,
+      error: `Une ${postType === "story" ? "Story" : "publication Reel"} exige un média (image ou vidéo).`,
+      platform,
+    };
+  }
+  if (postType === "reel" && post.media?.kind !== "video") {
+    return { ok: false, status: 422, error: "Un Reel exige une vidéo (format vertical 9:16).", platform };
+  }
   if (platform === "instagram" && !mediaUrl) {
     return {
       ok: false,
@@ -209,6 +262,12 @@ export async function publishScheduledPostNow(
     };
   }
 
+  // Un visuel WebP (anciens posts programmés avec une image IA) est refusé par
+  // LinkedIn et Instagram → conversion JPEG + rehébergement avant publication.
+  if (mediaUrl && post.media?.kind !== "video") {
+    mediaUrl = await ensurePublishableImageUrl(companyIdOrUuid, mediaUrl);
+  }
+
   const input: PublishInput = {
     externalAccountId,
     accessToken,
@@ -216,6 +275,16 @@ export async function publishScheduledPostNow(
     media: mediaUrl
       ? { url: mediaUrl, mimeType: post.media?.kind === "video" ? "video/mp4" : "image/jpeg" }
       : undefined,
+    // Emplacement Meta choisi à la création (fil / Story / Reel) — ignoré par
+    // les autres connecteurs.
+    postType: post.media?.postType,
+    // Conteneur Instagram d'un essai précédent, à reprendre s'il existe.
+    igContainerId: post.media?.igContainerId,
+    // Réglages Content Posting API (confidentialité, interactions, divulgation
+    // commerciale) choisis par l'utilisateur dans /compose. Absents pour les
+    // posts créés avant cet ajout → le connecteur retombe sur son
+    // comportement historique (SELF_ONLY).
+    tiktok: platform === "tiktok" ? post.media?.tiktok : undefined,
   };
 
   let result;
@@ -225,7 +294,42 @@ export async function publishScheduledPostNow(
   } catch (err) {
     const message = err instanceof Error ? err.message : "Erreur inconnue";
     console.error(`[publish-scheduled] ${platform} (post ${post.id}):`, message);
+
+    // Instagram prépare encore le média : on MÉMORISE le conteneur pour que le
+    // prochain essai reprenne là où celui-ci s'est arrêté. Sans cela, chaque
+    // réessai recréait un conteneur et rebutait sur la même attente — c'est ce
+    // qui a fait échouer des publications pendant 24 h d'affilée.
+    if (isMetaContainerPendingError(err)) {
+      const media = { ...(post.media ?? { kind: "image" as const }), igContainerId: err.containerId };
+      await updateScheduledPost(post.id, { media }).catch(() => {});
+      return {
+        ok: false,
+        status: 503, // transitoire : le cron réessaiera
+        error: `${label} : ${message}`,
+        platform,
+      };
+    }
+
     await logHistory(uuid, post, text, "failed", undefined, message);
+
+    // Token rejeté par la plateforme : ce n'est PAS transitoire. Réessayer
+    // toutes les 10 minutes ne peut rien donner et masque le problème — on
+    // invalide la connexion (l'écran Connecteurs réclame alors une
+    // reconnexion) et on renvoie un statut permanent pour arrêter la boucle.
+    if (isConnectorAuthError(err)) {
+      if (platform === "tiktok") {
+        await disconnectTikTokConnection(uuid);
+      } else {
+        await markConnectionDisconnected(uuid, platform, message);
+      }
+      return {
+        ok: false,
+        status: 409,
+        error: `${label} : ${message}`,
+        platform,
+      };
+    }
+
     return {
       ok: false,
       status: 502,
@@ -237,9 +341,9 @@ export async function publishScheduledPostNow(
   // Publication effectuée → on marque le post comme publié + trace Historique.
   const publishedAt = new Date().toISOString();
   if (opts.admin) {
-    await markPublishedAdmin(post.id, publishedAt).catch(() => {});
+    await markPublishedAdmin(post.id, publishedAt, result.externalId).catch(() => {});
   } else {
-    await updateScheduledPost(post.id, { status: "published", publishedAt }).catch(() => {});
+    await updateScheduledPost(post.id, { status: "published", publishedAt, externalId: result.externalId }).catch(() => {});
   }
   await logHistory(uuid, post, text, "published", result.url);
 
@@ -306,6 +410,30 @@ export function isPermanentPublishError(status: number): boolean {
 }
 
 /**
+ * Fenêtre au-delà de laquelle on cesse de réessayer un post en échec
+ * transitoire, en heures après son échéance.
+ */
+export const RETRY_WINDOW_HOURS = Number(process.env.PUBLISH_RETRY_WINDOW_HOURS ?? 24);
+
+/**
+ * Vrai si l'échéance du post est dépassée depuis plus que la fenêtre de
+ * réessai — l'échec doit alors être traité comme définitif.
+ *
+ * Sans cette borne, un échec classé « transitoire » repartait indéfiniment :
+ * les publications LinkedIn du 28/07 ont été retentées toutes les 10 minutes
+ * pendant 5 jours, échouant à chaque fois sans jamais apparaître comme
+ * `failed` à l'utilisateur. Une publication programmée qui n'est pas partie
+ * 24 h après son heure n'a de toute façon plus d'intérêt à partir seule : elle
+ * doit devenir visible et être renvoyée manuellement.
+ */
+export function isPastRetryWindow(post: ScheduledPost, now: Date = new Date()): boolean {
+  if (!post.date) return false;
+  const due = Date.parse(`${post.date}T${post.time || "00:00"}:00Z`);
+  if (Number.isNaN(due)) return false;
+  return now.getTime() - due > RETRY_WINDOW_HOURS * 3_600_000;
+}
+
+/**
  * Remet en `scheduled` les posts restés bloqués en `publishing` (ex. crash /
  * timeout d'un passage cron précédent) — UNIQUEMENT si leur réservation est
  * périmée (claimed_at plus vieux que STALE_CLAIM_MINUTES, ou absent : verrou
@@ -325,14 +453,31 @@ export async function reclaimStalePublishing(): Promise<number> {
   const supabase = createAdminClient();
   if (!supabase) return 0;
   const staleBefore = new Date(Date.now() - STALE_CLAIM_MINUTES * 60_000).toISOString();
-  const { data, error } = await supabase
+
+  // Deux requêtes SIMPLES plutôt qu'un `.or(...)` interpolant un horodatage ISO
+  // dans une chaîne de filtre : cette syntaxe est fragile (le format de la date
+  // y est réanalysé), et un filtre silencieusement inopérant laissait des posts
+  // bloqués en `publishing` pendant des jours — donc jamais publiés, jamais
+  // marqués en échec, invisibles.
+  let released = 0;
+
+  const { data: orphans } = await supabase
     .from("sh_scheduled_posts")
     .update({ status: "scheduled", claimed_at: null })
     .eq("status", "publishing")
-    .or(`claimed_at.is.null,claimed_at.lt.${staleBefore}`)
+    .is("claimed_at", null)
     .select("id");
-  if (error || !Array.isArray(data)) return 0;
-  return data.length;
+  if (Array.isArray(orphans)) released += orphans.length;
+
+  const { data: stale } = await supabase
+    .from("sh_scheduled_posts")
+    .update({ status: "scheduled", claimed_at: null })
+    .eq("status", "publishing")
+    .lt("claimed_at", staleBefore)
+    .select("id");
+  if (Array.isArray(stale)) released += stale.length;
+
+  return released;
 }
 
 // ── Posts arrivés à échéance (cron) ──────────────────────────────────────────

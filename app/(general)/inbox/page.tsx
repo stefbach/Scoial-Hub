@@ -15,6 +15,38 @@ import {
 
 type Filter = "pending" | "needs_human" | "answered" | "all";
 
+/** Réponse de /api/inbox/diagnose-ig (verdict + observations). */
+interface IgDmDiagnosisView {
+  igLinked: boolean;
+  igUsername?: string;
+  igAccountType?: string;
+  permissionGranted: boolean | null;
+  webhookSubscribed: boolean | null;
+  messengerConversations: number | null;
+  igMessagesScope: {
+    known: boolean;
+    targetIds: string[];
+    unrestricted: boolean;
+    coversAccount: boolean | null;
+  };
+  probes: Array<{
+    node: "page" | "instagram";
+    id: string;
+    conversations: number;
+    error?: string;
+    inconclusive?: boolean;
+  }>;
+  verdict:
+    | "ok"
+    | "no-ig"
+    | "permission-missing"
+    | "scope-excludes-account"
+    | "graph-error"
+    | "access-blocked-or-empty";
+  explanation: string;
+  causes: Array<{ title: string; action: string }>;
+}
+
 const STATUS_FILTERS: { id: Filter; fr: string; en: string }[] = [
   { id: "pending", fr: "À traiter", en: "To handle" },
   { id: "needs_human", fr: "Pour un humain", en: "For a human" },
@@ -32,11 +64,30 @@ function formatWhen(iso: string, lang: "fr" | "en"): string {
   });
 }
 
+/** Sentiments dans l'ordre d'importance opérationnelle : le négatif d'abord,
+ *  parce que c'est ce qui demande une réaction. */
+const SENTIMENTS = [
+  { id: "negative", fr: "Négatif", en: "Negative" },
+  { id: "question", fr: "Question", en: "Question" },
+  { id: "neutral", fr: "Neutre", en: "Neutral" },
+  { id: "positive", fr: "Positif", en: "Positive" },
+] as const;
+
+type SentimentId = (typeof SENTIMENTS)[number]["id"];
+
 const SENTIMENT_STYLE: Record<string, string> = {
   positive: "bg-success-50 text-success-700",
   negative: "bg-danger-50 text-danger-700",
   question: "bg-ai-textbg text-ai-text",
   neutral: "bg-canvas text-muted",
+};
+
+/** Aplats de la barre de répartition (mêmes teintes que les badges). */
+const SENTIMENT_BAR: Record<string, string> = {
+  positive: "bg-success-500",
+  negative: "bg-danger-500",
+  question: "bg-primary-500",
+  neutral: "bg-hair",
 };
 
 export default function InboxPage() {
@@ -48,6 +99,7 @@ export default function InboxPage() {
   const [messages, setMessages] = useState<InboxMessage[]>([]);
   const [filter, setFilter] = useState<Filter>("pending");
   const [kindFilter, setKindFilter] = useState<"all" | "comment" | "dm" | "review">("all");
+  const [sentimentFilter, setSentimentFilter] = useState<"all" | SentimentId>("all");
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [banner, setBanner] = useState<{ kind: "ok" | "warn"; text: string } | null>(null);
@@ -55,6 +107,8 @@ export default function InboxPage() {
   const [agentModal, setAgentModal] = useState(false);
   const [editAgent, setEditAgent] = useState<InboxAgent | null>(null);
   const [simulateOpen, setSimulateOpen] = useState(false);
+  const [igDiag, setIgDiag] = useState<IgDmDiagnosisView | null>(null);
+  const [diagnosing, setDiagnosing] = useState(false);
 
   const loadAgents = useCallback(async () => {
     try {
@@ -101,9 +155,16 @@ export default function InboxPage() {
       if (!d.available) {
         setBanner({ kind: "warn", text: t("Connectez votre Page Meta pour importer les messages.", "Connect your Meta Page to import messages.") });
       } else {
+        // Le détail Messenger / Instagram est explicite : un « 0 côté
+        // Instagram » doit se voir, sinon un total non nul laisse croire que
+        // les DM Instagram sont arrivés alors qu'ils manquent tous.
         const summary = t(
-          `${d.imported} importé(s) — ${d.comments ?? 0} commentaire(s), ${d.dms ?? 0} message(s) privé(s), ${d.reviews ?? 0} avis.`,
-          `${d.imported} imported — ${d.comments ?? 0} comment(s), ${d.dms ?? 0} private message(s), ${d.reviews ?? 0} review(s).`
+          `${d.imported} importé(s) — ${d.comments ?? 0} commentaire(s), ` +
+            `${d.dmsMessenger ?? 0} message(s) privé(s) Messenger, ${d.dmsInstagram ?? 0} Instagram, ` +
+            `${d.reviews ?? 0} avis.`,
+          `${d.imported} imported — ${d.comments ?? 0} comment(s), ` +
+            `${d.dmsMessenger ?? 0} Messenger private message(s), ${d.dmsInstagram ?? 0} Instagram, ` +
+            `${d.reviews ?? 0} review(s).`
         );
         // La note signale les contenus illisibles (permission manquante, etc.).
         setBanner({
@@ -119,6 +180,21 @@ export default function InboxPage() {
     }
   }
 
+  async function diagnoseIg() {
+    setDiagnosing(true);
+    setIgDiag(null);
+    try {
+      const r = await fetch(`/api/inbox/diagnose-ig?companyId=${encodeURIComponent(companyId)}`);
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error ?? "diagnostic indisponible");
+      setIgDiag(d as IgDmDiagnosisView);
+    } catch {
+      setBanner({ kind: "warn", text: t("Diagnostic indisponible.", "Diagnosis unavailable.") });
+    } finally {
+      setDiagnosing(false);
+    }
+  }
+
   function onMessageChanged(updated: InboxMessage) {
     setMessages((prev) => {
       // Si le filtre ne correspond plus au nouveau statut, on retire la carte.
@@ -131,6 +207,16 @@ export default function InboxPage() {
   const counts = {
     pending: messages.filter((m) => m.status === "pending").length,
   };
+
+  // Humeur de l'audience sur les messages chargés. Le sentiment était déjà
+  // calculé à la réception (lib/inbox/respond.ts) mais n'apparaissait que
+  // message par message : impossible de voir une tendance, ni d'aller droit
+  // aux mécontents.
+  const sentimentCounts = SENTIMENTS.map((s) => ({
+    ...s,
+    n: messages.filter((m) => m.sentiment === s.id).length,
+  }));
+  const sentimentTotal = sentimentCounts.reduce((a, b) => a + b.n, 0);
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
@@ -148,6 +234,18 @@ export default function InboxPage() {
         <div className="flex flex-wrap gap-2">
           <button onClick={() => setSimulateOpen(true)} className="btn-secondary text-sm">
             {t("Simuler un message", "Simulate a message")}
+          </button>
+          <button
+            onClick={diagnoseIg}
+            disabled={diagnosing}
+            className="btn-secondary inline-flex items-center gap-1.5 text-sm disabled:opacity-50"
+            title={t(
+              "Dit pourquoi les messages privés Instagram n'arrivent pas",
+              "Tells you why Instagram private messages don't arrive"
+            )}
+          >
+            {diagnosing && <Spinner size={16} />}
+            {t("Diagnostiquer les DM Instagram", "Diagnose Instagram DMs")}
           </button>
           <button onClick={sync} disabled={syncing} className="btn-primary inline-flex items-center gap-1.5 text-sm disabled:opacity-50">
             {syncing && <Spinner size={16} className="text-white" />}
@@ -167,6 +265,131 @@ export default function InboxPage() {
         >
           {banner.text}
         </div>
+      )}
+
+      {/* Diagnostic des DM Instagram : chaque ligne est une observation, pas une
+          supposition — le verdict indique laquelle des causes bloque. */}
+      {igDiag && (
+        <section
+          aria-label={t("Diagnostic des messages privés Instagram", "Instagram DM diagnosis")}
+          className="rounded-xl border border-hair bg-card p-4"
+        >
+          <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="text-sm font-semibold text-ink">
+              {t("Messages privés Instagram", "Instagram private messages")}
+              {igDiag.igUsername ? ` · @${igDiag.igUsername}` : ""}
+            </h2>
+            <button onClick={() => setIgDiag(null)} className="text-2xs text-muted hover:text-ink">
+              {t("Fermer", "Close")}
+            </button>
+          </div>
+          <ul className="space-y-1.5 text-xs">
+            <DiagLine
+              ok={igDiag.igLinked}
+              label={t("Compte Instagram professionnel lié à la Page", "Instagram professional account linked to the Page")}
+            />
+            <DiagLine
+              ok={igDiag.permissionGranted}
+              label={t("Permission instagram_manage_messages accordée", "instagram_manage_messages permission granted")}
+              unknown={t("indéterminable (aucun token utilisateur enregistré)", "undeterminable (no user token stored)")}
+            />
+            <DiagLine
+              ok={igDiag.webhookSubscribed}
+              label={t("Page abonnée au webhook « messages » (temps réel)", "Page subscribed to the “messages” webhook (real time)")}
+              unknown={t("inconnu", "unknown")}
+            />
+            {/* La portée RÉELLE de la permission : « accordée » ne veut pas
+                dire « couvre ce compte ». */}
+            <DiagLine
+              ok={igDiag.igMessagesScope?.known ? igDiag.igMessagesScope.coversAccount : null}
+              label={
+                igDiag.igMessagesScope?.unrestricted
+                  ? t(
+                      "Portée de la permission : tous les comptes (aucune restriction)",
+                      "Permission scope: all accounts (unrestricted)"
+                    )
+                  : t(
+                      `Portée réelle de la permission : ${
+                        igDiag.igMessagesScope?.targetIds?.length
+                          ? igDiag.igMessagesScope.targetIds.join(", ")
+                          : "aucun compte"
+                      }`,
+                      `Actual permission scope: ${
+                        igDiag.igMessagesScope?.targetIds?.length
+                          ? igDiag.igMessagesScope.targetIds.join(", ")
+                          : "no account"
+                      }`
+                    )
+              }
+              unknown={t("non lisible (aucun token utilisateur)", "unreadable (no user token)")}
+            />
+            <DiagLine
+              ok={igDiag.igAccountType ? igDiag.igAccountType === "BUSINESS" : null}
+              label={t(
+                `Compte de type ${igDiag.igAccountType ?? "?"} (la messagerie exige un compte professionnel)`,
+                `Account type ${igDiag.igAccountType ?? "?"} (messaging requires a professional account)`
+              )}
+              unknown={t("type non communiqué par Meta", "type not reported by Meta")}
+            />
+            {/* Contre-épreuve : le même token sur le même edge, sans Instagram. */}
+            <DiagLine
+              ok={igDiag.messengerConversations === null ? null : igDiag.messengerConversations > 0}
+              label={t(
+                `Contre-épreuve Messenger avec le même token : ${igDiag.messengerConversations ?? 0} conversation(s)`,
+                `Messenger cross-check with the same token: ${igDiag.messengerConversations ?? 0} conversation(s)`
+              )}
+              unknown={t("appel en échec", "call failed")}
+            />
+            {igDiag.probes.map((p) => (
+              <DiagLine
+                key={p.node}
+                // Une erreur non concluante n'est PAS un échec : elle apparaît
+                // même quand la messagerie fonctionne (cf. #3 sur le nœud
+                // Instagram avec un token de Page).
+                ok={p.inconclusive ? null : p.error ? false : p.conversations > 0}
+                label={
+                  p.error
+                    ? t(
+                        `Conversations via le nœud ${p.node === "page" ? "Page" : "Instagram"} : ${p.error}`,
+                        `Conversations via the ${p.node === "page" ? "Page" : "Instagram"} node: ${p.error}`
+                      )
+                    : t(
+                        `Conversations via le nœud ${p.node === "page" ? "Page" : "Instagram"} : ${p.conversations} fil(s)`,
+                        `Conversations via the ${p.node === "page" ? "Page" : "Instagram"} node: ${p.conversations} thread(s)`
+                      )
+                }
+                unknown={t(
+                  "sans portée : ce nœud attend un token Instagram Login, pas un token de Page",
+                  "not meaningful: this node expects an Instagram Login token, not a Page token"
+                )}
+              />
+            ))}
+          </ul>
+          <p
+            className={`mt-3 rounded-lg px-3 py-2 text-xs ${
+              igDiag.verdict === "ok" ? "bg-success-50 text-success-700" : "bg-warning-50 text-warning-700"
+            }`}
+          >
+            {igDiag.explanation}
+          </p>
+
+          {/* Causes classées par probabilité : à traiter dans l'ordre. */}
+          {igDiag.causes?.length > 0 && (
+            <ol className="mt-3 space-y-2.5">
+              {igDiag.causes.map((c, i) => (
+                <li key={c.title} className="flex gap-2.5 text-xs">
+                  <span className="mt-px flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-canvas text-[10px] font-semibold text-muted">
+                    {i + 1}
+                  </span>
+                  <span>
+                    <span className="font-semibold text-ink">{c.title}</span>
+                    <span className="block text-muted">{c.action}</span>
+                  </span>
+                </li>
+              ))}
+            </ol>
+          )}
+        </section>
       )}
 
       {/* Agents */}
@@ -193,6 +416,55 @@ export default function InboxPage() {
           loadAgents();
         }}
       />
+
+      {/* Humeur de l'audience — cliquable pour filtrer */}
+      {sentimentTotal > 0 && (
+        <section aria-label={t("Humeur de vos audiences", "Audience mood")} className="rounded-xl border border-hair bg-card p-4">
+          <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="text-sm font-semibold text-ink">{t("Humeur de vos audiences", "Audience mood")}</h2>
+            <p className="text-2xs text-muted">
+              {t(`${sentimentTotal} message(s) analysé(s)`, `${sentimentTotal} message(s) analysed`)}
+            </p>
+          </div>
+
+          {/* Répartition en une barre : la part de négatif se voit d'un coup d'œil. */}
+          <div className="flex h-2 overflow-hidden rounded-full bg-canvas" role="img"
+               aria-label={sentimentCounts.map((s) => `${t(s.fr, s.en)} ${s.n}`).join(", ")}>
+            {sentimentCounts.filter((s) => s.n > 0).map((s) => (
+              <span
+                key={s.id}
+                className={SENTIMENT_BAR[s.id]}
+                style={{ width: `${(s.n / sentimentTotal) * 100}%` }}
+              />
+            ))}
+          </div>
+
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            <button
+              onClick={() => setSentimentFilter("all")}
+              aria-pressed={sentimentFilter === "all"}
+              className={`rounded-full px-3 py-1 text-2xs font-medium transition-colors ${sentimentFilter === "all" ? "bg-ink text-white" : "bg-canvas text-muted hover:text-ink"}`}
+            >
+              {t("Tout", "All")}
+            </button>
+            {sentimentCounts.map((s) => (
+              <button
+                key={s.id}
+                onClick={() => setSentimentFilter(sentimentFilter === s.id ? "all" : s.id)}
+                aria-pressed={sentimentFilter === s.id}
+                disabled={s.n === 0}
+                className={`rounded-full px-3 py-1 text-2xs font-medium transition-colors disabled:opacity-40 ${sentimentFilter === s.id ? "bg-ink text-white" : `${SENTIMENT_STYLE[s.id]} hover:opacity-80`}`}
+              >
+                {t(s.fr, s.en)}
+                <span className="ml-1.5 tabular-nums opacity-70">{s.n}</span>
+                <span className="ml-1 tabular-nums opacity-50">
+                  {Math.round((s.n / sentimentTotal) * 100)}%
+                </span>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Filtres par type (commentaire / message privé) */}
       <div className="flex flex-wrap items-center gap-1.5">
@@ -230,7 +502,9 @@ export default function InboxPage() {
 
       {/* Messages */}
       {(() => {
-        const visible = kindFilter === "all" ? messages : messages.filter((m) => m.kind === kindFilter);
+        const visible = messages
+          .filter((m) => kindFilter === "all" || m.kind === kindFilter)
+          .filter((m) => sentimentFilter === "all" || m.sentiment === sentimentFilter);
         if (loading) return <p className="text-sm text-muted">{t("Chargement…", "Loading…")}</p>;
         if (visible.length === 0) return <EmptyInbox t={t} hasAgents={agents.length > 0} />;
         return (
@@ -270,6 +544,24 @@ export default function InboxPage() {
 }
 
 // ── Section agents ────────────────────────────────────────────────────────────
+/**
+ * Une observation du diagnostic. `ok === null` = indéterminable : on l'affiche
+ * en gris plutôt qu'en échec, pour ne pas accuser un réglage sain.
+ */
+function DiagLine({ ok, label, unknown }: { ok: boolean | null; label: string; unknown?: string }) {
+  const mark = ok === null ? "•" : ok ? "✓" : "✗";
+  const tone = ok === null ? "text-muted" : ok ? "text-success-700" : "text-danger-600";
+  return (
+    <li className="flex items-start gap-2">
+      <span aria-hidden="true" className={`mt-px font-semibold ${tone}`}>{mark}</span>
+      <span className="text-ink/80">
+        {label}
+        {ok === null && unknown ? ` — ${unknown}` : ""}
+      </span>
+    </li>
+  );
+}
+
 function AgentsSection({
   agents,
   onCreate,
@@ -469,7 +761,10 @@ function MessageCard({
             </span>
             {message.sentiment && (
               <span className={`rounded-full px-2 py-0.5 text-2xs font-medium ${SENTIMENT_STYLE[message.sentiment] ?? SENTIMENT_STYLE.neutral}`}>
-                {message.sentiment}
+                {t(
+                  SENTIMENTS.find((s) => s.id === message.sentiment)?.fr ?? message.sentiment,
+                  SENTIMENTS.find((s) => s.id === message.sentiment)?.en ?? message.sentiment
+                )}
               </span>
             )}
             {message.status === "needs_human" && (

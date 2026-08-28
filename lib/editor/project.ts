@@ -196,6 +196,39 @@ export interface TrackMeta {
   hidden?: boolean;
 }
 
+/**
+ * Traçabilité d'un média acquis depuis une bibliothèque externe — écrite au
+ * moment où l'emplacement est rempli, jamais après (cette information n'est
+ * pas récupérable plus tard : le fournisseur ne la garde pas indéfiniment).
+ */
+export interface Provenance {
+  provider: string;
+  providerId: string;
+  author?: string;
+  authorUrl?: string;
+  license: string;
+  sourceUrl: string;
+}
+
+export type SlotRole = "media" | "title" | "subtitle" | "caption" | "cta" | "logo" | "music";
+
+/**
+ * Emplacement de gabarit : un calque du document qui porte encore un contenu
+ * de démonstration (posé par `applyTemplate`) et attend d'être remplacé par
+ * le vrai contenu de l'utilisateur. `required` distingue ce qui doit être
+ * rempli avant publication de ce qui reste facultatif.
+ */
+export interface Slot {
+  id: string;
+  role: SlotRole;
+  label: string;
+  required: boolean;
+  targetKind: "clip" | "text" | "image" | "audio";
+  targetId: string;
+  filled: boolean;
+  provenance?: Provenance;
+}
+
 export interface EditorProject {
   version: typeof PROJECT_VERSION;
   id: string;
@@ -209,6 +242,8 @@ export interface EditorProject {
   audios: AudioTrack[];
   /** Champ optionnel — absent sur tout projet enregistré avant cette piste. */
   trackMeta?: Record<number, TrackMeta>;
+  /** Emplacements de gabarit non résolus. Absent sur un projet sans modèle. */
+  slots?: Slot[];
   updatedAt: string;
 }
 
@@ -354,25 +389,42 @@ export function normalize(p: EditorProject): EditorProject {
     };
   };
 
+  const texts = packLanes(p.texts.map(bound)).map((l) => ({
+    ...l,
+    font: l.font ?? "sans",
+    wrapPct: Number.isFinite(l.wrapPct) ? clamp(l.wrapPct, 0, 1) : 0,
+    lineHeight: Number.isFinite(l.lineHeight) && l.lineHeight > 0 ? l.lineHeight : 1.25,
+  }));
+  const images = packLanes(p.images.map(bound)).map((l) => ({
+    ...l,
+    heightPct: Number.isFinite(l.heightPct) ? Math.max(0, l.heightPct) : 0,
+  }));
+  const shapes = packLanes((p.shapes ?? []).map(bound));
+  const audios = packLanes(p.audios.map((a) => {
+    const start = clamp(round(a.start), 0, total);
+    const length = clamp(round(a.length), 0, Math.max(0, total - start));
+    return { ...a, start, length, volume: clamp(a.volume, 0, 1), end: start + length };
+  })).map(({ end, ...a }) => { void end; return a; });
+
+  // Un emplacement dont la cible a disparu (calque supprimé) n'a plus de sens
+  // à signaler : sans ce filtrage, `unfilledSlots` continuerait à réclamer un
+  // texte que l'utilisateur a explicitement effacé.
+  const targetExists = (s: Slot): boolean => {
+    if (s.targetKind === "clip") return clips.some((c) => c.id === s.targetId);
+    if (s.targetKind === "text") return texts.some((l) => l.id === s.targetId);
+    if (s.targetKind === "image") return images.some((l) => l.id === s.targetId);
+    return audios.some((a) => a.id === s.targetId);
+  };
+  const slots = (p.slots ?? []).filter(targetExists);
+
   return {
     ...p,
     clips,
-    texts: packLanes(p.texts.map(bound)).map((l) => ({
-      ...l,
-      font: l.font ?? "sans",
-      wrapPct: Number.isFinite(l.wrapPct) ? clamp(l.wrapPct, 0, 1) : 0,
-      lineHeight: Number.isFinite(l.lineHeight) && l.lineHeight > 0 ? l.lineHeight : 1.25,
-    })),
-    images: packLanes(p.images.map(bound)).map((l) => ({
-      ...l,
-      heightPct: Number.isFinite(l.heightPct) ? Math.max(0, l.heightPct) : 0,
-    })),
-    shapes: packLanes((p.shapes ?? []).map(bound)),
-    audios: packLanes(p.audios.map((a) => {
-      const start = clamp(round(a.start), 0, total);
-      const length = clamp(round(a.length), 0, Math.max(0, total - start));
-      return { ...a, start, length, volume: clamp(a.volume, 0, 1), end: start + length };
-    })).map(({ end, ...a }) => { void end; return a; }),
+    texts,
+    images,
+    shapes,
+    audios,
+    slots: slots.length > 0 ? slots : undefined,
   };
 }
 
@@ -422,6 +474,53 @@ export function setTrackMeta(p: EditorProject, track: number, patch: TrackMeta):
 export function visibleProject(p: EditorProject): EditorProject {
   if (!p.trackMeta || !Object.values(p.trackMeta).some((m) => m?.hidden)) return p;
   return { ...p, clips: p.clips.filter((c) => !p.trackMeta?.[c.track]?.hidden) };
+}
+
+/* ── Emplacements de gabarit ─────────────────────────────────────────────── */
+
+/** Déclare un nouvel emplacement, pointant vers un calque déjà posé. */
+export function addSlot(p: EditorProject, slot: Slot): EditorProject {
+  return { ...p, slots: [...(p.slots ?? []), slot] };
+}
+
+/**
+ * Emplacements requis qu'aucun remplissage n'a encore résolu — ce qui doit
+ * bloquer l'export ou guider l'utilisateur avant publication (chapitre 7.3).
+ */
+export function unfilledSlots(p: EditorProject): Slot[] {
+  return (p.slots ?? []).filter((s) => s.required && !s.filled);
+}
+
+/**
+ * Remplace le contenu de démonstration d'un emplacement par le vrai contenu
+ * de l'utilisateur, et enregistre la provenance si le contenu vient d'une
+ * bibliothèque externe (règle 4 : écrite au moment du remplissage, pas après).
+ * Un emplacement déjà rempli peut être rerempli — remplacer un choix reste
+ * possible tant que le montage n'est pas exporté.
+ */
+export function fillSlot(
+  p: EditorProject,
+  slotId: string,
+  content: { text?: string; src?: string; provenance?: Provenance }
+): EditorProject {
+  const slot = (p.slots ?? []).find((s) => s.id === slotId);
+  if (!slot) return p;
+
+  let next = p;
+  if (slot.targetKind === "text" && content.text !== undefined) {
+    next = updateText(next, slot.targetId, { text: content.text });
+  } else if (slot.targetKind === "image" && content.src !== undefined) {
+    next = updateImageLayer(next, slot.targetId, { src: content.src });
+  } else if (slot.targetKind === "clip" && content.src !== undefined) {
+    next = { ...next, clips: next.clips.map((c) => (c.id === slot.targetId ? { ...c, src: content.src! } : c)) };
+  } else if (slot.targetKind === "audio" && content.src !== undefined) {
+    next = { ...next, audios: next.audios.map((a) => (a.id === slot.targetId ? { ...a, src: content.src! } : a)) };
+  }
+
+  const slots = (next.slots ?? []).map((s) =>
+    s.id === slotId ? { ...s, filled: true, provenance: content.provenance ?? s.provenance } : s
+  );
+  return normalize({ ...next, slots });
 }
 
 /* ────────────────────────────────────────────────────────────────────────────

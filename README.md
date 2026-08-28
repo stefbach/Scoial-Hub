@@ -93,6 +93,7 @@ auth.users (Supabase Auth)
 | `META_ADS_MAX_DAILY_CENTS` | plafond budget pub | défaut 500000 |
 | `RESEND_API_KEY` | e-mails transactionnels (invitations « Mon équipe », notifications d'accès) via Resend | e-mails non envoyés — repli : lien d'invitation copiable |
 | `EMAIL_FROM` | expéditeur des e-mails (ex. `AXON-AI <no-reply@votre-domaine>`) | défaut `onboarding@resend.dev` |
+| `PEXELS_API_KEY` / `COVERR_API_KEY` / `PIXABAY_API_KEY` / `UNSPLASH_ACCESS_KEY` | bibliothèque d'assets du banc de montage (`lib/assets/`) — chaque fournisseur est indépendant | fournisseur absent de la bibliothèque, sans erreur — noms EXACTS requis |
 
 > Diagnostic non secret : `GET /api/health` renvoie la **présence** (booléen) des clés + `NEXT_PUBLIC_APP_URL`.
 

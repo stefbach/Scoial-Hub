@@ -34,6 +34,14 @@ export async function GET() {
       // E-mails transactionnels (invitations « Mon équipe ») — bug 3 lot 17 :
       // sans cette clé, aucun e-mail ne part (repli : lien copiable).
       RESEND_API_KEY: Boolean(process.env.RESEND_API_KEY),
+      // Bibliothèque d'assets du banc de montage (lib/assets/) — un nom de
+      // variable inexact (ex. PEXELS_KEY au lieu de PEXELS_API_KEY) laisse le
+      // fournisseur silencieusement désactivé, sans erreur : ce diagnostic est
+      // le seul moyen de le voir depuis l'extérieur.
+      PEXELS_API_KEY: Boolean(process.env.PEXELS_API_KEY),
+      COVERR_API_KEY: Boolean(process.env.COVERR_API_KEY),
+      PIXABAY_API_KEY: Boolean(process.env.PIXABAY_API_KEY),
+      UNSPLASH_ACCESS_KEY: Boolean(process.env.UNSPLASH_ACCESS_KEY),
     },
     config: {
       // Valeur non secrète — utile pour diagnostiquer le rendu Shotstack.

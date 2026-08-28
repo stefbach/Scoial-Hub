@@ -40,7 +40,8 @@
     "test:montagecontrat": "tsx scripts/verify-editor-contract.ts",
     "test:montageparite": "tsx scripts/verify-editor-timeline-parity.ts",
     "test:montagegeste": "tsx scripts/verify-editor-history-gesture.ts",
-    "test:montagelot4": "tsx scripts/verify-editor-lot4.ts"
+    "test:montagelot4": "tsx scripts/verify-editor-lot4.ts",
+    "test:assetsgateway": "tsx scripts/verify-assets-gateway.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.100.1",

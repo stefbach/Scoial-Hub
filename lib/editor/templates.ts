@@ -17,12 +17,14 @@
 import {
   FORMAT_SIZE,
   addImageLayer,
+  addSlot,
   addText,
   clamp,
   projectDuration,
   updateImageLayer,
   updateText,
   type EditorProject,
+  type SlotRole as DocSlotRole,
   type TextLayer,
 } from "./project";
 
@@ -204,6 +206,14 @@ function colorFor(slot: Slot, brand: BrandStyle): string {
   return brand.palette[slot.colorRank] ?? brand.textColor;
 }
 
+/** Description humaine d'un rôle d'emplacement, pour l'inviter à le remplir. */
+const ROLE_LABEL: Record<SlotRole, { fr: string; en: string }> = {
+  title: { fr: "Titre", en: "Title" },
+  subtitle: { fr: "Sous-titre", en: "Subtitle" },
+  caption: { fr: "Légende", en: "Caption" },
+  cta: { fr: "Appel à l'action", en: "Call to action" },
+};
+
 /**
  * Applique un modèle au projet : les calques sont AJOUTÉS, jamais substitués.
  * L'opération reste donc annulable comme n'importe quelle autre, et un montage
@@ -240,6 +250,18 @@ export function applyTemplate(
       // Une borne de fin nulle serait relue comme « tout le film » : sur un
       // projet encore vide, on laisse `normalize` trancher.
       end: total > 0 ? total * to : 0,
+    });
+    // Le texte posé est une amorce, pas le message final : un emplacement le
+    // signale jusqu'à ce que `fillSlot` (ou une édition suivie d'un appel à
+    // `fillSlot` côté interface) enregistre le vrai contenu.
+    next = addSlot(next, {
+      id: idFor("s"),
+      role: slot.role as DocSlotRole,
+      label: (lang === "en" ? ROLE_LABEL[slot.role].en : ROLE_LABEL[slot.role].fr),
+      required: true,
+      targetKind: "text",
+      targetId: id,
+      filled: false,
     });
   }
 

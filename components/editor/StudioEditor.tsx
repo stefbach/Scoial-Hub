@@ -42,6 +42,8 @@ import { Timeline, type TimelineSelection } from "./Timeline";
 import { Preview, type LayerPatch } from "./Preview";
 import { ProjectLibrary } from "./ProjectLibrary";
 import { TemplateGallery } from "./TemplateGallery";
+import { AssetLibrary, type AcquiredAsset } from "./AssetLibrary";
+import type { AssetKind } from "@/lib/assets/types";
 import { PropertyPanel } from "./PropertyPanel";
 import { Tooltip } from "./Tooltip";
 import { ShortcutsPanel } from "./ShortcutsPanel";
@@ -92,7 +94,7 @@ export function StudioEditor({
   const [loading, setLoading] = useState(Boolean(projectId));
   const [brand, setBrand] = useState<BrandStyle>(() => brandStyleFrom(null));
   const [libraryOpen, setLibraryOpen] = useState(false);
-  const [tool, setTool] = useState<"media" | "templates" | "shapes">("media");
+  const [tool, setTool] = useState<"media" | "templates" | "shapes" | "library">("media");
   /** Poids cumulé des sources — décide du moteur de rendu. */
   const sourceBytes = useRef(0);
   const lang: "fr" | "en" = t("fr", "en") === "en" ? "en" : "fr";
@@ -423,6 +425,31 @@ export function StudioEditor({
     [apply, companyId, t]
   );
 
+  /**
+   * Insertion d'un média acquis depuis la bibliothèque externe (Lot A-3).
+   * L'image rejoint la piste de base comme un plan — c'est là que la photo de
+   * stock sert le plus souvent, contrairement à l'« Incrustation » du panneau
+   * Médias (logo, pastille). La provenance est écrite dans le même geste,
+   * jamais après (règle 4 de la mission bibliothèque).
+   */
+  const insertAsset = useCallback((kind: AssetKind, asset: AcquiredAsset) => {
+    if (kind === "image") {
+      apply((p) => addClip(p, { id: nextId("c"), src: asset.url, kind: "image", provenance: asset.provenance }));
+      return;
+    }
+    if (kind === "video") {
+      apply((p) => addClip(p, {
+        id: nextId("c"), src: asset.url, kind: "video",
+        sourceDuration: asset.durationSec ?? 0, provenance: asset.provenance,
+      }));
+      return;
+    }
+    apply((p) => addAudio(p, {
+      id: nextId("a"), src: asset.url, name: t("Musique de la bibliothèque", "Library music"),
+      role: "music", sourceDuration: asset.durationSec, provenance: asset.provenance,
+    }));
+  }, [apply, t]);
+
   /* ── Sous-titrage automatique ──────────────────────────────────────────── */
   const transcribe = useCallback(async () => {
     // On transcrit la voix off si elle existe, sinon le son du premier plan.
@@ -745,10 +772,14 @@ export function StudioEditor({
           <div className="grid min-h-[320px] flex-1 grid-cols-1 lg:grid-cols-[240px_1fr_300px]">
             {/* Colonne gauche : outils */}
             <aside className="hidden min-h-0 flex-col overflow-y-auto overscroll-contain border-r border-hair bg-card p-3 lg:flex">
-              <div className="studio-seg mb-3">
+              {/* Grille 2×2, pas la rangée simple des autres `.studio-seg` :
+                  « Bibliothèque » ne tient pas sur quatre colonnes égales à
+                  cette largeur de panneau (240 px) sans se couper au clic. */}
+              <div className="studio-seg mb-3 grid grid-cols-2">
                 <button type="button" data-active={tool === "media"} onClick={() => setTool("media")} className="studio-seg-btn">{t("Médias", "Media")}</button>
                 <button type="button" data-active={tool === "templates"} onClick={() => setTool("templates")} className="studio-seg-btn">{t("Modèles", "Templates")}</button>
                 <button type="button" data-active={tool === "shapes"} onClick={() => setTool("shapes")} className="studio-seg-btn">{t("Formes", "Shapes")}</button>
+                <button type="button" data-active={tool === "library"} onClick={() => setTool("library")} className="studio-seg-btn">{t("Bibliothèque", "Library")}</button>
               </div>
 
               {tool === "media" && (
@@ -815,6 +846,10 @@ export function StudioEditor({
                     🔘 {t("Bouton d'appel à l'action", "Call-to-action button")}
                   </button>
                 </div>
+              )}
+
+              {tool === "library" && (
+                <AssetLibrary companyId={companyId} lang={lang} onInsert={insertAsset} />
               )}
             </aside>
 

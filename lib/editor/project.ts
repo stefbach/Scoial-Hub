@@ -110,6 +110,8 @@ export interface Clip {
    */
   focusX: number;
   focusY: number;
+  /** Traçabilité si le plan vient d'une bibliothèque externe (Lot A-3). */
+  provenance?: Provenance;
 }
 
 /** Calque de texte. */
@@ -141,6 +143,8 @@ export interface ImageLayer extends VisualLayer {
   scale: number;
   /** Hauteur en fraction du cadre. 0 = déduite du rapport natif de l'image. */
   heightPct: number;
+  /** Traçabilité si l'image vient d'une bibliothèque externe (Lot A-3). */
+  provenance?: Provenance;
 }
 
 /**
@@ -183,6 +187,8 @@ export interface AudioTrack {
   muted: boolean;
   /** Sous-piste d'affichage, calculée par `normalize`. */
   lane: number;
+  /** Traçabilité si le son vient d'une bibliothèque externe (Lot A-3). */
+  provenance?: Provenance;
 }
 
 /**
@@ -545,6 +551,8 @@ export function addClip(
     track?: number;
     /** Instant de pose. Par défaut, à la suite de ce que porte la piste. */
     start?: number;
+    /** Traçabilité si le plan vient d'une bibliothèque externe (Lot A-3). */
+    provenance?: Provenance;
   }
 ): EditorProject {
   const sourceDuration = input.kind === "image" ? 0 : Math.max(0, input.sourceDuration ?? 0);
@@ -565,6 +573,7 @@ export function addClip(
     fit: "cover",
     focusX: 0.5,
     focusY: 0.5,
+    provenance: input.provenance,
   };
   return normalize({ ...p, clips: [...p.clips, clip] });
 }
@@ -825,10 +834,10 @@ export function duplicateText(p: EditorProject, id: string, newId: string): Edit
   return normalize({ ...p, texts: [...p.texts, copy] });
 }
 
-export function addImageLayer(p: EditorProject, id: string, src: string): EditorProject {
+export function addImageLayer(p: EditorProject, id: string, src: string, provenance?: Provenance): EditorProject {
   const layer: ImageLayer = {
     ...newVisual(projectDuration(p)),
-    id, src, x: 0.05, y: 0.05, scale: 0.2, heightPct: 0,
+    id, src, x: 0.05, y: 0.05, scale: 0.2, heightPct: 0, provenance,
   };
   return normalize({ ...p, images: [...p.images, layer] });
 }
@@ -934,7 +943,11 @@ export const DEFAULT_MUSIC_VOLUME = 0.25;
 
 export function addAudio(
   p: EditorProject,
-  input: { id: string; src: string; name: string; role: AudioRole; sourceDuration?: number }
+  input: {
+    id: string; src: string; name: string; role: AudioRole; sourceDuration?: number;
+    /** Traçabilité si le son vient d'une bibliothèque externe (Lot A-3). */
+    provenance?: Provenance;
+  }
 ): EditorProject {
   const total = projectDuration(p);
   const track: AudioTrack = {
@@ -950,6 +963,7 @@ export function addAudio(
     fadeOut: input.role === "music" ? 1 : 0,
     muted: false,
     lane: 0,
+    provenance: input.provenance,
   };
   return normalize({ ...p, audios: [...p.audios, track] });
 }

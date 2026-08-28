@@ -24,8 +24,8 @@ import {
   duplicateClip, duplicateImageLayer, duplicateShape, duplicateText,
   emptyProject, FORMAT_SIZE, moveClip, moveLayerTime, projectDuration, removeAudio,
   removeClip, removeImageLayer, removeShape, removeText, setClipFraming, setClipLength,
-  setClipSpeed, setClipTransition, shapesAt, splitAt, trimClip, trimLayer, updateAudio,
-  updateImageLayer, updateShape, updateText, usedTracks,
+  setClipSpeed, setClipTransition, setTrackMeta, shapesAt, splitAt, trimClip, trimLayer,
+  updateAudio, updateImageLayer, updateShape, updateText, usedTracks, visibleProject,
   type AnimationKind, type EditorFormat, type EditorProject, type ShapeKind,
   type TimedLayerKind, type TransitionKind, type VisualLayer,
 } from "@/lib/editor/project";
@@ -85,6 +85,8 @@ export function StudioEditor({
   const [selection, setSelection] = useState<TimelineSelection>(null);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
+  /** Verrouille le montage pendant un export — voir exportProject. */
+  const [exporting, setExporting] = useState(false);
   const [progress, setProgress] = useState(0);
   const [note, setNote] = useState<string | null>(null);
   const [loading, setLoading] = useState(Boolean(projectId));
@@ -274,8 +276,8 @@ export function StudioEditor({
    * frappe et rendait la barre d'espace difficile à garder cohérente avec le
    * focus (§6.1, piège n°2).
    */
-  const kb = useRef({ playhead, duration, selection, apply, saveNow, playing, shortcutsOpen });
-  kb.current = { playhead, duration, selection, apply, saveNow, playing, shortcutsOpen };
+  const kb = useRef({ playhead, duration, selection, apply, saveNow, playing, shortcutsOpen, exporting });
+  kb.current = { playhead, duration, selection, apply, saveNow, playing, shortcutsOpen, exporting };
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -286,9 +288,12 @@ export function StudioEditor({
 
       const {
         playhead: ph, duration: dur, selection: sel, apply: doApply, saveNow: doSave,
-        playing: isPlaying, shortcutsOpen: refOpen,
+        playing: isPlaying, shortcutsOpen: refOpen, exporting: isExporting,
       } = kb.current;
 
+      // Le montage est verrouillé pendant un export — seul Échap reste actif,
+      // pour désélectionner sans rien modifier (chapitre 9, point 7).
+      if (isExporting && e.key !== "Escape") return;
       // Panneau de référence ouvert : seuls Échap et ? restent actifs, pour ne
       // pas monter un plan ou supprimer une sélection par inadvertance pendant
       // la lecture de l'aide.
@@ -461,8 +466,16 @@ export function StudioEditor({
     }
   }, [project.audios, project.clips, companyId, lang, apply, t]);
 
+  /**
+   * Le montage tel qu'on le voit et qu'on l'exporte : les pistes masquées en
+   * sont retirées (chapitre 8.1). La timeline et le panneau de propriétés,
+   * eux, continuent de travailler sur `project` en entier — masquer une piste
+   * ne doit pas empêcher de la retrouver pour la démasquer.
+   */
+  const displayProject = useMemo(() => visibleProject(project), [project]);
+
   /* ── Export ────────────────────────────────────────────────────────────── */
-  const decision = useMemo(() => decideRenderTarget(project, sourceBytes.current), [project]);
+  const decision = useMemo(() => decideRenderTarget(displayProject, sourceBytes.current), [displayProject]);
 
   /**
    * Compose un PNG PAR CALQUE.
@@ -517,6 +530,11 @@ export function StudioEditor({
     if (project.clips.length === 0) return;
     setNote(null);
     setProgress(0);
+    // Verrouille le montage pour toute la durée du rendu — rien n'empêchait
+    // jusqu'ici de continuer à monter pendant un export, et le résultat ne
+    // correspondait alors plus à ce que l'écran affichait (itération 3,
+    // chapitre 9, point 7).
+    setExporting(true);
 
     // Rendu SERVEUR : le document part tel quel, l'onglet est libéré.
     if (decision.target === "server") {
@@ -528,7 +546,7 @@ export function StudioEditor({
         const res = await fetch("/api/video/render", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ companyId, project }),
+          body: JSON.stringify({ companyId, project: displayProject }),
         });
         const d = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error((d as { error?: string }).error ?? `HTTP ${res.status}`);
@@ -540,6 +558,7 @@ export function StudioEditor({
         setNote(t("Rendu serveur impossible : ", "Server render failed: ") + (e instanceof Error ? e.message.slice(0, 140) : ""));
       } finally {
         setBusy(null);
+        setExporting(false);
       }
       return;
     }
@@ -548,7 +567,7 @@ export function StudioEditor({
     setBusy(t("Préparation du moteur vidéo…", "Loading video engine…"));
     try {
       const composed = await buildOverlays();
-      const plan = toBrowserPlan(project, composed.map((c) => c.overlay));
+      const plan = toBrowserPlan(displayProject, composed.map((c) => c.overlay));
 
       const { FFmpeg } = await import("@ffmpeg/ffmpeg");
       const { fetchFile, toBlobURL } = await import("@ffmpeg/util");
@@ -605,8 +624,9 @@ export function StudioEditor({
       setNote(t("Échec du rendu : ", "Render failed: ") + (e instanceof Error ? e.message.slice(0, 160) : ""));
     } finally {
       setBusy(null);
+      setExporting(false);
     }
-  }, [project, decision.target, companyId, savedId, buildOverlays, onExport, onClose, t]);
+  }, [project, displayProject, decision.target, companyId, savedId, buildOverlays, onExport, onClose, t]);
 
   /**
    * Manipulation directe dans la zone de travail — glisser, redimensionner,
@@ -702,12 +722,24 @@ export function StudioEditor({
         </div>
       </header>
 
+      {/* Repli explicite sous le seuil large : les colonnes Outils et
+          Propriétés se cachent en dessous de 1024 px (`lg`) faute de place —
+          la fenêtre disparaissait alors silencieusement, sans que rien
+          n'explique pourquoi certains réglages devenaient inaccessibles
+          (itération 3, chapitre 9, point 12). */}
+      <p className="shrink-0 border-b border-hair bg-warning-50 px-4 py-1.5 text-2xs text-warning-700 lg:hidden">
+        {t(
+          "Fenêtre trop étroite pour les outils et les propriétés — agrandissez-la (1024 px ou plus) pour y accéder.",
+          "Window too narrow for the tools and properties panels — widen it (1024px or more) to reach them."
+        )}
+      </p>
+
       {loading ? (
         <div className="flex flex-1 items-center justify-center gap-2 text-sm text-muted">
           <Spinner size={16} className="text-page" /> {t("Chargement du projet…", "Loading project…")}
         </div>
       ) : (
-        <>
+        <div className="relative flex min-h-0 flex-1 flex-col">
           {/* Trois zones à défilement INDÉPENDANT — largeurs fixes, jamais de
               redimensionnement au gré du contenu ou d'une sélection (loi 4). */}
           <div className="grid min-h-[320px] flex-1 grid-cols-1 lg:grid-cols-[240px_1fr_300px]">
@@ -806,7 +838,7 @@ export function StudioEditor({
                 </Tooltip>
               </div>
               <Preview
-                project={project}
+                project={displayProject}
                 playhead={playhead}
                 selection={selection}
                 playing={playing}
@@ -814,6 +846,7 @@ export function StudioEditor({
                 onSeek={setPlayhead}
                 onSelect={setSelection}
                 onLayerChange={onLayerChange}
+                onTextEdit={(id, textValue) => apply((p) => updateText(p, id, { text: textValue }))}
                 onDragStart={beginGesture}
                 onDragEnd={commitGesture}
               />
@@ -846,9 +879,25 @@ export function StudioEditor({
               onMoveLayer={(kind, id, start) => applyLive((p) => moveLayerTime(p, kind, id, start))}
               onDragStart={beginGesture}
               onDragEnd={commitGesture}
+              onToggleTrackLock={(track) => apply((p) => setTrackMeta(p, track, { locked: !p.trackMeta?.[track]?.locked }))}
+              onToggleTrackHidden={(track) => apply((p) => setTrackMeta(p, track, { hidden: !p.trackMeta?.[track]?.hidden }))}
             />
           </div>
-        </>
+
+          {/* Verrouillage pendant l'export — le montage ne doit plus bouger
+              tant que le rendu en cours décrit un état différent de celui
+              affiché (chapitre 9, point 7). */}
+          {exporting && (
+            <div
+              role="status"
+              aria-live="polite"
+              className="absolute inset-0 z-20 flex cursor-not-allowed items-center justify-center gap-2 bg-canvas/70 text-sm text-ink backdrop-blur-[1px]"
+            >
+              <Spinner size={16} className="text-page" />
+              {t("Montage verrouillé pendant l'export…", "Edit locked while exporting…")}
+            </div>
+          )}
+        </div>
       )}
 
       {/* Pied : état du rendu */}

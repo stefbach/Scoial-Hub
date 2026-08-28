@@ -185,6 +185,17 @@ export interface AudioTrack {
   lane: number;
 }
 
+/**
+ * Verrouillage et masquage d'une piste vidéo (itération 3, chapitre 8.1) —
+ * peu coûteux, très utilisé dès qu'il y a plus de deux pistes. `locked`
+ * empêche la manipulation des plans de la piste sans rien changer au rendu ;
+ * `hidden` retire la piste du montage vu ET exporté.
+ */
+export interface TrackMeta {
+  locked?: boolean;
+  hidden?: boolean;
+}
+
 export interface EditorProject {
   version: typeof PROJECT_VERSION;
   id: string;
@@ -196,6 +207,8 @@ export interface EditorProject {
   images: ImageLayer[];
   shapes: ShapeLayer[];
   audios: AudioTrack[];
+  /** Champ optionnel — absent sur tout projet enregistré avant cette piste. */
+  trackMeta?: Record<number, TrackMeta>;
   updatedAt: string;
 }
 
@@ -382,6 +395,33 @@ export function usedTracks(p: EditorProject): number[] {
 /** Vrai si le projet ne contient rien à rendre. */
 export function isEmptyProject(p: EditorProject): boolean {
   return p.clips.length === 0;
+}
+
+/* ── Verrouillage et masquage de piste (chapitre 8.1) ───────────────────── */
+
+export function isTrackLocked(p: EditorProject, track: number): boolean {
+  return Boolean(p.trackMeta?.[track]?.locked);
+}
+
+export function isTrackHidden(p: EditorProject, track: number): boolean {
+  return Boolean(p.trackMeta?.[track]?.hidden);
+}
+
+export function setTrackMeta(p: EditorProject, track: number, patch: TrackMeta): EditorProject {
+  const trackMeta = { ...(p.trackMeta ?? {}) };
+  trackMeta[track] = { ...trackMeta[track], ...patch };
+  return { ...p, trackMeta };
+}
+
+/**
+ * Le montage tel qu'on le VOIT et qu'on l'EXPORTE : les pistes masquées en
+ * sont retirées. Un seul point de filtrage, appelé par l'aperçu et par les
+ * deux projections de rendu — sans quoi les deux pourraient diverger
+ * (itération 3, chapitre 9, point 10).
+ */
+export function visibleProject(p: EditorProject): EditorProject {
+  if (!p.trackMeta || !Object.values(p.trackMeta).some((m) => m?.hidden)) return p;
+  return { ...p, clips: p.clips.filter((c) => !p.trackMeta?.[c.track]?.hidden) };
 }
 
 /* ────────────────────────────────────────────────────────────────────────────

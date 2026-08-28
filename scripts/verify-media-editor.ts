@@ -175,7 +175,11 @@ async function main() {
   // ── C-01 · Le rendu serveur répond à l'appel qu'on lui adresse ───────────
   {
     const route = read("app/api/video/render/route.ts");
-    check("C-01 · le banc transmet son document", /body: JSON\.stringify\(\{ companyId, project \}\)/.test(studio));
+    // Itération 3 (Lot 4) : c'est `displayProject` qui part au serveur — le
+    // même montage filtré des pistes masquées que celui affiché à l'écran
+    // (chapitre 9, point 10) — et non plus le document brut.
+    check("C-01 · le banc transmet son document",
+      /body: JSON\.stringify\(\{ companyId, project: displayProject \}\)/.test(studio));
     check("C-01 · la route accepte le document", /if \(body\.project && Array\.isArray\(body\.project\.clips\)\)/.test(route));
     check("C-01 · la projection est faite côté serveur", /toServerEdit\(project, job\.callback\)/.test(route));
     check("C-01 · le document reçu est normalisé", /const project = normalize\(body\.project\)/.test(route));
@@ -290,6 +294,24 @@ async function main() {
     check("B-15 · sous-titrage automatique", /api\/editor\/subtitles/.test(studio));
     check("B-15 · les sous-titres restent modifiables",
       /addText\(next, id, seg\.text\)/.test(studio));
+  }
+
+  // ── Itération 3, Lot 4 · Robustesse et parité professionnelle ───────────
+  {
+    const projectSrc = read("lib/editor/project.ts");
+    check("Lot 4 · état vide de la timeline", /lanes\.length === 0/.test(timeline));
+    check("Lot 4 · montage verrouillé pendant l'export",
+      /setExporting\(true\)/.test(studio) && /isExporting && e\.key !== "Escape"/.test(studio));
+    check("Lot 4 · repli explicite sous le seuil large (1024 px)",
+      /lg:hidden/.test(studio) && /1024/.test(studio));
+    check("Lot 4 · double-clic pour éditer un texte dans l'aperçu",
+      /onDoubleClick=\{\(e\) => \{/.test(preview) && /setEditingTextId\(l\.id\)/.test(preview));
+    check("Lot 4 · verrouillage et masquage de piste",
+      /export function isTrackLocked\(/.test(projectSrc) && /export function isTrackHidden\(/.test(projectSrc));
+    check("Lot 4 · un seul point de filtrage partagé par l'aperçu et l'export",
+      /export function visibleProject\(/.test(projectSrc) &&
+      /project={displayProject}/.test(studio) &&
+      /body: JSON\.stringify\(\{ companyId, project: displayProject \}\)/.test(studio));
   }
 
   console.log(`\n${failures === 0 ? "✓ TOUT VERT" : `✗ ${failures} échec(s)`}\n`);

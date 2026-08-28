@@ -18,7 +18,7 @@
 // ce qui vit dans le temps — graduation, blocs, tête de lecture, conversion du
 // clic — passe par `timeToPx` / `pxToTime`, mesurés sur le MÊME élément.
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useT } from "@/lib/i18n";
 import {
   MIN_CLIP_SECONDS,
@@ -26,7 +26,9 @@ import {
   usedTracks,
   type Clip,
   type EditorProject,
+  type TimedLayerKind,
 } from "@/lib/editor/project";
+import { Tooltip } from "./Tooltip";
 
 /** Niveaux de zoom, en pixels par seconde. */
 const ZOOM_LEVELS = [10, 20, 40, 80, 160];
@@ -85,6 +87,10 @@ export function Timeline({
   onSelect,
   onTrim,
   onMoveClip,
+  onTrimLayer,
+  onMoveLayer,
+  onDragStart,
+  onDragEnd,
 }: {
   project: EditorProject;
   playhead: number;
@@ -95,6 +101,18 @@ export function Timeline({
   onTrim: (clipId: string, edge: "head" | "tail", delta: number) => void;
   /** Déplacement d'un plan : changement de piste et/ou d'instant. */
   onMoveClip: (clipId: string, patch: { track: number; start: number }) => void;
+  /**
+   * Rognage et déplacement d'un calque temporel — texte, incrustation, forme
+   * ou audio. Parité de manipulation avec les plans vidéo (itération 3, C-04) :
+   * ces éléments ne se réglaient jusqu'ici qu'au clavier, dans le panneau de
+   * propriétés.
+   */
+  onTrimLayer: (kind: TimedLayerKind, id: string, edge: "head" | "tail", delta: number) => void;
+  onMoveLayer: (kind: TimedLayerKind, id: string, start: number) => void;
+  /** Début / fin d'un geste continu (glisser, rogner) — pour ne compter qu'UNE
+      entrée d'historique par geste plutôt qu'une par pixel parcouru. */
+  onDragStart?: () => void;
+  onDragEnd?: () => void;
 }) {
   const t = useT();
   const [zoomIdx, setZoomIdx] = useState(1);
@@ -102,6 +120,8 @@ export function Timeline({
   const duration = projectDuration(project);
   /** Élément qui porte le temps : origine unique de toutes les coordonnées. */
   const timeRef = useRef<HTMLDivElement>(null);
+  /** Conteneur à défilement horizontal — cible de Maj+molette et du recentrage. */
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   /** Repères d'aimantation : bornes de plans, tête de lecture, zéro. */
   const marks = useMemo(() => {
@@ -113,6 +133,8 @@ export function Timeline({
   const drag = useRef<
     | { type: "trim"; clipId: string; edge: "head" | "tail"; startX: number }
     | { type: "move"; clipId: string; startX: number; startY: number; fromStart: number; fromTrack: number }
+    | { type: "trimLayer"; kind: TimedLayerKind; id: string; edge: "head" | "tail"; startX: number }
+    | { type: "moveLayer"; kind: TimedLayerKind; id: string; startX: number; fromStart: number }
     | { type: "scrub" }
     | null
   >(null);
@@ -164,6 +186,17 @@ export function Timeline({
       drag.current = { ...d, startX: e.clientX };
       return;
     }
+    if (d.type === "trimLayer") {
+      if (Math.abs(deltaSec) < 0.02) return;
+      onTrimLayer(d.kind, d.id, d.edge, d.edge === "head" ? deltaSec : -deltaSec);
+      drag.current = { ...d, startX: e.clientX };
+      return;
+    }
+    if (d.type === "moveLayer") {
+      const start = Math.max(0, snap(d.fromStart + deltaSec, marks));
+      if (Math.abs(start - d.fromStart) > 0.02) onMoveLayer(d.kind, d.id, start);
+      return;
+    }
 
     // Déplacement libre : un plan se pose où on le lâche, et change de piste
     // quand le geste franchit une rangée. C'est ce qui rend l'incrustation
@@ -178,11 +211,87 @@ export function Timeline({
     }
   }
 
+  /** Un geste continu (glisser, rogner) ne doit compter qu'UNE entrée
+      d'historique — sans quoi un déplacement produit des dizaines d'états et
+      l'annulation ne défait qu'un pixel à la fois (itération 3, chapitre 9,
+      point 3). `endDrag` referme le geste ouvert par `onTrimStart`/
+      `onMoveStart`, jamais un simple balayage de la tête de lecture. */
   function endDrag() {
+    if (drag.current && drag.current.type !== "scrub") onDragEnd?.();
     drag.current = null;
   }
 
   const width = Math.max(240, timeToPx(duration, pxPerSec));
+
+  /**
+   * Molette sur la timeline — zoom ancré sur l'INSTANT sous le curseur, Maj
+   * pour défiler horizontalement plutôt que zoomer (itération 3, §4.2).
+   * Écouteur natif non passif : un `onWheel` React ne peut pas empêcher le
+   * défilement de la page (voir Preview.tsx).
+   */
+  const latest = useRef({ zoomIdx, pxPerSec });
+  latest.current = { zoomIdx, pxPerSec };
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    let accum = 0;
+    function onWheelNative(e: WheelEvent) {
+      e.preventDefault();
+      if (e.shiftKey) {
+        el!.scrollLeft += e.deltaY;
+        return;
+      }
+      accum += e.deltaY;
+      if (Math.abs(accum) < 40) return;
+      const dir = accum > 0 ? -1 : 1;
+      accum = 0;
+      const { zoomIdx: idx, pxPerSec: pps } = latest.current;
+      const nextIdx = Math.min(ZOOM_LEVELS.length - 1, Math.max(0, idx + dir));
+      if (nextIdx === idx) return;
+      const rect = el!.getBoundingClientRect();
+      const cursorX = e.clientX - rect.left;
+      const timeAtCursor = pxToTime(cursorX + el!.scrollLeft, pps);
+      const nextPxPerSec = ZOOM_LEVELS[nextIdx];
+      setZoomIdx(nextIdx);
+      requestAnimationFrame(() => {
+        if (!el) return;
+        el.scrollLeft = Math.max(0, timeToPx(timeAtCursor, nextPxPerSec) - cursorX);
+      });
+    }
+    el.addEventListener("wheel", onWheelNative, { passive: false });
+    return () => el.removeEventListener("wheel", onWheelNative);
+  }, []);
+
+  /**
+   * Ajuste le zoom pour que tout le montage tienne dans la largeur visible —
+   * indispensable dès qu'on a zoomé, sinon on perd le film de vue (chapitre 8).
+   */
+  const fitToWindow = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el || duration <= 0) return;
+    const available = el.clientWidth || 1;
+    let bestIdx = 0;
+    for (let i = 0; i < ZOOM_LEVELS.length; i++) {
+      if (timeToPx(duration, ZOOM_LEVELS[i]) <= available) bestIdx = i;
+    }
+    setZoomIdx(bestIdx);
+    requestAnimationFrame(() => { if (el) el.scrollLeft = 0; });
+  }, [duration]);
+
+  /**
+   * Tête de lecture suivie : pendant la lecture (ou un déplacement au clavier),
+   * la timeline défile pour la garder visible — sans cela, elle sort du cadre
+   * dès qu'on a zoomé et rien ne la ramène (chapitre 9, point 2).
+   */
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const px = timeToPx(playhead, pxPerSec);
+    if (px < el.scrollLeft || px > el.scrollLeft + el.clientWidth) {
+      el.scrollLeft = Math.max(0, px - el.clientWidth / 2);
+    }
+  }, [playhead, pxPerSec]);
 
   /**
    * Pistes affichées — une seule source pour les libellés et les blocs.
@@ -193,6 +302,12 @@ export function Timeline({
    * se dessinaient l'un sur l'autre et le second devenait inatteignable.
    */
   const lanes: { key: string; label: string; rows: number; blocks: React.ReactNode }[] = [];
+
+  /** Ouvre un geste continu — une seule entrée d'historique le scellera. */
+  function beginDrag<T extends { type: string }>(state: T) {
+    onDragStart?.();
+    drag.current = state as NonNullable<typeof drag.current>;
+  }
 
   // Les pistes vidéo, de la plus haute vers la piste de base — comme à l'écran.
   for (const track of [...usedTracks(project)].reverse()) {
@@ -208,19 +323,17 @@ export function Timeline({
           pxPerSec={pxPerSec}
           selected={selection?.kind === "clip" && selection.id === c.id}
           onSelect={() => onSelect({ kind: "clip", id: c.id })}
-          onTrimStart={(edge, e) => {
-            drag.current = { type: "trim", clipId: c.id, edge, startX: e.clientX };
-          }}
-          onMoveStart={(e) => {
-            drag.current = {
+          onTrimStart={(edge, e) => beginDrag({ type: "trim", clipId: c.id, edge, startX: e.clientX })}
+          onMoveStart={(e) =>
+            beginDrag({
               type: "move",
               clipId: c.id,
               startX: e.clientX,
               startY: e.clientY,
               fromStart: c.start,
               fromTrack: c.track,
-            };
-          }}
+            })
+          }
         />
       )),
     });
@@ -228,24 +341,47 @@ export function Timeline({
 
   const rowsOf = (items: { lane: number }[]) => Math.max(1, ...items.map((l) => l.lane + 1));
 
+  /**
+   * Un calque temporel (texte, forme, incrustation, audio) — même parité de
+   * manipulation que les plans vidéo : rognage par les extrémités, glisser
+   * pour déplacer, suppression et duplication au clavier (itération 3, C-04).
+   */
+  function layerBlocks<L extends { id: string; start: number; end?: number; length?: number; lane: number }>(
+    items: L[],
+    kind: TimedLayerKind,
+    tone: "text" | "image" | "shape" | "audio",
+    labelOf: (l: L) => string,
+    lengthOf: (l: L) => number,
+    extra?: (l: L) => { muted?: boolean }
+  ) {
+    return items.map((l) => (
+      <LayerBlock
+        key={l.id}
+        label={labelOf(l)}
+        start={l.start}
+        length={Math.max(MIN_CLIP_SECONDS, lengthOf(l))}
+        lane={l.lane}
+        pxPerSec={pxPerSec}
+        tone={tone}
+        muted={extra?.(l)?.muted}
+        selected={selection?.kind === kind && selection.id === l.id}
+        onSelect={() => onSelect({ kind, id: l.id })}
+        onTrimStart={(edge, e) => beginDrag({ type: "trimLayer", kind, id: l.id, edge, startX: e.clientX })}
+        onMoveStart={(e) => beginDrag({ type: "moveLayer", kind, id: l.id, startX: e.clientX, fromStart: l.start })}
+      />
+    ));
+  }
+
   if (project.texts.length > 0) {
     lanes.push({
       key: "text",
       label: t("Texte", "Text"),
       rows: rowsOf(project.texts),
-      blocks: project.texts.map((l) => (
-        <LayerBlock
-          key={l.id}
-          label={l.text.split("\n")[0] || t("Texte", "Text")}
-          start={l.start}
-          length={Math.max(MIN_CLIP_SECONDS, l.end - l.start)}
-          lane={l.lane}
-          pxPerSec={pxPerSec}
-          tone="text"
-          selected={selection?.kind === "text" && selection.id === l.id}
-          onSelect={() => onSelect({ kind: "text", id: l.id })}
-        />
-      )),
+      blocks: layerBlocks(
+        project.texts, "text", "text",
+        (l) => l.text.split("\n")[0] || t("Texte", "Text"),
+        (l) => l.end - l.start
+      ),
     });
   }
 
@@ -254,19 +390,7 @@ export function Timeline({
       key: "shape",
       label: t("Forme", "Shape"),
       rows: rowsOf(project.shapes),
-      blocks: project.shapes.map((l) => (
-        <LayerBlock
-          key={l.id}
-          label={t("Forme", "Shape")}
-          start={l.start}
-          length={Math.max(MIN_CLIP_SECONDS, l.end - l.start)}
-          lane={l.lane}
-          pxPerSec={pxPerSec}
-          tone="shape"
-          selected={selection?.kind === "shape" && selection.id === l.id}
-          onSelect={() => onSelect({ kind: "shape", id: l.id })}
-        />
-      )),
+      blocks: layerBlocks(project.shapes, "shape", "shape", () => t("Forme", "Shape"), (l) => l.end - l.start),
     });
   }
 
@@ -275,19 +399,7 @@ export function Timeline({
       key: "image",
       label: t("Image", "Image"),
       rows: rowsOf(project.images),
-      blocks: project.images.map((l) => (
-        <LayerBlock
-          key={l.id}
-          label={t("Incrustation", "Overlay")}
-          start={l.start}
-          length={Math.max(MIN_CLIP_SECONDS, l.end - l.start)}
-          lane={l.lane}
-          pxPerSec={pxPerSec}
-          tone="image"
-          selected={selection?.kind === "image" && selection.id === l.id}
-          onSelect={() => onSelect({ kind: "image", id: l.id })}
-        />
-      )),
+      blocks: layerBlocks(project.images, "image", "image", () => t("Incrustation", "Overlay"), (l) => l.end - l.start),
     });
   }
 
@@ -296,20 +408,11 @@ export function Timeline({
       key: "audio",
       label: t("Audio", "Audio"),
       rows: rowsOf(project.audios),
-      blocks: project.audios.map((a) => (
-        <LayerBlock
-          key={a.id}
-          label={a.name}
-          start={a.start}
-          length={Math.max(MIN_CLIP_SECONDS, a.length)}
-          lane={a.lane}
-          pxPerSec={pxPerSec}
-          tone="audio"
-          muted={a.muted}
-          selected={selection?.kind === "audio" && selection.id === a.id}
-          onSelect={() => onSelect({ kind: "audio", id: a.id })}
-        />
-      )),
+      blocks: layerBlocks(
+        project.audios, "audio", "audio",
+        (a) => a.name, (a) => a.length,
+        (a) => ({ muted: a.muted })
+      ),
     });
   }
 
@@ -321,30 +424,47 @@ export function Timeline({
           {formatTime(playhead)} / {formatTime(duration)}
         </span>
         <div className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={() => setZoomIdx((i) => Math.max(0, i - 1))}
-            disabled={zoomIdx === 0}
-            aria-label={t("Dézoomer", "Zoom out")}
-            className="flex h-6 w-6 items-center justify-center rounded-md text-muted ring-1 ring-hair hover:text-ink disabled:opacity-40"
-          >
-            −
-          </button>
+          <Tooltip label={t("Dézoomer la timeline — molette", "Zoom out timeline — wheel")}>
+            <button
+              type="button"
+              onClick={() => setZoomIdx((i) => Math.max(0, i - 1))}
+              disabled={zoomIdx === 0}
+              aria-label={t("Dézoomer", "Zoom out")}
+              className="flex h-6 w-6 items-center justify-center rounded-md text-muted ring-1 ring-hair hover:text-ink disabled:opacity-40"
+            >
+              −
+            </button>
+          </Tooltip>
           <span className="w-14 text-center text-2xs text-muted">{pxPerSec} px/s</span>
-          <button
-            type="button"
-            onClick={() => setZoomIdx((i) => Math.min(ZOOM_LEVELS.length - 1, i + 1))}
-            disabled={zoomIdx === ZOOM_LEVELS.length - 1}
-            aria-label={t("Zoomer", "Zoom in")}
-            className="flex h-6 w-6 items-center justify-center rounded-md text-muted ring-1 ring-hair hover:text-ink disabled:opacity-40"
-          >
-            +
-          </button>
+          <Tooltip label={t("Zoomer la timeline — molette", "Zoom in timeline — wheel")}>
+            <button
+              type="button"
+              onClick={() => setZoomIdx((i) => Math.min(ZOOM_LEVELS.length - 1, i + 1))}
+              disabled={zoomIdx === ZOOM_LEVELS.length - 1}
+              aria-label={t("Zoomer", "Zoom in")}
+              className="flex h-6 w-6 items-center justify-center rounded-md text-muted ring-1 ring-hair hover:text-ink disabled:opacity-40"
+            >
+              +
+            </button>
+          </Tooltip>
+          <Tooltip label={t("Ajuste le zoom pour voir tout le montage", "Adjusts the zoom to fit the whole edit")}>
+            <button
+              type="button"
+              onClick={fitToWindow}
+              className="ml-1 rounded-md px-1.5 py-0.5 text-2xs text-muted ring-1 ring-hair hover:text-ink"
+            >
+              {t("Ajuster", "Fit")}
+            </button>
+          </Tooltip>
         </div>
       </div>
 
+      {/* Hauteur BORNÉE (180px..38vh) : au-delà, défilement vertical interne
+          — jamais de croissance du bloc, sinon le total dépasse la fenêtre
+          dès qu'on empile pistes vidéo, textes, formes et audios (§3.2). */}
       <div
-        className="flex gap-2 rounded-lg border border-hair bg-canvas/60 p-2"
+        className="flex gap-2 overflow-y-auto overscroll-contain rounded-lg border border-hair bg-canvas/60 p-2"
+        style={{ minHeight: 180, maxHeight: "38vh" }}
         onPointerMove={onPointerMove}
         onPointerUp={endDrag}
         onPointerLeave={endDrag}
@@ -364,7 +484,7 @@ export function Timeline({
         </div>
 
         {/* Zone du temps — origine unique de toutes les coordonnées */}
-        <div className="relative flex-1 overflow-x-auto">
+        <div ref={scrollRef} className="relative flex-1 overflow-x-auto overscroll-contain">
           <div ref={timeRef} style={{ width }} className="relative space-y-1.5">
             {/* Graduation : balayage direct, c'est la zone toujours disponible
                 même quand les pistes sont pleines. */}
@@ -520,6 +640,8 @@ function LayerBlock({
   selected,
   muted,
   onSelect,
+  onTrimStart,
+  onMoveStart,
 }: {
   label: string;
   start: number;
@@ -531,13 +653,24 @@ function LayerBlock({
   selected: boolean;
   muted?: boolean;
   onSelect: () => void;
+  /** Rognage par une extrémité — même parité que les plans vidéo (C-04). */
+  onTrimStart: (edge: "head" | "tail", e: React.PointerEvent) => void;
+  onMoveStart: (e: React.PointerEvent) => void;
 }) {
+  const t = useT();
   return (
-    <button
-      type="button"
-      onPointerDown={(e) => e.stopPropagation()}
-      onClick={onSelect}
-      className={`absolute overflow-hidden rounded-md border px-2 text-left text-[10px] ${TONE[tone]} ${
+    <div
+      role="button"
+      tabIndex={0}
+      aria-label={label}
+      aria-pressed={selected}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(); } }}
+      onPointerDown={(e) => {
+        e.stopPropagation();
+        onSelect();
+        onMoveStart(e);
+      }}
+      className={`absolute cursor-move overflow-hidden rounded-md border px-2 text-left text-[10px] ${TONE[tone]} ${
         selected ? "ring-2 ring-page/40" : ""
       } ${muted ? "opacity-40" : ""}`}
       style={{
@@ -547,7 +680,19 @@ function LayerBlock({
         height: LANE_H - 8,
       }}
     >
-      <span className="block truncate">{muted ? "🔇 " : ""}{label}</span>
-    </button>
+      <span className="pointer-events-none block truncate">{muted ? "🔇 " : ""}{label}</span>
+      <span
+        role="separator"
+        aria-label={t("Rogner le début", "Trim start")}
+        onPointerDown={(e) => { e.stopPropagation(); onSelect(); onTrimStart("head", e); }}
+        className="absolute inset-y-0 left-0 w-1.5 cursor-ew-resize bg-black/0 hover:bg-black/20"
+      />
+      <span
+        role="separator"
+        aria-label={t("Rogner la fin", "Trim end")}
+        onPointerDown={(e) => { e.stopPropagation(); onSelect(); onTrimStart("tail", e); }}
+        className="absolute inset-y-0 right-0 w-1.5 cursor-ew-resize bg-black/0 hover:bg-black/20"
+      />
+    </div>
   );
 }

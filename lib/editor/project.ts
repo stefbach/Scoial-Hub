@@ -672,6 +672,20 @@ export function removeText(p: EditorProject, id: string): EditorProject {
   return normalize({ ...p, texts: p.texts.filter((l) => l.id !== id) });
 }
 
+/**
+ * Duplique un texte — la piste vidéo n'était pas le seul élément dupliable en
+ * principe, mais c'était le seul dans les faits (itération 3, C-04). Posée
+ * juste après l'original sur la timeline, pour rester visible sans devoir la
+ * chercher.
+ */
+export function duplicateText(p: EditorProject, id: string, newId: string): EditorProject {
+  const source = p.texts.find((l) => l.id === id);
+  if (!source) return p;
+  const span = source.end - source.start;
+  const copy: TextLayer = { ...source, id: newId, start: round(source.end), end: round(source.end + span) };
+  return normalize({ ...p, texts: [...p.texts, copy] });
+}
+
 export function addImageLayer(p: EditorProject, id: string, src: string): EditorProject {
   const layer: ImageLayer = {
     ...newVisual(projectDuration(p)),
@@ -686,6 +700,14 @@ export function updateImageLayer(p: EditorProject, id: string, patch: Partial<Im
 
 export function removeImageLayer(p: EditorProject, id: string): EditorProject {
   return normalize({ ...p, images: p.images.filter((l) => l.id !== id) });
+}
+
+export function duplicateImageLayer(p: EditorProject, id: string, newId: string): EditorProject {
+  const source = p.images.find((l) => l.id === id);
+  if (!source) return p;
+  const span = source.end - source.start;
+  const copy: ImageLayer = { ...source, id: newId, start: round(source.end), end: round(source.end + span) };
+  return normalize({ ...p, images: [...p.images, copy] });
 }
 
 /* ── Formes ──────────────────────────────────────────────────────────────── */
@@ -721,6 +743,14 @@ export function updateShape(p: EditorProject, id: string, patch: Partial<ShapeLa
 
 export function removeShape(p: EditorProject, id: string): EditorProject {
   return normalize({ ...p, shapes: p.shapes.filter((l) => l.id !== id) });
+}
+
+export function duplicateShape(p: EditorProject, id: string, newId: string): EditorProject {
+  const source = p.shapes.find((l) => l.id === id);
+  if (!source) return p;
+  const span = source.end - source.start;
+  const copy: ShapeLayer = { ...source, id: newId, start: round(source.end), end: round(source.end + span) };
+  return normalize({ ...p, shapes: [...p.shapes, copy] });
 }
 
 /**
@@ -791,6 +821,72 @@ export function updateAudio(p: EditorProject, id: string, patch: Partial<AudioTr
 
 export function removeAudio(p: EditorProject, id: string): EditorProject {
   return normalize({ ...p, audios: p.audios.filter((a) => a.id !== id) });
+}
+
+export function duplicateAudio(p: EditorProject, id: string, newId: string): EditorProject {
+  const source = p.audios.find((a) => a.id === id);
+  if (!source) return p;
+  const copy: AudioTrack = { ...source, id: newId, start: round(source.start + source.length) };
+  return normalize({ ...p, audios: [...p.audios, copy] });
+}
+
+/**
+ * Rogne un calque temporel (texte, incrustation, forme ou audio) par une
+ * extrémité — la parité que la timeline doit maintenant offrir à tout élément,
+ * pas seulement aux plans vidéo (itération 3, C-04). `head` avance le début,
+ * `tail` recule la fin ; la durée ne descend jamais sous `MIN_CLIP_SECONDS`.
+ */
+export type TimedLayerKind = "text" | "image" | "shape" | "audio";
+
+export function trimLayer(
+  p: EditorProject,
+  kind: TimedLayerKind,
+  id: string,
+  edge: "head" | "tail",
+  deltaSeconds: number
+): EditorProject {
+  if (kind === "audio") {
+    const a = p.audios.find((x) => x.id === id);
+    if (!a) return p;
+    if (edge === "head") {
+      const maxHead = a.length - MIN_CLIP_SECONDS;
+      const h = clamp(deltaSeconds, -a.trimStart, Math.max(0, maxHead));
+      return updateAudio(p, id, { start: round(a.start + h), trimStart: round(a.trimStart + h), length: round(a.length - h) });
+    }
+    const maxTail = a.length - MIN_CLIP_SECONDS;
+    const tl = clamp(deltaSeconds, -Infinity, Math.max(0, maxTail));
+    return updateAudio(p, id, { length: round(a.length - tl) });
+  }
+
+  const list = kind === "text" ? p.texts : kind === "image" ? p.images : p.shapes;
+  const l = list.find((x) => x.id === id);
+  if (!l) return p;
+  const patch =
+    edge === "head"
+      ? { start: round(clamp(l.start + deltaSeconds, 0, l.end - MIN_CLIP_SECONDS)) }
+      : { end: round(clamp(l.end - deltaSeconds, l.start + MIN_CLIP_SECONDS, Infinity)) };
+  if (kind === "text") return updateText(p, id, patch);
+  if (kind === "image") return updateImageLayer(p, id, patch);
+  return updateShape(p, id, patch);
+}
+
+/**
+ * Déplace un calque temporel dans le temps, en conservant sa durée — pendant
+ * de `trimLayer` pour le glisser plutôt que le rognage.
+ */
+export function moveLayerTime(p: EditorProject, kind: TimedLayerKind, id: string, newStart: number): EditorProject {
+  const start = Math.max(0, round(newStart));
+  if (kind === "audio") {
+    return updateAudio(p, id, { start });
+  }
+  const list = kind === "text" ? p.texts : kind === "image" ? p.images : p.shapes;
+  const l = list.find((x) => x.id === id);
+  if (!l) return p;
+  const span = l.end - l.start;
+  const patch = { start, end: round(start + span) };
+  if (kind === "text") return updateText(p, id, patch);
+  if (kind === "image") return updateImageLayer(p, id, patch);
+  return updateShape(p, id, patch);
 }
 
 /* ────────────────────────────────────────────────────────────────────────────

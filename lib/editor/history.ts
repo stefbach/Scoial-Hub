@@ -65,3 +65,34 @@ export function redo(h: History): History {
     future: rest,
   };
 }
+
+/**
+ * Remplace l'état courant SANS créer d'entrée d'historique — pour les gestes
+ * continus (glisser un plan, rogner un calque, redimensionner une forme).
+ *
+ * Un glissement à la souris appelle `apply()` à chaque déplacement de pointeur
+ * : sur un geste de deux secondes, cela peut produire des dizaines d'entrées,
+ * et annuler ne défait alors qu'un pixel à la fois. `replacePresent` répond au
+ * même besoin que `push`, mais sans empiler — c'est `commitGesture`, en fin de
+ * geste, qui scelle le tout en UNE seule entrée.
+ */
+export function replacePresent(h: History, next: EditorProject): History {
+  if (next === h.present) return h;
+  return { ...h, present: next, future: [] };
+}
+
+/**
+ * Scelle un geste continu ouvert avec `baseline` — l'état capturé AVANT son
+ * premier `replacePresent` — comme une seule entrée d'historique, quel que
+ * soit le nombre d'appels effectués entre-temps. Sans effet si le geste n'a
+ * finalement rien changé (clic sans glisser).
+ */
+export function commitGesture(h: History, baseline: EditorProject): History {
+  if (baseline === h.present) return h;
+  const past = [...h.past, baseline];
+  return {
+    past: past.length > HISTORY_LIMIT ? past.slice(past.length - HISTORY_LIMIT) : past,
+    present: h.present,
+    future: [],
+  };
+}

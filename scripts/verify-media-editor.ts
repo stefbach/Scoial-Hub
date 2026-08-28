@@ -69,7 +69,10 @@ async function main() {
   // ── A-03 · Le son de la vidéo est audible dans l'éditeur ──────────────────
   {
     check("A-03 · plus de lecture automatique muette", !/autoPlay/.test(preview) && !/\bmuted\b\s*$/m.test(preview));
-    check("A-03 · commandes de lecture présentes", /setPlaying\(\(p\) => !p\)/.test(preview));
+    // Itération 3 (C-05) : la lecture est remontée au niveau de l'éditeur —
+    // la barre d'espace doit pouvoir la piloter depuis n'importe où — donc
+    // `playing` est un prop contrôlé, plus un état local à l'aperçu.
+    check("A-03 · commandes de lecture présentes", /onClick=\{\(\) => onPlayingChange\(!playing\)\}/.test(preview));
     check("A-03 · coupure du son et volume réglables", /aria-label=\{muted \?/.test(preview) && /aria-label=\{t\("Volume", "Volume"\)\}/.test(preview));
     check("A-03 · curseur de position", /aria-label=\{t\("Position de lecture", "Playback position"\)\}/.test(preview));
   }
@@ -111,7 +114,11 @@ async function main() {
   {
     check("A-05 · annuler / rétablir câblés", /setHistory\(undo\)/.test(studio) && /setHistory\(redo\)/.test(studio));
     check("A-05 · raccourcis clavier", /e\.shiftKey \? redo\(h\) : undo\(h\)/.test(studio));
-    check("A-05 · enregistrement automatique du projet", /setInterval\(async \(\) => \{/.test(studio) && /api\/editor\/projects/.test(studio));
+    // Itération 3 : `saveNow` est extraite pour être réutilisable par Ctrl+S
+    // (chapitre 6) — l'intervalle l'appelle plutôt que de porter sa propre
+    // requête, mais le contrat (sauvegarde périodique vers l'API) est le même.
+    check("A-05 · enregistrement automatique du projet",
+      /setInterval\(\(\) => \{/.test(studio) && /void saveNow\(\)/.test(studio) && /api\/editor\/projects/.test(studio));
     check("A-05 · reprise d'un projet existant", /\?id=\$\{encodeURIComponent\(projectId\)\}/.test(studio));
   }
 
@@ -146,7 +153,16 @@ async function main() {
     check("B-01 · la graduation aussi", /left: timeToPx\(s, pxPerSec\)/.test(timeline));
     check("B-01 · le clic est converti sur l'élément du temps",
       /timeRef\.current[\s\S]{0,220}getBoundingClientRect\(\)[\s\S]{0,160}pxToTime\(clientX - rect\.left, pxPerSec\)/.test(timeline));
-    check("B-01 · plus de correction manuelle du défilement", !/scrollLeft/.test(timeline));
+    // Itération 3 (Lot 1) : `scrollLeft` réapparaît légitimement — suivi de
+    // la tête de lecture, Maj+molette, ajustement à la fenêtre — mais la
+    // conversion clic → temps continue de s'appuyer SEULEMENT sur
+    // `getBoundingClientRect()`, jamais sur une correction manuelle : c'est
+    // elle qui doit rester libre de toute référence à `scrollLeft`.
+    {
+      const timeFromEvent = timeline.match(/const timeFromEvent = useCallback\(([\s\S]*?)\n {2}\);/)?.[1] ?? "";
+      check("B-01 · la conversion clic → temps n'a pas besoin de corriger le défilement",
+        timeFromEvent.length > 0 && !/scrollLeft/.test(timeFromEvent));
+    }
     check("B-01 · la tête de lecture se tire à la souris",
       /type: "scrub"/.test(timeline) && /setPointerCapture/.test(timeline));
     check("B-01 · la graduation est une zone de balayage",
@@ -196,7 +212,12 @@ async function main() {
   {
     check("B-10 · plus de largeur d'aperçu en dur", !/max-w-\[320px\]/.test(preview));
     check("B-10 · l'aperçu occupe l'espace disponible", /ResizeObserver/.test(preview) && /fitScale/.test(preview));
-    check("B-10 · zoom à la molette", /onWheel=\{onWheel\}/.test(preview));
+    // Itération 3 (C-02, §4.1b) : un `onWheel` React est un écouteur PASSIF —
+    // `preventDefault()` y est silencieusement ignoré, et la page défilait en
+    // même temps que le zoom. Corrigé par un écouteur natif non passif posé
+    // sur l'élément, seule façon d'empêcher le défilement de la page.
+    check("B-10 · zoom à la molette, sans défiler la page",
+      /addEventListener\("wheel", onWheelNative, \{ passive: false \}\)/.test(preview) && /e\.preventDefault\(\)/.test(preview));
     check("B-10 · déplacement de la vue", /mode: "pan"/.test(preview));
     check("B-10 · retour à l'ajustement automatique", /const resetView = useCallback\(/.test(preview));
   }

@@ -15,22 +15,27 @@
 // tout l'écran et la timeline reste ancrée en bas, toujours visible.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useT } from "@/lib/i18n";
 import { Spinner } from "@/components/ui/Spinner";
 import { hostMedia, MAX_UPLOAD_BYTES, formatSize } from "@/lib/media/host";
 import {
-  addAudio, addButton, addClip, addImageLayer, addShape, addText, duplicateClip,
-  emptyProject, FORMAT_SIZE, moveClip, projectDuration, removeAudio, removeClip,
-  removeImageLayer, removeShape, removeText, setClipFraming, setClipLength,
-  setClipSpeed, setClipTransition, shapesAt, splitAt, trimClip, updateAudio,
+  addAudio, addButton, addClip, addImageLayer, addShape, addText, duplicateAudio,
+  duplicateClip, duplicateImageLayer, duplicateShape, duplicateText,
+  emptyProject, FORMAT_SIZE, moveClip, moveLayerTime, projectDuration, removeAudio,
+  removeClip, removeImageLayer, removeShape, removeText, setClipFraming, setClipLength,
+  setClipSpeed, setClipTransition, shapesAt, splitAt, trimClip, trimLayer, updateAudio,
   updateImageLayer, updateShape, updateText, usedTracks,
   type AnimationKind, type EditorFormat, type EditorProject, type ShapeKind,
-  type TransitionKind, type VisualLayer,
+  type TimedLayerKind, type TransitionKind, type VisualLayer,
 } from "@/lib/editor/project";
 import {
   applyTemplate, brandStyleFrom, rescaleTextsForFormat, TEMPLATES, type BrandStyle,
 } from "@/lib/editor/templates";
-import { canRedo, canUndo, initHistory, push, redo, undo, type History } from "@/lib/editor/history";
+import {
+  canRedo, canUndo, commitGesture as commitGestureHistory, initHistory, push, redo,
+  replacePresent, undo, type History,
+} from "@/lib/editor/history";
 import { browserOverlays, decideRenderTarget, toBrowserPlan, type OverlayInput } from "@/lib/editor/render-plan";
 import { drawImages, drawShapes, drawTexts, ensureFontsReady, FONT_STACKS, loadImage } from "@/lib/editor/draw";
 import { Timeline, type TimelineSelection } from "./Timeline";
@@ -38,6 +43,8 @@ import { Preview, type LayerPatch } from "./Preview";
 import { ProjectLibrary } from "./ProjectLibrary";
 import { TemplateGallery } from "./TemplateGallery";
 import { PropertyPanel } from "./PropertyPanel";
+import { Tooltip } from "./Tooltip";
+import { ShortcutsPanel } from "./ShortcutsPanel";
 import type { UploadedMedia } from "@/components/ui/MediaUpload";
 
 const FORMATS: EditorFormat[] = ["9:16", "1:1", "4:5", "16:9"];
@@ -74,7 +81,9 @@ export function StudioEditor({
 
   const [savedId, setSavedId] = useState<string | undefined>(projectId);
   const [playhead, setPlayhead] = useState(0);
+  const [playing, setPlaying] = useState(false);
   const [selection, setSelection] = useState<TimelineSelection>(null);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
   const [note, setNote] = useState<string | null>(null);
@@ -86,10 +95,63 @@ export function StudioEditor({
   const sourceBytes = useRef(0);
   const lang: "fr" | "en" = t("fr", "en") === "en" ? "en" : "fr";
 
+  /**
+   * Portail vers <body> — la cause racine du confinement (itération 3, §4.1d).
+   * La page Compose enveloppe tout son contenu dans `.animate-fade-in`, dont
+   * l'animation `both` laisse un `transform: translateY(0)` en place après son
+   * exécution. Un ancêtre transformé crée un nouveau bloc de référence : le
+   * `fixed inset-0` de l'éditeur se résolvait alors sur CETTE boîte au lieu de
+   * la fenêtre, d'où l'obligation de défiler pour atteindre la timeline. Même
+   * fix que Modal.tsx et HelpDrawer.tsx pour ce dépôt.
+   */
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
+  /* ── Confinement : le document ne défile plus tant que l'éditeur est ouvert,
+     et Ctrl+molette n'y déclenche jamais le zoom du navigateur (§4.1a, §4.2). */
+  useEffect(() => {
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    function blockBrowserZoom(e: WheelEvent) {
+      if (e.ctrlKey) e.preventDefault();
+    }
+    window.addEventListener("wheel", blockBrowserZoom, { passive: false });
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener("wheel", blockBrowserZoom);
+    };
+  }, []);
+
   /** Applique une opération de montage en l'inscrivant dans l'historique. */
   const apply = useCallback((fn: (p: EditorProject) => EditorProject) => {
     setHistory((h) => push(h, fn(h.present)));
   }, []);
+
+  /**
+   * Historique groupé par GESTE, pas par tic de pointeur (itération 3,
+   * chapitre 9, point 3 ; Lot 2) — `replacePresent`/`commitGesture` sont des
+   * fonctions pures de lib/editor/history.ts. `beginGesture` capture l'état
+   * d'avant le geste ; chaque tic de glissement appelle `applyLive`, qui ne
+   * crée AUCUNE entrée ; `commitGesture`, au relâchement, insère l'état de
+   * départ une seule fois dans le passé. Une annulation défait alors le geste
+   * entier, jamais un pixel à la fois.
+   */
+  const gestureBaseline = useRef<EditorProject | null>(null);
+  const beginGesture = useCallback(() => {
+    setHistory((h) => { gestureBaseline.current = h.present; return h; });
+  }, []);
+  const applyLive = useCallback((fn: (p: EditorProject) => EditorProject) => {
+    setHistory((h) => replacePresent(h, fn(h.present)));
+  }, []);
+  const commitGesture = useCallback(() => {
+    setHistory((h) => {
+      const baseline = gestureBaseline.current;
+      gestureBaseline.current = null;
+      return baseline ? commitGestureHistory(h, baseline) : h;
+    });
+  }, []);
+
+  const duration = projectDuration(project);
 
   /**
    * Change le format de publication. Les textes sont retransposés : leur taille
@@ -165,41 +227,144 @@ export function StudioEditor({
     setHistory((h) => push(h, addClip(h.present, { id: nextId("c"), src: initialMedia.url, kind: "image" })));
   }, [initialMedia, projectId]);
 
-  /* ── Enregistrement automatique ────────────────────────────────────────── */
+  /* ── Enregistrement automatique + à la demande (Ctrl+S) ────────────────── */
   const dirty = useRef(false);
   useEffect(() => { dirty.current = true; }, [project]);
+
+  const saveNow = useCallback(async () => {
+    if (project.clips.length === 0) return;
+    dirty.current = false;
+    const res = await fetch("/api/editor/projects", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ companyId, id: savedId, doc: project, name: project.name }),
+    }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+    if (res?.project?.id && !savedId) setSavedId(res.project.id as string);
+  }, [project, companyId, savedId]);
+
   useEffect(() => {
     if (loading) return;
-    const timer = setInterval(async () => {
-      if (!dirty.current || project.clips.length === 0) return;
-      dirty.current = false;
-      const res = await fetch("/api/editor/projects", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyId, id: savedId, doc: project, name: project.name }),
-      }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
-      if (res?.project?.id && !savedId) setSavedId(res.project.id as string);
+    const timer = setInterval(() => {
+      if (dirty.current) void saveNow();
     }, 10_000);
     return () => clearInterval(timer);
-  }, [project, companyId, savedId, loading]);
+  }, [loading, saveNow]);
 
-  /* ── Raccourcis clavier ────────────────────────────────────────────────── */
+  /**
+   * Avertissement à la fermeture de l'onglet si des modifications ne sont pas
+   * encore enregistrées — l'enregistrement automatique tourne toutes les 10 s,
+   * fermer juste après une modification perdait le travail sans le moindre
+   * message (itération 3, chapitre 9, point 5).
+   */
+  useEffect(() => {
+    function onBeforeUnload(e: BeforeUnloadEvent) {
+      if (!dirty.current) return;
+      e.preventDefault();
+      e.returnValue = "";
+    }
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, []);
+
+  /**
+   * Raccourcis clavier (itération 3, chapitre 6).
+   *
+   * Un ref tient l'état courant : l'écouteur n'est posé qu'UNE fois au montage
+   * — le raccourcir à `[apply, playhead]` comme avant le rattachait à chaque
+   * frappe et rendait la barre d'espace difficile à garder cohérente avec le
+   * focus (§6.1, piège n°2).
+   */
+  const kb = useRef({ playhead, duration, selection, apply, saveNow, playing, shortcutsOpen });
+  kb.current = { playhead, duration, selection, apply, saveNow, playing, shortcutsOpen };
+
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       const target = e.target as HTMLElement | null;
-      if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
+      // Jamais pendant une saisie de texte — le garde existant, étendu au
+      // contenu éditable (§6.1, piège n°1).
+      if (target && (/^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName) || target.isContentEditable)) return;
+
+      const {
+        playhead: ph, duration: dur, selection: sel, apply: doApply, saveNow: doSave,
+        playing: isPlaying, shortcutsOpen: refOpen,
+      } = kb.current;
+
+      // Panneau de référence ouvert : seuls Échap et ? restent actifs, pour ne
+      // pas monter un plan ou supprimer une sélection par inadvertance pendant
+      // la lecture de l'aide.
+      if (refOpen && e.key !== "Escape" && e.key !== "?") return;
       const meta = e.metaKey || e.ctrlKey;
-      if (meta && e.key.toLowerCase() === "z") {
+      const lower = e.key.toLowerCase();
+
+      if (meta && lower === "z") {
         e.preventDefault();
         setHistory((h) => (e.shiftKey ? redo(h) : undo(h)));
-      } else if (e.key.toLowerCase() === "s" && !meta) {
+        return;
+      }
+      if (meta && lower === "s") {
+        // Neutralise l'enregistrement de page du navigateur (§6.1).
         e.preventDefault();
-        apply((p) => splitAt(p, playhead, () => nextId("c")));
+        void doSave();
+        return;
+      }
+      if (meta && lower === "d") {
+        // Neutralise le marque-page du navigateur (§6.1).
+        e.preventDefault();
+        if (!sel) return;
+        if (sel.kind === "clip") doApply((p) => duplicateClip(p, sel.id, nextId("c")));
+        else if (sel.kind === "text") doApply((p) => duplicateText(p, sel.id, nextId("t")));
+        else if (sel.kind === "image") doApply((p) => duplicateImageLayer(p, sel.id, nextId("i")));
+        else if (sel.kind === "shape") doApply((p) => duplicateShape(p, sel.id, nextId("s")));
+        else doApply((p) => duplicateAudio(p, sel.id, nextId("a")));
+        return;
+      }
+      if (meta) return; // autre combinaison Ctrl/Cmd : laissée au navigateur
+
+      if (lower === "c" || lower === "s") {
+        // C remplace S (alias silencieux conservé le temps de la transition).
+        e.preventDefault();
+        doApply((p) => splitAt(p, ph, () => nextId("c")));
+        return;
+      }
+      if (e.key === " " || e.key === "Spacebar") {
+        // Sans ce blur, la barre d'espace « rejoue » le bouton qui a le focus
+        // au lieu de (dé)lancer la lecture (§6.1, piège n°2).
+        e.preventDefault();
+        (document.activeElement as HTMLElement | null)?.blur?.();
+        setPlaying(!isPlaying);
+        return;
+      }
+      if (e.key === "Delete" || e.key === "Backspace") {
+        e.preventDefault();
+        removeSelection();
+        return;
+      }
+      if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+        e.preventDefault();
+        // Pas de fréquence d'image stockée dans le document de projet : 1/30 s
+        // est l'approximation la plus proche d'un « pas d'image ».
+        const step = e.shiftKey ? 1 : 1 / 30;
+        const dir = e.key === "ArrowLeft" ? -1 : 1;
+        setPlayhead((p) => Math.max(0, Math.min(dur, p + dir * step)));
+        return;
+      }
+      if (e.key === "Home") { e.preventDefault(); setPlayhead(0); return; }
+      if (e.key === "End") { e.preventDefault(); setPlayhead(dur); return; }
+      if (e.key === "Escape") {
+        // Ne ferme jamais l'éditeur — risque de perte de travail (§6.1).
+        e.preventDefault();
+        if (refOpen) setShortcutsOpen(false);
+        else setSelection(null);
+        return;
+      }
+      if (e.key === "?") {
+        e.preventDefault();
+        setShortcutsOpen((o) => !o);
       }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [apply, playhead]);
+  }, []);
 
   /* ── Import de médias ──────────────────────────────────────────────────── */
   const importFile = useCallback(
@@ -443,9 +608,14 @@ export function StudioEditor({
     }
   }, [project, decision.target, companyId, savedId, buildOverlays, onExport, onClose, t]);
 
-  /* ── Manipulation directe dans la zone de travail ──────────────────────── */
+  /**
+   * Manipulation directe dans la zone de travail — glisser, redimensionner,
+   * pivoter un calque. Même geste continu que dans la timeline : `applyLive`
+   * pendant le glissement, une seule entrée d'historique à son relâchement
+   * (chapitre 9, point 3).
+   */
   const onLayerChange = useCallback((sel: NonNullable<TimelineSelection>, patch: LayerPatch) => {
-    apply((p) => {
+    applyLive((p) => {
       const box: Partial<VisualLayer> = {};
       if (patch.x !== undefined) box.x = patch.x;
       if (patch.y !== undefined) box.y = patch.y;
@@ -470,12 +640,11 @@ export function StudioEditor({
       }
       return p;
     });
-  }, [apply]);
+  }, [applyLive]);
 
-  const duration = projectDuration(project);
-
-  return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-canvas">
+  if (!mounted) return null;
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-canvas">
       {/* En-tête */}
       <header className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-hair bg-card px-4 py-2">
         <div className="flex min-w-0 items-center gap-2">
@@ -498,6 +667,11 @@ export function StudioEditor({
             title={t("Mes montages", "My edits")} aria-label={t("Mes montages", "My edits")}
             className="flex h-7 w-7 items-center justify-center rounded-md text-muted ring-1 ring-hair hover:text-ink"
           >📁</button>
+          <button
+            type="button" onClick={() => setShortcutsOpen(true)}
+            title={t("Raccourcis clavier (?)", "Keyboard shortcuts (?)")} aria-label={t("Raccourcis clavier", "Keyboard shortcuts")}
+            className="flex h-7 w-7 items-center justify-center rounded-md text-muted ring-1 ring-hair hover:text-ink"
+          >?</button>
           <button
             type="button" onClick={() => setHistory(undo)} disabled={!canUndo(history)}
             title={t("Annuler (Ctrl+Z)", "Undo (Ctrl+Z)")} aria-label={t("Annuler", "Undo")}
@@ -534,10 +708,11 @@ export function StudioEditor({
         </div>
       ) : (
         <>
-          {/* Trois zones à défilement INDÉPENDANT */}
-          <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[240px_1fr_300px]">
+          {/* Trois zones à défilement INDÉPENDANT — largeurs fixes, jamais de
+              redimensionnement au gré du contenu ou d'une sélection (loi 4). */}
+          <div className="grid min-h-[320px] flex-1 grid-cols-1 lg:grid-cols-[240px_1fr_300px]">
             {/* Colonne gauche : outils */}
-            <aside className="hidden min-h-0 flex-col overflow-y-auto border-r border-hair bg-card p-3 lg:flex">
+            <aside className="hidden min-h-0 flex-col overflow-y-auto overscroll-contain border-r border-hair bg-card p-3 lg:flex">
               <div className="studio-seg mb-3">
                 <button type="button" data-active={tool === "media"} onClick={() => setTool("media")} className="studio-seg-btn">{t("Médias", "Media")}</button>
                 <button type="button" data-active={tool === "templates"} onClick={() => setTool("templates")} className="studio-seg-btn">{t("Modèles", "Templates")}</button>
@@ -614,31 +789,38 @@ export function StudioEditor({
             {/* Colonne centrale : zone de travail */}
             <main className="flex min-h-0 flex-col gap-2 p-3">
               <div className="flex shrink-0 flex-wrap gap-1.5">
-                <ToolButton onClick={() => apply((p) => splitAt(p, playhead, () => nextId("c")))} disabled={project.clips.length === 0}>
-                  ✂ {t("Scinder", "Split")}
-                </ToolButton>
-                <ToolButton
-                  onClick={() => selection?.kind === "clip" && apply((p) => duplicateClip(p, selection.id, nextId("c")))}
-                  disabled={selection?.kind !== "clip"}
-                >
-                  ⧉ {t("Dupliquer", "Duplicate")}
-                </ToolButton>
-                <ToolButton onClick={() => removeSelection()} disabled={!selection}>
-                  🗑 {t("Supprimer", "Delete")}
-                </ToolButton>
+                <Tooltip label={t("Coupe le plan à la position de la tête de lecture — C", "Cuts the clip at the playhead — C")}>
+                  <ToolButton onClick={() => apply((p) => splitAt(p, playhead, () => nextId("c")))} disabled={project.clips.length === 0}>
+                    ✂ {t("Scinder", "Split")}
+                  </ToolButton>
+                </Tooltip>
+                <Tooltip label={t("Duplique l'élément sélectionné — Ctrl/⌘ + D", "Duplicates the selected element — Ctrl/⌘ + D")}>
+                  <ToolButton onClick={() => duplicateSelection()} disabled={!selection}>
+                    ⧉ {t("Dupliquer", "Duplicate")}
+                  </ToolButton>
+                </Tooltip>
+                <Tooltip label={t("Supprime l'élément sélectionné — Suppr", "Deletes the selected element — Delete")}>
+                  <ToolButton onClick={() => removeSelection()} disabled={!selection}>
+                    🗑 {t("Supprimer", "Delete")}
+                  </ToolButton>
+                </Tooltip>
               </div>
               <Preview
                 project={project}
                 playhead={playhead}
                 selection={selection}
+                playing={playing}
+                onPlayingChange={setPlaying}
                 onSeek={setPlayhead}
                 onSelect={setSelection}
                 onLayerChange={onLayerChange}
+                onDragStart={beginGesture}
+                onDragEnd={commitGesture}
               />
             </main>
 
             {/* Colonne droite : propriétés */}
-            <aside className="hidden min-h-0 overflow-y-auto border-l border-hair bg-card p-3 lg:block">
+            <aside className="hidden min-h-0 overflow-y-auto overscroll-contain border-l border-hair bg-card p-3 lg:block">
               <PropertyPanel
                 project={project}
                 selection={selection}
@@ -658,8 +840,12 @@ export function StudioEditor({
               selection={selection}
               onSeek={setPlayhead}
               onSelect={setSelection}
-              onTrim={(clipId, edge, delta) => apply((p) => trimClip(p, clipId, edge === "head" ? { head: delta } : { tail: delta }))}
-              onMoveClip={(clipId, patch) => apply((p) => moveClip(p, clipId, patch))}
+              onTrim={(clipId, edge, delta) => applyLive((p) => trimClip(p, clipId, edge === "head" ? { head: delta } : { tail: delta }))}
+              onMoveClip={(clipId, patch) => applyLive((p) => moveClip(p, clipId, patch))}
+              onTrimLayer={(kind, id, edge, delta) => applyLive((p) => trimLayer(p, kind, id, edge, delta))}
+              onMoveLayer={(kind, id, start) => applyLive((p) => moveLayerTime(p, kind, id, start))}
+              onDragStart={beginGesture}
+              onDragEnd={commitGesture}
             />
           </div>
         </>
@@ -694,7 +880,9 @@ export function StudioEditor({
           onClose={() => setLibraryOpen(false)}
         />
       )}
-    </div>
+      <ShortcutsPanel open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
+    </div>,
+    document.body
   );
 
   function removeSelection() {
@@ -708,6 +896,20 @@ export function StudioEditor({
       return removeAudio(p, sel.id);
     });
     setSelection(null);
+  }
+
+  /**
+   * Duplique l'élément sélectionné, quel que soit son type — auparavant
+   * réservé aux plans vidéo (itération 3, C-04, règle de parité du chapitre 7).
+   */
+  function duplicateSelection() {
+    if (!selection) return;
+    const sel = selection;
+    if (sel.kind === "clip") apply((p) => duplicateClip(p, sel.id, nextId("c")));
+    else if (sel.kind === "text") apply((p) => duplicateText(p, sel.id, nextId("t")));
+    else if (sel.kind === "image") apply((p) => duplicateImageLayer(p, sel.id, nextId("i")));
+    else if (sel.kind === "shape") apply((p) => duplicateShape(p, sel.id, nextId("s")));
+    else apply((p) => duplicateAudio(p, sel.id, nextId("a")));
   }
 }
 

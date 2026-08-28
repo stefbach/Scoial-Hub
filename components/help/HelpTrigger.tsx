@@ -8,13 +8,15 @@ import { useT } from "@/lib/i18n";
  */
 export function HelpTrigger() {
   const t = useT();
+  // Bouton rond compact h-9 w-9 : même gabarit que les autres contrôles du
+  // header — présentation moins encombrée (bug 6 lot 19).
   return (
     <button
       type="button"
       onClick={() => window.dispatchEvent(new Event("axon:help"))}
       aria-label={t("Ouvrir l'aide de cette page", "Open help for this page")}
       title={t("Aide / Tutoriel de la page (?)", "Page help / tutorial (?)")}
-      className="flex h-9 items-center gap-1.5 rounded-full bg-page px-3 text-white shadow-sm ring-2 ring-white/15 transition-all hover:brightness-110 hover:shadow-md active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+      className="flex h-9 w-9 items-center justify-center rounded-full bg-page text-white shadow-sm ring-2 ring-white/15 transition-all hover:brightness-110 hover:shadow-md active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
     >
       <svg width="17" height="17" viewBox="0 0 18 18" fill="none" aria-hidden="true">
         <path
@@ -26,7 +28,6 @@ export function HelpTrigger() {
         />
         <circle cx="9" cy="13" r="1" fill="currentColor" />
       </svg>
-      <span className="hidden text-xs font-semibold sm:inline">{t("Aide", "Help")}</span>
     </button>
   );
 }

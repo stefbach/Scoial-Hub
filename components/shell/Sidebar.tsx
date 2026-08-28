@@ -171,6 +171,31 @@ const ICONS: Record<string, React.ReactNode> = {
       <path d="M2 2v5.5H7.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
     </svg>
   ),
+  // Espaces réseaux — chaque section a son icône (bug 5 lot 19)
+  "/reseau/facebook": (
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+      <circle cx="7.5" cy="7.5" r="5.5" stroke="currentColor" strokeWidth="1.2" fill="none"/>
+      <path d="M8.6 5.2h1.1V3.6h-1.3c-1.2 0-1.9.8-1.9 2v1H5.3v1.5h1.2v3.6h1.6V8.1h1.3l.2-1.5H8.1v-.8c0-.4.2-.6.5-.6Z" fill="currentColor"/>
+    </svg>
+  ),
+  "/reseau/instagram": (
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+      <rect x="2.5" y="2.5" width="10" height="10" rx="3" stroke="currentColor" strokeWidth="1.2" fill="none"/>
+      <circle cx="7.5" cy="7.5" r="2.2" stroke="currentColor" strokeWidth="1.2" fill="none"/>
+      <circle cx="10.6" cy="4.4" r="0.8" fill="currentColor"/>
+    </svg>
+  ),
+  "/reseau/twitter": (
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+      <path d="M2.5 2.5h3.2l3 4 3.4-4h1.4L9.3 7.4l4.2 5.1h-3.2L7 8.3l-3.7 4.2H1.9l4.4-5.1-3.8-4.9Z" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round" fill="none"/>
+    </svg>
+  ),
+  "/reseau/tiktok": (
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+      <path d="M8.5 2.5v6.8a2.4 2.4 0 1 1-2.4-2.4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" fill="none"/>
+      <path d="M8.5 3.2c.4 1.5 1.5 2.5 3 2.7" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" fill="none"/>
+    </svg>
+  ),
   "/campaigns": (
     <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
       <path d="M2 10.5L5 5l3 4 2.5-5 2.5 6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
@@ -410,10 +435,14 @@ const NAV_COLLAPSED_KEY = "sh_nav_collapsed";
 export function Sidebar({
   onNavigate,
   collapsible = false,
+  frameless = false,
 }: {
   onNavigate?: () => void;
   /** Active le mode « rail » repliable (desktop). Désactivé dans le tiroir mobile. */
   collapsible?: boolean;
+  /** Tiroir mobile : pas de bordure droite ni de largeur figée — le panneau
+   *  hôte encadre déjà (bug 4 lot 19 : lignes parasites). */
+  frameless?: boolean;
 } = {}) {
   const pathname = usePathname();
   const t = useT();
@@ -568,8 +597,11 @@ export function Sidebar({
         // `h-full` + colonne flex : la barre occupe TOUTE la hauteur que lui
         // donne le shell, donc son filet vertical descend jusqu'en bas de
         // l'écran au lieu de s'arrêter à mi-hauteur (R26 #2).
-        "flex h-full flex-col shrink-0 border-r border-hair py-5 transition-[width] duration-200",
-        rail ? "w-[3.75rem] px-2" : "w-[13.5rem] pl-3 pr-2",
+        "flex h-full flex-col shrink-0 py-5 transition-[width] duration-200",
+        // Tiroir mobile : pas de bordure droite ni de largeur figée — le
+        // panneau hôte encadre déjà (bug 4 lot 19 : lignes parasites).
+        frameless ? "" : "border-r border-hair",
+        frameless ? "w-full px-3" : rail ? "w-[3.75rem] px-2" : "w-[13.5rem] pl-3 pr-2",
       ].join(" ")}
     >
       {/* Bouton de repli de TOUTE la barre (rail) — desktop uniquement. */}
@@ -642,7 +674,7 @@ export function Sidebar({
                   onClick={() => toggleGroup(group.id)}
                   aria-expanded={open}
                   aria-controls={panelId}
-                  className="group/sec flex w-full items-center justify-between gap-2 rounded-md px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted/60 transition-colors hover:text-muted"
+                  className="group/sec flex w-full items-center justify-between gap-2 rounded-md px-3 py-1 text-left text-[10px] font-semibold uppercase tracking-[0.14em] text-muted/60 transition-colors hover:text-muted"
                 >
                   {/* `text-left` + `min-w-0` : « Connexions & réglages » est le
                       seul libellé assez long pour passer sur deux lignes, et il

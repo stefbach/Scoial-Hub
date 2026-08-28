@@ -34,7 +34,7 @@ export function ThemeToggle() {
       onClick={toggle}
       title={isLight ? t("Passer en mode sombre", "Switch to dark mode") : t("Passer en mode clair", "Switch to light mode")}
       aria-label={isLight ? t("Passer en mode sombre", "Switch to dark mode") : t("Passer en mode clair", "Switch to light mode")}
-      className="flex h-9 w-9 items-center justify-center rounded-lg text-muted transition-colors hover:bg-canvas hover:text-ink"
+      className="flex h-9 w-9 items-center justify-center rounded-full text-muted transition-colors hover:bg-canvas hover:text-ink"
     >
       {isLight ? (
         /* Lune — repasser en sombre */

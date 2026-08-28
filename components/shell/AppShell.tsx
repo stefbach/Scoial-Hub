@@ -209,10 +209,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <header className="app-header sticky top-0 z-30 flex items-center justify-between border-b border-hair bg-canvas/70 px-3 py-2.5 backdrop-blur-xl sm:px-5">
         <div className="flex min-w-0 items-center gap-2 sm:gap-3">
           {/* Hamburger (mobile only) */}
+          {/* Bascule (bug 2 lot 19) : un clic sur l'icône ferme aussi le tiroir. */}
           <button
             type="button"
-            onClick={() => setNavOpen(true)}
-            aria-label="Ouvrir le menu"
+            onClick={() => setNavOpen((v) => !v)}
+            aria-label={navOpen ? "Fermer le menu" : "Ouvrir le menu"}
+            aria-expanded={navOpen}
             className="-ml-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-ink hover:bg-canvas lg:hidden"
           >
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
@@ -261,7 +263,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               tabIndex={-1}
               className="absolute left-0 top-0 h-full w-[min(15rem,82vw)] overflow-y-auto bg-card shadow-xl outline-none animate-slide-up"
             >
-              <Sidebar onNavigate={() => setNavOpen(false)} />
+              <Sidebar onNavigate={() => setNavOpen(false)} frameless />
             </div>
           </div>
         )}

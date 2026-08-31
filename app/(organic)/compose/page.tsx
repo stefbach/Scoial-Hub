@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { format } from "date-fns";
 import { useCompany } from "@/lib/company-context";
@@ -165,8 +165,15 @@ function ComposeContent() {
   const resumeId = postId ?? draftId;
   const resumedLocally = Boolean(post ?? draft);
   const [prefilling, setPrefilling] = useState(Boolean(resumeId) && !resumedLocally);
+  // Identifiant du brouillon que LA SAUVEGARDE AUTOMATIQUE vient elle-même
+  // d'attribuer à l'URL (?draft=<id>) : sans ce garde-fou, le changement
+  // d'URL redéclencherait cet effet, qui re-lirait le serveur et écraserait
+  // la frappe la plus récente de l'utilisateur par l'instantané qu'on vient
+  // tout juste d'y écrire (retour client Rosiane #2).
+  const autosaveOwnedId = useRef<string | null>(null);
   useEffect(() => {
     if (!resumeId || resumedLocally) return;
+    if (resumeId === autosaveOwnedId.current) return;
     let alive = true;
     setPrefilling(true);
     fetch(`/api/scheduled-posts?companyId=${encodeURIComponent(company.id)}`, { cache: "no-store" })
@@ -176,6 +183,10 @@ function ComposeContent() {
         const rows: ScheduledPost[] = Array.isArray(d?.posts) ? d.posts : Array.isArray(d) ? d : [];
         const found = rows.find((p) => p.id === resumeId);
         if (!found) return;
+        // Un brouillon repris continue de s'autosauvegarder SUR LUI-MÊME —
+        // sinon la première frappe après reprise en créerait un second,
+        // laissant l'original orphelin (même risque que Rosiane #4).
+        if (!postId && found.status === "draft") autosaveDraftId.current = found.id;
         setBody(found.body ?? found.title ?? "");
         const acc = data.accounts.find((a) => a.platform === found.platform);
         if (acc) setSelected([acc.id]);
@@ -374,42 +385,59 @@ function ComposeContent() {
     }
 
     const created = await Promise.all(
-      selectedPlatforms.map(async (platform) => {
+      selectedPlatforms.map(async (platform, i) => {
         // Texte ADAPTÉ au réseau si l'agent/l'utilisateur en a produit un.
         const netBody = (bodies[platform as ComposeNet] ?? "").trim() || body;
+        const payload = {
+          companyId: company.id,
+          platform,
+          title: (netBody.slice(0, 48) + (netBody.length > 48 ? "…" : "")) || t("(Sans titre)", "(Untitled)"),
+          body: netBody,
+          date: postDate,
+          time: postTime,
+          status,
+          source: "manual",
+          // Média attaché (URL incluse) → indispensable pour publier sur
+          // Instagram, et utilisé aussi pour Facebook/LinkedIn. Pour TikTok,
+          // porte aussi les réglages de confidentialité/interactions/
+          // divulgation choisis dans le panneau ci-dessous (Required UX
+          // Implementation des guidelines TikTok).
+          media: upload
+            ? {
+                kind: upload.kind,
+                url: upload.url,
+                // Emplacement Meta (fil / Story / Reel) — ignoré ailleurs.
+                ...(platform === "facebook" || platform === "instagram" ? { postType } : {}),
+                ...(platform === "tiktok" ? { tiktok: tiktokOptions } : {}),
+              }
+            : undefined,
+        };
+        // La sauvegarde automatique a déjà écrit un brouillon pour le premier
+        // réseau sélectionné : on le complète au lieu d'en créer un doublon
+        // (Rosiane #2 ne doit pas réintroduire le bug Rosiane #4 — deux
+        // lignes pour la même intention de publication).
+        if (i === 0 && autosaveDraftId.current) {
+          const res = await fetch(`/api/scheduled-posts/${autosaveDraftId.current}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          return res.ok ? autosaveDraftId.current : null;
+        }
         const res = await fetch("/api/scheduled-posts", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            companyId: company.id,
-            platform,
-            title: (netBody.slice(0, 48) + (netBody.length > 48 ? "…" : "")) || t("(Sans titre)", "(Untitled)"),
-            body: netBody,
-            date: postDate,
-            time: postTime,
-            status,
-            source: "manual",
-            // Média attaché (URL incluse) → indispensable pour publier sur
-            // Instagram, et utilisé aussi pour Facebook/LinkedIn. Pour TikTok,
-            // porte aussi les réglages de confidentialité/interactions/
-            // divulgation choisis dans le panneau ci-dessous (Required UX
-            // Implementation des guidelines TikTok).
-            media: upload
-              ? {
-                  kind: upload.kind,
-                  url: upload.url,
-                  // Emplacement Meta (fil / Story / Reel) — ignoré ailleurs.
-                  ...(platform === "facebook" || platform === "instagram" ? { postType } : {}),
-                  ...(platform === "tiktok" ? { tiktok: tiktokOptions } : {}),
-                }
-              : undefined,
-          }),
+          body: JSON.stringify(payload),
         });
         if (!res.ok) return null;
         const d = (await res.json().catch(() => ({}))) as { id?: string };
         return d.id ?? null;
       })
     );
+    // La rédaction en cours est finalisée (publiée, programmée ou classée
+    // comme brouillon explicite) : une éventuelle sauvegarde automatique
+    // suivante doit repartir d'un nouveau brouillon, pas continuer celui-ci.
+    autosaveDraftId.current = null;
     const ids = created.filter((id): id is string => Boolean(id));
     return { ok: created.every(Boolean), ids };
   };
@@ -469,6 +497,80 @@ function ComposeContent() {
       setSubmitting(false);
     }
   };
+
+  /**
+   * Sauvegarde automatique de la rédaction — Rosiane #2 : reprendre son
+   * travail sans tout recommencer après une fermeture d'onglet accidentelle.
+   * Écrit un vrai brouillon (statut "draft") comme le ferait « Enregistrer
+   * comme brouillon », mais sans jamais rediriger l'utilisateur pendant qu'il
+   * rédige encore. Jamais pendant l'édition d'une publication DÉJÀ programmée
+   * (postId) — modifier un plan de publication existant n'est pas un
+   * brouillon, et Rosiane #4 (PATCH de la ligne d'origine) reste le seul
+   * chemin de sauvegarde pour ce cas.
+   */
+  const [autosaveStatus, setAutosaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const autosaveDraftId = useRef<string | null>(null);
+  const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autosavingRef = useRef(false);
+
+  const runAutosave = useCallback(async () => {
+    if (postId || !body.trim() || autosavingRef.current) return;
+    autosavingRef.current = true;
+    setAutosaveStatus("saving");
+    try {
+      const platform = selectedPlatforms[0] ?? data.accounts[0]?.platform ?? "facebook";
+      const payload = {
+        companyId: company.id,
+        platform,
+        title: (body.slice(0, 48) + (body.length > 48 ? "…" : "")) || t("(Sans titre)", "(Untitled)"),
+        body,
+        date: format(date, "yyyy-MM-dd"),
+        time,
+        status: "draft" as const,
+        source: "manual" as const,
+        media: upload ? { kind: upload.kind, url: upload.url } : undefined,
+      };
+      if (autosaveDraftId.current) {
+        const res = await fetch(`/api/scheduled-posts/${autosaveDraftId.current}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) throw new Error("autosave patch failed");
+      } else {
+        const res = await fetch("/api/scheduled-posts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) throw new Error("autosave create failed");
+        const d = (await res.json().catch(() => ({}))) as { id?: string };
+        if (d.id) {
+          autosaveDraftId.current = d.id;
+          autosaveOwnedId.current = d.id;
+          // URL mise à jour pour qu'un rechargement/une fermeture accidentelle
+          // reprenne CE brouillon — `replace` pour ne pas polluer l'historique
+          // de navigation à chaque frappe.
+          router.replace(`/compose?draft=${d.id}`);
+        }
+      }
+      setAutosaveStatus("saved");
+    } catch {
+      setAutosaveStatus("error");
+    } finally {
+      autosavingRef.current = false;
+    }
+  }, [postId, body, selectedPlatforms, data.accounts, company.id, date, time, upload, t, router]);
+
+  useEffect(() => {
+    if (postId || prefilling || !body.trim()) return;
+    if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
+    autosaveTimer.current = setTimeout(runAutosave, 2500);
+    return () => {
+      if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [body, selected, date, time, upload, postId, prefilling]);
 
   const handleSaveToLibrary = async () => {
     if (savingLibrary) return;
@@ -552,6 +654,18 @@ function ComposeContent() {
               <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-primary-400" />
               <span className="font-semibold text-ink">{company.code}</span>
             </span>
+            {/* Sauvegarde automatique (Rosiane #2) — n'apparaît qu'une fois
+                qu'un premier cycle a réellement eu lieu, pour ne pas
+                encombrer un compositeur qui vient de s'ouvrir, vide. */}
+            {!postId && autosaveStatus !== "idle" && (
+              <span className="inline-flex shrink-0 items-center gap-1 text-2xs text-muted">
+                {autosaveStatus === "saving" && <>{t("Enregistrement…", "Saving…")}</>}
+                {autosaveStatus === "saved" && <>✓ {t("Enregistré", "Saved")}</>}
+                {autosaveStatus === "error" && (
+                  <span className="text-warning-700">{t("Sauvegarde auto en échec", "Autosave failed")}</span>
+                )}
+              </span>
+            )}
           </div>
           <p className="mt-0.5 w-full text-2xs text-muted">{modeSub}</p>
         </div>

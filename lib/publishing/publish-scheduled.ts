@@ -272,6 +272,13 @@ export async function publishScheduledPostNow(
     mediaUrl = await ensurePublishableImageUrl(companyIdOrUuid, mediaUrl);
   }
 
+  // Album Facebook / carrousel Instagram : mêmes visuels supplémentaires que
+  // la couverture, même conversion JPEG si besoin (Réunion Rosiane #7).
+  const albumUrls =
+    post.media?.albumUrls && post.media.albumUrls.length > 0
+      ? await Promise.all(post.media.albumUrls.map((u) => ensurePublishableImageUrl(companyIdOrUuid, u)))
+      : undefined;
+
   const input: PublishInput = {
     externalAccountId,
     accessToken,
@@ -279,6 +286,7 @@ export async function publishScheduledPostNow(
     media: mediaUrl
       ? { url: mediaUrl, mimeType: post.media?.kind === "video" ? "video/mp4" : "image/jpeg" }
       : undefined,
+    albumUrls,
     // Emplacement Meta choisi à la création (fil / Story / Reel) — ignoré par
     // les autres connecteurs.
     postType: post.media?.postType,

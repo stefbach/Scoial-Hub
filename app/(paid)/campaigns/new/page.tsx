@@ -13,7 +13,7 @@ import { IconMegaphone } from "@/components/visual/Icons";
 import { MetaGeoPicker, type GeoLoc } from "@/components/ads/MetaGeoPicker";
 import { MetaLanguagePicker, type MetaLocale } from "@/components/ads/MetaLanguagePicker";
 import { Spinner, BusyHint } from "@/components/ui/Spinner";
-import { generateVideoPolling } from "@/lib/ai/generate-video-client";
+import { generateVideoPolling, videoGenErrorMessage } from "@/lib/ai/generate-video-client";
 import { overlayLogoAndUpload, type LogoCorner } from "@/lib/media/logo-overlay";
 import { AdResultPanel } from "@/components/paid/AdResultPanel";
 import { AdAssistantPanel } from "@/components/paid/AdAssistantPanel";
@@ -245,7 +245,7 @@ export default function NewMetaAdPage() {
       const res = await generateVideoPolling({ prompt, aspect, seconds: 6 }, { onStatus: (s) => setVidStatus(s) });
       if (res.url) { setVideoUrl(res.url); setVidStatus(""); saveToLibrary(res.url, "video"); }
       else if (res.simulated) setError(t("Génération vidéo non configurée (REPLICATE_API_TOKEN).", "Video generation not configured."));
-      else setError(res.error === "network" ? t("Erreur réseau.", "Network error.") : t("Échec de génération vidéo. Réessayez.", "Video generation failed. Try again."));
+      else setError(videoGenErrorMessage(res.error, t));
     } finally { setGenVid(false); setVidStatus(""); }
   }
 

@@ -17,6 +17,8 @@ import {
   inferMediaKind,
   publishToFacebookPage,
   publishToInstagram,
+  publishFacebookAlbum,
+  publishInstagramCarousel,
   META_INVALID_TOKEN_CODE,
   type MetaPublishOutcome,
 } from "@/lib/connectors/meta-publish";
@@ -261,6 +263,13 @@ class FacebookConnector implements SocialConnector {
     const pageId = input.externalAccountId;
     const postType = input.postType ?? "feed";
 
+    // ── Album (plusieurs photos, fil uniquement) ──────────────────────────────
+    if (postType === "feed" && input.albumUrls && input.albumUrls.length > 0 && input.media?.url) {
+      const outcome = await publishFacebookAlbum(pageId, input.accessToken, [input.media.url, ...input.albumUrls], input.text);
+      if (!outcome.ok) throwPublishError(outcome, "Échec de la publication de l'album Facebook.");
+      return { externalId: outcome.id ?? "", url: outcome.url };
+    }
+
     // ── Média joint (ou story/reel) : endpoints dédiés, ≠ /feed ───────────────
     // Story et Reel passent par leurs propres edges (photo_stories /
     // video_stories / video_reels) — implémentation partagée avec la
@@ -467,6 +476,19 @@ class InstagramConnector implements SocialConnector {
       throw new Error(
         "Instagram exige un média (image ou vidéo). Ajoutez un visuel à votre publication."
       );
+    }
+
+    // ── Carrousel (2 à 10 photos, fil uniquement) ─────────────────────────────
+    const postTypeForAlbum = input.postType ?? "feed";
+    if (postTypeForAlbum === "feed" && input.albumUrls && input.albumUrls.length > 0) {
+      const outcome = await publishInstagramCarousel(
+        input.externalAccountId,
+        input.accessToken,
+        [input.media.url, ...input.albumUrls],
+        input.text
+      );
+      if (!outcome.ok) throwPublishError(outcome, "Échec de la publication du carrousel Instagram.");
+      return { externalId: outcome.id ?? "", url: `https://www.instagram.com/p/${outcome.id}/` };
     }
 
     // Conteneur (fil / STORIES / REELS) + attente de fin de traitement +

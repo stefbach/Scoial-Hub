@@ -9,7 +9,7 @@ import { useState } from "react";
 import { useCompany } from "@/lib/company-context";
 import { useT, useLang } from "@/lib/i18n";
 import { VIDEO_MODELS, DEFAULT_VIDEO_MODEL_ID } from "@/lib/ai/model-catalog";
-import { generateVideoPolling } from "@/lib/ai/generate-video-client";
+import { generateVideoPolling, videoGenErrorMessage } from "@/lib/ai/generate-video-client";
 import type { MediaAsset } from "@/lib/video/types";
 
 interface Scene { index: number; prompt: string; seconds: number; onScreenText: string; voiceover?: string }
@@ -79,6 +79,7 @@ export function VideoDirector({
     if (!board || filming) return;
     setFilming(true); setNote(null);
     let ok = 0;
+    let stopReason: string | null = null;
     try {
       for (const s of board.scenes) {
         setStatus((st) => ({ ...st, [s.index]: "running" }));
@@ -93,13 +94,25 @@ export function VideoDirector({
           ok += 1;
         } else {
           setStatus((st) => ({ ...st, [s.index]: "failed" }));
-          if (res.simulated) { setNote(t("Génération vidéo non configurée (REPLICATE_API_TOKEN).", "Video generation not configured (REPLICATE_API_TOKEN).")); break; }
+          if (res.simulated) {
+            stopReason = t("Génération vidéo non configurée (REPLICATE_API_TOKEN).", "Video generation not configured (REPLICATE_API_TOKEN).");
+            break;
+          }
+          // Une cause de fond (formule sans vidéo IA, quota épuisé…) touche
+          // TOUTES les scènes identiquement — inutile d'insister sur les
+          // suivantes, et le message doit dire POURQUOI, pas juste "réessayez"
+          // (retour client Rosiane #8).
+          if (res.error && res.error !== "timeout") { stopReason = videoGenErrorMessage(res.error, t); break; }
         }
       }
       setProgress("");
-      setNote(ok > 0
-        ? t(`✓ ${ok} clip(s) ajouté(s) à la timeline ci-dessous — assemblez & montez le film.`, `✓ ${ok} clip(s) added to the timeline below — assemble & render the film.`)
-        : t("Aucun clip généré. Réessayez ou changez de modèle.", "No clip generated. Retry or change the model."));
+      if (stopReason) {
+        setNote(ok > 0 ? `${stopReason} (${t(`${ok} clip(s) déjà ajouté(s).`, `${ok} clip(s) already added.`)})` : stopReason);
+      } else if (ok > 0) {
+        setNote(t(`✓ ${ok} clip(s) ajouté(s) à la timeline ci-dessous — assemblez & montez le film.`, `✓ ${ok} clip(s) added to the timeline below — assemble & render the film.`));
+      } else {
+        setNote(t("Aucun clip généré. Réessayez ou changez de modèle.", "No clip generated. Retry or change the model."));
+      }
     } catch {
       setNote(t("Échec du tournage.", "Filming failed."));
     } finally { setFilming(false); setProgress(""); }

@@ -16,6 +16,8 @@ import { getMemoryContext } from "@/lib/memory";
 import { createAdminClient } from "@/lib/supabase/server";
 import { resolveCompanyUuid } from "@/lib/repositories/resolve-company";
 import { resolvePublishLanguageName } from "@/lib/publish-languages";
+import { getBrandKit } from "@/lib/repositories/brand-kit";
+import { brandPromptHints } from "@/lib/brand-kit/prompt";
 
 type Net = "facebook" | "instagram" | "tiktok";
 
@@ -76,6 +78,14 @@ export async function POST(req: NextRequest) {
     } catch { /* dégradation */ }
     const memory = body.useMemory ? await getMemoryContext(companyId, 10).catch(() => "") : "";
 
+    // Kit de marque enregistré (logo/charte/palette/style) — jusqu'ici seul le
+    // panneau de génération d'image du Composer le reprenait ; l'agent de
+    // publication écrivait ses "visualPrompt" à l'aveugle, sans lien avec
+    // l'identité déjà configurée (retour client Rosiane #6).
+    const kit = await getBrandKit(companyId).catch(() => null);
+    const visualHints = brandPromptHints(kit);
+    const voiceSignal = [kit?.tone, kit?.chart?.voice].filter((v) => v?.trim()).join(" · ");
+
     const histText = (body.history ?? []).slice(-6)
       .map((m) => `${m.role === "user" ? "UTILISATEUR" : "AGENT"} : ${m.content}`).join("\n");
 
@@ -86,7 +96,8 @@ export async function POST(req: NextRequest) {
 Tu es l'AGENT DE PUBLICATION d'une marque — un social media manager senior de niveau international. Tu transformes une idée en publications PRÊTES À PARTIR, adaptées aux codes de CHAQUE réseau, et tu conseilles le visuel idéal.
 
 # MARQUE
-${brandName || "(non précisée)"}${brandVoice ? ` — voix : ${brandVoice}` : ""}
+${brandName || "(non précisée)"}${brandVoice ? ` — voix : ${brandVoice}` : ""}${voiceSignal ? ` — ton de marque enregistré : ${voiceSignal}` : ""}
+${visualHints ? `\n# IDENTITÉ VISUELLE DE MARQUE ENREGISTRÉE (Brand Kit)\n${visualHints}\n→ Le "visualPrompt" DOIT respecter cette direction (couleurs, style, ambiance) — ne propose pas un visuel générique déconnecté de la marque.` : ""}
 ${memory ? `\n# MÉMOIRE STRATÉGIQUE (RAG — appuie-toi dessus)\n${memory}` : ""}
 
 ${histText ? `# CONVERSATION\n${histText}\n` : ""}
@@ -100,8 +111,8 @@ ${rules}
 
 # CE QUE TU PRODUIS
 1. "reply" : réponse courte et humaine (1-3 phrases, langue : ${langLabel}) — ce que tu as fait et un conseil.
-2. "texts" : UN texte par réseau demandé, ADAPTÉ à ses codes (pas un copier-coller). Langue : ${langLabel}. Jamais de tiret cadratin (—).
-3. "visualPrompt" : prompt EN ANGLAIS, très détaillé et premium, pour générer le visuel idéal (sujet, composition, lumière, style, HD, AUCUN texte incrusté).
+2. "texts" : UN texte par réseau demandé, ADAPTÉ à ses codes (pas un copier-coller). Langue : ${langLabel}. Jamais de tiret cadratin (—). Respecte le ton de marque enregistré ci-dessus s'il est renseigné.
+3. "visualPrompt" : prompt EN ANGLAIS, très détaillé et premium, pour générer le visuel idéal (sujet, composition, lumière, style, HD, AUCUN texte incrusté). Intègre l'identité visuelle de marque ci-dessus quand elle est renseignée.
 4. "visualKind" : "image" ou "video" (video si TikTok est central ou si le sujet s'y prête).
 5. "visualAdvice" : 1 phrase (${langLabel}) de conseil sur le visuel (cadrage, ambiance, pourquoi).
 6. "tips" : 1-2 conseils brefs (meilleure heure, angle, CTA…).

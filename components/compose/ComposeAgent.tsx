@@ -10,7 +10,7 @@ import { useRef, useState } from "react";
 import { useCompany } from "@/lib/company-context";
 import { useT, useLang } from "@/lib/i18n";
 import { PublishLanguageSelect } from "@/components/ui/PublishLanguageSelect";
-import { generateVideoPolling } from "@/lib/ai/generate-video-client";
+import { generateVideoPolling, videoGenErrorMessage } from "@/lib/ai/generate-video-client";
 
 export type ComposeNet = "facebook" | "instagram" | "tiktok";
 
@@ -88,7 +88,7 @@ export function ComposeAgent({
       if (out.visualKind === "video") {
         const r = await generateVideoPolling({ prompt: out.visualPrompt, aspect: "9:16", companyId: company.id });
         if (r.url) { onMedia({ url: r.url, kind: "video" }); setGenDone(out.visualPrompt); return; }
-        setMsgs((p) => [...p, { role: "assistant", content: t("La vidéo n'a pas pu être générée — réessayez ou passez en image.", "Video couldn't be generated — retry or switch to image.") }]);
+        setMsgs((p) => [...p, { role: "assistant", content: videoGenErrorMessage(r.error, t) }]);
         return;
       }
       const r = await fetch("/api/ai/generate-image", {

@@ -235,6 +235,34 @@ export async function publishToFacebookPage(
   return { ok: true, id: String(post.id), url: `https://www.facebook.com/${post.id}` };
 }
 
+/**
+ * Publie un album (plusieurs photos) sur le fil d'une Page Facebook.
+ * Chaque image est d'abord téléversée NON publiée (`published=false`), puis
+ * le post au fil les rattache toutes via `attached_media` — c'est le seul
+ * moyen Graph d'obtenir plusieurs photos dans UN SEUL post plutôt qu'un post
+ * par image.
+ */
+export async function publishFacebookAlbum(
+  pageId: string,
+  pageToken: string,
+  imageUrls: string[],
+  text: string
+): Promise<MetaPublishOutcome> {
+  const mediaIds: string[] = [];
+  for (const url of imageUrls) {
+    const photo = await graphPost(`${pageId}/photos`, { url, published: "false", access_token: pageToken });
+    if (photo.error || !photo.id) return fail(photo, "Meta a refusé une image de l'album.");
+    mediaIds.push(String(photo.id));
+  }
+  const post = await graphPost(`${pageId}/feed`, {
+    message: text,
+    attached_media: JSON.stringify(mediaIds.map((id) => ({ media_fbid: id }))),
+    access_token: pageToken,
+  });
+  if (post.error || !post.id) return fail(post, "Meta a refusé la publication de l'album.");
+  return { ok: true, id: String(post.id), url: `https://www.facebook.com/${post.id}` };
+}
+
 // ── Instagram ────────────────────────────────────────────────────────────────
 
 /**
@@ -323,5 +351,50 @@ export async function publishToInstagram(
     // Encore en préparation : la prochaine tentative reprendra CE conteneur.
     return timedOut ? { ...failed, error: notReady!, pendingContainerId: containerId } : failed;
   }
+  return { ok: true, id: String(pub.id) };
+}
+
+/**
+ * Publie un carrousel (2 à 10 images) sur le fil d'un compte Instagram
+ * Business. Chaque image devient un conteneur enfant (`is_carousel_item`),
+ * puis un conteneur parent (`media_type=CAROUSEL`) les regroupe avant
+ * publication — Instagram n'a pas d'équivalent au `attached_media` de
+ * Facebook, la hiérarchie enfant/parent est obligatoire.
+ */
+export async function publishInstagramCarousel(
+  igId: string,
+  token: string,
+  imageUrls: string[],
+  text: string
+): Promise<MetaPublishOutcome> {
+  const childIds: string[] = [];
+  for (const url of imageUrls) {
+    const child = await graphPost(`${igId}/media`, {
+      image_url: url,
+      is_carousel_item: "true",
+      access_token: token,
+    });
+    if (child.error || !child.id) return fail(child, "Instagram a refusé une image du carrousel.");
+    childIds.push(String(child.id));
+  }
+  for (const id of childIds) {
+    const notReady = await waitForIgContainerReady(id, token);
+    if (notReady) return { ok: false, error: notReady };
+  }
+
+  const parent = await graphPost(`${igId}/media`, {
+    media_type: "CAROUSEL",
+    children: childIds.join(","),
+    caption: text,
+    access_token: token,
+  });
+  if (parent.error || !parent.id) return fail(parent, "Instagram a refusé le carrousel.");
+  const parentId = String(parent.id);
+
+  const parentNotReady = await waitForIgContainerReady(parentId, token);
+  if (parentNotReady) return { ok: false, error: parentNotReady };
+
+  const pub = await graphPost(`${igId}/media_publish`, { creation_id: parentId, access_token: token });
+  if (pub.error || !pub.id) return fail(pub, "Instagram a refusé la publication du carrousel.");
   return { ok: true, id: String(pub.id) };
 }

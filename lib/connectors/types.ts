@@ -116,8 +116,14 @@ export interface PublishInput {
   text: string;
   /** URL à partager dans le post (optionnel). */
   link?: string;
-  /** Média joint (image ou vidéo). */
+  /** Média joint (image ou vidéo) — couverture de l'album/carrousel s'il y en a un. */
   media?: MediaAttachment;
+  /**
+   * Album Facebook / carrousel Instagram (Meta uniquement, fil/images
+   * seulement) : URLs SUPPLÉMENTAIRES au-delà de `media.url`. Les autres
+   * connecteurs (LinkedIn, TikTok) l'ignorent et publient la seule couverture.
+   */
+  albumUrls?: string[];
   /**
    * Emplacement de publication (Meta uniquement) : fil, Story éphémère 24 h ou
    * Reel. Absent → "feed" (comportement historique). Les autres connecteurs

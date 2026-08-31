@@ -17,6 +17,7 @@ import { brandPromptHints } from "@/lib/brand-kit/prompt";
 import { AgentLauncher } from "@/components/agents/AgentLauncher";
 import { IMAGE_MODELS, VIDEO_MODELS, DEFAULT_IMAGE_MODEL_ID, DEFAULT_VIDEO_MODEL_ID } from "@/lib/ai/model-catalog";
 import { MediaUpload, type UploadedMedia } from "@/components/ui/MediaUpload";
+import { AlbumUpload } from "@/components/compose/AlbumUpload";
 import { WhenToPublish } from "@/components/compose/WhenToPublish";
 import { Toast } from "@/components/ui/Toast";
 import { findDraft, findPost } from "@/lib/draft-store";
@@ -157,6 +158,13 @@ function ComposeContent() {
     if (postType === "reel" && upload?.kind !== "video") setPostType("feed");
     if (postType !== "feed" && !upload) setPostType("feed");
   }, [upload, postType]);
+  // Album Facebook / carrousel Instagram (retour client Rosiane #7) : images
+  // SUPPLÉMENTAIRES au-delà de `upload`, qui reste la couverture. Fil/images
+  // uniquement — vidées si l'utilisateur bascule vers Story/Reel ou une vidéo.
+  const [albumExtra, setAlbumExtra] = useState<UploadedMedia[]>([]);
+  useEffect(() => {
+    if ((postType !== "feed" || upload?.kind !== "image") && albumExtra.length > 0) setAlbumExtra([]);
+  }, [postType, upload, albumExtra.length]);
   // Reprise d'une publication programmée OU d'un brouillon RÉELS.
   // `findPost` et `findDraft` ne lisent que le magasin local de démonstration :
   // pour une ligne venue de la base, ils renvoient undefined et le formulaire
@@ -203,6 +211,11 @@ function ComposeContent() {
             kind: found.media.kind ?? "image",
           });
           if (found.media.postType) setPostType(found.media.postType);
+          if (found.media.albumUrls?.length) {
+            setAlbumExtra(
+              found.media.albumUrls.map((url) => ({ url, name: "Image", size: 0, kind: "image" as const }))
+            );
+          }
         }
       })
       .catch(() => {
@@ -377,6 +390,9 @@ function ComposeContent() {
                 url: upload.url,
                 ...(platform === "facebook" || platform === "instagram" ? { postType } : {}),
                 ...(platform === "tiktok" ? { tiktok: tiktokOptions } : {}),
+                ...((platform === "facebook" || platform === "instagram") && postType === "feed" && albumExtra.length > 0
+                  ? { albumUrls: albumExtra.map((m) => m.url) }
+                  : {}),
               }
             : undefined,
         }),
@@ -409,6 +425,10 @@ function ComposeContent() {
                 // Emplacement Meta (fil / Story / Reel) — ignoré ailleurs.
                 ...(platform === "facebook" || platform === "instagram" ? { postType } : {}),
                 ...(platform === "tiktok" ? { tiktok: tiktokOptions } : {}),
+                // Album Facebook / carrousel Instagram — ignoré ailleurs.
+                ...((platform === "facebook" || platform === "instagram") && postType === "feed" && albumExtra.length > 0
+                  ? { albumUrls: albumExtra.map((m) => m.url) }
+                  : {}),
               }
             : undefined,
         };
@@ -528,7 +548,9 @@ function ComposeContent() {
         time,
         status: "draft" as const,
         source: "manual" as const,
-        media: upload ? { kind: upload.kind, url: upload.url } : undefined,
+        media: upload
+          ? { kind: upload.kind, url: upload.url, ...(albumExtra.length > 0 ? { albumUrls: albumExtra.map((m) => m.url) } : {}) }
+          : undefined,
       };
       if (autosaveDraftId.current) {
         const res = await fetch(`/api/scheduled-posts/${autosaveDraftId.current}`, {
@@ -560,7 +582,7 @@ function ComposeContent() {
     } finally {
       autosavingRef.current = false;
     }
-  }, [postId, body, selectedPlatforms, data.accounts, company.id, date, time, upload, t, router]);
+  }, [postId, body, selectedPlatforms, data.accounts, company.id, date, time, upload, albumExtra, t, router]);
 
   useEffect(() => {
     if (postId || prefilling || !body.trim()) return;
@@ -570,7 +592,7 @@ function ComposeContent() {
       if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [body, selected, date, time, upload, postId, prefilling]);
+  }, [body, selected, date, time, upload, albumExtra, postId, prefilling]);
 
   const handleSaveToLibrary = async () => {
     if (savingLibrary) return;
@@ -948,6 +970,20 @@ function ComposeContent() {
               ))}
             </div>
           )}
+
+          {/* Album Facebook / carrousel Instagram : plusieurs photos dans UNE
+              même publication (retour client Rosiane #7). Fil uniquement,
+              images uniquement — LinkedIn et TikTok publieront la seule
+              couverture (`upload`), ils ne savent pas afficher un carrousel. */}
+          {upload?.kind === "image" && postType === "feed" &&
+            (selectedPlatforms.includes("facebook") || selectedPlatforms.includes("instagram")) && (
+              <div className="space-y-1">
+                <span className="text-2xs text-muted">
+                  {t("Album (Facebook) / carrousel (Instagram) — ajoutez d'autres photos :", "Album (Facebook) / carousel (Instagram) — add more photos:")}
+                </span>
+                <AlbumUpload extra={albumExtra} onChange={setAlbumExtra} companyId={company.id} />
+              </div>
+            )}
 
           {/* When to publish */}
           <WhenToPublish

@@ -115,6 +115,13 @@ export interface ScheduledPost {
     /** Conteneur Instagram créé mais pas encore prêt — repris au prochain essai. */
     igContainerId?: string;
     tiktok?: TikTokPublishOptions;
+    /**
+     * Album Facebook / carrousel Instagram : images SUPPLÉMENTAIRES au-delà
+     * de `url` (qui reste la couverture — seule image vue par LinkedIn,
+     * TikTok et les aperçus, qui ne savent pas afficher un carrousel).
+     * Fil (feed) uniquement, images uniquement, 2 à 10 visuels au total.
+     */
+    albumUrls?: string[];
   }; // média attaché (url requise pour publier sur Instagram) ; tiktok = réglages de publication TikTok
   publishedAt?: string; // ISO timestamp set when published from the modal
   externalId?: string; // identifiant du post côté plateforme (publish_id TikTok, post id Facebook…), renseigné après publication réussie

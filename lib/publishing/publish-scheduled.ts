@@ -132,7 +132,11 @@ async function logHistory(
       external_url: url ?? null,
       published_at: status === "published" ? new Date().toISOString() : null,
       scheduled_at: post.date && post.time ? `${post.date}T${post.time}:00` : null,
-      source: post.automationName ? "automation" : "manual",
+      // La provenance réelle du post (manuel, série, automatisation) est déjà
+      // connue — la redériver de `automationName` seul l'écrasait toujours en
+      // « manual » pour tout ce qui n'est pas une automatisation (retour
+      // client Rosiane #3, ex. les publications créées via « Post Series »).
+      source: post.source,
       automation_name: post.automationName ?? null,
       status,
       // L'URL du média est CONSERVÉE : sans elle, l'historique savait qu'il y

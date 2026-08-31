@@ -43,7 +43,8 @@
     "test:montagelot4": "tsx scripts/verify-editor-lot4.ts",
     "test:assetsgateway": "tsx scripts/verify-assets-gateway.ts",
     "test:montageslots": "tsx scripts/verify-editor-slots.ts",
-    "test:montageprovenance": "tsx scripts/verify-editor-provenance.ts"
+    "test:montageprovenance": "tsx scripts/verify-editor-provenance.ts",
+    "test:postsource": "tsx scripts/verify-post-source.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.100.1",

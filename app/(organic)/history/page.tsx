@@ -20,7 +20,7 @@ import {
   toCsv,
   toJson,
 } from "@/lib/history-store";
-import type { HistoryItem } from "@/lib/types";
+import { postSourceLabel, type HistoryItem } from "@/lib/types";
 
 type RangeId = "7d" | "30d" | "90d" | "1y" | "all" | "custom";
 
@@ -353,7 +353,7 @@ function List({
             <div className="min-w-0 flex-1">
               <div className="truncate text-sm text-ink">{item.body}</div>
               <div className="mt-0.5 text-2xs text-muted">
-                {item.when} · {item.source}
+                {item.when} · {postSourceLabel(item.source, t, item.automationName)}
                 {item.stats ? ` · ${item.stats}` : ""}
               </div>
             </div>

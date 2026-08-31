@@ -343,6 +343,36 @@ function ComposeContent() {
     const postDate = mode === "now" ? format(now, "yyyy-MM-dd") : format(date, "yyyy-MM-dd");
     const postTime = mode === "now" ? format(now, "HH:mm") : time;
 
+    // Modification d'une publication PROGRAMMÉE existante (venue de « Modifier
+    // dans Compose », ?post=<id>) : on met à jour la ligne d'origine au lieu
+    // d'en créer une nouvelle — sinon l'originale restait, en double, jamais
+    // modifiée (retour client Rosiane #4).
+    if (postId) {
+      const platform = selectedPlatforms[0] ?? source?.platform ?? "facebook";
+      const netBody = (bodies[platform as ComposeNet] ?? "").trim() || body;
+      const res = await fetch(`/api/scheduled-posts/${postId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          platform,
+          title: (netBody.slice(0, 48) + (netBody.length > 48 ? "…" : "")) || t("(Sans titre)", "(Untitled)"),
+          body: netBody,
+          date: postDate,
+          time: postTime,
+          status,
+          media: upload
+            ? {
+                kind: upload.kind,
+                url: upload.url,
+                ...(platform === "facebook" || platform === "instagram" ? { postType } : {}),
+                ...(platform === "tiktok" ? { tiktok: tiktokOptions } : {}),
+              }
+            : undefined,
+        }),
+      });
+      return { ok: res.ok, ids: res.ok ? [postId] : [] };
+    }
+
     const created = await Promise.all(
       selectedPlatforms.map(async (platform) => {
         // Texte ADAPTÉ au réseau si l'agent/l'utilisateur en a produit un.

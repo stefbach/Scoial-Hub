@@ -202,7 +202,7 @@ export function SeriesPlanner({ platform }: { platform: SeriesPlatform }) {
             body: JSON.stringify({
               companyId, platform, title: titleFromBody(bodyText), body: bodyText,
               date: format(draftDate(i), "yyyy-MM-dd"), time: batchTime,
-              status: "scheduled", source: "manual",
+              status: "scheduled", source: "series",
               media: imgUrl ? { kind: item.mediaKind ?? (isVideo ? "video" : "image"), url: imgUrl } : undefined,
             }),
           });

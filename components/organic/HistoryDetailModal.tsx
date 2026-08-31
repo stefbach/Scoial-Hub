@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { PlatformTag } from "@/components/ui/PlatformTag";
 import { useT } from "@/lib/i18n";
-import type { HistoryItem } from "@/lib/types";
+import { postSourceLabel, type HistoryItem } from "@/lib/types";
 
 function header(p: HistoryItem) {
   const base = (p.fullBody?.split("\n")[0] || p.body).trim();
@@ -87,9 +87,7 @@ export function HistoryDetailModal({
         </div>
 
         <div className="mb-3 text-2xs text-muted">
-          {post.source === "automation" && post.automationName
-            ? `${t("Depuis l'automatisation", "From automation")}: ${post.automationName}`
-            : t("Publication manuelle", "Manual post")}
+          {postSourceLabel(post.source, t, post.automationName)}
         </div>
 
         <div className="whitespace-pre-line rounded-md border-hair border-hair bg-canvas p-3 text-sm leading-relaxed text-ink">

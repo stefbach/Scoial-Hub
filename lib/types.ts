@@ -7,7 +7,27 @@ export type PostStatus =
   | "published"
   | "failed";
 
-export type PostSource = "automation" | "manual";
+export type PostSource = "automation" | "manual" | "series";
+
+/**
+ * Libellé humain d'une provenance de publication. Un seul endroit : avant
+ * cette fonction, l'historique affichait la valeur brute (`item.source`),
+ * ce qui montrait « manual » pour toute publication créée via « Post Series »
+ * — cette provenance n'avait pas sa propre valeur (retour client Rosiane #3).
+ */
+export function postSourceLabel(
+  source: string,
+  t: (fr: string, en: string) => string,
+  automationName?: string
+): string {
+  if (source === "automation") {
+    return automationName
+      ? `${t("Depuis l'automatisation", "From automation")}: ${automationName}`
+      : t("Automatisation", "Automation");
+  }
+  if (source === "series") return t("Depuis une série", "From a series");
+  return t("Manuel", "Manual");
+}
 
 export interface Company {
   id: string;

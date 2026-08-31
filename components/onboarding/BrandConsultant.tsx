@@ -11,7 +11,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useT, useLang } from "@/lib/i18n";
 import { detectTextLang } from "@/lib/ai/lang";
-import { generateVideoPolling } from "@/lib/ai/generate-video-client";
+import { generateVideoPolling, videoGenErrorMessage } from "@/lib/ai/generate-video-client";
 import type { BrandProfile } from "@/lib/onboarding/types";
 
 interface ChatMsg { role: "user" | "assistant"; content: string }
@@ -368,7 +368,7 @@ export function BrandConsultant({
       )
     );
     if (!r.url && !r.simulated) {
-      setError(t("Test vidéo indisponible pour le moment.", "Video test unavailable right now."));
+      setError(videoGenErrorMessage(r.error, t));
     }
   }, [t]);
 

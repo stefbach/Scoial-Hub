@@ -11,7 +11,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useT } from "@/lib/i18n";
 import type { CreativeItem } from "@/app/api/creatives/route";
 import type { UploadedMedia } from "@/components/ui/MediaUpload";
-import { generateVideoPolling } from "@/lib/ai/generate-video-client";
+import { generateVideoPolling, videoGenErrorMessage } from "@/lib/ai/generate-video-client";
 
 interface Proposal {
   angle: string;
@@ -161,7 +161,7 @@ export function CreativeInspiration({
               `Generating clip ${k + 1}/${scenes.length}… (Veo 3, ~1-3 min)`,
             ),
           );
-          const r = await generateVideoPolling({ prompt: scenes[k], platform, model: videoModel, seconds: 10 });
+          const r = await generateVideoPolling({ prompt: scenes[k], platform, model: videoModel, seconds: 10, companyId });
           if (r.simulated) { simulated = true; break; }
           if (!r.url) { error = r.error; break; }
           urls.push(r.url);
@@ -216,9 +216,7 @@ export function CreativeInspiration({
                   "Mode démo : génération non activée (clé REPLICATE_API_TOKEN manquante). Le brief est prêt à l'emploi.",
                   "Demo mode: generation off (missing REPLICATE_API_TOKEN). The brief is ready to use.",
                 )
-              : error === "timeout"
-              ? t("La vidéo prend trop de temps. Réessayez dans un instant.", "Video is taking too long. Try again shortly.")
-              : error || t("Aucun média renvoyé.", "No media returned."),
+              : videoGenErrorMessage(error, t),
           },
         }));
       }

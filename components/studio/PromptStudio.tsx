@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useT, useLang } from "@/lib/i18n";
 import { useCompany } from "@/lib/company-context";
 import { SOCIAL_FORMATS, type SocialPlatform } from "@/lib/social-formats";
-import { generateVideoPolling } from "@/lib/ai/generate-video-client";
+import { generateVideoPolling, videoGenErrorMessage } from "@/lib/ai/generate-video-client";
 import type { MediaAsset } from "@/lib/video/types";
 import { IMAGE_MODELS, VIDEO_MODELS, DEFAULT_IMAGE_MODEL_ID, DEFAULT_VIDEO_MODEL_ID } from "@/lib/ai/model-catalog";
 
@@ -301,17 +301,7 @@ export default function PromptStudio({
           return;
         }
         if (!r.url) {
-          setNotice(
-            r.error === "timeout"
-              ? t(
-                  "La vidéo prend trop de temps. Réessayez dans un instant.",
-                  "Video is taking too long. Try again shortly."
-                )
-              : t(
-                  `Erreur lors de la génération vidéo : ${r.error ?? ""}`,
-                  `Video generation error: ${r.error ?? ""}`
-                )
-          );
+          setNotice(videoGenErrorMessage(r.error, t));
           return;
         }
         setResult({ kind: "video", url: r.url });

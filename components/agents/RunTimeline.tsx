@@ -21,7 +21,7 @@ import { EnvironmentAnalysis } from "./EnvironmentAnalysis";
 import { BenchmarkCard } from "./BenchmarkCard";
 import { Toast } from "@/components/ui/Toast";
 import { useT } from "@/lib/i18n";
-import { generateVideoPolling } from "@/lib/ai/generate-video-client";
+import { generateVideoPolling, videoGenErrorMessage } from "@/lib/ai/generate-video-client";
 
 // ── Couleurs d'accent par agent ────────────────────────────────────────────
 
@@ -562,9 +562,9 @@ function CreativeStudioCard({ result }: { result: AgentRunResult }) {
       if (r.simulated || !r.url) {
         setVidState("failed");
         setMsg(
-          r.error === "timeout"
-            ? t("La vidéo prend trop de temps. Réessayez.", "Video is taking too long. Try again.")
-            : t("Vidéo indisponible (REPLICATE_API_TOKEN ?).", "Video unavailable (REPLICATE_API_TOKEN?).")
+          r.simulated
+            ? t("Vidéo indisponible (REPLICATE_API_TOKEN ?).", "Video unavailable (REPLICATE_API_TOKEN?).")
+            : videoGenErrorMessage(r.error, t)
         );
         return;
       }

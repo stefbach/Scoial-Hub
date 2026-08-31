@@ -7,7 +7,7 @@ import { PublishLanguageSelect } from "./PublishLanguageSelect";
 import { useT, useLang } from "@/lib/i18n";
 import { isKnownLanguageCode } from "@/lib/publish-languages";
 import { useCompany } from "@/lib/company-context";
-import { generateVideoPolling } from "@/lib/ai/generate-video-client";
+import { generateVideoPolling, videoGenErrorMessage } from "@/lib/ai/generate-video-client";
 import { UploadMediaButton } from "@/components/studio/UploadMediaButton";
 import { MediaLibraryButton } from "@/components/studio/MediaLibrary";
 
@@ -326,15 +326,15 @@ export function AiVisualsPanel({
     try {
       if (isVideo) {
         // Génération vidéo asynchrone (Veo 3 / Kling / Seedance… selon le modèle).
-        const r = await generateVideoPolling({ prompt: text, platform, aspect: fmt, model: videoModel, seconds: 10 });
+        const r = await generateVideoPolling({ prompt: text, platform, aspect: fmt, model: videoModel, seconds: 10, companyId });
         if (r.simulated || !r.url) {
           setMockMessage(
-            r.error === "timeout"
-              ? t("La vidéo prend trop de temps. Réessayez.", "Video is taking too long. Try again.")
-              : t(
+            r.simulated
+              ? t(
                   "Démo — génération vidéo non configurée (REPLICATE_API_TOKEN).",
                   "Demo — video generation not configured (REPLICATE_API_TOKEN)."
                 )
+              : videoGenErrorMessage(r.error, t)
           );
           return;
         }

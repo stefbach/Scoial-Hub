@@ -79,3 +79,36 @@ export async function generateVideoPolling(
   }
   return { error: "timeout" };
 }
+
+/** Codes internes du polling — à distinguer d'une raison SERVEUR réelle. */
+const INTERNAL_ERROR_CODES = new Set(["network", "timeout", "no-id", "failed", "canceled"]);
+
+/**
+ * Message à AFFICHER pour un échec de `generateVideoPolling`.
+ *
+ * Retour client (réunion Rosiane, point #8 — « la génération vidéo ne
+ * marche pas ») : la cause la plus fréquente n'est PAS une panne, c'est une
+ * formule qui n'inclut pas la vidéo IA (Présence = 0 s/mois) ou un quota
+ * mensuel épuisé — et le serveur renvoie déjà un message PRÉCIS et actionnable
+ * (`lib/quota/video-seconds.ts`, `refusal()`) pour ce cas précis. Jusqu'ici,
+ * chaque écran l'ignorait et affichait un message générique de panne
+ * technique ("réessayez", "REPLICATE_API_TOKEN ?") — ce qui fait passer une
+ * restriction de formule, normale et documentée, pour un bug.
+ *
+ * Seuls les codes INTERNES ci-dessus (réseau, délai, etc.) retombent sur un
+ * message générique ; toute autre valeur vient du serveur et doit être
+ * affichée TELLE QUELLE — c'est elle qui est la plus utile à l'utilisateur.
+ */
+export function videoGenErrorMessage(
+  error: string | undefined,
+  t: (fr: string, en: string) => string
+): string {
+  if (error && !INTERNAL_ERROR_CODES.has(error)) return error;
+  if (error === "timeout") {
+    return t("La vidéo prend trop de temps. Réessayez dans un instant.", "Video is taking too long. Try again shortly.");
+  }
+  if (error === "network") {
+    return t("Erreur réseau. Vérifiez votre connexion et réessayez.", "Network error. Check your connection and try again.");
+  }
+  return t("La génération vidéo a échoué. Réessayez ou changez de modèle.", "Video generation failed. Try again or change the model.");
+}

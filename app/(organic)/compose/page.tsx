@@ -19,6 +19,7 @@ import { IMAGE_MODELS, VIDEO_MODELS, DEFAULT_IMAGE_MODEL_ID, DEFAULT_VIDEO_MODEL
 import { MediaUpload, type UploadedMedia } from "@/components/ui/MediaUpload";
 import { AlbumUpload } from "@/components/compose/AlbumUpload";
 import { WhenToPublish } from "@/components/compose/WhenToPublish";
+import { suggestBestTime, weekdayLabel, nextDateForWeekday } from "@/lib/publishing/best-time";
 import { Toast } from "@/components/ui/Toast";
 import { findDraft, findPost } from "@/lib/draft-store";
 import { findTemplate } from "@/lib/template-store";
@@ -259,6 +260,15 @@ function ComposeContent() {
     ],
     [data.accounts, selected, tiktokOn]
   );
+
+  // Meilleur moment suggéré (retour client Rosiane #1) — calculé pour le
+  // premier réseau choisi ; s'appuie sur l'historique mesuré de CE réseau
+  // dès qu'il y en a assez, sinon un repère général documenté par réseau.
+  const bestTime = useMemo(() => {
+    const platform = selectedPlatforms[0];
+    if (!platform) return null;
+    return { platform, suggestion: suggestBestTime(platform, data.history) };
+  }, [selectedPlatforms, data.history]);
 
   // ── TikTok — Required UX Implementation ───────────────────────────────────
   const tiktokSelected = selectedPlatforms.includes("tiktok");
@@ -994,6 +1004,34 @@ function ComposeContent() {
             time={time}
             onTimeChange={setTime}
           />
+
+          {/* Meilleur moment suggéré (retour client Rosiane #1). */}
+          {when === "schedule" && bestTime && (
+            <div className="flex flex-wrap items-center gap-2 rounded-lg border-hair bg-canvas/60 px-3 py-2 text-2xs text-muted">
+              <span>
+                💡{" "}
+                {bestTime.suggestion.source === "historical"
+                  ? t(
+                      `Meilleur moment d'après vos ${bestTime.suggestion.sampleSize} dernières publications ${platformLabel(bestTime.platform)} : ${weekdayLabel(bestTime.suggestion.day, t)} ${bestTime.suggestion.time}.`,
+                      `Best time based on your last ${bestTime.suggestion.sampleSize} ${platformLabel(bestTime.platform)} posts: ${weekdayLabel(bestTime.suggestion.day, t)} ${bestTime.suggestion.time}.`
+                    )
+                  : t(
+                      `Créneau généralement recommandé pour ${platformLabel(bestTime.platform)} : ${weekdayLabel(bestTime.suggestion.day, t)} ${bestTime.suggestion.time} (pas encore assez d'historique mesuré pour l'affiner).`,
+                      `Generally recommended slot for ${platformLabel(bestTime.platform)}: ${weekdayLabel(bestTime.suggestion.day, t)} ${bestTime.suggestion.time} (not enough measured history yet to refine it).`
+                    )}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setDate(nextDateForWeekday(bestTime.suggestion.day, bestTime.suggestion.time));
+                  setTime(bestTime.suggestion.time);
+                }}
+                className="btn-secondary shrink-0 px-2 py-1 text-2xs"
+              >
+                {t("Utiliser ce créneau", "Use this slot")}
+              </button>
+            </div>
+          )}
 
           {/* Réglages TikTok — Required UX Implementation (guidelines Content
               Posting API) : confidentialité, interactions, divulgation

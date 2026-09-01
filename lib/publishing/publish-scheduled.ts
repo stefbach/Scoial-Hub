@@ -184,6 +184,19 @@ export async function publishScheduledPostNow(
   const platform = post.platform;
   const label = PLATFORM_LABEL[platform] ?? platform;
 
+  // Workflow de validation (retour client Rosiane #5) : un post en attente
+  // ne part JAMAIS, ni par le cron (déjà exclu — il ne lit que status =
+  // "scheduled") ni par « Publier maintenant », qui appelle cette fonction
+  // directement et contournerait sinon l'approbation entièrement.
+  if (post.status === "pending_approval") {
+    return {
+      ok: false,
+      status: 409,
+      error: `${label} : en attente de validation — un responsable doit d'abord l'approuver.`,
+      platform,
+    };
+  }
+
   const text = (post.body || post.title || "").trim();
   // Une Story n'a pas de légende : elle est valide avec le seul média. Seule
   // une publication SANS texte ET SANS média est réellement vide.

@@ -13,7 +13,7 @@ import { groupDateLabel } from "@/lib/format";
 import { deletePost } from "@/lib/draft-store";
 import type { ScheduledPost } from "@/lib/types";
 
-type TabId = "all" | "scheduled" | "failed" | "drafts";
+type TabId = "all" | "scheduled" | "pending_approval" | "failed" | "drafts";
 
 const isDraft = (p: ScheduledPost) => p.status === "draft";
 
@@ -22,8 +22,13 @@ const isDraft = (p: ScheduledPost) => p.status === "draft";
 // où elle laissait croire qu'une diffusion était encore prévue.
 const isFailed = (p: ScheduledPost) => p.status === "failed";
 
+// Workflow de validation (retour client Rosiane #5) : programmée par un
+// Community Manager, en attente qu'un owner/admin l'approuve — ne partira
+// jamais d'elle-même tant que ce n'est pas fait.
+const isPendingApproval = (p: ScheduledPost) => p.status === "pending_approval";
+
 // Publication réellement en attente de diffusion automatique.
-const isPending = (p: ScheduledPost) => !isDraft(p) && !isFailed(p);
+const isPending = (p: ScheduledPost) => !isDraft(p) && !isFailed(p) && !isPendingApproval(p);
 
 // Un post « scheduled » (statut par défaut) dont l'échéance date+heure est passée
 // n'est plus « planifié » mais EN RETARD : le cron le publiera au prochain passage,
@@ -42,7 +47,7 @@ export default function ScheduledPage() {
 }
 
 function ScheduledContent() {
-  const { company, data } = useCompany();
+  const { company, data, access } = useCompany();
   const router = useRouter();
   const params = useSearchParams();
   const t = useT();
@@ -99,7 +104,9 @@ function ScheduledContent() {
 
   const param = params.get("tab");
   const tab: TabId =
-    param === "scheduled" || param === "drafts" || param === "failed" ? param : "all";
+    param === "scheduled" || param === "drafts" || param === "failed" || param === "pending_approval"
+      ? param
+      : "all";
 
   const setTab = (id: TabId) => {
     router.push(id === "all" ? "/scheduled" : `/scheduled?tab=${id}`);
@@ -123,19 +130,28 @@ function ScheduledContent() {
   const counts = {
     all: visible.length,
     scheduled: visible.filter(isPending).length,
+    pending_approval: visible.filter(isPendingApproval).length,
     failed: visible.filter(isFailed).length,
     drafts: visible.filter(isDraft).length,
   };
 
+  // Workflow de validation (retour client Rosiane #5) : l'onglet n'encombre
+  // pas les sociétés qui n'utilisent pas le workflow — il apparaît dès qu'il
+  // est activé, ou s'il reste des publications en attente (désactivé entre-
+  // temps, mais la file doit rester consultable pour la vider).
+  const showApprovalTab = Boolean(company.approvalWorkflowEnabled) || counts.pending_approval > 0;
+
   const TABS: { id: TabId; label: string }[] = [
     { id: "all", label: t("Tout", "All") },
     { id: "scheduled", label: t("Planifiés", "Scheduled") },
+    ...(showApprovalTab ? [{ id: "pending_approval" as const, label: t("À valider", "To approve") }] : []),
     { id: "failed", label: t("Échecs", "Failed") },
     { id: "drafts", label: t("Brouillons", "Drafts") },
   ];
 
   const posts = useMemo(() => {
     if (tab === "scheduled") return visible.filter(isPending);
+    if (tab === "pending_approval") return visible.filter(isPendingApproval);
     if (tab === "failed") return visible.filter(isFailed);
     if (tab === "drafts") return visible.filter(isDraft);
     return visible;
@@ -263,6 +279,7 @@ function ScheduledContent() {
       <ScheduledDetailModal
         companyId={company.id}
         post={openPost}
+        isAccountAdmin={access.isAccountAdmin}
         onClose={() => setOpenPost(null)}
         onChanged={fetchPosts}
         onOptimisticDelete={markRemoved}
@@ -299,6 +316,22 @@ function PostRow({
       {isDraft(p) ? (
         <span className="rounded-full bg-warning-100 px-2 py-0.5 text-2xs font-semibold text-warning-700">
           {t("Brouillon", "Draft")}
+        </span>
+      ) : isPendingApproval(p) ? (
+        // Workflow de validation (retour client Rosiane #5) : ne partira PAS
+        // tant qu'un owner/admin n'a pas approuvé — distinct d'« Auto ».
+        <span
+          className="inline-flex items-center gap-1 rounded-full bg-primary-50 px-2 py-0.5 text-2xs font-semibold text-primary-700"
+          title={t(
+            "En attente de validation — ne sera publiée qu'après approbation d'un responsable",
+            "Awaiting approval — will only publish once a manager approves it"
+          )}
+        >
+          <svg viewBox="0 0 24 24" fill="none" className="h-2.5 w-2.5">
+            <path d="M9 12l2 2 4-4" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+            <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2.4" />
+          </svg>
+          {t("À valider", "To approve")}
         </span>
       ) : isFailed(p) ? (
         // Le planificateur a renoncé : afficher « Auto » ici laissait croire

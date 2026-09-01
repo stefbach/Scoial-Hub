@@ -21,6 +21,7 @@ export interface DbCompany {
   default_platforms: string[] | null;
   default_posting_time: string | null;
   default_needs_review: boolean | null;
+  approval_workflow_enabled: boolean | null;
   created_at: string;
 }
 
@@ -39,6 +40,7 @@ export interface DbScheduledPost {
   media: { kind: "image" | "video"; url?: string; tiktok?: TikTokPublishOptions } | null;
   published_at: string | null;
   external_id: string | null;
+  approval_note: string | null;
   created_at: string;
 }
 

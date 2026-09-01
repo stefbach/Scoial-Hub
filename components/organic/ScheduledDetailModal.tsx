@@ -25,6 +25,7 @@ function whenLabel(date: string, time: string) {
 export function ScheduledDetailModal({
   companyId,
   post,
+  isAccountAdmin,
   onClose,
   onChanged,
   onOptimisticDelete,
@@ -32,6 +33,9 @@ export function ScheduledDetailModal({
 }: {
   companyId: string;
   post: ScheduledPost | null;
+  /** Workflow de validation (retour client Rosiane #5) : seul un owner/admin
+   *  approuve ou refuse une publication en attente. */
+  isAccountAdmin?: boolean;
   onClose: () => void;
   onChanged: () => void | Promise<void>;
   /** Masque le post de la liste immédiatement (avant le refetch). */
@@ -47,6 +51,9 @@ export function ScheduledDetailModal({
   const [confirm, setConfirm] = useState<null | "publish" | "delete">(null);
   const [busy, setBusy] = useState(false);
   const [pubError, setPubError] = useState<string | null>(null);
+  const [rejecting, setRejecting] = useState(false);
+  const [rejectNote, setRejectNote] = useState("");
+  const [approvalError, setApprovalError] = useState<string | null>(null);
 
   // Reset transient state whenever a different post is opened.
   useEffect(() => {
@@ -54,6 +61,9 @@ export function ScheduledDetailModal({
       setRescheduling(false);
       setConfirm(null);
       setPubError(null);
+      setRejecting(false);
+      setRejectNote("");
+      setApprovalError(null);
       setDate(new Date(`${post.date}T00:00:00`));
       setTime(post.time);
     }
@@ -118,6 +128,48 @@ export function ScheduledDetailModal({
     }
   };
 
+  // Workflow de validation (retour client Rosiane #5) : approuve — la
+  // publication repasse "scheduled" et part normalement (cron ou « Publier
+  // en avance »).
+  const handleApprove = async () => {
+    setBusy(true);
+    setApprovalError(null);
+    try {
+      const res = await fetch(`/api/scheduled-posts/${post.id}/approve`, { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || t("Approbation impossible.", "Could not approve."));
+      setBusy(false);
+      await onChanged();
+      onClose();
+    } catch (e) {
+      setBusy(false);
+      setApprovalError(e instanceof Error ? e.message : t("Approbation impossible.", "Could not approve."));
+    }
+  };
+
+  // Refuse — repasse "draft" avec le motif, pour que le Community Manager la
+  // retrouve dans ses brouillons et la soumette à nouveau après correction.
+  const handleReject = async () => {
+    setBusy(true);
+    setApprovalError(null);
+    try {
+      const res = await fetch(`/api/scheduled-posts/${post.id}/reject`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ note: rejectNote.trim() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || t("Refus impossible.", "Could not reject."));
+      setBusy(false);
+      setRejecting(false);
+      await onChanged();
+      onClose();
+    } catch (e) {
+      setBusy(false);
+      setApprovalError(e instanceof Error ? e.message : t("Refus impossible.", "Could not reject."));
+    }
+  };
+
   const handleDelete = async () => {
     setBusy(true);
     onOptimisticDelete?.(post.id); // disparaît de la liste immédiatement
@@ -148,13 +200,25 @@ export function ScheduledDetailModal({
         {/* Status + platform + when */}
         <div className="mb-2">
           <div className="flex flex-wrap items-center gap-2">
-            <StatusBadge tone="blue">{t("Planifié", "Scheduled")}</StatusBadge>
+            {post.status === "pending_approval" ? (
+              <StatusBadge tone="amber">{t("À valider", "To approve")}</StatusBadge>
+            ) : (
+              <StatusBadge tone="blue">{t("Planifié", "Scheduled")}</StatusBadge>
+            )}
             <PlatformTag platform={post.platform} />
           </div>
           <div className="mt-1.5 text-xs font-medium text-ink">
             {whenLabel(post.date, post.time)}
           </div>
         </div>
+
+        {/* Refusé précédemment (statut redevenu "draft" avec un motif) : le
+            Community Manager doit voir pourquoi avant de resoumettre. */}
+        {post.status === "draft" && post.approvalNote && (
+          <div className="mb-3 rounded-md border-hair border border-danger-200 bg-danger-50 px-3 py-2 text-2xs text-danger-700">
+            <span className="font-semibold">{t("Refusé :", "Rejected:")}</span> {post.approvalNote}
+          </div>
+        )}
 
         {/* Mode de publication — un post « planifié » PART AUTOMATIQUEMENT à
             l'heure prévue (cron). « Publier maintenant » sert juste à l'envoyer
@@ -163,6 +227,13 @@ export function ScheduledDetailModal({
           {post.status === "draft" ? (
             <span className="flex items-center gap-1.5 text-muted">
               <EditIcon /> {t("Brouillon — non programmé", "Draft — not scheduled")}
+            </span>
+          ) : post.status === "pending_approval" ? (
+            <span className="flex items-center gap-1.5 text-primary-700">
+              <ClockIcon />
+              {isAccountAdmin
+                ? t("En attente de votre validation.", "Awaiting your approval.")
+                : t("En attente de validation par un responsable — ne partira qu'une fois approuvée.", "Awaiting a manager's approval — will only go out once approved.")}
             </span>
           ) : (
             <span className="flex items-center gap-1.5 text-success-700">
@@ -211,6 +282,28 @@ export function ScheduledDetailModal({
             </div>
           </div>
         )}
+
+        {/* Refus inline (workflow de validation) — motif optionnel, transmis
+            au Community Manager pour qu'il sache quoi corriger. */}
+        {rejecting && (
+          <div className="mt-3 rounded-md border-hair border-hair bg-canvas p-3">
+            <div className="section-label mb-2">{t("Motif du refus (optionnel)", "Reason for rejection (optional)")}</div>
+            <textarea
+              value={rejectNote}
+              onChange={(e) => setRejectNote(e.target.value)}
+              rows={2}
+              maxLength={500}
+              placeholder={t("Ex. : ton à adoucir, visuel à changer…", "E.g.: soften the tone, change the visual…")}
+              className="w-full resize-none rounded-md border-hair border-hair bg-card px-3 py-2 text-sm text-ink outline-none focus:border-primary-400"
+            />
+            <div className="mt-2 flex justify-end gap-2">
+              <Button variant="ghost" onClick={() => setRejecting(false)}>{t("Annuler", "Cancel")}</Button>
+              <Button variant="danger" onClick={handleReject} disabled={busy}>
+                {busy ? t("Envoi…", "Sending…") : t("Confirmer le refus", "Confirm rejection")}
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Erreur de publication (réseau non connecté, token expiré, refus Graph…) */}
@@ -219,13 +312,18 @@ export function ScheduledDetailModal({
           {pubError}
         </div>
       )}
+      {approvalError && (
+        <div className="mx-4 mb-1 rounded-md border-hair border border-danger-200 bg-danger-50 px-3 py-2 text-xs text-danger-700">
+          {approvalError}
+        </div>
+      )}
 
       {/* Actions */}
-      <div className="flex items-center justify-between gap-2 border-t-hair border-hair px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-t-hair border-hair px-4 py-3">
         <Button variant="danger" onClick={() => setConfirm("delete")}>
           <span className="flex items-center gap-1.5"><TrashIcon /> {t("Supprimer", "Delete")}</span>
         </Button>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap justify-end gap-2">
           <Button variant="secondary" onClick={() => setRescheduling((r) => !r)}>
             {t("Replanifier", "Reschedule")}
           </Button>
@@ -239,12 +337,25 @@ export function ScheduledDetailModal({
           >
             {t("Modifier dans Compose", "Edit in Compose")}
           </Button>
-          <Button variant="primary" onClick={() => setConfirm("publish")}>
-            <span className="flex items-center gap-1.5"><PlayIcon /> {t("Publier en avance", "Publish early")}</span>
-          </Button>
+          {post.status === "pending_approval" ? (
+            isAccountAdmin && (
+              <>
+                <Button variant="secondary" onClick={() => setRejecting((r) => !r)} disabled={busy}>
+                  {t("Refuser", "Reject")}
+                </Button>
+                <Button variant="primary" onClick={handleApprove} disabled={busy}>
+                  {busy ? t("Approbation…", "Approving…") : t("Approuver", "Approve")}
+                </Button>
+              </>
+            )
+          ) : (
+            <Button variant="primary" onClick={() => setConfirm("publish")}>
+              <span className="flex items-center gap-1.5"><PlayIcon /> {t("Publier en avance", "Publish early")}</span>
+            </Button>
+          )}
         </div>
       </div>
-      {post.status !== "draft" && (
+      {post.status !== "draft" && post.status !== "pending_approval" && (
         <p className="px-4 pb-3 -mt-1 text-2xs text-muted">
           {t("Inutile de cliquer : ce post part seul à l'heure prévue. « Publier en avance » l'envoie tout de suite.",
              "No need to click: this post goes out on its own at the scheduled time. “Publish early” sends it right now.")}

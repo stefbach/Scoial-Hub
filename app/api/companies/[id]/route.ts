@@ -37,6 +37,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (typeof body.accent === "string") patch.accent = body.accent;
     if (typeof body.logoUrl === "string") patch.logoUrl = body.logoUrl;
     if (Array.isArray(body.defaultPlatforms)) patch.defaultPlatforms = body.defaultPlatforms;
+    // Workflow de validation (retour client Rosiane #5) — seul champ de ce
+    // formulaire dont la persistance réelle a été vérifiée de bout en bout ;
+    // les autres champs de ce modal (defaultNeedsReview, defaultPostingTime…)
+    // ne sont aujourd'hui reflétés que localement (lib/company-context.tsx),
+    // pas encore persistés ici — gap préexistant, hors scope de ce correctif.
+    if (typeof body.approvalWorkflowEnabled === "boolean") {
+      patch.approvalWorkflowEnabled = body.approvalWorkflowEnabled;
+    }
     const company = await updateCompany(own.uuid, patch);
     return NextResponse.json({ company });
   } catch (e) {

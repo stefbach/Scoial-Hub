@@ -89,6 +89,7 @@ export function Companies() {
               defaultPlatforms: payload.defaultPlatforms,
               defaultPostingTime: payload.defaultPostingTime,
               defaultNeedsReview: payload.defaultNeedsReview,
+              approvalWorkflowEnabled: payload.approvalWorkflowEnabled,
             };
             addCompany(newCompany);
             setToast(t(`Entreprise ${newCompany.name} créée.`, `Created company ${newCompany.name}.`));
@@ -102,6 +103,24 @@ export function Companies() {
               defaultPlatforms: payload.defaultPlatforms,
               defaultPostingTime: payload.defaultPostingTime,
               defaultNeedsReview: payload.defaultNeedsReview,
+              approvalWorkflowEnabled: payload.approvalWorkflowEnabled,
+            });
+            // Persistance RÉELLE (workflow de validation, retour client
+            // Rosiane #5) : contrairement aux autres champs de ce modal,
+            // encore purement locaux (cf. lib/company-context.tsx), celui-ci
+            // doit vraiment atteindre la société pour que la mise en attente
+            // des publications programmées par les members prenne effet.
+            fetch(`/api/companies/${encodeURIComponent(id)}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ approvalWorkflowEnabled: payload.approvalWorkflowEnabled }),
+            }).then((res) => {
+              if (!res.ok) throw new Error();
+            }).catch(() => {
+              setToast(t(
+                "Les modifications sont affichées mais n'ont pas pu être enregistrées — réessayez.",
+                "Changes are shown but could not be saved — try again."
+              ));
             });
             setToast(t(`Modifications enregistrées pour ${payload.name}.`, `Saved changes to ${payload.name}.`));
             setOpen(null);
@@ -156,6 +175,7 @@ interface CompanyPayload {
   defaultPlatforms: ("facebook" | "instagram" | "linkedin")[];
   defaultPostingTime: string;
   defaultNeedsReview: boolean;
+  approvalWorkflowEnabled: boolean;
 }
 
 function CompanyModal({
@@ -186,6 +206,10 @@ function CompanyModal({
   });
   const [defaultTime, setDefaultTime] = useState(company?.defaultPostingTime ?? "09:00");
   const [needsReviewDefault, setNeedsReviewDefault] = useState(company?.defaultNeedsReview ?? false);
+  // Workflow de validation (retour client Rosiane #5) : optionnel, activé/
+  // désactivé par société. Le Community Manager programme, le responsable
+  // (owner/admin) approuve avant que la publication ne parte réellement.
+  const [approvalWorkflow, setApprovalWorkflow] = useState(company?.approvalWorkflowEnabled ?? false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteText, setDeleteText] = useState("");
   const [deleting, setDeleting] = useState(false);
@@ -200,6 +224,7 @@ function CompanyModal({
     defaultPlatforms: (Object.keys(platforms) as (keyof typeof platforms)[]).filter((k) => platforms[k]),
     defaultPostingTime: defaultTime,
     defaultNeedsReview: needsReviewDefault,
+    approvalWorkflowEnabled: approvalWorkflow,
   });
 
   return (
@@ -278,6 +303,28 @@ function CompanyModal({
               onChange={() => setNeedsReviewDefault((x) => !x)}
             />
             <span className="text-sm text-ink">{t("Les nouveaux posts sont en « à réviser » par défaut", "New posts default to 'needs review'")}</span>
+          </label>
+        </div>
+
+        <div className="rounded-md border-hair border-hair bg-canvas p-3">
+          <label className="flex items-start gap-2">
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              checked={approvalWorkflow}
+              onChange={() => setApprovalWorkflow((x) => !x)}
+            />
+            <span>
+              <span className="block text-sm font-medium text-ink">
+                {t("Workflow de validation", "Approval workflow")}
+              </span>
+              <span className="mt-0.5 block text-2xs text-muted">
+                {t(
+                  "Un membre de l'équipe programme les publications, un owner/admin les approuve avant qu'elles ne partent réellement.",
+                  "A team member schedules posts, an owner/admin approves them before they actually go out."
+                )}
+              </span>
+            </span>
           </label>
         </div>
 

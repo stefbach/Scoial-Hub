@@ -17,6 +17,7 @@ function rowToScheduledPost(row: DbScheduledPost): ScheduledPost {
     source: row.source as PostSource,
     status: (row.status as ScheduledPost["status"]) ?? "scheduled",
     needsReview: row.needs_review ?? false,
+    approvalNote: row.approval_note ?? undefined,
     body: row.body ?? undefined,
     automationName: row.automation_name ?? undefined,
     media: row.media ?? undefined,
@@ -40,6 +41,7 @@ function scheduledPostToRow(
     source: input.source,
     status: input.status ?? "scheduled",
     needs_review: input.needsReview ?? false,
+    approval_note: input.approvalNote ?? null,
     automation_name: input.automationName ?? null,
     media: input.media ?? null,
     published_at: input.publishedAt ?? null,
@@ -111,6 +113,39 @@ export async function getScheduledPost(id: string): Promise<ScheduledPost | null
   }
 
   return rowToScheduledPost(data as DbScheduledPost);
+}
+
+/**
+ * Société propriétaire d'un post — nécessaire pour autoriser un PATCH/DELETE
+ * par id seul (le type `ScheduledPost` ne porte pas companyId). Utilisé pour
+ * imposer un contrôle d'accès réel (`requireCompanyAccess`) plutôt que la
+ * simple vérification « utilisateur connecté » qui prévalait jusqu'ici sur
+ * ces routes.
+ */
+export async function getScheduledPostCompanyId(id: string): Promise<string | null> {
+  if (!isSupabaseConfigured) {
+    for (const [companyId, data] of Object.entries(COMPANY_DATA)) {
+      if (data.scheduled.some((p) => p.id === id)) return companyId;
+    }
+    return null;
+  }
+
+  const supabase = createClient();
+  if (!supabase) {
+    for (const [companyId, data] of Object.entries(COMPANY_DATA)) {
+      if (data.scheduled.some((p) => p.id === id)) return companyId;
+    }
+    return null;
+  }
+
+  const { data, error } = await supabase
+    .from("sh_scheduled_posts")
+    .select("company_id")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  return (data as { company_id: string }).company_id;
 }
 
 /**
@@ -195,6 +230,7 @@ export async function updateScheduledPost(
   if (patch.source !== undefined) dbPatch.source = patch.source;
   if (patch.status !== undefined) dbPatch.status = patch.status ?? "scheduled";
   if (patch.needsReview !== undefined) dbPatch.needs_review = patch.needsReview;
+  if (patch.approvalNote !== undefined) dbPatch.approval_note = patch.approvalNote ?? null;
   if (patch.automationName !== undefined) dbPatch.automation_name = patch.automationName ?? null;
   if (patch.media !== undefined) dbPatch.media = patch.media ?? null;
   if (patch.publishedAt !== undefined) dbPatch.published_at = patch.publishedAt ?? null;

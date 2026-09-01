@@ -53,6 +53,16 @@ export const AVATAR_MODELS: AvatarModel[] = [
   { id: "bytedance/omni-human-1.5", label: "OmniHuman 1.5 (ByteDance) — qualité studio · photo", labelEn: "OmniHuman 1.5 (ByteDance) — studio quality · photo", faceKey: "image", audioKey: "audio", note: "Photo + voix → vidéo professionnelle, mouvement plus naturel. Recommandé." },
   { id: "bytedance/omni-human", label: "OmniHuman (ByteDance) — qualité studio · photo", labelEn: "OmniHuman (ByteDance) — studio quality · photo", faceKey: "image", audioKey: "audio", note: "Version précédente, en repli." },
   { id: "veed/fabric-1.0", label: "VEED Fabric 1.0 — photo → vidéo parlante", labelEn: "VEED Fabric 1.0 — photo → talking video", faceKey: "image", audioKey: "audio", note: "Transforme une image en avatar parlant." },
+  // Retour client (suite du #9, « il faut plus de choix ») : quatre modèles
+  // supplémentaires vérifiés RÉELLEMENT publiés sur Replicate (photo + audio,
+  // pas de vidéo source requise) — écartés du choix : zsxkib/sonic (page
+  // introuvable), zsxkib/hallo(2) (idem), musetalk/latentsync (redoublage
+  // vidéo, pas animation d'une photo), fofr/live-portrait (piloté par vidéo,
+  // pas audio) — tous invérifiables ou hors catégorie.
+  { id: "zsxkib/memo", label: "MEMO — multilingue, visages stylisés", labelEn: "MEMO — multilingual, stylized faces", faceKey: "image", audioKey: "audio", note: "Gère aussi les illustrations/sculptures, pas seulement les photos réalistes." },
+  { id: "zsxkib/multitalk", label: "MultiTalk — jusqu'à 2 personnes", labelEn: "MultiTalk — up to 2 people", faceKey: "image", audioKey: "audio", note: "Seul modèle du catalogue à gérer une conversation à deux voix sur une même image." },
+  { id: "zsxkib/v-express", label: "V-Express — mouvement réglable", labelEn: "V-Express — adjustable motion", faceKey: "reference_image", audioKey: "driving_audio", note: "Intensité du mouvement réglable (doux à rapide)." },
+  { id: "cjwbw/aniportrait-audio2vid", label: "AniPortrait — établi, alternative solide", labelEn: "AniPortrait — established, solid alternative", faceKey: "image", audioKey: "audio", note: "Option ancienne et éprouvée (même éditeur que SadTalker)." },
   { id: "sync/lipsync-2-pro", label: "Sync Lipsync 2 Pro — studio (vidéo source requise)", labelEn: "Sync Lipsync 2 Pro — studio (source video required)", faceKey: "video", audioKey: "audio", needsVideo: true, note: "Top qualité ; nécessite une vidéo source." },
   { id: "heygen/lipsync-precision", label: "HeyGen Lipsync Precision — doublage vidéo", labelEn: "HeyGen Lipsync Precision — video dubbing", faceKey: "video", audioKey: "audio", needsVideo: true, note: "Haute précision ; nécessite une vidéo source." },
   { id: "cjwbw/sadtalker", label: "SadTalker — basique (photo, rapide)", labelEn: "SadTalker — basic (photo, fast)", faceKey: "source_image", audioKey: "driven_audio", extra: { preprocess: "full" }, note: "Repli léger." },

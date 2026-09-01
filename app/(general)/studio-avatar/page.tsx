@@ -639,6 +639,25 @@ export default function StudioAvatarPage() {
                 </div>
               )}
 
+              {/* Modèle d'avatar — choisi ICI, avant script/voix (retour
+                  client : le choix doit se faire au départ, pas à la fin du
+                  formulaire), juste après la photo puisqu'il en dépend
+                  directement (certains modèles exigent une vidéo source). */}
+              <div className="pt-1">
+                <label className="text-2xs text-muted">{t("Avatar (modèle)", "Avatar (model)")}</label>
+                <select value={lipsyncModel} onChange={(e) => setLipsyncModel(e.target.value)} className="input mt-1">
+                  {AVATAR_MODELS.map((m) => <option key={m.id} value={m.id}>{t(m.label, m.labelEn)}</option>)}
+                </select>
+                {AVATAR_MODELS.find((m) => m.id === lipsyncModel)?.needsVideo && (
+                  <p className="mt-1 text-2xs text-warning-600">
+                    {t(
+                      "⚠ Ce modèle exige une vidéo source (doublage). À partir d'une photo, choisissez « OmniHuman » ou « VEED Fabric ».",
+                      "⚠ This model requires a source video (dubbing). From a photo, pick “OmniHuman” or “VEED Fabric”."
+                    )}
+                  </p>
+                )}
+              </div>
+
               {/* Décor / environnement appliqué au portrait courant.
                   #BUG16 — sans cadre ni filet gris : la carte d'étape suffit. */}
               <div className="pt-1">
@@ -703,7 +722,7 @@ export default function StudioAvatarPage() {
             </StudioStep>
 
             <StudioStep n={3} title={t("Voix & rendu", "Voice & render")} hint={t("2) La voix choisie lit le script · 3) cochez les sous-titres pour les incruster automatiquement.", "2) The chosen voice reads the script · 3) tick subtitles to burn them in automatically.")}>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <div>
                 <div>
                   <label className="text-2xs text-muted">{t("Voix", "Voice")}</label>
                   <div className="mt-1 flex gap-1.5">
@@ -757,20 +776,6 @@ export default function StudioAvatarPage() {
                   {!AVATAR_LANGS.find((l) => l.code === language)?.native && !clonedVoices.some((v) => v.id === voiceId) && (
                     <p className="mt-1.5 text-2xs text-warning-700">
                       {t("Pour cette langue, clonez d'abord une voix (échantillon) : elle servira de référence à la prononciation.", "For this language, first clone a voice (sample): it's used as the pronunciation reference.")}
-                    </p>
-                  )}
-                </div>
-                <div>
-                  <label className="text-2xs text-muted">{t("Avatar (modèle)", "Avatar (model)")}</label>
-                  <select value={lipsyncModel} onChange={(e) => setLipsyncModel(e.target.value)} className="input mt-1">
-                    {AVATAR_MODELS.map((m) => <option key={m.id} value={m.id}>{t(m.label, m.labelEn)}</option>)}
-                  </select>
-                  {AVATAR_MODELS.find((m) => m.id === lipsyncModel)?.needsVideo && (
-                    <p className="mt-1 text-2xs text-warning-600">
-                      {t(
-                        "⚠ Ce modèle exige une vidéo source (doublage). À partir d'une photo, choisissez « OmniHuman » ou « VEED Fabric ».",
-                        "⚠ This model requires a source video (dubbing). From a photo, pick “OmniHuman” or “VEED Fabric”."
-                      )}
                     </p>
                   )}
                 </div>

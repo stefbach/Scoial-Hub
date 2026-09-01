@@ -663,9 +663,17 @@ export function trimClip(
  * la même source : c'est la scission d'un point de vue, pas une copie de média.
  * Renvoie le projet inchangé si l'instant tombe hors du plan ou trop près d'un
  * bord pour produire deux plans valides.
+ *
+ * `clipId`, s'il est fourni, restreint la recherche à CE plan précis. Sans lui
+ * (scission au clavier sans sélection), on retombe sur le premier plan du
+ * tableau dont l'intervalle contient `time` — ce qui coupait le mauvais plan
+ * dès que deux pistes se chevauchaient au même instant, la sélection réelle de
+ * l'utilisateur n'étant jamais consultée (audit Editing Bench, P0-3).
  */
-export function splitAt(p: EditorProject, time: number, newIdFor: (base: string) => string): EditorProject {
-  const target = p.clips.find((c) => time > c.start + EPS && time < c.start + c.length - EPS);
+export function splitAt(p: EditorProject, time: number, newIdFor: (base: string) => string, clipId?: string): EditorProject {
+  const target = clipId
+    ? p.clips.find((c) => c.id === clipId && time > c.start + EPS && time < c.start + c.length - EPS)
+    : p.clips.find((c) => time > c.start + EPS && time < c.start + c.length - EPS);
   if (!target) return p;
   const offset = time - target.start;
   if (offset < MIN_CLIP_SECONDS || target.length - offset < MIN_CLIP_SECONDS) return p;
@@ -1040,6 +1048,64 @@ export function moveLayerTime(p: EditorProject, kind: TimedLayerKind, id: string
   if (kind === "text") return updateText(p, id, patch);
   if (kind === "image") return updateImageLayer(p, id, patch);
   return updateShape(p, id, patch);
+}
+
+/**
+ * Scinde un calque temporel (texte, incrustation ou forme) à l'instant `time`.
+ * Même principe que `splitAt` pour les plans vidéo, étendu aux autres
+ * éléments — la fonction d'origine ne considérait jamais les textes, les
+ * incrustations ni les formes, rendant impossible la coupe d'un sous-titre
+ * traversant deux idées (audit Editing Bench, P0-3).
+ */
+export function splitLayerAt(
+  p: EditorProject,
+  kind: Exclude<TimedLayerKind, "audio">,
+  id: string,
+  time: number,
+  newId: string
+): EditorProject {
+  const leftPatch = { end: round(time) };
+
+  if (kind === "text") {
+    const l = p.texts.find((x) => x.id === id);
+    if (!l || time - l.start < MIN_CLIP_SECONDS || l.end - time < MIN_CLIP_SECONDS) return p;
+    const copy: TextLayer = { ...l, id: newId, start: round(time) };
+    return normalize({ ...p, texts: [...p.texts.map((x) => (x.id === id ? { ...x, ...leftPatch } : x)), copy] });
+  }
+  if (kind === "image") {
+    const l = p.images.find((x) => x.id === id);
+    if (!l || time - l.start < MIN_CLIP_SECONDS || l.end - time < MIN_CLIP_SECONDS) return p;
+    const copy: ImageLayer = { ...l, id: newId, start: round(time) };
+    return normalize({ ...p, images: [...p.images.map((x) => (x.id === id ? { ...x, ...leftPatch } : x)), copy] });
+  }
+  const l = p.shapes.find((x) => x.id === id);
+  if (!l || time - l.start < MIN_CLIP_SECONDS || l.end - time < MIN_CLIP_SECONDS) return p;
+  const copy: ShapeLayer = { ...l, id: newId, start: round(time) };
+  return normalize({ ...p, shapes: [...p.shapes.map((x) => (x.id === id ? { ...x, ...leftPatch } : x)), copy] });
+}
+
+/**
+ * Scinde une piste audio à l'instant `time` — même besoin qu'un plan vidéo :
+ * couper une voix off ou une musique en deux segments indépendants, chacun
+ * pointant vers le même fichier source (audit Editing Bench, P0-3).
+ */
+export function splitAudioAt(p: EditorProject, id: string, time: number, newId: string): EditorProject {
+  const a = p.audios.find((x) => x.id === id);
+  if (!a) return p;
+  const offset = time - a.start;
+  if (offset < MIN_CLIP_SECONDS || a.length - offset < MIN_CLIP_SECONDS) return p;
+
+  const left: AudioTrack = { ...a, length: round(offset) };
+  const right: AudioTrack = {
+    ...a,
+    id: newId,
+    start: round(time),
+    trimStart: round(a.trimStart + offset),
+    length: round(a.length - offset),
+  };
+  const idx = p.audios.indexOf(a);
+  const audios = [...p.audios.slice(0, idx), left, right, ...p.audios.slice(idx + 1)];
+  return normalize({ ...p, audios });
 }
 
 /* ────────────────────────────────────────────────────────────────────────────

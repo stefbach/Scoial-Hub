@@ -51,8 +51,16 @@ export function MediaUpload({
     setHosting(true);
     try {
       const res = await hostMedia(companyId, file, file.name, "compose");
-      if (res.url) onChange({ url: res.url, name: file.name, size: file.size, kind });
-      else setError(t("Hébergement du média échoué — la publication réseau pourrait ne pas fonctionner.", "Media hosting failed — network publishing may not work."));
+      if (res.url) {
+        onChange({ url: res.url, name: file.name, size: file.size, kind });
+      } else {
+        // Annule le média : sans ceci, l'aperçu instantané (URL blob: locale,
+        // ligne 46) restait choisi malgré l'échec, et une publication ou un
+        // export envoyait cette adresse — inatteignable pour Facebook/
+        // Instagram comme pour le moteur de rendu (audit Editing Bench, P0-1b).
+        onChange(null);
+        setError(t("Hébergement du média échoué — réessayez ou choisissez un autre fichier.", "Media hosting failed — try again or choose another file."));
+      }
     } finally {
       setHosting(false);
     }

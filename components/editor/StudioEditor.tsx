@@ -24,7 +24,8 @@ import {
   duplicateClip, duplicateImageLayer, duplicateShape, duplicateText,
   emptyProject, FORMAT_SIZE, moveClip, moveLayerTime, projectDuration, removeAudio,
   removeClip, removeImageLayer, removeShape, removeText, setClipFraming, setClipLength,
-  setClipSpeed, setClipTransition, setTrackMeta, shapesAt, splitAt, trimClip, trimLayer,
+  setClipSpeed, setClipTransition, setTrackMeta, shapesAt, splitAt, splitAudioAt, splitLayerAt,
+  trimClip, trimLayer,
   updateAudio, updateImageLayer, updateShape, updateText, usedTracks, visibleProject,
   type AnimationKind, type EditorFormat, type EditorProject, type ShapeKind,
   type TimedLayerKind, type TransitionKind, type VisualLayer,
@@ -330,7 +331,15 @@ export function StudioEditor({
       if (lower === "c" || lower === "s") {
         // C remplace S (alias silencieux conservé le temps de la transition).
         e.preventDefault();
-        doApply((p) => splitAt(p, ph, () => nextId("c")));
+        // Scinde l'élément SÉLECTIONNÉ (pas systématiquement un plan trouvé
+        // par balayage du temps) — même correction que le bouton d'outil
+        // (audit Editing Bench, P0-3).
+        if (!sel) doApply((p) => splitAt(p, ph, () => nextId("c")));
+        else if (sel.kind === "clip") doApply((p) => splitAt(p, ph, () => nextId("c"), sel.id));
+        else if (sel.kind === "text") doApply((p) => splitLayerAt(p, "text", sel.id, ph, nextId("t")));
+        else if (sel.kind === "image") doApply((p) => splitLayerAt(p, "image", sel.id, ph, nextId("i")));
+        else if (sel.kind === "shape") doApply((p) => splitLayerAt(p, "shape", sel.id, ph, nextId("s")));
+        else doApply((p) => splitAudioAt(p, sel.id, ph, nextId("a")));
         return;
       }
       if (e.key === " " || e.key === "Spacebar") {
@@ -856,8 +865,8 @@ export function StudioEditor({
             {/* Colonne centrale : zone de travail */}
             <main className="flex min-h-0 flex-col gap-2 p-3">
               <div className="flex shrink-0 flex-wrap gap-1.5">
-                <Tooltip label={t("Coupe le plan à la position de la tête de lecture — C", "Cuts the clip at the playhead — C")}>
-                  <ToolButton onClick={() => apply((p) => splitAt(p, playhead, () => nextId("c")))} disabled={project.clips.length === 0}>
+                <Tooltip label={t("Coupe l'élément sélectionné (ou le plan) à la position de la tête de lecture — C", "Cuts the selected element (or the clip) at the playhead — C")}>
+                  <ToolButton onClick={() => splitSelectionAt(playhead)} disabled={!selection && project.clips.length === 0}>
                     ✂ {t("Scinder", "Split")}
                   </ToolButton>
                 </Tooltip>
@@ -994,6 +1003,25 @@ export function StudioEditor({
     else if (sel.kind === "image") apply((p) => duplicateImageLayer(p, sel.id, nextId("i")));
     else if (sel.kind === "shape") apply((p) => duplicateShape(p, sel.id, nextId("s")));
     else apply((p) => duplicateAudio(p, sel.id, nextId("a")));
+  }
+
+  /**
+   * Scinde l'élément sélectionné à l'instant `time`, quel que soit son type —
+   * auparavant réservé au premier plan vidéo trouvé par balayage du temps, en
+   * ignorant la sélection réelle et tous les autres types d'éléments
+   * (audit Editing Bench, P0-3).
+   */
+  function splitSelectionAt(time: number) {
+    if (!selection) {
+      apply((p) => splitAt(p, time, () => nextId("c")));
+      return;
+    }
+    const sel = selection;
+    if (sel.kind === "clip") apply((p) => splitAt(p, time, () => nextId("c"), sel.id));
+    else if (sel.kind === "text") apply((p) => splitLayerAt(p, "text", sel.id, time, nextId("t")));
+    else if (sel.kind === "image") apply((p) => splitLayerAt(p, "image", sel.id, time, nextId("i")));
+    else if (sel.kind === "shape") apply((p) => splitLayerAt(p, "shape", sel.id, time, nextId("s")));
+    else apply((p) => splitAudioAt(p, sel.id, time, nextId("a")));
   }
 }
 

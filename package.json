@@ -44,6 +44,7 @@
     "test:assetsgateway": "tsx scripts/verify-assets-gateway.ts",
     "test:montageslots": "tsx scripts/verify-editor-slots.ts",
     "test:montageprovenance": "tsx scripts/verify-editor-provenance.ts",
+    "test:rendererrors": "tsx scripts/verify-render-error-messages.ts",
     "test:postsource": "tsx scripts/verify-post-source.ts",
     "test:album": "tsx scripts/verify-album-carousel.ts",
     "test:besttime": "tsx scripts/verify-best-time.ts",

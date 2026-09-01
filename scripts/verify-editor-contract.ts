@@ -28,6 +28,7 @@ import {
   addText,
   emptyProject,
   imagesAt,
+  setClipTransition,
   textsAt,
   updateImageLayer,
   updateText,
@@ -111,6 +112,20 @@ async function main() {
       videoTrack.every((c, i) => i === 0 || Math.abs(c.start - (videoTrack[i - 1].start + videoTrack[i - 1].length)) < 0.011));
     check("les transitions accompagnent les plans suivants",
       videoTrack.slice(1).every((c) => c.transition !== undefined));
+  }
+
+  // ── P0-1a · Un « dissolve » (vocabulaire du projet) n'est jamais transmis
+  // tel quel au moteur — celui-ci ne connaît que "fade" et rejetait TOUT
+  // export contenant cette valeur avec « Bad Request » (audit Editing Bench).
+  {
+    const p = setClipTransition(multiClip(), "b", "dissolve");
+    const edit = toServerEdit(p) as {
+      timeline: { tracks: { clips: { transition?: { in?: string } }[] }[] } };
+    const videoTrack = edit.timeline.tracks[edit.timeline.tracks.length - 1].clips;
+    check("un « dissolve » de plan est transmis comme « fade » au moteur",
+      videoTrack[1].transition?.in === "fade", JSON.stringify(videoTrack[1].transition));
+    check("aucune transition transmise ne vaut « dissolve »",
+      videoTrack.every((c) => c.transition?.in !== "dissolve"));
   }
 
   // ── C-02 / C-03 · L'aperçu et l'export montrent la même chose ────────────

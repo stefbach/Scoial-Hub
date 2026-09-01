@@ -23,7 +23,7 @@ export const DEFAULT_PLAN: PlanId = "presence";
 /** Secondes de vidéo générée par IA autorisées par mois calendaire (UTC). */
 export const PLAN_VIDEO_SECONDS: Record<PlanId, number> = {
   executive: 0,
-  presence: 0,
+  presence: 60,
   studio: 60,
   agence: 180,
 };

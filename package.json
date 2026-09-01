@@ -47,7 +47,8 @@
     "test:postsource": "tsx scripts/verify-post-source.ts",
     "test:album": "tsx scripts/verify-album-carousel.ts",
     "test:besttime": "tsx scripts/verify-best-time.ts",
-    "test:videoerrormsg": "tsx scripts/verify-video-error-message.ts"
+    "test:videoerrormsg": "tsx scripts/verify-video-error-message.ts",
+    "test:approval": "tsx scripts/verify-approval-workflow.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.100.1",

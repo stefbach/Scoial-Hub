@@ -5,6 +5,7 @@ import {
 } from "@/lib/repositories/scheduled-posts";
 import type { Platform, PostSource } from "@/lib/types";
 import { requireCompanyAccess } from "@/lib/auth/guard";
+import { resolveScheduleStatus } from "@/lib/publishing/approval";
 
 // GET /api/scheduled-posts?companyId=...
 export async function GET(req: NextRequest) {
@@ -52,13 +53,18 @@ export async function POST(req: NextRequest) {
     const guard = await requireCompanyAccess(companyId, { mode: "edit" });
     if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
 
+    // Workflow de validation (retour client Rosiane #5) : un member qui
+    // programme une publication dans une société où le workflow est actif
+    // la met en attente d'un owner/admin au lieu de la laisser partir.
+    const status = await resolveScheduleStatus(companyId, input.status ?? "scheduled", guard.role);
+
     const post = await createScheduledPost(companyId, {
       platform: input.platform as Platform,
       title: input.title,
       date: input.date ?? "",
       time: input.time ?? "",
       source: (input.source ?? "manual") as PostSource,
-      status: input.status ?? "scheduled",
+      status,
       needsReview: input.needsReview ?? false,
       body: input.body,
       automationName: input.automationName,

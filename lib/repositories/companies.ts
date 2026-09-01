@@ -24,6 +24,7 @@ function rowToCompany(row: DbCompany): Company {
     defaultPlatforms: (row.default_platforms ?? []) as Company["defaultPlatforms"],
     defaultPostingTime: row.default_posting_time ?? undefined,
     defaultNeedsReview: row.default_needs_review ?? false,
+    approvalWorkflowEnabled: row.approval_workflow_enabled ?? false,
   };
 }
 
@@ -41,6 +42,7 @@ function companyToRow(
     default_platforms: company.defaultPlatforms ?? [],
     default_posting_time: company.defaultPostingTime ?? null,
     default_needs_review: company.defaultNeedsReview ?? false,
+    approval_workflow_enabled: company.approvalWorkflowEnabled ?? false,
   };
 }
 
@@ -175,6 +177,7 @@ export async function updateCompany(
   if (patch.defaultPlatforms !== undefined) dbPatch.default_platforms = patch.defaultPlatforms;
   if (patch.defaultPostingTime !== undefined) dbPatch.default_posting_time = patch.defaultPostingTime;
   if (patch.defaultNeedsReview !== undefined) dbPatch.default_needs_review = patch.defaultNeedsReview;
+  if (patch.approvalWorkflowEnabled !== undefined) dbPatch.approval_workflow_enabled = patch.approvalWorkflowEnabled;
 
   const { data, error } = await supabase
     .from("sh_companies")

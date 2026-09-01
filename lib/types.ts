@@ -39,6 +39,13 @@ export interface Company {
   defaultPlatforms?: ("facebook" | "instagram" | "linkedin")[];
   defaultPostingTime?: string; // HH:mm
   defaultNeedsReview?: boolean;
+  /**
+   * Workflow de validation (retour client Rosiane #5) : quand actif, un
+   * membre non-admin (Community Manager) qui programme une publication la
+   * met en attente d'un owner/admin (responsable marketing) au lieu de la
+   * laisser partir directement.
+   */
+  approvalWorkflowEnabled?: boolean;
 }
 
 export interface SocialAccount {
@@ -104,7 +111,13 @@ export interface ScheduledPost {
   time: string; // HH:mm
   source: PostSource;
   needsReview?: boolean;
-  status?: "scheduled" | "draft" | "published" | "publishing" | "failed"; // defaults to "scheduled" when omitted
+  // "pending_approval" : workflow de validation actif (retour client Rosiane
+  // #5) — programmé par un Community Manager, en attente qu'un owner/admin
+  // l'approuve. Jamais publié par le cron ni par « Publier maintenant » tant
+  // qu'il n'est pas repassé à "scheduled" via l'approbation.
+  status?: "scheduled" | "draft" | "published" | "publishing" | "failed" | "pending_approval"; // defaults to "scheduled" when omitted
+  /** Motif du refus (ou note laissée à l'approbation) — workflow de validation. */
+  approvalNote?: string;
   body?: string; // full post text, used to resume editing a draft
   automationName?: string; // present when source === "automation"
   media?: {

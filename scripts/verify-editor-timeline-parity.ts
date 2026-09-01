@@ -11,8 +11,8 @@
 import {
   addAudio, addClip, addImageLayer, addShape, addText, duplicateAudio,
   duplicateImageLayer, duplicateShape, duplicateText, emptyProject,
-  MIN_CLIP_SECONDS, moveLayerTime, trimLayer, updateAudio, updateImageLayer,
-  updateShape, updateText, type EditorProject,
+  MIN_CLIP_SECONDS, moveLayerTime, splitAt, splitAudioAt, splitLayerAt, trimLayer,
+  updateAudio, updateImageLayer, updateShape, updateText, type EditorProject,
 } from "../lib/editor/project";
 
 let failures = 0;
@@ -114,6 +114,58 @@ function main() {
     check("dupliquer une piste son la pose à la suite",
       near(dupAudio.audios[1].start, dupAudio.audios[0].start + dupAudio.audios[0].length),
       `${dupAudio.audios[1].start} vs ${dupAudio.audios[0].start + dupAudio.audios[0].length}`);
+  }
+
+  // ── Scission — les quatre familles, jusqu'ici réservée aux plans vidéo ───
+  // (audit Editing Bench, P0-3 : ni les textes, ni les incrustations, ni les
+  // formes, ni les pistes audio ne pouvaient être coupées en deux.)
+  {
+    const p = withText();
+    const s = splitLayerAt(p, "text", "t1", 7, "t1-b");
+    check("scinder un texte produit deux calques", s.texts.length === 2, String(s.texts.length));
+    check("la moitié gauche s'arrête au point de coupe", near(s.texts[0].start, 4) && near(s.texts[0].end, 7));
+    check("la moitié droite reprend au point de coupe", near(s.texts[1].start, 7) && near(s.texts[1].end, 10));
+    check("scinder hors du calque ne change rien", splitLayerAt(p, "text", "t1", 1, "x") === p);
+    check("scinder trop près d'un bord ne change rien", splitLayerAt(p, "text", "t1", 4.05, "x") === p);
+    check("scinder un calque introuvable ne change rien", splitLayerAt(p, "text", "inexistant", 7, "x") === p);
+
+    let ps = addClip(emptyProject("c", "p"), { id: "a", src: "a.mp4", kind: "video", sourceDuration: 10 });
+    ps = addShape(ps, "s1", "round", "#123456");
+    ps = updateShape(ps, "s1", { start: 0, end: 8 });
+    const splitShape = splitLayerAt(ps, "shape", "s1", 3, "s1-b");
+    check("scinder une forme la coupe comme un texte",
+      splitShape.shapes.length === 2 && near(splitShape.shapes[0].end, 3) && near(splitShape.shapes[1].start, 3));
+
+    let pi = addClip(emptyProject("c", "p"), { id: "a", src: "a.mp4", kind: "video", sourceDuration: 10 });
+    pi = addImageLayer(pi, "i1", "logo.png");
+    pi = updateImageLayer(pi, "i1", { start: 0, end: 8 });
+    const splitImg = splitLayerAt(pi, "image", "i1", 3, "i1-b");
+    check("scinder une incrustation la coupe comme un texte",
+      splitImg.images.length === 2 && near(splitImg.images[0].end, 3) && near(splitImg.images[1].start, 3));
+
+    let pa = addClip(emptyProject("c", "p"), { id: "a", src: "a.mp4", kind: "video", sourceDuration: 20 });
+    pa = addAudio(pa, { id: "m", src: "m.mp3", name: "M", role: "music", sourceDuration: 10 });
+    pa = updateAudio(pa, "m", { start: 0, length: 10, trimStart: 0 });
+    const splitAudio = splitAudioAt(pa, "m", 4, "m-b");
+    check("scinder une piste son garde le même fichier source",
+      splitAudio.audios[0].src === "m.mp3" && splitAudio.audios[1].src === "m.mp3");
+    check("la seconde moitié reprend au bon endroit dans la source",
+      near(splitAudio.audios[1].trimStart, 4), String(splitAudio.audios[1].trimStart));
+    check("scinder une piste son introuvable ne change rien", splitAudioAt(pa, "inexistant", 4, "x") === pa);
+  }
+
+  // ── Scission d'un plan — restreinte au plan SÉLECTIONNÉ, pas au premier
+  // trouvé par balayage du temps (audit Editing Bench, P0-3).
+  {
+    let p = addClip(emptyProject("c", "p"), { id: "a", src: "a.mp4", kind: "video", track: 0, sourceDuration: 10 });
+    p = addClip(p, { id: "b", src: "b.mp4", kind: "video", track: 1, sourceDuration: 10 });
+    const byId = splitAt(p, 4, (id) => `${id}-2`, "b");
+    check("scinder avec un id restreint la recherche à ce plan",
+      byId.clips.filter((c) => c.src === "b.mp4").length === 2,
+      byId.clips.map((c) => `${c.id}:${c.src}`).join(","));
+    check("le plan de l'autre piste reste intact",
+      byId.clips.filter((c) => c.src === "a.mp4").length === 1);
+    check("un id qui ne couvre pas l'instant ne change rien", splitAt(p, 4, (id) => `${id}-2`, "inexistant") === p);
   }
 
   console.log(`\n${failures === 0 ? "✓ TOUT VERT" : `✗ ${failures} échec(s)`}\n`);

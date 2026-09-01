@@ -33,6 +33,30 @@ export interface RenderStatus {
 
 const RENDERABLE = new Set(["video", "video_montage", "slideshow"]);
 
+/**
+ * Traduit un message d'erreur BRUT du moteur de rendu (Shotstack : anglais,
+ * vocabulaire d'API — « Bad Request », noms de champs internes) en un message
+ * compréhensible, en français. Sans elle, ce texte technique remontait tel
+ * quel jusqu'à l'utilisateur du banc de montage (audit Editing Bench, P3-4 —
+ * même chemin que P0-1 : le moteur relayé sans traduction).
+ */
+function humanizeRenderError(raw: string | undefined, status?: number): string {
+  const r = (raw ?? "").trim();
+  if (!r || /^bad request$/i.test(r)) {
+    return "Le montage contient un réglage que le moteur de rendu n'accepte pas (transition, média ou police). Vérifiez ces éléments puis réessayez.";
+  }
+  if (/unauthorized|forbidden/i.test(r)) {
+    return "Rendu refusé par le moteur vidéo — problème de configuration côté serveur, indépendant de votre montage.";
+  }
+  if (/not found/i.test(r)) {
+    return "Un média du montage est introuvable par le moteur de rendu — vérifiez que les fichiers sont bien hébergés puis réessayez.";
+  }
+  if (/timed? ?out/i.test(r)) {
+    return "Le moteur de rendu a mis trop de temps à répondre — réessayez dans quelques instants.";
+  }
+  return `${r}${status ? ` (code ${status})` : ""}`;
+}
+
 function endpoint(env: string): string {
   return `https://api.shotstack.io/edit/${env}`;
 }
@@ -230,7 +254,7 @@ export async function submitRender(
         lastErr = `Clé refusée par l'environnement « ${env} » (${res.status}). Vérifiez SHOTSTACK_ENV (stage vs v1).`;
         continue;
       }
-      return { ok: false, error: data.message ?? `Erreur Shotstack (${res.status})` };
+      return { ok: false, error: humanizeRenderError(data.message, res.status) };
     } catch (err) {
       lastErr = err instanceof Error ? err.message : "Erreur réseau";
     }
@@ -272,7 +296,7 @@ export async function submitEdit(edit: unknown): Promise<RenderSubmit> {
         lastErr = `Clé refusée par l'environnement « ${env} » (${res.status}). Vérifiez SHOTSTACK_ENV (stage vs v1).`;
         continue;
       }
-      return { ok: false, error: data.message ?? `Erreur Shotstack (${res.status})` };
+      return { ok: false, error: humanizeRenderError(data.message, res.status) };
     } catch (err) {
       lastErr = err instanceof Error ? err.message : "Erreur réseau";
     }
@@ -312,7 +336,7 @@ export async function getRenderStatus(idWithEnv: string): Promise<RenderStatus> 
       if (!raw) continue;
       const status: RenderState =
         raw === "done" ? "done" : raw === "failed" ? "failed" : raw === "queued" || raw === "fetching" ? "queued" : "rendering";
-      const out = { status, url: data.response?.url, error: data.response?.error };
+      const out = { status, url: data.response?.url, error: status === "failed" ? humanizeRenderError(data.response?.error) : data.response?.error };
       // done/rendering/failed = état définitif pour cet env → on renvoie.
       if (status !== "queued") return out;
       pending = out; // on garde "queued" mais on tente l'autre env au cas où.

@@ -46,6 +46,11 @@ async function main() {
     check("A-06 · le composeur transmet la société", /companyId=\{company\.id\}/.test(compose));
     check("A-06 · règle d'hébergement partagée", /export async function hostMedia/.test(host) && /hostMedia\(companyId, file, file\.name, "compose"\)/.test(upload));
     check("A-06 · les médias importés dans l'éditeur sont hébergés aussi", /hostMedia\(companyId, file, file\.name, "editor"\)/.test(studio));
+    // Sans ceci, un import qui échouait à s'héberger restait choisi via son
+    // URL blob: locale — inatteignable par le moteur de rendu comme par les
+    // réseaux sociaux (audit Editing Bench, P0-1b).
+    check("A-06 · un import qui échoue à s'héberger dans MediaUpload est annulé",
+      /if \(res\.url\)[\s\S]{0,200}\} else \{[\s\S]{0,400}onChange\(null\)[\s\S]{0,200}setError/.test(upload));
   }
 
   // ── A-02 · Les calques restent manipulables ───────────────────────────────

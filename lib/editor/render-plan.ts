@@ -16,6 +16,7 @@ import {
   type Clip,
   type EditorProject,
   type ShapeLayer,
+  type TransitionKind,
 } from "./project";
 
 /**
@@ -144,6 +145,21 @@ function transitionFor(l: { animIn: AnimationKind; animOut: AnimationKind }) {
   return { transition: { ...(inKind ? { in: inKind } : {}), ...(outKind ? { out: outKind } : {}) } };
 }
 
+/**
+ * Correspondance des transitions de PLAN (TransitionKind) vers les valeurs du
+ * moteur serveur. Distincte de SERVER_TRANSITION (animations de calque,
+ * AnimationKind) — l'export échouait systématiquement (« Bad Request ») car
+ * "dissolve" était transmis tel quel : le moteur ne connaît pas cette valeur,
+ * seulement "fade" (audit Editing Bench, P0-1a).
+ */
+const CLIP_TRANSITION: Record<TransitionKind, string | undefined> = {
+  none: undefined,
+  fade: "fade",
+  // Un fondu enchaîné ENTRE deux plans est, pour le moteur, un « fade » —
+  // il n'a pas de valeur "dissolve" distincte.
+  dissolve: "fade",
+};
+
 /** Élément HTML d'une forme — le moteur ne connaît pas de type « forme ». */
 function shapeHtml(l: ShapeLayer, size: { width: number; height: number }): string {
   const w = Math.round(l.w * size.width);
@@ -173,7 +189,7 @@ export function toServerEdit(p: EditorProject, callback?: string) {
     ...(c.fit === "cover" && (c.focusX !== 0.5 || c.focusY !== 0.5)
       ? { offset: { x: 0.5 - c.focusX, y: c.focusY - 0.5 } }
       : {}),
-    ...(c.transitionIn !== "none" ? { transition: { in: c.transitionIn } } : {}),
+    ...(CLIP_TRANSITION[c.transitionIn] ? { transition: { in: CLIP_TRANSITION[c.transitionIn] } } : {}),
   }));
 
   const textClips = p.texts.map((l) => ({

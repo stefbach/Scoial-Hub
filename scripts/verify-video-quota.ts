@@ -81,7 +81,7 @@ async function main() {
   // ── 1) Plafonds par formule ────────────────────────────────────────────────
   console.log("\n— 1) Plafonds par formule —");
   check("Executive : aucune vidéo IA", PLAN_VIDEO_SECONDS.executive === 0);
-  check("Présence : aucune vidéo IA", PLAN_VIDEO_SECONDS.presence === 0);
+  check("Présence : 60 s/mois", PLAN_VIDEO_SECONDS.presence === 60);
   check("Studio : 60 s/mois", PLAN_VIDEO_SECONDS.studio === 60);
   check("Agence : 180 s/mois", PLAN_VIDEO_SECONDS.agence === 180);
 
@@ -141,7 +141,7 @@ async function main() {
   }
   {
     const c = makeCounter(0);
-    check("plafond à 0 (Présence) : refus immédiat", !(await c.reserve(8)).allowed);
+    check("plafond à 0 (Executive) : refus immédiat", !(await c.reserve(8)).allowed);
   }
 
   // ── 5) Concurrence : ce que le verrou SQL garantit ─────────────────────────

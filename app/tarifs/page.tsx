@@ -71,7 +71,7 @@ const PLANS: Plan[] = [
       { t: ["Sous-titres automatiques", "Automatic subtitles"] },
       { t: ["Messagerie unifiée avec agent IA", "Unified inbox with AI agent"] },
       { t: ["Veille concurrentielle", "Competitor watch"] },
-      { t: ["Vidéo générée par IA", "AI-generated video"], off: true },
+      { t: ["60 secondes de vidéo générée par IA / mois", "60 seconds of AI-generated video / month"], key: true },
     ],
   },
   {
@@ -247,7 +247,7 @@ const MATRIX: { g: L; rows: { l: L; s?: L; v: [Cell, Cell, Cell] }[] }[] = [
       { l: ["Retouche et extension d'images", "Image editing and outpainting"], v: ["y", "y", "y"] },
       { l: ["Montage de vos photos et vidéos", "Editing of your own photos and videos"], v: [["illimité", "unlimited"], ["illimité", "unlimited"], ["illimité", "unlimited"]] },
       { l: ["Sous-titres automatiques", "Automatic subtitles"], v: ["y", "y", "y"] },
-      { l: ["Vidéo générée par IA", "AI-generated video"], s: ["Aucun tournage nécessaire", "No filming required"], v: ["n", "n", [" 60 s / mois", "60 s / month"]] },
+      { l: ["Vidéo générée par IA", "AI-generated video"], s: ["Aucun tournage nécessaire", "No filming required"], v: ["n", [" 60 s / mois", "60 s / month"], [" 60 s / mois", "60 s / month"]] },
       { l: ["Studio Avatar & voix clonée", "Avatar Studio & cloned voice"], s: ["Un porte-parole de synthèse à votre image", "A synthetic spokesperson in your image"], v: ["n", "n", "y"] },
       { l: ["Bibliothèque de médias", "Media library"], v: ["y", "y", "y"] },
     ],

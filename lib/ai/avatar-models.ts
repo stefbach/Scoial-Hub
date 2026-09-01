@@ -39,7 +39,19 @@ export const VOICE_MODELS: VoiceModel[] = [
 // Modèles haut de gamme de la collection Replicate « lipsync » (clés d'entrée
 // auto-détectées côté serveur, donc faceKey/audioKey ne sont qu'indicatifs).
 export const AVATAR_MODELS: AvatarModel[] = [
-  { id: "bytedance/omni-human", label: "OmniHuman (ByteDance) — qualité studio · photo", labelEn: "OmniHuman (ByteDance) — studio quality · photo", faceKey: "image", audioKey: "audio", note: "Photo + voix → vidéo professionnelle. Recommandé." },
+  // Retour client (réunion Rosiane #9, « les avatars semblent robotiques ») :
+  // succède à bytedance/omni-human, même fournisseur/mêmes entrées (photo +
+  // audio), mais ajoute le contrôle par texte, un mouvement mieux corrélé à
+  // l'audio et le support multi-personnages — la mise à jour la plus directe
+  // pour ce retour, à qualité vérifiée puisque du même fournisseur.
+  // NB : il n'existe PAS de modèle HeyGen sur Replicate acceptant une photo
+  // arbitraire — les modèles HeyGen qui y sont publiés (avatar-v/avatar-iv)
+  // n'animent que leurs propres avatars préréglés, pas une photo importée ;
+  // reproduire fidèlement la qualité HeyGen exigerait une intégration directe
+  // de l'API HeyGen (authentification et facturation séparées), pas un
+  // changement de modèle Replicate.
+  { id: "bytedance/omni-human-1.5", label: "OmniHuman 1.5 (ByteDance) — qualité studio · photo", labelEn: "OmniHuman 1.5 (ByteDance) — studio quality · photo", faceKey: "image", audioKey: "audio", note: "Photo + voix → vidéo professionnelle, mouvement plus naturel. Recommandé." },
+  { id: "bytedance/omni-human", label: "OmniHuman (ByteDance) — qualité studio · photo", labelEn: "OmniHuman (ByteDance) — studio quality · photo", faceKey: "image", audioKey: "audio", note: "Version précédente, en repli." },
   { id: "veed/fabric-1.0", label: "VEED Fabric 1.0 — photo → vidéo parlante", labelEn: "VEED Fabric 1.0 — photo → talking video", faceKey: "image", audioKey: "audio", note: "Transforme une image en avatar parlant." },
   { id: "sync/lipsync-2-pro", label: "Sync Lipsync 2 Pro — studio (vidéo source requise)", labelEn: "Sync Lipsync 2 Pro — studio (source video required)", faceKey: "video", audioKey: "audio", needsVideo: true, note: "Top qualité ; nécessite une vidéo source." },
   { id: "heygen/lipsync-precision", label: "HeyGen Lipsync Precision — doublage vidéo", labelEn: "HeyGen Lipsync Precision — video dubbing", faceKey: "video", audioKey: "audio", needsVideo: true, note: "Haute précision ; nécessite une vidéo source." },

@@ -83,8 +83,10 @@ export function Timeline({
   project,
   playhead,
   selection,
+  multiSelectedKeys,
   onSeek,
   onSelect,
+  onContextMenu,
   onTrim,
   onMoveClip,
   onTrimLayer,
@@ -97,8 +99,26 @@ export function Timeline({
   project: EditorProject;
   playhead: number;
   selection: TimelineSelection;
+  /**
+   * Éléments ADDITIONNELS d'une sélection multiple, sous forme de clés
+   * `kind:id` — la sélection principale (`selection`) reste, elle, un objet
+   * unique : c'est ce qui pilote le panneau de propriétés et le glisser dans
+   * l'aperçu, inchangés par la sélection multiple (chapitre 8, P2-4).
+   */
+  multiSelectedKeys?: Set<string>;
   onSeek: (time: number) => void;
-  onSelect: (sel: TimelineSelection) => void;
+  /**
+   * `e` porte l'état des touches (Maj/Ctrl/⌘) : Maj-clic ou Ctrl/⌘-clic
+   * ajoute l'élément à la sélection au lieu de la remplacer. Absent sur un
+   * clic dans le vide ou une sélection programmatique.
+   */
+  onSelect: (sel: TimelineSelection, e?: { shiftKey: boolean; ctrlKey: boolean; metaKey: boolean }) => void;
+  /**
+   * Clic droit sur un élément — n'ouvre un menu contextuel que si l'appelant
+   * décide qu'il y a de quoi l'afficher (une sélection multiple, chapitre 8,
+   * P3-7). Sans sélection multiple, le clic droit ne fait rien de spécial.
+   */
+  onContextMenu?: (sel: NonNullable<TimelineSelection>, e: { clientX: number; clientY: number }) => void;
   /** Rognage par une extrémité, en secondes (positif = raccourcit). */
   onTrim: (clipId: string, edge: "head" | "tail", delta: number) => void;
   /** Déplacement d'un plan : changement de piste et/ou d'instant. */
@@ -337,10 +357,11 @@ export function Timeline({
           key={c.id}
           clip={c}
           pxPerSec={pxPerSec}
-          selected={selection?.kind === "clip" && selection.id === c.id}
+          selected={(selection?.kind === "clip" && selection.id === c.id) || Boolean(multiSelectedKeys?.has(`clip:${c.id}`))}
           locked={locked}
           dim={hidden}
-          onSelect={() => onSelect({ kind: "clip", id: c.id })}
+          onSelect={(e) => onSelect({ kind: "clip", id: c.id }, e)}
+          onContextMenu={(e) => onContextMenu?.({ kind: "clip", id: c.id }, e)}
           onTrimStart={(edge, e) => { if (!locked) beginDrag({ type: "trim", clipId: c.id, edge, startX: e.clientX }); }}
           onMoveStart={(e) => {
             if (locked) return;
@@ -383,8 +404,9 @@ export function Timeline({
         pxPerSec={pxPerSec}
         tone={tone}
         muted={extra?.(l)?.muted}
-        selected={selection?.kind === kind && selection.id === l.id}
-        onSelect={() => onSelect({ kind, id: l.id })}
+        selected={(selection?.kind === kind && selection.id === l.id) || Boolean(multiSelectedKeys?.has(`${kind}:${l.id}`))}
+        onSelect={(e) => onSelect({ kind, id: l.id }, e)}
+        onContextMenu={(e) => onContextMenu?.({ kind, id: l.id }, e)}
         onTrimStart={(edge, e) => beginDrag({ type: "trimLayer", kind, id: l.id, edge, startX: e.clientX })}
         onMoveStart={(e) => beginDrag({ type: "moveLayer", kind, id: l.id, startX: e.clientX, fromStart: l.start })}
       />
@@ -609,6 +631,7 @@ function ClipBlock({
   locked,
   dim,
   onSelect,
+  onContextMenu,
   onTrimStart,
   onMoveStart,
 }: {
@@ -619,7 +642,8 @@ function ClipBlock({
   locked?: boolean;
   /** Piste masquée — indication visuelle seule, la piste reste sélectionnable. */
   dim?: boolean;
-  onSelect: () => void;
+  onSelect: (e: React.PointerEvent) => void;
+  onContextMenu?: (e: { clientX: number; clientY: number }) => void;
   onTrimStart: (edge: "head" | "tail", e: React.PointerEvent) => void;
   onMoveStart: (e: React.PointerEvent) => void;
 }) {
@@ -632,8 +656,20 @@ function ClipBlock({
       style={{ left: timeToPx(clip.start, pxPerSec), width: Math.max(12, timeToPx(clip.length, pxPerSec)) }}
       onPointerDown={(e) => {
         e.stopPropagation();
-        onSelect();
+        // Le clic DROIT ne doit ni remplacer la sélection ni démarrer un
+        // glisser — seulement ouvrir le menu contextuel (`onContextMenu`
+        // ci-dessous). Sans ce garde-fou, `pointerdown` se déclenche pour
+        // TOUT bouton de la souris et effaçait la sélection multiple avant
+        // même que le clic droit n'ait eu la chance d'ouvrir son menu.
+        if (e.button === 2) return;
+        onSelect(e);
         onMoveStart(e);
+      }}
+      onContextMenu={(e) => {
+        if (!onContextMenu) return;
+        e.preventDefault();
+        e.stopPropagation();
+        onContextMenu(e);
       }}
     >
       <span className="pointer-events-none block truncate px-2 py-1 text-ink">
@@ -647,13 +683,13 @@ function ClipBlock({
           <span
             role="separator"
             aria-label={t("Rogner le début", "Trim start")}
-            onPointerDown={(e) => { e.stopPropagation(); onSelect(); onTrimStart("head", e); }}
+            onPointerDown={(e) => { e.stopPropagation(); onSelect(e); onTrimStart("head", e); }}
             className="absolute inset-y-0 left-0 w-2 cursor-ew-resize bg-page/50 hover:bg-page"
           />
           <span
             role="separator"
             aria-label={t("Rogner la fin", "Trim end")}
-            onPointerDown={(e) => { e.stopPropagation(); onSelect(); onTrimStart("tail", e); }}
+            onPointerDown={(e) => { e.stopPropagation(); onSelect(e); onTrimStart("tail", e); }}
             className="absolute inset-y-0 right-0 w-2 cursor-ew-resize bg-page/50 hover:bg-page"
           />
         </>
@@ -727,6 +763,7 @@ function LayerBlock({
   selected,
   muted,
   onSelect,
+  onContextMenu,
   onTrimStart,
   onMoveStart,
 }: {
@@ -739,7 +776,8 @@ function LayerBlock({
   tone: "text" | "image" | "shape" | "audio";
   selected: boolean;
   muted?: boolean;
-  onSelect: () => void;
+  onSelect: (e?: React.PointerEvent) => void;
+  onContextMenu?: (e: { clientX: number; clientY: number }) => void;
   /** Rognage par une extrémité — même parité que les plans vidéo (C-04). */
   onTrimStart: (edge: "head" | "tail", e: React.PointerEvent) => void;
   onMoveStart: (e: React.PointerEvent) => void;
@@ -754,8 +792,17 @@ function LayerBlock({
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(); } }}
       onPointerDown={(e) => {
         e.stopPropagation();
-        onSelect();
+        // Voir ClipBlock : le clic droit ne doit ni remplacer la sélection ni
+        // démarrer un glisser, seulement ouvrir le menu contextuel.
+        if (e.button === 2) return;
+        onSelect(e);
         onMoveStart(e);
+      }}
+      onContextMenu={(e) => {
+        if (!onContextMenu) return;
+        e.preventDefault();
+        e.stopPropagation();
+        onContextMenu(e);
       }}
       className={`absolute cursor-move overflow-hidden rounded-md border px-2 text-left text-[10px] ${TONE[tone]} ${
         selected ? "ring-2 ring-page/40" : ""
@@ -771,13 +818,13 @@ function LayerBlock({
       <span
         role="separator"
         aria-label={t("Rogner le début", "Trim start")}
-        onPointerDown={(e) => { e.stopPropagation(); onSelect(); onTrimStart("head", e); }}
+        onPointerDown={(e) => { e.stopPropagation(); onSelect(e); onTrimStart("head", e); }}
         className="absolute inset-y-0 left-0 w-1.5 cursor-ew-resize bg-black/0 hover:bg-black/20"
       />
       <span
         role="separator"
         aria-label={t("Rogner la fin", "Trim end")}
-        onPointerDown={(e) => { e.stopPropagation(); onSelect(); onTrimStart("tail", e); }}
+        onPointerDown={(e) => { e.stopPropagation(); onSelect(e); onTrimStart("tail", e); }}
         className="absolute inset-y-0 right-0 w-1.5 cursor-ew-resize bg-black/0 hover:bg-black/20"
       />
     </div>

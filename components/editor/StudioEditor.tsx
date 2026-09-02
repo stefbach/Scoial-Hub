@@ -91,6 +91,16 @@ export function StudioEditor({
   const [playhead, setPlayhead] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [selection, setSelection] = useState<TimelineSelection>(null);
+  /**
+   * Éléments ADDITIONNELS d'une sélection multiple (Maj/Ctrl-clic sur la
+   * timeline), au-delà de `selection` qui reste la sélection PRINCIPALE — la
+   * seule à piloter le panneau de propriétés et le glisser dans l'aperçu.
+   * Clé : `kind:id`. Vide tant qu'un seul élément est sélectionné (audit
+   * Editing Bench, P2-4 — sélection multiple était totalement absente).
+   */
+  const [multiSelection, setMultiSelection] = useState<Map<string, NonNullable<TimelineSelection>>>(new Map());
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const contextMenuRef = useRef<HTMLDivElement>(null);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   /** Verrouille le montage pendant un export — voir exportProject. */
@@ -327,8 +337,14 @@ export function StudioEditor({
    * frappe et rendait la barre d'espace difficile à garder cohérente avec le
    * focus (§6.1, piège n°2).
    */
-  const kb = useRef({ playhead, duration, selection, apply, saveNow, playing, shortcutsOpen, exporting });
-  kb.current = { playhead, duration, selection, apply, saveNow, playing, shortcutsOpen, exporting };
+  const kb = useRef({
+    playhead, duration, selection, apply, saveNow, playing, shortcutsOpen, exporting,
+    removeSelection, duplicateSelection,
+  });
+  kb.current = {
+    playhead, duration, selection, apply, saveNow, playing, shortcutsOpen, exporting,
+    removeSelection, duplicateSelection,
+  };
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -340,6 +356,7 @@ export function StudioEditor({
       const {
         playhead: ph, duration: dur, selection: sel, apply: doApply, saveNow: doSave,
         playing: isPlaying, shortcutsOpen: refOpen, exporting: isExporting,
+        removeSelection: doRemoveSelection, duplicateSelection: doDuplicateSelection,
       } = kb.current;
 
       // Le montage est verrouillé pendant un export — seul Échap reste actif,
@@ -364,14 +381,11 @@ export function StudioEditor({
         return;
       }
       if (meta && lower === "d") {
-        // Neutralise le marque-page du navigateur (§6.1).
+        // Neutralise le marque-page du navigateur (§6.1). Passe par la version
+        // consciente de la sélection multiple (P2-4) — un seul endroit pour
+        // dupliquer, que ce soit au clavier, à l'outil ou au menu contextuel.
         e.preventDefault();
-        if (!sel) return;
-        if (sel.kind === "clip") doApply((p) => duplicateClip(p, sel.id, nextId("c")));
-        else if (sel.kind === "text") doApply((p) => duplicateText(p, sel.id, nextId("t")));
-        else if (sel.kind === "image") doApply((p) => duplicateImageLayer(p, sel.id, nextId("i")));
-        else if (sel.kind === "shape") doApply((p) => duplicateShape(p, sel.id, nextId("s")));
-        else doApply((p) => duplicateAudio(p, sel.id, nextId("a")));
+        doDuplicateSelection();
         return;
       }
       if (meta) return; // autre combinaison Ctrl/Cmd : laissée au navigateur
@@ -400,7 +414,7 @@ export function StudioEditor({
       }
       if (e.key === "Delete" || e.key === "Backspace") {
         e.preventDefault();
-        removeSelection();
+        doRemoveSelection();
         return;
       }
       if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
@@ -418,7 +432,11 @@ export function StudioEditor({
         // Ne ferme jamais l'éditeur — risque de perte de travail (§6.1).
         e.preventDefault();
         if (refOpen) setShortcutsOpen(false);
-        else setSelection(null);
+        else {
+          setSelection(null);
+          setMultiSelection(new Map());
+          setContextMenu(null);
+        }
         return;
       }
       if (e.key === "?") {
@@ -429,6 +447,24 @@ export function StudioEditor({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
+
+  /** Referme le menu contextuel au clic ailleurs — sans quoi il reste ouvert
+      indéfiniment, recouvrant la timeline (P3-7). */
+  useEffect(() => {
+    if (!contextMenu) return;
+    // Un clic DANS le menu (Dupliquer/Supprimer) ne doit pas le fermer avant
+    // que son propre bouton n'ait eu la main — sans ce garde, le clic sur
+    // « Dupliquer le groupe » fermait le menu (et annulait l'action) au lieu
+    // de la déclencher.
+    function onPointerDown(e: PointerEvent) {
+      if (contextMenuRef.current?.contains(e.target as Node)) return;
+      setContextMenu(null);
+    }
+    // Un cran après le clic qui vient de l'ouvrir (clic droit) : sans ce
+    // report, le même événement le fermerait à l'instant où il s'affiche.
+    const id = window.setTimeout(() => window.addEventListener("pointerdown", onPointerDown), 0);
+    return () => { window.clearTimeout(id); window.removeEventListener("pointerdown", onPointerDown); };
+  }, [contextMenu]);
 
   /* ── Import de médias ──────────────────────────────────────────────────── */
   const importFile = useCallback(
@@ -1067,14 +1103,14 @@ export function StudioEditor({
                     ✂ {t("Scinder", "Split")}
                   </ToolButton>
                 </Tooltip>
-                <Tooltip label={t("Duplique l'élément sélectionné — Ctrl/⌘ + D", "Duplicates the selected element — Ctrl/⌘ + D")}>
+                <Tooltip label={t("Duplique l'élément (ou le groupe) sélectionné — Ctrl/⌘ + D", "Duplicates the selected element (or group) — Ctrl/⌘ + D")}>
                   <ToolButton onClick={() => duplicateSelection()} disabled={!selection}>
-                    ⧉ {t("Dupliquer", "Duplicate")}
+                    ⧉ {t("Dupliquer", "Duplicate")}{multiSelection.size > 0 ? ` (${selectedItems().length})` : ""}
                   </ToolButton>
                 </Tooltip>
-                <Tooltip label={t("Supprime l'élément sélectionné — Suppr", "Deletes the selected element — Delete")}>
+                <Tooltip label={t("Supprime l'élément (ou le groupe) sélectionné — Suppr", "Deletes the selected element (or group) — Delete")}>
                   <ToolButton onClick={() => removeSelection()} disabled={!selection}>
-                    🗑 {t("Supprimer", "Delete")}
+                    🗑 {t("Supprimer", "Delete")}{multiSelection.size > 0 ? ` (${selectedItems().length})` : ""}
                   </ToolButton>
                 </Tooltip>
               </div>
@@ -1098,10 +1134,11 @@ export function StudioEditor({
               <PropertyPanel
                 project={project}
                 selection={selection}
+                multiCount={multiSelection.size > 0 ? selectedItems().length : 0}
                 playhead={playhead}
                 brand={brand}
                 onChange={apply}
-                onDeselect={() => setSelection(null)}
+                onDeselect={() => { setSelection(null); setMultiSelection(new Map()); }}
               />
             </aside>
           </div>
@@ -1112,8 +1149,19 @@ export function StudioEditor({
               project={project}
               playhead={playhead}
               selection={selection}
+              multiSelectedKeys={new Set(multiSelection.keys())}
               onSeek={setPlayhead}
-              onSelect={setSelection}
+              onSelect={onTimelineSelect}
+              onContextMenu={(sel, e) => {
+                // Le menu contextuel n'a d'intérêt que sur une sélection de
+                // GROUPE — un seul élément a déjà la barre d'outils juste
+                // au-dessus de l'aperçu (P3-7). Clic droit sur un élément
+                // hors du groupe sélectionné : on ne montre rien plutôt que
+                // d'agir sur un élément que l'utilisateur n'a pas choisi.
+                const inSelection = selectedItems().some((s) => s.kind === sel.kind && s.id === sel.id);
+                if (multiSelection.size === 0 || !inSelection) return;
+                setContextMenu({ x: e.clientX, y: e.clientY });
+              }}
               onTrim={(clipId, edge, delta) => applyLive((p) => trimClip(p, clipId, edge === "head" ? { head: delta } : { tail: delta }))}
               onMoveClip={(clipId, patch) => applyLive((p) => moveClip(p, clipId, patch))}
               onTrimLayer={(kind, id, edge, delta) => applyLive((p) => trimLayer(p, kind, id, edge, delta))}
@@ -1203,35 +1251,110 @@ export function StudioEditor({
         />
       )}
       <ShortcutsPanel open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
+
+      {/* Menu contextuel — n'apparaît que sur une sélection de groupe, où il
+          offre une prise directe qui manquait totalement jusqu'ici (audit
+          Editing Bench, P3-7). Un seul élément a déjà la barre d'outils. */}
+      {contextMenu && (
+        <div
+          ref={contextMenuRef}
+          role="menu"
+          className="fixed z-50 min-w-[10rem] rounded-md border border-hair bg-card py-1 text-xs shadow-lg"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+        >
+          <button
+            type="button"
+            role="menuitem"
+            onClick={duplicateSelection}
+            className="block w-full px-3 py-1.5 text-left hover:bg-canvas"
+          >
+            ⧉ {t("Dupliquer le groupe", "Duplicate group")} ({selectedItems().length})
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={removeSelection}
+            className="block w-full px-3 py-1.5 text-left text-danger hover:bg-canvas"
+          >
+            🗑 {t("Supprimer le groupe", "Delete group")} ({selectedItems().length})
+          </button>
+        </div>
+      )}
     </div>,
     document.body
   );
 
-  function removeSelection() {
-    if (!selection) return;
-    const sel = selection;
-    apply((p) => {
-      if (sel.kind === "clip") return removeClip(p, sel.id);
-      if (sel.kind === "text") return removeText(p, sel.id);
-      if (sel.kind === "image") return removeImageLayer(p, sel.id);
-      if (sel.kind === "shape") return removeShape(p, sel.id);
-      return removeAudio(p, sel.id);
-    });
-    setSelection(null);
+  /** Clé stable d'un élément sélectionnable — pour la sélection multiple. */
+  function selKey(sel: NonNullable<TimelineSelection>): string {
+    return `${sel.kind}:${sel.id}`;
   }
 
   /**
-   * Duplique l'élément sélectionné, quel que soit son type — auparavant
-   * réservé aux plans vidéo (itération 3, C-04, règle de parité du chapitre 7).
+   * Tous les éléments actuellement sélectionnés — la sélection PRINCIPALE et
+   * les éléments additionnels d'une sélection multiple, dédupliqués. Base des
+   * opérations groupées (supprimer, dupliquer) : sans sélection multiple,
+   * cette liste ne contient que `selection`, exactement le comportement
+   * d'avant (audit Editing Bench, P2-4).
+   */
+  function selectedItems(): NonNullable<TimelineSelection>[] {
+    const byKey = new Map(multiSelection);
+    if (selection) byKey.set(selKey(selection), selection);
+    return [...byKey.values()];
+  }
+
+  /**
+   * Maj-clic ou Ctrl/⌘-clic sur la timeline : ajoute/retire un élément de la
+   * sélection au lieu de la remplacer. Un clic simple (sans modificateur)
+   * retombe sur le comportement d'origine — remplacer la sélection.
+   */
+  function onTimelineSelect(sel: TimelineSelection, e?: { shiftKey: boolean; ctrlKey: boolean; metaKey: boolean }) {
+    if (sel && e && (e.shiftKey || e.ctrlKey || e.metaKey)) {
+      setMultiSelection((prev) => {
+        const next = new Map(prev);
+        if (next.size === 0 && selection) next.set(selKey(selection), selection);
+        const k = selKey(sel);
+        if (next.has(k)) next.delete(k); else next.set(k, sel);
+        return next;
+      });
+      setSelection(sel);
+      return;
+    }
+    setSelection(sel);
+    setMultiSelection(new Map());
+  }
+
+  function removeSelection() {
+    const items = selectedItems();
+    if (items.length === 0) return;
+    apply((p) => items.reduce((acc, sel) => {
+      if (sel.kind === "clip") return removeClip(acc, sel.id);
+      if (sel.kind === "text") return removeText(acc, sel.id);
+      if (sel.kind === "image") return removeImageLayer(acc, sel.id);
+      if (sel.kind === "shape") return removeShape(acc, sel.id);
+      return removeAudio(acc, sel.id);
+    }, p));
+    setSelection(null);
+    setMultiSelection(new Map());
+    setContextMenu(null);
+  }
+
+  /**
+   * Duplique l'élément (ou le groupe) sélectionné, quel que soit son type —
+   * auparavant réservé aux plans vidéo (itération 3, C-04, règle de parité du
+   * chapitre 7), puis étendu à un groupe entier (P2-4). Une seule entrée
+   * d'historique pour tout le groupe, pas une par élément dupliqué.
    */
   function duplicateSelection() {
-    if (!selection) return;
-    const sel = selection;
-    if (sel.kind === "clip") apply((p) => duplicateClip(p, sel.id, nextId("c")));
-    else if (sel.kind === "text") apply((p) => duplicateText(p, sel.id, nextId("t")));
-    else if (sel.kind === "image") apply((p) => duplicateImageLayer(p, sel.id, nextId("i")));
-    else if (sel.kind === "shape") apply((p) => duplicateShape(p, sel.id, nextId("s")));
-    else apply((p) => duplicateAudio(p, sel.id, nextId("a")));
+    const items = selectedItems();
+    if (items.length === 0) return;
+    apply((p) => items.reduce((acc, sel) => {
+      if (sel.kind === "clip") return duplicateClip(acc, sel.id, nextId("c"));
+      if (sel.kind === "text") return duplicateText(acc, sel.id, nextId("t"));
+      if (sel.kind === "image") return duplicateImageLayer(acc, sel.id, nextId("i"));
+      if (sel.kind === "shape") return duplicateShape(acc, sel.id, nextId("s"));
+      return duplicateAudio(acc, sel.id, nextId("a"));
+    }, p));
+    setContextMenu(null);
   }
 
   /**

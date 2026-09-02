@@ -414,6 +414,7 @@ export function Preview({
                   key={clip.id}
                   src={clip.src}
                   alt=""
+                  draggable={false}
                   style={{ objectPosition: `${clip.focusX * 100}% ${clip.focusY * 100}%`, opacity }}
                   className={`absolute inset-0 h-full w-full ${clip.fit === "contain" ? "object-contain" : "object-cover"}`}
                 />
@@ -446,6 +447,16 @@ export function Preview({
                 key={l.id}
                 src={l.src}
                 alt=""
+                // Un <img> est GLISSABLE nativement par le navigateur, à la
+                // différence d'un <div> de texte : sans draggable={false}, le
+                // premier mouvement de souris faisait basculer le geste sur le
+                // glisser-déposer natif du navigateur (fantôme d'image, aucun
+                // pointermove supplémentaire) au lieu de continuer à alimenter
+                // startMove/onPointerMove — vérifié en isolant la différence de
+                // comportement texte vs image, geste identique (Playwright,
+                // audit Editing Bench, P1-5 : « glissement → texte oui, image
+                // non »).
+                draggable={false}
                 onPointerDown={(e) => startMove(e, { kind: "image", id: l.id }, l)}
                 style={layerStyle(l, {
                   width: l.scale * frame.width,

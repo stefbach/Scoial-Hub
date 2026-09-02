@@ -168,6 +168,20 @@ async function main() {
       /x: centerX\(horizontalWidth\)/.test(panel) && /x: rightX\(horizontalWidth\)/.test(panel));
   }
 
+  // ── P1-5 · Glissement d'une incrustation interrompu (audit Editing Bench v3) ──
+  // Vérifié en isolant la différence de comportement entre un texte (glisse
+  // sans accroc) et une incrustation (s'arrêtait après le tout premier
+  // mouvement) avec un geste Playwright identique : un <img> est glissable
+  // NATIVEMENT par le navigateur, contrairement à un <div> de texte — sans
+  // draggable={false}, le premier mouvement de souris faisait basculer le
+  // geste sur le glisser-déposer natif (fantôme d'image), qui n'envoie plus
+  // aucun pointermove à notre logique de déplacement.
+  {
+    const overlayImg = preview.slice(preview.indexOf("{/* Incrustations */}"));
+    check("P1-5 · l'incrustation ne bascule plus sur le glisser-déposer natif du navigateur",
+      /draggable=\{false\}[\s\S]{0,80}onPointerDown=\{\(e\) => startMove\(e, \{ kind: "image"/.test(overlayImg));
+  }
+
   // ── P0-4 · Le rendu serveur rend la main (audit Editing Bench v3) ────────
   // Avant ce correctif, la fonction s'arrêtait dès la soumission du montage :
   // aucune progression, aucune récupération, aucun résultat affiché. Le

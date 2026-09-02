@@ -8,10 +8,11 @@
 
 import {
   addAudio, addButton, addClip, addImageLayer, addShape, addText, clipAt, clipsAt,
-  duplicateClip, emptyProject, imagesAt, layerProgress, MIN_CLIP_SECONDS, moveClip,
-  normalize, projectDuration, removeClip, removeShape, reorderClip, setClipFraming,
-  setClipLength, setClipSpeed, setClipTransition, shapesAt, splitAt, textsAt,
-  trimClip, updateAudio, updateImageLayer, updateShape, updateText, usedTracks,
+  CLIP_TRANSITION_SECONDS, duplicateClip, emptyProject, imagesAt, layerProgress,
+  MIN_CLIP_SECONDS, moveClip, normalize, projectDuration, removeClip, removeShape,
+  reorderClip, setClipFraming, setClipLength, setClipSpeed, setClipTransition,
+  shapesAt, splitAt, textsAt, trimClip, updateAudio, updateImageLayer, updateShape,
+  updateText, usedTracks,
   type Clip, type EditorProject,
 } from "../lib/editor/project";
 import { canRedo, canUndo, HISTORY_LIMIT, initHistory, push, redo, undo } from "../lib/editor/history";
@@ -158,6 +159,46 @@ function main() {
 
     const fast = setClipSpeed(twoClips(), "a", 2);
     check("la vitesse accélère la lecture de la source", near(clipAt(fast, 2)!.sourceTime, 4), String(clipAt(fast, 2)?.sourceTime));
+  }
+
+  // ── P0-2 · Fondu enchaîné composé dans l'aperçu ──────────────────────────
+  // `twoClips()` pose ses deux plans bout à bout et, par construction de
+  // addClip, le second reçoit déjà transitionIn: "fade" (deuxième plan d'une
+  // piste). Avant ce correctif, clipsAt ignorait totalement cette valeur : la
+  // coupe était toujours sèche à l'écran, quel que soit le réglage choisi
+  // (audit Editing Bench, P0-2).
+  {
+    const p = twoClips(); // a : [0,10), b : [10,20), transitionIn de b = "fade"
+
+    check("hors fenêtre de fondu, un seul plan joue", clipsAt(p, 5).length === 1);
+
+    const mid = clipsAt(p, 10 + CLIP_TRANSITION_SECONDS / 2);
+    check("en plein fondu, les deux plans sont composés", mid.length === 2, String(mid.length));
+    const [out, into] = mid;
+    check("le plan sortant vient en premier (sous le plan entrant)", out.clip.id === "a" && into.clip.id === "b");
+    check("les opacités sont complémentaires", near(out.opacity + into.opacity, 1), `${out.opacity}+${into.opacity}`);
+    check("le plan sortant est figé sur sa dernière image", out.frozen === true && near(out.sourceTime, 10));
+    check("le plan entrant n'est pas figé", !into.frozen);
+
+    const start = clipsAt(p, 10);
+    check("au point de coupe, le plan sortant est encore pleinement visible", near(start[0].opacity, 1), String(start[0].opacity));
+    check("et le plan entrant totalement transparent", near(start[1].opacity, 0), String(start[1].opacity));
+
+    const after = clipsAt(p, 10 + CLIP_TRANSITION_SECONDS + 0.05);
+    check("le fondu terminé, seul le plan entrant reste", after.length === 1 && after[0].clip.id === "b");
+
+    check("sans transition, un seul plan joue même à la coupe",
+      clipsAt(setClipTransition(p, "b", "none"), 10).length === 1);
+
+    check("clipAt fait toujours autorité sur le plan ENTRANT pendant le fondu",
+      clipAt(p, 10 + CLIP_TRANSITION_SECONDS / 2)?.clip.id === "b");
+
+    // Une transition ne peut pas déborder au-delà de la moitié d'un plan trop court.
+    let short = addClip(emptyProject("c", "p"), { id: "x", src: "x.mp4", kind: "video", sourceDuration: 0.2 });
+    short = addClip(short, { id: "y", src: "y.mp4", kind: "video", sourceDuration: 0.2 });
+    const shortMid = clipsAt(short, short.clips[1].start + 0.001);
+    check("le fondu se borne à la moitié d'un plan trop court pour la durée par défaut",
+      shortMid.length === 2, String(shortMid.length));
   }
 
   // ── Audio ────────────────────────────────────────────────────────────────

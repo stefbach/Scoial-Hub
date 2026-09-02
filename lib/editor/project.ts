@@ -43,6 +43,13 @@ export type AnimationKind = "none" | "fade" | "slide-up" | "slide-down" | "slide
 /** Durée d'une animation d'entrée ou de sortie, en secondes. */
 export const ANIMATION_SECONDS = 0.4;
 
+/**
+ * Durée d'un fondu enchaîné entre deux plans, en secondes — approximation
+ * pour l'aperçu : le moteur serveur (Shotstack) applique sa propre durée par
+ * défaut, non paramétrable depuis notre API (audit Editing Bench, P0-2).
+ */
+export const CLIP_TRANSITION_SECONDS = 0.6;
+
 /** Familles de police proposées. La clé est stable, le nom peut changer. */
 export type FontKey = "sans" | "serif" | "mono" | "condensed" | "rounded" | "display";
 
@@ -1116,32 +1123,72 @@ export interface ActiveClip {
   clip: Clip;
   /** Position correspondante DANS LA SOURCE. */
   sourceTime: number;
+  /**
+   * Opacité de composition — 1 sauf pendant un fondu enchaîné, où le plan
+   * sortant et le plan entrant sont tous deux renvoyés avec une opacité
+   * complémentaire. Jusqu'ici l'aperçu ignorait totalement `transitionIn` :
+   * aucune des deux moitiés de la coupe n'était visible en fondu (audit
+   * Editing Bench, P0-2).
+   */
+  opacity: number;
+  /** true = plan SORTANT, maintenu sur sa dernière image le temps du fondu. */
+  frozen?: boolean;
 }
 
 /**
  * Tous les plans joués à l'instant `time`, de la piste de base vers le dessus.
  * Le dernier de la liste est celui qu'on voit par-dessus les autres.
+ *
+ * Pendant la fenêtre de transition d'un plan (son `transitionIn`), le plan
+ * PRÉCÉDENT de la même piste est réinjecté — figé sur sa dernière image — avec
+ * une opacité décroissante, pendant que le plan entrant monte en fondu. Les
+ * deux plans occupent ainsi le même créneau sans changer la durée du montage.
  */
 export function clipsAt(p: EditorProject, time: number): ActiveClip[] {
-  return p.clips
+  const current = p.clips
     .filter((c) => time >= c.start - EPS && time < c.start + c.length - EPS)
-    .sort((a, b) => a.track - b.track)
-    .map((c) => ({ clip: c, sourceTime: c.trimStart + (time - c.start) * c.speed }));
+    .sort((a, b) => a.track - b.track);
+
+  const out: ActiveClip[] = [];
+  for (const c of current) {
+    const outgoing = c.transitionIn !== "none"
+      ? p.clips.find((o) => o.track === c.track && Math.abs(o.start + o.length - c.start) < EPS)
+      : undefined;
+    // Bornée à la moitié de chaque plan : un fondu ne peut pas durer plus
+    // longtemps que ce qu'il consomme de part et d'autre de la coupe.
+    const span = outgoing ? Math.min(CLIP_TRANSITION_SECONDS, c.length / 2, outgoing.length / 2) : 0;
+
+    if (outgoing && span > EPS && time < c.start + span - EPS) {
+      const fade = clamp((time - c.start) / span, 0, 1);
+      out.push({
+        clip: outgoing,
+        sourceTime: outgoing.trimStart + outgoing.length * outgoing.speed,
+        opacity: 1 - fade,
+        frozen: true,
+      });
+      out.push({ clip: c, sourceTime: c.trimStart + (time - c.start) * c.speed, opacity: fade });
+      continue;
+    }
+    out.push({ clip: c, sourceTime: c.trimStart + (time - c.start) * c.speed, opacity: 1 });
+  }
+  return out;
 }
 
 /**
  * Plan de la piste de BASE joué à l'instant `time`.
  * Conservé pour tout ce qui n'a besoin que du fond : cadrage, son d'origine.
+ * Pendant un fondu, c'est le plan ENTRANT qui fait autorité — jamais la copie
+ * figée du plan sortant.
  */
 export function clipAt(p: EditorProject, time: number): ActiveClip | null {
-  const active = clipsAt(p, time);
+  const active = clipsAt(p, time).filter((a) => a.clip.track === 0 && !a.frozen);
   if (active.length > 0) return active[0];
 
   // Après la fin du film, on reste sur la dernière image plutôt que sur du noir.
   const base = p.clips.filter((c) => c.track === 0);
   const last = base.reduce<Clip | null>((acc, c) => (!acc || c.start > acc.start ? c : acc), null);
   if (last && time >= last.start + last.length - EPS) {
-    return { clip: last, sourceTime: last.trimStart + last.length * last.speed };
+    return { clip: last, sourceTime: last.trimStart + last.length * last.speed, opacity: 1 };
   }
   return null;
 }

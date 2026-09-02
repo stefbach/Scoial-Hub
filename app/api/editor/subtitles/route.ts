@@ -1,4 +1,4 @@
-// POST /api/editor/subtitles { companyId, src, lang? }
+// POST /api/editor/subtitles { companyId, src, lang?, task? }
 //   → { segments: [{ start, end, text }] }
 //
 // Transcrit une piste parlée en segments minutés, que le banc de montage
@@ -8,6 +8,12 @@
 // vidéo et rend un fichier fini : impossible de corriger une faute ou de
 // recaler un mot. Ici, la transcription est une donnée — l'utilisateur reste
 // maître du texte, de son minutage et de son style.
+//
+// `lang` (optionnel) FORCE la langue parlée — sans lui, Whisper la détecte
+// lui-même. Jusqu'ici le banc envoyait systématiquement la langue de
+// L'INTERFACE (fr/en uniquement), pas celle réellement parlée dans le média :
+// une voix espagnole sur une interface en français ressortait forcée en
+// français, donc mal transcrite (audit Editing Bench, P1-7).
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -15,13 +21,14 @@ export const maxDuration = 120;
 import { NextRequest, NextResponse } from "next/server";
 import { requireCompanyAccess } from "@/lib/auth/guard";
 import { transcribe } from "@/lib/ai/replicate";
+import { SUBTITLE_LANG_CODES } from "@/lib/ai/subtitle-langs";
 
 /** Longueur au-delà de laquelle un segment devient illisible à l'écran. */
 const MAX_CHARS = 90;
 
 export async function POST(req: NextRequest) {
   try {
-    const body = (await req.json()) as { companyId?: string; src?: string; lang?: string };
+    const body = (await req.json()) as { companyId?: string; src?: string; lang?: string; task?: string };
     const guard = await requireCompanyAccess(body.companyId, { mode: "edit" });
     if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
 
@@ -33,7 +40,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Média source publiquement accessible requis." }, { status: 400 });
     }
 
-    const result = await transcribe(src, body.lang === "en" ? "en" : body.lang === "fr" ? "fr" : undefined);
+    const lang = body.lang && SUBTITLE_LANG_CODES.has(body.lang) ? body.lang : undefined;
+    const task = body.task === "translate" ? "translate" : "transcribe";
+    const result = await transcribe(src, lang, task);
     if (result.error === "not-configured") {
       return NextResponse.json(
         { error: "Transcription non configurée (REPLICATE_API_TOKEN absent)." },

@@ -30,6 +30,7 @@ import {
   type AnimationKind,
   type EditorProject,
   type TransitionKind,
+  type TextLayer,
   type VisualLayer,
 } from "@/lib/editor/project";
 import { FONT_STACKS } from "@/lib/editor/draw";
@@ -51,7 +52,7 @@ const ANIMATIONS: { key: AnimationKind; fr: string; en: string }[] = [
 export function PropertyPanel({
   project,
   selection,
-  multiCount = 0,
+  multiSelectionItems = [],
   playhead,
   brand,
   onChange,
@@ -60,14 +61,17 @@ export function PropertyPanel({
   project: EditorProject;
   selection: TimelineSelection;
   /**
-   * Nombre total d'éléments d'une sélection multiple (0 ou 1 = sélection
+   * Éléments d'une sélection multiple (vide ou un seul élément = sélection
    * simple, comportement inchangé). Éditer les propriétés détaillées d'un
    * SEUL des éléments d'un groupe sans le dire donnerait l'illusion que le
    * réglage s'applique à tous — on affiche donc un résumé neutre à la place
-   * plutôt que le panneau complet du seul élément principal (audit Editing
-   * Bench, P2-4).
+   * plutôt que le panneau complet du seul élément principal, SAUF si tout le
+   * groupe est du même type « texte » : c'est alors le lot de sous-titres
+   * qu'une transcription vient de poser, et un réglage commun (couleur,
+   * police, gras) redevient un besoin réel plutôt qu'une ambiguïté (audit
+   * Editing Bench, P2-10).
    */
-  multiCount?: number;
+  multiSelectionItems?: NonNullable<TimelineSelection>[];
   playhead: number;
   brand: BrandStyle;
   onChange: (fn: (p: EditorProject) => EditorProject) => void;
@@ -87,19 +91,59 @@ export function PropertyPanel({
     );
   }
 
-  if (multiCount > 1) {
+  if (multiSelectionItems.length > 1) {
+    const allTexts = multiSelectionItems.every((s) => s.kind === "text");
+    if (!allTexts) {
+      return (
+        <div className="space-y-2 p-2 text-2xs text-muted">
+          <p>
+            {t(`${multiSelectionItems.length} éléments sélectionnés.`, `${multiSelectionItems.length} elements selected.`)}
+          </p>
+          <p>
+            {t(
+              "Utilisez Dupliquer ou Supprimer (barre d'outils, clic droit, ou Ctrl/⌘+D et Suppr) pour agir sur le groupe entier.",
+              "Use Duplicate or Delete (toolbar, right-click, or Ctrl/⌘+D and Delete) to act on the whole group."
+            )}
+          </p>
+        </div>
+      );
+    }
+
+    const textIds = multiSelectionItems.map((s) => s.id);
+    /** Applique un patch commun à TOUS les textes du groupe, en une seule
+        entrée d'historique — jamais une par élément reformaté. */
+    const batchText = (patch: Partial<TextLayer>) =>
+      onChange((p) => textIds.reduce((acc, id) => updateText(acc, id, patch), p));
+    const first = project.texts.find((l) => l.id === textIds[0]);
+
     return (
-      <div className="space-y-2 p-2 text-2xs text-muted">
-        <p>
-          {t(`${multiCount} éléments sélectionnés.`, `${multiCount} elements selected.`)}
-        </p>
-        <p>
+      <Panel title={t(`${textIds.length} sous-titres sélectionnés`, `${textIds.length} subtitles selected`)}>
+        <p className="text-2xs text-muted">
           {t(
-            "Utilisez Dupliquer ou Supprimer (barre d'outils, clic droit, ou Ctrl/⌘+D et Suppr) pour agir sur le groupe entier.",
-            "Use Duplicate or Delete (toolbar, right-click, or Ctrl/⌘+D and Delete) to act on the whole group."
+            "Réglage commun à tout le groupe — utile après une transcription automatique. Dupliquer/Supprimer (barre d'outils, clic droit) agissent aussi sur le groupe entier.",
+            "Setting applied to the whole group — useful right after an automatic transcription. Duplicate/Delete (toolbar, right-click) also act on the whole group."
           )}
         </p>
-      </div>
+        <SelectRow
+          label={t("Police", "Font")} value={first?.font ?? "sans"}
+          options={Object.entries(FONT_STACKS).map(([key, f]) => ({ value: key, label: f.label }))}
+          onChange={(v) => batchText({ font: v as TextLayer["font"] })}
+        />
+        <div className="flex flex-wrap items-center gap-1.5">
+          {[...PRESET_COLORS, ...brand.palette].slice(0, 10).map((c, i) => (
+            <button key={`${c}-${i}`} type="button" aria-label={c}
+              onClick={() => batchText({ color: c })}
+              className="h-5 w-5 rounded-full ring-1 ring-hair"
+              style={{ background: c }} />
+          ))}
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Toggle on={Boolean(first?.bold)} onClick={() => batchText({ bold: !first?.bold })}>G</Toggle>
+          <Toggle on={Boolean(first?.bg)} onClick={() => batchText({ bg: !first?.bg })}>▬</Toggle>
+          <Toggle on={Boolean(first?.outline)} onClick={() => batchText({ outline: !first?.outline })}>◌</Toggle>
+          <Toggle on={Boolean(first?.shadow)} onClick={() => batchText({ shadow: !first?.shadow })}>◍</Toggle>
+        </div>
+      </Panel>
     );
   }
 

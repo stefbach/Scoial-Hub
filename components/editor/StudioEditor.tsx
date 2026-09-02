@@ -587,10 +587,12 @@ export function StudioEditor({
       const d = (await res.json().catch(() => ({}))) as { segments?: { start: number; end: number; text: string }[]; error?: string };
       if (!res.ok || !d.segments?.length) throw new Error(d.error ?? t("aucun segment", "no segment"));
 
+      const newIds: string[] = [];
       apply((p) => {
         let next = p;
         for (const seg of d.segments!) {
           const id = nextId("t");
+          newIds.push(id);
           next = addText(next, id, seg.text);
           // Bandeau bas, lisible sur n'importe quel fond — la convention du
           // sous-titrage social.
@@ -602,6 +604,14 @@ export function StudioEditor({
         }
         return next;
       });
+      // Le lot entier part sélectionné : reformater ou supprimer une
+      // transcription qui ne convient pas exigeait jusqu'ici de reprendre
+      // chaque sous-titre un par un — souvent plusieurs dizaines pour une
+      // vidéo de quelques minutes (audit Editing Bench, P2-10).
+      if (newIds.length > 0) {
+        setSelection({ kind: "text", id: newIds[newIds.length - 1] });
+        setMultiSelection(new Map(newIds.map((id) => [`text:${id}`, { kind: "text" as const, id }])));
+      }
       setNote(t(`${d.segments.length} sous-titres posés — relisez-les avant publication.`,
         `${d.segments.length} subtitles added — proofread before publishing.`));
     } catch (e) {
@@ -1134,7 +1144,7 @@ export function StudioEditor({
               <PropertyPanel
                 project={project}
                 selection={selection}
-                multiCount={multiSelection.size > 0 ? selectedItems().length : 0}
+                multiSelectionItems={multiSelection.size > 0 ? selectedItems() : []}
                 playhead={playhead}
                 brand={brand}
                 onChange={apply}

@@ -170,6 +170,7 @@ export function PropertyPanel({
                 <NumberRow label={t("Largeur", "Width")} unit="%" value={image.scale * 100} step={1} compact
                   onChange={(v) => onChange((p) => updateImageLayer(p, image.id, { scale: v / 100 }))} />
                 <NumberRow label={t("Hauteur", "Height")} unit="%" value={image.heightPct * 100} step={1} compact
+                  autoLabel={t("auto", "auto")}
                   onChange={(v) => onChange((p) => updateImageLayer(p, image.id, { heightPct: v / 100 }))} />
               </>
             )}
@@ -401,18 +402,29 @@ function Range({
  * clavier : tout passait par un curseur ou un glisser, donc à l'estime.
  */
 function NumberRow({
-  label, unit, value, step, min, max, compact, onChange,
+  label, unit, value, step, min, max, compact, onChange, autoLabel,
 }: {
   label: string; unit: string; value: number; step: number;
   min?: number; max?: number; compact?: boolean;
   onChange: (v: number) => void;
+  /**
+   * Si fourni, une valeur de 0 affiche ce texte en filigrane plutôt que le
+   * chiffre « 0 » — pour un champ où 0 signifie « valeur déduite », pas une
+   * dimension réellement nulle (ex. hauteur d'incrustation : project.ts,
+   * heightPct: 0 = déduite du rapport natif de l'image). Sans ça, le champ
+   * se lisait comme si l'élément avait été aplati à zéro (audit Editing
+   * Bench, P1-11).
+   */
+  autoLabel?: string;
 }) {
+  const isAuto = autoLabel !== undefined && value === 0;
   return (
     <label className={`flex items-center gap-1.5 text-2xs text-muted ${compact ? "" : "w-full"}`}>
       <span className={compact ? "w-14 shrink-0" : "w-20 shrink-0"}>{label}</span>
       <input
         type="number"
-        value={Number.isFinite(value) ? Math.round(value * 100) / 100 : 0}
+        value={isAuto ? "" : Number.isFinite(value) ? Math.round(value * 100) / 100 : 0}
+        placeholder={isAuto ? autoLabel : undefined}
         step={step}
         min={min}
         max={max}
@@ -420,7 +432,12 @@ function NumberRow({
           const v = Number(e.target.value);
           if (Number.isFinite(v)) onChange(v);
         }}
-        className="w-full min-w-0 rounded-md border border-hair bg-transparent px-1.5 py-0.5 text-right tabular-nums text-ink"
+        // Les flèches natives d'incrément consomment à elles seules ~16 px —
+        // dans une colonne de 300 px partagée en deux, il ne restait presque
+        // plus de place pour le CHIFFRE : une opacité de 100 % s'affichait
+        // tronquée en « 10 » (valeur réelle correcte, seul l'affichage était
+        // en cause — audit Editing Bench, P1-12).
+        className="w-full min-w-0 rounded-md border border-hair bg-transparent px-1 py-0.5 text-right tabular-nums text-ink placeholder:text-muted placeholder:italic [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
       />
       <span className="shrink-0">{unit}</span>
     </label>

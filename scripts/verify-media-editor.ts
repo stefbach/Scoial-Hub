@@ -127,6 +127,19 @@ async function main() {
     check("A-05 · reprise d'un projet existant", /\?id=\$\{encodeURIComponent\(projectId\)\}/.test(studio));
   }
 
+  // ── P2-19 · Indicateur de sauvegarde (audit Editing Bench v3) ────────────
+  // L'enregistrement automatique tournait déjà toutes les 10 s, mais rien à
+  // l'écran ne le montrait — et un échec de sauvegarde marquait `dirty` à
+  // false SANS avoir réellement sauvegardé, empêchant toute nouvelle tentative.
+  {
+    check("P2-19 · un horodatage de sauvegarde est affiché",
+      /setLastSavedAt\(new Date\(\)\)/.test(studio) && /toLocaleTimeString/.test(studio));
+    check("P2-19 · les modifications non enregistrées sont visibles",
+      /setDirtyDisplay\(true\)/.test(studio) && /Modifications non enregistrées/.test(studio));
+    check("P2-19 · un échec de sauvegarde ne marque plus le projet comme à jour",
+      /L'échec laisse `dirty` à true/.test(studio));
+  }
+
   // ── A-07 · Composition, formats et reprise (lot 3) ───────────────────────
   {
     const library = read("components/editor/ProjectLibrary.tsx");
@@ -281,6 +294,22 @@ async function main() {
     }
     check("B-08 · saisie numérique généralisée", /function NumberRow\(/.test(panel));
     check("B-08 · manipulation directe conservée", /mode: "resize"/.test(preview) && /mode: "rotate"/.test(preview));
+  }
+
+  // ── P1-11 / P1-12 · Champs numériques du panneau (audit Editing Bench v3) ──
+  // Vérifié par capture d'écran réelle (Playwright) pendant le développement :
+  // une opacité de 100 % s'affichait tronquée en « 10 » (la vraie valeur était
+  // correcte — seules les flèches natives d'incrément, jamais masquées,
+  // dévoraient toute la largeur disponible dans une colonne de 300 px
+  // partagée en deux) ; le champ Hauteur d'une incrustation affichait un « 0 »
+  // en dur au lieu de signaler qu'il s'agit d'une valeur déduite.
+  {
+    check("P1-11 · le champ Hauteur affiche « auto », pas un 0 en dur",
+      /autoLabel=\{t\("auto", "auto"\)\}/.test(panel));
+    check("P1-11 · NumberRow sait afficher un filigrane à la place de 0",
+      /const isAuto = autoLabel !== undefined && value === 0/.test(panel));
+    check("P1-12 · les flèches natives d'incrément ne dévorent plus le champ",
+      /\[&::-webkit-inner-spin-button\]:appearance-none/.test(panel));
   }
 
   // ── B-12 · Alignement et aimantation ─────────────────────────────────────

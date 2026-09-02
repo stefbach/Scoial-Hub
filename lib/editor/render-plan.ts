@@ -189,6 +189,7 @@ export function toServerEdit(p: EditorProject, callback?: string) {
     ...(c.fit === "cover" && (c.focusX !== 0.5 || c.focusY !== 0.5)
       ? { offset: { x: 0.5 - c.focusX, y: c.focusY - 0.5 } }
       : {}),
+    ...(c.opacity !== 1 ? { opacity: c.opacity } : {}),
     ...(CLIP_TRANSITION[c.transitionIn] ? { transition: { in: CLIP_TRANSITION[c.transitionIn] } } : {}),
   }));
 

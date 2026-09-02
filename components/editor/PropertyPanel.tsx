@@ -19,6 +19,7 @@ import {
   projectDuration,
   setClipFraming,
   setClipLength,
+  setClipOpacity,
   setClipSpeed,
   setClipTransition,
   updateAudio,
@@ -139,6 +140,17 @@ export function PropertyPanel({
                 display={`${Math.round(clip.focusY * 100)}%`}
                 onChange={(v) => onChange((p) => setClipFraming(p, clip.id, { focusY: v }))} />
             </>
+          )}
+
+          {clip.track > 0 && (
+            // L'opacité d'un plan n'a d'usage réel que sur une piste
+            // d'incrustation — la piste de base couvre déjà tout le cadre, la
+            // faire disparaître en fondu ne ferait qu'exposer du noir en
+            // dessous (audit Editing Bench, P2-1 / P2-2).
+            <NumberRow
+              label={t("Opacité", "Opacity")} unit="%" value={clip.opacity * 100} step={5} min={0} max={100}
+              onChange={(v) => onChange((p) => setClipOpacity(p, clip.id, v / 100))}
+            />
           )}
 
           <SelectRow

@@ -197,6 +197,18 @@ async function main() {
     check("P3-3 · l'ancien nommage divergent a disparu", !/t\("Superposée", "Overlay"\)/.test(panel));
   }
 
+  // ── P2-1 / P2-2 · Un plan n'avait aucune propriété commune aux calques
+  // visuels (audit Editing Bench v3) ───────────────────────────────────────
+  // L'opacité existait sur texte, image et forme (`VisualLayer`) mais pas sur
+  // un plan : une incrustation vidéo ne pouvait ni s'estomper, ni se fondre
+  // progressivement dans le montage. Champ ajouté au modèle (`Clip.opacity`,
+  // `setClipOpacity`) puis exposé ici — réservé aux pistes d'incrustation, la
+  // piste de base couvrant déjà tout le cadre.
+  {
+    check("P2-1/P2-2 · l'opacité d'un plan d'incrustation est réglable dans le panneau",
+      /clip\.track > 0 &&/.test(panel) && /setClipOpacity\(p, clip\.id, v \/ 100\)/.test(panel));
+  }
+
   // ── P0-4 · Le rendu serveur rend la main (audit Editing Bench v3) ────────
   // Avant ce correctif, la fonction s'arrêtait dès la soumission du montage :
   // aucune progression, aucune récupération, aucun résultat affiché. Le

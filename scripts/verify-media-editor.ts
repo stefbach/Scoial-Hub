@@ -304,10 +304,22 @@ async function main() {
     check("B-04 · la position n'est plus imposée", !/\/\/ ← position IMPOSÉE/.test(projectSrc) && /export function moveClip\(/.test(projectSrc));
     check("B-04 · la timeline affiche chaque piste", /usedTracks\(project\)\]\.reverse\(\)/.test(timeline));
     check("B-04 · un plan change de piste au glisser", /onMoveClip\(d\.clipId, \{ track, start \}\)/.test(timeline));
-    check("B-04 · l'aperçu empile les plans", /active\.map\(\(\{ clip \}\)/.test(preview));
+    check("B-04 · l'aperçu empile les plans", /active\.map\(\(\{ clip, opacity \}\)/.test(preview));
     check("B-04 · le rendu serveur empile les pistes", /\.sort\(\(a, b\) => b - a\)/.test(plan));
     check("B-02 · sous-pistes calculées par le modèle", /function packLanes<T/.test(projectSrc));
     check("B-02 · la timeline leur donne de la place", /LANE_H \* l\.rows/.test(timeline));
+  }
+
+  // ── P0-2 · Le fondu enchaîné se voit dans l'aperçu (audit Editing Bench v3) ──
+  // Avant ce correctif, ni Preview.tsx ni draw.ts ne référençaient jamais
+  // transitionIn : la coupe entre deux plans était toujours sèche à l'écran,
+  // quel que soit le réglage choisi dans le panneau de propriétés.
+  {
+    const projectSrc = read("lib/editor/project.ts");
+    check("P0-2 · clipsAt compose le plan sortant ET le plan entrant", /frozen: true/.test(projectSrc));
+    check("P0-2 · l'opacité de composition est transmise à l'aperçu", /opacity \}\)/.test(preview));
+    check("P0-2 · le plan sortant est figé sur sa dernière image, jamais relancé",
+      /if \(frozen\) \{[\s\S]{0,200}v\.pause\(\)/.test(preview));
   }
 
   // ── B-06 / B-07 / B-13 / B-14 / B-15 · Enrichissement ───────────────────

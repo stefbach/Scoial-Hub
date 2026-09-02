@@ -221,9 +221,17 @@ export function Preview({
   const originalMuted = project.audios.some((a) => a.role === "original" && a.muted);
 
   useEffect(() => {
-    for (const { clip, sourceTime } of active) {
+    for (const { clip, sourceTime, frozen } of active) {
       const v = videoRefs.current.get(clip.id);
       if (!v || clip.kind !== "video") continue;
+      // Plan SORTANT pendant un fondu : figé sur sa dernière image, jamais
+      // relancé — la lecture normale reprendrait depuis ce point au lieu de
+      // rester immobile pendant que l'opacité descend (P0-2).
+      if (frozen) {
+        if (Math.abs(v.currentTime - sourceTime) > 0.05) v.currentTime = sourceTime;
+        if (!v.paused) v.pause();
+        continue;
+      }
       if (Math.abs(v.currentTime - sourceTime) > 0.25) v.currentTime = sourceTime;
       v.playbackRate = clip.speed;
       v.volume = volume;
@@ -384,8 +392,11 @@ export function Preview({
             }}
             className="absolute left-0 top-0 overflow-hidden bg-black"
           >
-            {/* Plans, de la piste de base vers le dessus */}
-            {active.map(({ clip }) =>
+            {/* Plans, de la piste de base vers le dessus. `opacity` compose le
+                fondu enchaîné entre le plan sortant et le plan entrant — sans
+                elle, une transition ne se voyait jamais avant l'export
+                (audit Editing Bench, P0-2). */}
+            {active.map(({ clip, opacity }) =>
               clip.kind === "video" ? (
                 // eslint-disable-next-line jsx-a11y/media-has-caption
                 <video
@@ -394,7 +405,7 @@ export function Preview({
                   src={clip.src}
                   playsInline
                   preload="metadata"
-                  style={{ objectPosition: `${clip.focusX * 100}% ${clip.focusY * 100}%` }}
+                  style={{ objectPosition: `${clip.focusX * 100}% ${clip.focusY * 100}%`, opacity }}
                   className={`absolute inset-0 h-full w-full ${clip.fit === "contain" ? "object-contain" : "object-cover"}`}
                 />
               ) : (
@@ -403,7 +414,7 @@ export function Preview({
                   key={clip.id}
                   src={clip.src}
                   alt=""
-                  style={{ objectPosition: `${clip.focusX * 100}% ${clip.focusY * 100}%` }}
+                  style={{ objectPosition: `${clip.focusX * 100}% ${clip.focusY * 100}%`, opacity }}
                   className={`absolute inset-0 h-full w-full ${clip.fit === "contain" ? "object-contain" : "object-cover"}`}
                 />
               )

@@ -538,6 +538,25 @@ async function main() {
       /addImageLayer\(p, nextId\("i"\), url, undefined, playhead\)/.test(studio));
   }
 
+  // ── P3-1 · Infobulles sur les boutons à symbole seul (audit Editing Bench
+  // v3, Lot 4) ────────────────────────────────────────────────────────────
+  // G, ▬, ◌, ◍, les flèches d'alignement, muet/audible : des boutons à
+  // symbole seul, sans le moindre texte, sans infobulle ni lecteur d'écran.
+  {
+    check("P3-1 · Toggle porte désormais un titre explicatif (infobulle + lecteur d'écran)",
+      /function Toggle\(\{ on, onClick, title, children \}/.test(panel) &&
+      /aria-label=\{title\}/.test(panel));
+    check("P3-1 · Gras/Bandeau/Contour/Ombre sont expliqués sur le panneau texte",
+      /title=\{t\("Gras", "Bold"\)\}/.test(panel) &&
+      /title=\{t\("Bandeau", "Background band"\)\}/.test(panel) &&
+      /title=\{t\("Contour", "Outline"\)\}/.test(panel) &&
+      /title=\{t\("Ombre", "Shadow"\)\}/.test(panel));
+    check("P3-1 · l'alignement de texte est expliqué, pas seulement dessiné en flèches",
+      /Aligné à gauche/.test(panel) && /Aligné à droite/.test(panel));
+    check("P3-1 · muet/audible s'explique sans avoir à deviner l'émoji",
+      /Muet — cliquer pour réactiver/.test(panel) || /Muted — click to unmute/.test(panel));
+  }
+
   console.log(`\n${failures === 0 ? "✓ TOUT VERT" : `✗ ${failures} échec(s)`}\n`);
   process.exit(failures === 0 ? 0 : 1);
 }

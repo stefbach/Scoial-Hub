@@ -127,7 +127,14 @@ export function GlobeHero() {
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-    renderer.domElement.style.cssText = "position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab;";
+    // `touch-action:pan-y pinch-zoom` (et non `none`) : un `none` ici
+    // bloquait le scroll vertical de la page dès qu'on touchait le globe
+    // (qui occupe tout le premier écran sur mobile) — le navigateur ne
+    // laissait plus jamais passer le geste au scroll. Avec `pan-y`, un
+    // glissé vertical fait défiler la page normalement ; un glissé
+    // horizontal continue de faire tourner le globe (le pinch-zoom de la
+    // page, déjà activé via le viewport, reste permis explicitement).
+    renderer.domElement.style.cssText = "position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:pan-y pinch-zoom;cursor:grab;";
     wrap.appendChild(renderer.domElement);
 
     scene.add(new THREE.AmbientLight(0xffffff, 1.15));

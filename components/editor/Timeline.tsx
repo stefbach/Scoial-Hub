@@ -24,6 +24,7 @@ import {
   MIN_CLIP_SECONDS,
   projectDuration,
   usedTracks,
+  type AudioRole,
   type Clip,
   type EditorProject,
   type TimedLayerKind,
@@ -444,13 +445,27 @@ export function Timeline({
     });
   }
 
-  if (project.audios.length > 0) {
+  // Une piste par RÔLE — son d'origine, voix off, musique — plutôt qu'un
+  // seul bandeau « Audio » indifférencié. Le panneau de propriétés distingue
+  // déjà les trois par leur catégorie (audit Editing Bench, P3-2) ; la
+  // timeline restait le seul endroit à tout mélanger sous une étiquette
+  // générique, alors que trois pistes son simultanées (l'usage le plus
+  // courant : son d'origine + voix off + musique) devenaient impossibles à
+  // distinguer d'un coup d'œil (audit Editing Bench, P1-4).
+  const AUDIO_ROLES: { role: AudioRole; fr: string; en: string }[] = [
+    { role: "original", fr: "Son d'origine", en: "Original audio" },
+    { role: "voice", fr: "Voix off", en: "Voiceover" },
+    { role: "music", fr: "Musique", en: "Music" },
+  ];
+  for (const { role, fr, en } of AUDIO_ROLES) {
+    const onRole = project.audios.filter((a) => a.role === role);
+    if (onRole.length === 0) continue;
     lanes.push({
-      key: "audio",
-      label: t("Audio", "Audio"),
-      rows: rowsOf(project.audios),
+      key: `audio-${role}`,
+      label: t(fr, en),
+      rows: rowsOf(onRole),
       blocks: layerBlocks(
-        project.audios, "audio", "audio",
+        onRole, "audio", "audio",
         (a) => a.name, (a) => a.length,
         (a) => ({ muted: a.muted })
       ),

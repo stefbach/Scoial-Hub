@@ -602,7 +602,10 @@ export function AiVisualsPanel({
                 className="h-full w-full object-cover"
               />
               {/* Actions : choisir ce visuel (→ aperçu + publication) ou télécharger */}
-              <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-1 bg-gradient-to-t from-black/70 to-transparent p-1 opacity-0 transition-opacity group-hover:opacity-100">
+              {/* `opacity-100` en dessous de `sm` : sans survol tactile réel, ces
+                  actions ("Utiliser", télécharger) étaient invisibles et donc
+                  inatteignables sur mobile — seul le hover desktop est conservé. */}
+              <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-1 bg-gradient-to-t from-black/70 to-transparent p-1 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
                 {onUse ? (
                   <button
                     onClick={() => handleUse(url, "image")}

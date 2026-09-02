@@ -149,13 +149,11 @@ export default function Home() {
 
   return (
     <div className="mc-root">
-      {/* Décor : mesh gradient + grain + réseau neuronal vivant pleine page */}
+      {/* Décor : mesh gradient + grain, discrets et statiques sur toute la page.
+          Le réseau neuronal vivant (NetworkCanvas) reste réservé au héros —
+          cf. plus bas — pour ne pas animer en continu derrière chaque section. */}
       <div className="mc-mesh" aria-hidden />
       <div className="mc-grain" aria-hidden />
-      <div className="mc-livenet" aria-hidden>
-        {/* Signature AXON : la constellation réagit au curseur sur TOUTE la page */}
-        <NetworkCanvas density={1} intensity={1.8} pointerTarget="window" />
-      </div>
 
       {/* ── Nav ── */}
       <header className="mc-nav">
@@ -177,6 +175,9 @@ export default function Home() {
       {/* ── Héros plein écran : la Terre — le monde à portée ── */}
       <section className="mc-hero2">
         <div className="mc-hero2-globe"><GoogleEarth /></div>
+        {/* Signature AXON : le réseau neuronal vivant, réservé au héros (plus
+            de couche pleine page derrière chaque section — cf. note plus haut). */}
+        <NetworkCanvas density={0.8} pointerTarget="parent" className="z-0" />
         <div className="mc-hero2-scrim" aria-hidden />
         <div className="mc-hero2-copy">
           <span className="mc-eyebrow">{t("Le hub social des PME — le monde à portée", "The social hub for small teams — the world within reach")}</span>

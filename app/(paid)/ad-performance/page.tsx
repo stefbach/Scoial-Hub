@@ -8,6 +8,7 @@ import { StudioHero } from "@/components/studio/StudioUI";
 import { IconBars } from "@/components/visual/Icons";
 import { MetricCard } from "@/components/ui/MetricCard";
 import { Pagination } from "@/components/ui/Pagination";
+import { ScrollFade } from "@/components/ui/ScrollFade";
 import { Dropdown, DropdownItem } from "@/components/ui/Dropdown";
 import { DatePicker } from "@/components/ui/DateTimePicker";
 import { MultiLineChart, type ChartSeries } from "@/components/charts/MultiLineChart";
@@ -835,7 +836,7 @@ function AdPerformanceContent() {
           </div>
 
           <div className="card mb-5 overflow-hidden">
-            <div className="overflow-x-auto">
+            <ScrollFade>
             <table className="w-full min-w-[40rem] text-sm">
               <thead>
                 <tr className="border-b border-hair bg-canvas/50 text-left">
@@ -920,7 +921,7 @@ function AdPerformanceContent() {
                 )}
               </tbody>
             </table>
-            </div>
+            </ScrollFade>
             {adsTotalPages > 1 && (
               <div className="border-t border-hair/60 px-5 pb-3">
                 <Pagination page={adsSafePage} totalPages={adsTotalPages} onChange={setAdsPage} />

@@ -10,6 +10,7 @@ import Link from "next/link";
 import { useCompany } from "@/lib/company-context";
 import { useT } from "@/lib/i18n";
 import { Spinner, BusyHint } from "@/components/ui/Spinner";
+import { ScrollFade } from "@/components/ui/ScrollFade";
 
 // ── Types des contrats API ────────────────────────────────────────────────────
 interface AdAccount {
@@ -399,7 +400,7 @@ export default function MetaAdsPublisher() {
                   {t("Aucune campagne sur ce compte pour l'instant.", "No campaigns on this account yet.")}
                 </p>
               ) : (
-                <div className="mt-2 overflow-x-auto">
+                <ScrollFade className="mt-2">
                   <table className="w-full min-w-[520px] border-collapse text-left text-xs">
                     <thead>
                       <tr className="border-b border-hair text-2xs uppercase tracking-wide text-muted">
@@ -426,7 +427,7 @@ export default function MetaAdsPublisher() {
                       ))}
                     </tbody>
                   </table>
-                </div>
+                </ScrollFade>
               )}
             </div>
           </>

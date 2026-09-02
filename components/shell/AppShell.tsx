@@ -6,6 +6,7 @@ import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { ReadOnlyBanner } from "./ReadOnlyBanner";
 import { Sidebar } from "./Sidebar";
+import { MobileTabBar } from "./MobileTabBar";
 import { CompanyIndicator } from "./CompanyIndicator";
 import { HelpButton } from "@/components/help/HelpButton";
 import { HelpTrigger } from "@/components/help/HelpTrigger";
@@ -268,11 +269,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         )}
 
-        <main className="min-w-0 flex-1 px-4 py-5 sm:px-6 sm:py-6 lg:px-7">
+        <main className="min-w-0 flex-1 px-4 pt-5 pb-24 sm:px-6 sm:pt-6 sm:pb-24 lg:px-7 lg:pb-6">
           <DemoBanner />
           <ReadOnlyBanner />
           {children}
         </main>
+
+        {/* Barre de navigation basse (mobile/tablette) : accès 1-tap aux tâches
+            quotidiennes ; "Plus" ouvre le même tiroir complet que le hamburger.
+            Rendue ICI (à l'intérieur de la rangée sidebar/contenu) et non en
+            enfant direct de `.app-shell` : une règle CSS globale force
+            `position: relative` sur les enfants directs de `.app-shell` (hors
+            header), ce qui casserait son `fixed`. À ce niveau elle partage en
+            revanche le même contexte d'empilement que le tiroir mobile
+            ci-dessus, donc `z-30` la garde sous le tiroir (`z-40`) quand il
+            est ouvert, et au-dessus du contenu normal quand il est fermé. */}
+        <MobileTabBar onMore={() => setNavOpen((v) => !v)} moreActive={navOpen} />
       </div>
 
       {/* Bouton d'aide : pastille violette fixe, en haut à droite sous l'avatar */}

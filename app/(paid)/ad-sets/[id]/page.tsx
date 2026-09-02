@@ -181,7 +181,7 @@ export default function AdSetDetailPage() {
       </div>
 
       {/* Metric cards */}
-      <div className="mb-5 grid grid-cols-4 gap-3">
+      <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <MetricCard label={t("Dépenses", "Spend")} value={eur(adSet.spend ?? 0)} />
         <MetricCard label={t("Impressions", "Impressions")} value={(adSet.impressions ?? 0).toLocaleString()} />
         <MetricCard label={t("Clics", "Clicks")} value={(adSet.clicks ?? 0).toLocaleString()} />
@@ -234,7 +234,7 @@ export default function AdSetDetailPage() {
           </div>
         </div>
       ) : (
-        <div className="mb-6 grid grid-cols-2 gap-3">
+        <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
           {ads.map((ad) => (
             <AdCard
               key={ad.id}

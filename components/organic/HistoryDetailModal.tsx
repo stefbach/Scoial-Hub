@@ -65,7 +65,7 @@ export function HistoryDetailModal({
         <button
           onClick={onClose}
           aria-label={t("Fermer", "Close")}
-          className="-mr-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-muted hover:bg-canvas hover:text-ink"
+          className="-mr-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted hover:bg-canvas hover:text-ink"
         >
           ✕
         </button>

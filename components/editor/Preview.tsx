@@ -283,7 +283,7 @@ export function Preview({
     | null
   >(null);
 
-  function startMove(e: React.PointerEvent, sel: NonNullable<TimelineSelection>, l: VisualLayer) {
+  function startMove(e: React.PointerEvent, sel: NonNullable<TimelineSelection>, l: { x: number; y: number }) {
     if (!onLayerChange) return;
     e.stopPropagation();
     onSelect(sel);
@@ -395,9 +395,25 @@ export function Preview({
             {/* Plans, de la piste de base vers le dessus. `opacity` compose le
                 fondu enchaîné entre le plan sortant et le plan entrant — sans
                 elle, une transition ne se voyait jamais avant l'export
-                (audit Editing Bench, P0-2). */}
-            {active.map(({ clip, opacity }) =>
-              clip.kind === "video" ? (
+                (audit Editing Bench, P0-2). Le cadre (x, y, w, h) borne la
+                zone dans laquelle `fit`/`focusX`/`focusY` recadrent la
+                source — plein cadre par défaut, réduit pour une incrustation
+                posée en fenêtre plutôt qu'en plein écran (P2-1). Seule une
+                piste d'incrustation (track > 0) se glisse : la piste de base
+                reste plein cadre, il n'y a rien à y déplacer. */}
+            {active.map(({ clip, opacity }) => {
+              const box: React.CSSProperties = {
+                position: "absolute",
+                left: clip.x * frame.width,
+                top: clip.y * frame.height,
+                width: clip.w * frame.width,
+                height: clip.h * frame.height,
+                objectPosition: `${clip.focusX * 100}% ${clip.focusY * 100}%`,
+                opacity,
+              };
+              const fitClass = clip.fit === "contain" ? "object-contain" : "object-cover";
+              const movable = clip.track > 0 && Boolean(onLayerChange);
+              return clip.kind === "video" ? (
                 // eslint-disable-next-line jsx-a11y/media-has-caption
                 <video
                   key={clip.id}
@@ -405,8 +421,11 @@ export function Preview({
                   src={clip.src}
                   playsInline
                   preload="metadata"
-                  style={{ objectPosition: `${clip.focusX * 100}% ${clip.focusY * 100}%`, opacity }}
-                  className={`absolute inset-0 h-full w-full ${clip.fit === "contain" ? "object-contain" : "object-cover"}`}
+                  onPointerDown={movable ? (e) => startMove(e, { kind: "clip", id: clip.id }, clip) : undefined}
+                  style={box}
+                  className={`h-full w-full ${fitClass} ${movable ? "cursor-move" : ""} ${
+                    selectedId === clip.id && movable ? "outline outline-[3px] outline-page" : ""
+                  }`}
                 />
               ) : (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -415,11 +434,14 @@ export function Preview({
                   src={clip.src}
                   alt=""
                   draggable={false}
-                  style={{ objectPosition: `${clip.focusX * 100}% ${clip.focusY * 100}%`, opacity }}
-                  className={`absolute inset-0 h-full w-full ${clip.fit === "contain" ? "object-contain" : "object-cover"}`}
+                  onPointerDown={movable ? (e) => startMove(e, { kind: "clip", id: clip.id }, clip) : undefined}
+                  style={box}
+                  className={`h-full w-full ${fitClass} ${movable ? "cursor-move" : ""} ${
+                    selectedId === clip.id && movable ? "outline outline-[3px] outline-page" : ""
+                  }`}
                 />
-              )
-            )}
+              );
+            })}
 
             {active.length === 0 && (
               <p className="flex h-full items-center justify-center px-8 text-center text-white/60"
@@ -723,28 +745,37 @@ function Handles({
   const t = useT();
   const ref = useRef<HTMLDivElement>(null);
 
-  const found = ((): { l: VisualLayer; w: number; h: number } | null => {
+  const found = ((): { x: number; y: number; rotation: number; canRotate: boolean; w: number; h: number } | null => {
     if (selection.kind === "text") {
       const l = project.texts.find((x) => x.id === selection.id);
       // Un texte n'a pas de largeur propre tant qu'il n'a pas de retour à la
       // ligne : la poignée agit alors sur la largeur de retour.
-      return l ? { l, w: l.wrapPct || 0.4, h: 0 } : null;
+      return l ? { x: l.x, y: l.y, rotation: l.rotation, canRotate: true, w: l.wrapPct || 0.4, h: 0 } : null;
     }
     if (selection.kind === "image") {
       const l = project.images.find((x) => x.id === selection.id);
-      return l ? { l, w: l.scale, h: l.heightPct } : null;
+      return l ? { x: l.x, y: l.y, rotation: l.rotation, canRotate: true, w: l.scale, h: l.heightPct } : null;
     }
     if (selection.kind === "shape") {
       const l = project.shapes.find((x) => x.id === selection.id) as ShapeLayer | undefined;
-      return l ? { l, w: l.w, h: l.h } : null;
+      return l ? { x: l.x, y: l.y, rotation: l.rotation, canRotate: true, w: l.w, h: l.h } : null;
+    }
+    if (selection.kind === "clip") {
+      const c = project.clips.find((x) => x.id === selection.id);
+      // Piste de base : rien à déplacer, elle occupe toujours tout le cadre.
+      if (!c || c.track === 0) return null;
+      // Pas de rotation sur un plan — champ que `Clip` n'a délibérément pas
+      // reçu, faute de savoir ce qu'une rotation de vidéo signifie pour le
+      // moteur de rendu serveur (P2-1, restreint à position et taille).
+      return { x: c.x, y: c.y, rotation: 0, canRotate: false, w: c.w, h: c.h };
     }
     return null;
   })();
 
   if (!found) return null;
-  const { l, w, h } = found;
-  const left = l.x * frame.width * scale;
-  const top = l.y * frame.height * scale;
+  const { x, y, rotation, canRotate, w, h } = found;
+  const left = x * frame.width * scale;
+  const top = y * frame.height * scale;
   const width = w * frame.width * scale;
   const height = (h > 0 ? h * frame.height : 40) * scale;
 
@@ -752,7 +783,7 @@ function Handles({
     <div
       ref={ref}
       className="pointer-events-none absolute"
-      style={{ left, top, width, height, transform: `rotate(${l.rotation}deg)`, transformOrigin: "center" }}
+      style={{ left, top, width, height, transform: `rotate(${rotation}deg)`, transformOrigin: "center" }}
     >
       <span
         role="separator"
@@ -760,15 +791,17 @@ function Handles({
         onPointerDown={(e) => onResizeStart(e, selection, w, h)}
         className="pointer-events-auto absolute -bottom-1.5 -right-1.5 h-3 w-3 cursor-nwse-resize rounded-sm bg-page ring-2 ring-white"
       />
-      <span
-        role="separator"
-        aria-label={t("Pivoter", "Rotate")}
-        onPointerDown={(e) => {
-          const r = (e.currentTarget.parentElement as HTMLElement).getBoundingClientRect();
-          onRotateStart(e, selection, r.left + r.width / 2, r.top + r.height / 2, l.rotation);
-        }}
-        className="pointer-events-auto absolute -top-5 left-1/2 h-3 w-3 -translate-x-1/2 cursor-grab rounded-full bg-ai-visual ring-2 ring-white"
-      />
+      {canRotate && (
+        <span
+          role="separator"
+          aria-label={t("Pivoter", "Rotate")}
+          onPointerDown={(e) => {
+            const r = (e.currentTarget.parentElement as HTMLElement).getBoundingClientRect();
+            onRotateStart(e, selection, r.left + r.width / 2, r.top + r.height / 2, rotation);
+          }}
+          className="pointer-events-auto absolute -top-5 left-1/2 h-3 w-3 -translate-x-1/2 cursor-grab rounded-full bg-ai-visual ring-2 ring-white"
+        />
+      )}
     </div>
   );
 }

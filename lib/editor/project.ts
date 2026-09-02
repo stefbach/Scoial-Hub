@@ -125,6 +125,22 @@ export interface Clip {
    * commune que réclame l'audit (P2-1, P2-2).
    */
   opacity: number;
+  /**
+   * Position et taille du CADRE dans lequel le plan est rendu, en fraction du
+   * format de publication — pas une position dans le média source, qui reste
+   * gouvernée par `fit`/`focusX`/`focusY` À L'INTÉRIEUR de ce cadre. Par
+   * défaut (0, 0, 1, 1), le cadre est le format entier : c'est exactement le
+   * rendu d'avant ce champ, aucun projet existant n'en est changé.
+   *
+   * Sans lui, une incrustation vidéo occupait TOUJOURS tout le cadre : la
+   * vraie image dans l'image — une petite fenêtre dans un coin — était
+   * structurellement impossible, alors que `ShapeLayer` avait ce même bloc
+   * (x, y, w, h) depuis toujours (audit Editing Bench, P2-1).
+   */
+  x: number;
+  y: number;
+  w: number;
+  h: number;
   /** Traçabilité si le plan vient d'une bibliothèque externe (Lot A-3). */
   provenance?: Provenance;
 }
@@ -389,6 +405,12 @@ export function normalize(p: EditorProject): EditorProject {
         // Un projet enregistré avant ce réglage n'en porte pas : plein, comme
         // le rendu l'a toujours été.
         opacity: Number.isFinite(c.opacity) ? clamp(c.opacity, 0, 1) : 1,
+        // Un projet enregistré avant ce cadre personnalisé n'en porte pas non
+        // plus : le format entier, comme le rendu l'a toujours été.
+        x: Number.isFinite(c.x) ? c.x : 0,
+        y: Number.isFinite(c.y) ? c.y : 0,
+        w: Number.isFinite(c.w) && c.w > 0 ? c.w : 1,
+        h: Number.isFinite(c.h) && c.h > 0 ? c.h : 1,
       } as Clip;
     });
 
@@ -592,6 +614,7 @@ export function addClip(
     focusX: 0.5,
     focusY: 0.5,
     opacity: 1,
+    x: 0, y: 0, w: 1, h: 1,
     provenance: input.provenance,
   };
   return normalize({ ...p, clips: [...p.clips, clip] });
@@ -791,6 +814,32 @@ export function setClipFraming(
  */
 export function setClipOpacity(p: EditorProject, clipId: string, opacity: number): EditorProject {
   const clips = p.clips.map((c) => (c.id === clipId ? { ...c, opacity: clamp(opacity, 0, 1) } : c));
+  return normalize({ ...p, clips });
+}
+
+/**
+ * Position et taille du cadre d'un plan — ce qui manquait pour poser une
+ * incrustation vidéo en petite fenêtre plutôt qu'en plein cadre (P2-1). Même
+ * permissivité que `updateShape` : la largeur et la hauteur restent
+ * strictement positives, la position n'est pas bornée au cadre (un plan peut
+ * partiellement en sortir, comme un texte ou une forme).
+ */
+export function setClipBox(
+  p: EditorProject,
+  clipId: string,
+  patch: { x?: number; y?: number; w?: number; h?: number }
+): EditorProject {
+  const clips = p.clips.map((c) =>
+    c.id === clipId
+      ? {
+          ...c,
+          x: patch.x === undefined ? c.x : patch.x,
+          y: patch.y === undefined ? c.y : patch.y,
+          w: patch.w === undefined ? c.w : Math.max(0.02, patch.w),
+          h: patch.h === undefined ? c.h : Math.max(0.02, patch.h),
+        }
+      : c
+  );
   return normalize({ ...p, clips });
 }
 

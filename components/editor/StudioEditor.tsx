@@ -24,7 +24,7 @@ import {
   addAudio, addButton, addClip, addImageLayer, addShape, addText, duplicateAudio,
   duplicateClip, duplicateImageLayer, duplicateShape, duplicateText,
   emptyProject, FORMAT_SIZE, moveClip, moveLayerTime, projectDuration, removeAudio,
-  removeClip, removeImageLayer, removeShape, removeText, setClipFraming, setClipLength,
+  removeClip, removeImageLayer, removeShape, removeText, setClipBox, setClipFraming, setClipLength,
   setClipSpeed, setClipTransition, setTrackMeta, shapesAt, splitAt, splitAudioAt, splitLayerAt,
   trimClip, trimLayer,
   updateAudio, updateImageLayer, updateShape, updateText, usedTracks, visibleProject,
@@ -846,6 +846,11 @@ export function StudioEditor({
           ...(patch.w !== undefined ? { w: patch.w } : {}),
           ...(patch.h !== undefined ? { h: patch.h } : {}),
         });
+      }
+      if (sel.kind === "clip") {
+        // Pas de rotation sur un plan (P2-1) : `patch.rotation` n'a nulle part
+        // où aller ici, à la différence des trois autres types.
+        return setClipBox(p, sel.id, { x: patch.x, y: patch.y, w: patch.w, h: patch.h });
       }
       return p;
     });

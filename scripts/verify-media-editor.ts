@@ -207,6 +207,22 @@ async function main() {
   {
     check("P2-1/P2-2 · l'opacité d'un plan d'incrustation est réglable dans le panneau",
       /clip\.track > 0 &&/.test(panel) && /setClipOpacity\(p, clip\.id, v \/ 100\)/.test(panel));
+    // Position ET taille : la vraie « image dans l'image », une fenêtre
+    // d'incrustation posée dans un coin plutôt qu'un plan qui couvre
+    // toujours tout le cadre — la moitié la plus visible de P2-1.
+    check("P2-1 · le cadre (position, taille) d'un plan d'incrustation est réglable dans le panneau",
+      /setClipBox\(p, clip\.id, \{ x: v \/ 100 \}\)/.test(panel) &&
+      /setClipBox\(p, clip\.id, \{ y: v \/ 100 \}\)/.test(panel) &&
+      /setClipBox\(p, clip\.id, \{ w: v \/ 100 \}\)/.test(panel) &&
+      /setClipBox\(p, clip\.id, \{ h: v \/ 100 \}\)/.test(panel));
+    // Câblage côté aperçu : glisser-déposer et poignée de redimensionnement
+    // pour un plan, sans poignée de rotation (P2-1 exclut délibérément la
+    // rotation d'un plan, faute de savoir ce qu'elle signifie pour le
+    // moteur de rendu serveur).
+    check("P2-1 · un plan d'incrustation se glisse dans l'aperçu",
+      /startMove\(e, \{ kind: "clip", id: clip\.id \}, clip\)/.test(preview));
+    check("P2-1 · aucune poignée de rotation pour un plan",
+      /canRotate: false/.test(preview));
   }
 
   // ── P0-4 · Le rendu serveur rend la main (audit Editing Bench v3) ────────

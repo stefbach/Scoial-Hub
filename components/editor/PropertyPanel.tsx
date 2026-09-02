@@ -144,7 +144,10 @@ export function PropertyPanel({
           <SelectRow
             label={t("Piste", "Track")}
             value={String(clip.track)}
-            options={[0, 1, 2].map((n) => ({ value: String(n), label: n === 0 ? t("Base", "Base") : `${t("Superposée", "Overlay")} ${n}` }))}
+            // Même nommage que la timeline (Timeline.tsx) — qui appelait la
+            // même piste « Vidéo 2 » quand ce menu disait « Superposée 1 »
+            // pour LE MÊME numéro de piste (audit Editing Bench, P3-3).
+            options={[0, 1, 2].map((n) => ({ value: String(n), label: n === 0 ? t("Vidéo", "Video") : `${t("Vidéo", "Video")} ${n + 1}` }))}
             onChange={(v) => onChange((p) => ({ ...p, clips: p.clips.map((c) => (c.id === clip.id ? { ...c, track: Number(v) } : c)) }))}
           />
 
@@ -326,7 +329,16 @@ export function PropertyPanel({
 
       {/* ── Piste son ────────────────────────────────────────────────────── */}
       {audio && (
-        <Panel title={audio.name}>
+        // En-tête par CATÉGORIE, comme « Plan »/« Texte »/« Forme » — le
+        // panneau son affichait à la place le nom du fichier, seul type à
+        // rompre le motif (audit Editing Bench, P3-2). Le nom reste visible,
+        // en second, dans le corps du panneau.
+        <Panel title={
+          audio.role === "original" ? t("Son d'origine", "Original audio")
+          : audio.role === "voice" ? t("Voix off", "Voiceover")
+          : t("Musique", "Music")
+        }>
+          <p className="truncate text-2xs text-muted" title={audio.name}>{audio.name}</p>
           {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
           <audio src={audio.src} controls className="w-full" />
           <Range label={t("Volume", "Volume")} min={0} max={1} step={0.05} value={audio.volume}

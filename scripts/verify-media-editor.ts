@@ -182,6 +182,21 @@ async function main() {
       /draggable=\{false\}[\s\S]{0,80}onPointerDown=\{\(e\) => startMove\(e, \{ kind: "image"/.test(overlayImg));
   }
 
+  // ── P3-2 / P3-3 · En-tête et étiquettes incohérents (audit Editing Bench v3) ──
+  {
+    // P3-2 : le panneau son affichait le nom du FICHIER en en-tête, seul type
+    // à rompre le motif des autres panneaux (« Plan », « Texte », « Forme »),
+    // qui affichent tous une catégorie fixe.
+    check("P3-2 · le panneau son affiche une catégorie, pas le nom du fichier, en en-tête",
+      /title=\{\s*audio\.role === "original"/.test(panel));
+    // P3-3 : la même piste s'appelait « Vidéo 2 » dans la timeline mais
+    // « Superposée 1 » dans le sélecteur de piste du panneau — deux noms pour
+    // le même numéro de piste.
+    check("P3-3 · le sélecteur de piste du panneau reprend le nommage de la timeline",
+      /n === 0 \? t\("Vidéo", "Video"\) : `\$\{t\("Vidéo", "Video"\)\} \$\{n \+ 1\}`/.test(panel));
+    check("P3-3 · l'ancien nommage divergent a disparu", !/t\("Superposée", "Overlay"\)/.test(panel));
+  }
+
   // ── P0-4 · Le rendu serveur rend la main (audit Editing Bench v3) ────────
   // Avant ce correctif, la fonction s'arrêtait dès la soumission du montage :
   // aucune progression, aucune récupération, aucun résultat affiché. Le

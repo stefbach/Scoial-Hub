@@ -501,10 +501,29 @@ export function StudioEditor({
       }));
       return;
     }
-    apply((p) => addAudio(p, {
-      id: nextId("a"), src: asset.url, name: t("Musique de la bibliothèque", "Library music"),
-      role: "music", sourceDuration: asset.durationSec, provenance: asset.provenance,
-    }));
+    // La durée déclarée par le fournisseur (asset.durationSec) est une
+    // METADONNÉE, pas une mesure du fichier réellement livré — un écart
+    // programmait la piste plus longue que le son réel, et la lecture butait
+    // en fin de fichier à chaque boucle de resynchronisation (currentTime
+    // rappelé au-delà de la fin réelle) : la piste ajoutée par ce chemin
+    // était donc la seule à « saccader » (audit Editing Bench, P1-6). Le
+    // chemin d'import de fichier, lui, sonde déjà la vraie durée via l'élément
+    // <audio> — on fait maintenant de même ici.
+    const probe = document.createElement("audio");
+    probe.preload = "metadata";
+    probe.onloadedmetadata = () =>
+      apply((p) => addAudio(p, {
+        id: nextId("a"), src: asset.url, name: t("Musique de la bibliothèque", "Library music"),
+        role: "music",
+        sourceDuration: Number.isFinite(probe.duration) && probe.duration > 0 ? probe.duration : asset.durationSec,
+        provenance: asset.provenance,
+      }));
+    probe.onerror = () =>
+      apply((p) => addAudio(p, {
+        id: nextId("a"), src: asset.url, name: t("Musique de la bibliothèque", "Library music"),
+        role: "music", sourceDuration: asset.durationSec, provenance: asset.provenance,
+      }));
+    probe.src = asset.url;
   }, [apply, t]);
 
   /* ── Sous-titrage automatique ──────────────────────────────────────────── */

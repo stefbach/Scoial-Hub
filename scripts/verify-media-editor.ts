@@ -157,6 +157,17 @@ async function main() {
     check("A-07 · le rendu est rattaché au projet", /renderUrl: hosted\.url/.test(studio));
   }
 
+  // ── P1-6 / P1-8 / P2-8 · Points « à instruire » du Lot 1, débloqués par
+  // P0-4 (audit Editing Bench v3) ───────────────────────────────────────────
+  {
+    check("P1-6 · la musique de bibliothèque sonde sa vraie durée, pas la métadonnée déclarée",
+      /const probe = document\.createElement\("audio"\);[\s\S]{0,400}probe\.onloadedmetadata/.test(studio));
+    check("P1-8 / P2-8 · centrer/aligner un texte tient compte de son wrapPct",
+      /text && text\.wrapPct > 0 \? text\.wrapPct : undefined/.test(panel));
+    check("P1-8 / P2-8 · les boutons Centré/À droite utilisent cette largeur",
+      /x: centerX\(horizontalWidth\)/.test(panel) && /x: rightX\(horizontalWidth\)/.test(panel));
+  }
+
   // ── P0-4 · Le rendu serveur rend la main (audit Editing Bench v3) ────────
   // Avant ce correctif, la fonction s'arrêtait dès la soumission du montage :
   // aucune progression, aucune récupération, aucun résultat affiché. Le
@@ -315,7 +326,7 @@ async function main() {
   // ── B-12 · Alignement et aimantation ─────────────────────────────────────
   {
     check("B-12 · alignement du texte exposé", /updateText\(p, text\.id, \{ align: a \}\)/.test(panel));
-    check("B-12 · boutons d'alignement dans le cadre", /function AlignButton\(/.test(panel) && /centerX\(visual/.test(panel));
+    check("B-12 · boutons d'alignement dans le cadre", /function AlignButton\(/.test(panel) && /centerX\(horizontalWidth\)/.test(panel));
     check("B-12 · magnétisme au déplacement", /function snapTo\(/.test(preview) && /GUIDES_X/.test(preview));
     check("B-12 · repères visuels", /guides\.x !== null/.test(preview));
   }

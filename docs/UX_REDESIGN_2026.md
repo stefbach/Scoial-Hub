@@ -118,17 +118,27 @@ Base : `docs/UX_AUDIT.md` (6,1/10 simplicité) + revue de code ciblée mobile
   de campagnes) rendues visibles en permanence sous `sm` — inaccessibles au
   doigt auparavant, la souris desktop garde le survol existant.
 
+**Deuxième tranche — livrée dans ce chantier**
+- Vérification au cas par cas des 7 derniers foyers d'actions hover-only
+  recensés par l'audit (`MediaLibrary`, `AssetLibrary`, `RunTimeline`,
+  `BrandConsultant`, `AiPanel`, `publicites`, `studio-video`) : 6 étaient déjà
+  cliquables en entier (la case entière est un `<a>`/`<button>`, le hover
+  n'est qu'un indice visuel) donc laissés tels quels ; **`AiPanel.tsx`** était
+  un vrai blocage — les boutons « Utiliser » et télécharger sur les visuels
+  IA générés (utilisés dans Compose/Agents) n'étaient atteignables qu'au
+  survol souris, corrigé comme les autres (`sm:opacity-0 sm:group-hover:…`).
+- `components/ui/ScrollFade.tsx` : dégradé de bord qui signale qu'un tableau
+  scrollable a du contenu caché (gauche/droite selon la position de
+  défilement), appliqué à `MetaAdAccountsPanel`, `ad-performance`,
+  `MetaAdsPublisher` — ces tableaux défilaient déjà horizontalement mais rien
+  n'indiquait qu'il fallait le faire.
+
 **Next** (chantiers identifiés, hors périmètre de cette PR — à planifier)
-- Primitive de table responsive réutilisable (défilement horizontal + repli en
-  cartes empilées) pour les tableaux denses restants (`MetaAdAccountsPanel`,
-  `ad-performance`, `MetaAdsPublisher`) — ils défilent déjà horizontalement
-  mais n'ont pas de repli carte, donc restent inconfortables au doigt.
-- Même traitement « visible en permanence sous `sm` » pour les autres actions
-  hover-only recensées (`MediaLibrary`, `AssetLibrary`, `RunTimeline`,
-  `BrandConsultant`, `AiPanel`, `publicites`, `studio-video`) — vérifiées une
-  par une plutôt que corrigées en masse, par prudence (certaines sont déjà
-  cliquables en entier, comme `MediaLibrary`, où l'effet hover n'est qu'un
-  indice visuel non bloquant).
+- Repli en cartes empilées (au lieu du simple défilement horizontal + fade)
+  pour les 3 tableaux ci-dessus sous `sm` : plus confortable au doigt, mais
+  demande de reconstruire la logique de rendu ligne↔carte pour chacun
+  (dont une ligne de total calculée pour `MetaAdAccountsPanel`) — un chantier
+  par table, pas une primitive générique à brancher partout.
 - Stepper visuel sur les parcours longs (`/demarrage`, `/article-linkedin`,
   `/campaigns/new`) — déjà recommandé par `UX_AUDIT.md`.
 - Spinner + durée estimée systématiques sur toute opération IA > 3 s.

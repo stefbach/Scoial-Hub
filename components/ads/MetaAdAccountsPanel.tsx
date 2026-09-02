@@ -11,6 +11,7 @@ import { useCompany } from "@/lib/company-context";
 import { useT } from "@/lib/i18n";
 import { Spinner } from "@/components/ui/Spinner";
 import { Pagination } from "@/components/ui/Pagination";
+import { ScrollFade } from "@/components/ui/ScrollFade";
 
 interface AdAccount {
   id: string; name: string; currency: string; active: boolean; amountSpent: number;
@@ -213,7 +214,7 @@ export function MetaAdAccountsPanel({ showCampaigns = true }: { showCampaigns?: 
           </div>
           {data && data.campaigns.length > 0 ? (
             <>
-              <div className="overflow-x-auto">
+              <ScrollFade>
                 <table className="w-full min-w-[52rem] text-left text-sm">
                   {/* En-tête sans encadré — simple séparateur discret. */}
                   <thead>
@@ -279,7 +280,7 @@ export function MetaAdAccountsPanel({ showCampaigns = true }: { showCampaigns?: 
                     );
                   })()}
                 </table>
-              </div>
+              </ScrollFade>
               <Pagination page={safePage} totalPages={totalPages} onChange={setPage} />
               <p className="mt-2 text-2xs text-muted">{t("Données réelles Meta (Marketing API).", "Real Meta data (Marketing API).")} {datePreset === "maximum" ? t("Fenêtre : toute la durée de vie du compte.", "Window: full account lifetime.") : ""}</p>
             </>

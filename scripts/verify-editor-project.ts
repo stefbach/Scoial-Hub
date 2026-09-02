@@ -620,6 +620,42 @@ function main() {
         browserOverlays(withButton).findIndex((o) => o.kind === "text"));
   }
 
+  // ── P1-13 · Un calque neuf se pose à la tête de lecture (audit Editing
+  // Bench v3) ──────────────────────────────────────────────────────────────
+  // Un texte, une incrustation ou une forme posés aux trois quarts d'une
+  // vidéo de cinq minutes apparaissaient quand même dès la première image —
+  // hors de vue de l'endroit qu'on était justement en train de regarder.
+  {
+    let p = addClip(emptyProject("c", "p"), { id: "a", src: "a.mp4", kind: "video", sourceDuration: 10 });
+    check("un texte sans tête de lecture précisée démarre à 0 (comportement inchangé)",
+      near(addText(p, "t0", "x").texts[0].start, 0));
+
+    p = addText(p, "t1", "x", 4);
+    check("un texte se pose à la tête de lecture demandée", near(p.texts[0].start, 4));
+    check("il court jusqu'à la fin du montage, comme avant ce champ", near(p.texts[0].end, 10));
+
+    p = addImageLayer(p, "i1", "logo.png", undefined, 7);
+    check("une incrustation se pose à la tête de lecture demandée", near(p.images[0].start, 7));
+
+    p = addShape(p, "s1", "round", "#123456", 9);
+    check("une forme se pose à la tête de lecture demandée", near(p.shapes[0].start, 9));
+
+    // Tête de lecture après la fin du montage — plus rien à « atteindre » :
+    // une durée par défaut ancrée à la FIN du montage, jamais un calque de
+    // durée nulle ou négative.
+    p = addText(p, "t2", "y", 15);
+    const t2 = p.texts.find((l) => l.id === "t2")!;
+    check("une tête de lecture hors du montage retombe sur une durée par défaut ancrée à la fin",
+      near(t2.end, 10) && t2.end - t2.start > 1, `${t2.start}..${t2.end}`);
+
+    const withButtonAt = addButton(
+      p, { shape: "bs2", text: "bt2" }, "En savoir plus", { fill: "#123456", text: "#ffffff" }, 2
+    );
+    check("un bouton (forme ET texte) se pose au même instant, à la tête de lecture",
+      near(withButtonAt.shapes.find((s) => s.id === "bs2")!.start, 2) &&
+      near(withButtonAt.texts.find((l) => l.id === "bt2")!.start, 2));
+  }
+
   // ── B-06 · Animations d'entrée et de sortie ──────────────────────────────
   {
     let p = addClip(emptyProject("c", "p"), { id: "a", src: "a.mp4", kind: "video", sourceDuration: 10 });

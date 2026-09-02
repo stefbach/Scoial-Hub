@@ -173,25 +173,48 @@ function shapeHtml(l: ShapeLayer, size: { width: number; height: number }): stri
 export function toServerEdit(p: EditorProject, callback?: string) {
   const size = FORMAT_SIZE[p.format];
 
-  const videoClips = p.clips.map((c: Clip) => ({
-    asset: {
-      type: c.kind === "image" ? "image" : "video",
-      src: c.src,
-      ...(c.kind === "video"
-        ? { trim: c.trimStart > 0 ? c.trimStart : undefined, speed: c.speed !== 1 ? c.speed : undefined }
-        : {}),
-    },
-    start: c.start,
-    length: c.length,
-    fit: c.fit,
-    // Décalage qui ramène le point d'intérêt au centre du cadre (y positif =
-    // vers le haut chez Shotstack). Sans objet quand la source entière tient.
-    ...(c.fit === "cover" && (c.focusX !== 0.5 || c.focusY !== 0.5)
-      ? { offset: { x: 0.5 - c.focusX, y: c.focusY - 0.5 } }
-      : {}),
-    ...(c.opacity !== 1 ? { opacity: c.opacity } : {}),
-    ...(CLIP_TRANSITION[c.transitionIn] ? { transition: { in: CLIP_TRANSITION[c.transitionIn] } } : {}),
-  }));
+  const videoClips = p.clips.map((c: Clip) => {
+    // Un plan « plein cadre » (la valeur par défaut, celle de tout plan de
+    // piste de base) garde exactement le comportement d'avant ce champ : le
+    // recadrage se fait par décalage du point d'intérêt, `width`/`height`/
+    // `position` restent absents. Un cadre réduit — une incrustation posée en
+    // fenêtre plutôt qu'en plein cadre — passe par les propriétés dédiées du
+    // moteur : `width`/`height` en pixels bornent le cadre, `position:
+    // "topLeft"` l'ancre en haut à gauche, `offset` (en fraction du format
+    // ENTIER, quel que soit le cadre du plan — la même unité que pour le
+    // recadrage ci-dessus) le déplace ensuite à la position voulue. Composer
+    // les deux décalages (position du cadre ET recentrage du point d'intérêt)
+    // n'est pas couvert ici : une fenêtre d'incrustation reste recadrée au
+    // centre de sa source (audit Editing Bench, P2-1).
+    const fullFrame = c.x === 0 && c.y === 0 && c.w === 1 && c.h === 1;
+    return {
+      asset: {
+        type: c.kind === "image" ? "image" : "video",
+        src: c.src,
+        ...(c.kind === "video"
+          ? { trim: c.trimStart > 0 ? c.trimStart : undefined, speed: c.speed !== 1 ? c.speed : undefined }
+          : {}),
+      },
+      start: c.start,
+      length: c.length,
+      fit: c.fit,
+      ...(fullFrame
+        // Décalage qui ramène le point d'intérêt au centre du cadre (y positif
+        // = vers le haut chez Shotstack). Sans objet quand la source entière
+        // tient.
+        ? (c.fit === "cover" && (c.focusX !== 0.5 || c.focusY !== 0.5)
+          ? { offset: { x: 0.5 - c.focusX, y: c.focusY - 0.5 } }
+          : {})
+        : {
+            width: Math.round(c.w * size.width),
+            height: Math.round(c.h * size.height),
+            position: "topLeft" as const,
+            offset: { x: c.x, y: -c.y },
+          }),
+      ...(c.opacity !== 1 ? { opacity: c.opacity } : {}),
+      ...(CLIP_TRANSITION[c.transitionIn] ? { transition: { in: CLIP_TRANSITION[c.transitionIn] } } : {}),
+    };
+  });
 
   const textClips = p.texts.map((l) => ({
     asset: {

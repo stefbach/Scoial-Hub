@@ -10,7 +10,7 @@ import {
   addAudio, addButton, addClip, addImageLayer, addShape, addText, clipAt, clipsAt,
   CLIP_TRANSITION_SECONDS, duplicateClip, emptyProject, imagesAt, layerProgress,
   MIN_CLIP_SECONDS, moveClip, normalize, projectDuration, removeClip, removeShape,
-  reorderClip, setClipFraming, setClipLength, setClipOpacity, setClipSpeed, setClipTransition,
+  reorderClip, setClipBox, setClipFraming, setClipLength, setClipOpacity, setClipSpeed, setClipTransition,
   shapesAt, splitAt, textsAt, trimClip, updateAudio, updateImageLayer, updateShape,
   updateText, usedTracks,
   type Clip, type EditorProject,
@@ -521,6 +521,28 @@ function main() {
     const dimEdit = toServerEdit(p) as { timeline: { tracks: { clips: { asset: { src?: string }; opacity?: number }[] }[] } };
     const incrustTrack = dimEdit.timeline.tracks.find((t) => t.clips[0]?.asset.src === "i.mp4");
     check("elle est transmise au moteur serveur", near(incrustTrack!.clips[0].opacity!, 0.4), String(incrustTrack!.clips[0].opacity));
+
+    // ── P2-1 · Cadre d'un plan d'incrustation (position et taille) ─────────
+    check("un plan neuf occupe tout le cadre par défaut",
+      p.clips.find((c) => c.id === "incrust")!.w === 1 && p.clips.find((c) => c.id === "incrust")!.h === 1);
+
+    p = setClipBox(p, "incrust", { x: 0.6, y: 0.05, w: 0.3, h: 0.3 });
+    const boxed = p.clips.find((c) => c.id === "incrust")!;
+    check("le cadre d'un plan se règle", near(boxed.x, 0.6) && near(boxed.y, 0.05) && near(boxed.w, 0.3) && near(boxed.h, 0.3));
+    check("la taille reste strictement positive", setClipBox(p, "incrust", { w: -1, h: 0 }).clips.find((c) => c.id === "incrust")!.w > 0);
+
+    const boxEdit = toServerEdit(p) as {
+      timeline: { tracks: { clips: { asset: { src?: string }; width?: number; height?: number; position?: string; offset?: { x: number; y: number } }[] }[] };
+    };
+    const boxedTrack = boxEdit.timeline.tracks.find((t) => t.clips[0]?.asset.src === "i.mp4")!.clips[0];
+    check("un cadre non plein est transmis en pixels au moteur",
+      boxedTrack.width === Math.round(0.3 * 1080) && boxedTrack.height === Math.round(0.3 * 1920),
+      `${boxedTrack.width}x${boxedTrack.height}`);
+    check("il est ancré en haut à gauche puis déplacé par décalage",
+      boxedTrack.position === "topLeft" && near(boxedTrack.offset!.x, 0.6) && near(boxedTrack.offset!.y, -0.05));
+
+    const fullFrameTrack = edit.timeline.tracks.find((t) => t.clips[0]?.asset.src === "fond.mp4")!.clips[0] as { width?: number };
+    check("un plan plein cadre ne transmet ni largeur ni position au moteur", fullFrameTrack.width === undefined);
   }
 
   // ── Un ancien projet, sans pistes, se rouvre à l'identique ───────────────
@@ -540,6 +562,8 @@ function main() {
     check("il atterrit sur la piste de base", legacy.clips.every((c) => c.track === 0));
     check("un plan sans opacité enregistrée redevient plein (P2-1/P2-2)",
       legacy.clips.every((c) => c.opacity === 1));
+    check("un plan sans cadre enregistré redevient plein cadre (P2-1)",
+      legacy.clips.every((c) => c.x === 0 && c.y === 0 && c.w === 1 && c.h === 1));
   }
 
   // ── B-02 · Sous-pistes automatiques ──────────────────────────────────────

@@ -17,6 +17,7 @@ import { useT } from "@/lib/i18n";
 import {
   ANIMATION_SECONDS,
   projectDuration,
+  setClipBox,
   setClipFraming,
   setClipLength,
   setClipOpacity,
@@ -143,14 +144,33 @@ export function PropertyPanel({
           )}
 
           {clip.track > 0 && (
-            // L'opacité d'un plan n'a d'usage réel que sur une piste
-            // d'incrustation — la piste de base couvre déjà tout le cadre, la
-            // faire disparaître en fondu ne ferait qu'exposer du noir en
-            // dessous (audit Editing Bench, P2-1 / P2-2).
-            <NumberRow
-              label={t("Opacité", "Opacity")} unit="%" value={clip.opacity * 100} step={5} min={0} max={100}
-              onChange={(v) => onChange((p) => setClipOpacity(p, clip.id, v / 100))}
-            />
+            <>
+              {/* Cadre — position et taille de la FENÊTRE d'incrustation,
+                  distinct du recadrage ci-dessus qui règle ce que la source
+                  montre À L'INTÉRIEUR de cette fenêtre. Plein cadre par
+                  défaut : sans ce bloc, une incrustation vidéo ne pouvait pas
+                  se poser en petite fenêtre dans un coin — seulement en plein
+                  écran (audit Editing Bench, P2-1). Comme l'opacité
+                  ci-dessous, sans usage réel sur la piste de base. */}
+              <div className="grid grid-cols-2 gap-2">
+                <NumberRow label="X" unit="%" value={clip.x * 100} step={1} compact
+                  onChange={(v) => onChange((p) => setClipBox(p, clip.id, { x: v / 100 }))} />
+                <NumberRow label="Y" unit="%" value={clip.y * 100} step={1} compact
+                  onChange={(v) => onChange((p) => setClipBox(p, clip.id, { y: v / 100 }))} />
+                <NumberRow label={t("Largeur", "Width")} unit="%" value={clip.w * 100} step={1} min={2} compact
+                  onChange={(v) => onChange((p) => setClipBox(p, clip.id, { w: v / 100 }))} />
+                <NumberRow label={t("Hauteur", "Height")} unit="%" value={clip.h * 100} step={1} min={2} compact
+                  onChange={(v) => onChange((p) => setClipBox(p, clip.id, { h: v / 100 }))} />
+              </div>
+              {/* L'opacité d'un plan n'a d'usage réel que sur une piste
+                  d'incrustation — la piste de base couvre déjà tout le
+                  cadre, la faire disparaître en fondu ne ferait qu'exposer
+                  du noir en dessous (audit Editing Bench, P2-1 / P2-2). */}
+              <NumberRow
+                label={t("Opacité", "Opacity")} unit="%" value={clip.opacity * 100} step={5} min={0} max={100}
+                onChange={(v) => onChange((p) => setClipOpacity(p, clip.id, v / 100))}
+              />
+            </>
           )}
 
           <SelectRow

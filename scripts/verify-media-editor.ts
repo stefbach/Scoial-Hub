@@ -522,6 +522,22 @@ async function main() {
       /if \(!allTexts\) \{/.test(panel));
   }
 
+  // ── P1-13 · Un calque neuf se pose à la tête de lecture (audit Editing
+  // Bench v3, Lot 4) ─────────────────────────────────────────────────────
+  // Un texte, une incrustation ou une forme posés aux trois quarts d'une
+  // vidéo apparaissaient quand même dès la première image, hors de vue de
+  // l'endroit qu'on était justement en train de regarder.
+  {
+    check("P1-13 · un texte ajouté depuis l'outil se pose à la tête de lecture",
+      /addText\(p, nextId\("t"\), t\("Votre texte", "Your text"\), playhead\)/.test(studio));
+    check("P1-13 · une forme ajoutée depuis l'outil se pose à la tête de lecture",
+      /addShape\(p, nextId\("s"\), s\.kind, brand\.palette\[0\] \?\? "#5b2d8e", playhead\)/.test(studio));
+    check("P1-13 · un bouton ajouté depuis l'outil se pose à la tête de lecture",
+      /addButton\([\s\S]{0,300}playhead/.test(studio));
+    check("P1-13 · une incrustation importée se pose à la tête de lecture",
+      /addImageLayer\(p, nextId\("i"\), url, undefined, playhead\)/.test(studio));
+  }
+
   console.log(`\n${failures === 0 ? "✓ TOUT VERT" : `✗ ${failures} échec(s)`}\n`);
   process.exit(failures === 0 ? 0 : 1);
 }

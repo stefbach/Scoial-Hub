@@ -876,22 +876,40 @@ export function setClipLength(p: EditorProject, clipId: string, seconds: number)
 
 /* ── Calques ─────────────────────────────────────────────────────────────── */
 
-/** Valeurs communes à tout calque visuel neuf. */
-function newVisual(total: number): Omit<VisualLayer, "x" | "y"> {
+/**
+ * Valeurs communes à tout calque visuel neuf.
+ *
+ * `at` ancre le calque à la tête de lecture plutôt qu'au tout début du
+ * montage — sans lui, un titre posé aux trois quarts d'une vidéo de cinq
+ * minutes apparaissait quand même dès la première image, hors de vue de
+ * l'endroit qu'on était justement en train de regarder (audit Editing
+ * Bench, P1-13). Comme avant ce champ, le calque court jusqu'à la fin du
+ * montage — juste depuis la tête de lecture plutôt que depuis 0. S'il ne
+ * reste rien après elle (projet vide, ou tête de lecture à la toute
+ * dernière image), une durée par défaut prend le relais, ancrée à la FIN du
+ * montage plutôt qu'à un instant qui n'a plus rien devant lui — jamais un
+ * calque de durée nulle.
+ */
+function newVisual(total: number, at = 0): Omit<VisualLayer, "x" | "y"> {
+  const clampedAt = Math.max(0, at);
+  if (total > 0 && clampedAt < total) {
+    return {
+      rotation: 0, opacity: 1,
+      start: clampedAt, end: total,
+      animIn: "none", animOut: "none", lane: 0,
+    };
+  }
+  const start = total > 0 ? Math.max(0, total - DEFAULT_IMAGE_SECONDS) : clampedAt;
   return {
-    rotation: 0,
-    opacity: 1,
-    start: 0,
-    end: total || DEFAULT_IMAGE_SECONDS,
-    animIn: "none",
-    animOut: "none",
-    lane: 0,
+    rotation: 0, opacity: 1,
+    start, end: start + DEFAULT_IMAGE_SECONDS,
+    animIn: "none", animOut: "none", lane: 0,
   };
 }
 
-export function addText(p: EditorProject, id: string, text: string): EditorProject {
+export function addText(p: EditorProject, id: string, text: string, at = 0): EditorProject {
   const layer: TextLayer = {
-    ...newVisual(projectDuration(p)),
+    ...newVisual(projectDuration(p), at),
     id, text,
     x: 0.1, y: 0.1, sizePct: 0.08, wrapPct: 0,
     color: "#ffffff", font: "sans", bold: true, bg: true,
@@ -922,9 +940,9 @@ export function duplicateText(p: EditorProject, id: string, newId: string): Edit
   return normalize({ ...p, texts: [...p.texts, copy] });
 }
 
-export function addImageLayer(p: EditorProject, id: string, src: string, provenance?: Provenance): EditorProject {
+export function addImageLayer(p: EditorProject, id: string, src: string, provenance?: Provenance, at = 0): EditorProject {
   const layer: ImageLayer = {
-    ...newVisual(projectDuration(p)),
+    ...newVisual(projectDuration(p), at),
     id, src, x: 0.05, y: 0.05, scale: 0.2, heightPct: 0, provenance,
   };
   return normalize({ ...p, images: [...p.images, layer] });
@@ -957,10 +975,10 @@ const SHAPE_DEFAULTS: Record<ShapeKind, { w: number; h: number }> = {
   arrow: { w: 0.4, h: 0.06 },
 };
 
-export function addShape(p: EditorProject, id: string, shape: ShapeKind, fill = "#5b2d8e"): EditorProject {
+export function addShape(p: EditorProject, id: string, shape: ShapeKind, fill = "#5b2d8e", at = 0): EditorProject {
   const { w, h } = SHAPE_DEFAULTS[shape];
   const layer: ShapeLayer = {
-    ...newVisual(projectDuration(p)),
+    ...newVisual(projectDuration(p), at),
     id, shape,
     // Centrée : c'est la position d'où l'on part le plus souvent.
     x: (1 - w) / 2, y: (1 - h) / 2,
@@ -998,15 +1016,16 @@ export function addButton(
   p: EditorProject,
   ids: { shape: string; text: string },
   label: string,
-  colors: { fill: string; text: string }
+  colors: { fill: string; text: string },
+  at = 0
 ): EditorProject {
   const w = 0.46;
   const h = 0.09;
   const x = (1 - w) / 2;
   const y = 0.8;
-  let next = addShape(p, ids.shape, "round", colors.fill);
+  let next = addShape(p, ids.shape, "round", colors.fill, at);
   next = updateShape(next, ids.shape, { x, y, w, h, radius: h / 2 });
-  next = addText(next, ids.text, label);
+  next = addText(next, ids.text, label, at);
   next = updateText(next, ids.text, {
     x: 0.5,
     // Le texte est centré verticalement dans la pastille.

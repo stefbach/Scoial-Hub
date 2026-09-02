@@ -63,6 +63,10 @@ const SHAPES: { kind: ShapeKind; glyph: string; fr: string; en: string }[] = [
 let seq = 0;
 const nextId = (prefix: string) => `${prefix}-${(seq += 1).toString(36)}-${Date.now().toString(36)}`;
 
+/** Suivi du rendu serveur — mêmes constantes que le Studio Vidéo. */
+const RENDER_POLL_MS = 4000;
+const RENDER_MAX_POLLS = 45; // ≈ 3 min
+
 export function StudioEditor({
   companyId,
   initialMedia,
@@ -92,6 +96,18 @@ export function StudioEditor({
   const [exporting, setExporting] = useState(false);
   const [progress, setProgress] = useState(0);
   const [note, setNote] = useState<string | null>(null);
+  /**
+   * Suivi du rendu SERVEUR — jusqu'ici le banc de montage soumettait le
+   * montage puis n'interrogeait plus jamais son état : aucune progression,
+   * aucun fichier récupéré, aucun résultat affiché (audit Editing Bench,
+   * P0-4). Même point d'accès que le Studio Vidéo (studio-video/page.tsx),
+   * qui le fait déjà.
+   */
+  const [renderState, setRenderState] = useState<"idle" | "queued" | "rendering" | "done" | "failed">("idle");
+  const [renderUrl, setRenderUrl] = useState<string | null>(null);
+  const [renderErr, setRenderErr] = useState<string | null>(null);
+  const renderPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  useEffect(() => () => { if (renderPollRef.current) clearInterval(renderPollRef.current); }, []);
   const [loading, setLoading] = useState(Boolean(projectId));
   const [brand, setBrand] = useState<BrandStyle>(() => brandStyleFrom(null));
   const [libraryOpen, setLibraryOpen] = useState(false);
@@ -566,15 +582,26 @@ export function StudioEditor({
     if (project.clips.length === 0) return;
     setNote(null);
     setProgress(0);
+    // Efface un panneau de rendu serveur d'un export précédent — sinon un
+    // export navigateur qui suit reste affiché à côté d'une vidéo obsolète.
+    if (renderPollRef.current) { clearInterval(renderPollRef.current); renderPollRef.current = null; }
+    setRenderState("idle");
+    setRenderUrl(null);
+    setRenderErr(null);
     // Verrouille le montage pour toute la durée du rendu — rien n'empêchait
     // jusqu'ici de continuer à monter pendant un export, et le résultat ne
     // correspondait alors plus à ce que l'écran affichait (itération 3,
     // chapitre 9, point 7).
     setExporting(true);
 
-    // Rendu SERVEUR : le document part tel quel, l'onglet est libéré.
+    // Rendu SERVEUR : le document part au moteur, puis on SUIT son état.
+    // Jusqu'ici la fonction s'arrêtait dès la soumission — aucune progression,
+    // aucune récupération, aucun résultat affiché (audit Editing Bench, P0-4).
+    // Même point d'accès de suivi que le Studio Vidéo (studio-video/page.tsx),
+    // qui l'appelle déjà.
     if (decision.target === "server") {
-      setBusy(t("Rendu sur nos serveurs…", "Rendering on our servers…"));
+      setRenderState("queued");
+      setBusy(t("Envoi du montage…", "Sending the edit…"));
       try {
         // On transmet le DOCUMENT, pas une timeline déjà construite : c'est le
         // serveur qui en fait la projection. Le contrat porte ainsi sur une
@@ -585,14 +612,83 @@ export function StudioEditor({
           body: JSON.stringify({ companyId, project: displayProject }),
         });
         const d = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error((d as { error?: string }).error ?? `HTTP ${res.status}`);
-        setNote(t(
-          "Rendu lancé sur nos serveurs — vous pouvez fermer cette fenêtre, le fichier vous attendra dans la médiathèque.",
-          "Render started on our servers — you can close this window, the file will wait in your library."
-        ));
+        if (!res.ok || !d.id) throw new Error((d as { error?: string }).error ?? `HTTP ${res.status}`);
+        const id = d.id as string;
+        setBusy(null);
+        // L'édition reste possible pendant que le rendu tourne côté serveur —
+        // rien dans le montage n'est modifié par le rendu en cours.
+        setExporting(false);
+
+        let polls = 0;
+        renderPollRef.current = setInterval(async () => {
+          polls += 1;
+          // Garde-fou anti-suivi infini : intervalle 4 s × 45 ≈ 3 min max.
+          if (polls > RENDER_MAX_POLLS) {
+            if (renderPollRef.current) clearInterval(renderPollRef.current);
+            renderPollRef.current = null;
+            setRenderState("failed");
+            setRenderErr(t(
+              "Trop long à suivre depuis cet écran — le fichier atterrira quand même dans la médiathèque une fois le rendu terminé.",
+              "Taking too long to track from this screen — the file will still land in the media library once the render finishes."
+            ));
+            return;
+          }
+          try {
+            const s = await fetch(`/api/video/render/${encodeURIComponent(id)}`).then((r) => r.json());
+            if (s.status === "done") {
+              if (renderPollRef.current) clearInterval(renderPollRef.current);
+              renderPollRef.current = null;
+              let finalUrl: string | null = s.url ?? null;
+              if (finalUrl) {
+                // URL Shotstack éphémère → stockage durable, comme le Studio Vidéo.
+                try {
+                  const pr = await fetch("/api/media/persist", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ companyId, url: finalUrl, kind: "video" }),
+                  });
+                  const pd = await pr.json();
+                  if (pr.ok && pd.url) finalUrl = pd.url;
+                } catch { /* garde l'URL d'origine */ }
+                // TS perd le rétrécissement de `finalUrl` après le try/catch
+                // qui le réaffecte ; la reprise ne le remplace jamais par une
+                // valeur vide (garde `pd.url` juste au-dessus), donc l'URL
+                // reste non nulle ici.
+                const url = finalUrl as string;
+                await Promise.all([
+                  fetch("/api/editor/projects", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ companyId, id: savedId, doc: project, name: project.name, renderUrl: url }),
+                  }).catch(() => null),
+                  // Honore la promesse « le fichier vous attendra dans la
+                  // médiathèque » même si le rappel automatique n'est pas
+                  // configuré côté serveur (chapitre 2.3 de l'audit).
+                  fetch("/api/media", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ companyId, url, type: "video", format: project.format, source: "editor" }),
+                  }).catch(() => null),
+                ]);
+                // Remplace le média du composeur — comme le fait déjà le rendu
+                // navigateur juste au-dessus.
+                onExport({ url, name: "montage.mp4", size: 0, kind: "video" });
+              }
+              setRenderUrl(finalUrl);
+              setRenderState("done");
+            } else if (s.status === "failed") {
+              if (renderPollRef.current) clearInterval(renderPollRef.current);
+              renderPollRef.current = null;
+              setRenderState("failed");
+              setRenderErr(s.error ?? t("Échec du rendu.", "Render failed."));
+            } else {
+              setRenderState(s.status === "queued" ? "queued" : "rendering");
+            }
+          } catch { /* nouvelle tentative au prochain intervalle */ }
+        }, RENDER_POLL_MS);
       } catch (e) {
-        setNote(t("Rendu serveur impossible : ", "Server render failed: ") + (e instanceof Error ? e.message.slice(0, 140) : ""));
-      } finally {
+        setRenderState("failed");
+        setRenderErr(e instanceof Error ? e.message.slice(0, 140) : t("Erreur réseau.", "Network error."));
         setBusy(null);
         setExporting(false);
       }
@@ -749,7 +845,7 @@ export function StudioEditor({
           </div>
           <button
             type="button" onClick={exportProject}
-            disabled={Boolean(busy) || project.clips.length === 0}
+            disabled={Boolean(busy) || project.clips.length === 0 || renderState === "queued" || renderState === "rendering"}
             className="btn-primary text-xs disabled:opacity-50"
           >
             {t("Exporter", "Export")}
@@ -963,6 +1059,38 @@ export function StudioEditor({
           )}
         </div>
         {note && <p className="min-w-0 flex-1 truncate text-right text-2xs text-muted" title={note}>{note}</p>}
+
+        {/* Suivi du rendu serveur — jusqu'ici rien ne s'affichait après la
+            soumission : ni progression réelle, ni fichier, ni échec
+            (audit Editing Bench, P0-4). */}
+        {(renderState === "queued" || renderState === "rendering") && (
+          <div role="status" aria-live="polite" className="flex w-full items-center gap-2 text-2xs text-muted">
+            <Spinner size={12} className="text-page" />
+            {renderState === "queued"
+              ? t("Rendu en file d'attente sur nos serveurs…", "Render queued on our servers…")
+              : t("Rendu en cours sur nos serveurs… (peut prendre 1 à 3 min)", "Rendering on our servers… (may take 1–3 min)")}
+          </div>
+        )}
+        {renderState === "done" && renderUrl && (
+          <div className="flex w-full flex-wrap items-center gap-2 text-2xs">
+            <video src={renderUrl} controls preload="metadata" className="h-14 rounded border border-hair" />
+            <span className="text-success-600">
+              ✓ {t("Rendu prêt — média remplacé dans le composeur, enregistré dans la médiathèque.", "Render ready — media replaced in the composer, saved to the media library.")}
+            </span>
+            <a href={renderUrl} target="_blank" rel="noopener noreferrer" download className="btn-secondary text-2xs">
+              ⬇ {t("Télécharger", "Download")}
+            </a>
+            <a href="/media" target="_blank" rel="noopener noreferrer" className="btn-secondary text-2xs">
+              {t("Ouvrir la médiathèque", "Open media library")}
+            </a>
+          </div>
+        )}
+        {renderState === "failed" && (
+          <div className="flex w-full items-center gap-2 text-2xs text-danger">
+            {renderErr ?? t("Échec du rendu.", "Render failed.")}
+            <button type="button" className="underline" onClick={exportProject}>{t("Réessayer", "Retry")}</button>
+          </div>
+        )}
       </footer>
 
       {libraryOpen && (

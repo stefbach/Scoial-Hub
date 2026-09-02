@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isWebhookConfigured } from "@/lib/env";
 
 // Diagnostic : indique quelles variables d'environnement sont PRÉSENTES
 // en production (booléens uniquement — aucune valeur secrète n'est exposée).
@@ -42,12 +43,19 @@ export async function GET() {
       COVERR_API_KEY: Boolean(process.env.COVERR_API_KEY),
       PIXABAY_API_KEY: Boolean(process.env.PIXABAY_API_KEY),
       UNSPLASH_ACCESS_KEY: Boolean(process.env.UNSPLASH_ACCESS_KEY),
+      // Rappel automatique de rendu (Shotstack → sh_render_jobs) : sans elle,
+      // un rendu serveur dont l'onglet se ferme avant la fin n'est jamais
+      // récupéré — produit puis perdu (audit Editing Bench v3, P0-4).
+      WEBHOOK_SECRET: Boolean(process.env.WEBHOOK_SECRET),
     },
     config: {
       // Valeur non secrète — utile pour diagnostiquer le rendu Shotstack.
       SHOTSTACK_ENV: process.env.SHOTSTACK_ENV === "v1" ? "v1" : "stage",
       // Valeur non secrète — base de l'URL de redirection OAuth (LinkedIn/Meta).
       NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL ?? null,
+      // Combine WEBHOOK_SECRET et NEXT_PUBLIC_APP_URL (lib/env.ts) : la
+      // réponse directe à « le rappel automatique est-il opérationnel ? ».
+      isWebhookConfigured,
     },
   });
 }

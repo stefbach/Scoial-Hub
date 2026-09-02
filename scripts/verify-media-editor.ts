@@ -144,6 +144,32 @@ async function main() {
     check("A-07 · le rendu est rattaché au projet", /renderUrl: hosted\.url/.test(studio));
   }
 
+  // ── P0-4 · Le rendu serveur rend la main (audit Editing Bench v3) ────────
+  // Avant ce correctif, la fonction s'arrêtait dès la soumission du montage :
+  // aucune progression, aucune récupération, aucun résultat affiché. Le
+  // fichier produit pouvait même être définitivement perdu si le rappel
+  // automatique n'était pas configuré côté serveur.
+  {
+    check("P0-4 · le rendu serveur est suivi après soumission",
+      /fetch\(`\/api\/video\/render\/\$\{encodeURIComponent\(id\)\}`\)/.test(studio));
+    check("P0-4 · une progression réelle distingue file d'attente et rendu en cours",
+      /renderState === "queued"/.test(studio) && /renderState === "rendering"/.test(studio));
+    check("P0-4 · l'URL éphémère du moteur est convertie en stockage durable",
+      /api\/media\/persist/.test(studio));
+    check("P0-4 · le rendu est enregistré dans la médiathèque même sans rappel automatique",
+      /fetch\("\/api\/media", \{[\s\S]{0,320}source: "editor"/.test(studio));
+    check("P0-4 · le média du composeur est remplacé par le rendu serveur, comme le rendu navigateur",
+      /onExport\(\{ url, name: "montage\.mp4", size: 0, kind: "video" \}\)/.test(studio));
+    check("P0-4 · un rendu échoué affiche une raison, pas un silence",
+      /renderState === "failed"/.test(studio) && /renderErr/.test(studio));
+    check("P0-4 · un second export ne peut pas se déclencher pendant un rendu en cours",
+      /renderState === "queued" \|\| renderState === "rendering"/.test(studio));
+    check("P0-4 · un lien direct vers la médiathèque est proposé une fois le rendu prêt",
+      /href="\/media"/.test(studio));
+    check("P0-4 · diagnostic du rappel automatique exposé (WEBHOOK_SECRET)",
+      /WEBHOOK_SECRET: Boolean\(process\.env\.WEBHOOK_SECRET\)/.test(read("app/api/health/route.ts")));
+  }
+
   // ── B-01 · Un seul système de coordonnées sur la timeline ────────────────
   {
     const timeline = read("components/editor/Timeline.tsx");

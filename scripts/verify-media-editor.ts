@@ -575,6 +575,21 @@ async function main() {
       (panel.match(/\[\.\.\.PRESET_COLORS, \.\.\.brand\.palette\]/g) ?? []).length === 1);
   }
 
+  // ── P1-4 · Étiquettes de piste audio (audit Editing Bench v3, Lot 4) ────
+  // Trois pistes son simultanées — son d'origine, voix off, musique, l'usage
+  // le plus courant — se mélangeaient toutes sous un seul bandeau « Audio »
+  // générique, alors que le panneau de propriétés les distingue déjà par
+  // catégorie depuis P3-2.
+  {
+    check("P1-4 · une piste par rôle audio, pas un seul bandeau générique",
+      /AUDIO_ROLES/.test(timeline) &&
+      /\{ role: "original", fr: "Son d'origine", en: "Original audio" \}/.test(timeline) &&
+      /\{ role: "voice", fr: "Voix off", en: "Voiceover" \}/.test(timeline) &&
+      /\{ role: "music", fr: "Musique", en: "Music" \}/.test(timeline));
+    check("P1-4 · chaque piste ne montre que les pistes de SON de son propre rôle",
+      /const onRole = project\.audios\.filter\(\(a\) => a\.role === role\)/.test(timeline));
+  }
+
   console.log(`\n${failures === 0 ? "✓ TOUT VERT" : `✗ ${failures} échec(s)`}\n`);
   process.exit(failures === 0 ? 0 : 1);
 }

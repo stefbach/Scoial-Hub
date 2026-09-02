@@ -117,6 +117,14 @@ export interface Clip {
    */
   focusX: number;
   focusY: number;
+  /**
+   * 0..1 — permet de faire apparaître ou disparaître en fondu un plan
+   * d'incrustation (piste > 0), sans passer par une transition de coupe.
+   * Un plan de piste de base n'a pas d'usage réel de ce réglage, mais rien ne
+   * l'interdit : c'est le même champ que `VisualLayer.opacity`, la propriété
+   * commune que réclame l'audit (P2-1, P2-2).
+   */
+  opacity: number;
   /** Traçabilité si le plan vient d'une bibliothèque externe (Lot A-3). */
   provenance?: Provenance;
 }
@@ -378,6 +386,9 @@ export function normalize(p: EditorProject): EditorProject {
         fit: c.fit === "contain" ? "contain" : "cover",
         focusX: clamp(Number.isFinite(c.focusX) ? c.focusX : 0.5, 0, 1),
         focusY: clamp(Number.isFinite(c.focusY) ? c.focusY : 0.5, 0, 1),
+        // Un projet enregistré avant ce réglage n'en porte pas : plein, comme
+        // le rendu l'a toujours été.
+        opacity: Number.isFinite(c.opacity) ? clamp(c.opacity, 0, 1) : 1,
       } as Clip;
     });
 
@@ -580,6 +591,7 @@ export function addClip(
     fit: "cover",
     focusX: 0.5,
     focusY: 0.5,
+    opacity: 1,
     provenance: input.provenance,
   };
   return normalize({ ...p, clips: [...p.clips, clip] });
@@ -767,6 +779,18 @@ export function setClipFraming(
         }
       : c
   );
+  return normalize({ ...p, clips });
+}
+
+/**
+ * Opacité d'un plan — utile pour faire apparaître ou disparaître en fondu une
+ * incrustation vidéo (piste > 0) sans passer par une transition de coupe.
+ * C'était la seule propriété de `VisualLayer` qu'un plan ne pouvait pas
+ * recevoir, alors que texte, image et forme le pouvaient tous (audit Editing
+ * Bench, P2-1 / P2-2).
+ */
+export function setClipOpacity(p: EditorProject, clipId: string, opacity: number): EditorProject {
+  const clips = p.clips.map((c) => (c.id === clipId ? { ...c, opacity: clamp(opacity, 0, 1) } : c));
   return normalize({ ...p, clips });
 }
 
@@ -1163,13 +1187,13 @@ export function clipsAt(p: EditorProject, time: number): ActiveClip[] {
       out.push({
         clip: outgoing,
         sourceTime: outgoing.trimStart + outgoing.length * outgoing.speed,
-        opacity: 1 - fade,
+        opacity: (1 - fade) * outgoing.opacity,
         frozen: true,
       });
-      out.push({ clip: c, sourceTime: c.trimStart + (time - c.start) * c.speed, opacity: fade });
+      out.push({ clip: c, sourceTime: c.trimStart + (time - c.start) * c.speed, opacity: fade * c.opacity });
       continue;
     }
-    out.push({ clip: c, sourceTime: c.trimStart + (time - c.start) * c.speed, opacity: 1 });
+    out.push({ clip: c, sourceTime: c.trimStart + (time - c.start) * c.speed, opacity: c.opacity });
   }
   return out;
 }
@@ -1188,7 +1212,7 @@ export function clipAt(p: EditorProject, time: number): ActiveClip | null {
   const base = p.clips.filter((c) => c.track === 0);
   const last = base.reduce<Clip | null>((acc, c) => (!acc || c.start > acc.start ? c : acc), null);
   if (last && time >= last.start + last.length - EPS) {
-    return { clip: last, sourceTime: last.trimStart + last.length * last.speed, opacity: 1 };
+    return { clip: last, sourceTime: last.trimStart + last.length * last.speed, opacity: last.opacity };
   }
   return null;
 }

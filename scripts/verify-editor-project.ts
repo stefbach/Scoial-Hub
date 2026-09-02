@@ -10,7 +10,7 @@ import {
   addAudio, addButton, addClip, addImageLayer, addShape, addText, clipAt, clipsAt,
   CLIP_TRANSITION_SECONDS, duplicateClip, emptyProject, imagesAt, layerProgress,
   MIN_CLIP_SECONDS, moveClip, normalize, projectDuration, removeClip, removeShape,
-  reorderClip, setClipFraming, setClipLength, setClipSpeed, setClipTransition,
+  reorderClip, setClipFraming, setClipLength, setClipOpacity, setClipSpeed, setClipTransition,
   shapesAt, splitAt, textsAt, trimClip, updateAudio, updateImageLayer, updateShape,
   updateText, usedTracks,
   type Clip, type EditorProject,
@@ -499,11 +499,28 @@ function main() {
     check("les pistes utilisées sont listées dans l'ordre", usedTracks(p).join(",") === "0,2", usedTracks(p).join(","));
 
     // Le rendu serveur doit empiler les pistes dans le bon sens.
-    const edit = toServerEdit(p) as { timeline: { tracks: { clips: { asset: { src?: string } }[] }[] } };
+    const edit = toServerEdit(p) as { timeline: { tracks: { clips: { asset: { src?: string }; opacity?: number }[] }[] } };
     const videoTracks = edit.timeline.tracks.filter((t) => t.clips.some((c) => c.asset.src?.endsWith(".mp4")));
     check("chaque piste vidéo devient une piste du moteur", videoTracks.length === 2, String(videoTracks.length));
     check("la piste la plus haute passe au-dessus",
       videoTracks[0].clips[0].asset.src === "i.mp4", String(videoTracks[0].clips[0].asset.src));
+
+    // ── P2-1 / P2-2 · Opacité d'un plan d'incrustation ─────────────────────
+    check("un plan neuf est plein par défaut", p.clips.find((c) => c.id === "incrust")!.opacity === 1);
+    check("l'opacité n'est PAS transmise au moteur quand elle est pleine",
+      !("opacity" in videoTracks.find((t) => t.clips[0].asset.src === "i.mp4")!.clips[0]));
+
+    p = setClipOpacity(p, "incrust", 0.4);
+    check("l'opacité d'un plan se règle", near(p.clips.find((c) => c.id === "incrust")!.opacity, 0.4));
+    check("elle reste dans les bornes 0..1", near(setClipOpacity(p, "incrust", 5).clips.find((c) => c.id === "incrust")!.opacity, 1));
+
+    const activeDim = clipsAt(p, 6);
+    check("elle compose avec l'aperçu, hors de toute transition",
+      near(activeDim.find((a) => a.clip.id === "incrust")!.opacity, 0.4), String(activeDim.find((a) => a.clip.id === "incrust")!.opacity));
+
+    const dimEdit = toServerEdit(p) as { timeline: { tracks: { clips: { asset: { src?: string }; opacity?: number }[] }[] } };
+    const incrustTrack = dimEdit.timeline.tracks.find((t) => t.clips[0]?.asset.src === "i.mp4");
+    check("elle est transmise au moteur serveur", near(incrustTrack!.clips[0].opacity!, 0.4), String(incrustTrack!.clips[0].opacity));
   }
 
   // ── Un ancien projet, sans pistes, se rouvre à l'identique ───────────────
@@ -521,6 +538,8 @@ function main() {
       near(legacy.clips[0].start, 0) && near(legacy.clips[1].start, 5),
       legacy.clips.map((c) => c.start).join(","));
     check("il atterrit sur la piste de base", legacy.clips.every((c) => c.track === 0));
+    check("un plan sans opacité enregistrée redevient plein (P2-1/P2-2)",
+      legacy.clips.every((c) => c.opacity === 1));
   }
 
   // ── B-02 · Sous-pistes automatiques ──────────────────────────────────────

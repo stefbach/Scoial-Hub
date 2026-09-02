@@ -118,7 +118,11 @@ export function AgentConstellation3D() {
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-    renderer.domElement.style.cssText = "position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:grab;";
+    // `pan-y pinch-zoom`, pas `none` : sinon un doigt posé sur la scène (qui
+    // occupe toute la largeur de la section) bloque le scroll vertical de la
+    // page — un glissé vertical défile normalement, un glissé horizontal
+    // continue de faire tourner la scène.
+    renderer.domElement.style.cssText = "position:absolute;inset:0;width:100%;height:100%;touch-action:pan-y pinch-zoom;cursor:grab;";
     wrap.appendChild(renderer.domElement);
 
     const group = new THREE.Group();

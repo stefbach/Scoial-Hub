@@ -64,7 +64,7 @@ async function main() {
       ["couleur", /updateText\(p, text\.id, \{ color: c \}\)/],
       ["gras", /updateText\(p, text\.id, \{ bold:/],
       ["fond", /updateText\(p, text\.id, \{ bg:/],
-      ["suppression", /removeText\(p, sel\.id\)/],
+      ["suppression", /removeText\((p|acc), sel\.id\)/],
     ] as const) {
       check(`A-02 · fonction « ${nom} » atteignable`, motif.test(editor));
     }
@@ -471,6 +471,37 @@ async function main() {
       /export function visibleProject\(/.test(projectSrc) &&
       /project={displayProject}/.test(studio) &&
       /body: JSON\.stringify\(\{ companyId, project: displayProject \}\)/.test(studio));
+  }
+
+  // ── P2-4 / P3-7 · Sélection multiple et menu contextuel (audit Editing
+  // Bench v3, Lot 3) ────────────────────────────────────────────────────────
+  // Absente jusqu'ici : la sélection était un objet unique, sans aucun moyen
+  // d'agir sur plusieurs éléments à la fois. Maj/Ctrl-clic ajoute un élément
+  // à un groupe ; le groupe entier se duplique/supprime en une seule entrée
+  // d'historique ; un menu contextuel apparaît sur le groupe (jamais sur un
+  // simple élément, qui a déjà la barre d'outils).
+  {
+    check("P2-4 · Maj/Ctrl/⌘-clic ajoute un élément à la sélection au lieu de la remplacer",
+      /if \(sel && e && \(e\.shiftKey \|\| e\.ctrlKey \|\| e\.metaKey\)\)/.test(studio));
+    check("P2-4 · les opérations groupées se composent en UNE SEULE entrée d'historique",
+      /items\.reduce\(\(acc, sel\) => \{/.test(studio) && /apply\(\(p\) => items\.reduce/.test(studio));
+    check("P2-4 · la suppression agit sur tous les éléments sélectionnés",
+      /function removeSelection\(\) \{[\s\S]{0,80}const items = selectedItems\(\)/.test(studio));
+    check("P2-4 · la duplication agit sur tous les éléments sélectionnés",
+      /function duplicateSelection\(\) \{[\s\S]{0,80}const items = selectedItems\(\)/.test(studio));
+    check("P2-4 · le panneau de propriétés affiche un résumé neutre plutôt que le seul élément principal",
+      /multiCount > 1/.test(panel) && /éléments sélectionnés/.test(panel));
+    check("P2-4 · la timeline reflète la sélection multiple, pas seulement l'élément principal",
+      /multiSelectedKeys\?\.has\(/.test(timeline));
+    check("P3-7 · un menu contextuel n'apparaît que sur une sélection de groupe",
+      /multiSelection\.size === 0 \|\| !inSelection\) return;/.test(studio));
+    check("P3-7 · le menu contextuel propose dupliquer ET supprimer le groupe",
+      /Dupliquer le groupe/.test(studio) && /Supprimer le groupe/.test(studio));
+    check("P3-7 · le clic droit sur la timeline est câblé (plans ET calques)",
+      /onContextMenu=\{\(e\) => onContextMenu\?\.\(\{ kind: "clip", id: c\.id \}, e\)\}/.test(timeline) &&
+      /onContextMenu=\{\(e\) => onContextMenu\?\.\(\{ kind, id: l\.id \}, e\)\}/.test(timeline));
+    check("P2-4 · le raccourci clavier Ctrl/⌘+D et Suppr restent conscients du groupe (pas de fermeture stagnante)",
+      /doDuplicateSelection\(\)/.test(studio) && /doRemoveSelection\(\)/.test(studio));
   }
 
   console.log(`\n${failures === 0 ? "✓ TOUT VERT" : `✗ ${failures} échec(s)`}\n`);

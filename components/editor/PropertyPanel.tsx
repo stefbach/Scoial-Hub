@@ -51,6 +51,7 @@ const ANIMATIONS: { key: AnimationKind; fr: string; en: string }[] = [
 export function PropertyPanel({
   project,
   selection,
+  multiCount = 0,
   playhead,
   brand,
   onChange,
@@ -58,6 +59,15 @@ export function PropertyPanel({
 }: {
   project: EditorProject;
   selection: TimelineSelection;
+  /**
+   * Nombre total d'éléments d'une sélection multiple (0 ou 1 = sélection
+   * simple, comportement inchangé). Éditer les propriétés détaillées d'un
+   * SEUL des éléments d'un groupe sans le dire donnerait l'illusion que le
+   * réglage s'applique à tous — on affiche donc un résumé neutre à la place
+   * plutôt que le panneau complet du seul élément principal (audit Editing
+   * Bench, P2-4).
+   */
+  multiCount?: number;
   playhead: number;
   brand: BrandStyle;
   onChange: (fn: (p: EditorProject) => EditorProject) => void;
@@ -74,6 +84,22 @@ export function PropertyPanel({
           "Select a clip or layer — on the timeline or in the work area — to adjust its properties."
         )}
       </p>
+    );
+  }
+
+  if (multiCount > 1) {
+    return (
+      <div className="space-y-2 p-2 text-2xs text-muted">
+        <p>
+          {t(`${multiCount} éléments sélectionnés.`, `${multiCount} elements selected.`)}
+        </p>
+        <p>
+          {t(
+            "Utilisez Dupliquer ou Supprimer (barre d'outils, clic droit, ou Ctrl/⌘+D et Suppr) pour agir sur le groupe entier.",
+            "Use Duplicate or Delete (toolbar, right-click, or Ctrl/⌘+D and Delete) to act on the whole group."
+          )}
+        </p>
+      </div>
     );
   }
 

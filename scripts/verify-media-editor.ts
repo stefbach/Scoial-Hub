@@ -490,7 +490,7 @@ async function main() {
     check("P2-4 · la duplication agit sur tous les éléments sélectionnés",
       /function duplicateSelection\(\) \{[\s\S]{0,80}const items = selectedItems\(\)/.test(studio));
     check("P2-4 · le panneau de propriétés affiche un résumé neutre plutôt que le seul élément principal",
-      /multiCount > 1/.test(panel) && /éléments sélectionnés/.test(panel));
+      /multiSelectionItems\.length > 1/.test(panel) && /éléments sélectionnés/.test(panel));
     check("P2-4 · la timeline reflète la sélection multiple, pas seulement l'élément principal",
       /multiSelectedKeys\?\.has\(/.test(timeline));
     check("P3-7 · un menu contextuel n'apparaît que sur une sélection de groupe",
@@ -502,6 +502,24 @@ async function main() {
       /onContextMenu=\{\(e\) => onContextMenu\?\.\(\{ kind, id: l\.id \}, e\)\}/.test(timeline));
     check("P2-4 · le raccourci clavier Ctrl/⌘+D et Suppr restent conscients du groupe (pas de fermeture stagnante)",
       /doDuplicateSelection\(\)/.test(studio) && /doRemoveSelection\(\)/.test(studio));
+  }
+
+  // ── P2-10 · Formatage et suppression groupés des sous-titres (audit
+  // Editing Bench v3, Lot 3) ─────────────────────────────────────────────
+  // Une transcription pose souvent plusieurs dizaines de sous-titres d'un
+  // coup — les reformater ou les supprimer un par un n'a rien de réaliste.
+  // Bâti sur la sélection multiple (P2-4) : le lot part sélectionné dès la
+  // transcription terminée, et le panneau de propriétés propose un réglage
+  // COMMUN quand tout le groupe est du même type « texte ».
+  {
+    check("P2-10 · la transcription sélectionne tout le lot posé, pas un sous-titre isolé",
+      /newIds\.push\(id\)/.test(studio) && /setMultiSelection\(new Map\(newIds\.map/.test(studio));
+    check("P2-10 · le panneau propose un réglage commun quand le groupe est entièrement du même type texte",
+      /const allTexts = multiSelectionItems\.every\(\(s\) => s\.kind === "text"\)/.test(panel));
+    check("P2-10 · le réglage commun s'applique en une seule entrée d'historique, pas une par sous-titre",
+      /textIds\.reduce\(\(acc, id\) => updateText\(acc, id, patch\), p\)/.test(panel));
+    check("P2-10 · un groupe mixte (pas seulement des sous-titres) garde le résumé neutre existant",
+      /if \(!allTexts\) \{/.test(panel));
   }
 
   console.log(`\n${failures === 0 ? "✓ TOUT VERT" : `✗ ${failures} échec(s)`}\n`);

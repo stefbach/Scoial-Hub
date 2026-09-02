@@ -392,7 +392,8 @@ export default function CampaignDetailPage() {
         </Dropdown>
       </div>
       <div className="card mb-6 overflow-hidden">
-        <table className="w-full text-sm">
+        <div className="overflow-x-auto">
+        <table className="w-full min-w-[38rem] text-sm">
           <thead>
             <tr className="border-b border-hair bg-canvas/50 text-left">
               <th className="px-5 py-3 text-2xs font-semibold uppercase tracking-wide text-muted">{t("Publicité", "Ad")}</th>
@@ -437,6 +438,7 @@ export default function CampaignDetailPage() {
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
       {editOpen && (

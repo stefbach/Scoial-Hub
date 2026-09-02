@@ -438,7 +438,7 @@ function CampaignRow({
             }}
             aria-expanded={open}
             aria-label={open ? t("Réduire la campagne", "Collapse campaign") : t("Développer la campagne", "Expand campaign")}
-            className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted transition-colors hover:bg-hair hover:text-ink"
+            className="-ml-1 -mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded text-muted transition-colors hover:bg-hair hover:text-ink"
           >
             <span
               className={`inline-block text-[10px] transition-transform duration-150 ${open ? "rotate-90" : ""}`}
@@ -542,6 +542,18 @@ function CampaignRow({
           onClick={(e) => e.stopPropagation()}
         >
           <Toggle key={`stable-${String(camp.enabled)}`} defaultOn={camp.enabled} onChange={onToggleEnabled} />
+        </div>
+
+        {/* Tactile : pas de hover réel sur mobile — Modifier/Supprimer restent
+            visibles en permanence en dessous de `sm` (le duo au-dessus reste
+            réservé au survol souris desktop). */}
+        <div className="flex shrink-0 items-center gap-1 sm:hidden" onClick={(e) => e.stopPropagation()}>
+          <IconButton title={t("Modifier", "Edit")} ariaLabel={t("Modifier la campagne", "Edit campaign")} onClick={onEdit}>
+            <PencilIcon />
+          </IconButton>
+          <IconButton title={t("Supprimer", "Delete")} ariaLabel={t("Supprimer la campagne", "Delete campaign")} danger onClick={onDelete}>
+            <TrashIcon />
+          </IconButton>
         </div>
       </div>
 

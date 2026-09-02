@@ -108,15 +108,15 @@ export function AdDetailModal({
         <button
           onClick={onClose}
           aria-label={t("Fermer", "Close")}
-          className="-mr-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-muted hover:bg-canvas hover:text-ink"
+          className="-mr-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted hover:bg-canvas hover:text-ink"
         >
           ✕
         </button>
       </div>
 
-      <div className="grid max-h-[75vh] grid-cols-[280px_1fr] overflow-hidden">
+      <div className="grid grid-cols-1 md:max-h-[75vh] md:grid-cols-[280px_1fr] md:overflow-hidden">
         {/* Left column */}
-        <div className="overflow-y-auto bg-canvas/40 p-4">
+        <div className="bg-canvas/40 p-4 md:overflow-y-auto">
           <div className="section-label mb-2">{t("Créatif", "Creative")}</div>
           <div className={`relative flex aspect-video items-center justify-center rounded-md border-hair border-hair ${ad.thumb}`}>
             {ad.source === "ai_generated" && (
@@ -134,7 +134,7 @@ export function AdDetailModal({
         </div>
 
         {/* Right column */}
-        <div className="overflow-y-auto p-4">
+        <div className="p-4 md:overflow-y-auto">
           {context && (
             <>
               <div className="section-label mb-1">{t("Emplacement", "Where it lives")}</div>
@@ -216,7 +216,7 @@ export function AdDetailModal({
           )}
 
           <div className="section-label mb-1">{t("Performance · 30 derniers jours", "Performance · last 30 days")}</div>
-          <div className="mb-3 grid grid-cols-4 gap-2">
+          <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
             <MiniMetric label={t("Dépenses", "Spend")} value={eur(ad.spend)} />
             <MiniMetric label="CTR" value={ad.ctr} tone="green" />
             <MiniMetric label="CPC" value={eur(Number((ad.spend / Math.max(1, ad.conversions || 10)).toFixed(2)), { decimals: true })} />

@@ -34,7 +34,7 @@ export function Tabs({
               aria-controls={`tabpanel-${t.id}`}
               onClick={() => setActive(t.id)}
               className={[
-                "shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm",
+                "shrink-0 whitespace-nowrap rounded-lg px-3 py-2 text-sm",
                 "transition-colors duration-[120ms]",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/40",
                 isActive

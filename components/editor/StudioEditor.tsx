@@ -19,6 +19,7 @@ import { createPortal } from "react-dom";
 import { useT } from "@/lib/i18n";
 import { Spinner } from "@/components/ui/Spinner";
 import { hostMedia, MAX_UPLOAD_BYTES, formatSize } from "@/lib/media/host";
+import { SUBTITLE_LANGS } from "@/lib/ai/subtitle-langs";
 import {
   addAudio, addButton, addClip, addImageLayer, addShape, addText, duplicateAudio,
   duplicateClip, duplicateImageLayer, duplicateShape, duplicateText,
@@ -111,6 +112,15 @@ export function StudioEditor({
   const [loading, setLoading] = useState(Boolean(projectId));
   const [brand, setBrand] = useState<BrandStyle>(() => brandStyleFrom(null));
   const [libraryOpen, setLibraryOpen] = useState(false);
+  /**
+   * Langue RÉELLEMENT parlée dans le média à sous-titrer — "" = détection
+   * automatique par Whisper. Jusqu'ici le sous-titrage forçait silencieusement
+   * la langue de L'INTERFACE, indépendante de la langue du média (audit
+   * Editing Bench, P1-7).
+   */
+  const [subtitleLang, setSubtitleLang] = useState("");
+  /** true = traduit vers l'anglais (seule sortie que Whisper propose). */
+  const [subtitleTranslate, setSubtitleTranslate] = useState(false);
   const [tool, setTool] = useState<"media" | "templates" | "shapes" | "library">("media");
   /** Poids cumulé des sources — décide du moteur de rendu. */
   const sourceBytes = useRef(0);
@@ -489,7 +499,13 @@ export function StudioEditor({
       const res = await fetch("/api/editor/subtitles", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyId, src: source, lang }),
+        body: JSON.stringify({
+          companyId, src: source,
+          // Langue RÉELLEMENT parlée dans le média — jamais celle de
+          // l'interface (P1-7). Vide = détection automatique par Whisper.
+          ...(subtitleLang ? { lang: subtitleLang } : {}),
+          ...(subtitleTranslate ? { task: "translate" } : {}),
+        }),
       });
       const d = (await res.json().catch(() => ({}))) as { segments?: { start: number; end: number; text: string }[]; error?: string };
       if (!res.ok || !d.segments?.length) throw new Error(d.error ?? t("aucun segment", "no segment"));
@@ -516,7 +532,7 @@ export function StudioEditor({
     } finally {
       setBusy(null);
     }
-  }, [project.audios, project.clips, companyId, lang, apply, t]);
+  }, [project.audios, project.clips, companyId, subtitleLang, subtitleTranslate, apply, t]);
 
   /**
    * Le montage tel qu'on le voit et qu'on l'exporte : les pistes masquées en
@@ -901,6 +917,30 @@ export function StudioEditor({
                   >
                     ➕ {t("Ajouter un texte", "Add text")}
                   </button>
+                  {/* Langue RÉELLEMENT parlée dans le média — jamais imposée
+                      depuis la langue de l'interface (audit Editing Bench,
+                      P1-7). Vide = détection automatique par Whisper. */}
+                  <label className="block text-2xs text-muted">
+                    {t("Langue parlée dans le média", "Language spoken in the media")}
+                    <select
+                      value={subtitleLang}
+                      onChange={(e) => setSubtitleLang(e.target.value)}
+                      className="input mt-0.5 w-full text-xs"
+                    >
+                      <option value="">{t("Détection automatique", "Auto-detect")}</option>
+                      {SUBTITLE_LANGS.map((l) => (
+                        <option key={l.code} value={l.code}>{lang === "en" ? l.en : l.fr}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="flex items-center gap-1.5 text-2xs text-muted">
+                    <input
+                      type="checkbox"
+                      checked={subtitleTranslate}
+                      onChange={(e) => setSubtitleTranslate(e.target.checked)}
+                    />
+                    {t("Traduire vers l'anglais", "Translate to English")}
+                  </label>
                   <button
                     type="button"
                     onClick={transcribe}

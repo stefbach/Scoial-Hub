@@ -654,10 +654,19 @@ export interface TranscriptSegment {
  * texte que l'utilisateur pourra corriger, déplacer et re-styler. Un sous-titre
  * gravé n'est plus modifiable — c'est exactement le défaut que la refonte de
  * l'éditeur cherchait à éliminer.
+ *
+ * `language` FORCE la langue donnée à Whisper — sans elle (undefined), le
+ * modèle la détecte lui-même dans l'audio. Un montage transmettait jusqu'ici
+ * systématiquement la langue de L'INTERFACE, pas celle réellement parlée dans
+ * la source : une voix anglaise sur une interface en français ressortait mal
+ * transcrite, forcée en français (audit Editing Bench, P1-7).
+ * `task: "translate"` traduit systématiquement vers l'anglais — seule sortie
+ * que Whisper propose au-delà de la langue d'origine.
  */
 export async function transcribe(
   audioUrl: string,
-  language?: string
+  language?: string,
+  task: "transcribe" | "translate" = "transcribe"
 ): Promise<{ segments?: TranscriptSegment[]; error?: string }> {
   if (!isReplicateConfigured) return { error: "not-configured" };
   try {
@@ -665,8 +674,7 @@ export async function transcribe(
       TRANSCRIBE_MODEL,
       {
         audio: audioUrl,
-        // `transcribe` (et non `translate`) : on garde la langue d'origine.
-        task: "transcribe",
+        task,
         ...(language ? { language } : {}),
       },
       true

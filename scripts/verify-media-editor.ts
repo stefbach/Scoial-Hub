@@ -339,6 +339,25 @@ async function main() {
       /addText\(next, id, seg\.text\)/.test(studio));
   }
 
+  // ── P1-7 · Langue des sous-titres (audit Editing Bench v3) ──────────────
+  // Le sous-titrage forçait systématiquement la langue de L'INTERFACE au
+  // service de transcription, indépendamment de la langue réellement parlée
+  // dans le média — une voix étrangère ressortait mal transcrite.
+  {
+    const subtitlesRoute = read("app/api/editor/subtitles/route.ts");
+    const replicate = read("lib/ai/replicate.ts");
+    check("P1-7 · la langue de l'interface n'est plus imposée à la transcription",
+      !/src: source, lang \}/.test(studio) && /subtitleLang \? \{ lang: subtitleLang \}/.test(studio));
+    check("P1-7 · sans langue choisie, Whisper détecte lui-même",
+      /const lang = body\.lang && SUBTITLE_LANG_CODES\.has\(body\.lang\)/.test(subtitlesRoute));
+    check("P1-7 · une langue choisie est validée avant transmission au modèle",
+      /SUBTITLE_LANG_CODES/.test(subtitlesRoute));
+    check("P1-7 · la traduction vers l'anglais reste un choix explicite, pas un défaut",
+      /task: "transcribe" \| "translate" = "transcribe"/.test(replicate));
+    check("P1-7 · un sélecteur de langue parlée est proposé dans l'éditeur",
+      /subtitleLang/.test(studio) && /SUBTITLE_LANGS\.map/.test(studio));
+  }
+
   // ── Itération 3, Lot 4 · Robustesse et parité professionnelle ───────────
   {
     const projectSrc = read("lib/editor/project.ts");

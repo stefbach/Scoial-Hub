@@ -138,10 +138,10 @@ export function PropertyPanel({
           ))}
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
-          <Toggle on={Boolean(first?.bold)} onClick={() => batchText({ bold: !first?.bold })}>G</Toggle>
-          <Toggle on={Boolean(first?.bg)} onClick={() => batchText({ bg: !first?.bg })}>▬</Toggle>
-          <Toggle on={Boolean(first?.outline)} onClick={() => batchText({ outline: !first?.outline })}>◌</Toggle>
-          <Toggle on={Boolean(first?.shadow)} onClick={() => batchText({ shadow: !first?.shadow })}>◍</Toggle>
+          <Toggle title={t("Gras", "Bold")} on={Boolean(first?.bold)} onClick={() => batchText({ bold: !first?.bold })}>G</Toggle>
+          <Toggle title={t("Bandeau", "Background band")} on={Boolean(first?.bg)} onClick={() => batchText({ bg: !first?.bg })}>▬</Toggle>
+          <Toggle title={t("Contour", "Outline")} on={Boolean(first?.outline)} onClick={() => batchText({ outline: !first?.outline })}>◌</Toggle>
+          <Toggle title={t("Ombre", "Shadow")} on={Boolean(first?.shadow)} onClick={() => batchText({ shadow: !first?.shadow })}>◍</Toggle>
         </div>
       </Panel>
     );
@@ -374,12 +374,16 @@ export function PropertyPanel({
             ))}
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
-            <Toggle on={text.bold} onClick={() => onChange((p) => updateText(p, text.id, { bold: !text.bold }))}>G</Toggle>
-            <Toggle on={text.bg} onClick={() => onChange((p) => updateText(p, text.id, { bg: !text.bg }))}>▬</Toggle>
-            <Toggle on={text.outline} onClick={() => onChange((p) => updateText(p, text.id, { outline: !text.outline }))}>◌</Toggle>
-            <Toggle on={text.shadow} onClick={() => onChange((p) => updateText(p, text.id, { shadow: !text.shadow }))}>◍</Toggle>
+            <Toggle title={t("Gras", "Bold")} on={text.bold} onClick={() => onChange((p) => updateText(p, text.id, { bold: !text.bold }))}>G</Toggle>
+            <Toggle title={t("Bandeau", "Background band")} on={text.bg} onClick={() => onChange((p) => updateText(p, text.id, { bg: !text.bg }))}>▬</Toggle>
+            <Toggle title={t("Contour", "Outline")} on={text.outline} onClick={() => onChange((p) => updateText(p, text.id, { outline: !text.outline }))}>◌</Toggle>
+            <Toggle title={t("Ombre", "Shadow")} on={text.shadow} onClick={() => onChange((p) => updateText(p, text.id, { shadow: !text.shadow }))}>◍</Toggle>
             {(["left", "center", "right"] as const).map((a) => (
-              <Toggle key={a} on={text.align === a} onClick={() => onChange((p) => updateText(p, text.id, { align: a }))}>
+              <Toggle
+                key={a} on={text.align === a}
+                title={a === "left" ? t("Aligné à gauche", "Left-aligned") : a === "center" ? t("Centré", "Centered") : t("Aligné à droite", "Right-aligned")}
+                onClick={() => onChange((p) => updateText(p, text.id, { align: a }))}
+              >
                 {a === "left" ? "⯇" : a === "center" ? "≡" : "⯈"}
               </Toggle>
             ))}
@@ -456,7 +460,10 @@ export function PropertyPanel({
             onChange={(v) => onChange((p) => updateAudio(p, audio.id, { start: v }))} />
           <NumberRow label={t("Durée", "Length")} unit="s" value={audio.length} step={0.1} min={0.1}
             onChange={(v) => onChange((p) => updateAudio(p, audio.id, { length: v }))} />
-          <Toggle on={audio.muted} onClick={() => onChange((p) => updateAudio(p, audio.id, { muted: !audio.muted }))}>
+          <Toggle
+            title={audio.muted ? t("Muet — cliquer pour réactiver", "Muted — click to unmute") : t("Audible — cliquer pour couper", "Audible — click to mute")}
+            on={audio.muted} onClick={() => onChange((p) => updateAudio(p, audio.id, { muted: !audio.muted }))}
+          >
             {audio.muted ? "🔇" : "🔊"}
           </Toggle>
         </Panel>
@@ -487,9 +494,16 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
   );
 }
 
-function Toggle({ on, onClick, children }: { on: boolean; onClick: () => void; children: React.ReactNode }) {
+/**
+ * `title` explique un symbole autrement indéchiffrable — G, ▬, ◌, ◍, les
+ * flèches d'alignement de texte… Sans lui, ces boutons ne portaient AUCUNE
+ * explication, ni infobulle ni lecteur d'écran (audit Editing Bench, P3-1).
+ * Optionnel : un bouton déjà libellé en toutes lettres (« Remplir », etc.)
+ * n'en a pas besoin.
+ */
+function Toggle({ on, onClick, title, children }: { on: boolean; onClick: () => void; title?: string; children: React.ReactNode }) {
   return (
-    <button type="button" onClick={onClick} aria-pressed={on}
+    <button type="button" onClick={onClick} aria-pressed={on} title={title} aria-label={title}
       className={`h-5 min-w-[1.25rem] rounded px-1 text-2xs font-bold ${on ? "bg-page text-white" : "text-muted ring-1 ring-hair"}`}>
       {children}
     </button>

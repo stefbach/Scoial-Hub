@@ -89,6 +89,16 @@ export function PropertyPanel({
   };
 
   const visual: VisualLayer | null = text ?? image ?? shape ?? null;
+  /**
+   * Largeur utilisée pour centrer/aligner à droite horizontalement — jusqu'ici
+   * toujours `undefined` pour un texte (ni image ni forme), donc les boutons
+   * « Centré »/« À droite » retombaient sur une largeur arbitraire de 0.4,
+   * ignorant totalement `wrapPct` quand un retour à la ligne était réglé : le
+   * texte se retrouvait décalé, pas centré (audit Editing Bench, P1-8/P2-8).
+   * Un texte à largeur libre (wrapPct 0, hauteur = contenu) reste sans mesure
+   * connue — repli identique à avant dans ce cas précis.
+   */
+  const horizontalWidth = image?.scale ?? shape?.w ?? (text && text.wrapPct > 0 ? text.wrapPct : undefined);
 
   return (
     <div className="space-y-3">
@@ -193,8 +203,8 @@ export function PropertyPanel({
           <div className="flex flex-wrap items-center gap-1 text-2xs text-muted">
             <span className="w-20 shrink-0">{t("Aligner", "Align")}</span>
             <AlignButton label="⇤" title={t("À gauche", "Left")} onClick={() => patchVisual({ x: 0.05 })} />
-            <AlignButton label="⇔" title={t("Centré", "Centre")} onClick={() => patchVisual({ x: centerX(visual, image?.scale ?? shape?.w) })} />
-            <AlignButton label="⇥" title={t("À droite", "Right")} onClick={() => patchVisual({ x: rightX(visual, image?.scale ?? shape?.w) })} />
+            <AlignButton label="⇔" title={t("Centré", "Centre")} onClick={() => patchVisual({ x: centerX(horizontalWidth) })} />
+            <AlignButton label="⇥" title={t("À droite", "Right")} onClick={() => patchVisual({ x: rightX(horizontalWidth) })} />
             <AlignButton label="⤒" title={t("En haut", "Top")} onClick={() => patchVisual({ y: 0.05 })} />
             <AlignButton label="⇕" title={t("Milieu", "Middle")} onClick={() => patchVisual({ y: centerY(shape?.h ?? image?.heightPct) })} />
             <AlignButton label="⤓" title={t("En bas", "Bottom")} onClick={() => patchVisual({ y: bottomY(shape?.h ?? image?.heightPct) })} />
@@ -207,12 +217,12 @@ export function PropertyPanel({
           />
 
           <div className="grid grid-cols-2 gap-2">
-            <SelectRow
+            <SelectRow compact
               label={t("Entrée", "In")} value={visual.animIn}
               options={ANIMATIONS.map((a) => ({ value: a.key, label: t(a.fr, a.en) }))}
               onChange={(v) => patchVisual({ animIn: v as AnimationKind })}
             />
-            <SelectRow
+            <SelectRow compact
               label={t("Sortie", "Out")} value={visual.animOut}
               options={ANIMATIONS.map((a) => ({ value: a.key, label: t(a.fr, a.en) }))}
               onChange={(v) => patchVisual({ animOut: v as AnimationKind })}
@@ -347,8 +357,8 @@ export function PropertyPanel({
 
 /* ── Aides d'alignement ──────────────────────────────────────────────────── */
 
-const centerX = (l: VisualLayer, w?: number) => (w ? (1 - w) / 2 : 0.5 - 0.2);
-const rightX = (l: VisualLayer, w?: number) => (w ? 0.95 - w : 0.75);
+const centerX = (w?: number) => (w ? (1 - w) / 2 : 0.5 - 0.2);
+const rightX = (w?: number) => (w ? 0.95 - w : 0.75);
 const centerY = (h?: number) => (h ? (1 - h) / 2 : 0.45);
 const bottomY = (h?: number) => (h ? 0.95 - h : 0.85);
 
@@ -445,16 +455,25 @@ function NumberRow({
 }
 
 function SelectRow({
-  label, value, options, onChange,
+  label, value, options, onChange, compact,
 }: {
   label: string; value: string;
   options: { value: string; label: string }[];
   onChange: (v: string) => void;
+  /**
+   * Même défaut que NumberRow : une étiquette fixée à 80 px (w-20) ne pose
+   * aucun problème seule sur une ligne pleine largeur, mais dans une grille à
+   * deux colonnes de 300 px (ex. Entrée / Sortie d'une animation), elle ne
+   * laissait presque plus de place au `<select>` — la valeur choisie
+   * (« Fondu », « Glisse ↑ »…) devenait invisible, réduite à la seule flèche
+   * (audit Editing Bench, P1-10 — même cause que P1-12).
+   */
+  compact?: boolean;
 }) {
   return (
-    <label className="flex items-center gap-2 text-2xs text-muted">
-      <span className="w-20 shrink-0">{label}</span>
-      <select value={value} onChange={(e) => onChange(e.target.value)} className="input flex-1 py-0.5 text-2xs">
+    <label className={`flex items-center gap-1.5 text-2xs text-muted ${compact ? "" : "gap-2"}`}>
+      <span className={compact ? "w-12 shrink-0" : "w-20 shrink-0"}>{label}</span>
+      <select value={value} onChange={(e) => onChange(e.target.value)} className="input min-w-0 flex-1 py-0.5 text-2xs">
         {options.map((o) => (
           <option key={o.value} value={o.value}>{o.label}</option>
         ))}

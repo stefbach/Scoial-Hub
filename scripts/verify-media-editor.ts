@@ -557,6 +557,24 @@ async function main() {
       /Muet — cliquer pour réactiver/.test(panel) || /Muted — click to unmute/.test(panel));
   }
 
+  // ── P2-12 · Sélecteur de couleur libre (audit Editing Bench v3, Lot 4) ──
+  // Les préréglages (blanc, noir, quelques teintes vives, la palette de
+  // marque) restaient les 10 SEULES couleurs atteignables — aucune teinte de
+  // marque hors palette, aucun ajustement fin, n'avaient nulle part où se
+  // poser. Un `<input type="color">` natif ferme cette impasse.
+  {
+    check("P2-12 · un sélecteur de couleur natif existe, factorisé une seule fois",
+      /function ColorSwatches\(/.test(panel) && /type="color"/.test(panel));
+    check("P2-12 · le texte (individuel ET groupe de sous-titres) utilise le sélecteur",
+      /<ColorSwatches value=\{text\.color\}/.test(panel) &&
+      /<ColorSwatches value=\{first\?\.color/.test(panel));
+    check("P2-12 · le remplissage ET le contour d'une forme utilisent le sélecteur",
+      /<ColorSwatches value=\{shape\.fill\}/.test(panel) &&
+      /<ColorSwatches[\s\S]{0,40}value=\{shape\.stroke\}/.test(panel));
+    check("P2-12 · aucune ancienne palette codée en dur ne subsiste hors du composant partagé",
+      (panel.match(/\[\.\.\.PRESET_COLORS, \.\.\.brand\.palette\]/g) ?? []).length === 1);
+  }
+
   console.log(`\n${failures === 0 ? "✓ TOUT VERT" : `✗ ${failures} échec(s)`}\n`);
   process.exit(failures === 0 ? 0 : 1);
 }

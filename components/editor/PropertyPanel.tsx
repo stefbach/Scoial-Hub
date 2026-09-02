@@ -129,14 +129,7 @@ export function PropertyPanel({
           options={Object.entries(FONT_STACKS).map(([key, f]) => ({ value: key, label: f.label }))}
           onChange={(v) => batchText({ font: v as TextLayer["font"] })}
         />
-        <div className="flex flex-wrap items-center gap-1.5">
-          {[...PRESET_COLORS, ...brand.palette].slice(0, 10).map((c, i) => (
-            <button key={`${c}-${i}`} type="button" aria-label={c}
-              onClick={() => batchText({ color: c })}
-              className="h-5 w-5 rounded-full ring-1 ring-hair"
-              style={{ background: c }} />
-          ))}
-        </div>
+        <ColorSwatches value={first?.color ?? PRESET_COLORS[0]} onChange={(c) => batchText({ color: c })} brand={brand} />
         <div className="flex flex-wrap items-center gap-1.5">
           <Toggle title={t("Gras", "Bold")} on={Boolean(first?.bold)} onClick={() => batchText({ bold: !first?.bold })}>G</Toggle>
           <Toggle title={t("Bandeau", "Background band")} on={Boolean(first?.bg)} onClick={() => batchText({ bg: !first?.bg })}>▬</Toggle>
@@ -365,14 +358,7 @@ export function PropertyPanel({
             display={text.wrapPct === 0 ? t("libre", "free") : `${Math.round(text.wrapPct * 100)}%`}
             onChange={(v) => onChange((p) => updateText(p, text.id, { wrapPct: v }))} />
 
-          <div className="flex flex-wrap items-center gap-1.5">
-            {[...PRESET_COLORS, ...brand.palette].slice(0, 10).map((c, i) => (
-              <button key={`${c}-${i}`} type="button" aria-label={c}
-                onClick={() => onChange((p) => updateText(p, text.id, { color: c }))}
-                className={`h-5 w-5 rounded-full ring-1 ring-hair ${text.color === c ? "ring-2 ring-page" : ""}`}
-                style={{ background: c }} />
-            ))}
-          </div>
+          <ColorSwatches value={text.color} onChange={(c) => onChange((p) => updateText(p, text.id, { color: c }))} brand={brand} />
           <div className="flex flex-wrap items-center gap-1.5">
             <Toggle title={t("Gras", "Bold")} on={text.bold} onClick={() => onChange((p) => updateText(p, text.id, { bold: !text.bold }))}>G</Toggle>
             <Toggle title={t("Bandeau", "Background band")} on={text.bg} onClick={() => onChange((p) => updateText(p, text.id, { bg: !text.bg }))}>▬</Toggle>
@@ -394,14 +380,7 @@ export function PropertyPanel({
       {/* ── Forme ────────────────────────────────────────────────────────── */}
       {shape && (
         <Panel title={t("Forme", "Shape")}>
-          <div className="flex flex-wrap items-center gap-1.5">
-            {[...PRESET_COLORS, ...brand.palette].slice(0, 10).map((c, i) => (
-              <button key={`${c}-${i}`} type="button" aria-label={c}
-                onClick={() => onChange((p) => updateShape(p, shape.id, { fill: c }))}
-                className={`h-5 w-5 rounded-full ring-1 ring-hair ${shape.fill === c ? "ring-2 ring-page" : ""}`}
-                style={{ background: c }} />
-            ))}
-          </div>
+          <ColorSwatches value={shape.fill} onChange={(c) => onChange((p) => updateShape(p, shape.id, { fill: c }))} brand={brand} />
           {shape.shape === "round" && (
             <Range label={t("Rayon", "Radius")} min={0} max={0.2} step={0.005} value={shape.radius}
               display={`${Math.round(shape.radius * 100)}%`}
@@ -416,19 +395,16 @@ export function PropertyPanel({
               remplissage, plus une option « aucun » qui rend le contour
               transparent sans toucher à son épaisseur. */}
           {shape.strokeWidth > 0 && (
-            <div className="flex flex-wrap items-center gap-1.5">
-              <button type="button" aria-label={t("Aucun contour", "No stroke")}
-                title={t("Aucun contour", "No stroke")}
-                onClick={() => onChange((p) => updateShape(p, shape.id, { stroke: "transparent" }))}
-                className={`flex h-5 w-5 items-center justify-center rounded-full bg-[length:8px_8px] bg-[linear-gradient(45deg,transparent_45%,rgb(var(--color-hair))_45%,rgb(var(--color-hair))_55%,transparent_55%)] ring-1 ring-hair ${shape.stroke === "transparent" ? "ring-2 ring-page" : ""}`}
-              />
-              {[...PRESET_COLORS, ...brand.palette].slice(0, 10).map((c, i) => (
-                <button key={`stroke-${c}-${i}`} type="button" aria-label={c}
-                  onClick={() => onChange((p) => updateShape(p, shape.id, { stroke: c }))}
-                  className={`h-5 w-5 rounded-full ring-1 ring-hair ${shape.stroke === c ? "ring-2 ring-page" : ""}`}
-                  style={{ background: c }} />
-              ))}
-            </div>
+            <ColorSwatches
+              value={shape.stroke} onChange={(c) => onChange((p) => updateShape(p, shape.id, { stroke: c }))} brand={brand}
+              before={
+                <button type="button" aria-label={t("Aucun contour", "No stroke")}
+                  title={t("Aucun contour", "No stroke")}
+                  onClick={() => onChange((p) => updateShape(p, shape.id, { stroke: "transparent" }))}
+                  className={`flex h-5 w-5 items-center justify-center rounded-full bg-[length:8px_8px] bg-[linear-gradient(45deg,transparent_45%,rgb(var(--color-hair))_45%,rgb(var(--color-hair))_55%,transparent_55%)] ring-1 ring-hair ${shape.stroke === "transparent" ? "ring-2 ring-page" : ""}`}
+                />
+              }
+            />
           )}
         </Panel>
       )}
@@ -507,6 +483,52 @@ function Toggle({ on, onClick, title, children }: { on: boolean; onClick: () => 
       className={`h-5 min-w-[1.25rem] rounded px-1 text-2xs font-bold ${on ? "bg-page text-white" : "text-muted ring-1 ring-hair"}`}>
       {children}
     </button>
+  );
+}
+
+/**
+ * Palette de couleurs — préréglages ET couleur libre.
+ *
+ * Les préréglages (blanc, noir, quelques teintes vives, la palette de marque)
+ * couvrent le cas courant d'un geste, mais restaient les 10 SEULES couleurs
+ * atteignables : une teinte de marque hors palette, ou un simple ajustement
+ * fin, n'avaient nulle part où se poser (audit Editing Bench, P2-12). Le
+ * sélecteur natif ferme cette impasse sans réinventer un choisisseur de
+ * couleur — le navigateur en fournit déjà un, complet et accessible.
+ */
+function ColorSwatches({
+  value, onChange, brand, before,
+}: {
+  value: string;
+  onChange: (c: string) => void;
+  brand: BrandStyle;
+  /** Bouton(s) supplémentaire(s) affiché(s) avant les préréglages — ex. « aucun contour ». */
+  before?: React.ReactNode;
+}) {
+  const t = useT();
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      {before}
+      {[...PRESET_COLORS, ...brand.palette].slice(0, 10).map((c, i) => (
+        <button key={`${c}-${i}`} type="button" aria-label={c} title={c}
+          onClick={() => onChange(c)}
+          className={`h-5 w-5 rounded-full ring-1 ring-hair ${value === c ? "ring-2 ring-page" : ""}`}
+          style={{ background: c }} />
+      ))}
+      <label
+        className="relative flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full bg-[length:8px_8px] bg-[linear-gradient(45deg,transparent_45%,rgb(var(--color-hair))_45%,rgb(var(--color-hair))_55%,transparent_55%)] text-[10px] leading-none text-muted ring-1 ring-hair"
+        title={t("Couleur personnalisée", "Custom color")}
+      >
+        +
+        <input
+          type="color"
+          value={/^#[0-9a-f]{6}$/i.test(value) ? value : "#000000"}
+          onChange={(e) => onChange(e.target.value)}
+          aria-label={t("Couleur personnalisée", "Custom color")}
+          className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+        />
+      </label>
+    </div>
   );
 }
 

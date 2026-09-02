@@ -260,16 +260,38 @@ export function StudioEditor({
 
   /* ── Enregistrement automatique + à la demande (Ctrl+S) ────────────────── */
   const dirty = useRef(false);
-  useEffect(() => { dirty.current = true; }, [project]);
+  /**
+   * L'enregistrement automatique tournait déjà toutes les 10 s, mais rien à
+   * l'écran ne le montrait — impossible de savoir si le montage était à jour
+   * (audit Editing Bench, P2-19). Un échec marquait aussi silencieusement
+   * `dirty` à false SANS avoir réellement sauvegardé : les modifications
+   * suivantes n'étaient alors plus retentées avant la prochaine frappe.
+   */
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+  const [saveFailed, setSaveFailed] = useState(false);
+  // Miroir RÉACTIF de `dirty.current`, uniquement pour l'affichage — le ref
+  // reste la source de vérité pour l'intervalle et beforeunload, qui n'ont pas
+  // besoin d'un rendu à chaque frappe.
+  const [dirtyDisplay, setDirtyDisplay] = useState(false);
+  useEffect(() => { dirty.current = true; setDirtyDisplay(true); }, [project]);
 
   const saveNow = useCallback(async () => {
     if (project.clips.length === 0) return;
-    dirty.current = false;
     const res = await fetch("/api/editor/projects", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ companyId, id: savedId, doc: project, name: project.name }),
     }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+    if (res) {
+      dirty.current = false;
+      setDirtyDisplay(false);
+      setLastSavedAt(new Date());
+      setSaveFailed(false);
+    } else {
+      // L'échec laisse `dirty` à true : le prochain tic de l'enregistrement
+      // automatique retente, au lieu d'abandonner en silence.
+      setSaveFailed(true);
+    }
     if (res?.project?.id && !savedId) setSavedId(res.project.id as string);
   }, [project, companyId, savedId]);
 
@@ -824,6 +846,21 @@ export function StudioEditor({
             aria-label={t("Nom du montage", "Edit name")}
             className="w-44 rounded-md border border-hair bg-transparent px-2 py-0.5 text-2xs text-ink placeholder:text-muted"
           />
+          {/* Indicateur de sauvegarde — jusqu'ici l'enregistrement automatique
+              tournait sans aucun signe à l'écran (audit Editing Bench, P2-19). */}
+          <span
+            role="status"
+            className={`shrink-0 text-2xs ${saveFailed ? "text-danger" : "text-muted"}`}
+          >
+            {saveFailed
+              ? t("⚠ Échec de l'enregistrement — nouvel essai en cours…", "⚠ Save failed — retrying…")
+              : dirtyDisplay
+              ? t("Modifications non enregistrées…", "Unsaved changes…")
+              : lastSavedAt
+              ? t(`Enregistré à ${lastSavedAt.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`,
+                  `Saved at ${lastSavedAt.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}`)
+              : null}
+          </span>
           <span className="hidden text-2xs text-muted sm:inline">
             {duration.toFixed(1)}s · {project.clips.length} {t("plan(s)", "clip(s)")} · {usedTracks(project).length} {t("piste(s)", "track(s)")}
           </span>

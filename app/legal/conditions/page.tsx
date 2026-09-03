@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { LEGAL_CONTACT, LEGAL_EDITOR, LEGAL_EDITOR_URL } from "@/lib/legal";
+
 export const metadata: Metadata = {
   title: "Conditions de service — AXON-AI",
   description:
@@ -8,7 +10,6 @@ export const metadata: Metadata = {
 };
 
 const UPDATED = "4 juin 2026";
-const CONTACT = "sbach1964@gmail.com";
 
 export default function ConditionsPage() {
   return (
@@ -30,6 +31,19 @@ export default function ConditionsPage() {
             entreprises à planifier, créer, publier et piloter leurs campagnes sur les réseaux
             sociaux (organiques et payantes) à l'aide d'agents d'intelligence artificielle. Les
             présentes conditions régissent l'accès et l'utilisation du Service.
+          </p>
+          <p>
+            Le Service est édité par{" "}
+            <a
+              href={LEGAL_EDITOR_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-semibold text-primary-600 hover:text-primary-700"
+            >
+              {LEGAL_EDITOR}
+            </a>
+            , qui en assure l'exploitation et est responsable des traitements décrits dans la
+            politique de confidentialité.
           </p>
         </section>
 
@@ -107,8 +121,8 @@ export default function ConditionsPage() {
           <h2 className="text-base font-semibold text-ink">9. Contact</h2>
           <p>
             Pour toute question relative aux présentes conditions :{" "}
-            <a href={`mailto:${CONTACT}`} className="font-semibold text-primary-600 hover:text-primary-700">
-              {CONTACT}
+            <a href={`mailto:${LEGAL_CONTACT}`} className="font-semibold text-primary-600 hover:text-primary-700">
+              {LEGAL_CONTACT}
             </a>
             .
           </p>

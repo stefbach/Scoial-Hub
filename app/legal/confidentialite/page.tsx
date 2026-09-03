@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { LEGAL_CONTACT, LEGAL_EDITOR, LEGAL_EDITOR_URL } from "@/lib/legal";
+
 export const metadata: Metadata = {
   title: "Politique de confidentialité — AXON-AI",
   description:
@@ -8,7 +10,6 @@ export const metadata: Metadata = {
 };
 
 const UPDATED = "5 juin 2026";
-const CONTACT = "sbach1964@gmail.com";
 
 export default function ConfidentialitePage() {
   return (
@@ -27,6 +28,19 @@ export default function ConfidentialitePage() {
           AXON-AI · Social Media (« le Service ») aide les entreprises à piloter leurs réseaux
           sociaux et leurs campagnes publicitaires à l'aide d'agents d'intelligence artificielle.
           Cette politique explique quelles données nous traitons, pourquoi, et comment.
+        </p>
+
+        <p>
+          Le Service est édité par{" "}
+          <a
+            href={LEGAL_EDITOR_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-semibold text-primary-600 hover:text-primary-700"
+          >
+            {LEGAL_EDITOR}
+          </a>
+          , responsable du traitement au sens du RGPD.
         </p>
 
         <section className="space-y-2">
@@ -85,8 +99,8 @@ export default function ConfidentialitePage() {
           <p>
             Conformément au RGPD, vous disposez d'un droit d'accès, de rectification, d'effacement,
             de limitation et de portabilité de vos données. Pour les exercer :{" "}
-            <a href={`mailto:${CONTACT}`} className="font-semibold text-primary-600 hover:text-primary-700">
-              {CONTACT}
+            <a href={`mailto:${LEGAL_CONTACT}`} className="font-semibold text-primary-600 hover:text-primary-700">
+              {LEGAL_CONTACT}
             </a>
             .
           </p>
@@ -104,8 +118,8 @@ export default function ConfidentialitePage() {
           <h2 className="text-base font-semibold text-ink">7. Contact</h2>
           <p>
             Pour toute question relative à cette politique :{" "}
-            <a href={`mailto:${CONTACT}`} className="font-semibold text-primary-600 hover:text-primary-700">
-              {CONTACT}
+            <a href={`mailto:${LEGAL_CONTACT}`} className="font-semibold text-primary-600 hover:text-primary-700">
+              {LEGAL_CONTACT}
             </a>
             .
           </p>

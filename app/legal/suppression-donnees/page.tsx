@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { LEGAL_CONTACT, LEGAL_EDITOR, LEGAL_EDITOR_URL } from "@/lib/legal";
+
 export const metadata: Metadata = {
   title: "Suppression des données — AXON-AI",
   description:
@@ -8,7 +10,6 @@ export const metadata: Metadata = {
 };
 
 const UPDATED = "4 juin 2026";
-const CONTACT = "sbach1964@gmail.com";
 
 export default function SuppressionDonneesPage() {
   return (
@@ -61,8 +62,8 @@ export default function SuppressionDonneesPage() {
           </h2>
           <p>
             Envoyez un e-mail à{" "}
-            <a href={`mailto:${CONTACT}`} className="font-semibold text-primary-600 hover:text-primary-700">
-              {CONTACT}
+            <a href={`mailto:${LEGAL_CONTACT}`} className="font-semibold text-primary-600 hover:text-primary-700">
+              {LEGAL_CONTACT}
             </a>{" "}
             avec pour objet <strong>« Suppression de mes données »</strong>, en précisant l'adresse
             e-mail de votre compte. Nous supprimerons l'ensemble de vos données personnelles et des
@@ -102,9 +103,21 @@ export default function SuppressionDonneesPage() {
         <section className="space-y-2">
           <h2 className="text-base font-semibold text-ink">Contact</h2>
           <p>
+            Le Service est édité par{" "}
+            <a
+              href={LEGAL_EDITOR_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-semibold text-primary-600 hover:text-primary-700"
+            >
+              {LEGAL_EDITOR}
+            </a>
+            , responsable du traitement de vos données.
+          </p>
+          <p>
             Pour toute demande relative à vos données :{" "}
-            <a href={`mailto:${CONTACT}`} className="font-semibold text-primary-600 hover:text-primary-700">
-              {CONTACT}
+            <a href={`mailto:${LEGAL_CONTACT}`} className="font-semibold text-primary-600 hover:text-primary-700">
+              {LEGAL_CONTACT}
             </a>
             .
           </p>

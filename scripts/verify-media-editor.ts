@@ -609,6 +609,26 @@ async function main() {
       /Maj.*conserver les proportions|Shift.*keep proportions/.test(preview));
   }
 
+  // ── P2-5 · Durée maîtresse (audit Editing Bench v3, Lot 4) ────────────────
+  // La durée totale n'était qu'un affichage : impossible de raccourcir le
+  // montage d'un coup sans retirer chaque plan un par un.
+  {
+    check("P2-5 · la durée totale se modifie, pas seulement s'affiche",
+      /setProjectDuration/.test(studio) &&
+      /const commitDuration = \(\) => \{/.test(studio));
+    check("P2-5 · la saisie ne s'applique qu'à la validation (perte, Entrée), jamais frappe par frappe",
+      /onBlur=\{commitDuration\}/.test(studio) &&
+      /onChange=\{\(e\) => setDurationDraft\(e\.target\.value\)\}/.test(studio));
+    check("P2-5 · Échap annule la saisie en cours",
+      /e\.key === "Escape"/.test(studio) && /setDurationDraft\(null\)/.test(studio));
+    check("P2-5 · Échap ne commit pas le brouillon en cours d'annulation "
+      + "(blur() synchrone lirait encore l'ancien brouillon sans ce garde-fou)",
+      /cancelingDuration\.current = true/.test(studio) &&
+      /if \(cancelingDuration\.current\) \{ cancelingDuration\.current = false; return; \}/.test(studio));
+    check("P2-5 · le champ n'apparaît que si le montage a déjà un plan",
+      /project\.clips\.length > 0 \? \(/.test(studio));
+  }
+
   console.log(`\n${failures === 0 ? "✓ TOUT VERT" : `✗ ${failures} échec(s)`}\n`);
   process.exit(failures === 0 ? 0 : 1);
 }

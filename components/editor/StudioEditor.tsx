@@ -25,7 +25,7 @@ import {
   duplicateClip, duplicateImageLayer, duplicateShape, duplicateText,
   emptyProject, FORMAT_SIZE, moveClip, moveLayerTime, projectDuration, removeAudio,
   removeClip, removeImageLayer, removeShape, removeText, setClipBox, setClipFraming, setClipLength,
-  setClipSpeed, setClipTransition, setTrackMeta, shapesAt, splitAt, splitAudioAt, splitLayerAt,
+  setClipSpeed, setClipTransition, setProjectDuration, setTrackMeta, shapesAt, splitAt, splitAudioAt, splitLayerAt,
   trimClip, trimLayer,
   updateAudio, updateImageLayer, updateShape, updateText, usedTracks, visibleProject,
   type AnimationKind, type EditorFormat, type EditorProject, type ShapeKind,
@@ -193,6 +193,24 @@ export function StudioEditor({
   }, []);
 
   const duration = projectDuration(project);
+  /**
+   * Brouillon de la « durée maîtresse » — `null` tant que le champ n'est pas
+   * en cours d'édition, sinon le texte tapé. Un commit sur chaque frappe
+   * couperait le montage à un chiffre intermédiaire (taper "30" passe par
+   * "3") : l'opération, destructive, ne s'applique qu'au blur ou à Entrée
+   * (audit Editing Bench, P2-5).
+   */
+  const [durationDraft, setDurationDraft] = useState<string | null>(null);
+  // Échap déclenche blur() SYNCHRONEMENT, avant que setDurationDraft(null) ne
+  // soit répercuté : sans cette référence, le commit relit encore l'ancien
+  // brouillon (0,1 s au lieu d'annuler) — bug constaté à l'usage (P2-5).
+  const cancelingDuration = useRef(false);
+  const commitDuration = () => {
+    if (cancelingDuration.current) { cancelingDuration.current = false; return; }
+    const v = Number(durationDraft);
+    if (durationDraft !== null && Number.isFinite(v) && v > 0) apply((p) => setProjectDuration(p, v));
+    setDurationDraft(null);
+  };
 
   /**
    * Change le format de publication. Les textes sont retransposés : leur taille
@@ -931,8 +949,36 @@ export function StudioEditor({
                   `Saved at ${lastSavedAt.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}`)
               : null}
           </span>
-          <span className="hidden text-2xs text-muted sm:inline">
-            {duration.toFixed(1)}s · {project.clips.length} {t("plan(s)", "clip(s)")} · {usedTracks(project).length} {t("piste(s)", "track(s)")}
+          <span className="hidden items-center gap-1 text-2xs text-muted sm:flex">
+            {/* Durée maîtresse — jusqu'ici purement affichée, sans aucun
+                moyen de fixer directement la longueur totale du montage
+                (« il me faut exactement 30 s pour Reels ») autrement qu'en
+                rognant chaque piste une par une (audit Editing Bench, P2-5). */}
+            {project.clips.length > 0 ? (
+              <Tooltip label={t("Durée totale — raccourcit toutes les pistes à cet instant", "Total length — trims every track down to this instant")}>
+                <input
+                  type="number" min={0.1} step={0.5}
+                  value={durationDraft ?? duration.toFixed(1)}
+                  aria-label={t("Durée totale du montage", "Total edit length")}
+                  onFocus={() => setDurationDraft(duration.toFixed(1))}
+                  onChange={(e) => setDurationDraft(e.target.value)}
+                  onBlur={commitDuration}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") { e.preventDefault(); e.currentTarget.blur(); }
+                    else if (e.key === "Escape") {
+                      e.preventDefault();
+                      cancelingDuration.current = true;
+                      setDurationDraft(null);
+                      e.currentTarget.blur();
+                    }
+                  }}
+                  className="w-12 rounded border border-hair bg-transparent px-1 py-0.5 text-right text-2xs text-ink [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                />
+              </Tooltip>
+            ) : (
+              <span>{duration.toFixed(1)}</span>
+            )}
+            s · {project.clips.length} {t("plan(s)", "clip(s)")} · {usedTracks(project).length} {t("piste(s)", "track(s)")}
           </span>
         </div>
 

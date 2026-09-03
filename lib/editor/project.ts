@@ -483,6 +483,40 @@ export function projectDuration(p: EditorProject): number {
   return round(p.clips.reduce((max, c) => Math.max(max, c.start + c.length), 0));
 }
 
+/**
+ * Fixe la durée totale du montage — la « durée maîtresse ». Toutes les
+ * pistes sont raccourcies pour ne plus dépasser cet instant : un plan ou un
+ * calque qui le franchit est raccourci, un plan ou un calque qui commence
+ * après est retiré. Une durée plus longue que le montage actuel ne fait
+ * rien — cette fonction ne fait que RACCOURCIR, jamais rallonger un plan
+ * au-delà de ce que sa source contient (audit Editing Bench, P2-5).
+ */
+export function setProjectDuration(p: EditorProject, seconds: number): EditorProject {
+  const limit = round(Math.max(MIN_CLIP_SECONDS, seconds));
+
+  const clips = p.clips
+    .filter((c) => c.start < limit - EPS)
+    .map((c) => (c.start + c.length > limit + EPS ? { ...c, length: round(limit - c.start) } : c));
+
+  const trimEnd = <T extends { start: number; end: number }>(items: T[]): T[] =>
+    items
+      .filter((l) => l.start < limit - EPS)
+      .map((l) => (l.end > limit + EPS ? { ...l, end: limit } : l));
+
+  const audios = p.audios
+    .filter((a) => a.start < limit - EPS)
+    .map((a) => (a.start + a.length > limit + EPS ? { ...a, length: round(limit - a.start) } : a));
+
+  return normalize({
+    ...p,
+    clips,
+    texts: trimEnd(p.texts),
+    images: trimEnd(p.images),
+    shapes: trimEnd(p.shapes),
+    audios,
+  });
+}
+
 /** Numéros de pistes vidéo utilisés, de la base vers le dessus. */
 export function usedTracks(p: EditorProject): number[] {
   const set = new Set(p.clips.map((c) => c.track));

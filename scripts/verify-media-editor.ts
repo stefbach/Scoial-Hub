@@ -648,6 +648,28 @@ async function main() {
       /onOpenBrandKit=\{\(\) => setBrandKitOpen\(true\)\}/.test(studio));
   }
 
+  // ── P2-6 · Forme d'onde des pistes son (audit Editing Bench v3, Lot 4) ────
+  // Un bandeau audio nu ne montre ni les silences ni les pics : impossible de
+  // s'orienter sans écouter la piste en entier.
+  {
+    check("P2-6 · le décodage passe par le Web Audio API, jamais par une hypothèse de format",
+      /decodeAudioData/.test(timeline) &&
+      /window\.AudioContext/.test(timeline));
+    check("P2-6 · un échec de décodage (média hors CORS, codec non supporté) reste SILENCIEUX",
+      /catch \{\s*\n\s*return null;/.test(timeline));
+    check("P2-6 · décodé UNE FOIS par (source, entrée, durée) — jamais au rythme de la tête de lecture",
+      /const waveformCache = new Map/.test(timeline) &&
+      /function waveformKey\(/.test(timeline) &&
+      /waveformCache\.has\(key\)\) return;/.test(timeline));
+    check("P2-6 · un plan dupliqué (même source) ne déclenche pas un second décodage",
+      /const waveformInflight = new Map/.test(timeline) &&
+      /let promise = waveformInflight\.get\(key\);/.test(timeline));
+    check("P2-6 · la forme d'onde est câblée sur les pistes son, pas sur les autres calques",
+      /useWaveformPeaks\(tone === "audio" \? src : undefined, trimStart \?\? 0, length\)/.test(timeline));
+    check("P2-6 · la source de la piste alimente la forme d'onde de son propre bloc",
+      /src: a\.src, trimStart: a\.trimStart/.test(timeline));
+  }
+
   console.log(`\n${failures === 0 ? "✓ TOUT VERT" : `✗ ${failures} échec(s)`}\n`);
   process.exit(failures === 0 ? 0 : 1);
 }

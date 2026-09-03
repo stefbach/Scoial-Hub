@@ -18,6 +18,7 @@ import {
   ANIMATION_SECONDS,
   moveElement,
   projectDuration,
+  setClipAudio,
   setClipBox,
   setClipFraming,
   setClipLength,
@@ -256,6 +257,29 @@ export function PropertyPanel({
           <p className="text-2xs text-muted">
             {t("Entrée dans la source", "Source in-point")} : {clip.trimStart.toFixed(1)}s
           </p>
+
+          {/* Son embarqué — une propriété du plan lui-même, désormais, plutôt
+              qu'une déduction depuis sa piste (Lot A4, audit Editing Bench
+              v4). Sans objet pour une photo. */}
+          {clip.kind === "video" && (
+            <>
+              <Range label={t("Volume", "Volume")} min={0} max={1} step={0.05} value={clip.volume}
+                display={`${Math.round(clip.volume * 100)}%`}
+                onChange={(v) => onChange((p) => setClipAudio(p, clip.id, { volume: v }))} />
+              <Range label={t("Fondu d'entrée", "Fade in")} min={0} max={5} step={0.1} value={clip.fadeIn}
+                display={`${clip.fadeIn.toFixed(1)}s`}
+                onChange={(v) => onChange((p) => setClipAudio(p, clip.id, { fadeIn: v }))} />
+              <Range label={t("Fondu de sortie", "Fade out")} min={0} max={5} step={0.1} value={clip.fadeOut}
+                display={`${clip.fadeOut.toFixed(1)}s`}
+                onChange={(v) => onChange((p) => setClipAudio(p, clip.id, { fadeOut: v }))} />
+              <Toggle
+                title={clip.muted ? t("Muet — cliquer pour réactiver", "Muted — click to unmute") : t("Audible — cliquer pour couper", "Audible — click to mute")}
+                on={clip.muted} onClick={() => onChange((p) => setClipAudio(p, clip.id, { muted: !clip.muted }))}
+              >
+                {clip.muted ? "🔇" : "🔊"}
+              </Toggle>
+            </>
+          )}
         </Panel>
       )}
 

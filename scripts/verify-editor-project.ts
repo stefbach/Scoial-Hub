@@ -10,7 +10,7 @@ import {
   addAudio, addButton, addClip, addImageLayer, addShape, addText, addTrack, clipAt, clipsAt,
   CLIP_TRANSITION_SECONDS, duplicateClip, emptyProject, imagesAt, layerProgress,
   MIN_CLIP_SECONDS, moveClip, moveElement, normalize, projectDuration, removeClip, removeShape, removeTrack,
-  reorderClip, reorderTrack, setClipBox, setClipFraming, setClipLength, setClipOpacity, setClipSpeed,
+  reorderClip, reorderTrack, setClipAudio, setClipBox, setClipFraming, setClipLength, setClipOpacity, setClipSpeed,
   setClipTransition, setProjectDuration, setTrackDefMeta, shapesAt, splitAt, textsAt, trimClip, updateAudio,
   updateImageLayer, updateShape, updateText, usedTracks, visibleProject, visualElementsAt,
   type Clip, type EditorProject,
@@ -286,6 +286,9 @@ function main() {
   // ── Projection navigateur ────────────────────────────────────────────────
   {
     let p = addClip(emptyProject("c", "p"), { id: "a", src: "a.mp4", kind: "video", sourceDuration: 10 });
+    // Muet par défaut depuis le Lot A4 : ce test mélange délibérément DEUX
+    // sources (le son embarqué du plan ET la musique ajoutée), on le réactive.
+    p = setClipAudio(p, "a", { muted: false });
     p = trimClip(p, "a", { head: 2 });
     p = addAudio(p, { id: "m", src: "m.mp3", name: "M", role: "music", sourceDuration: 60 });
     p = addText(p, "t", "Titre");
@@ -945,6 +948,81 @@ function main() {
     const seenByI = visibleProject(hiddenByI);
     check("visibleProject retire aussi les textes d'une piste masquée (pas seulement les plans)",
       !seenByI.texts.some((l) => l.trackId === "extra"), JSON.stringify(seenByI.texts.map((l) => l.trackId)));
+  }
+
+  // ── Lot A4 · Le son comme propriété d'un plan (audit Editing Bench v4) ────
+  // Jusqu'ici, le son embarqué d'un plan n'avait aucun réglage propre : seule
+  // sa piste décidait, en tout ou rien, s'il était audible. `volume`/
+  // `fadeIn`/`fadeOut`/`muted` en font désormais une propriété du plan lui-
+  // même, au même titre qu'`AudioTrack` pour un fichier son séparé.
+  {
+    // Un plan neuf arrive MUET par défaut — l'utilisateur active son son
+    // plutôt que d'avoir à couper celui de chaque plan ajouté.
+    const fresh = addClip(emptyProject("c", "p"), { id: "a", src: "a.mp4", kind: "video", sourceDuration: 10 });
+    const a0 = fresh.clips[0];
+    check("un plan neuf est muet par défaut",
+      a0.muted === true && a0.volume === 1 && a0.fadeIn === 0 && a0.fadeOut === 0, JSON.stringify(a0));
+
+    // setClipAudio — même motif que updateAudio, borné de la même façon.
+    let p = setClipAudio(fresh, "a", { volume: 0.6, fadeIn: 1.5, fadeOut: 2, muted: false });
+    let clip = p.clips.find((c) => c.id === "a")!;
+    check("setClipAudio règle volume/fondus/coupure",
+      near(clip.volume, 0.6) && near(clip.fadeIn, 1.5) && near(clip.fadeOut, 2) && clip.muted === false,
+      JSON.stringify(clip));
+    p = setClipAudio(p, "a", { volume: 4, fadeIn: -1 });
+    clip = p.clips.find((c) => c.id === "a")!;
+    check("setClipAudio borne le volume à 1 et un fondu à 0 minimum",
+      clip.volume === 1 && clip.fadeIn === 0, JSON.stringify(clip));
+
+    // Migration : un projet enregistré avant ce champ n'en porte pas — on
+    // reconstitue l'ancien comportement (seul le plan de la piste visuelle
+    // la plus basse restait audible) pour qu'il sonne EXACTEMENT pareil.
+    const legacy = normalize({
+      ...emptyProject("c", "p"),
+      clips: [
+        { id: "base", src: "b.mp4", kind: "video", track: 0, length: 5, trimStart: 0, sourceDuration: 5,
+          speed: 1, transitionIn: "none", fit: "cover", focusX: 0.5, focusY: 0.5 },
+        { id: "overlay", src: "o.mp4", kind: "video", track: 1, length: 5, trimStart: 0, sourceDuration: 5,
+          speed: 1, transitionIn: "none", fit: "cover", focusX: 0.5, focusY: 0.5 },
+      ] as unknown as Clip[],
+    });
+    const base = legacy.clips.find((c) => c.id === "base")!;
+    const overlay = legacy.clips.find((c) => c.id === "overlay")!;
+    check("migration : le plan de la piste de base redevient audible",
+      base.muted === false, JSON.stringify(base));
+    check("migration : un plan d'une autre piste reste muet",
+      overlay.muted === true, JSON.stringify(overlay));
+    check("migration : volume et fondus par défaut, plein et nuls",
+      base.volume === 1 && base.fadeIn === 0 && base.fadeOut === 0, JSON.stringify(base));
+
+    // Projection serveur — seul un plan qui dévie du plein volume (coupé ou
+    // atténué) transmet `volume` au moteur ; le reste garde le comportement
+    // d'avant ce champ, silencieux dans le JSON transmis.
+    const audible = setClipAudio(fresh, "a", { muted: false });
+    const edit = toServerEdit(audible) as { timeline: { tracks: { clips: { asset: Record<string, unknown> }[] }[] } };
+    const assetAudible = edit.timeline.tracks.flatMap((tr) => tr.clips).find((c) => c.asset.src === "a.mp4")!.asset;
+    check("un plan audible à plein volume ne transmet pas `volume` au moteur serveur",
+      assetAudible.volume === undefined, JSON.stringify(assetAudible));
+    const editMuted = toServerEdit(fresh) as { timeline: { tracks: { clips: { asset: Record<string, unknown> }[] }[] } };
+    const assetMuted = editMuted.timeline.tracks.flatMap((tr) => tr.clips).find((c) => c.asset.src === "a.mp4")!.asset;
+    check("un plan muet transmet volume:0 au moteur serveur",
+      assetMuted.volume === 0, JSON.stringify(assetMuted));
+    const editHalf = toServerEdit(setClipAudio(fresh, "a", { muted: false, volume: 0.4 })) as {
+      timeline: { tracks: { clips: { asset: Record<string, unknown> }[] }[] };
+    };
+    const assetHalf = editHalf.timeline.tracks.flatMap((tr) => tr.clips).find((c) => c.asset.src === "a.mp4")!.asset;
+    check("un plan atténué transmet son volume exact au moteur serveur",
+      assetHalf.volume === 0.4, JSON.stringify(assetHalf));
+
+    // Projection navigateur — le son embarqué du plan suit le même chemin
+    // ffmpeg que les pistes son ajoutées : filtré (volume + fondus) puis
+    // mappé, ou absent du tout si le plan est muet.
+    const argsMuted = toBrowserPlan(fresh).args.join(" ");
+    check("un plan muet ne mappe aucune piste audio à l'export navigateur",
+      !argsMuted.includes("[mv]"), argsMuted);
+    const argsAudible = toBrowserPlan(setClipAudio(fresh, "a", { muted: false, volume: 0.7, fadeIn: 1 })).args.join(" ");
+    check("un plan audible mappe son propre son, filtré à son volume",
+      argsAudible.includes("volume=0.70") && argsAudible.includes("[mv]"), argsAudible);
   }
 
   console.log(`\n${failures === 0 ? "✓ TOUT VERT" : `✗ ${failures} échec(s)`}\n`);

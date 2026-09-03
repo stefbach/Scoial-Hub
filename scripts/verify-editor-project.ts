@@ -21,7 +21,7 @@ import {
   browserOverlays, toBrowserPlan, toServerEdit,
 } from "../lib/editor/render-plan";
 import {
-  applyTemplate, brandStyleFrom, rescaleTextsForFormat, sizePctFor, TEMPLATES,
+  applyTemplate, brandStyleFrom, fontFromBrandFont, rescaleTextsForFormat, sizePctFor, TEMPLATES,
 } from "../lib/editor/templates";
 
 let failures = 0;
@@ -410,6 +410,36 @@ function main() {
       `${hooked.texts[0].sizePct} → ${wide.texts[0].sizePct}`);
     check("un format inchangé ne retouche rien", rescaleTextsForFormat(hooked, "9:16") === hooked);
     check("changer de format ne perd aucun calque", wide.texts.length === hooked.texts.length);
+  }
+
+  // ── P2-11 · Un texte neuf reprend la police de la marque ─────────────────
+  // Jusqu'ici, un texte ajouté depuis l'outil partait toujours en "sans",
+  // quelle que soit la police identifiée dans la charte graphique.
+  {
+    check("une police à empattements est reconnue", fontFromBrandFont("Playfair Display") === "serif");
+    check("une police à chasse fixe est reconnue", fontFromBrandFont("Courier New") === "mono");
+    check("une police étroite est reconnue", fontFromBrandFont("Roboto Condensed") === "condensed");
+    check("une police arrondie est reconnue", fontFromBrandFont("Comfortaa") === "rounded");
+    check("une police de titrage est reconnue", fontFromBrandFont("Bebas Neue") === "display");
+    check("une police non reconnue retombe sur \"sans\"", fontFromBrandFont("Montserrat") === "sans");
+    check("l'absence de police retombe sur \"sans\"", fontFromBrandFont(undefined) === "sans");
+
+    const brandWithFont = brandStyleFrom({
+      palette: ["#123456"], recommendedTextColor: "#ffffff",
+      chart: { headingFont: "Playfair Display", bodyFont: "Arial" },
+    });
+    check("le style de marque porte la police déduite de la charte", brandWithFont.font === "serif");
+    check("un kit sans charte retombe sur \"sans\"", brandStyleFrom(null).font === "sans");
+
+    const p0 = addClip(emptyProject("c", "p"), { id: "v", src: "v.jpg", kind: "image" });
+    const withText = addText(p0, "t", "Titre", 0, "serif");
+    check("un texte posé avec une police explicite la conserve", withText.texts[0].font === "serif");
+    check("un texte posé sans police précisée garde le comportement existant (\"sans\")",
+      addText(p0, "t2", "Titre").texts[0].font === "sans");
+
+    const withButton = addButton(p0, { shape: "s", text: "bt" }, "CTA", { fill: "#000", text: "#fff" }, 0, "display");
+    check("un bouton posé avec une police explicite l'applique à son texte",
+      withButton.texts.find((x) => x.id === "bt")?.font === "display");
   }
 
   // ── C-02 · Les calques suivent LEURS bornes, pas la tête de lecture ──────

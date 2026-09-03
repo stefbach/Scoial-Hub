@@ -529,7 +529,7 @@ async function main() {
   // l'endroit qu'on était justement en train de regarder.
   {
     check("P1-13 · un texte ajouté depuis l'outil se pose à la tête de lecture",
-      /addText\(p, nextId\("t"\), t\("Votre texte", "Your text"\), playhead\)/.test(studio));
+      /addText\(p, nextId\("t"\), t\("Votre texte", "Your text"\), playhead/.test(studio));
     check("P1-13 · une forme ajoutée depuis l'outil se pose à la tête de lecture",
       /addShape\(p, nextId\("s"\), s\.kind, brand\.palette\[0\] \?\? "#5b2d8e", playhead\)/.test(studio));
     check("P1-13 · un bouton ajouté depuis l'outil se pose à la tête de lecture",
@@ -668,6 +668,16 @@ async function main() {
       /useWaveformPeaks\(tone === "audio" \? src : undefined, trimStart \?\? 0, length\)/.test(timeline));
     check("P2-6 · la source de la piste alimente la forme d'onde de son propre bloc",
       /src: a\.src, trimStart: a\.trimStart/.test(timeline));
+  }
+
+  // ── P2-11 · Un texte neuf reprend la police de la marque ──────────────────
+  // Un texte ajouté depuis l'outil partait toujours en "sans", quelle que
+  // soit la police identifiée par l'IA dans la charte graphique du kit.
+  {
+    check("P2-11 · le bouton « Ajouter un texte » applique la police de la marque",
+      /addText\(p, nextId\("t"\), t\("Votre texte", "Your text"\), playhead, brand\.font\)/.test(studio));
+    check("P2-11 · le bouton d'appel à l'action applique aussi la police de la marque",
+      /addButton\([\s\S]{0,300}playhead,\s*\n\s*brand\.font/.test(studio));
   }
 
   console.log(`\n${failures === 0 ? "✓ TOUT VERT" : `✗ ${failures} échec(s)`}\n`);

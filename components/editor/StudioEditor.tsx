@@ -40,6 +40,7 @@ import {
 } from "@/lib/editor/history";
 import { browserOverlays, decideRenderTarget, toBrowserPlan, type OverlayInput } from "@/lib/editor/render-plan";
 import { drawImages, drawShapes, drawTexts, ensureFontsReady, FONT_STACKS, loadImage } from "@/lib/editor/draw";
+import BrandKitPanel from "@/components/studio/BrandKitPanel";
 import { Timeline, type TimelineSelection } from "./Timeline";
 import { Preview, type LayerPatch } from "./Preview";
 import { ProjectLibrary } from "./ProjectLibrary";
@@ -122,6 +123,8 @@ export function StudioEditor({
   const [loading, setLoading] = useState(Boolean(projectId));
   const [brand, setBrand] = useState<BrandStyle>(() => brandStyleFrom(null));
   const [libraryOpen, setLibraryOpen] = useState(false);
+  /** Panneau « kit de marque » ouvert par-dessus l'éditeur (P2-13). */
+  const [brandKitOpen, setBrandKitOpen] = useState(false);
   /**
    * Langue RÉELLEMENT parlée dans le média à sous-titrer — "" = détection
    * automatique par Whisper. Jusqu'ici le sous-titrage forçait silencieusement
@@ -1113,6 +1116,7 @@ export function StudioEditor({
                   format={project.format}
                   lang={lang}
                   onApply={(key) => apply((p) => applyTemplate(p, key, brand, nextId, lang))}
+                  onOpenBrandKit={() => setBrandKitOpen(true)}
                 />
               )}
 
@@ -1306,6 +1310,34 @@ export function StudioEditor({
           onOpen={openProject}
           onClose={() => setLibraryOpen(false)}
         />
+      )}
+
+      {/* Le kit de marque se règle d'ordinaire hors de l'éditeur (Composer,
+          Studio Vidéo…), un écran que l'éditeur — plein écran — recouvre
+          entièrement. Sans ce raccourci, « kit absent » dans la galerie de
+          modèles n'offrait aucune prise : il fallait fermer l'éditeur pour
+          aller le chercher (audit Editing Bench, P2-13). */}
+      {brandKitOpen && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-3"
+          onClick={() => setBrandKitOpen(false)}
+        >
+          <div
+            className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-xl bg-card shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-hair px-4 py-2.5">
+              <h4 className="text-sm font-semibold text-ink">🎨 {t("Kit de marque", "Brand kit")}</h4>
+              <button
+                type="button" onClick={() => setBrandKitOpen(false)}
+                className="text-muted hover:text-ink" aria-label={t("Fermer", "Close")}
+              >✕</button>
+            </div>
+            <div className="p-3">
+              <BrandKitPanel companyId={companyId} onKit={(k) => setBrand(brandStyleFrom(k))} />
+            </div>
+          </div>
+        </div>
       )}
       <ShortcutsPanel open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
 

@@ -21,12 +21,21 @@ export function TemplateGallery({
   format,
   lang,
   onApply,
+  onOpenBrandKit,
 }: {
   templates: EditorTemplate[];
   brand: BrandStyle;
   format: EditorFormat;
   lang: "fr" | "en";
   onApply: (key: string) => void;
+  /**
+   * Le kit de marque se règle ailleurs dans l'application (Composer, Studio
+   * Vidéo…) — mais rien, depuis cet écran, n'y renvoyait : constater « kit
+   * absent » ici obligeait à fermer l'éditeur pour aller le chercher. Ouvre
+   * le même panneau réutilisable directement par-dessus l'éditeur (audit
+   * Editing Bench, P2-13).
+   */
+  onOpenBrandKit?: () => void;
 }) {
   const t = useT();
   const frame = FORMAT_SIZE[format];
@@ -80,10 +89,17 @@ export function TemplateGallery({
         ))}
       </div>
 
-      <p className="text-2xs text-muted">
+      <p className="flex flex-wrap items-center gap-1.5 text-2xs text-muted">
         {brand.palette.length > 0 || brand.logoUrl
           ? t("Couleurs et logo repris du kit de marque.", "Colours and logo taken from the brand kit.")
           : t("Kit de marque absent — modèles en blanc lisible.", "No brand kit — templates use readable white.")}
+        {onOpenBrandKit && (
+          <button type="button" onClick={onOpenBrandKit} className="font-medium text-page underline hover:no-underline">
+            {brand.palette.length > 0 || brand.logoUrl
+              ? t("Modifier", "Edit")
+              : t("Alimenter le kit de marque", "Set up brand kit")}
+          </button>
+        )}
       </p>
     </div>
   );

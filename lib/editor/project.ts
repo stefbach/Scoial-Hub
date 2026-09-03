@@ -383,7 +383,7 @@ function round(v: number): number {
  * même moment se dessinaient l'un par-dessus l'autre et le second devenait
  * impossible à sélectionner.
  */
-function packLanes<T extends { start: number; end: number }>(items: T[]): (T & { lane: number })[] {
+export function packLanes<T extends { start: number; end: number }>(items: T[]): (T & { lane: number })[] {
   const order = items.map((item, index) => ({ item, index })).sort((a, b) =>
     a.item.start === b.item.start ? a.index - b.index : a.item.start - b.item.start
   );
@@ -508,48 +508,88 @@ export function normalize(p: EditorProject): EditorProject {
     .flatMap((role) => packLanes(audiosPrepared.filter((a) => a.role === role)))
     .map(({ end, ...a }) => { void end; return a; });
 
-  // ── Pistes partagées (Lot A1, audit Editing Bench v4) ──────────────────
-  // Calculée à CHAQUE passage, comme `lane` : rien ne permet encore à
-  // l'utilisateur de la choisir (Lot A2), donc la dériver systématiquement
-  // des champs déjà existants (`track`, `role`) est aussi correct que de la
-  // persister — et bien plus simple, sans détection « ancien/nouveau projet »
-  // ni risque de désynchronisation avec `track`, qui reste modifié par
-  // l'interface actuelle et reste donc la source de vérité tant que ce lot
-  // n'est pas terminé.
-  const visualTrackDefs: TrackDef[] = clipTrackNumbers.map((n) => ({
-    id: `v${n}`,
-    family: "visual",
-    ...(p.trackMeta?.[n]?.locked !== undefined ? { locked: p.trackMeta[n].locked } : {}),
-    ...(p.trackMeta?.[n]?.hidden !== undefined ? { hidden: p.trackMeta[n].hidden } : {}),
-  }));
-  // Textes, incrustations et formes rejoignent une seule piste synthétique,
-  // devant toutes les pistes vidéo : c'est EXACTEMENT l'ordre déjà en vigueur
-  // (audit v4, §2) — inventer trois pistes séparées serait un choix de mise
-  // en page qui revient à l'utilisateur, pas à une migration automatique.
-  const OVERLAY_TRACK_ID = "overlay";
-  const hasOverlay = texts.length > 0 || images.length > 0 || shapes.length > 0;
-  if (hasOverlay) visualTrackDefs.push({ id: OVERLAY_TRACK_ID, family: "visual" });
-  // Un projet vide garde au moins une piste visuelle — même garantie que
+  // ── Pistes partagées (Lot A1/A2, audit Editing Bench v4) ────────────────
+  // `p.tracks` est désormais la source de vérité, ÉDITABLE par l'utilisateur
+  // (créer/supprimer/réordonner une piste, glisser un élément dessus — Lot
+  // A2) — préservée d'un passage à l'autre, jamais reconstruite depuis zéro.
+  // Ce qui suit ne fait que RÉPARER : donner une piste à un élément qui n'en
+  // a pas encore (`trackId` vide — projet pré-Lot A, ou calque tout juste
+  // posé) et faire apparaître une piste tout juste référencée mais absente
+  // de `tracks` (un plan bougé vers un numéro inédit via l'ancienne API
+  // `moveClip`, ou une donnée orpheline).
+  let tracks: TrackDef[] = p.tracks ? [...p.tracks] : [];
+
+  const insertTrack = (id: string, family: TrackFamily): void => {
+    if (tracks.some((tr) => tr.id === id)) return;
+    if (family === "audio") { tracks.push({ id, family }); return; }
+    // Piste visuelle neuve : posée devant toutes les pistes vidéo déjà
+    // connues, mais toujours avant les pistes son qui closent le tableau.
+    const firstAudio = tracks.findIndex((tr) => tr.family === "audio");
+    tracks.splice(firstAudio < 0 ? tracks.length : firstAudio, 0, { id, family });
+  };
+
+  // Textes, incrustations et formes sans piste choisie rejoignent tous la
+  // MÊME piste de recouvrement par défaut, devant toutes les pistes vidéo —
+  // l'ordre déjà en vigueur avant cette refonte (audit v4, §2). Un id fixe,
+  // pas dérivé du contenu : le même calque neuf doit toujours retrouver la
+  // même piste par défaut d'un passage à l'autre.
+  const DEFAULT_OVERLAY_TRACK_ID = "overlay";
+
+  // Plans : `track` (numéro hérité) ne sert de repli que si le plan n'a
+  // encore aucune trackId propre — un montage pré-Lot A, ou un plan tout
+  // juste posé par `addClip`.
+  const clips = clipsByTrack.map((c) => {
+    const wanted = c.trackId || `v${c.track}`;
+    insertTrack(wanted, "visual");
+    return { ...c, trackId: wanted };
+  });
+
+  const withDefaultTrack = <T extends { trackId: string }>(items: T[]): T[] =>
+    items.map((l) => {
+      const wanted = l.trackId || DEFAULT_OVERLAY_TRACK_ID;
+      insertTrack(wanted, "visual");
+      return { ...l, trackId: wanted };
+    });
+  const textsWithTrack = withDefaultTrack(texts);
+  const imagesWithTrack = withDefaultTrack(images);
+  const shapesWithTrack = withDefaultTrack(shapes);
+
+  const audiosWithTrack = audios.map((a) => {
+    const wanted = a.trackId || `a-${a.role}`;
+    insertTrack(wanted, "audio");
+    return { ...a, trackId: wanted };
+  });
+
+  // Un montage vide garde au moins une piste visuelle — même garantie que
   // `usedTracks()` aujourd'hui (`[0]` même sans aucun plan).
-  if (visualTrackDefs.length === 0) visualTrackDefs.push({ id: "v0", family: "visual" });
+  if (!tracks.some((tr) => tr.family === "visual")) insertTrack("v0", "visual");
 
-  const audioTrackDefs: TrackDef[] = AUDIO_ROLE_ORDER
-    .filter((role) => audios.some((a) => a.role === role))
-    .map((role) => ({ id: `a-${role}`, family: "audio" }));
+  // Bascule ponctuelle depuis l'ancien verrouillage/masquage par NUMÉRO
+  // (`trackMeta`) — repliée sur la TrackDef correspondante puis abandonnée :
+  // les deux représentations ne doivent jamais coexister, sous peine qu'une
+  // piste masquée réapparaisse silencieusement à la réouverture d'un projet.
+  if (p.trackMeta) {
+    tracks = tracks.map((tr) => {
+      const legacyNumber = tr.family === "visual" && /^v\d+$/.test(tr.id) ? Number(tr.id.slice(1)) : null;
+      const meta = legacyNumber !== null ? p.trackMeta?.[legacyNumber] : undefined;
+      return meta
+        ? { ...tr, ...(meta.locked !== undefined ? { locked: meta.locked } : {}), ...(meta.hidden !== undefined ? { hidden: meta.hidden } : {}) }
+        : tr;
+    });
+  }
 
-  const tracks: TrackDef[] = [...visualTrackDefs, ...audioTrackDefs];
-
-  const clips = clipsByTrack.map((c) => ({ ...c, trackId: `v${c.track}` }));
-  const textsWithTrack = texts.map((l) => ({ ...l, trackId: OVERLAY_TRACK_ID }));
-  const imagesWithTrack = images.map((l) => ({ ...l, trackId: OVERLAY_TRACK_ID }));
-  const shapesWithTrack = shapes.map((l) => ({ ...l, trackId: OVERLAY_TRACK_ID }));
-  const audiosWithTrack = audios.map((a) => ({ ...a, trackId: `a-${a.role}` }));
+  // Numéro hérité, dérivé de la POSITION plutôt que stocké à part : il reste
+  // ainsi exact même après un réordonnancement (Lot A2). Rien ne le lit plus
+  // hors de cette fonction et de l'ancienne API `moveClip` — jamais une
+  // seconde source de vérité.
+  const visualOrder = new Map(tracks.filter((tr) => tr.family === "visual").map((tr, i) => [tr.id, i]));
+  const clipsFinal = clips.map((c) => ({ ...c, track: visualOrder.get(c.trackId) ?? c.track }));
 
   // Un emplacement dont la cible a disparu (calque supprimé) n'a plus de sens
   // à signaler : sans ce filtrage, `unfilledSlots` continuerait à réclamer un
   // texte que l'utilisateur a explicitement effacé.
   const targetExists = (s: Slot): boolean => {
-    if (s.targetKind === "clip") return clips.some((c) => c.id === s.targetId);
+    if (s.targetKind === "clip") return clipsFinal.some((c) => c.id === s.targetId);
     if (s.targetKind === "text") return textsWithTrack.some((l) => l.id === s.targetId);
     if (s.targetKind === "image") return imagesWithTrack.some((l) => l.id === s.targetId);
     return audiosWithTrack.some((a) => a.id === s.targetId);
@@ -558,12 +598,14 @@ export function normalize(p: EditorProject): EditorProject {
 
   return {
     ...p,
-    clips,
+    clips: clipsFinal,
     texts: textsWithTrack,
     images: imagesWithTrack,
     shapes: shapesWithTrack,
     audios: audiosWithTrack,
     tracks,
+    // Replié sur les TrackDef ci-dessus — ne doit plus jamais être écrit.
+    trackMeta: undefined,
     slots: slots.length > 0 ? slots : undefined,
   };
 }
@@ -625,29 +667,156 @@ export function isEmptyProject(p: EditorProject): boolean {
 
 /* ── Verrouillage et masquage de piste (chapitre 8.1) ───────────────────── */
 
+/**
+ * Enveloppes numériques historiques (piste vidéo `N`), conservées pour tout
+ * appelant qui ne connaît que l'ancien système à numéros — traduites vers la
+ * TrackDef `vN` correspondante (Lot A2, audit Editing Bench v4).
+ */
 export function isTrackLocked(p: EditorProject, track: number): boolean {
-  return Boolean(p.trackMeta?.[track]?.locked);
+  return Boolean((p.tracks ?? []).find((tr) => tr.id === `v${track}`)?.locked);
 }
 
 export function isTrackHidden(p: EditorProject, track: number): boolean {
-  return Boolean(p.trackMeta?.[track]?.hidden);
+  return Boolean((p.tracks ?? []).find((tr) => tr.id === `v${track}`)?.hidden);
 }
 
 export function setTrackMeta(p: EditorProject, track: number, patch: TrackMeta): EditorProject {
-  const trackMeta = { ...(p.trackMeta ?? {}) };
-  trackMeta[track] = { ...trackMeta[track], ...patch };
-  return { ...p, trackMeta };
+  return setTrackDefMeta(p, `v${track}`, patch);
+}
+
+/**
+ * Verrouillage/masquage d'une piste QUELCONQUE — visuelle ou sonore — par
+ * son id (Lot A2). Remplace `setTrackMeta`, qui ne portait que sur les
+ * pistes vidéo numérotées. Crée la piste si elle n'existe pas encore plutôt
+ * que d'échouer silencieusement : verrouiller une piste tout juste glissée
+ * dans l'interface ne doit jamais dépendre de l'ordre des appels.
+ */
+export function setTrackDefMeta(p: EditorProject, trackId: string, patch: TrackMeta): EditorProject {
+  const exists = (p.tracks ?? []).some((tr) => tr.id === trackId);
+  const tracks = exists
+    ? (p.tracks ?? []).map((tr) => (tr.id === trackId ? { ...tr, ...patch } : tr))
+    : [...(p.tracks ?? []), { id: trackId, family: "visual" as const, ...patch }];
+  return { ...p, tracks };
 }
 
 /**
  * Le montage tel qu'on le VOIT et qu'on l'EXPORTE : les pistes masquées en
- * sont retirées. Un seul point de filtrage, appelé par l'aperçu et par les
- * deux projections de rendu — sans quoi les deux pourraient diverger
- * (itération 3, chapitre 9, point 10).
+ * sont retirées — désormais quel que soit le type d'élément qu'elles
+ * portent (plan, texte, incrustation, forme, son), pas seulement les plans
+ * vidéo comme avant le Lot A2. Un seul point de filtrage, appelé par
+ * l'aperçu et par les deux projections de rendu — sans quoi les deux
+ * pourraient diverger (itération 3, chapitre 9, point 10).
  */
 export function visibleProject(p: EditorProject): EditorProject {
-  if (!p.trackMeta || !Object.values(p.trackMeta).some((m) => m?.hidden)) return p;
-  return { ...p, clips: p.clips.filter((c) => !p.trackMeta?.[c.track]?.hidden) };
+  const hiddenIds = new Set((p.tracks ?? []).filter((tr) => tr.hidden).map((tr) => tr.id));
+  if (hiddenIds.size === 0) return p;
+  return {
+    ...p,
+    clips: p.clips.filter((c) => !hiddenIds.has(c.trackId)),
+    texts: p.texts.filter((l) => !hiddenIds.has(l.trackId)),
+    images: p.images.filter((l) => !hiddenIds.has(l.trackId)),
+    shapes: p.shapes.filter((l) => !hiddenIds.has(l.trackId)),
+    audios: p.audios.filter((a) => !hiddenIds.has(a.trackId)),
+  };
+}
+
+/**
+ * Ajoute une piste vide — visuelle ou sonore — devant tout ce qui existe
+ * déjà dans sa famille (Lot A2). Jusqu'ici, une piste n'existait que par
+ * ricochet — parce qu'un plan y était posé — sans aucun moyen d'en préparer
+ * une à l'avance.
+ */
+export function addTrack(p: EditorProject, id: string, family: TrackFamily): EditorProject {
+  if ((p.tracks ?? []).some((tr) => tr.id === id)) return p;
+  const tracks = [...(p.tracks ?? [])];
+  if (family === "audio") {
+    tracks.push({ id, family });
+  } else {
+    const firstAudio = tracks.findIndex((tr) => tr.family === "audio");
+    tracks.splice(firstAudio < 0 ? tracks.length : firstAudio, 0, { id, family });
+  }
+  return normalize({ ...p, tracks });
+}
+
+/**
+ * Retire une piste — et tout ce qu'elle porte : un plan, un texte, une
+ * incrustation, une forme ou un son n'a pas de sens sans sa piste (Lot A2).
+ * Refuse de retirer la DERNIÈRE piste visuelle : un montage garde toujours
+ * un endroit où poser un plan. Rien de tel n'est imposé côté son — un
+ * montage peut très bien n'avoir aucune piste sonore.
+ */
+export function removeTrack(p: EditorProject, trackId: string): EditorProject {
+  const target = (p.tracks ?? []).find((tr) => tr.id === trackId);
+  if (!target) return p;
+  if (target.family === "visual" && (p.tracks ?? []).filter((tr) => tr.family === "visual").length <= 1) return p;
+
+  return normalize({
+    ...p,
+    tracks: (p.tracks ?? []).filter((tr) => tr.id !== trackId),
+    clips: p.clips.filter((c) => c.trackId !== trackId),
+    texts: p.texts.filter((l) => l.trackId !== trackId),
+    images: p.images.filter((l) => l.trackId !== trackId),
+    shapes: p.shapes.filter((l) => l.trackId !== trackId),
+    audios: p.audios.filter((a) => a.trackId !== trackId),
+  });
+}
+
+/**
+ * Déplace une piste d'un cran au sein de SA FAMILLE — jamais entre visuel et
+ * sonore, qui n'ont pas le même sens d'empilement (Lot A2). "up" rapproche
+ * de l'avant (index plus haut, la piste monte dans la pile affichée),
+ * "down" en éloigne. Sans effet déjà au bord.
+ */
+export function reorderTrack(p: EditorProject, trackId: string, direction: "up" | "down"): EditorProject {
+  const tracks = [...(p.tracks ?? [])];
+  const at = tracks.findIndex((tr) => tr.id === trackId);
+  if (at < 0) return p;
+  const family = tracks[at].family;
+  const step = direction === "up" ? 1 : -1;
+  let swapWith = at + step;
+  while (swapWith >= 0 && swapWith < tracks.length && tracks[swapWith].family !== family) swapWith += step;
+  if (swapWith < 0 || swapWith >= tracks.length || tracks[swapWith].family !== family) return p;
+  [tracks[at], tracks[swapWith]] = [tracks[swapWith], tracks[at]];
+  return normalize({ ...p, tracks });
+}
+
+/**
+ * Déplace un élément QUELCONQUE — plan, texte, incrustation, forme, son —
+ * vers une autre piste et/ou un autre instant, en un seul geste (Lot A2).
+ * Pour la timeline, remplace `moveClip` (limité aux plans) et
+ * `moveLayerTime` (limité au temps, sans notion de piste) : un seul geste de
+ * glisser, un seul point d'entrée, quel que soit le type saisi.
+ */
+export function moveElement(
+  p: EditorProject,
+  sel: { kind: "clip" | TimedLayerKind; id: string },
+  patch: { trackId?: string; start?: number }
+): EditorProject {
+  if (sel.kind === "clip") {
+    return normalize({
+      ...p,
+      clips: p.clips.map((c) => (c.id === sel.id
+        ? { ...c, trackId: patch.trackId ?? c.trackId, start: patch.start === undefined ? c.start : Math.max(0, round(patch.start)) }
+        : c)),
+    });
+  }
+  if (sel.kind === "audio") {
+    return normalize({
+      ...p,
+      audios: p.audios.map((a) => (a.id === sel.id
+        ? { ...a, trackId: patch.trackId ?? a.trackId, start: patch.start === undefined ? a.start : Math.max(0, round(patch.start)) }
+        : a)),
+    });
+  }
+  const list = sel.kind === "text" ? p.texts : sel.kind === "image" ? p.images : p.shapes;
+  const l = list.find((x) => x.id === sel.id);
+  if (!l) return p;
+  const span = l.end - l.start;
+  const start = patch.start === undefined ? l.start : Math.max(0, round(patch.start));
+  const layerPatch = { start, end: round(start + span), trackId: patch.trackId ?? l.trackId };
+  if (sel.kind === "text") return normalize({ ...p, texts: p.texts.map((x) => (x.id === sel.id ? { ...x, ...layerPatch } : x)) });
+  if (sel.kind === "image") return normalize({ ...p, images: p.images.map((x) => (x.id === sel.id ? { ...x, ...layerPatch } : x)) });
+  return normalize({ ...p, shapes: p.shapes.map((x) => (x.id === sel.id ? { ...x, ...layerPatch } : x)) });
 }
 
 /* ── Emplacements de gabarit ─────────────────────────────────────────────── */
@@ -760,15 +929,19 @@ export function moveClip(
   clipId: string,
   patch: { track?: number; start?: number }
 ): EditorProject {
-  const clips = p.clips.map((c) =>
-    c.id === clipId
-      ? {
-          ...c,
-          track: patch.track === undefined ? c.track : Math.max(0, Math.round(patch.track)),
-          start: patch.start === undefined ? c.start : Math.max(0, round(patch.start)),
-        }
-      : c
-  );
+  const clips = p.clips.map((c) => {
+    if (c.id !== clipId) return c;
+    const track = patch.track === undefined ? c.track : Math.max(0, Math.round(patch.track));
+    return {
+      ...c,
+      track,
+      // Depuis le Lot A2, `trackId` fait foi — sans ce report, un numéro
+      // demandé ici serait silencieusement ignoré par `normalize`, qui ne
+      // consulte plus `track` qu'en dernier recours (piste inconnue).
+      trackId: patch.track === undefined ? c.trackId : `v${track}`,
+      start: patch.start === undefined ? c.start : Math.max(0, round(patch.start)),
+    };
+  });
   return normalize({ ...p, clips });
 }
 

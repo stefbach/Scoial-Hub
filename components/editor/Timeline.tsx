@@ -17,17 +17,28 @@
 // Ici, les libellés sont sortis du flux temporel, dans une colonne fixe. Tout
 // ce qui vit dans le temps — graduation, blocs, tête de lecture, conversion du
 // clic — passe par `timeToPx` / `pxToTime`, mesurés sur le MÊME élément.
+//
+// PISTES LIBRES (Lot A2, audit Editing Bench v4)
+// Jusqu'ici, cinq blocs de construction séparés — une boucle par piste vidéo,
+// une piste fixe par type de calque, une boucle sur les rôles audio —
+// dessinaient sept groupes de rangées indépendants : un texte ne pouvait
+// jamais apparaître « au-dessus » d'une piste vidéo, une forme jamais devant
+// un texte. Une seule boucle sur `project.tracks` les remplace : n'importe
+// quel type d'élément peut vivre sur n'importe quelle piste visuelle, et
+// l'utilisateur en crée, supprime, réordonne — plutôt qu'une piste qui
+// n'existait qu'en creux, parce qu'un plan la référençait.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useT } from "@/lib/i18n";
 import {
   MIN_CLIP_SECONDS,
+  packLanes,
   projectDuration,
-  usedTracks,
-  type AudioRole,
   type Clip,
   type EditorProject,
   type TimedLayerKind,
+  type TrackDef,
+  type TrackFamily,
 } from "@/lib/editor/project";
 import { Tooltip } from "./Tooltip";
 
@@ -40,6 +51,8 @@ const SNAP_SECONDS = 0.15;
 /** Hauteurs partagées par la colonne des libellés et par les pistes. */
 const RULER_H = 20;
 const LANE_H = 40;
+/** Espace vertical entre deux pistes — voir `space-y-1.5` plus bas. */
+const LANE_GAP = 6;
 
 export type TimelineSelection =
   | { kind: "clip"; id: string }
@@ -48,6 +61,9 @@ export type TimelineSelection =
   | { kind: "image"; id: string }
   | { kind: "shape"; id: string }
   | null;
+
+/** Type + id d'un élément, tous types confondus — la clé de `moveElement`. */
+type ElementKind = "clip" | TimedLayerKind;
 
 export function formatTime(seconds: number): string {
   const s = Math.max(0, seconds);
@@ -89,13 +105,15 @@ export function Timeline({
   onSelect,
   onContextMenu,
   onTrim,
-  onMoveClip,
   onTrimLayer,
-  onMoveLayer,
+  onMoveElement,
   onDragStart,
   onDragEnd,
   onToggleTrackLock,
   onToggleTrackHidden,
+  onAddTrack,
+  onRemoveTrack,
+  onReorderTrack,
 }: {
   project: EditorProject;
   playhead: number;
@@ -122,23 +140,23 @@ export function Timeline({
   onContextMenu?: (sel: NonNullable<TimelineSelection>, e: { clientX: number; clientY: number }) => void;
   /** Rognage par une extrémité, en secondes (positif = raccourcit). */
   onTrim: (clipId: string, edge: "head" | "tail", delta: number) => void;
-  /** Déplacement d'un plan : changement de piste et/ou d'instant. */
-  onMoveClip: (clipId: string, patch: { track: number; start: number }) => void;
-  /**
-   * Rognage et déplacement d'un calque temporel — texte, incrustation, forme
-   * ou audio. Parité de manipulation avec les plans vidéo (itération 3, C-04) :
-   * ces éléments ne se réglaient jusqu'ici qu'au clavier, dans le panneau de
-   * propriétés.
-   */
   onTrimLayer: (kind: TimedLayerKind, id: string, edge: "head" | "tail", delta: number) => void;
-  onMoveLayer: (kind: TimedLayerKind, id: string, start: number) => void;
+  /**
+   * Déplace un élément QUELCONQUE — plan, texte, incrustation, forme, son —
+   * vers une autre piste et/ou un autre instant, en un seul geste (Lot A2).
+   */
+  onMoveElement: (sel: { kind: ElementKind; id: string }, patch: { trackId?: string; start?: number }) => void;
   /** Début / fin d'un geste continu (glisser, rogner) — pour ne compter qu'UNE
       entrée d'historique par geste plutôt qu'une par pixel parcouru. */
   onDragStart?: () => void;
   onDragEnd?: () => void;
-  /** Verrouillage et masquage d'une piste vidéo (chapitre 8.1). */
-  onToggleTrackLock: (track: number) => void;
-  onToggleTrackHidden: (track: number) => void;
+  /** Verrouillage et masquage d'une piste QUELCONQUE (Lot A2), par son id. */
+  onToggleTrackLock: (trackId: string) => void;
+  onToggleTrackHidden: (trackId: string) => void;
+  /** Créer / supprimer / réordonner une piste — nouveau au Lot A2. */
+  onAddTrack: (family: TrackFamily) => void;
+  onRemoveTrack: (trackId: string) => void;
+  onReorderTrack: (trackId: string, direction: "up" | "down") => void;
 }) {
   const t = useT();
   const [zoomIdx, setZoomIdx] = useState(1);
@@ -158,9 +176,8 @@ export function Timeline({
 
   const drag = useRef<
     | { type: "trim"; clipId: string; edge: "head" | "tail"; startX: number }
-    | { type: "move"; clipId: string; startX: number; startY: number; fromStart: number; fromTrack: number }
     | { type: "trimLayer"; kind: TimedLayerKind; id: string; edge: "head" | "tail"; startX: number }
-    | { type: "moveLayer"; kind: TimedLayerKind; id: string; startX: number; fromStart: number }
+    | { type: "move"; kind: ElementKind; id: string; startX: number; startY: number; fromStart: number; fromLaneIndex: number; family: TrackFamily }
     | { type: "scrub" }
     | null
   >(null);
@@ -198,6 +215,91 @@ export function Timeline({
     startScrub(e);
   }
 
+  /** Ouvre un geste continu — une seule entrée d'historique le scellera. */
+  function beginDrag<T extends { type: string }>(state: T) {
+    onDragStart?.();
+    drag.current = state as NonNullable<typeof drag.current>;
+  }
+
+  /* ── Pistes affichées ──────────────────────────────────────────────────
+     Une SEULE source pour les libellés et les blocs : une rangée par piste
+     de `project.tracks`, quel que soit ce qu'elle porte. Les pistes
+     visuelles s'affichent de la plus en avant vers la piste de base, les
+     pistes son de la plus récente vers la plus ancienne — l'ordre déjà
+     utilisé pour les pistes vidéo, étendu à toute la timeline. */
+  const allTracks = project.tracks ?? [];
+  // Ordre ASCENDANT (index 0 = piste de base) — sert à NOMMER les pistes
+  // (V1, V2… A1, A2…, la convention même de l'audit), indépendamment de
+  // l'ordre d'AFFICHAGE ci-dessous (la plus en avant tout en haut).
+  const visualAscending = useMemo(() => allTracks.filter((tr) => tr.family === "visual"), [allTracks]);
+  const audioAscending = useMemo(() => allTracks.filter((tr) => tr.family === "audio"), [allTracks]);
+  const visualTracks = useMemo(() => visualAscending.slice().reverse(), [visualAscending]);
+  const audioTracks = useMemo(() => audioAscending.slice().reverse(), [audioAscending]);
+  const displayTracks = useMemo(() => [...visualTracks, ...audioTracks], [visualTracks, audioTracks]);
+
+  type Placed = { kind: ElementKind; id: string; start: number; end: number; lane: number };
+
+  /** Élément vivant sur CETTE piste, tous types confondus, avec sa propre
+      sous-piste — le modèle ne pack les rangées que par TYPE ; plusieurs
+      types peuvent désormais se partager une piste (Lot A2), la rangée doit
+      donc être recalculée ici, sur l'ensemble mélangé. */
+  function placedOn(trackId: string): Placed[] {
+    const raw: (Placed & { end: number })[] = [
+      ...project.clips.filter((c) => c.trackId === trackId).map((c) => ({
+        kind: "clip" as const, id: c.id, start: c.start, end: c.start + c.length, lane: 0,
+      })),
+      ...project.texts.filter((l) => l.trackId === trackId).map((l) => ({
+        kind: "text" as const, id: l.id, start: l.start, end: l.end, lane: 0,
+      })),
+      ...project.images.filter((l) => l.trackId === trackId).map((l) => ({
+        kind: "image" as const, id: l.id, start: l.start, end: l.end, lane: 0,
+      })),
+      ...project.shapes.filter((l) => l.trackId === trackId).map((l) => ({
+        kind: "shape" as const, id: l.id, start: l.start, end: l.end, lane: 0,
+      })),
+      ...project.audios.filter((a) => a.trackId === trackId).map((a) => ({
+        kind: "audio" as const, id: a.id, start: a.start, end: a.start + a.length, lane: 0,
+      })),
+    ];
+    return packLanes(raw);
+  }
+
+  const lanes = displayTracks.map((tr) => ({ track: tr, items: placedOn(tr.id) }));
+  const rowsOf = (items: Placed[]) => Math.max(1, ...items.map((it) => it.lane + 1));
+
+  /** Sommet cumulé de chaque piste affichée — sert au calcul du glissement
+      vertical, dont le pas n'est plus constant depuis que des pistes
+      peuvent avoir des hauteurs différentes (Lot A2). */
+  const laneTops = useMemo(() => {
+    const tops: number[] = [];
+    let acc = 0;
+    for (const l of lanes) {
+      tops.push(acc);
+      acc += rowsOf(l.items) * LANE_H + LANE_GAP;
+    }
+    return tops;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lanes]);
+
+  /** Piste affichée dont la plage verticale contient `y`, restreinte à la
+      famille demandée — un plan ne peut jamais glisser jusqu'à une piste
+      son, ni l'inverse. */
+  function laneIndexAtY(y: number, family: TrackFamily): number {
+    let first = -1;
+    let last = -1;
+    for (let i = 0; i < displayTracks.length; i++) {
+      if (displayTracks[i].family !== family) continue;
+      if (first < 0) first = i;
+      last = i;
+    }
+    if (first < 0) return -1;
+    for (let i = first; i <= last; i++) {
+      const rows = rowsOf(lanes[i].items);
+      if (y < laneTops[i] + rows * LANE_H + LANE_GAP) return i;
+    }
+    return last;
+  }
+
   function onPointerMove(e: React.PointerEvent) {
     const d = drag.current;
     if (!d) return;
@@ -218,22 +320,18 @@ export function Timeline({
       drag.current = { ...d, startX: e.clientX };
       return;
     }
-    if (d.type === "moveLayer") {
-      const start = Math.max(0, snap(d.fromStart + deltaSec, marks));
-      if (Math.abs(start - d.fromStart) > 0.02) onMoveLayer(d.kind, d.id, start);
-      return;
-    }
 
-    // Déplacement libre : un plan se pose où on le lâche, et change de piste
-    // quand le geste franchit une rangée. C'est ce qui rend l'incrustation
-    // vidéo possible — auparavant, tout retombait au bout de la séquence.
-    const rows = Math.round((e.clientY - d.startY) / (LANE_H + 6));
-    // Les pistes sont affichées de la plus haute vers le bas : descendre à
-    // l'écran, c'est descendre dans la pile.
-    const track = Math.max(0, d.fromTrack - rows);
+    // Déplacement libre : un élément se pose où on le lâche, et change de
+    // piste quand le geste franchit une rangée — quel que soit son type
+    // (Lot A2 généralise ce qui n'existait auparavant que pour les plans).
+    const targetY = laneTops[d.fromLaneIndex] + (e.clientY - d.startY);
+    const targetIdx = laneIndexAtY(Math.max(0, targetY), d.family);
+    const targetTrackId = targetIdx >= 0 ? displayTracks[targetIdx].id : undefined;
     const start = Math.max(0, snap(d.fromStart + deltaSec, marks));
-    if (Math.abs(start - d.fromStart) > 0.02 || track !== d.fromTrack) {
-      onMoveClip(d.clipId, { track, start });
+    const trackChanged = targetTrackId !== undefined && targetIdx !== d.fromLaneIndex;
+    if (Math.abs(start - d.fromStart) > 0.02 || trackChanged) {
+      onMoveElement({ kind: d.kind, id: d.id }, { start, ...(trackChanged ? { trackId: targetTrackId } : {}) });
+      if (trackChanged) drag.current = { ...d, fromLaneIndex: targetIdx, startY: e.clientY };
     }
   }
 
@@ -319,169 +417,48 @@ export function Timeline({
     }
   }, [playhead, pxPerSec]);
 
-  /**
-   * Pistes affichées — une seule source pour les libellés et les blocs.
-   *
-   * `rows` est le nombre de RANGÉES d'une piste : les calques qui se
-   * chevauchent sont répartis en sous-pistes par le modèle, la vue n'a plus
-   * qu'à leur donner de la place. Sans cela, deux textes posés au même instant
-   * se dessinaient l'un sur l'autre et le second devenait inatteignable.
-   */
-  const lanes: { key: string; label: React.ReactNode; rows: number; dim?: boolean; blocks: React.ReactNode }[] = [];
-
-  /** Ouvre un geste continu — une seule entrée d'historique le scellera. */
-  function beginDrag<T extends { type: string }>(state: T) {
-    onDragStart?.();
-    drag.current = state as NonNullable<typeof drag.current>;
-  }
-
-  // Les pistes vidéo, de la plus haute vers la piste de base — comme à l'écran.
-  for (const track of [...usedTracks(project)].reverse()) {
-    const onTrack = project.clips.filter((c) => c.track === track);
-    const locked = Boolean(project.trackMeta?.[track]?.locked);
-    const hidden = Boolean(project.trackMeta?.[track]?.hidden);
-    lanes.push({
-      key: `video-${track}`,
-      dim: hidden,
-      label: (
-        <TrackLabel
-          name={track === 0 ? t("Vidéo", "Video") : `${t("Vidéo", "Video")} ${track + 1}`}
-          locked={locked}
-          hidden={hidden}
-          onToggleLock={() => onToggleTrackLock(track)}
-          onToggleHidden={() => onToggleTrackHidden(track)}
-        />
-      ),
-      rows: 1,
-      blocks: onTrack.map((c) => (
-        <ClipBlock
-          key={c.id}
-          clip={c}
-          pxPerSec={pxPerSec}
-          selected={(selection?.kind === "clip" && selection.id === c.id) || Boolean(multiSelectedKeys?.has(`clip:${c.id}`))}
-          locked={locked}
-          dim={hidden}
-          onSelect={(e) => onSelect({ kind: "clip", id: c.id }, e)}
-          onContextMenu={(e) => onContextMenu?.({ kind: "clip", id: c.id }, e)}
-          onTrimStart={(edge, e) => { if (!locked) beginDrag({ type: "trim", clipId: c.id, edge, startX: e.clientX }); }}
-          onMoveStart={(e) => {
-            if (locked) return;
-            beginDrag({
-              type: "move",
-              clipId: c.id,
-              startX: e.clientX,
-              startY: e.clientY,
-              fromStart: c.start,
-              fromTrack: c.track,
-            });
-          }}
-        />
-      )),
-    });
-  }
-
-  const rowsOf = (items: { lane: number }[]) => Math.max(1, ...items.map((l) => l.lane + 1));
-
-  /**
-   * Un calque temporel (texte, forme, incrustation, audio) — même parité de
-   * manipulation que les plans vidéo : rognage par les extrémités, glisser
-   * pour déplacer, suppression et duplication au clavier (itération 3, C-04).
-   */
-  function layerBlocks<L extends { id: string; start: number; end?: number; length?: number; lane: number }>(
-    items: L[],
-    kind: TimedLayerKind,
-    tone: "text" | "image" | "shape" | "audio",
-    labelOf: (l: L) => string,
-    lengthOf: (l: L) => number,
-    extra?: (l: L) => { muted?: boolean; src?: string; trimStart?: number }
-  ) {
-    return items.map((l) => (
-      <LayerBlock
-        key={l.id}
-        label={labelOf(l)}
-        start={l.start}
-        length={Math.max(MIN_CLIP_SECONDS, lengthOf(l))}
-        lane={l.lane}
-        pxPerSec={pxPerSec}
-        tone={tone}
-        muted={extra?.(l)?.muted}
-        src={extra?.(l)?.src}
-        trimStart={extra?.(l)?.trimStart}
-        selected={(selection?.kind === kind && selection.id === l.id) || Boolean(multiSelectedKeys?.has(`${kind}:${l.id}`))}
-        onSelect={(e) => onSelect({ kind, id: l.id }, e)}
-        onContextMenu={(e) => onContextMenu?.({ kind, id: l.id }, e)}
-        onTrimStart={(edge, e) => beginDrag({ type: "trimLayer", kind, id: l.id, edge, startX: e.clientX })}
-        onMoveStart={(e) => beginDrag({ type: "moveLayer", kind, id: l.id, startX: e.clientX, fromStart: l.start })}
-      />
-    ));
-  }
-
-  if (project.texts.length > 0) {
-    lanes.push({
-      key: "text",
-      label: t("Texte", "Text"),
-      rows: rowsOf(project.texts),
-      blocks: layerBlocks(
-        project.texts, "text", "text",
-        (l) => l.text.split("\n")[0] || t("Texte", "Text"),
-        (l) => l.end - l.start
-      ),
-    });
-  }
-
-  if (project.shapes.length > 0) {
-    lanes.push({
-      key: "shape",
-      label: t("Forme", "Shape"),
-      rows: rowsOf(project.shapes),
-      blocks: layerBlocks(project.shapes, "shape", "shape", () => t("Forme", "Shape"), (l) => l.end - l.start),
-    });
-  }
-
-  if (project.images.length > 0) {
-    lanes.push({
-      key: "image",
-      label: t("Image", "Image"),
-      rows: rowsOf(project.images),
-      blocks: layerBlocks(project.images, "image", "image", () => t("Incrustation", "Overlay"), (l) => l.end - l.start),
-    });
-  }
-
-  // Une piste par RÔLE — son d'origine, voix off, musique — plutôt qu'un
-  // seul bandeau « Audio » indifférencié. Le panneau de propriétés distingue
-  // déjà les trois par leur catégorie (audit Editing Bench, P3-2) ; la
-  // timeline restait le seul endroit à tout mélanger sous une étiquette
-  // générique, alors que trois pistes son simultanées (l'usage le plus
-  // courant : son d'origine + voix off + musique) devenaient impossibles à
-  // distinguer d'un coup d'œil (audit Editing Bench, P1-4).
-  const AUDIO_ROLES: { role: AudioRole; fr: string; en: string }[] = [
-    { role: "original", fr: "Son d'origine", en: "Original audio" },
-    { role: "voice", fr: "Voix off", en: "Voiceover" },
-    { role: "music", fr: "Musique", en: "Music" },
-  ];
-  for (const { role, fr, en } of AUDIO_ROLES) {
-    const onRole = project.audios.filter((a) => a.role === role);
-    if (onRole.length === 0) continue;
-    lanes.push({
-      key: `audio-${role}`,
-      label: t(fr, en),
-      rows: rowsOf(onRole),
-      blocks: layerBlocks(
-        onRole, "audio", "audio",
-        (a) => a.name, (a) => a.length,
-        (a) => ({ muted: a.muted, src: a.src, trimStart: a.trimStart })
-      ),
-    });
-  }
+  const clipsById = useMemo(() => new Map(project.clips.map((c) => [c.id, c])), [project.clips]);
+  const labelOf = (kind: ElementKind, id: string): string => {
+    if (kind === "text") return project.texts.find((l) => l.id === id)?.text.split("\n")[0] || t("Texte", "Text");
+    if (kind === "shape") return t("Forme", "Shape");
+    if (kind === "image") return t("Incrustation", "Overlay");
+    if (kind === "audio") return project.audios.find((a) => a.id === id)?.name ?? "";
+    return "";
+  };
+  const audioExtra = (id: string) => {
+    const a = project.audios.find((x) => x.id === id);
+    return a ? { muted: a.muted, src: a.src, trimStart: a.trimStart } : {};
+  };
 
   return (
     <div className="space-y-2">
-      {/* Barre d'outils : zoom + minutage */}
+      {/* Barre d'outils : zoom + minutage + nouvelle piste */}
       <div className="flex items-center justify-between gap-2">
         <span className="text-2xs tabular-nums text-muted">
           {formatTime(playhead)} / {formatTime(duration)}
         </span>
         <div className="flex items-center gap-1">
+          <Tooltip label={t("Ajouter une piste vidéo/texte/forme", "Add a video/text/shape track")}>
+            <button
+              type="button"
+              onClick={() => onAddTrack("visual")}
+              aria-label={t("Ajouter une piste visuelle", "Add a visual track")}
+              className="flex h-6 items-center gap-1 rounded-md px-1.5 text-2xs text-muted ring-1 ring-hair hover:text-ink"
+            >
+              🎬+
+            </button>
+          </Tooltip>
+          <Tooltip label={t("Ajouter une piste son", "Add an audio track")}>
+            <button
+              type="button"
+              onClick={() => onAddTrack("audio")}
+              aria-label={t("Ajouter une piste son", "Add an audio track")}
+              className="flex h-6 items-center gap-1 rounded-md px-1.5 text-2xs text-muted ring-1 ring-hair hover:text-ink"
+            >
+              ♪+
+            </button>
+          </Tooltip>
+          <span className="mx-1 h-4 w-px bg-hair" />
           <Tooltip label={t("Dézoomer la timeline — molette", "Zoom out timeline — wheel")}>
             <button
               type="button"
@@ -539,13 +516,29 @@ export function Timeline({
         {/* Colonne des libellés — HORS du flux temporel */}
         <div className="shrink-0 space-y-1.5">
           <div style={{ height: RULER_H }} />
-          {lanes.map((l) => (
+          {lanes.map(({ track, items }, i) => (
             <div
-              key={l.key}
-              style={{ height: LANE_H * l.rows }}
-              className={`flex w-16 items-center text-[9px] uppercase tracking-wide text-muted ${l.dim ? "opacity-40" : ""}`}
+              key={track.id}
+              style={{ height: LANE_H * rowsOf(items) }}
+              className={`flex w-20 items-center text-[9px] uppercase tracking-wide text-muted ${track.hidden ? "opacity-40" : ""}`}
             >
-              {l.label}
+              <TrackLabel
+                name={
+                  track.family === "visual"
+                    ? `V${visualAscending.findIndex((v) => v.id === track.id) + 1}`
+                    : `A${audioAscending.findIndex((a) => a.id === track.id) + 1}`
+                }
+                locked={Boolean(track.locked)}
+                hidden={Boolean(track.hidden)}
+                onToggleLock={() => onToggleTrackLock(track.id)}
+                onToggleHidden={() => onToggleTrackHidden(track.id)}
+                onMoveUp={() => onReorderTrack(track.id, "up")}
+                onMoveDown={() => onReorderTrack(track.id, "down")}
+                onRemove={() => onRemoveTrack(track.id)}
+                canRemove={track.family === "audio" || visualTracks.length > 1}
+                canMoveUp={i > 0 && displayTracks[i - 1]?.family === track.family}
+                canMoveDown={i < displayTracks.length - 1 && displayTracks[i + 1]?.family === track.family}
+              />
             </div>
           ))}
         </div>
@@ -562,14 +555,63 @@ export function Timeline({
               label={t("Se déplacer dans le film", "Scrub the film")}
             />
 
-            {lanes.map((l) => (
+            {lanes.map(({ track, items }, laneIdx) => (
               <div
-                key={l.key}
-                style={{ height: LANE_H * l.rows }}
-                className={`relative ${l.dim ? "opacity-40" : ""}`}
+                key={track.id}
+                style={{ height: LANE_H * rowsOf(items) }}
+                className={`relative ${track.hidden ? "opacity-40" : ""}`}
                 onPointerDown={onLanePointerDown}
               >
-                {l.blocks}
+                {items.map((it) => {
+                  const locked = Boolean(track.locked);
+                  const startMove = (e: React.PointerEvent) => {
+                    if (locked) return;
+                    beginDrag({
+                      type: "move", kind: it.kind, id: it.id,
+                      startX: e.clientX, startY: e.clientY,
+                      fromStart: it.start, fromLaneIndex: laneIdx, family: track.family,
+                    });
+                  };
+                  if (it.kind === "clip") {
+                    const clip = clipsById.get(it.id);
+                    if (!clip) return null;
+                    return (
+                      <ClipBlock
+                        key={it.id}
+                        clip={clip}
+                        pxPerSec={pxPerSec}
+                        lane={it.lane}
+                        selected={(selection?.kind === "clip" && selection.id === it.id) || Boolean(multiSelectedKeys?.has(`clip:${it.id}`))}
+                        locked={locked}
+                        dim={Boolean(track.hidden)}
+                        onSelect={(e) => onSelect({ kind: "clip", id: it.id }, e)}
+                        onContextMenu={(e) => onContextMenu?.({ kind: "clip", id: it.id }, e)}
+                        onTrimStart={(edge, e) => { if (!locked) beginDrag({ type: "trim", clipId: it.id, edge, startX: e.clientX }); }}
+                        onMoveStart={startMove}
+                      />
+                    );
+                  }
+                  const kind = it.kind;
+                  return (
+                    <LayerBlock
+                      key={it.id}
+                      label={labelOf(kind, it.id)}
+                      start={it.start}
+                      length={Math.max(MIN_CLIP_SECONDS, it.end - it.start)}
+                      lane={it.lane}
+                      pxPerSec={pxPerSec}
+                      tone={kind}
+                      muted={kind === "audio" ? audioExtra(it.id).muted : undefined}
+                      src={kind === "audio" ? audioExtra(it.id).src : undefined}
+                      trimStart={kind === "audio" ? audioExtra(it.id).trimStart : undefined}
+                      selected={(selection?.kind === kind && selection.id === it.id) || Boolean(multiSelectedKeys?.has(`${kind}:${it.id}`))}
+                      onSelect={(e) => onSelect({ kind, id: it.id }, e)}
+                      onContextMenu={(e) => onContextMenu?.({ kind, id: it.id }, e)}
+                      onTrimStart={(edge, e) => beginDrag({ type: "trimLayer", kind, id: it.id, edge, startX: e.clientX })}
+                      onMoveStart={startMove}
+                    />
+                  );
+                })}
               </div>
             ))}
 
@@ -644,6 +686,7 @@ function Ruler({
 function ClipBlock({
   clip,
   pxPerSec,
+  lane,
   selected,
   locked,
   dim,
@@ -654,6 +697,8 @@ function ClipBlock({
 }: {
   clip: Clip;
   pxPerSec: number;
+  /** Rangée au sein de la piste — plusieurs types peuvent la partager (A2). */
+  lane: number;
   selected: boolean;
   /** Piste verrouillée — le plan se sélectionne toujours, mais ne bouge plus. */
   locked?: boolean;
@@ -667,10 +712,15 @@ function ClipBlock({
   const t = useT();
   return (
     <div
-      className={`absolute inset-y-0 overflow-hidden rounded-md border text-[10px] ${
+      className={`absolute overflow-hidden rounded-md border text-[10px] ${
         selected ? "border-page ring-2 ring-page/40" : "border-hair"
       } ${clip.kind === "image" ? "bg-ai-visualbg" : "bg-ai-textbg"} ${locked ? "cursor-not-allowed" : ""}`}
-      style={{ left: timeToPx(clip.start, pxPerSec), width: Math.max(12, timeToPx(clip.length, pxPerSec)) }}
+      style={{
+        left: timeToPx(clip.start, pxPerSec),
+        width: Math.max(12, timeToPx(clip.length, pxPerSec)),
+        top: lane * LANE_H,
+        height: LANE_H,
+      }}
       onPointerDown={(e) => {
         e.stopPropagation();
         // Le clic DROIT ne doit ni remplacer la sélection ni démarrer un
@@ -715,24 +765,62 @@ function ClipBlock({
   );
 }
 
-/** Nom de piste vidéo + verrouillage/masquage (chapitre 8.1). */
+/** Nom de piste + verrouillage/masquage/réordonnancement/suppression (Lot A2). */
 function TrackLabel({
   name,
   locked,
   hidden,
   onToggleLock,
   onToggleHidden,
+  onMoveUp,
+  onMoveDown,
+  onRemove,
+  canRemove,
+  canMoveUp,
+  canMoveDown,
 }: {
   name: string;
   locked: boolean;
   hidden: boolean;
   onToggleLock: () => void;
   onToggleHidden: () => void;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+  onRemove: () => void;
+  canRemove: boolean;
+  canMoveUp: boolean;
+  canMoveDown: boolean;
 }) {
   const t = useT();
   return (
     <div className="flex w-full flex-col gap-0.5">
-      <span className="truncate">{name}</span>
+      <div className="flex items-center gap-0.5">
+        <Tooltip label={t("Monter la piste", "Move track up")}>
+          <button
+            type="button"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={onMoveUp}
+            disabled={!canMoveUp}
+            aria-label={t("Monter la piste", "Move track up")}
+            className="flex h-3 w-3 items-center justify-center rounded text-[8px] text-muted hover:text-ink disabled:opacity-30"
+          >
+            ▲
+          </button>
+        </Tooltip>
+        <span className="truncate">{name}</span>
+        <Tooltip label={t("Descendre la piste", "Move track down")}>
+          <button
+            type="button"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={onMoveDown}
+            disabled={!canMoveDown}
+            aria-label={t("Descendre la piste", "Move track down")}
+            className="flex h-3 w-3 items-center justify-center rounded text-[8px] text-muted hover:text-ink disabled:opacity-30"
+          >
+            ▼
+          </button>
+        </Tooltip>
+      </div>
       <div className="flex gap-1">
         <Tooltip label={locked ? t("Déverrouiller la piste", "Unlock track") : t("Verrouiller la piste", "Lock track")}>
           <button
@@ -756,6 +844,18 @@ function TrackLabel({
             className={`flex h-3.5 w-3.5 items-center justify-center rounded text-[9px] ${hidden ? "text-page" : "text-muted hover:text-ink"}`}
           >
             {hidden ? "🚫" : "👁"}
+          </button>
+        </Tooltip>
+        <Tooltip label={t("Supprimer la piste (et son contenu)", "Delete track (and its content)")}>
+          <button
+            type="button"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={onRemove}
+            disabled={!canRemove}
+            aria-label={t("Supprimer la piste", "Delete track")}
+            className="flex h-3.5 w-3.5 items-center justify-center rounded text-[9px] text-muted hover:text-danger disabled:opacity-30"
+          >
+            🗑
           </button>
         </Tooltip>
       </div>

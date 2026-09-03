@@ -11,7 +11,7 @@ import {
   CLIP_TRANSITION_SECONDS, duplicateClip, emptyProject, imagesAt, layerProgress,
   MIN_CLIP_SECONDS, moveClip, normalize, projectDuration, removeClip, removeShape,
   reorderClip, setClipBox, setClipFraming, setClipLength, setClipOpacity, setClipSpeed, setClipTransition,
-  shapesAt, splitAt, textsAt, trimClip, updateAudio, updateImageLayer, updateShape,
+  setProjectDuration, shapesAt, splitAt, textsAt, trimClip, updateAudio, updateImageLayer, updateShape,
   updateText, usedTracks,
   type Clip, type EditorProject,
 } from "../lib/editor/project";
@@ -703,6 +703,42 @@ function main() {
       "v", 99
     );
     check("une vidéo ne dépasse pas sa source", near(video.clips[0].length, 6), String(video.clips[0].length));
+  }
+
+  // ── B-16 · Durée maîtresse (P2-5) ────────────────────────────────────────
+  {
+    let p = addClip(emptyProject("c", "p"), { id: "i", src: "i.jpg", kind: "image" });
+    p = setClipLength(p, "i", 5);
+    p = addClip(p, { id: "j", src: "j.jpg", kind: "image" });
+    p = setClipLength(p, "j", 5);
+    p = addText(p, "t", "Titre");
+    p = updateText(p, "t", { start: 3, end: 8 });
+    p = addAudio(p, { id: "a", src: "a.mp3", name: "a", role: "music", sourceDuration: 10 });
+    check("montage de contrôle : 10 s au départ", near(projectDuration(p), 10), String(projectDuration(p)));
+
+    const shorter = setProjectDuration(p, 4);
+    check("un plan chevauchant la limite est raccourci",
+      near(shorter.clips[0].length, 4), String(shorter.clips[0].length));
+    check("un plan qui commence après la limite est retiré",
+      !shorter.clips.some((c) => c.id === "j"), JSON.stringify(shorter.clips.map((c) => c.id)));
+    check("un calque chevauchant la limite est raccourci",
+      near(shorter.texts[0].end, 4), String(shorter.texts[0].end));
+    check("le calque garde son entrée si elle précède la limite",
+      near(shorter.texts[0].start, 3), String(shorter.texts[0].start));
+    check("une piste audio dépassant la limite est raccourcie",
+      near(shorter.audios[0].length, 4), String(shorter.audios[0].length));
+    check("la durée totale reflète la nouvelle limite",
+      near(projectDuration(shorter), 4), String(projectDuration(shorter)));
+
+    const removed = setProjectDuration(p, 2);
+    check("un calque qui débute après la limite est retiré",
+      removed.texts.length === 0, String(removed.texts.length));
+
+    const longer = setProjectDuration(p, 100);
+    check("une durée plus longue ne rallonge rien",
+      near(projectDuration(longer), 10), String(projectDuration(longer)));
+    check("une durée plus longue laisse les plans intacts",
+      longer.clips.length === 2 && near(longer.clips[1].length, 5), JSON.stringify(longer.clips));
   }
 
   console.log(`\n${failures === 0 ? "✓ TOUT VERT" : `✗ ${failures} échec(s)`}\n`);

@@ -590,6 +590,25 @@ async function main() {
       /const onRole = project\.audios\.filter\(\(a\) => a\.role === role\)/.test(timeline));
   }
 
+  // ── P2-9 / P2-15 · Ancrages multiples et verrouillage de proportions
+  // (audit Editing Bench v3, Lot 4) ────────────────────────────────────────
+  // Une seule poignée (bas-droite) existait : agrandir vers le haut ou la
+  // gauche exigeait de déplacer le calque d'abord. Aucun moyen de conserver
+  // les proportions pendant un redimensionnement libre.
+  {
+    check("P2-9 · quatre coins, pas un seul, redimensionnent le calque",
+      /const CORNERS: \{ left: boolean; top: boolean/.test(preview) &&
+      (preview.match(/left: (true|false), top: (true|false)/g) ?? []).length === 4);
+    check("P2-9 · le coin saisi fixe le coin OPPOSÉ (x/y suivent le côté gauche/haut)",
+      /let x = d\.left \? d\.ox \+ dx : d\.ox/.test(preview) &&
+      /y = d\.top \? d\.oy \+ dy : d\.oy/.test(preview));
+    check("P2-15 · Maj enfoncée pendant le geste conserve les proportions",
+      /if \(e\.shiftKey && d\.oh > 0 && d\.ow > 0\)/.test(preview) &&
+      /h = w \* \(d\.oh \/ d\.ow\)/.test(preview));
+    check("P2-9/P2-15 · l'infobulle du redimensionnement mentionne le raccourci",
+      /Maj.*conserver les proportions|Shift.*keep proportions/.test(preview));
+  }
+
   console.log(`\n${failures === 0 ? "✓ TOUT VERT" : `✗ ${failures} échec(s)`}\n`);
   process.exit(failures === 0 ? 0 : 1);
 }

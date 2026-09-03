@@ -629,6 +629,25 @@ async function main() {
       /project\.clips\.length > 0 \? \(/.test(studio));
   }
 
+  // ── P2-13 · Le kit de marque se règle SANS quitter l'éditeur ──────────────
+  // Le panneau existait déjà ailleurs (Composer, Studio Vidéo…), mais
+  // l'éditeur — plein écran — le recouvre entièrement : « kit absent » dans
+  // la galerie de modèles n'offrait aucune prise, il fallait fermer l'éditeur
+  // pour aller le chercher.
+  {
+    check("P2-13 · la galerie de modèles propose d'ouvrir le kit de marque",
+      /onOpenBrandKit/.test(gallery) && /onClick=\{onOpenBrandKit\}/.test(gallery));
+    check("P2-13 · le bouton ne s'affiche que si le parent l'a câblé (rétrocompatible)",
+      /\{onOpenBrandKit && \(/.test(gallery));
+    check("P2-13 · l'éditeur ouvre le MÊME panneau réutilisable que le reste de l'application",
+      /import BrandKitPanel from "@\/components\/studio\/BrandKitPanel"/.test(studio) &&
+      /<BrandKitPanel companyId=\{companyId\}/.test(studio));
+    check("P2-13 · le kit rechargé met à jour le style de marque de l'éditeur",
+      /onKit=\{\(k\) => setBrand\(brandStyleFrom\(k\)\)\}/.test(studio));
+    check("P2-13 · la galerie passe la commande d'ouverture au panneau flottant",
+      /onOpenBrandKit=\{\(\) => setBrandKitOpen\(true\)\}/.test(studio));
+  }
+
   console.log(`\n${failures === 0 ? "✓ TOUT VERT" : `✗ ${failures} échec(s)`}\n`);
   process.exit(failures === 0 ? 0 : 1);
 }

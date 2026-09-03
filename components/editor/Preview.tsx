@@ -277,7 +277,12 @@ export function Preview({
   /* ── Manipulation directe ──────────────────────────────────────────────── */
   const drag = useRef<
     | { mode: "move"; sel: NonNullable<TimelineSelection>; ox: number; oy: number; sx: number; sy: number }
-    | { mode: "resize"; sel: NonNullable<TimelineSelection>; ow: number; oh: number; sx: number; sy: number }
+    | {
+        mode: "resize"; sel: NonNullable<TimelineSelection>;
+        ox: number; oy: number; ow: number; oh: number; sx: number; sy: number;
+        /** Coin saisi — le coin OPPOSÉ reste fixe (audit Editing Bench, P2-9). */
+        left: boolean; top: boolean;
+      }
     | { mode: "rotate"; sel: NonNullable<TimelineSelection>; cx: number; cy: number; base: number; or: number }
     | { mode: "pan"; sx: number; sy: number; ox: number; oy: number }
     | null
@@ -322,10 +327,30 @@ export function Preview({
       return;
     }
     if (d.mode === "resize") {
-      onLayerChange(d.sel, {
-        w: Math.max(0.02, d.ow + dx),
-        h: d.oh > 0 ? Math.max(0.01, d.oh + dy) : undefined,
-      });
+      // Le coin saisi (`left`/`top`) fixe le coin OPPOSÉ — jusqu'ici, seul le
+      // coin bas-droite se redimensionnait, celui du haut-gauche restant
+      // implicitement toujours fixe : impossible d'agrandir un calque vers
+      // le haut ou la gauche sans le déplacer d'abord (audit Editing Bench,
+      // P2-9). Une hauteur "auto" (`oh` ≤ 0, incrustation sans hauteur
+      // propre) ne reçoit jamais de hauteur explicite, quel que soit le
+      // coin — seule la largeur en dérive, comme avant.
+      let x = d.left ? d.ox + dx : d.ox;
+      let w = Math.max(0.02, d.left ? d.ow - dx : d.ow + dx);
+      let y = d.oy;
+      let h = d.oh;
+      if (d.oh > 0) {
+        y = d.top ? d.oy + dy : d.oy;
+        h = Math.max(0.01, d.top ? d.oh - dy : d.oh + dy);
+      }
+      // Maj enfoncée : proportions conservées, la largeur pilote la hauteur
+      // (audit Editing Bench, P2-15) — pas de champ à cocher, un modificateur
+      // au clavier au moment du geste, comme la molette de zoom l'utilise
+      // déjà ailleurs dans l'éditeur.
+      if (e.shiftKey && d.oh > 0 && d.ow > 0) {
+        h = w * (d.oh / d.ow);
+        if (d.top) y = d.oy + (d.oh - h);
+      }
+      onLayerChange(d.sel, { x, y, w, h: d.oh > 0 ? h : undefined });
     }
   }
 
@@ -576,10 +601,10 @@ export function Preview({
               selection={selection}
               scale={scale}
               frame={frame}
-              onResizeStart={(e, sel, ow, oh) => {
+              onResizeStart={(e, sel, ox, oy, ow, oh, left, top) => {
                 e.stopPropagation();
                 onDragStart?.();
-                drag.current = { mode: "resize", sel, ow, oh, sx: e.clientX, sy: e.clientY };
+                drag.current = { mode: "resize", sel, ox, oy, ow, oh, left, top, sx: e.clientX, sy: e.clientY };
                 (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
               }}
               onRotateStart={(e, sel, cx, cy, or) => {
@@ -739,7 +764,10 @@ function Handles({
   selection: NonNullable<TimelineSelection>;
   scale: number;
   frame: { width: number; height: number };
-  onResizeStart: (e: React.PointerEvent, sel: NonNullable<TimelineSelection>, ow: number, oh: number) => void;
+  onResizeStart: (
+    e: React.PointerEvent, sel: NonNullable<TimelineSelection>,
+    ox: number, oy: number, ow: number, oh: number, left: boolean, top: boolean
+  ) => void;
   onRotateStart: (e: React.PointerEvent, sel: NonNullable<TimelineSelection>, cx: number, cy: number, or: number) => void;
 }) {
   const t = useT();
@@ -774,23 +802,40 @@ function Handles({
 
   if (!found) return null;
   const { x, y, rotation, canRotate, w, h } = found;
-  const left = x * frame.width * scale;
-  const top = y * frame.height * scale;
+  const boxLeft = x * frame.width * scale;
+  const boxTop = y * frame.height * scale;
   const width = w * frame.width * scale;
   const height = (h > 0 ? h * frame.height : 40) * scale;
+
+  /**
+   * Quatre coins plutôt qu'un seul — jusqu'ici, seul bas-droite se
+   * redimensionnait ; agrandir un calque vers le haut ou la gauche exigeait
+   * de le déplacer d'abord, un détour que ne demande aucun outil de
+   * conception comparable (audit Editing Bench, P2-9).
+   */
+  const CORNERS: { left: boolean; top: boolean; pos: string; cursor: string }[] = [
+    { left: true, top: true, pos: "-top-1.5 -left-1.5", cursor: "cursor-nwse-resize" },
+    { left: false, top: true, pos: "-top-1.5 -right-1.5", cursor: "cursor-nesw-resize" },
+    { left: true, top: false, pos: "-bottom-1.5 -left-1.5", cursor: "cursor-nesw-resize" },
+    { left: false, top: false, pos: "-bottom-1.5 -right-1.5", cursor: "cursor-nwse-resize" },
+  ];
 
   return (
     <div
       ref={ref}
       className="pointer-events-none absolute"
-      style={{ left, top, width, height, transform: `rotate(${rotation}deg)`, transformOrigin: "center" }}
+      style={{ left: boxLeft, top: boxTop, width, height, transform: `rotate(${rotation}deg)`, transformOrigin: "center" }}
     >
-      <span
-        role="separator"
-        aria-label={t("Redimensionner", "Resize")}
-        onPointerDown={(e) => onResizeStart(e, selection, w, h)}
-        className="pointer-events-auto absolute -bottom-1.5 -right-1.5 h-3 w-3 cursor-nwse-resize rounded-sm bg-page ring-2 ring-white"
-      />
+      {CORNERS.map((c) => (
+        <span
+          key={c.pos}
+          role="separator"
+          aria-label={t("Redimensionner (Maj : conserver les proportions)", "Resize (Shift: keep proportions)")}
+          title={t("Redimensionner — Maj pour conserver les proportions", "Resize — Shift to keep proportions")}
+          onPointerDown={(e) => onResizeStart(e, selection, x, y, w, h, c.left, c.top)}
+          className={`pointer-events-auto absolute h-3 w-3 rounded-sm bg-page ring-2 ring-white ${c.pos} ${c.cursor}`}
+        />
+      ))}
       {canRotate && (
         <span
           role="separator"

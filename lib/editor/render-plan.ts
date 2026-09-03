@@ -271,19 +271,28 @@ export function toServerEdit(p: EditorProject, callback?: string) {
       length: a.length,
     }));
 
-  // Ordre des pistes : la PREMIÈRE est au-dessus. Les calques précèdent donc
-  // les plans vidéo, et parmi ceux-ci la piste la PLUS HAUTE du montage passe
-  // en premier — c'est ce qui rend l'incrustation vidéo visible.
-  const videoTracks = [...new Set(p.clips.map((c) => c.track))]
-    .sort((a, b) => b - a)
-    .map((track) => ({ clips: videoClips.filter((_, i) => p.clips[i].track === track) }))
+  // Chaque piste PARTAGÉE (voir `TrackDef` dans project.ts) devient une piste
+  // Shotstack — un plan, un texte, une incrustation, une forme peuvent
+  // désormais se succéder sur la MÊME piste, dans l'ordre choisi par
+  // l'utilisateur, plutôt qu'un ordre imposé par le type d'élément (Lot A3,
+  // audit Editing Bench v4). Ordre des pistes Shotstack : la PREMIÈRE est
+  // au-dessus — la piste partagée la plus en AVANT (index le plus haut dans
+  // `p.tracks`) passe donc en premier.
+  const visualTracks = (p.tracks ?? []).filter((tr) => tr.family === "visual").slice().reverse();
+  const clipsOfTrack = (trackId: string) => [
+    // À piste égale, même ordre que `visualElementsAt` : plan, forme,
+    // incrustation, texte — l'ordre déjà en vigueur avant cette refonte.
+    ...p.clips.flatMap((c, i) => (c.trackId === trackId ? [videoClips[i]] : [])),
+    ...p.shapes.flatMap((l, i) => (l.trackId === trackId ? [shapeClips[i]] : [])),
+    ...p.images.flatMap((l, i) => (l.trackId === trackId ? [imageClips[i]] : [])),
+    ...p.texts.flatMap((l, i) => (l.trackId === trackId ? [textClips[i]] : [])),
+  ];
+  const visualShotstackTracks = visualTracks
+    .map((tr) => ({ clips: clipsOfTrack(tr.id) }))
     .filter((t) => t.clips.length > 0);
 
   const tracks = [
-    ...(textClips.length ? [{ clips: textClips }] : []),
-    ...(imageClips.length ? [{ clips: imageClips }] : []),
-    ...(shapeClips.length ? [{ clips: shapeClips }] : []),
-    ...(videoTracks.length ? videoTracks : [{ clips: [] }]),
+    ...(visualShotstackTracks.length ? visualShotstackTracks : [{ clips: [] }]),
     ...(audioTracks.length ? [{ clips: audioTracks }] : []),
   ];
 
@@ -333,12 +342,17 @@ export interface OverlayInput {
  */
 export function browserOverlays(p: EditorProject): OverlayInput[] {
   if (projectDuration(p) <= 0) return [];
-  // Ordre de dessin : formes au fond, puis incrustations, puis textes.
+  // Ordre de dessin piloté par la piste partagée (Lot A3, audit Editing
+  // Bench v4) — plus un ordre imposé par le type d'élément. À piste égale,
+  // même ordre qu'avant cette refonte : forme, puis incrustation, puis
+  // texte (tri stable — voir `visualElementsAt` dans project.ts).
+  const order = new Map((p.tracks ?? []).filter((tr) => tr.family === "visual").map((tr, i) => [tr.id, i]));
+  const trackIndex = (trackId: string): number => order.get(trackId) ?? -1;
   const ordered = [
     ...p.shapes.map((l) => ({ l, kind: "shape" as const })),
     ...p.images.map((l) => ({ l, kind: "image" as const })),
     ...p.texts.map((l) => ({ l, kind: "text" as const })),
-  ];
+  ].sort((a, b) => trackIndex(a.l.trackId) - trackIndex(b.l.trackId));
   return ordered.map(({ l, kind }, i) => ({
     name: `ov${i}.png`,
     layerId: l.id,

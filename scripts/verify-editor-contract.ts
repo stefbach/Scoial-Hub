@@ -25,6 +25,7 @@ import { POST } from "../app/api/video/render/route";
 import {
   addClip,
   addImageLayer,
+  addShape,
   addText,
   emptyProject,
   imagesAt,
@@ -32,6 +33,7 @@ import {
   textsAt,
   updateImageLayer,
   updateText,
+  visualElementsAt,
   type EditorProject,
 } from "../lib/editor/project";
 import { browserOverlays, toServerEdit } from "../lib/editor/render-plan";
@@ -171,6 +173,47 @@ async function main() {
     }));
     check("aucun calque n'est perdu à l'export", graves.has("t1") && graves.has("t2") && graves.has("i1"),
       [...graves].join(","));
+  }
+
+  // ── Lot A3 · L'ordre de rendu suit la PISTE, pas le type d'élément ───────
+  // A2 n'existe pas encore (rien dans l'éditeur ne laisse un utilisateur
+  // choisir une trackId différente), mais le mécanisme lui-même — trois
+  // moteurs qui suivent `tracks[]`/`trackId` plutôt qu'un ordre câblé par
+  // type — se vérifie directement sur un projet construit à la main, comme
+  // le fera un projet réel une fois le Lot A2 livré.
+  {
+    let p = addClip(emptyProject("c", "p"), { id: "v", src: "v.mp4", kind: "video", sourceDuration: 10 });
+    p = addText(p, "t", "Titre");
+    p = addShape(p, "s", "rect");
+
+    // La forme rejoint une piste posée DEVANT celle qui porte le texte —
+    // l'inverse de l'ordre "forme < texte" imposé jusqu'ici par le type.
+    const reordered: EditorProject = {
+      ...p,
+      tracks: [...(p.tracks ?? []), { id: "front", family: "visual" }],
+      shapes: p.shapes.map((sh) => (sh.id === "s" ? { ...sh, trackId: "front" } : sh)),
+    };
+
+    const refs = visualElementsAt(reordered, 1);
+    check("visualElementsAt suit la piste : une forme déplacée devant passe devant le texte",
+      refs.findIndex((r) => r.id === "s") > refs.findIndex((r) => r.id === "t"),
+      JSON.stringify(refs));
+
+    const serverEdit = toServerEdit(reordered) as { timeline: { tracks: { clips: unknown[] }[] } };
+    // La piste Shotstack la plus en avant est la PREMIÈRE du tableau (voir
+    // toServerEdit) : la forme déplacée devant doit donc atterrir sur une
+    // piste Shotstack qui précède celle du texte.
+    const shapeTrackIdx = serverEdit.timeline.tracks.findIndex((tr) => JSON.stringify(tr).includes('"html"'));
+    const textTrackIdx = serverEdit.timeline.tracks.findIndex((tr) => JSON.stringify(tr).includes('"title"'));
+    check("le rendu serveur place la forme déplacée devant, sur une piste antérieure",
+      shapeTrackIdx >= 0 && textTrackIdx >= 0 && shapeTrackIdx < textTrackIdx,
+      `forme=${shapeTrackIdx} texte=${textTrackIdx}`);
+
+    const overlays = browserOverlays(reordered);
+    const shapeIdx = overlays.findIndex((o) => o.layerId === "s");
+    const textIdx = overlays.findIndex((o) => o.layerId === "t");
+    check("le rendu navigateur peint la forme déplacée APRÈS le texte, donc devant",
+      shapeIdx > textIdx, `forme=${shapeIdx} texte=${textIdx}`);
   }
 
   console.log(`\n${failures === 0 ? "✓ TOUT VERT" : `✗ ${failures} échec(s)`}\n`);

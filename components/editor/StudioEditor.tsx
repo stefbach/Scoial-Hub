@@ -21,11 +21,12 @@ import { Spinner } from "@/components/ui/Spinner";
 import { hostMedia, MAX_UPLOAD_BYTES, formatSize } from "@/lib/media/host";
 import { SUBTITLE_LANGS } from "@/lib/ai/subtitle-langs";
 import {
-  addAudio, addButton, addClip, addImageLayer, addShape, addText, duplicateAudio,
+  addAudio, addButton, addClip, addImageLayer, addShape, addText, addTrack, duplicateAudio,
   duplicateClip, duplicateImageLayer, duplicateShape, duplicateText,
-  emptyProject, FORMAT_SIZE, moveClip, moveLayerTime, projectDuration, removeAudio,
-  removeClip, removeImageLayer, removeShape, removeText, setClipBox, setClipFraming, setClipLength,
-  setClipSpeed, setClipTransition, setProjectDuration, setTrackMeta, shapesAt, splitAt, splitAudioAt, splitLayerAt,
+  emptyProject, FORMAT_SIZE, moveElement, projectDuration, removeAudio,
+  removeClip, removeImageLayer, removeShape, removeText, removeTrack, reorderTrack,
+  setClipBox, setClipFraming, setClipLength,
+  setClipSpeed, setClipTransition, setProjectDuration, setTrackDefMeta, shapesAt, splitAt, splitAudioAt, splitLayerAt,
   trimClip, trimLayer,
   updateAudio, updateImageLayer, updateShape, updateText, usedTracks, visibleProject,
   type AnimationKind, type EditorFormat, type EditorProject, type ShapeKind,
@@ -1230,13 +1231,28 @@ export function StudioEditor({
                 setContextMenu({ x: e.clientX, y: e.clientY });
               }}
               onTrim={(clipId, edge, delta) => applyLive((p) => trimClip(p, clipId, edge === "head" ? { head: delta } : { tail: delta }))}
-              onMoveClip={(clipId, patch) => applyLive((p) => moveClip(p, clipId, patch))}
               onTrimLayer={(kind, id, edge, delta) => applyLive((p) => trimLayer(p, kind, id, edge, delta))}
-              onMoveLayer={(kind, id, start) => applyLive((p) => moveLayerTime(p, kind, id, start))}
+              onMoveElement={(sel, patch) => applyLive((p) => moveElement(p, sel, patch))}
               onDragStart={beginGesture}
               onDragEnd={commitGesture}
-              onToggleTrackLock={(track) => apply((p) => setTrackMeta(p, track, { locked: !p.trackMeta?.[track]?.locked }))}
-              onToggleTrackHidden={(track) => apply((p) => setTrackMeta(p, track, { hidden: !p.trackMeta?.[track]?.hidden }))}
+              onToggleTrackLock={(trackId) => apply((p) => setTrackDefMeta(p, trackId, {
+                locked: !(p.tracks ?? []).find((tr) => tr.id === trackId)?.locked,
+              }))}
+              onToggleTrackHidden={(trackId) => apply((p) => setTrackDefMeta(p, trackId, {
+                hidden: !(p.tracks ?? []).find((tr) => tr.id === trackId)?.hidden,
+              }))}
+              onAddTrack={(family) => apply((p) => addTrack(p, nextId("trk"), family))}
+              onRemoveTrack={(trackId) => {
+                // Une piste non vide se supprime avec son contenu — mieux
+                // vaut le dire avant de le faire disparaître d'un clic perdu.
+                const hasContent = [...project.clips, ...project.texts, ...project.images, ...project.shapes, ...project.audios]
+                  .some((el) => el.trackId === trackId);
+                if (hasContent && typeof window !== "undefined" && !window.confirm(
+                  t("Supprimer cette piste et tout ce qu'elle porte ?", "Delete this track and everything on it?")
+                )) return;
+                apply((p) => removeTrack(p, trackId));
+              }}
+              onReorderTrack={(trackId, direction) => apply((p) => reorderTrack(p, trackId, direction))}
             />
           </div>
 

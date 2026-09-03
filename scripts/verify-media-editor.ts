@@ -190,9 +190,12 @@ async function main() {
       /title=\{\s*audio\.role === "original"/.test(panel));
     // P3-3 : la même piste s'appelait « Vidéo 2 » dans la timeline mais
     // « Superposée 1 » dans le sélecteur de piste du panneau — deux noms pour
-    // le même numéro de piste.
-    check("P3-3 · le sélecteur de piste du panneau reprend le nommage de la timeline",
-      /n === 0 \? t\("Vidéo", "Video"\) : `\$\{t\("Vidéo", "Video"\)\} \$\{n \+ 1\}`/.test(panel));
+    // le même numéro de piste. Depuis les pistes libres (Lot A2), les deux
+    // lisent directement `project.tracks` : il ne peut plus y avoir deux
+    // nommages divergents, puisqu'il n'y a plus qu'UN calcul du nom (V1, V2…
+    // A1, A2… — la convention même de l'audit v4).
+    check("P3-3 · le panneau lit les pistes du PROJET, pas une liste locale",
+      /const tracks = \(project\.tracks \?\? \[\]\)\.filter/.test(panel));
     check("P3-3 · l'ancien nommage divergent a disparu", !/t\("Superposée", "Overlay"\)/.test(panel));
   }
 
@@ -201,11 +204,12 @@ async function main() {
   // L'opacité existait sur texte, image et forme (`VisualLayer`) mais pas sur
   // un plan : une incrustation vidéo ne pouvait ni s'estomper, ni se fondre
   // progressivement dans le montage. Champ ajouté au modèle (`Clip.opacity`,
-  // `setClipOpacity`) puis exposé ici — réservé aux pistes d'incrustation, la
-  // piste de base couvrant déjà tout le cadre.
+  // `setClipOpacity`) puis exposé ici — d'abord réservé aux pistes
+  // d'incrustation, puis étendu à TOUT plan une fois les pistes libres (Lot
+  // A2) : une piste n'a plus de statut de « base » particulier.
   {
-    check("P2-1/P2-2 · l'opacité d'un plan d'incrustation est réglable dans le panneau",
-      /clip\.track > 0 &&/.test(panel) && /setClipOpacity\(p, clip\.id, v \/ 100\)/.test(panel));
+    check("P2-1/P2-2 · l'opacité d'un plan est réglable dans le panneau, quelle que soit sa piste",
+      /setClipOpacity\(p, clip\.id, v \/ 100\)/.test(panel));
     // Position ET taille : la vraie « image dans l'image », une fenêtre
     // d'incrustation posée dans un coin plutôt qu'un plan qui couvre
     // toujours tout le cadre — la moitié la plus visible de P2-1.
@@ -398,13 +402,14 @@ async function main() {
     const projectSrc = read("lib/editor/project.ts");
     check("B-04 · un plan porte sa piste", /track: number/.test(projectSrc));
     check("B-04 · la position n'est plus imposée", !/\/\/ ← position IMPOSÉE/.test(projectSrc) && /export function moveClip\(/.test(projectSrc));
-    check("B-04 · la timeline affiche chaque piste", /usedTracks\(project\)\]\.reverse\(\)/.test(timeline));
-    check("B-04 · un plan change de piste au glisser", /onMoveClip\(d\.clipId, \{ track, start \}\)/.test(timeline));
+    check("B-04 · la timeline affiche chaque piste", /const displayTracks = useMemo/.test(timeline));
+    check("B-04 · un plan change de piste au glisser (Lot A2 : tout élément, pas seulement les plans)",
+      /onMoveElement\(\{ kind: d\.kind, id: d\.id \}/.test(timeline));
     check("B-04 · l'aperçu empile les plans", /const \{ clip, opacity \} = found;/.test(preview));
     check("B-04 · le rendu serveur empile les pistes",
       /filter\(\(tr\) => tr\.family === "visual"\)\.slice\(\)\.reverse\(\)/.test(plan));
-    check("B-02 · sous-pistes calculées par le modèle", /function packLanes<T/.test(projectSrc));
-    check("B-02 · la timeline leur donne de la place", /LANE_H \* l\.rows/.test(timeline));
+    check("B-02 · sous-pistes calculées par le modèle", /export function packLanes<T/.test(projectSrc));
+    check("B-02 · la timeline leur donne de la place", /LANE_H \* rowsOf\(items\)/.test(timeline));
   }
 
   // ── P0-2 · Le fondu enchaîné se voit dans l'aperçu (audit Editing Bench v3) ──
@@ -499,8 +504,8 @@ async function main() {
     check("P3-7 · le menu contextuel propose dupliquer ET supprimer le groupe",
       /Dupliquer le groupe/.test(studio) && /Supprimer le groupe/.test(studio));
     check("P3-7 · le clic droit sur la timeline est câblé (plans ET calques)",
-      /onContextMenu=\{\(e\) => onContextMenu\?\.\(\{ kind: "clip", id: c\.id \}, e\)\}/.test(timeline) &&
-      /onContextMenu=\{\(e\) => onContextMenu\?\.\(\{ kind, id: l\.id \}, e\)\}/.test(timeline));
+      /onContextMenu=\{\(e\) => onContextMenu\?\.\(\{ kind: "clip", id: it\.id \}, e\)\}/.test(timeline) &&
+      /onContextMenu=\{\(e\) => onContextMenu\?\.\(\{ kind, id: it\.id \}, e\)\}/.test(timeline));
     check("P2-4 · le raccourci clavier Ctrl/⌘+D et Suppr restent conscients du groupe (pas de fermeture stagnante)",
       /doDuplicateSelection\(\)/.test(studio) && /doRemoveSelection\(\)/.test(studio));
   }
@@ -576,19 +581,22 @@ async function main() {
       (panel.match(/\[\.\.\.PRESET_COLORS, \.\.\.brand\.palette\]/g) ?? []).length === 1);
   }
 
-  // ── P1-4 · Étiquettes de piste audio (audit Editing Bench v3, Lot 4) ────
+  // ── P1-4 · Étiquettes de piste audio (audit Editing Bench v3, Lot 4 ;
+  // devenu un mécanisme général par piste avec le Lot A2) ─────────────────
   // Trois pistes son simultanées — son d'origine, voix off, musique, l'usage
-  // le plus courant — se mélangeaient toutes sous un seul bandeau « Audio »
-  // générique, alors que le panneau de propriétés les distingue déjà par
-  // catégorie depuis P3-2.
+  // le plus courant — se mélangeaient autrefois toutes sous un seul bandeau
+  // « Audio » générique. La migration du Lot A1 crée désormais une
+  // `TrackDef` distincte par rôle audio existant (a-original/a-voice/
+  // a-music) et le Lot A2 fait dessiner à la timeline une rangée par
+  // `TrackDef`, chacune scopée à son propre `trackId` — la séparation par
+  // rôle est donc obtenue par le mécanisme général, pas par un cas
+  // particulier « audio ».
   {
-    check("P1-4 · une piste par rôle audio, pas un seul bandeau générique",
-      /AUDIO_ROLES/.test(timeline) &&
-      /\{ role: "original", fr: "Son d'origine", en: "Original audio" \}/.test(timeline) &&
-      /\{ role: "voice", fr: "Voix off", en: "Voiceover" \}/.test(timeline) &&
-      /\{ role: "music", fr: "Musique", en: "Music" \}/.test(timeline));
-    check("P1-4 · chaque piste ne montre que les pistes de SON de son propre rôle",
-      /const onRole = project\.audios\.filter\(\(a\) => a\.role === role\)/.test(timeline));
+    check("P1-4 · une piste par TrackDef audio, pas un seul bandeau générique",
+      /const displayTracks = useMemo\(/.test(timeline) &&
+      /const lanes = displayTracks\.map\(\(tr\) => \(\{ track: tr, items: placedOn\(tr\.id\) \}\)\)/.test(timeline));
+    check("P1-4 · chaque piste ne montre que les pistes de SON de son propre trackId",
+      /\.\.\.project\.audios\.filter\(\(a\) => a\.trackId === trackId\)\.map/.test(timeline));
   }
 
   // ── P2-9 / P2-15 · Ancrages multiples et verrouillage de proportions

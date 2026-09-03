@@ -16,6 +16,7 @@
 import { useT } from "@/lib/i18n";
 import {
   ANIMATION_SECONDS,
+  moveElement,
   projectDuration,
   setClipBox,
   setClipFraming,
@@ -29,6 +30,7 @@ import {
   updateText,
   type AnimationKind,
   type EditorProject,
+  type TrackFamily,
   type TransitionKind,
   type TextLayer,
   type VisualLayer,
@@ -154,6 +156,10 @@ export function PropertyPanel({
   };
 
   const visual: VisualLayer | null = text ?? image ?? shape ?? null;
+  /** `visual` est élargi à `VisualLayer` (perd `id`) — repris ici pour la
+      piste, seul réglage qui a besoin de savoir lequel des trois c'est. */
+  const visualKind: "text" | "image" | "shape" | null = text ? "text" : image ? "image" : shape ? "shape" : null;
+  const visualId = text?.id ?? image?.id ?? shape?.id;
   /**
    * Largeur utilisée pour centrer/aligner à droite horizontalement — jusqu'ici
    * toujours `undefined` pour un texte (ni image ni forme), donc les boutons
@@ -206,44 +212,32 @@ export function PropertyPanel({
             </>
           )}
 
-          {clip.track > 0 && (
-            <>
-              {/* Cadre — position et taille de la FENÊTRE d'incrustation,
-                  distinct du recadrage ci-dessus qui règle ce que la source
-                  montre À L'INTÉRIEUR de cette fenêtre. Plein cadre par
-                  défaut : sans ce bloc, une incrustation vidéo ne pouvait pas
-                  se poser en petite fenêtre dans un coin — seulement en plein
-                  écran (audit Editing Bench, P2-1). Comme l'opacité
-                  ci-dessous, sans usage réel sur la piste de base. */}
-              <div className="grid grid-cols-2 gap-2">
-                <NumberRow label="X" unit="%" value={clip.x * 100} step={1} compact
-                  onChange={(v) => onChange((p) => setClipBox(p, clip.id, { x: v / 100 }))} />
-                <NumberRow label="Y" unit="%" value={clip.y * 100} step={1} compact
-                  onChange={(v) => onChange((p) => setClipBox(p, clip.id, { y: v / 100 }))} />
-                <NumberRow label={t("Largeur", "Width")} unit="%" value={clip.w * 100} step={1} min={2} compact
-                  onChange={(v) => onChange((p) => setClipBox(p, clip.id, { w: v / 100 }))} />
-                <NumberRow label={t("Hauteur", "Height")} unit="%" value={clip.h * 100} step={1} min={2} compact
-                  onChange={(v) => onChange((p) => setClipBox(p, clip.id, { h: v / 100 }))} />
-              </div>
-              {/* L'opacité d'un plan n'a d'usage réel que sur une piste
-                  d'incrustation — la piste de base couvre déjà tout le
-                  cadre, la faire disparaître en fondu ne ferait qu'exposer
-                  du noir en dessous (audit Editing Bench, P2-1 / P2-2). */}
-              <NumberRow
-                label={t("Opacité", "Opacity")} unit="%" value={clip.opacity * 100} step={5} min={0} max={100}
-                onChange={(v) => onChange((p) => setClipOpacity(p, clip.id, v / 100))}
-              />
-            </>
-          )}
+          {/* Cadre — position et taille de la FENÊTRE d'incrustation, distinct
+              du recadrage ci-dessus qui règle ce que la source montre À
+              L'INTÉRIEUR de cette fenêtre. Plein cadre par défaut : sans ce
+              bloc, une incrustation vidéo ne pouvait pas se poser en petite
+              fenêtre dans un coin — seulement en plein écran (audit Editing
+              Bench, P2-1). N'importe quel plan peut désormais s'en servir,
+              pas seulement une « piste d'incrustation » — une piste n'a plus
+              de statut particulier depuis les pistes libres (Lot A2). */}
+          <div className="grid grid-cols-2 gap-2">
+            <NumberRow label="X" unit="%" value={clip.x * 100} step={1} compact
+              onChange={(v) => onChange((p) => setClipBox(p, clip.id, { x: v / 100 }))} />
+            <NumberRow label="Y" unit="%" value={clip.y * 100} step={1} compact
+              onChange={(v) => onChange((p) => setClipBox(p, clip.id, { y: v / 100 }))} />
+            <NumberRow label={t("Largeur", "Width")} unit="%" value={clip.w * 100} step={1} min={2} compact
+              onChange={(v) => onChange((p) => setClipBox(p, clip.id, { w: v / 100 }))} />
+            <NumberRow label={t("Hauteur", "Height")} unit="%" value={clip.h * 100} step={1} min={2} compact
+              onChange={(v) => onChange((p) => setClipBox(p, clip.id, { h: v / 100 }))} />
+          </div>
+          <NumberRow
+            label={t("Opacité", "Opacity")} unit="%" value={clip.opacity * 100} step={5} min={0} max={100}
+            onChange={(v) => onChange((p) => setClipOpacity(p, clip.id, v / 100))}
+          />
 
-          <SelectRow
-            label={t("Piste", "Track")}
-            value={String(clip.track)}
-            // Même nommage que la timeline (Timeline.tsx) — qui appelait la
-            // même piste « Vidéo 2 » quand ce menu disait « Superposée 1 »
-            // pour LE MÊME numéro de piste (audit Editing Bench, P3-3).
-            options={[0, 1, 2].map((n) => ({ value: String(n), label: n === 0 ? t("Vidéo", "Video") : `${t("Vidéo", "Video")} ${n + 1}` }))}
-            onChange={(v) => onChange((p) => ({ ...p, clips: p.clips.map((c) => (c.id === clip.id ? { ...c, track: Number(v) } : c)) }))}
+          <TrackPicker
+            project={project} family="visual" value={clip.trackId}
+            onChange={(trackId) => onChange((p) => moveElement(p, { kind: "clip", id: clip.id }, { trackId }))}
           />
 
           {project.clips.some((c) => c.track === clip.track && c.start < clip.start) && (
@@ -330,6 +324,13 @@ export function PropertyPanel({
             <p className="text-2xs text-muted">
               {t(`Animation de ${ANIMATION_SECONDS}s`, `${ANIMATION_SECONDS}s animation`)}
             </p>
+          )}
+
+          {visualKind && visualId && (
+            <TrackPicker
+              project={project} family="visual" value={visual.trackId}
+              onChange={(trackId) => onChange((p) => moveElement(p, { kind: visualKind, id: visualId }, { trackId }))}
+            />
           )}
         </Panel>
       )}
@@ -442,6 +443,11 @@ export function PropertyPanel({
           >
             {audio.muted ? "🔇" : "🔊"}
           </Toggle>
+
+          <TrackPicker
+            project={project} family="audio" value={audio.trackId}
+            onChange={(trackId) => onChange((p) => moveElement(p, { kind: "audio", id: audio.id }, { trackId }))}
+          />
         </Panel>
       )}
 
@@ -601,6 +607,34 @@ function NumberRow({
       />
       <span className="shrink-0">{unit}</span>
     </label>
+  );
+}
+
+/**
+ * Sélecteur de piste, partagé par les cinq types d'éléments (Lot A2, audit
+ * Editing Bench v4) — jusqu'ici réservé aux plans, et limité à trois options
+ * codées en dur ([0,1,2]) indépendamment du nombre de pistes réellement
+ * posées. Même numérotation que la timeline (V1, V2… / A1, A2…), lue
+ * directement dans `project.tracks` plutôt que recalculée ici.
+ */
+function TrackPicker({
+  project, family, value, onChange,
+}: {
+  project: EditorProject;
+  family: TrackFamily;
+  value: string;
+  onChange: (trackId: string) => void;
+}) {
+  const t = useT();
+  const tracks = (project.tracks ?? []).filter((tr) => tr.family === family);
+  const prefix = family === "visual" ? "V" : "A";
+  return (
+    <SelectRow
+      label={t("Piste", "Track")}
+      value={value}
+      options={tracks.map((tr, i) => ({ value: tr.id, label: `${prefix}${i + 1}` }))}
+      onChange={onChange}
+    />
   );
 }
 

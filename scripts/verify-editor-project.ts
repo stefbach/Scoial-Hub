@@ -7,12 +7,12 @@
 // Usage : npm run test:montageproj
 
 import {
-  addAudio, addButton, addClip, addImageLayer, addShape, addText, clipAt, clipsAt,
+  addAudio, addButton, addClip, addImageLayer, addShape, addText, addTrack, clipAt, clipsAt,
   CLIP_TRANSITION_SECONDS, duplicateClip, emptyProject, imagesAt, layerProgress,
-  MIN_CLIP_SECONDS, moveClip, normalize, projectDuration, removeClip, removeShape,
-  reorderClip, setClipBox, setClipFraming, setClipLength, setClipOpacity, setClipSpeed, setClipTransition,
-  setProjectDuration, shapesAt, splitAt, textsAt, trimClip, updateAudio, updateImageLayer, updateShape,
-  updateText, usedTracks, visualElementsAt,
+  MIN_CLIP_SECONDS, moveClip, moveElement, normalize, projectDuration, removeClip, removeShape, removeTrack,
+  reorderClip, reorderTrack, setClipBox, setClipFraming, setClipLength, setClipOpacity, setClipSpeed,
+  setClipTransition, setProjectDuration, setTrackDefMeta, shapesAt, splitAt, textsAt, trimClip, updateAudio,
+  updateImageLayer, updateShape, updateText, usedTracks, visibleProject, visualElementsAt,
   type Clip, type EditorProject,
 } from "../lib/editor/project";
 import { canRedo, canUndo, HISTORY_LIMIT, initHistory, push, redo, undo } from "../lib/editor/history";
@@ -862,6 +862,89 @@ function main() {
       kinds.indexOf("shape") < kinds.indexOf("image") &&
       kinds.indexOf("image") < kinds.indexOf("text"),
       JSON.stringify(kinds));
+  }
+
+  // ── Lot A2 · Pistes libres (audit Editing Bench v4) ───────────────────────
+  {
+    let p = addClip(emptyProject("c", "p"), { id: "base", src: "b.mp4", kind: "video", sourceDuration: 10 });
+    p = addText(p, "t", "Titre");
+
+    // addTrack — nouvelle piste vide, devant tout ce qui existe déjà dans sa
+    // famille ; sans effet si l'id existe déjà.
+    p = addTrack(p, "extra", "visual");
+    const visualIds = (p.tracks ?? []).filter((tr) => tr.family === "visual").map((tr) => tr.id);
+    check("une piste vide ajoutée se retrouve devant les pistes visuelles existantes",
+      visualIds[visualIds.length - 1] === "extra", JSON.stringify(visualIds));
+    check("ajouter une piste déjà existante ne change rien", addTrack(p, "extra", "visual") === p);
+
+    p = addTrack(p, "va", "audio");
+    const audioIds = (p.tracks ?? []).filter((tr) => tr.family === "audio").map((tr) => tr.id);
+    check("une piste son vide s'ajoute à la famille son", audioIds.includes("va"), JSON.stringify(audioIds));
+
+    // moveElement — déplace N'IMPORTE QUEL type vers une autre piste et/ou
+    // un autre instant, en un seul geste.
+    p = moveElement(p, { kind: "text", id: "t" }, { trackId: "extra" });
+    check("un texte se déplace vers une autre piste",
+      p.texts.find((l) => l.id === "t")?.trackId === "extra",
+      p.texts.find((l) => l.id === "t")?.trackId);
+
+    p = moveElement(p, { kind: "clip", id: "base" }, { trackId: "extra", start: 2 });
+    check("un plan se déplace vers une autre piste ET un autre instant en un seul geste",
+      p.clips.find((c) => c.id === "base")?.trackId === "extra" &&
+      near(p.clips.find((c) => c.id === "base")!.start, 2),
+      JSON.stringify(p.clips.find((c) => c.id === "base")));
+
+    p = addAudio(p, { id: "m", src: "m.mp3", name: "M", role: "music", sourceDuration: 10 });
+    p = moveElement(p, { kind: "audio", id: "m" }, { trackId: "va" });
+    check("un son se déplace vers une autre piste son",
+      p.audios.find((a) => a.id === "m")?.trackId === "va",
+      p.audios.find((a) => a.id === "m")?.trackId);
+
+    // reorderTrack — au sein de SA famille seulement, sans effet au bord.
+    const beforeOrder = (p.tracks ?? []).filter((tr) => tr.family === "visual").map((tr) => tr.id);
+    check("au moins deux pistes visuelles pour tester le réordonnancement", beforeOrder.length >= 2, beforeOrder.join(","));
+    const reordered = reorderTrack(p, beforeOrder[0], "up");
+    const afterOrder = (reordered.tracks ?? []).filter((tr) => tr.family === "visual").map((tr) => tr.id);
+    check("réordonner une piste visuelle échange sa position avec sa voisine",
+      afterOrder[0] === beforeOrder[1] && afterOrder[1] === beforeOrder[0],
+      `${beforeOrder.join(",")} → ${afterOrder.join(",")}`);
+
+    // La piste visuelle la plus en avant est immédiatement suivie, dans le
+    // tableau, par la première piste SON (les pistes son closent toujours
+    // `tracks[]`) : ce test prouve donc aussi qu'une piste visuelle ne
+    // s'échange jamais avec une piste son, pas seulement qu'elle s'arrête au
+    // bord du tableau.
+    const frontMost = beforeOrder[beforeOrder.length - 1];
+    check("réordonner la piste visuelle la plus en avant ne l'échange pas avec une piste son",
+      JSON.stringify(reorderTrack(p, frontMost, "up").tracks) === JSON.stringify(p.tracks));
+
+    // removeTrack — cascade sur ce qu'elle porte ; refuse de retirer la
+    // DERNIÈRE piste visuelle.
+    const withOrphan = addTrack(p, "toDelete", "visual");
+    const withElement = moveElement(withOrphan, { kind: "text", id: "t" }, { trackId: "toDelete" });
+    const afterRemove = removeTrack(withElement, "toDelete");
+    check("retirer une piste retire aussi ce qu'elle porte",
+      !afterRemove.texts.some((l) => l.id === "t"), JSON.stringify(afterRemove.texts.map((l) => l.id)));
+    check("retirer une piste la retire bien de la liste",
+      !(afterRemove.tracks ?? []).some((tr) => tr.id === "toDelete"));
+
+    let onlyOne = emptyProject("c", "p");
+    onlyOne = addClip(onlyOne, { id: "solo", src: "s.mp4", kind: "video", sourceDuration: 5 });
+    const soloTrackId = onlyOne.clips[0].trackId;
+    check("retirer la dernière piste visuelle est refusé",
+      removeTrack(onlyOne, soloTrackId) === onlyOne);
+
+    // setTrackDefMeta / isTrackLocked / isTrackHidden / visibleProject — la
+    // version par id, qui couvre aussi les pistes glissées par l'utilisateur
+    // (pas seulement les anciennes pistes vidéo numérotées).
+    const lockedByI = setTrackDefMeta(p, "extra", { locked: true });
+    check("setTrackDefMeta verrouille une piste par son id",
+      (lockedByI.tracks ?? []).find((tr) => tr.id === "extra")?.locked === true);
+
+    const hiddenByI = setTrackDefMeta(p, "extra", { hidden: true });
+    const seenByI = visibleProject(hiddenByI);
+    check("visibleProject retire aussi les textes d'une piste masquée (pas seulement les plans)",
+      !seenByI.texts.some((l) => l.trackId === "extra"), JSON.stringify(seenByI.texts.map((l) => l.trackId)));
   }
 
   console.log(`\n${failures === 0 ? "✓ TOUT VERT" : `✗ ${failures} échec(s)`}\n`);

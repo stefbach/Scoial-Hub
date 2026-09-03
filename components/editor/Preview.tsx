@@ -24,6 +24,7 @@ import {
   projectDuration,
   shapesAt,
   textsAt,
+  visualElementsAt,
   type EditorProject,
   type ImageLayer,
   type ShapeLayer,
@@ -109,6 +110,20 @@ export function Preview({
   const visibleTexts = textsAt(project, playhead);
   const visibleImages = imagesAt(project, playhead);
   const visibleShapes = shapesAt(project, playhead);
+  // Ordre de rendu piloté par la PISTE, pas par le type d'élément — c'est le
+  // sujet structurant de l'audit v4 (Lot A3) : un plan, un texte, une
+  // incrustation, une forme, peuvent désormais se succéder dans n'importe
+  // quel ordre visuel. `visualElementsAt` fait le tri une seule fois ; les
+  // tableaux ci-dessus restent lus pour leurs propriétés complètes.
+  const orderedRefs = visualElementsAt(project, playhead);
+  const activeById = new Map(active.map((a) => [a.clip.id, a]));
+  const textsById = new Map(visibleTexts.map((l) => [l.id, l]));
+  const imagesById = new Map(visibleImages.map((l) => [l.id, l]));
+  const shapesById = new Map(visibleShapes.map((l) => [l.id, l]));
+  // Piste visuelle la plus basse de la pile — le nouveau repère pour le son
+  // embarqué d'un plan (voir plus bas), à la place de « piste 0 » qui n'a
+  // plus de statut particulier une fois les pistes libres.
+  const bottomVisualTrackId = (project.tracks ?? []).find((tr) => tr.family === "visual")?.id;
 
   /* ── Mise à l'échelle ──────────────────────────────────────────────────── */
   useEffect(() => {
@@ -235,13 +250,16 @@ export function Preview({
       if (Math.abs(v.currentTime - sourceTime) > 0.25) v.currentTime = sourceTime;
       v.playbackRate = clip.speed;
       v.volume = volume;
-      // Seule la piste de base porte le son d'origine : superposer deux bandes
-      // son de plans différents produirait une bouillie.
-      v.muted = muted || originalMuted || clip.track !== 0;
+      // Seule la piste visuelle la plus basse porte le son d'origine :
+      // superposer deux bandes son de plans différents produirait une
+      // bouillie. Autrefois « piste 0 », qui n'a plus de statut particulier
+      // une fois les pistes libres (Lot A3) — provisoire : chaque plan aura
+      // son propre réglage de son au Lot A4, ce repère disparaîtra alors.
+      v.muted = muted || originalMuted || clip.trackId !== bottomVisualTrackId;
       if (playing && v.paused) void v.play().catch(() => onPlayingChange(false));
       if (!playing && !v.paused) v.pause();
     }
-  }, [active, playing, volume, muted, originalMuted, onPlayingChange]);
+  }, [active, playing, volume, muted, originalMuted, bottomVisualTrackId, onPlayingChange]);
 
   /* ── Pistes son ajoutées ───────────────────────────────────────────────── */
   // L'aperçu ne pilotait QUE l'élément vidéo : volume, rognage et fondus se
@@ -417,107 +435,114 @@ export function Preview({
             }}
             className="absolute left-0 top-0 overflow-hidden bg-black"
           >
-            {/* Plans, de la piste de base vers le dessus. `opacity` compose le
+            {/* Un seul passage, dans l'ordre de PISTE — pas un bloc par type
+                d'élément comme avant : c'est exactement le sujet de cette
+                refonte (audit Editing Bench v4, Lot A3). `opacity` compose le
                 fondu enchaîné entre le plan sortant et le plan entrant — sans
                 elle, une transition ne se voyait jamais avant l'export
-                (audit Editing Bench, P0-2). Le cadre (x, y, w, h) borne la
-                zone dans laquelle `fit`/`focusX`/`focusY` recadrent la
-                source — plein cadre par défaut, réduit pour une incrustation
-                posée en fenêtre plutôt qu'en plein écran (P2-1). Seule une
-                piste d'incrustation (track > 0) se glisse : la piste de base
-                reste plein cadre, il n'y a rien à y déplacer. */}
-            {active.map(({ clip, opacity }) => {
-              const box: React.CSSProperties = {
-                position: "absolute",
-                left: clip.x * frame.width,
-                top: clip.y * frame.height,
-                width: clip.w * frame.width,
-                height: clip.h * frame.height,
-                objectPosition: `${clip.focusX * 100}% ${clip.focusY * 100}%`,
-                opacity,
-              };
-              const fitClass = clip.fit === "contain" ? "object-contain" : "object-cover";
-              const movable = clip.track > 0 && Boolean(onLayerChange);
-              return clip.kind === "video" ? (
-                // eslint-disable-next-line jsx-a11y/media-has-caption
-                <video
-                  key={clip.id}
-                  ref={(el) => { if (el) videoRefs.current.set(clip.id, el); }}
-                  src={clip.src}
-                  playsInline
-                  preload="metadata"
-                  onPointerDown={movable ? (e) => startMove(e, { kind: "clip", id: clip.id }, clip) : undefined}
-                  style={box}
-                  className={`h-full w-full ${fitClass} ${movable ? "cursor-move" : ""} ${
-                    selectedId === clip.id && movable ? "outline outline-[3px] outline-page" : ""
-                  }`}
-                />
-              ) : (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  key={clip.id}
-                  src={clip.src}
-                  alt=""
-                  draggable={false}
-                  onPointerDown={movable ? (e) => startMove(e, { kind: "clip", id: clip.id }, clip) : undefined}
-                  style={box}
-                  className={`h-full w-full ${fitClass} ${movable ? "cursor-move" : ""} ${
-                    selectedId === clip.id && movable ? "outline outline-[3px] outline-page" : ""
-                  }`}
-                />
-              );
-            })}
+                (P0-2). Le cadre d'un plan (x, y, w, h) borne la zone dans
+                laquelle `fit`/`focusX`/`focusY` recadrent la source — plein
+                cadre par défaut (P2-1). Tout plan se glisse désormais dans
+                l'aperçu, y compris celui de la piste la plus basse : son
+                cadre par défaut occupe déjà tout le format, le déplacer ne
+                coûte rien tant qu'on ne le fait pas exprès (Lot A3, levée de
+                l'ancienne restriction « piste 0 »). */}
+            {orderedRefs.map((ref) => {
+              if (ref.kind === "clip") {
+                const found = activeById.get(ref.id);
+                if (!found) return null;
+                const { clip, opacity } = found;
+                const box: React.CSSProperties = {
+                  position: "absolute",
+                  left: clip.x * frame.width,
+                  top: clip.y * frame.height,
+                  width: clip.w * frame.width,
+                  height: clip.h * frame.height,
+                  objectPosition: `${clip.focusX * 100}% ${clip.focusY * 100}%`,
+                  opacity,
+                };
+                const fitClass = clip.fit === "contain" ? "object-contain" : "object-cover";
+                const movable = Boolean(onLayerChange);
+                return clip.kind === "video" ? (
+                  // eslint-disable-next-line jsx-a11y/media-has-caption
+                  <video
+                    key={clip.id}
+                    ref={(el) => { if (el) videoRefs.current.set(clip.id, el); }}
+                    src={clip.src}
+                    playsInline
+                    preload="metadata"
+                    onPointerDown={movable ? (e) => startMove(e, { kind: "clip", id: clip.id }, clip) : undefined}
+                    style={box}
+                    className={`h-full w-full ${fitClass} ${movable ? "cursor-move" : ""} ${
+                      selectedId === clip.id && movable ? "outline outline-[3px] outline-page" : ""
+                    }`}
+                  />
+                ) : (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    key={clip.id}
+                    src={clip.src}
+                    alt=""
+                    draggable={false}
+                    onPointerDown={movable ? (e) => startMove(e, { kind: "clip", id: clip.id }, clip) : undefined}
+                    style={box}
+                    className={`h-full w-full ${fitClass} ${movable ? "cursor-move" : ""} ${
+                      selectedId === clip.id && movable ? "outline outline-[3px] outline-page" : ""
+                    }`}
+                  />
+                );
+              }
 
-            {active.length === 0 && (
-              <p className="flex h-full items-center justify-center px-8 text-center text-white/60"
-                 style={{ fontSize: frame.height * 0.025 }}>
-                {t("Ajoutez un média pour commencer le montage.", "Add a media file to start editing.")}
-              </p>
-            )}
+              if (ref.kind === "shape") {
+                const l = shapesById.get(ref.id);
+                if (!l) return null;
+                return (
+                  <ShapeView
+                    key={l.id}
+                    layer={l}
+                    frame={frame}
+                    style={layerStyle(l, { width: l.w * frame.width, height: l.h * frame.height })}
+                    selected={selectedId === l.id}
+                    onPointerDown={(e) => startMove(e, { kind: "shape", id: l.id }, l)}
+                  />
+                );
+              }
 
-            {/* Formes */}
-            {visibleShapes.map((l) => (
-              <ShapeView
-                key={l.id}
-                layer={l}
-                frame={frame}
-                style={layerStyle(l, { width: l.w * frame.width, height: l.h * frame.height })}
-                selected={selectedId === l.id}
-                onPointerDown={(e) => startMove(e, { kind: "shape", id: l.id }, l)}
-              />
-            ))}
+              if (ref.kind === "image") {
+                const l = imagesById.get(ref.id);
+                if (!l) return null;
+                return (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    key={l.id}
+                    src={l.src}
+                    alt=""
+                    // Un <img> est GLISSABLE nativement par le navigateur, à la
+                    // différence d'un <div> de texte : sans draggable={false}, le
+                    // premier mouvement de souris faisait basculer le geste sur le
+                    // glisser-déposer natif du navigateur (fantôme d'image, aucun
+                    // pointermove supplémentaire) au lieu de continuer à alimenter
+                    // startMove/onPointerMove — vérifié en isolant la différence de
+                    // comportement texte vs image, geste identique (Playwright,
+                    // audit Editing Bench, P1-5 : « glissement → texte oui, image
+                    // non »).
+                    draggable={false}
+                    onPointerDown={(e) => startMove(e, { kind: "image", id: l.id }, l)}
+                    style={layerStyle(l, {
+                      width: l.scale * frame.width,
+                      height: l.heightPct > 0 ? l.heightPct * frame.height : undefined,
+                    })}
+                    className={`${onLayerChange ? "cursor-move" : "pointer-events-none"} ${
+                      selectedId === l.id ? "outline outline-[3px] outline-page" : ""
+                    }`}
+                  />
+                );
+              }
 
-            {/* Incrustations */}
-            {visibleImages.map((l) => (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                key={l.id}
-                src={l.src}
-                alt=""
-                // Un <img> est GLISSABLE nativement par le navigateur, à la
-                // différence d'un <div> de texte : sans draggable={false}, le
-                // premier mouvement de souris faisait basculer le geste sur le
-                // glisser-déposer natif du navigateur (fantôme d'image, aucun
-                // pointermove supplémentaire) au lieu de continuer à alimenter
-                // startMove/onPointerMove — vérifié en isolant la différence de
-                // comportement texte vs image, geste identique (Playwright,
-                // audit Editing Bench, P1-5 : « glissement → texte oui, image
-                // non »).
-                draggable={false}
-                onPointerDown={(e) => startMove(e, { kind: "image", id: l.id }, l)}
-                style={layerStyle(l, {
-                  width: l.scale * frame.width,
-                  height: l.heightPct > 0 ? l.heightPct * frame.height : undefined,
-                })}
-                className={`${onLayerChange ? "cursor-move" : "pointer-events-none"} ${
-                  selectedId === l.id ? "outline outline-[3px] outline-page" : ""
-                }`}
-              />
-            ))}
-
-            {/* Textes */}
-            {visibleTexts.map((l) =>
-              editingTextId === l.id ? (
+              // ref.kind === "text"
+              const l = textsById.get(ref.id);
+              if (!l) return null;
+              return editingTextId === l.id ? (
                 // Édition au double-clic — attendu d'un banc de montage même
                 // basique (chapitre 8.1) : pas besoin de rouvrir le panneau de
                 // propriétés pour corriger une faute de frappe.
@@ -580,7 +605,14 @@ export function Preview({
                 >
                   {l.text}
                 </div>
-              )
+              );
+            })}
+
+            {active.length === 0 && (
+              <p className="flex h-full items-center justify-center px-8 text-center text-white/60"
+                 style={{ fontSize: frame.height * 0.025 }}>
+                {t("Ajoutez un média pour commencer le montage.", "Add a media file to start editing.")}
+              </p>
             )}
 
             {/* Repères d'alignement */}
@@ -790,8 +822,10 @@ function Handles({
     }
     if (selection.kind === "clip") {
       const c = project.clips.find((x) => x.id === selection.id);
-      // Piste de base : rien à déplacer, elle occupe toujours tout le cadre.
-      if (!c || c.track === 0) return null;
+      // Une piste n'a plus de statut particulier (Lot A3) : même le plan de
+      // la piste la plus basse, plein cadre par défaut, peut désormais être
+      // recadré comme n'importe quel autre.
+      if (!c) return null;
       // Pas de rotation sur un plan — champ que `Clip` n'a délibérément pas
       // reçu, faute de savoir ce qu'une rotation de vidéo signifie pour le
       // moteur de rendu serveur (P2-1, restreint à position et taille).

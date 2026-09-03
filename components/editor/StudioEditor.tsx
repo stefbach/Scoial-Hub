@@ -585,9 +585,14 @@ export function StudioEditor({
 
   /* ── Sous-titrage automatique ──────────────────────────────────────────── */
   const transcribe = useCallback(async () => {
-    // On transcrit la voix off si elle existe, sinon le son du premier plan.
+    // On transcrit la voix off si elle existe, sinon le son du plan de la
+    // piste visuelle la plus basse — autrefois « piste 0 », qui n'a plus de
+    // statut particulier une fois les pistes libres (Lot A3, audit Editing
+    // Bench v4).
     const voice = project.audios.find((a) => a.role === "voice" && !a.muted);
-    const source = voice?.src ?? project.clips.find((c) => c.track === 0 && c.kind === "video")?.src;
+    const bottomVisualTrackId = (project.tracks ?? []).find((tr) => tr.family === "visual")?.id;
+    const source = voice?.src ??
+      project.clips.find((c) => c.trackId === bottomVisualTrackId && c.kind === "video")?.src;
     if (!source) {
       setNote(t("Aucune piste parlée à transcrire.", "No spoken track to transcribe."));
       return;
@@ -640,7 +645,7 @@ export function StudioEditor({
     } finally {
       setBusy(null);
     }
-  }, [project.audios, project.clips, companyId, subtitleLang, subtitleTranslate, apply, t]);
+  }, [project.audios, project.clips, project.tracks, companyId, subtitleLang, subtitleTranslate, apply, t]);
 
   /**
    * Le montage tel qu'on le voit et qu'on l'exporte : les pistes masquées en

@@ -393,7 +393,7 @@ export function Timeline({
     tone: "text" | "image" | "shape" | "audio",
     labelOf: (l: L) => string,
     lengthOf: (l: L) => number,
-    extra?: (l: L) => { muted?: boolean }
+    extra?: (l: L) => { muted?: boolean; src?: string; trimStart?: number }
   ) {
     return items.map((l) => (
       <LayerBlock
@@ -405,6 +405,8 @@ export function Timeline({
         pxPerSec={pxPerSec}
         tone={tone}
         muted={extra?.(l)?.muted}
+        src={extra?.(l)?.src}
+        trimStart={extra?.(l)?.trimStart}
         selected={(selection?.kind === kind && selection.id === l.id) || Boolean(multiSelectedKeys?.has(`${kind}:${l.id}`))}
         onSelect={(e) => onSelect({ kind, id: l.id }, e)}
         onContextMenu={(e) => onContextMenu?.({ kind, id: l.id }, e)}
@@ -467,7 +469,7 @@ export function Timeline({
       blocks: layerBlocks(
         onRole, "audio", "audio",
         (a) => a.name, (a) => a.length,
-        (a) => ({ muted: a.muted })
+        (a) => ({ muted: a.muted, src: a.src, trimStart: a.trimStart })
       ),
     });
   }
@@ -768,6 +770,93 @@ const TONE: Record<string, string> = {
   audio: "bg-success-50 text-success-700 border-success-200",
 };
 
+// ── Forme d'onde des pistes son (audit Editing Bench, P2-6) ────────────────
+// Un bandeau audio nu ne dit rien : où sont les silences ? le pic de voix ?
+// Un aperçu grossier du signal (quelques dizaines de pics, pas un rendu
+// exact) suffit à s'orienter d'un coup d'œil, comme dans tout éditeur audio.
+//
+// Le décodage (réseau + Web Audio) est risqué et hors du chemin critique : un
+// média introuvable, un format que le navigateur ne sait pas décoder, ou une
+// origine sans CORS ne doivent JAMAIS empêcher le reste de la timeline de
+// fonctionner — silencieusement absent de bande plutôt qu'en erreur. Décodé
+// UNE FOIS par (source, point d'entrée, durée) et mémorisé au niveau module :
+// la lecture fait avancer la tête ~60 fois/s et re-rend chaque bloc à chaque
+// tic, un nouveau décodage à chaque rendu serait rédhibitoire.
+const WAVEFORM_BARS = 40;
+const waveformCache = new Map<string, number[] | null>();
+const waveformInflight = new Map<string, Promise<number[] | null>>();
+
+function waveformKey(src: string, trimStart: number, length: number): string {
+  return `${src}|${trimStart.toFixed(2)}|${length.toFixed(2)}`;
+}
+
+async function decodeWaveformPeaks(src: string, trimStart: number, length: number): Promise<number[] | null> {
+  if (typeof window === "undefined") return null;
+  const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  if (!Ctx) return null;
+  try {
+    const res = await fetch(src);
+    if (!res.ok) return null;
+    const bytes = await res.arrayBuffer();
+    const ctx = new Ctx();
+    try {
+      const audio = await ctx.decodeAudioData(bytes);
+      const data = audio.getChannelData(0);
+      const sr = audio.sampleRate;
+      const from = Math.max(0, Math.floor(trimStart * sr));
+      const to = Math.min(data.length, Math.ceil((trimStart + length) * sr));
+      const span = Math.max(1, to - from);
+      const bucket = Math.max(1, Math.floor(span / WAVEFORM_BARS));
+      const peaks: number[] = [];
+      for (let i = 0; i < WAVEFORM_BARS; i++) {
+        const bStart = from + i * bucket;
+        const bEnd = Math.min(to, bStart + bucket);
+        let peak = 0;
+        for (let j = bStart; j < bEnd; j++) peak = Math.max(peak, Math.abs(data[j]));
+        peaks.push(peak);
+      }
+      return peaks;
+    } finally {
+      void ctx.close();
+    }
+  } catch {
+    return null; // média inaccessible, hors CORS, ou codec non supporté.
+  }
+}
+
+/** null tant que non décodé OU si le décodage a échoué — les deux se taisent. */
+function useWaveformPeaks(src: string | undefined, trimStart: number, length: number): number[] | null {
+  const key = src ? waveformKey(src, trimStart, length) : "";
+  const [, bump] = useState(0);
+  useEffect(() => {
+    if (!src || waveformCache.has(key)) return;
+    let cancelled = false;
+    // Un plan dupliqué partage sa source : une seule requête pour les deux.
+    let promise = waveformInflight.get(key);
+    if (!promise) {
+      promise = decodeWaveformPeaks(src, trimStart, length);
+      waveformInflight.set(key, promise);
+    }
+    promise.then((peaks) => {
+      waveformCache.set(key, peaks);
+      waveformInflight.delete(key);
+      if (!cancelled) bump((n) => n + 1);
+    });
+    return () => { cancelled = true; };
+  }, [key, src, trimStart, length]);
+  return src ? waveformCache.get(key) ?? null : null;
+}
+
+function WaveformBars({ peaks }: { peaks: number[] }) {
+  return (
+    <div className="pointer-events-none absolute inset-y-1.5 left-2 right-2 flex items-center gap-px opacity-70">
+      {peaks.map((p, i) => (
+        <span key={i} className="w-full min-w-px rounded-[1px] bg-current" style={{ height: `${Math.max(6, p * 100)}%` }} />
+      ))}
+    </div>
+  );
+}
+
 function LayerBlock({
   label,
   start,
@@ -777,6 +866,8 @@ function LayerBlock({
   tone,
   selected,
   muted,
+  src,
+  trimStart,
   onSelect,
   onContextMenu,
   onTrimStart,
@@ -791,6 +882,9 @@ function LayerBlock({
   tone: "text" | "image" | "shape" | "audio";
   selected: boolean;
   muted?: boolean;
+  /** Piste son uniquement — source et point d'entrée pour la forme d'onde. */
+  src?: string;
+  trimStart?: number;
   onSelect: (e?: React.PointerEvent) => void;
   onContextMenu?: (e: { clientX: number; clientY: number }) => void;
   /** Rognage par une extrémité — même parité que les plans vidéo (C-04). */
@@ -798,6 +892,7 @@ function LayerBlock({
   onMoveStart: (e: React.PointerEvent) => void;
 }) {
   const t = useT();
+  const peaks = useWaveformPeaks(tone === "audio" ? src : undefined, trimStart ?? 0, length);
   return (
     <div
       role="button"
@@ -829,7 +924,8 @@ function LayerBlock({
         height: LANE_H - 8,
       }}
     >
-      <span className="pointer-events-none block truncate">{muted ? "🔇 " : ""}{label}</span>
+      {peaks && <WaveformBars peaks={peaks} />}
+      <span className="pointer-events-none relative block truncate">{muted ? "🔇 " : ""}{label}</span>
       <span
         role="separator"
         aria-label={t("Rogner le début", "Trim start")}

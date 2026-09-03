@@ -12,7 +12,7 @@ import {
   MIN_CLIP_SECONDS, moveClip, normalize, projectDuration, removeClip, removeShape,
   reorderClip, setClipBox, setClipFraming, setClipLength, setClipOpacity, setClipSpeed, setClipTransition,
   setProjectDuration, shapesAt, splitAt, textsAt, trimClip, updateAudio, updateImageLayer, updateShape,
-  updateText, usedTracks,
+  updateText, usedTracks, visualElementsAt,
   type Clip, type EditorProject,
 } from "../lib/editor/project";
 import { canRedo, canUndo, HISTORY_LIMIT, initHistory, push, redo, undo } from "../lib/editor/history";
@@ -211,8 +211,9 @@ function main() {
     check("fondus posés par défaut sur une musique", music.fadeIn > 0 && music.fadeOut > 0);
 
     p = addAudio(p, { id: "v", src: "v.mp3", name: "Voix", role: "voice", sourceDuration: 10 });
-    check("une voix off garde son niveau", p.audios[1].volume === 1);
-    check("le volume reste borné", updateAudio(p, "m", { volume: 5 }).audios[0].volume === 1);
+    check("une voix off garde son niveau", p.audios.find((a) => a.id === "v")!.volume === 1);
+    check("le volume reste borné",
+      updateAudio(p, "m", { volume: 5 }).audios.find((a) => a.id === "m")!.volume === 1);
   }
 
   // ── Historique ───────────────────────────────────────────────────────────
@@ -613,9 +614,24 @@ function main() {
 
     p = addAudio(p, { id: "m1", src: "m.mp3", name: "M", role: "music", sourceDuration: 12 });
     p = addAudio(p, { id: "v1", src: "v.mp3", name: "V", role: "voice", sourceDuration: 12 });
-    const audios = p.audios;
-    check("deux pistes son simultanées ne se recouvrent pas",
-      audios[0].lane !== audios[1].lane, audios.map((a) => a.lane).join(","));
+    // Deux RÔLES différents se dessinent déjà sur deux rangées distinctes de
+    // la timeline (une piste par rôle) — ils n'ont donc plus besoin d'une
+    // sous-piste différente pour rester lisibles l'un de l'autre : chacun
+    // reste seul dans sa propre colonne, en rangée 0 (Lot A1, correction du
+    // bogue latent où `packLanes` tournait sur les rôles mélangés).
+    const music1 = p.audios.find((a) => a.id === "m1")!;
+    const voice1 = p.audios.find((a) => a.id === "v1")!;
+    check("deux rôles distincts n'ont plus besoin de rangées distinctes",
+      music1.lane === 0 && voice1.lane === 0, `${music1.lane} / ${voice1.lane}`);
+
+    // En revanche, DEUX pistes du MÊME rôle qui se chevauchent partagent
+    // encore la même rangée de la timeline : elles ont, elles, besoin de
+    // rangées distinctes pour rester sélectionnables l'une de l'autre.
+    p = addAudio(p, { id: "v2", src: "v2.mp3", name: "V2", role: "voice", sourceDuration: 12 });
+    const voice1b = p.audios.find((a) => a.id === "v1")!;
+    const voice2 = p.audios.find((a) => a.id === "v2")!;
+    check("deux pistes du même rôle qui se chevauchent occupent des rangées distinctes",
+      voice1b.lane !== voice2.lane, `${voice1b.lane} / ${voice2.lane}`);
   }
 
   // ── B-14 · Formes et bouton ──────────────────────────────────────────────
@@ -769,6 +785,83 @@ function main() {
       near(projectDuration(longer), 10), String(projectDuration(longer)));
     check("une durée plus longue laisse les plans intacts",
       longer.clips.length === 2 && near(longer.clips[1].length, 5), JSON.stringify(longer.clips));
+  }
+
+  // ── Lot A1 · Contrat commun (audit Editing Bench v4) ──────────────────────
+  // La refonte du modèle de pistes commence par un contrat additif : chaque
+  // élément porte désormais une `trackId`, calculée par `normalize` à partir
+  // de ce qui existait déjà (`Clip.track`, `AudioTrack.role`) — reproduisant
+  // EXACTEMENT l'ordre déjà en vigueur, sans rien changer de visible.
+  {
+    // Un projet vide garde au moins une piste visuelle, une fois passé par
+    // `normalize` (même garantie que `usedTracks()` aujourd'hui).
+    const empty = normalize(emptyProject("c", "p"));
+    check("un projet vide porte au moins une piste visuelle",
+      empty.tracks?.some((t) => t.family === "visual") ?? false, JSON.stringify(empty.tracks));
+
+    // Un plan neuf reçoit une trackId reflétant sa piste vidéo.
+    let p = addClip(emptyProject("c", "p"), { id: "base", src: "b.mp4", kind: "video", sourceDuration: 10 });
+    p = addClip(p, { id: "overlay", src: "o.mp4", kind: "video", track: 1, sourceDuration: 5 });
+    const base = p.clips.find((c) => c.id === "base")!;
+    const ov = p.clips.find((c) => c.id === "overlay")!;
+    check("la trackId d'un plan reflète sa piste vidéo",
+      base.trackId === "v0" && ov.trackId === "v1", `${base.trackId} / ${ov.trackId}`);
+    check("deux pistes vidéo distinctes produisent deux TrackDef visuelles",
+      (p.tracks ?? []).filter((t) => t.family === "visual" && t.id.startsWith("v")).length === 2,
+      JSON.stringify(p.tracks));
+
+    // Textes, incrustations et formes rejoignent tous la même piste
+    // synthétique, DEVANT les pistes vidéo — l'ordre déjà en vigueur.
+    p = addText(p, "t", "Titre");
+    p = addImageLayer(p, "i", "logo.png");
+    p = addShape(p, "s", "rect");
+    const t = p.texts.find((l) => l.id === "t")!;
+    const i = p.images.find((l) => l.id === "i")!;
+    const s = p.shapes.find((l) => l.id === "s")!;
+    check("texte, incrustation et forme partagent la même piste de recouvrement",
+      t.trackId === i.trackId && i.trackId === s.trackId, `${t.trackId} / ${i.trackId} / ${s.trackId}`);
+    const overlayIdx = (p.tracks ?? []).findIndex((tr) => tr.id === t.trackId);
+    const v0Idx = (p.tracks ?? []).findIndex((tr) => tr.id === "v0");
+    const v1Idx = (p.tracks ?? []).findIndex((tr) => tr.id === "v1");
+    check("la piste de recouvrement passe devant TOUTES les pistes vidéo",
+      overlayIdx > v0Idx && overlayIdx > v1Idx, JSON.stringify(p.tracks));
+
+    // Chaque rôle audio devient sa propre TrackDef.
+    p = addAudio(p, { id: "m", src: "m.mp3", name: "M", role: "music", sourceDuration: 10 });
+    p = addAudio(p, { id: "vo", src: "v.mp3", name: "V", role: "voice", sourceDuration: 10 });
+    const m = p.audios.find((a) => a.id === "m")!;
+    const vo = p.audios.find((a) => a.id === "vo")!;
+    check("chaque rôle audio devient sa propre piste",
+      m.trackId === "a-music" && vo.trackId === "a-voice", `${m.trackId} / ${vo.trackId}`);
+
+    // Le verrouillage/masquage existant (trackMeta, par numéro) se retrouve
+    // sur la TrackDef correspondante.
+    const locked = normalize({ ...p, trackMeta: { 0: { locked: true }, 1: { hidden: true } } });
+    const v0 = (locked.tracks ?? []).find((tr) => tr.id === "v0");
+    const v1 = (locked.tracks ?? []).find((tr) => tr.id === "v1");
+    check("le verrouillage d'une ancienne piste se reporte sur sa TrackDef", v0?.locked === true, JSON.stringify(v0));
+    check("le masquage d'une ancienne piste se reporte sur sa TrackDef", v1?.hidden === true, JSON.stringify(v1));
+
+    // `Clip.track` reste la source de vérité — il continue de piloter la
+    // trackId à chaque passage, pas seulement à la création.
+    const moved = moveClip(p, "overlay", { track: 2 });
+    check("déplacer un plan (ancienne interface) met aussi à jour sa trackId",
+      moved.clips.find((c) => c.id === "overlay")!.trackId === "v2",
+      moved.clips.find((c) => c.id === "overlay")!.trackId);
+
+    // `visualElementsAt` fusionne les quatre types visuels, triés par piste —
+    // devant : plan de base, incrustation vidéo, puis (même piste) forme,
+    // incrustation, texte.
+    const refs = visualElementsAt(p, 1);
+    const kinds = refs.map((r) => r.kind);
+    check("visualElementsAt fusionne les quatre types visuels au même instant",
+      kinds.includes("clip") && kinds.includes("shape") && kinds.includes("image") && kinds.includes("text"),
+      JSON.stringify(kinds));
+    check("visualElementsAt respecte l'ordre déjà en vigueur (plan < forme < incrustation < texte)",
+      kinds.indexOf("clip") < kinds.indexOf("shape") &&
+      kinds.indexOf("shape") < kinds.indexOf("image") &&
+      kinds.indexOf("image") < kinds.indexOf("text"),
+      JSON.stringify(kinds));
   }
 
   console.log(`\n${failures === 0 ? "✓ TOUT VERT" : `✗ ${failures} échec(s)`}\n`);

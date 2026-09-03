@@ -82,6 +82,14 @@ export interface VisualLayer {
    * l'utilisateur — elle découle du minutage.
    */
   lane: number;
+  /**
+   * Piste partagée (voir `TrackDef`) — CALCULÉE par `normalize` tant que rien
+   * ne permet à l'utilisateur de la choisir (audit Editing Bench v4, Lot A1) :
+   * tous les textes/incrustations/formes rejoignent la même piste synthétique,
+   * devant toutes les pistes vidéo — exactement l'ordre déjà en vigueur avant
+   * ce champ. Deviendra éditable au Lot A2 (pistes libres).
+   */
+  trackId: string;
 }
 
 /** Plan vidéo ou photo. */
@@ -96,6 +104,13 @@ export interface Clip {
    * structurellement impossible.
    */
   track: number;
+  /**
+   * Piste partagée (voir `TrackDef`) — CALCULÉE par `normalize` à partir de
+   * `track` tant que rien d'autre ne l'édite (audit Editing Bench v4, Lot A1).
+   * `track` reste la source de vérité écrite par l'interface existante — ce
+   * champ n'en est qu'un miroir tenu à jour, pas une seconde source.
+   */
+  trackId: string;
   /** Position sur la timeline, en secondes. */
   start: number;
   /** Durée À L'ÉCRAN, en secondes (après application de la vitesse). */
@@ -218,6 +233,11 @@ export interface AudioTrack {
   muted: boolean;
   /** Sous-piste d'affichage, calculée par `normalize`. */
   lane: number;
+  /**
+   * Piste partagée (voir `TrackDef`) — CALCULÉE par `normalize` à partir de
+   * `role` tant que rien d'autre ne l'édite (audit Editing Bench v4, Lot A1).
+   */
+  trackId: string;
   /** Traçabilité si le son vient d'une bibliothèque externe (Lot A-3). */
   provenance?: Provenance;
 }
@@ -229,6 +249,28 @@ export interface AudioTrack {
  * `hidden` retire la piste du montage vu ET exporté.
  */
 export interface TrackMeta {
+  locked?: boolean;
+  hidden?: boolean;
+}
+
+/**
+ * Piste partagée — la refonte demandée par l'audit v4 (Lot A) : n'importe quel
+ * élément visuel (plan, texte, incrustation, forme) peut se poser sur
+ * n'importe quelle piste V, et c'est le numéro de piste — sa position dans ce
+ * tableau — qui décide qui passe devant, pas le type de l'élément. Ordre
+ * ascendant = plus proche de l'avant, pour la famille visuelle (convention
+ * déjà en vigueur sur `Clip.track`/`clipsAt`). Pour la famille sonore, l'ordre
+ * n'est qu'un ordre d'affichage — le son ne s'empile pas.
+ *
+ * Lot A1 (ce commit) : calculée par `normalize`, à partir des champs déjà
+ * existants (`Clip.track`, `AudioTrack.role`) — rien ne la modifie encore.
+ * Lot A2 : devient la source de vérité, éditable (créer/supprimer/réordonner
+ * des pistes, glisser un élément de l'une à l'autre).
+ */
+export type TrackFamily = "visual" | "audio";
+export interface TrackDef {
+  id: string;
+  family: TrackFamily;
   locked?: boolean;
   hidden?: boolean;
 }
@@ -277,6 +319,11 @@ export interface EditorProject {
   images: ImageLayer[];
   shapes: ShapeLayer[];
   audios: AudioTrack[];
+  /**
+   * Pistes partagées (Lot A1) — calculées par `normalize`, absentes d'un
+   * projet enregistré avant cette refonte (comblées à la relecture).
+   */
+  tracks?: TrackDef[];
   /** Champ optionnel — absent sur tout projet enregistré avant cette piste. */
   trackMeta?: Record<number, TrackMeta>;
   /** Emplacements de gabarit non résolus. Absent sur un projet sans modèle. */
@@ -414,10 +461,10 @@ export function normalize(p: EditorProject): EditorProject {
       } as Clip;
     });
 
-  const tracks = [...new Set(prepared.map((c) => c.track))].sort((a, b) => a - b);
-  const clips = tracks.flatMap((track) => layTrack(prepared.filter((c) => c.track === track)));
+  const clipTrackNumbers = [...new Set(prepared.map((c) => c.track))].sort((a, b) => a - b);
+  const clipsByTrack = clipTrackNumbers.flatMap((track) => layTrack(prepared.filter((c) => c.track === track)));
   // La durée du film est la fin la plus tardive, toutes pistes confondues.
-  const total = round(clips.reduce((max, c) => Math.max(max, c.start + c.length), 0));
+  const total = round(clipsByTrack.reduce((max, c) => Math.max(max, c.start + c.length), 0));
 
   const bound = <T extends VisualLayer>(layer: T): T => {
     const start = clamp(round(layer.start), 0, total);
@@ -446,30 +493,77 @@ export function normalize(p: EditorProject): EditorProject {
     heightPct: Number.isFinite(l.heightPct) ? Math.max(0, l.heightPct) : 0,
   }));
   const shapes = packLanes((p.shapes ?? []).map(bound));
-  const audios = packLanes(p.audios.map((a) => {
+  const audiosPrepared = p.audios.map((a) => {
     const start = clamp(round(a.start), 0, total);
     const length = clamp(round(a.length), 0, Math.max(0, total - start));
     return { ...a, start, length, volume: clamp(a.volume, 0, 1), end: start + length };
-  })).map(({ end, ...a }) => { void end; return a; });
+  });
+  // Chaque rôle range SES PROPRES sous-pistes — une piste "voix" chevauchée
+  // dans le temps par une piste "son d'origine" n'a aucune raison de sauter
+  // une rangée qui, dans SA propre colonne, n'est pas occupée (bogue latent
+  // corrigé au passage : `packLanes` tournait jusqu'ici sur les trois rôles
+  // mélangés, Lot A1).
+  const AUDIO_ROLE_ORDER: AudioRole[] = ["original", "voice", "music"];
+  const audios = AUDIO_ROLE_ORDER
+    .flatMap((role) => packLanes(audiosPrepared.filter((a) => a.role === role)))
+    .map(({ end, ...a }) => { void end; return a; });
+
+  // ── Pistes partagées (Lot A1, audit Editing Bench v4) ──────────────────
+  // Calculée à CHAQUE passage, comme `lane` : rien ne permet encore à
+  // l'utilisateur de la choisir (Lot A2), donc la dériver systématiquement
+  // des champs déjà existants (`track`, `role`) est aussi correct que de la
+  // persister — et bien plus simple, sans détection « ancien/nouveau projet »
+  // ni risque de désynchronisation avec `track`, qui reste modifié par
+  // l'interface actuelle et reste donc la source de vérité tant que ce lot
+  // n'est pas terminé.
+  const visualTrackDefs: TrackDef[] = clipTrackNumbers.map((n) => ({
+    id: `v${n}`,
+    family: "visual",
+    ...(p.trackMeta?.[n]?.locked !== undefined ? { locked: p.trackMeta[n].locked } : {}),
+    ...(p.trackMeta?.[n]?.hidden !== undefined ? { hidden: p.trackMeta[n].hidden } : {}),
+  }));
+  // Textes, incrustations et formes rejoignent une seule piste synthétique,
+  // devant toutes les pistes vidéo : c'est EXACTEMENT l'ordre déjà en vigueur
+  // (audit v4, §2) — inventer trois pistes séparées serait un choix de mise
+  // en page qui revient à l'utilisateur, pas à une migration automatique.
+  const OVERLAY_TRACK_ID = "overlay";
+  const hasOverlay = texts.length > 0 || images.length > 0 || shapes.length > 0;
+  if (hasOverlay) visualTrackDefs.push({ id: OVERLAY_TRACK_ID, family: "visual" });
+  // Un projet vide garde au moins une piste visuelle — même garantie que
+  // `usedTracks()` aujourd'hui (`[0]` même sans aucun plan).
+  if (visualTrackDefs.length === 0) visualTrackDefs.push({ id: "v0", family: "visual" });
+
+  const audioTrackDefs: TrackDef[] = AUDIO_ROLE_ORDER
+    .filter((role) => audios.some((a) => a.role === role))
+    .map((role) => ({ id: `a-${role}`, family: "audio" }));
+
+  const tracks: TrackDef[] = [...visualTrackDefs, ...audioTrackDefs];
+
+  const clips = clipsByTrack.map((c) => ({ ...c, trackId: `v${c.track}` }));
+  const textsWithTrack = texts.map((l) => ({ ...l, trackId: OVERLAY_TRACK_ID }));
+  const imagesWithTrack = images.map((l) => ({ ...l, trackId: OVERLAY_TRACK_ID }));
+  const shapesWithTrack = shapes.map((l) => ({ ...l, trackId: OVERLAY_TRACK_ID }));
+  const audiosWithTrack = audios.map((a) => ({ ...a, trackId: `a-${a.role}` }));
 
   // Un emplacement dont la cible a disparu (calque supprimé) n'a plus de sens
   // à signaler : sans ce filtrage, `unfilledSlots` continuerait à réclamer un
   // texte que l'utilisateur a explicitement effacé.
   const targetExists = (s: Slot): boolean => {
     if (s.targetKind === "clip") return clips.some((c) => c.id === s.targetId);
-    if (s.targetKind === "text") return texts.some((l) => l.id === s.targetId);
-    if (s.targetKind === "image") return images.some((l) => l.id === s.targetId);
-    return audios.some((a) => a.id === s.targetId);
+    if (s.targetKind === "text") return textsWithTrack.some((l) => l.id === s.targetId);
+    if (s.targetKind === "image") return imagesWithTrack.some((l) => l.id === s.targetId);
+    return audiosWithTrack.some((a) => a.id === s.targetId);
   };
   const slots = (p.slots ?? []).filter(targetExists);
 
   return {
     ...p,
     clips,
-    texts,
-    images,
-    shapes,
-    audios,
+    texts: textsWithTrack,
+    images: imagesWithTrack,
+    shapes: shapesWithTrack,
+    audios: audiosWithTrack,
+    tracks,
     slots: slots.length > 0 ? slots : undefined,
   };
 }
@@ -638,6 +732,8 @@ export function addClip(
     src: input.src,
     kind: input.kind,
     track,
+    // Recalculée par `normalize()`, appelé en sortie de cette fonction (Lot A1).
+    trackId: "",
     start: input.start !== undefined ? Math.max(0, input.start) : trackEnd(p, track),
     length,
     trimStart: 0,
@@ -931,6 +1027,8 @@ function newVisual(total: number, at = 0): Omit<VisualLayer, "x" | "y"> {
       rotation: 0, opacity: 1,
       start: clampedAt, end: total,
       animIn: "none", animOut: "none", lane: 0,
+      // Recalculée par `normalize()`, appelé en sortie des fonctions `add*` (Lot A1).
+      trackId: "",
     };
   }
   const start = total > 0 ? Math.max(0, total - DEFAULT_IMAGE_SECONDS) : clampedAt;
@@ -938,6 +1036,7 @@ function newVisual(total: number, at = 0): Omit<VisualLayer, "x" | "y"> {
     rotation: 0, opacity: 1,
     start, end: start + DEFAULT_IMAGE_SECONDS,
     animIn: "none", animOut: "none", lane: 0,
+    trackId: "",
   };
 }
 
@@ -1105,6 +1204,8 @@ export function addAudio(
     fadeOut: input.role === "music" ? 1 : 0,
     muted: false,
     lane: 0,
+    // Recalculée par `normalize()`, appelé en sortie de cette fonction (Lot A1).
+    trackId: "",
     provenance: input.provenance,
   };
   return normalize({ ...p, audios: [...p.audios, track] });
@@ -1338,6 +1439,40 @@ export function imagesAt(p: EditorProject, time: number): ImageLayer[] {
 /** Formes visibles à l'instant `time`. */
 export function shapesAt(p: EditorProject, time: number): ShapeLayer[] {
   return p.shapes.filter((l) => visible(l, time));
+}
+
+/**
+ * Élément visuel (plan, texte, incrustation, forme) visible à l'instant
+ * `time`, avec sa piste — la SEULE fonction qui connaisse l'ordre ENTRE
+ * TYPES d'éléments, plutôt que chaque type composé séparément comme
+ * aujourd'hui (Lot A1, audit Editing Bench v4). Le dernier de la liste est
+ * celui qu'on voit par-dessus les autres — même convention que `clipsAt`.
+ *
+ * Additive : `clipsAt`/`textsAt`/`imagesAt`/`shapesAt` restent utilisables
+ * seules, pour tout code qui n'a besoin que d'un type. Pas encore consommée
+ * par le rendu (Lot A3) ni par la timeline (Lot A2).
+ */
+export type VisualElementKind = "clip" | "text" | "image" | "shape";
+export interface VisualElementRef {
+  kind: VisualElementKind;
+  id: string;
+  trackId: string;
+}
+
+export function visualElementsAt(p: EditorProject, time: number): VisualElementRef[] {
+  const order = new Map((p.tracks ?? []).filter((t) => t.family === "visual").map((t, i) => [t.id, i]));
+  const trackIndex = (trackId: string): number => order.get(trackId) ?? -1;
+
+  // À piste égale, l'ordre de construction fait foi : plans, puis formes,
+  // puis incrustations, puis textes — l'ordre déjà en vigueur aujourd'hui
+  // (video < shape < image < text), préservé grâce à la stabilité du tri.
+  const refs: VisualElementRef[] = [
+    ...clipsAt(p, time).map((a) => ({ kind: "clip" as const, id: a.clip.id, trackId: a.clip.trackId })),
+    ...shapesAt(p, time).map((l) => ({ kind: "shape" as const, id: l.id, trackId: l.trackId })),
+    ...imagesAt(p, time).map((l) => ({ kind: "image" as const, id: l.id, trackId: l.trackId })),
+    ...textsAt(p, time).map((l) => ({ kind: "text" as const, id: l.id, trackId: l.trackId })),
+  ];
+  return refs.sort((a, b) => trackIndex(a.trackId) - trackIndex(b.trackId));
 }
 
 /**

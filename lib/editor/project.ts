@@ -941,12 +941,12 @@ function newVisual(total: number, at = 0): Omit<VisualLayer, "x" | "y"> {
   };
 }
 
-export function addText(p: EditorProject, id: string, text: string, at = 0): EditorProject {
+export function addText(p: EditorProject, id: string, text: string, at = 0, font: FontKey = "sans"): EditorProject {
   const layer: TextLayer = {
     ...newVisual(projectDuration(p), at),
     id, text,
     x: 0.1, y: 0.1, sizePct: 0.08, wrapPct: 0,
-    color: "#ffffff", font: "sans", bold: true, bg: true,
+    color: "#ffffff", font, bold: true, bg: true,
     align: "left", outline: false, shadow: true, lineHeight: 1.25,
   };
   return normalize({ ...p, texts: [...p.texts, layer] });
@@ -1051,7 +1051,8 @@ export function addButton(
   ids: { shape: string; text: string },
   label: string,
   colors: { fill: string; text: string },
-  at = 0
+  at = 0,
+  font: FontKey = "sans"
 ): EditorProject {
   const w = 0.46;
   const h = 0.09;
@@ -1059,7 +1060,7 @@ export function addButton(
   const y = 0.8;
   let next = addShape(p, ids.shape, "round", colors.fill, at);
   next = updateShape(next, ids.shape, { x, y, w, h, radius: h / 2 });
-  next = addText(next, ids.text, label, at);
+  next = addText(next, ids.text, label, at, font);
   next = updateText(next, ids.text, {
     x: 0.5,
     // Le texte est centré verticalement dans la pastille.

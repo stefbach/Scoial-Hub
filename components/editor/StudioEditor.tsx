@@ -1068,7 +1068,7 @@ export function StudioEditor({
                   <hr className="border-hair" />
                   <button
                     type="button"
-                    onClick={() => apply((p) => addText(p, nextId("t"), t("Votre texte", "Your text"), playhead))}
+                    onClick={() => apply((p) => addText(p, nextId("t"), t("Votre texte", "Your text"), playhead, brand.font))}
                     className="btn-secondary w-full text-xs"
                   >
                     ➕ {t("Ajouter un texte", "Add text")}
@@ -1142,7 +1142,8 @@ export function StudioEditor({
                       { shape: nextId("s"), text: nextId("t") },
                       t("En savoir plus", "Learn more"),
                       { fill: brand.palette[0] ?? "#5b2d8e", text: brand.textColor },
-                      playhead
+                      playhead,
+                      brand.font
                     ))}
                     className="btn-secondary w-full text-xs"
                   >

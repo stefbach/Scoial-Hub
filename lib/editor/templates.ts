@@ -24,6 +24,7 @@ import {
   updateImageLayer,
   updateText,
   type EditorProject,
+  type FontKey,
   type SlotRole as DocSlotRole,
   type TextLayer,
 } from "./project";
@@ -36,6 +37,27 @@ export interface BrandStyle {
   textColor: string;
   /** Logo à incruster, s'il existe. */
   logoUrl?: string;
+  /** Police par défaut des nouveaux textes, déduite de la charte (P2-11). */
+  font: FontKey;
+}
+
+/**
+ * Rapproche un nom de police libre (déduit par l'IA depuis le logo, ex.
+ * « Montserrat ») de la pile la plus proche parmi celles que l'éditeur sait
+ * RÉELLEMENT rendre — jamais la police exacte : la charger depuis le réseau
+ * ferait diverger l'aperçu et l'export (voir la note dans draw.ts). Un texte
+ * neuf partait toujours en "sans" quelle que soit l'identité de la marque
+ * (audit Editing Bench, P2-11) ; repli sur "sans" si rien ne correspond.
+ */
+export function fontFromBrandFont(name: string | null | undefined): FontKey {
+  const n = (name ?? "").toLowerCase();
+  if (!n) return "sans";
+  if (/mono|code|courier|typewriter/.test(n)) return "mono";
+  if (/serif|times|georgia|garamond|didot|playfair|caslon|baskerville/.test(n)) return "serif";
+  if (/condensed|narrow|compress/.test(n)) return "condensed";
+  if (/round|varela|quicksand|comfortaa|nunito/.test(n)) return "rounded";
+  if (/display|impact|black|anton|oswald|bebas|headline/.test(n)) return "display";
+  return "sans";
 }
 
 /** Couleur hexadécimale valide, sinon repli. */
@@ -52,12 +74,14 @@ export function brandStyleFrom(kit: {
   palette?: string[];
   recommendedTextColor?: string;
   logoUrl?: string;
+  chart?: { headingFont?: string; bodyFont?: string } | null;
 } | null | undefined): BrandStyle {
   const palette = (kit?.palette ?? []).filter((c) => /^#[0-9a-fA-F]{6}$/.test(c));
   return {
     palette,
     textColor: hex(kit?.recommendedTextColor, "#ffffff"),
     logoUrl: kit?.logoUrl || undefined,
+    font: fontFromBrandFont(kit?.chart?.headingFont || kit?.chart?.bodyFont),
   };
 }
 

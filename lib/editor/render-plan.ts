@@ -192,7 +192,17 @@ export function toServerEdit(p: EditorProject, callback?: string) {
         type: c.kind === "image" ? "image" : "video",
         src: c.src,
         ...(c.kind === "video"
-          ? { trim: c.trimStart > 0 ? c.trimStart : undefined, speed: c.speed !== 1 ? c.speed : undefined }
+          ? {
+              trim: c.trimStart > 0 ? c.trimStart : undefined,
+              speed: c.speed !== 1 ? c.speed : undefined,
+              // Le son embarqué du plan est désormais sa propre propriété
+              // (Lot A4) — plus une déduction depuis sa piste. Le moteur
+              // serveur ne transmet ici que le niveau (0 = coupé) : un fondu
+              // dédié au son embarqué d'un PLAN, distinct du fondu d'une
+              // piste `audio` séparée, n'a pas de support documenté côté
+              // moteur — seul le rendu navigateur (ffmpeg, plus bas) l'applique.
+              ...(c.muted || c.volume !== 1 ? { volume: c.muted ? 0 : c.volume } : {}),
+            }
           : {}),
       },
       start: c.start,
@@ -421,7 +431,11 @@ export function toBrowserPlan(p: EditorProject, overlays: OverlayInput[] = []): 
     args.push("-i", `aud${i}`);
   });
 
-  const keepOriginal = !p.audios.some((a) => a.role === "original" && a.muted);
+  // Le son embarqué du plan est désormais sa propre propriété (Lot A4) —
+  // plus une déduction depuis une piste `audio` virtuelle de rôle "original"
+  // qu'aucun outil de l'interface ne posait jamais (ce rôle ne servait donc
+  // à rien de concret : `keepOriginal` valait toujours vrai en pratique).
+  const keepOriginal = clip.kind === "video" && !clip.muted;
   const filters: string[] = [];
 
   // Vidéo : vitesse, cadrage au format, puis incrustation des calques.
@@ -464,8 +478,15 @@ export function toBrowserPlan(p: EditorProject, overlays: OverlayInput[] = []): 
   });
 
   // Audio : chaque piste ajoutée reçoit son volume et ses fondus, puis on mixe.
+  // Le son embarqué du plan lui-même suit exactement le même traitement.
   const audioLabels: string[] = [];
-  if (keepOriginal && clip.kind === "video") audioLabels.push("0:a");
+  if (keepOriginal) {
+    const steps = [`volume=${clip.volume.toFixed(2)}`];
+    if (clip.fadeIn > 0) steps.push(`afade=t=in:st=0:d=${clip.fadeIn}`);
+    if (clip.fadeOut > 0) steps.push(`afade=t=out:st=${Math.max(0, clip.length - clip.fadeOut).toFixed(2)}:d=${clip.fadeOut}`);
+    filters.push(`[0:a]${steps.join(",")}[mv]`);
+    audioLabels.push("mv");
+  }
   audible.forEach((a, i) => {
     const idx = 1 + overlays.length + i;
     const steps = [`volume=${a.volume.toFixed(2)}`];

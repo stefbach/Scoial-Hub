@@ -156,6 +156,26 @@ export interface Clip {
   y: number;
   w: number;
   h: number;
+  /**
+   * Son EMBARQUÉ dans le média du plan — une propriété du plan, au même
+   * titre que `AudioTrack` pour un fichier son séparé (audit Editing Bench
+   * v4, Lot A4). Jusqu'ici, ce son n'avait aucun réglage propre : seul le
+   * plan de la piste visuelle la plus basse était rendu audible, une
+   * déduction depuis sa position plutôt qu'un choix. 0..1 — 1 = niveau
+   * d'origine, sans effet sur une photo.
+   */
+  volume: number;
+  fadeIn: number;
+  fadeOut: number;
+  /**
+   * Muet par défaut sur un plan tout juste posé (`addClip`) — l'utilisateur
+   * active le son s'il le souhaite, plutôt que de devoir couper celui de
+   * chaque nouveau plan qui se superpose aux autres. Un projet enregistré
+   * avant ce champ est, lui, migré pour sonner EXACTEMENT comme avant : seul
+   * le plan de la piste visuelle la plus basse restait audible (voir
+   * `normalize`).
+   */
+  muted: boolean;
   /** Traçabilité si le plan vient d'une bibliothèque externe (Lot A-3). */
   provenance?: Provenance;
 }
@@ -583,7 +603,22 @@ export function normalize(p: EditorProject): EditorProject {
   // hors de cette fonction et de l'ancienne API `moveClip` — jamais une
   // seconde source de vérité.
   const visualOrder = new Map(tracks.filter((tr) => tr.family === "visual").map((tr, i) => [tr.id, i]));
-  const clipsFinal = clips.map((c) => ({ ...c, track: visualOrder.get(c.trackId) ?? c.track }));
+  // Le son embarqué d'un plan est désormais une propriété du plan lui-même
+  // (Lot A4) — plus une déduction depuis sa piste. Un projet enregistré
+  // avant ce champ n'en porte pas : on reconstitue ici l'ancien
+  // comportement (seul le plan de la piste visuelle la plus basse restait
+  // audible) pour qu'un montage déjà ouvert sonne EXACTEMENT pareil ; un
+  // plan tout juste posé par `addClip` arrive déjà avec son propre `muted`,
+  // ce repli ne le concerne donc jamais.
+  const bottomVisualTrackId = tracks.find((tr) => tr.family === "visual")?.id;
+  const clipsFinal = clips.map((c) => ({
+    ...c,
+    track: visualOrder.get(c.trackId) ?? c.track,
+    volume: Number.isFinite(c.volume) ? clamp(c.volume, 0, 1) : 1,
+    fadeIn: Number.isFinite(c.fadeIn) ? Math.max(0, c.fadeIn) : 0,
+    fadeOut: Number.isFinite(c.fadeOut) ? Math.max(0, c.fadeOut) : 0,
+    muted: typeof c.muted === "boolean" ? c.muted : c.trackId !== bottomVisualTrackId,
+  }));
 
   // Un emplacement dont la cible a disparu (calque supprimé) n'a plus de sens
   // à signaler : sans ce filtrage, `unfilledSlots` continuerait à réclamer un
@@ -914,6 +949,13 @@ export function addClip(
     focusY: 0.5,
     opacity: 1,
     x: 0, y: 0, w: 1, h: 1,
+    // Muet par défaut : un plan neuf se superpose souvent à d'autres sons
+    // déjà en place, l'utilisateur active le sien s'il le souhaite plutôt
+    // que d'avoir à couper celui de chaque plan ajouté (Lot A4).
+    volume: 1,
+    fadeIn: 0,
+    fadeOut: 0,
+    muted: true,
     provenance: input.provenance,
   };
   return normalize({ ...p, clips: [...p.clips, clip] });
@@ -1117,6 +1159,31 @@ export function setClipFraming(
  */
 export function setClipOpacity(p: EditorProject, clipId: string, opacity: number): EditorProject {
   const clips = p.clips.map((c) => (c.id === clipId ? { ...c, opacity: clamp(opacity, 0, 1) } : c));
+  return normalize({ ...p, clips });
+}
+
+/**
+ * Règle le son EMBARQUÉ d'un plan — volume, fondus, coupure — au même titre
+ * qu'`updateAudio` pour une piste son séparée (Lot A4, audit Editing Bench
+ * v4). Jusqu'ici, ce son n'avait aucun réglage propre : seule sa piste
+ * décidait, en tout ou rien, s'il était audible.
+ */
+export function setClipAudio(
+  p: EditorProject,
+  clipId: string,
+  patch: { volume?: number; fadeIn?: number; fadeOut?: number; muted?: boolean }
+): EditorProject {
+  const clips = p.clips.map((c) =>
+    c.id === clipId
+      ? {
+          ...c,
+          volume: patch.volume === undefined ? c.volume : clamp(patch.volume, 0, 1),
+          fadeIn: patch.fadeIn === undefined ? c.fadeIn : Math.max(0, patch.fadeIn),
+          fadeOut: patch.fadeOut === undefined ? c.fadeOut : Math.max(0, patch.fadeOut),
+          muted: patch.muted === undefined ? c.muted : patch.muted,
+        }
+      : c
+  );
   return normalize({ ...p, clips });
 }
 

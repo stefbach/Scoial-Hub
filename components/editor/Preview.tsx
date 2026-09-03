@@ -120,10 +120,6 @@ export function Preview({
   const textsById = new Map(visibleTexts.map((l) => [l.id, l]));
   const imagesById = new Map(visibleImages.map((l) => [l.id, l]));
   const shapesById = new Map(visibleShapes.map((l) => [l.id, l]));
-  // Piste visuelle la plus basse de la pile — le nouveau repère pour le son
-  // embarqué d'un plan (voir plus bas), à la place de « piste 0 » qui n'a
-  // plus de statut particulier une fois les pistes libres.
-  const bottomVisualTrackId = (project.tracks ?? []).find((tr) => tr.family === "visual")?.id;
 
   /* ── Mise à l'échelle ──────────────────────────────────────────────────── */
   useEffect(() => {
@@ -249,17 +245,20 @@ export function Preview({
       }
       if (Math.abs(v.currentTime - sourceTime) > 0.25) v.currentTime = sourceTime;
       v.playbackRate = clip.speed;
-      v.volume = volume;
-      // Seule la piste visuelle la plus basse porte le son d'origine :
-      // superposer deux bandes son de plans différents produirait une
-      // bouillie. Autrefois « piste 0 », qui n'a plus de statut particulier
-      // une fois les pistes libres (Lot A3) — provisoire : chaque plan aura
-      // son propre réglage de son au Lot A4, ce repère disparaîtra alors.
-      v.muted = muted || originalMuted || clip.trackId !== bottomVisualTrackId;
+      // Le son embarqué d'un plan est sa propre propriété, au même titre que
+      // `AudioTrack` (Lot A4) — plus une déduction depuis sa piste. Le fondu
+      // est appliqué ICI aussi, comme pour les pistes son ajoutées ci-dessous :
+      // c'est la seule façon de l'entendre avant l'export, et donc de le régler.
+      const sinceStart = playhead - clip.start;
+      const untilEnd = clip.start + clip.length - playhead;
+      const fadeIn = clip.fadeIn > 0 ? Math.min(1, sinceStart / clip.fadeIn) : 1;
+      const fadeOut = clip.fadeOut > 0 ? Math.min(1, untilEnd / clip.fadeOut) : 1;
+      v.volume = Math.max(0, Math.min(1, clip.volume * volume * fadeIn * fadeOut));
+      v.muted = muted || originalMuted || clip.muted;
       if (playing && v.paused) void v.play().catch(() => onPlayingChange(false));
       if (!playing && !v.paused) v.pause();
     }
-  }, [active, playing, volume, muted, originalMuted, bottomVisualTrackId, onPlayingChange]);
+  }, [active, playhead, playing, volume, muted, originalMuted, onPlayingChange]);
 
   /* ── Pistes son ajoutées ───────────────────────────────────────────────── */
   // L'aperçu ne pilotait QUE l'élément vidéo : volume, rognage et fondus se

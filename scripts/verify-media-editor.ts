@@ -109,7 +109,10 @@ async function main() {
     check("A-09 · cœur ffmpeg servi par notre origine", /const base = "\/ffmpeg"/.test(studio) && !/unpkg\.com/.test(editor));
     check("A-09 · les fichiers du moteur sont livrés", existsSync("public/ffmpeg/ffmpeg-core.js") && existsSync("public/ffmpeg/ffmpeg-core.wasm"));
     check("A-09 · dépendance figée dans le projet", /"@ffmpeg\/core":/.test(read("package.json")));
-    check("A-09 · encodage plus compact qu'ultrafast", /-preset", "veryfast/.test(read("lib/editor/render-plan.ts")));
+    check("A-09 · encodage plus compact qu'ultrafast",
+      /standard: \{ preset: "veryfast", crf: "23"/.test(read("lib/editor/render-plan.ts")));
+    check("A-09 · une qualité supérieure est proposée, sans devenir le défaut",
+      /high: \{ preset: "medium", crf: "19"/.test(read("lib/editor/render-plan.ts")));
   }
 
   // ── A-08 · Le libellé annonce ce que l'outil fait ─────────────────────────
@@ -664,7 +667,7 @@ async function main() {
       /sel=\{\{ kind: "audio", id: audio\.id \}\}/.test(panel) &&
       /if \(kind === "audio"\) return \["volume"\]/.test(model));
     check("constat 7 · un volume animé est RENDU, par expression ffmpeg",
-      /export function volumeExpression\(/.test(plan) && /volume=volume='\$\{clipVolume\}':eval=frame/.test(plan));
+      /export function volumeExpression\(/.test(plan) && /volume=volume='\$\{expr\}':eval=frame/.test(plan));
     check("constat 7 · les images-clés SUIVENT leur élément quand il se déplace",
       /export function shiftKeyframes\(/.test(model) &&
       /keyframes: shiftKeyframes\(el\.keyframes, start - el\.start\)/.test(model));

@@ -256,10 +256,15 @@ function main() {
     for (let i = 0; i < 5; i++) many = addClip(many, { id: `c${i}`, src: `${i}.mp4`, kind: "video", sourceDuration: 5 });
     check("plusieurs plans → serveur", decideRenderTarget(many, 1024).target === "server");
 
-    // Le plan navigateur ne décrit qu'UN plan : dès deux, il en perdait un.
-    check("deux plans partent déjà au serveur", decideRenderTarget(light, 1024).target === "server");
-    check("le plan navigateur ne couvre qu'un plan",
-      toBrowserPlan(light).inputs.filter((i) => i.name.startsWith("in")).length === 1);
+    // Un montage ORDINAIRE à plusieurs plans continue de partir au serveur :
+    // le navigateur sait désormais les enchaîner, mais déplacer des montages
+    // qui sortent très bien du serveur serait un risque sans contrepartie.
+    check("deux plans ordinaires partent toujours au serveur", decideRenderTarget(light, 1024).target === "server");
+    // En revanche, le plan navigateur SAIT maintenant les décrire — c'est ce
+    // qui permet aux images-clés et à la correction d'image de sortir.
+    check("le plan navigateur décrit désormais tous les plans de la piste de base",
+      toBrowserPlan(light).inputs.filter((i) => i.name.startsWith("in")).length === 2,
+      String(toBrowserPlan(light).inputs.filter((i) => i.name.startsWith("in")).length));
 
     const longP = addClip(emptyProject("c", "p"), { id: "l", src: "l.mp4", kind: "video", sourceDuration: 300 });
     check("film long → serveur", decideRenderTarget(longP, 1024).target === "server");
@@ -1022,7 +1027,7 @@ function main() {
       !argsMuted.includes("[mv]"), argsMuted);
     const argsAudible = toBrowserPlan(setClipAudio(fresh, "a", { muted: false, volume: 0.7, fadeIn: 1 })).args.join(" ");
     check("un plan audible mappe son propre son, filtré à son volume",
-      argsAudible.includes("volume=0.70") && argsAudible.includes("[mv]"), argsAudible);
+      argsAudible.includes("volume=0.70") && argsAudible.includes("[ca0]"), argsAudible);
   }
 
   console.log(`\n${failures === 0 ? "✓ TOUT VERT" : `✗ ${failures} échec(s)`}\n`);

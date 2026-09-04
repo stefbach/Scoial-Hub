@@ -27,7 +27,22 @@ export const FORMAT_SIZE: Record<EditorFormat, { width: number; height: number }
 };
 
 export type ClipKind = "video" | "image";
-export type TransitionKind = "none" | "fade" | "dissolve";
+export type TransitionKind =
+  | "none"
+  | "fade"
+  | "dissolve"
+  | "wipe-left"
+  | "wipe-right"
+  | "slide-up"
+  | "slide-down";
+
+/**
+ * Durée par défaut d'une transition, et bornes admises. Une transition trop
+ * longue mange les deux plans qu'elle relie : elle est de toute façon bornée à
+ * la moitié du plus court des deux (voir `clipsAt`).
+ */
+export const MIN_TRANSITION_SECONDS = 0.1;
+export const MAX_TRANSITION_SECONDS = 3;
 
 /**
  * Cadrage d'un plan dans le format de publication.
@@ -49,6 +64,22 @@ export const ANIMATION_SECONDS = 0.4;
  * défaut, non paramétrable depuis notre API (audit Editing Bench, P0-2).
  */
 export const CLIP_TRANSITION_SECONDS = 0.6;
+
+/**
+ * Durée EFFECTIVE de la transition qui entre sur `c` depuis `outgoing`.
+ *
+ * Bornée à la moitié de chaque plan : une transition ne peut pas durer plus
+ * longtemps que ce qu'elle consomme de part et d'autre de la coupe, sinon elle
+ * mangerait un plan entier. La durée choisie sur le plan prime, la durée par
+ * défaut sert de repli — un projet enregistré avant ce réglage se comporte
+ * donc exactement comme avant.
+ */
+export function transitionSpan(c: { length: number; transitionSeconds?: number }, outgoing: { length: number }): number {
+  const wanted = Number.isFinite(c.transitionSeconds) && (c.transitionSeconds ?? 0) > 0
+    ? (c.transitionSeconds as number)
+    : CLIP_TRANSITION_SECONDS;
+  return Math.min(wanted, c.length / 2, outgoing.length / 2);
+}
 
 /** Familles de police proposées. La clé est stable, le nom peut changer. */
 export type FontKey = "sans" | "serif" | "mono" | "condensed" | "rounded" | "display";
@@ -187,6 +218,57 @@ export interface Clip {
   provenance?: Provenance;
   /** Images-clés (constat 7). Absent tant que rien n'est animé. */
   keyframes?: Keyframes;
+  /**
+   * Durée de la transition d'ENTRÉE, en secondes. Absente = durée par défaut,
+   * comportement de tous les projets antérieurs.
+   */
+  transitionSeconds?: number;
+  /**
+   * Correction d'image. Toutes centrées sur 0 = « rien fait », ce qui rend un
+   * projet enregistré avant ce bloc identique à ce qu'il était : un champ
+   * absent vaut zéro, et zéro ne touche à rien.
+   *
+   * Les plages correspondent exactement à ce que le filtre `eq` de ffmpeg sait
+   * rendre, pour que l'aperçu et l'export ne puissent pas diverger.
+   */
+  brightness?: number;
+  contrast?: number;
+  saturation?: number;
+}
+
+/**
+ * Les trois réglages d'image d'un plan, et leurs bornes.
+ *
+ * TROIS, et pas quatre. La température de couleur manque à l'appel
+ * délibérément : elle n'a pas d'équivalent EXACT à la fois dans les filtres
+ * CSS de l'aperçu et dans ceux du moteur de rendu. Luminosité, contraste et
+ * saturation, eux, se traduisent au même résultat des deux côtés — et trois
+ * réglages fidèles valent mieux que quatre dont un ment.
+ */
+export type ImageAdjustProp = "brightness" | "contrast" | "saturation";
+export const IMAGE_ADJUST_PROPS: ImageAdjustProp[] = ["brightness", "contrast", "saturation"];
+export const IMAGE_ADJUST_RANGE: Record<ImageAdjustProp, { min: number; max: number }> = {
+  brightness: { min: -0.5, max: 0.5 },
+  contrast: { min: -0.5, max: 0.5 },
+  saturation: { min: -1, max: 1 },
+};
+
+/** Vrai si le plan porte au moins une correction d'image. */
+export function hasImageAdjust(c: Clip): boolean {
+  return IMAGE_ADJUST_PROPS.some((k) => Math.abs(c[k] ?? 0) > 0.001);
+}
+
+/**
+ * Les corrections d'un plan sous forme de filtre CSS — l'aperçu. Les mêmes
+ * valeurs alimentent le filtre `eq` du rendu : c'est la seule façon de
+ * garantir que l'image vue est l'image produite.
+ */
+export function cssImageFilter(c: Clip): string {
+  if (!hasImageAdjust(c)) return "";
+  const b = 1 + (c.brightness ?? 0);
+  const k = 1 + (c.contrast ?? 0);
+  const sat = 1 + (c.saturation ?? 0);
+  return `brightness(${b.toFixed(3)}) contrast(${k.toFixed(3)}) saturate(${sat.toFixed(3)})`;
 }
 
 /** Calque de texte. */
@@ -304,7 +386,24 @@ export interface TrackDef {
   family: TrackFamily;
   locked?: boolean;
   hidden?: boolean;
+  /**
+   * Hauteur d'affichage, en multiples de la hauteur de base. Absente = 1, la
+   * hauteur de toujours. Une piste agrandie sert à LIRE — une forme d'onde,
+   * des vignettes — pas à occuper de la place : c'est un réglage d'affichage,
+   * il ne touche jamais au rendu.
+   */
+  height?: number;
+  /**
+   * Écoute SOLO. Dès qu'une piste sonore est en solo, toutes les autres se
+   * taisent — la façon dont on isole une voix pour l'entendre seule, sans
+   * avoir à couper les cinq autres une par une puis à les rétablir.
+   */
+  solo?: boolean;
 }
+
+/** Bornes de la hauteur d'une piste. */
+export const MIN_TRACK_HEIGHT = 1;
+export const MAX_TRACK_HEIGHT = 4;
 
 /**
  * Traçabilité d'un média acquis depuis une bibliothèque externe — écrite au
@@ -339,6 +438,22 @@ export interface Slot {
   provenance?: Provenance;
 }
 
+/**
+ * Repère posé sur la timeline. C'est l'outil par lequel on annote un montage
+ * avant de le faire — « ici, changer de plan », « la phrase clé commence là » —
+ * et celui par lequel on retrouve ces endroits ensuite. Rien dans le rendu ne
+ * le voit : c'est une note, pas un élément.
+ */
+export interface Marker {
+  id: string;
+  time: number;
+  label: string;
+  color: string;
+}
+
+/** Couleur par défaut d'un marqueur neuf. */
+export const DEFAULT_MARKER_COLOR = "#ffcc00";
+
 export interface EditorProject {
   version: typeof PROJECT_VERSION;
   id: string;
@@ -359,6 +474,8 @@ export interface EditorProject {
   trackMeta?: Record<number, TrackMeta>;
   /** Emplacements de gabarit non résolus. Absent sur un projet sans modèle. */
   slots?: Slot[];
+  /** Repères posés par le monteur. Absent sur un projet qui n'en a aucun. */
+  markers?: Marker[];
   updatedAt: string;
 }
 
@@ -754,16 +871,78 @@ export function setTrackDefMeta(p: EditorProject, trackId: string, patch: TrackM
  * pourraient diverger (itération 3, chapitre 9, point 10).
  */
 export function visibleProject(p: EditorProject): EditorProject {
-  const hiddenIds = new Set((p.tracks ?? []).filter((tr) => tr.hidden).map((tr) => tr.id));
-  if (hiddenIds.size === 0) return p;
+  const tracks = p.tracks ?? [];
+  const hiddenIds = new Set(tracks.filter((tr) => tr.hidden).map((tr) => tr.id));
+  // Écoute SOLO : dès qu'une piste sonore est isolée, toutes les autres se
+  // taisent — y compris le son embarqué des plans, sans quoi « isoler la voix »
+  // laisserait passer l'ambiance du plan sous elle.
+  const soloIds = new Set(tracks.filter((tr) => tr.family === "audio" && tr.solo && !tr.hidden).map((tr) => tr.id));
+  if (hiddenIds.size === 0 && soloIds.size === 0) return p;
+
+  const audibleAudio = p.audios.filter((a) => !hiddenIds.has(a.trackId) && (soloIds.size === 0 || soloIds.has(a.trackId)));
   return {
     ...p,
-    clips: p.clips.filter((c) => !hiddenIds.has(c.trackId)),
+    clips: p.clips
+      .filter((c) => !hiddenIds.has(c.trackId))
+      .map((c) => (soloIds.size > 0 && !c.muted ? { ...c, muted: true } : c)),
     texts: p.texts.filter((l) => !hiddenIds.has(l.trackId)),
     images: p.images.filter((l) => !hiddenIds.has(l.trackId)),
     shapes: p.shapes.filter((l) => !hiddenIds.has(l.trackId)),
-    audios: p.audios.filter((a) => !hiddenIds.has(a.trackId)),
+    audios: audibleAudio,
   };
+}
+
+/**
+ * Bascule l'écoute solo d'une piste sonore. Une seule à la fois : deux pistes
+ * « isolées » ne sont plus une isolation, et l'usage réel est toujours
+ * « écouter CELLE-CI ».
+ */
+export function toggleTrackSolo(p: EditorProject, trackId: string): EditorProject {
+  const tracks = p.tracks ?? [];
+  const wasSolo = tracks.find((tr) => tr.id === trackId)?.solo;
+  return {
+    ...p,
+    tracks: tracks.map((tr) => (tr.family === "audio" ? { ...tr, solo: tr.id === trackId ? !wasSolo : false } : tr)),
+  };
+}
+
+/** Change la hauteur d'affichage d'une piste. Sans effet sur le rendu. */
+export function setTrackHeight(p: EditorProject, trackId: string, height: number): EditorProject {
+  const h = clamp(Math.round(height), MIN_TRACK_HEIGHT, MAX_TRACK_HEIGHT);
+  return {
+    ...p,
+    tracks: (p.tracks ?? []).map((tr) => (tr.id === trackId ? { ...tr, height: h } : tr)),
+  };
+}
+
+/* ── Repères ─────────────────────────────────────────────────────────────── */
+
+/** Pose un repère. Deux repères au même instant n'ont aucun sens : on remplace. */
+export function addMarker(p: EditorProject, id: string, time: number, label = "", color = DEFAULT_MARKER_COLOR): EditorProject {
+  const at = round(Math.max(0, time));
+  const rest = (p.markers ?? []).filter((m) => Math.abs(m.time - at) > 0.02);
+  return { ...p, markers: [...rest, { id, time: at, label, color }].sort((a, b) => a.time - b.time) };
+}
+
+export function updateMarker(p: EditorProject, id: string, patch: Partial<Omit<Marker, "id">>): EditorProject {
+  return {
+    ...p,
+    markers: (p.markers ?? [])
+      .map((m) => (m.id === id ? { ...m, ...patch, time: patch.time === undefined ? m.time : round(Math.max(0, patch.time)) } : m))
+      .sort((a, b) => a.time - b.time),
+  };
+}
+
+export function removeMarker(p: EditorProject, id: string): EditorProject {
+  const markers = (p.markers ?? []).filter((m) => m.id !== id);
+  return { ...p, markers: markers.length > 0 ? markers : undefined };
+}
+
+/** Repère le plus proche dans une direction — la navigation de repère en repère. */
+export function nextMarker(p: EditorProject, from: number, direction: 1 | -1): Marker | null {
+  const markers = (p.markers ?? []).slice().sort((a, b) => a.time - b.time);
+  if (direction === 1) return markers.find((m) => m.time > from + 0.02) ?? null;
+  return [...markers].reverse().find((m) => m.time < from - 0.02) ?? null;
 }
 
 /**
@@ -1167,6 +1346,127 @@ export function patchAnimated(
   if (sel.kind === "text") return updateText(out, sel.id, staticPatch as Partial<TextLayer>);
   if (sel.kind === "image") return updateImageLayer(out, sel.id, staticPatch as Partial<ImageLayer>);
   return updateShape(out, sel.id, staticPatch as Partial<ShapeLayer>);
+}
+
+/* ── Ducking : la musique s'efface sous la voix ──────────────────────────── */
+
+/** Attaque et relâche du ducking, en secondes — les valeurs de la pratique. */
+const DUCK_ATTACK = 0.25;
+const DUCK_RELEASE = 0.5;
+
+/** Niveau auquel la musique descend sous la voix, en fraction de son volume. */
+export const DUCK_RATIO = 0.25;
+
+/**
+ * Fusionne des intervalles qui se chevauchent ou se touchent presque. Deux
+ * phrases séparées d'un quart de seconde ne justifient pas de remonter la
+ * musique entre les deux : elle « pomperait », le défaut le plus audible d'un
+ * ducking mal réglé.
+ */
+function mergeSpans(spans: { start: number; end: number }[], gap: number): { start: number; end: number }[] {
+  const sorted = spans.slice().sort((a, b) => a.start - b.start);
+  const out: { start: number; end: number }[] = [];
+  for (const span of sorted) {
+    const last = out[out.length - 1];
+    if (last && span.start - last.end <= gap) last.end = Math.max(last.end, span.end);
+    else out.push({ ...span });
+  }
+  return out;
+}
+
+/**
+ * Baisse automatiquement les musiques là où une voix parle.
+ *
+ * C'est le geste le plus courant d'un montage parlé, et le plus fastidieux à
+ * la main : quatre images-clés par phrase, sur chaque piste de musique. La
+ * fonction les pose, en respectant exactement la forme qu'un monteur
+ * dessinerait — descente rapide avant la voix, remontée plus lente après, et
+ * aucun retour au niveau haut entre deux phrases rapprochées.
+ *
+ * Les clés existantes de volume sont REMPLACÉES : c'est une opération qu'on
+ * relance après avoir modifié la voix off, et empiler deux passages
+ * donnerait un résultat imprévisible.
+ */
+export function duckMusicUnderVoice(
+  p: EditorProject,
+  newIdFor: (base: string) => string,
+  ratio = DUCK_RATIO
+): EditorProject {
+  const voices = p.audios.filter((a) => a.role === "voice" && !a.muted && a.length > 0.05);
+  const musics = p.audios.filter((a) => a.role === "music" && a.length > 0.05);
+  if (voices.length === 0 || musics.length === 0) return p;
+  void newIdFor;
+
+  const spans = mergeSpans(
+    voices.map((v) => ({ start: v.start, end: v.start + v.length })),
+    DUCK_ATTACK + DUCK_RELEASE
+  );
+
+  const audios = p.audios.map((a) => {
+    if (a.role !== "music") return a;
+    const high = a.volume;
+    const low = round(Math.max(0, high * ratio));
+    const end = a.start + a.length;
+    const keys: Keyframe[] = [];
+    /** Pose une clé, en écrasant celle qui serait déjà à cet instant. */
+    const put = (time: number, value: number, easing: EasingKind = "linear") => {
+      const at = round(clamp(time, a.start, end));
+      const seen = keys.findIndex((k) => Math.abs(k.time - at) <= EPS);
+      if (seen >= 0) keys[seen] = { time: at, value, easing };
+      else keys.push({ time: at, value, easing });
+    };
+
+    put(a.start, high);
+    for (const span of spans) {
+      // Hors de la piste : une phrase qui tombe après la fin de la musique
+      // n'a rien à baisser.
+      if (span.end <= a.start || span.start >= end) continue;
+      put(span.start - DUCK_ATTACK, high, "ease-in");
+      put(span.start, low);
+      put(span.end, low, "ease-out");
+      put(span.end + DUCK_RELEASE, high);
+    }
+    put(end, keys.length > 1 ? keys[keys.length - 1].value : high);
+
+    const sorted = keys.sort((x, y) => x.time - y.time);
+    return { ...a, keyframes: { ...(a.keyframes ?? {}), volume: sorted } };
+  });
+
+  return normalize({ ...p, audios });
+}
+
+/* ── Sous-titres au format SRT ───────────────────────────────────────────── */
+
+/** `hh:mm:ss,mmm` — le format d'horodatage exigé par SRT, au caractère près. */
+function srtTime(seconds: number): string {
+  const total = Math.max(0, seconds);
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const sec = Math.floor(total % 60);
+  const ms = Math.round((total - Math.floor(total)) * 1000);
+  const pad = (n: number, w = 2) => String(n).padStart(w, "0");
+  return `${pad(h)}:${pad(m)}:${pad(sec)},${pad(ms, 3)}`;
+}
+
+/**
+ * Les textes du montage au format SRT.
+ *
+ * Un sous-titre gravé dans l'image n'est pas lu par les plateformes : elles
+ * ne le référencent pas, ne le traduisent pas, et les sourds et malentendants
+ * ne peuvent pas l'activer. Le fichier .srt existe pour ça, et le produire ne
+ * demande que ce que le montage sait déjà — un texte et deux bornes.
+ *
+ * Les textes VIDES sont ignorés : un calque décoratif sans contenu n'a rien à
+ * faire dans un fichier de sous-titres.
+ */
+export function toSrt(p: EditorProject): string {
+  const entries = p.texts
+    .filter((l) => l.text.trim().length > 0 && l.end > l.start)
+    .sort((a, b) => a.start - b.start || a.end - b.end);
+
+  return entries
+    .map((l, i) => `${i + 1}\n${srtTime(l.start)} --> ${srtTime(l.end)}\n${l.text.trim()}\n`)
+    .join("\n");
 }
 
 /* ── Chutier : les médias du projet ──────────────────────────────────────── */
@@ -1719,11 +2019,48 @@ export function setClipBox(
 }
 
 /** Transition à l'entrée d'un plan. Sans effet sur le premier de sa piste. */
-export function setClipTransition(p: EditorProject, clipId: string, kind: TransitionKind): EditorProject {
+export function setClipTransition(
+  p: EditorProject,
+  clipId: string,
+  patch: TransitionKind | { kind?: TransitionKind; seconds?: number }
+): EditorProject {
+  // L'ancienne signature — une valeur simple — reste acceptée : tous les
+  // appelants n'ont pas de durée à régler, et en exiger une les casserait.
+  const wanted = typeof patch === "string" ? { kind: patch } : patch;
   const clips = p.clips.map((c) => {
     if (c.id !== clipId) return c;
     const isFirst = !p.clips.some((o) => o.track === c.track && o.start < c.start - EPS);
-    return { ...c, transitionIn: isFirst ? ("none" as TransitionKind) : kind };
+    const kind = wanted.kind === undefined ? c.transitionIn : wanted.kind;
+    const seconds = wanted.seconds === undefined
+      ? c.transitionSeconds
+      : clamp(wanted.seconds, MIN_TRANSITION_SECONDS, MAX_TRANSITION_SECONDS);
+    // Le PREMIER plan d'une piste n'a rien à quoi s'enchaîner : lui poser une
+    // transition afficherait un réglage sans effet.
+    return { ...c, transitionIn: isFirst ? ("none" as TransitionKind) : kind, transitionSeconds: seconds };
+  });
+  return normalize({ ...p, clips });
+}
+
+/**
+ * Correction d'image d'un plan. Chaque réglage est borné à ce que le moteur
+ * de rendu sait reproduire : l'aperçu ne doit jamais montrer une image que
+ * l'export ne saurait pas produire.
+ */
+export function setClipAdjust(
+  p: EditorProject,
+  clipId: string,
+  patch: Partial<Record<ImageAdjustProp, number>>
+): EditorProject {
+  const clips = p.clips.map((c) => {
+    if (c.id !== clipId) return c;
+    const next = { ...c };
+    for (const [key, value] of Object.entries(patch)) {
+      if (value === undefined) continue;
+      const prop = key as ImageAdjustProp;
+      const { min, max } = IMAGE_ADJUST_RANGE[prop];
+      next[prop] = clamp(value, min, max);
+    }
+    return next;
   });
   return normalize({ ...p, clips });
 }
@@ -2144,7 +2481,7 @@ export function clipsAt(p: EditorProject, time: number): ActiveClip[] {
       : undefined;
     // Bornée à la moitié de chaque plan : un fondu ne peut pas durer plus
     // longtemps que ce qu'il consomme de part et d'autre de la coupe.
-    const span = outgoing ? Math.min(CLIP_TRANSITION_SECONDS, c.length / 2, outgoing.length / 2) : 0;
+    const span = outgoing ? transitionSpan(c, outgoing) : 0;
 
     if (outgoing && span > EPS && time < c.start + span - EPS) {
       const fade = clamp((time - c.start) / span, 0, 1);

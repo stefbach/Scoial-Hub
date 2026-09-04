@@ -47,6 +47,7 @@ import BrandKitPanel from "@/components/studio/BrandKitPanel";
 import { Timeline, type TimelineSelection } from "./Timeline";
 import { Preview, type LayerPatch } from "./Preview";
 import { MediaBin } from "./MediaBin";
+import { VoiceRecorder } from "./VoiceRecorder";
 import { ProjectLibrary } from "./ProjectLibrary";
 import { TemplateGallery } from "./TemplateGallery";
 import { AssetLibrary, type AcquiredAsset } from "./AssetLibrary";
@@ -591,6 +592,47 @@ export function StudioEditor({
   );
 
   /**
+   * Pose une prise de voix off enregistrée au micro (constat 5). Distincte de
+   * `importFile` sur deux points qui comptent : la prise arrive comme un Blob
+   * sans nom de fichier, et surtout elle doit se poser À L'INSTANT où
+   * l'enregistrement a commencé — pas au début du film, comme le fait
+   * `addAudio` pour une musique de fond.
+   */
+  const insertVoiceTake = useCallback(
+    async (blob: Blob, fileName: string, at: number, duration: number): Promise<boolean> => {
+      setBusy(t("Hébergement de la voix off…", "Hosting the voiceover…"));
+      const res = await hostMedia(companyId, blob, fileName, "editor");
+      setBusy(null);
+      if (!res.url) {
+        setNote(t(`Hébergement impossible (${res.error ?? "erreur"}).`, `Hosting failed (${res.error ?? "error"}).`));
+        return false;
+      }
+      sourceBytes.current += blob.size;
+      const url = res.url;
+      const id = nextId("a");
+      const start = Math.max(0, at);
+      apply((p) => updateAudio(
+        addAudio(p, { id, src: url, name: fileName, role: "voice", sourceDuration: duration }),
+        id,
+        { start, length: duration }
+      ));
+
+      // Un son ne dépasse jamais la fin du film — invariant de `normalize`.
+      // Le dire tout de suite vaut mieux que de laisser découvrir une prise
+      // silencieusement tronquée.
+      const room = Math.max(0, projectDuration(project) - start);
+      if (duration > room + 0.05) {
+        setNote(t(
+          `Prise de ${duration.toFixed(1)} s posée à ${start.toFixed(1)} s : il ne restait que ${room.toFixed(1)} s de film, elle a été raccourcie d'autant.`,
+          `${duration.toFixed(1)}s take placed at ${start.toFixed(1)}s: only ${room.toFixed(1)}s of film remained, so it was shortened.`
+        ));
+      }
+      return true;
+    },
+    [apply, companyId, project, t]
+  );
+
+  /**
    * Insertion d'un média acquis depuis la bibliothèque externe (Lot A-3).
    * L'image rejoint la piste de base comme un plan — c'est là que la photo de
    * stock sert le plus souvent, contrairement à l'« Incrustation » du panneau
@@ -1122,8 +1164,19 @@ export function StudioEditor({
                 <div className="space-y-2">
                   <ImportButton label={t("＋ Plan vidéo ou photo", "＋ Video or photo")} accept="video/*,image/*" onFile={(f) => importFile(f, "clip")} />
                   <ImportButton label={t("♪ Musique", "♪ Music")} accept="audio/*" onFile={(f) => importFile(f, "music")} />
-                  <ImportButton label={t("🎙 Voix off", "🎙 Voiceover")} accept="audio/*" onFile={(f) => importFile(f, "voice")} />
+                  <ImportButton label={t("🎙 Voix off (fichier)", "🎙 Voiceover (file)")} accept="audio/*" onFile={(f) => importFile(f, "voice")} />
                   <ImportButton label={t("🖼 Incrustation", "🖼 Overlay")} accept="image/*" onFile={(f) => importFile(f, "overlay")} />
+                  <hr className="border-hair" />
+                  {/* Enregistrement au micro — le module « Voix off » n'était
+                      qu'un import de fichier, identique à « Musique » au rôle
+                      près (audit v4, constat 5). */}
+                  <VoiceRecorder
+                    playhead={playhead}
+                    busy={Boolean(busy)}
+                    onPlay={() => setPlaying(true)}
+                    onPause={() => setPlaying(false)}
+                    onInsert={insertVoiceTake}
+                  />
                   <hr className="border-hair" />
                   {/* Chutier — reposer un média déjà dans le projet sans le
                       réimporter, ce qui créait jusqu'ici un second fichier

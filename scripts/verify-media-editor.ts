@@ -623,6 +623,39 @@ async function main() {
       /\{!allVisual && !allAudio && \(/.test(panel));
   }
 
+  // ── constat 5 · Voix off enregistrée au micro (audit Editing Bench v4) ────
+  // Le module n'était qu'un import de fichier, identique à « Musique » au rôle
+  // près : pour poser un commentaire, il fallait sortir de la plateforme,
+  // enregistrer ailleurs, exporter, revenir, importer — et découvrir seulement
+  // à ce moment-là si le texte tombe juste.
+  {
+    const rec = read("components/editor/VoiceRecorder.tsx");
+    check("constat 5 · l'enregistrement passe par le micro, pas par un fichier",
+      /navigator\.mediaDevices\?\.getUserMedia/.test(rec) && /new MediaRecorder\(/.test(rec));
+    check("constat 5 · un décompte précède la prise — sans lui la première syllabe est perdue",
+      /const COUNT_IN = /.test(rec) && /phase === "counting"/.test(rec));
+    check("constat 5 · le montage JOUE pendant la prise",
+      /onPlay\(\);/.test(rec) && /onPlay=\{\(\) => setPlaying\(true\)\}/.test(studio));
+    check("constat 5 · pré-écoute AVANT insertion — une prise ratée ne passe pas par la timeline",
+      /phase === "review"/.test(rec) && /<audio src=\{take\.url\} controls/.test(rec));
+    check("constat 5 · refaire une prise et la jeter sont deux gestes distincts",
+      /Refaire/.test(rec) && /Jeter/.test(rec));
+    check("constat 5 · un voyant de niveau prouve que le micro capte",
+      /createAnalyser\(\)/.test(rec) && /getByteTimeDomainData/.test(rec));
+    check("constat 5 · le micro est TOUJOURS relâché — démontage compris",
+      /useEffect\(\(\) => teardown, \[teardown\]\)/.test(rec) &&
+      /stream\.current\?\.getTracks\(\)\.forEach\(\(tr\) => tr\.stop\(\)\)/.test(rec));
+    check("constat 5 · un refus d'accès au micro est expliqué, pas silencieux",
+      /NotAllowedError/.test(rec) && /Accès au micro refusé/.test(rec));
+    check("constat 5 · la prise se pose à l'instant où l'enregistrement a commencé",
+      /const insertVoiceTake = useCallback\(/.test(studio) &&
+      /role: "voice", sourceDuration: duration \}\),/.test(studio) &&
+      /\{ start, length: duration \}/.test(studio));
+    check("constat 5 · une prise plus longue que le film restant est signalée, pas tronquée en silence",
+      /const room = Math\.max\(0, projectDuration\(project\) - start\)/.test(studio) &&
+      /elle a été raccourcie d'autant/.test(studio));
+  }
+
   // ── constat 6 · Chutier « fichiers du projet » (audit Editing Bench v4) ──
   // L'onglet Médias ne savait qu'importer : reposer une vidéo déjà utilisée
   // obligeait à la réenvoyer, créant un second fichier hébergé pour le même

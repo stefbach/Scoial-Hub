@@ -60,8 +60,22 @@ export function VoiceRecorder({
   const [count, setCount] = useState(COUNT_IN);
   const [elapsed, setElapsed] = useState(0);
   const [level, setLevel] = useState(0);
-  const [take, setTake] = useState<{ url: string; blob: Blob; duration: number; at: number } | null>(null);
+  /**
+   * La prise, une fois DÉCODÉE.
+   *
+   * On ne conserve pas d'URL d'objet à donner à un `<audio>` : le conteneur
+   * WebM que produit MediaRecorder n'a pas d'en-tête de durée — il est écrit au
+   * fil de l'eau, sans savoir où il s'arrêtera. Chrome le charge alors avec une
+   * durée infinie et refuse de le lire, ce qui donnait exactement le symptôme
+   * observé : le micro capte, le fichier existe, et « lire » ne produit rien.
+   *
+   * Décoder le son une bonne fois règle les deux problèmes d'un coup : on
+   * obtient la durée RÉELLE, et la pré-écoute passe par le graphe audio, qui
+   * n'a que faire du conteneur.
+   */
+  const [take, setTake] = useState<{ blob: Blob; buffer: AudioBuffer; duration: number; at: number } | null>(null);
   const [inserting, setInserting] = useState(false);
+  const [preview, setPreview] = useState(false);
 
   const stream = useRef<MediaStream | null>(null);
   const recorder = useRef<MediaRecorder | null>(null);
@@ -72,6 +86,20 @@ export function VoiceRecorder({
   /** Instant du montage où la prise a réellement démarré. */
   const startedAt = useRef(0);
   const startedWall = useRef(0);
+  /** Contexte de PRÉ-ÉCOUTE — distinct de celui du voyant de niveau, qui est
+      fermé avec le micro à la fin de la prise. */
+  const playCtx = useRef<AudioContext | null>(null);
+  const playing = useRef<AudioBufferSourceNode | null>(null);
+
+  /** Coupe la pré-écoute en cours, s'il y en a une. Idempotent. */
+  const stopPreview = useCallback(() => {
+    if (playing.current) {
+      playing.current.onended = null;
+      try { playing.current.stop(); } catch { /* déjà arrêtée */ }
+      playing.current = null;
+    }
+    setPreview(false);
+  }, []);
 
   /** Coupe tout : micro, analyse, minuteries. Idempotent. */
   const teardown = useCallback(() => {
@@ -88,8 +116,14 @@ export function VoiceRecorder({
   }, []);
 
   // Quitter l'éditeur, ou fermer le panneau, ne doit jamais laisser le micro
-  // ouvert : la libération est portée par le démontage, pas par un bouton.
-  useEffect(() => teardown, [teardown]);
+  // ouvert ni une pré-écoute en cours : la libération est portée par le
+  // démontage, pas par un bouton.
+  useEffect(() => () => {
+    stopPreview();
+    void playCtx.current?.close();
+    playCtx.current = null;
+    teardown();
+  }, [teardown, stopPreview]);
 
   /** Niveau d'entrée — la seule preuve visible que le micro capte vraiment. */
   function watchLevel(src: MediaStream) {
@@ -203,8 +237,9 @@ export function VoiceRecorder({
     recorder.current = rec;
     rec.ondataavailable = (e) => { if (e.data.size > 0) chunks.current.push(e.data); };
     rec.onstop = () => {
-      const blob = new Blob(chunks.current, { type: mimeType });
-      const duration = (Date.now() - startedWall.current) / 1000;
+      // Type de BASE, sans le paramètre `codecs` : certains lecteurs refusent
+      // un type qui le porte, et il n'apporte rien ici — le conteneur le dit.
+      const blob = new Blob(chunks.current, { type: mimeType.split(";")[0] });
       teardown();
       onPause();
       if (blob.size === 0) {
@@ -212,19 +247,62 @@ export function VoiceRecorder({
         setError(t("Prise vide — rien n'a été capté.", "Empty take — nothing was captured."));
         return;
       }
-      setTake({ url: URL.createObjectURL(blob), blob, duration, at: startedAt.current });
-      setPhase("review");
+      void decodeTake(blob);
     };
 
     startedAt.current = playhead;
     startedWall.current = Date.now();
     setElapsed(0);
-    rec.start();
+    // Un morceau toutes les 250 ms plutôt qu'un bloc unique à l'arrêt : le
+    // conteneur reçoit ainsi des repères temporels réguliers, et une prise
+    // interrompue par un incident n'est pas intégralement perdue.
+    rec.start(250);
     setPhase("recording");
     // Le montage joue PENDANT la prise : commenter une image qu'on ne voit pas
     // est la première cause d'une voix off qui tombe à côté.
     onPlay();
     timer.current = window.setInterval(() => setElapsed((Date.now() - startedWall.current) / 1000), 100);
+  }
+
+  /**
+   * Décode la prise. C'est aussi la VÉRIFICATION que le son existe vraiment :
+   * un fichier de quelques kilo-octets sans piste exploitable échoue ici, et
+   * le dire vaut infiniment mieux qu'un lecteur muet.
+   */
+  async function decodeTake(blob: Blob) {
+    setPhase("review");
+    try {
+      const ctx = playCtx.current ?? new AudioContext();
+      playCtx.current = ctx;
+      const buffer = await ctx.decodeAudioData(await blob.arrayBuffer());
+      if (buffer.duration <= 0.05) {
+        setPhase("idle");
+        setError(t("Prise trop courte — rien d'exploitable.", "Take too short — nothing usable."));
+        return;
+      }
+      setTake({ blob, buffer, duration: buffer.duration, at: startedAt.current });
+    } catch {
+      setPhase("idle");
+      setError(t(
+        "La prise n'a pas pu être relue — le son n'a pas été capté correctement. Vérifiez le micro sélectionné dans le navigateur, puis réessayez.",
+        "The take could not be played back — the sound was not captured properly. Check the microphone selected in the browser, then try again."
+      ));
+    }
+  }
+
+  /** Pré-écoute par le graphe audio — indépendante du conteneur du fichier. */
+  function togglePreview() {
+    if (preview) { stopPreview(); return; }
+    const ctx = playCtx.current;
+    if (!ctx || !take) return;
+    void ctx.resume();
+    const node = ctx.createBufferSource();
+    node.buffer = take.buffer;
+    node.connect(ctx.destination);
+    node.onended = () => { playing.current = null; setPreview(false); };
+    node.start();
+    playing.current = node;
+    setPreview(true);
   }
 
   function stop() {
@@ -243,7 +321,7 @@ export function VoiceRecorder({
   }
 
   function discardTake() {
-    if (take) URL.revokeObjectURL(take.url);
+    stopPreview();
     setTake(null);
     setPhase("idle");
   }
@@ -337,6 +415,12 @@ export function VoiceRecorder({
         </div>
       )}
 
+      {phase === "review" && !take && (
+        <div className="flex items-center gap-2 text-2xs text-muted">
+          <Spinner size={12} className="text-page" /> {t("Relecture de la prise…", "Checking the take…")}
+        </div>
+      )}
+
       {phase === "review" && take && (
         <div className="space-y-1.5">
           <p className="text-2xs text-muted">
@@ -346,8 +430,17 @@ export function VoiceRecorder({
             )}
           </p>
           {/* Pré-écoute AVANT insertion : une prise ratée ne doit pas polluer la
-              timeline puis l'historique pour être défaite ensuite. */}
-          <audio src={take.url} controls className="w-full" />
+              timeline puis l'historique pour être défaite ensuite. Elle passe
+              par le graphe audio, pas par un `<audio>` : le conteneur produit
+              par MediaRecorder n'a pas d'en-tête de durée, et Chrome refuse
+              alors de le lire. */}
+          <button
+            type="button"
+            onClick={togglePreview}
+            className="btn-secondary w-full text-xs"
+          >
+            {preview ? `⏹ ${t("Arrêter l'écoute", "Stop playback")}` : `▶ ${t("Écouter la prise", "Play the take")}`}
+          </button>
           <div className="flex gap-1.5">
             <button
               type="button"

@@ -699,14 +699,29 @@ async function main() {
       /const COUNT_IN = /.test(rec) && /phase === "counting"/.test(rec));
     check("constat 5 · le montage JOUE pendant la prise",
       /onPlay\(\);/.test(rec) && /onPlay=\{\(\) => setPlaying\(true\)\}/.test(studio));
+    // Le conteneur WebM de MediaRecorder n'a pas d'en-tête de durée : Chrome
+    // le charge avec une durée infinie et refuse de le lire. La prise est donc
+    // DÉCODÉE, ce qui donne sa durée réelle et une pré-écoute qui n'a que
+    // faire du conteneur — c'était le défaut « j'enregistre, et rien ne sort ».
+    check("constat 5 · la prise est décodée, pas confiée à un <audio> sur un WebM sans durée",
+      /decodeAudioData\(await blob\.arrayBuffer\(\)\)/.test(rec) &&
+      !/<audio src=\{take\.url\}/.test(rec));
+    check("constat 5 · la pré-écoute passe par le graphe audio",
+      /ctx\.createBufferSource\(\)/.test(rec) && /node\.buffer = take\.buffer/.test(rec));
+    check("constat 5 · une prise inexploitable le DIT, au lieu d'un lecteur muet",
+      /La prise n'a pas pu être relue/.test(rec) && /buffer\.duration <= 0\.05/.test(rec));
+    check("constat 5 · l'enregistrement écrit par morceaux réguliers",
+      /rec\.start\(250\)/.test(rec));
+    check("constat 5 · la durée insérée est la durée RÉELLE du son décodé",
+      /duration: buffer\.duration/.test(rec));
     check("constat 5 · pré-écoute AVANT insertion — une prise ratée ne passe pas par la timeline",
-      /phase === "review"/.test(rec) && /<audio src=\{take\.url\} controls/.test(rec));
+      /phase === "review"/.test(rec) && /Écouter la prise/.test(rec));
     check("constat 5 · refaire une prise et la jeter sont deux gestes distincts",
       /Refaire/.test(rec) && /Jeter/.test(rec));
     check("constat 5 · un voyant de niveau prouve que le micro capte",
       /createAnalyser\(\)/.test(rec) && /getByteTimeDomainData/.test(rec));
-    check("constat 5 · le micro est TOUJOURS relâché — démontage compris",
-      /useEffect\(\(\) => teardown, \[teardown\]\)/.test(rec) &&
+    check("constat 5 · micro et pré-écoute TOUJOURS relâchés — démontage compris",
+      /useEffect\(\(\) => \(\) => \{[\s\S]{0,240}?teardown\(\);\s*\n\s*\}, \[teardown, stopPreview\]\)/.test(rec) &&
       /stream\.current\?\.getTracks\(\)\.forEach\(\(tr\) => tr\.stop\(\)\)/.test(rec));
     check("constat 5 · chaque cause d'échec du micro a son propre message",
       /window\.isSecureContext === false/.test(rec) && /NotAllowedError/.test(rec) &&
@@ -775,6 +790,19 @@ async function main() {
     check("lisibilité · la timeline dessine ses pistes, au lieu d'une surface unique",
       /rounded-md border border-hair bg-card\/60 px-1/.test(timeline) &&
       /track\.family === "audio" \? "bg-ai-textbg\/30" : "bg-card\/60"/.test(timeline));
+    check("ajustement · un champ numérique se règle en TIRANT à la souris",
+      /function useValueScrubber\(/.test(panel) &&
+      /const SCRUB_THRESHOLD_PX = /.test(panel) &&
+      /cursor-ew-resize/.test(panel));
+    check("ajustement · le clic simple donne toujours le focus pour la saisie",
+      /if \(Math\.abs\(dx\) < SCRUB_THRESHOLD_PX\) return;/.test(panel));
+    check("ajustement · Maj affine le réglage",
+      /const fine = e\.shiftKey \? 0\.1 : 1;/.test(panel));
+    check("ajustement · le glisser ne produit QU'UNE entrée d'historique",
+      /onStart: gesture\.begin/.test(panel) && /onEnd: gesture\.commit/.test(panel) &&
+      /gesture=\{\{ begin: beginGesture, live: applyLive, commit: commitGesture \}\}/.test(studio));
+    check("ajustement · il agit aussi sur un GROUPE, en une seule entrée",
+      /const scrubVisual = /.test(panel) && /const scrubText = /.test(panel));
     check("lisibilité · le chutier propose vignettes OU liste",
       /<ViewButton icon="▦"/.test(bin) && /<ViewButton icon="☰"/.test(bin));
   }

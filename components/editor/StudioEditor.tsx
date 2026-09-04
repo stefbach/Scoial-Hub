@@ -1395,6 +1395,7 @@ export function StudioEditor({
                 onChange={apply}
                 onDeselect={() => { setSelection(null); setMultiSelection(new Map()); }}
                 onSeek={setPlayhead}
+                gesture={{ begin: beginGesture, live: applyLive, commit: commitGesture }}
               />
             </aside>
           </div>

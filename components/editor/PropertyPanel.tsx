@@ -13,6 +13,7 @@
 // disponible partout d'un coup. Les panneaux spécifiques ne portent plus que ce
 // qui est propre à leur type.
 
+import { useEffect, useRef, useState } from "react";
 import { useT } from "@/lib/i18n";
 import {
   ANIMATION_SECONDS,
@@ -24,13 +25,38 @@ import {
   setClipLength,
   setClipOpacity,
   setClipSpeed,
+  setClipAdjust,
   setClipTransition,
+  hasImageAdjust,
+  IMAGE_ADJUST_PROPS,
+  IMAGE_ADJUST_RANGE,
+  CLIP_TRANSITION_SECONDS,
+  MIN_TRANSITION_SECONDS,
+  MAX_TRANSITION_SECONDS,
   updateAudio,
   updateImageLayer,
+  animatableProps,
+  clearKeyframes,
+  hasKeyframes,
+  keyframesOf,
+  patchAnimated,
+  removeKeyframe,
+  setKeyframe,
+  staticValue,
   updateShape,
   updateText,
+  valueAt,
+  type Animatable,
+  type AnimatableKind,
+  type AnimatableProp,
   type AnimationKind,
+  type ImageAdjustProp,
+  type EasingKind,
+  type AudioTrack,
+  type Clip,
   type EditorProject,
+  type ImageLayer,
+  type ShapeLayer,
   type TrackFamily,
   type TransitionKind,
   type TextLayer,
@@ -39,6 +65,13 @@ import {
 import { FONT_STACKS } from "@/lib/editor/draw";
 import type { BrandStyle } from "@/lib/editor/templates";
 import type { TimelineSelection } from "./Timeline";
+
+/** Libellés des corrections d'image. */
+const ADJUST_LABEL = (t: (fr: string, en: string) => string): Record<ImageAdjustProp, string> => ({
+  brightness: t("Luminosité", "Brightness"),
+  contrast: t("Contraste", "Contrast"),
+  saturation: t("Saturation", "Saturation"),
+});
 
 const PRESET_COLORS = ["#ffffff", "#000000", "#ff3b30", "#ffcc00", "#34c759", "#0a84ff"];
 
@@ -60,6 +93,8 @@ export function PropertyPanel({
   brand,
   onChange,
   onDeselect,
+  onSeek,
+  gesture,
 }: {
   project: EditorProject;
   selection: TimelineSelection;
@@ -79,6 +114,20 @@ export function PropertyPanel({
   brand: BrandStyle;
   onChange: (fn: (p: EditorProject) => EditorProject) => void;
   onDeselect: () => void;
+  /** Déplace la tête de lecture — la navigation d'image-clé à image-clé en a
+      besoin : atteindre une clé sans y amener la lecture ne servirait à rien. */
+  onSeek: (time: number) => void;
+  /**
+   * Geste continu — l'ajustement d'une valeur au glisser. `live` écrit sans
+   * empiler d'historique, `begin`/`commit` scellent le tout en UNE entrée :
+   * sans quoi un glisser de deux centimètres produirait cinquante annulations
+   * à défaire une par une.
+   */
+  gesture: {
+    begin: () => void;
+    live: (fn: (p: EditorProject) => EditorProject) => void;
+    commit: () => void;
+  };
 }) {
   const t = useT();
   const total = projectDuration(project);
@@ -95,51 +144,15 @@ export function PropertyPanel({
   }
 
   if (multiSelectionItems.length > 1) {
-    const allTexts = multiSelectionItems.every((s) => s.kind === "text");
-    if (!allTexts) {
-      return (
-        <div className="space-y-2 p-2 text-2xs text-muted">
-          <p>
-            {t(`${multiSelectionItems.length} éléments sélectionnés.`, `${multiSelectionItems.length} elements selected.`)}
-          </p>
-          <p>
-            {t(
-              "Utilisez Dupliquer ou Supprimer (barre d'outils, clic droit, ou Ctrl/⌘+D et Suppr) pour agir sur le groupe entier.",
-              "Use Duplicate or Delete (toolbar, right-click, or Ctrl/⌘+D and Delete) to act on the whole group."
-            )}
-          </p>
-        </div>
-      );
-    }
-
-    const textIds = multiSelectionItems.map((s) => s.id);
-    /** Applique un patch commun à TOUS les textes du groupe, en une seule
-        entrée d'historique — jamais une par élément reformaté. */
-    const batchText = (patch: Partial<TextLayer>) =>
-      onChange((p) => textIds.reduce((acc, id) => updateText(acc, id, patch), p));
-    const first = project.texts.find((l) => l.id === textIds[0]);
-
     return (
-      <Panel title={t(`${textIds.length} sous-titres sélectionnés`, `${textIds.length} subtitles selected`)}>
-        <p className="text-2xs text-muted">
-          {t(
-            "Réglage commun à tout le groupe — utile après une transcription automatique. Dupliquer/Supprimer (barre d'outils, clic droit) agissent aussi sur le groupe entier.",
-            "Setting applied to the whole group — useful right after an automatic transcription. Duplicate/Delete (toolbar, right-click) also act on the whole group."
-          )}
-        </p>
-        <SelectRow
-          label={t("Police", "Font")} value={first?.font ?? "sans"}
-          options={Object.entries(FONT_STACKS).map(([key, f]) => ({ value: key, label: f.label }))}
-          onChange={(v) => batchText({ font: v as TextLayer["font"] })}
-        />
-        <ColorSwatches value={first?.color ?? PRESET_COLORS[0]} onChange={(c) => batchText({ color: c })} brand={brand} />
-        <div className="flex flex-wrap items-center gap-1.5">
-          <Toggle title={t("Gras", "Bold")} on={Boolean(first?.bold)} onClick={() => batchText({ bold: !first?.bold })}>G</Toggle>
-          <Toggle title={t("Bandeau", "Background band")} on={Boolean(first?.bg)} onClick={() => batchText({ bg: !first?.bg })}>▬</Toggle>
-          <Toggle title={t("Contour", "Outline")} on={Boolean(first?.outline)} onClick={() => batchText({ outline: !first?.outline })}>◌</Toggle>
-          <Toggle title={t("Ombre", "Shadow")} on={Boolean(first?.shadow)} onClick={() => batchText({ shadow: !first?.shadow })}>◍</Toggle>
-        </div>
-      </Panel>
+      <MultiSelectionPanel
+        project={project}
+        items={multiSelectionItems}
+        total={total}
+        brand={brand}
+        onChange={onChange}
+        gesture={gesture}
+      />
     );
   }
 
@@ -149,11 +162,20 @@ export function PropertyPanel({
   const shape = selection.kind === "shape" ? project.shapes.find((l) => l.id === selection.id) : null;
   const audio = selection.kind === "audio" ? project.audios.find((a) => a.id === selection.id) : null;
 
-  /** Applique un patch au calque visuel sélectionné, quel que soit son type. */
+  /**
+   * Applique un patch au calque visuel sélectionné, quel que soit son type.
+   *
+   * Une propriété ANIMÉE reçoit une image-clé à la tête de lecture plutôt
+   * qu'une nouvelle valeur fixe (`patchAnimated`) : sur un calque animé, taper
+   * une valeur ne peut pas vouloir dire « décale toute l'animation », sinon
+   * plus aucune clé ne serait modifiable après coup. Les propriétés non
+   * animées, elles, se comportent exactement comme avant.
+   */
   const patchVisual = (patch: Partial<VisualLayer>) => {
-    if (text) onChange((p) => updateText(p, text.id, patch));
-    else if (image) onChange((p) => updateImageLayer(p, image.id, patch));
-    else if (shape) onChange((p) => updateShape(p, shape.id, patch));
+    const kind = text ? "text" : image ? "image" : shape ? "shape" : null;
+    const id = text?.id ?? image?.id ?? shape?.id;
+    if (!kind || !id) return;
+    onChange((p) => patchAnimated(p, { kind, id }, patch, playhead));
   };
 
   const visual: VisualLayer | null = text ?? image ?? shape ?? null;
@@ -221,37 +243,88 @@ export function PropertyPanel({
               Bench, P2-1). N'importe quel plan peut désormais s'en servir,
               pas seulement une « piste d'incrustation » — une piste n'a plus
               de statut particulier depuis les pistes libres (Lot A2). */}
-          <div className="grid grid-cols-2 gap-2">
-            <NumberRow label="X" unit="%" value={clip.x * 100} step={1} compact
-              onChange={(v) => onChange((p) => setClipBox(p, clip.id, { x: v / 100 }))} />
-            <NumberRow label="Y" unit="%" value={clip.y * 100} step={1} compact
-              onChange={(v) => onChange((p) => setClipBox(p, clip.id, { y: v / 100 }))} />
-            <NumberRow label={t("Largeur", "Width")} unit="%" value={clip.w * 100} step={1} min={2} compact
-              onChange={(v) => onChange((p) => setClipBox(p, clip.id, { w: v / 100 }))} />
-            <NumberRow label={t("Hauteur", "Height")} unit="%" value={clip.h * 100} step={1} min={2} compact
-              onChange={(v) => onChange((p) => setClipBox(p, clip.id, { h: v / 100 }))} />
-          </div>
-          <NumberRow
-            label={t("Opacité", "Opacity")} unit="%" value={clip.opacity * 100} step={5} min={0} max={100}
-            onChange={(v) => onChange((p) => setClipOpacity(p, clip.id, v / 100))}
-          />
+          {/* Un plan s'anime comme un calque : le cadre et l'opacité portent
+              leur propre chronomètre, sur la même ligne que la valeur. */}
+          {(["x", "y", "w", "h", "opacity"] as const).map((prop) => (
+            <AnimatableRow
+              key={prop}
+              prop={prop}
+              label={PROP_LABEL(t)[prop]}
+              unit="%"
+              scale={100}
+              step={prop === "opacity" ? 5 : 1}
+              min={prop === "w" || prop === "h" ? 2 : prop === "opacity" ? 0 : undefined}
+              max={prop === "opacity" ? 100 : undefined}
+              element={clip}
+              sel={{ kind: "clip", id: clip.id }}
+              playhead={playhead}
+              onChange={onChange}
+              onSeek={onSeek} gesture={gesture}
+            />
+          ))}
 
           <TrackPicker
             project={project} family="visual" value={clip.trackId}
             onChange={(trackId) => onChange((p) => moveElement(p, { kind: "clip", id: clip.id }, { trackId }))}
           />
 
+          {/* Correction d'image. Trois réglages, pas quatre : la température
+              de couleur n'a pas d'équivalent exact à la fois dans l'aperçu et
+              dans le rendu, et un aperçu qui ment est pire qu'un réglage
+              absent. Ceux-ci se traduisent au même résultat des deux côtés. */}
+          <div className="space-y-1 border-t border-hair pt-2">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[10px] uppercase tracking-wide text-muted">{t("Image", "Image")}</p>
+              {hasImageAdjust(clip) && (
+                <button
+                  type="button"
+                  onClick={() => onChange((p) => setClipAdjust(p, clip.id, { brightness: 0, contrast: 0, saturation: 0 }))}
+                  className="rounded px-1.5 py-0.5 text-[10px] text-muted ring-1 ring-hair hover:text-ink"
+                >
+                  {t("Réinitialiser", "Reset")}
+                </button>
+              )}
+            </div>
+            {IMAGE_ADJUST_PROPS.map((prop) => (
+              <Range
+                key={prop}
+                label={ADJUST_LABEL(t)[prop]}
+                min={IMAGE_ADJUST_RANGE[prop].min}
+                max={IMAGE_ADJUST_RANGE[prop].max}
+                step={0.02}
+                value={clip[prop] ?? 0}
+                display={`${(clip[prop] ?? 0) > 0 ? "+" : ""}${Math.round((clip[prop] ?? 0) * 100)}`}
+                onChange={(v) => onChange((p) => setClipAdjust(p, clip.id, { [prop]: v }))}
+              />
+            ))}
+          </div>
+
           {project.clips.some((c) => c.track === clip.track && c.start < clip.start) && (
-            <SelectRow
-              label={t("Transition", "Transition")}
-              value={clip.transitionIn}
-              options={[
-                { value: "none", label: t("Coupe franche", "Hard cut") },
-                { value: "fade", label: t("Fondu", "Fade") },
-                { value: "dissolve", label: t("Fondu enchaîné", "Dissolve") },
-              ]}
-              onChange={(v) => onChange((p) => setClipTransition(p, clip.id, v as TransitionKind))}
-            />
+            <>
+              <SelectRow
+                label={t("Transition", "Transition")}
+                value={clip.transitionIn}
+                options={[
+                  { value: "none", label: t("Coupe franche", "Hard cut") },
+                  { value: "fade", label: t("Fondu", "Fade") },
+                  { value: "dissolve", label: t("Fondu enchaîné", "Dissolve") },
+                  { value: "wipe-left", label: t("Balayage ←", "Wipe ←") },
+                  { value: "wipe-right", label: t("Balayage →", "Wipe →") },
+                  { value: "slide-up", label: t("Glissement ↑", "Slide ↑") },
+                  { value: "slide-down", label: t("Glissement ↓", "Slide ↓") },
+                ]}
+                onChange={(v) => onChange((p) => setClipTransition(p, clip.id, { kind: v as TransitionKind }))}
+              />
+              {clip.transitionIn !== "none" && (
+                <Range
+                  label={t("Durée de la transition", "Transition length")}
+                  min={MIN_TRANSITION_SECONDS} max={MAX_TRANSITION_SECONDS} step={0.1}
+                  value={clip.transitionSeconds ?? CLIP_TRANSITION_SECONDS}
+                  display={`${(clip.transitionSeconds ?? CLIP_TRANSITION_SECONDS).toFixed(1)}s`}
+                  onChange={(v) => onChange((p) => setClipTransition(p, clip.id, { seconds: v }))}
+                />
+              )}
+            </>
           )}
 
           <p className="text-2xs text-muted">
@@ -263,9 +336,11 @@ export function PropertyPanel({
               v4). Sans objet pour une photo. */}
           {clip.kind === "video" && (
             <>
-              <Range label={t("Volume", "Volume")} min={0} max={1} step={0.05} value={clip.volume}
-                display={`${Math.round(clip.volume * 100)}%`}
-                onChange={(v) => onChange((p) => setClipAudio(p, clip.id, { volume: v }))} />
+              <AnimatableRow
+                prop="volume" label={t("Volume", "Volume")} unit="%" scale={100} step={5} min={0} max={100}
+                element={clip} sel={{ kind: "clip", id: clip.id }} playhead={playhead}
+                onChange={onChange} onSeek={onSeek} gesture={gesture}
+              />
               <Range label={t("Fondu d'entrée", "Fade in")} min={0} max={5} step={0.1} value={clip.fadeIn}
                 display={`${clip.fadeIn.toFixed(1)}s`}
                 onChange={(v) => onChange((p) => setClipAudio(p, clip.id, { fadeIn: v }))} />
@@ -286,33 +361,50 @@ export function PropertyPanel({
       {/* ── Bloc commun à tout élément visuel ────────────────────────────── */}
       {visual && (
         <Panel title={t("Position et apparence", "Position and appearance")}>
-          <div className="grid grid-cols-2 gap-2">
-            <NumberRow label="X" unit="%" value={visual.x * 100} step={1} compact
-              onChange={(v) => patchVisual({ x: v / 100 })} />
-            <NumberRow label="Y" unit="%" value={visual.y * 100} step={1} compact
-              onChange={(v) => patchVisual({ y: v / 100 })} />
-            {image && (
-              <>
-                <NumberRow label={t("Largeur", "Width")} unit="%" value={image.scale * 100} step={1} compact
-                  onChange={(v) => onChange((p) => updateImageLayer(p, image.id, { scale: v / 100 }))} />
-                <NumberRow label={t("Hauteur", "Height")} unit="%" value={image.heightPct * 100} step={1} compact
-                  autoLabel={t("auto", "auto")}
-                  onChange={(v) => onChange((p) => updateImageLayer(p, image.id, { heightPct: v / 100 }))} />
-              </>
-            )}
-            {shape && (
-              <>
-                <NumberRow label={t("Largeur", "Width")} unit="%" value={shape.w * 100} step={1} compact
-                  onChange={(v) => onChange((p) => updateShape(p, shape.id, { w: v / 100 }))} />
-                <NumberRow label={t("Hauteur", "Height")} unit="%" value={shape.h * 100} step={1} compact
-                  onChange={(v) => onChange((p) => updateShape(p, shape.id, { h: v / 100 }))} />
-              </>
-            )}
-            <NumberRow label={t("Rotation", "Rotation")} unit="°" value={visual.rotation} step={5} compact
-              onChange={(v) => patchVisual({ rotation: v })} />
-            <NumberRow label={t("Opacité", "Opacity")} unit="%" value={visual.opacity * 100} step={5} min={0} max={100} compact
-              onChange={(v) => patchVisual({ opacity: v / 100 })} />
-          </div>
+          {visualKind && visualId && (
+            <>
+              <AnimatableRow prop="x" label={PROP_LABEL(t).x} unit="%" scale={100} step={1}
+                element={visual} sel={{ kind: visualKind, id: visualId }} playhead={playhead}
+                onChange={onChange} onSeek={onSeek} gesture={gesture} />
+              <AnimatableRow prop="y" label={PROP_LABEL(t).y} unit="%" scale={100} step={1}
+                element={visual} sel={{ kind: visualKind, id: visualId }} playhead={playhead}
+                onChange={onChange} onSeek={onSeek} gesture={gesture} />
+              {image && (
+                <>
+                  <AnimatableRow prop="scale" label={PROP_LABEL(t).w} unit="%" scale={100} step={1} min={1}
+                    element={image} sel={{ kind: "image", id: image.id }} playhead={playhead}
+                    onChange={onChange} onSeek={onSeek} gesture={gesture} />
+                  {/* La hauteur d'une incrustation n'est pas animable : elle
+                      se déduit du rapport natif de l'image dès qu'on ne la
+                      force pas, ce qu'une clé rendrait incompréhensible. */}
+                  <NumberRow label={PROP_LABEL(t).h} unit="%" value={image.heightPct * 100} step={1}
+                    autoLabel={t("auto", "auto")}
+                    onChange={(v) => onChange((p) => updateImageLayer(p, image.id, { heightPct: v / 100 }))}
+                    scrub={{
+                      begin: gesture.begin,
+                      commit: gesture.commit,
+                      live: (v) => gesture.live((p) => updateImageLayer(p, image.id, { heightPct: v / 100 })),
+                    }} />
+                </>
+              )}
+              {shape && (
+                <>
+                  <AnimatableRow prop="w" label={PROP_LABEL(t).w} unit="%" scale={100} step={1} min={2}
+                    element={shape} sel={{ kind: "shape", id: shape.id }} playhead={playhead}
+                    onChange={onChange} onSeek={onSeek} gesture={gesture} />
+                  <AnimatableRow prop="h" label={PROP_LABEL(t).h} unit="%" scale={100} step={1} min={2}
+                    element={shape} sel={{ kind: "shape", id: shape.id }} playhead={playhead}
+                    onChange={onChange} onSeek={onSeek} gesture={gesture} />
+                </>
+              )}
+              <AnimatableRow prop="rotation" label={PROP_LABEL(t).rotation} unit="°" step={5}
+                element={visual} sel={{ kind: visualKind, id: visualId }} playhead={playhead}
+                onChange={onChange} onSeek={onSeek} gesture={gesture} />
+              <AnimatableRow prop="opacity" label={PROP_LABEL(t).opacity} unit="%" scale={100} step={5} min={0} max={100}
+                element={visual} sel={{ kind: visualKind, id: visualId }} playhead={playhead}
+                onChange={onChange} onSeek={onSeek} gesture={gesture} />
+            </>
+          )}
 
           {/* Alignement — le champ existait dans le modèle sans être exposé
               nulle part, et rien ne permettait de caler un élément au cadre. */}
@@ -383,21 +475,49 @@ export function PropertyPanel({
             display={text.wrapPct === 0 ? t("libre", "free") : `${Math.round(text.wrapPct * 100)}%`}
             onChange={(v) => onChange((p) => updateText(p, text.id, { wrapPct: v }))} />
 
+          {/* Styles enregistrés. Un montage a rarement un seul sous-titre :
+              refaire police, taille, couleur, contour et alignement sur chaque
+              nouveau texte est le genre de répétition qui décourage de bien
+              faire. Un style se pose en un clic, et se met à jour à partir du
+              texte courant. */}
+          <TextStyleBar
+            companyId={project.companyId}
+            current={text}
+            onApply={(style) => onChange((p) => updateText(p, text.id, style))}
+          />
+
           <ColorSwatches value={text.color} onChange={(c) => onChange((p) => updateText(p, text.id, { color: c }))} brand={brand} />
-          <div className="flex flex-wrap items-center gap-1.5">
-            <Toggle title={t("Gras", "Bold")} on={text.bold} onClick={() => onChange((p) => updateText(p, text.id, { bold: !text.bold }))}>G</Toggle>
-            <Toggle title={t("Bandeau", "Background band")} on={text.bg} onClick={() => onChange((p) => updateText(p, text.id, { bg: !text.bg }))}>▬</Toggle>
-            <Toggle title={t("Contour", "Outline")} on={text.outline} onClick={() => onChange((p) => updateText(p, text.id, { outline: !text.outline }))}>◌</Toggle>
-            <Toggle title={t("Ombre", "Shadow")} on={text.shadow} onClick={() => onChange((p) => updateText(p, text.id, { shadow: !text.shadow }))}>◍</Toggle>
-            {(["left", "center", "right"] as const).map((a) => (
-              <Toggle
-                key={a} on={text.align === a}
-                title={a === "left" ? t("Aligné à gauche", "Left-aligned") : a === "center" ? t("Centré", "Centered") : t("Aligné à droite", "Right-aligned")}
-                onClick={() => onChange((p) => updateText(p, text.id, { align: a }))}
-              >
-                {a === "left" ? "⯇" : a === "center" ? "≡" : "⯈"}
-              </Toggle>
-            ))}
+
+          <div className="space-y-1">
+            <p className="text-[10px] uppercase tracking-wide text-muted">{t("Style", "Style")}</p>
+            <div className="flex flex-wrap items-center gap-1">
+              <ToggleChip icon="𝐁" label={t("Gras", "Bold")} on={text.bold}
+                onClick={() => onChange((p) => updateText(p, text.id, { bold: !text.bold }))} />
+              <ToggleChip icon="▬" label={t("Bandeau", "Band")}
+                title={t("Bandeau semi-transparent derrière le texte", "Semi-transparent band behind the text")}
+                on={text.bg} onClick={() => onChange((p) => updateText(p, text.id, { bg: !text.bg }))} />
+              <ToggleChip icon="◌" label={t("Contour", "Outline")}
+                title={t("Contour sombre — lisibilité sur fond clair", "Dark outline — legibility on a light background")}
+                on={text.outline} onClick={() => onChange((p) => updateText(p, text.id, { outline: !text.outline }))} />
+              <ToggleChip icon="◍" label={t("Ombre", "Shadow")}
+                title={t("Ombre portée — lisibilité sur fond chargé", "Drop shadow — legibility on a busy background")}
+                on={text.shadow} onClick={() => onChange((p) => updateText(p, text.id, { shadow: !text.shadow }))} />
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <p className="text-[10px] uppercase tracking-wide text-muted">{t("Alignement", "Alignment")}</p>
+            <div className="flex flex-wrap items-center gap-1">
+              {(["left", "center", "right"] as const).map((a) => (
+                <ToggleChip
+                  key={a}
+                  on={text.align === a}
+                  icon={a === "left" ? "⯇" : a === "center" ? "≡" : "⯈"}
+                  label={a === "left" ? t("Gauche", "Left") : a === "center" ? t("Centre", "Centre") : t("Droite", "Right")}
+                  onClick={() => onChange((p) => updateText(p, text.id, { align: a }))}
+                />
+              ))}
+            </div>
           </div>
         </Panel>
       )}
@@ -448,9 +568,13 @@ export function PropertyPanel({
           <p className="truncate text-2xs text-muted" title={audio.name}>{audio.name}</p>
           {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
           <audio src={audio.src} controls className="w-full" />
-          <Range label={t("Volume", "Volume")} min={0} max={1} step={0.05} value={audio.volume}
-            display={`${Math.round(audio.volume * 100)}%`}
-            onChange={(v) => onChange((p) => updateAudio(p, audio.id, { volume: v }))} />
+          {/* Le seul réglage animable d'un son — et le plus utile : baisser la
+              musique sous une voix off se fait exactement comme ça. */}
+          <AnimatableRow
+            prop="volume" label={t("Volume", "Volume")} unit="%" scale={100} step={5} min={0} max={100}
+            element={audio} sel={{ kind: "audio", id: audio.id }} playhead={playhead}
+            onChange={onChange} onSeek={onSeek} gesture={gesture}
+          />
           <Range label={t("Fondu d'entrée", "Fade in")} min={0} max={5} step={0.1} value={audio.fadeIn}
             display={`${audio.fadeIn.toFixed(1)}s`}
             onChange={(v) => onChange((p) => updateAudio(p, audio.id, { fadeIn: v }))} />
@@ -491,9 +615,754 @@ const bottomY = (h?: number) => (h ? 0.95 - h : 0.85);
 
 /* ── Petits composants ───────────────────────────────────────────────────── */
 
+/* ── Styles de texte enregistrés ─────────────────────────────────────────── */
+
+/** Ce qu'un style retient d'un texte — son APPARENCE, jamais son contenu. */
+type TextStyle = Pick<
+  TextLayer,
+  "font" | "color" | "bold" | "bg" | "outline" | "shadow" | "align" | "sizePct" | "lineHeight"
+>;
+interface SavedTextStyle extends TextStyle { id: string; name: string }
+
+const STYLE_KEY = (companyId: string) => `axon.textstyles.${companyId}`;
+/** Au-delà, la rangée déborde et le choix devient plus lent que le réglage. */
+const MAX_STYLES = 6;
+
+function readStyles(companyId: string): SavedTextStyle[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(STYLE_KEY(companyId));
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? (parsed as SavedTextStyle[]).slice(0, MAX_STYLES) : [];
+  } catch {
+    // Stockage refusé, ou contenu abîmé par une version antérieure : on repart
+    // d'une liste vide plutôt que de faire échouer tout le panneau.
+    return [];
+  }
+}
+
+function writeStyles(companyId: string, styles: SavedTextStyle[]) {
+  try { window.localStorage.setItem(STYLE_KEY(companyId), JSON.stringify(styles)); } catch { /* stockage refusé */ }
+}
+
+function styleOf(l: TextLayer): TextStyle {
+  const { font, color, bold, bg, outline, shadow, align, sizePct, lineHeight } = l;
+  return { font, color, bold, bg, outline, shadow, align, sizePct, lineHeight };
+}
+
+function TextStyleBar({
+  companyId, current, onApply,
+}: {
+  companyId: string;
+  current: TextLayer;
+  onApply: (style: TextStyle) => void;
+}) {
+  const t = useT();
+  const [styles, setStyles] = useState<SavedTextStyle[]>([]);
+  // Lu APRÈS le montage : lire `localStorage` pendant le rendu ferait diverger
+  // le HTML du serveur de celui du client.
+  useEffect(() => setStyles(readStyles(companyId)), [companyId]);
+
+  const save = () => {
+    const next = [
+      { id: `st-${Date.now().toString(36)}`, name: `${t("Style", "Style")} ${styles.length + 1}`, ...styleOf(current) },
+      ...styles,
+    ].slice(0, MAX_STYLES);
+    setStyles(next);
+    writeStyles(companyId, next);
+  };
+  const remove = (id: string) => {
+    const next = styles.filter((st) => st.id !== id);
+    setStyles(next);
+    writeStyles(companyId, next);
+  };
+
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[10px] uppercase tracking-wide text-muted">{t("Styles", "Styles")}</p>
+        <button
+          type="button"
+          onClick={save}
+          disabled={styles.length >= MAX_STYLES}
+          title={styles.length >= MAX_STYLES
+            ? t("Six styles au maximum — retirez-en un pour en ajouter", "Six styles maximum — remove one to add another")
+            : t("Enregistre l'apparence de ce texte comme style réutilisable", "Saves this text's appearance as a reusable style")}
+          className="rounded px-1.5 py-0.5 text-[10px] text-muted ring-1 ring-hair hover:text-ink disabled:opacity-40"
+        >
+          ＋ {t("Enregistrer", "Save")}
+        </button>
+      </div>
+      {styles.length === 0 ? (
+        <p className="text-[10px] text-muted">
+          {t(
+            "Réglez un texte à votre goût, puis enregistrez-le : les suivants s'y conformeront en un clic.",
+            "Style a text the way you like, then save it: the next ones match it in one click."
+          )}
+        </p>
+      ) : (
+        <div className="flex flex-wrap gap-1">
+          {styles.map((st) => (
+            <span key={st.id} className="flex items-center overflow-hidden rounded ring-1 ring-hair">
+              <button
+                type="button"
+                onClick={() => onApply(styleOf({ ...current, ...st }))}
+                title={t("Appliquer ce style", "Apply this style")}
+                className="px-1.5 py-0.5 text-[10px] hover:bg-canvas"
+                style={{ color: st.color, fontWeight: st.bold ? 700 : 400 }}
+              >
+                {st.name}
+              </button>
+              <button
+                type="button"
+                onClick={() => remove(st.id)}
+                aria-label={t("Retirer ce style", "Remove this style")}
+                title={t("Retirer ce style", "Remove this style")}
+                className="px-1 py-0.5 text-[10px] text-muted hover:text-danger"
+              >
+                ×
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Ajustement au glisser ───────────────────────────────────────────────── */
+
+/** Déplacement minimal avant qu'un clic devienne un glisser d'ajustement. */
+const SCRUB_THRESHOLD_PX = 3;
+
+/**
+ * Pas parcouru par pixel de glissement, en fraction du pas du champ. À 1, un
+ * réglage en pourcentage parcourait toute sa plage en cent pixels — le pouce
+ * n'a alors aucune chance de s'arrêter sur une valeur précise. À 0,25, la
+ * course complète demande quatre cents pixels, soit la largeur d'une main : on
+ * vise sans effort, et Maj divise encore par dix pour l'approche fine.
+ */
+const SCRUB_UNITS_PER_PX = 0.25;
+
+/**
+ * Rend un champ numérique AJUSTABLE À LA SOURIS : le curseur devient une
+ * double flèche au survol, et tirer à gauche ou à droite fait varier la valeur.
+ *
+ * C'est le geste par lequel on règle une valeur dans tous les logiciels de
+ * création — précisément parce qu'on cherche presque toujours une valeur PAR
+ * ESSAIS, en regardant l'image, plutôt qu'un chiffre connu d'avance. Cliquer,
+ * sélectionner, taper, valider pour voir le résultat, recommencer : c'est
+ * quatre gestes pour ce qui devrait en être un.
+ *
+ * Le clic simple continue de donner le focus au champ pour la saisie au
+ * clavier — le glisser ne s'enclenche qu'au-delà de quelques pixels, sans quoi
+ * il deviendrait impossible de taper une valeur exacte. Maj ralentit le
+ * réglage d'un facteur dix, pour l'approche fine.
+ */
+function useValueScrubber({
+  value, step, min, max, onScrub, onStart, onEnd,
+}: {
+  value: number;
+  step: number;
+  min?: number;
+  max?: number;
+  onScrub: (v: number) => void;
+  onStart: () => void;
+  onEnd: () => void;
+}) {
+  const drag = useRef<{ x: number; from: number; moved: boolean; pointerId: number } | null>(null);
+  const [scrubbing, setScrubbing] = useState(false);
+
+  return {
+    scrubbing,
+    handlers: {
+      onPointerDown: (e: React.PointerEvent<HTMLInputElement>) => {
+        if (e.button !== 0) return;
+        drag.current = { x: e.clientX, from: value, moved: false, pointerId: e.pointerId };
+      },
+      onPointerMove: (e: React.PointerEvent<HTMLInputElement>) => {
+        const d = drag.current;
+        if (!d) return;
+        const dx = e.clientX - d.x;
+        if (!d.moved) {
+          if (Math.abs(dx) < SCRUB_THRESHOLD_PX) return;
+          d.moved = true;
+          setScrubbing(true);
+          // Le champ perd le focus : garder un curseur de saisie clignotant
+          // pendant qu'on tire la valeur donnerait deux modes à la fois.
+          e.currentTarget.blur();
+          e.currentTarget.setPointerCapture?.(d.pointerId);
+          onStart();
+        }
+        e.preventDefault();
+        const fine = e.shiftKey ? 0.1 : 1;
+        let next = d.from + dx * step * SCRUB_UNITS_PER_PX * fine;
+        if (min !== undefined) next = Math.max(min, next);
+        if (max !== undefined) next = Math.min(max, next);
+        onScrub(Math.round(next * 1000) / 1000);
+      },
+      onPointerUp: (e: React.PointerEvent<HTMLInputElement>) => {
+        const d = drag.current;
+        drag.current = null;
+        if (!d?.moved) return;
+        e.currentTarget.releasePointerCapture?.(d.pointerId);
+        setScrubbing(false);
+        onEnd();
+      },
+      onPointerCancel: () => {
+        const d = drag.current;
+        drag.current = null;
+        if (!d?.moved) return;
+        setScrubbing(false);
+        onEnd();
+      },
+    },
+  };
+}
+
+/** Classe commune d'un champ numérique ajustable au glisser. */
+const SCRUB_INPUT =
+  "cursor-ew-resize rounded-md border border-hair bg-transparent px-1 py-0.5 text-right tabular-nums text-ink placeholder:text-muted placeholder:italic [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none";
+
+/* ── Propriété animable ──────────────────────────────────────────────────── */
+
+/** Libellés des propriétés animables — les mêmes partout dans le panneau. */
+const PROP_LABEL = (t: (fr: string, en: string) => string): Record<AnimatableProp, string> => ({
+  x: t("Position X", "Position X"),
+  y: t("Position Y", "Position Y"),
+  w: t("Largeur", "Width"),
+  h: t("Hauteur", "Height"),
+  opacity: t("Opacité", "Opacity"),
+  rotation: t("Rotation", "Rotation"),
+  scale: t("Largeur", "Width"),
+  volume: t("Volume", "Volume"),
+});
+
+const EASINGS: { key: EasingKind; fr: string; en: string }[] = [
+  { key: "linear", fr: "Linéaire", en: "Linear" },
+  { key: "ease-in", fr: "Départ doux", en: "Ease in" },
+  { key: "ease-out", fr: "Arrivée douce", en: "Ease out" },
+  { key: "ease-in-out", fr: "Doux ↔", en: "Ease both" },
+];
+
+/** Tolérance pour dire qu'une clé se trouve « à » la tête de lecture. */
+const AT_PLAYHEAD = 0.02;
+
+/**
+ * Une propriété réglable, avec son chronomètre d'images-clés SUR LA MÊME
+ * LIGNE.
+ *
+ * C'est la disposition de tous les bancs de montage professionnels, et elle
+ * n'est pas cosmétique : une animation se règle en allant et venant entre la
+ * valeur et le temps. Séparer les deux dans deux blocs distincts obligeait à
+ * relier de tête un nom de propriété d'un côté à un champ de l'autre, et
+ * rendait invisible le fait qu'une propriété est animée quand on la modifie.
+ *
+ * La seconde ligne — navigation, accélération, décompte — n'apparaît QUE si la
+ * propriété est animée : une ligne inerte sous chaque réglage serait du bruit
+ * dans une colonne de trois cents pixels.
+ */
+function AnimatableRow({
+  label, unit, prop, element, sel, playhead, scale = 1, step, min, max, autoLabel, onChange, onSeek, gesture,
+}: {
+  label: string;
+  unit: string;
+  prop: AnimatableProp;
+  /** L'élément TEL QU'IL EST ENREGISTRÉ — pas résolu : on lit ses clés. */
+  element: Animatable;
+  sel: { kind: AnimatableKind; id: string };
+  playhead: number;
+  /** Facteur d'affichage : 100 pour une fraction montrée en pourcentage. */
+  scale?: number;
+  step: number;
+  min?: number;
+  max?: number;
+  /** Texte en filigrane quand 0 signifie « déduite » plutôt que « nulle ». */
+  autoLabel?: string;
+  onChange: (fn: (p: EditorProject) => EditorProject) => void;
+  onSeek: (time: number) => void;
+  gesture: { begin: () => void; live: (fn: (p: EditorProject) => EditorProject) => void; commit: () => void };
+}) {
+  const t = useT();
+  const keys = keyframesOf(element, prop);
+  const animated = keys.length > 0;
+  const here = keys.find((k) => Math.abs(k.time - playhead) <= AT_PLAYHEAD) ?? null;
+  const prev = [...keys].reverse().find((k) => k.time < playhead - AT_PLAYHEAD) ?? null;
+  const next = keys.find((k) => k.time > playhead + AT_PLAYHEAD) ?? null;
+  // La valeur MONTRÉE est celle de l'instant courant, animée ou non — sans
+  // quoi le champ afficherait une valeur fixe que l'écran ne montre plus.
+  const shown = valueAt(element, prop, playhead) * scale;
+  const isAuto = autoLabel !== undefined && shown === 0;
+
+  const write = (value: number) =>
+    onChange((p) => patchAnimated(p, sel, { [prop]: value / scale }, playhead));
+
+  // Le glisser écrit SANS empiler d'historique, et le relâchement scelle le
+  // tout en une seule entrée : sans quoi un réglage à la souris produirait des
+  // dizaines d'annulations à défaire une par une.
+  const { scrubbing, handlers } = useValueScrubber({
+    value: shown,
+    step,
+    min,
+    max,
+    onScrub: (v) => gesture.live((p) => patchAnimated(p, sel, { [prop]: v / scale }, playhead)),
+    onStart: gesture.begin,
+    onEnd: gesture.commit,
+  });
+
+  return (
+    <div className="space-y-0.5">
+      <div className="flex items-center gap-1.5 text-2xs text-muted">
+        <button
+          type="button"
+          aria-pressed={animated}
+          title={animated
+            ? t(`${label} : animée — cliquer pour figer sur la valeur actuelle`, `${label}: animated — click to freeze at the current value`)
+            : t(`${label} : fixe — cliquer pour l'animer`, `${label}: static — click to animate it`)}
+          onClick={() => onChange((p) => (animated
+            ? clearKeyframes(p, sel, prop, playhead)
+            : setKeyframe(p, sel, prop, playhead, staticValue(element, prop), "linear")))}
+          className={`h-5 w-5 shrink-0 rounded text-[10px] leading-none ${
+            animated ? "bg-page text-white" : "text-muted ring-1 ring-hair hover:text-ink"
+          }`}
+        >
+          ⏱
+        </button>
+        <span className="min-w-0 flex-1 truncate" title={label}>{label}</span>
+        <input
+          type="number"
+          value={isAuto ? "" : Math.round(shown * 100) / 100}
+          placeholder={isAuto ? autoLabel : undefined}
+          step={step}
+          min={min}
+          max={max}
+          onChange={(e) => {
+            const v = Number(e.target.value);
+            if (e.target.value !== "" && Number.isFinite(v)) write(v);
+          }}
+          {...handlers}
+          title={t(
+            "Tirez à gauche ou à droite pour ajuster · Maj pour affiner · cliquez pour saisir",
+            "Drag left or right to adjust · Shift to fine-tune · click to type"
+          )}
+          className={`w-16 shrink-0 ${SCRUB_INPUT} ${scrubbing ? "select-none ring-1 ring-page" : ""}`}
+        />
+        <span className="w-3 shrink-0 text-[10px]">{unit}</span>
+      </div>
+
+      {animated && (
+        <div className="flex items-center gap-1 pl-6 text-2xs text-muted">
+          <KfButton label="◀" title={t("Clé précédente", "Previous keyframe")}
+            disabled={!prev} onClick={() => prev && onSeek(prev.time)} />
+          {/* Losange plein : une clé est posée ICI. Creux : il n'y en a pas —
+              en poser une reprend la valeur interpolée du moment, ce qui ne
+              change donc rien à l'image tant qu'on ne la modifie pas. */}
+          <KfButton
+            label={here ? "◆" : "◇"}
+            title={here ? t("Retirer la clé ici", "Remove the keyframe here") : t("Poser une clé ici", "Add a keyframe here")}
+            onClick={() => onChange((p) => (here
+              ? removeKeyframe(p, sel, prop, here.time)
+              : setKeyframe(p, sel, prop, playhead, valueAt(element, prop, playhead), "linear")))}
+          />
+          <KfButton label="▶" title={t("Clé suivante", "Next keyframe")}
+            disabled={!next} onClick={() => next && onSeek(next.time)} />
+          <select
+            value={here?.easing ?? "linear"}
+            disabled={!here}
+            title={t("Accélération du segment qui part de cette clé", "Easing of the segment starting at this keyframe")}
+            onChange={(e) => here && onChange((p) => setKeyframe(p, sel, prop, here.time, here.value, e.target.value as EasingKind))}
+            className="input min-w-0 flex-1 py-0.5 text-[10px] disabled:opacity-40"
+          >
+            {EASINGS.map((o) => (
+              <option key={o.key} value={o.key}>{t(o.fr, o.en)}</option>
+            ))}
+          </select>
+          <span className="shrink-0 tabular-nums" title={t("Nombre de clés", "Number of keyframes")}>{keys.length}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function KfButton({ label, title, onClick, disabled }: { label: string; title: string; onClick: () => void; disabled?: boolean }) {
+  return (
+    <button
+      type="button"
+      title={title}
+      aria-label={title}
+      disabled={disabled}
+      onClick={onClick}
+      className="h-5 w-5 shrink-0 rounded text-[10px] leading-none text-muted ring-1 ring-hair enabled:hover:text-ink disabled:opacity-30"
+    >
+      {label}
+    </button>
+  );
+}
+
+/* ── Sélection multiple ──────────────────────────────────────────────────── */
+
+/** N'importe quel élément sélectionnable, vu par ses champs communs. */
+type AnyElement = Clip | TextLayer | ImageLayer | ShapeLayer | AudioTrack;
+
+function elementOf(p: EditorProject, sel: NonNullable<TimelineSelection>): AnyElement | undefined {
+  if (sel.kind === "clip") return p.clips.find((c) => c.id === sel.id);
+  if (sel.kind === "text") return p.texts.find((l) => l.id === sel.id);
+  if (sel.kind === "image") return p.images.find((l) => l.id === sel.id);
+  if (sel.kind === "shape") return p.shapes.find((l) => l.id === sel.id);
+  return p.audios.find((a) => a.id === sel.id);
+}
+
+/** Marqueur d'une valeur qui DIFFÈRE d'un élément à l'autre du groupe. */
+const MIXED = Symbol("mixed");
+type Shared<T> = T | typeof MIXED | undefined;
+
+/**
+ * Valeur commune à tout le groupe, ou `MIXED`. Les nombres sont comparés
+ * arrondis : deux positions issues d'un même glisser diffèrent au dix-millième
+ * sans que l'utilisateur ait la moindre raison de les voir comme distinctes.
+ */
+function sharedValue<T>(values: (T | undefined)[]): Shared<T> {
+  const known = values.filter((v): v is T => v !== undefined);
+  if (known.length === 0) return undefined;
+  const key = (v: T) => (typeof v === "number" ? Math.round(v * 1e4) / 1e4 : v);
+  const first = key(known[0]);
+  return known.every((v) => key(v) === first) ? known[0] : MIXED;
+}
+
+/**
+ * Panneau d'une sélection de plusieurs éléments.
+ *
+ * Il ne se contentait jusqu'ici que d'un résumé neutre — sauf pour un groupe
+ * de textes, qui n'obtenait que police et couleur. Sélectionner douze
+ * sous-titres pour en changer la TAILLE, geste le plus courant après une
+ * transcription, était donc impossible autrement qu'un par un (audit v4,
+ * constat 2).
+ *
+ * Chaque bloc n'apparaît que si TOUS les éléments du groupe le possèdent :
+ * proposer un réglage qui n'en toucherait qu'une partie serait pire que ne
+ * pas le proposer. Un champ dont la valeur diffère d'un élément à l'autre
+ * s'affiche VIDE plutôt qu'avec la valeur du premier — y écrire l'applique à
+ * tout le groupe, la convention de tous les logiciels de montage.
+ */
+function MultiSelectionPanel({
+  project, items, total, brand, onChange, gesture,
+}: {
+  project: EditorProject;
+  items: NonNullable<TimelineSelection>[];
+  total: number;
+  brand: BrandStyle;
+  onChange: (fn: (p: EditorProject) => EditorProject) => void;
+  gesture: { begin: () => void; live: (fn: (p: EditorProject) => EditorProject) => void; commit: () => void };
+}) {
+  const t = useT();
+
+  const kinds = new Set(items.map((i) => i.kind));
+  const allTexts = kinds.size === 1 && kinds.has("text");
+  const allAudio = kinds.size === 1 && kinds.has("audio");
+  // Un plan porte x/y/opacité comme un calque, mais NI rotation NI animations
+  // d'entrée/sortie : les deux ensembles ne se recouvrent pas complètement.
+  const allVisual = !kinds.has("audio");
+  const allLayers = allVisual && !kinds.has("clip");
+
+  const elements = items.map((sel) => elementOf(project, sel)).filter((el): el is AnyElement => Boolean(el));
+  const texts = allTexts
+    ? items.map((sel) => project.texts.find((l) => l.id === sel.id)).filter((l): l is TextLayer => Boolean(l))
+    : [];
+
+  /** Une seule entrée d'historique pour tout le groupe, jamais une par élément. */
+  const batch = (fn: (p: EditorProject, sel: NonNullable<TimelineSelection>) => EditorProject) =>
+    onChange((p) => items.reduce((acc, sel) => fn(acc, sel), p));
+
+  /** Champs visuels communs, appliqués selon le type réel de chaque élément. */
+  const patchVisual = (patch: { x?: number; y?: number; opacity?: number; rotation?: number; animIn?: AnimationKind; animOut?: AnimationKind }) =>
+    batch((p, sel) => patchOne(p, sel, patch));
+
+  /** Le même patch, sur UN élément — partagé par le réglage et le glisser. */
+  function patchOne(
+    p: EditorProject,
+    sel: NonNullable<TimelineSelection>,
+    patch: { x?: number; y?: number; opacity?: number; rotation?: number; animIn?: AnimationKind; animOut?: AnimationKind }
+  ): EditorProject {
+    if (sel.kind === "clip") {
+      let q = p;
+      if (patch.x !== undefined || patch.y !== undefined) q = setClipBox(q, sel.id, { x: patch.x, y: patch.y });
+      if (patch.opacity !== undefined) q = setClipOpacity(q, sel.id, patch.opacity);
+      // Un plan n'a ni rotation ni animation d'entrée/sortie — les blocs qui
+      // les portent ne s'affichent pas quand un plan est dans le groupe.
+      return q;
+    }
+    if (sel.kind === "text") return updateText(p, sel.id, patch);
+    if (sel.kind === "image") return updateImageLayer(p, sel.id, patch);
+    if (sel.kind === "shape") return updateShape(p, sel.id, patch);
+    return p;
+  }
+
+  const batchText = (patch: Partial<TextLayer>) =>
+    batch((p, sel) => (sel.kind === "text" ? updateText(p, sel.id, patch) : p));
+
+  /** Ajustement au glisser d'une propriété commune, en UNE entrée d'historique
+      pour tout le groupe — comme n'importe quel autre réglage groupé. */
+  const scrubVisual = (apply: (v: number) => (p: EditorProject, sel: NonNullable<TimelineSelection>) => EditorProject) => ({
+    begin: gesture.begin,
+    commit: gesture.commit,
+    live: (v: number) => gesture.live((p) => items.reduce((acc, sel) => apply(v)(acc, sel), p)),
+  });
+
+  /** Idem pour un réglage propre au texte. */
+  const scrubText = (patch: (v: number) => Partial<TextLayer>) => ({
+    begin: gesture.begin,
+    commit: gesture.commit,
+    live: (v: number) => gesture.live((p) =>
+      items.reduce((acc, sel) => (sel.kind === "text" ? updateText(acc, sel.id, patch(v)) : acc), p)),
+  });
+
+  /**
+   * Décalage dans le temps, en secondes. C'est un DÉCALAGE et non un instant
+   * absolu : reposer douze sous-titres au même début les empilerait tous au
+   * même moment, ce que personne ne demande jamais.
+   */
+  const nudge = (delta: number) =>
+    batch((p, sel) => {
+      const el = elementOf(p, sel);
+      if (!el) return p;
+      return moveElement(p, { kind: sel.kind, id: sel.id }, { start: Math.max(0, el.start + delta) });
+    });
+
+  const num = (read: (el: AnyElement) => number | undefined) => sharedValue(elements.map(read));
+  const visualOf = (el: AnyElement): VisualLayer | undefined => ("rotation" in el ? el : undefined);
+
+  const x = num((el) => ("x" in el ? el.x : undefined));
+  const y = num((el) => ("y" in el ? el.y : undefined));
+  const opacity = num((el) => ("opacity" in el ? el.opacity : undefined));
+  const rotation = num((el) => visualOf(el)?.rotation);
+  const track = sharedValue(elements.map((el) => el.trackId));
+  const animIn = sharedValue(elements.map((el) => visualOf(el)?.animIn));
+  const animOut = sharedValue(elements.map((el) => visualOf(el)?.animOut));
+
+  const title = allTexts
+    ? t(`${items.length} textes sélectionnés`, `${items.length} text layers selected`)
+    : t(`${items.length} éléments sélectionnés`, `${items.length} elements selected`);
+
+  return (
+    <div className="space-y-3">
+      <Panel title={title}>
+        <p className="text-2xs text-muted">
+          {t(
+            "Un réglage s'applique à tout le groupe, en une seule annulation. Un champ vide signale une valeur qui diffère d'un élément à l'autre — y écrire l'uniformise.",
+            "A setting applies to the whole group, as a single undo. An empty field means the value differs between elements — typing one makes them match."
+          )}
+        </p>
+        {!allVisual && !allAudio && (
+          <p className="text-2xs text-muted">
+            {t(
+              "Le groupe mêle des sons et des éléments visuels : seuls le décalage dans le temps, Dupliquer et Supprimer s'appliquent à tous.",
+              "The group mixes audio and visual elements: only the time offset, Duplicate and Delete apply to all of them."
+            )}
+          </p>
+        )}
+      </Panel>
+
+      {/* ── Position et apparence — dès que le groupe est entièrement visuel ── */}
+      {allVisual && (
+        <Panel title={t("Position et apparence", "Position and appearance")}>
+          <div className="grid grid-cols-2 gap-2">
+            <MultiNumberRow label="X" unit="%" value={x} scale={100} step={1} compact
+              onChange={(v) => patchVisual({ x: v / 100 })}
+              scrub={scrubVisual((v) => (p, sel) => patchOne(p, sel, { x: v / 100 }))} />
+            <MultiNumberRow label="Y" unit="%" value={y} scale={100} step={1} compact
+              onChange={(v) => patchVisual({ y: v / 100 })}
+              scrub={scrubVisual((v) => (p, sel) => patchOne(p, sel, { y: v / 100 }))} />
+            {allLayers && (
+              <MultiNumberRow label={t("Rotation", "Rotation")} unit="°" value={rotation} step={5} compact
+                onChange={(v) => patchVisual({ rotation: v })}
+                scrub={scrubVisual((v) => (p, sel) => patchOne(p, sel, { rotation: v }))} />
+            )}
+            <MultiNumberRow label={t("Opacité", "Opacity")} unit="%" value={opacity} scale={100} step={5} min={0} max={100} compact
+              onChange={(v) => patchVisual({ opacity: v / 100 })}
+              scrub={scrubVisual((v) => (p, sel) => patchOne(p, sel, { opacity: v / 100 }))} />
+          </div>
+
+          {/* L'alignement pose une valeur ABSOLUE, identique pour tous — c'est
+              précisément ce qu'on attend de « tout aligner à gauche ». */}
+          <div className="flex flex-wrap items-center gap-1 text-2xs text-muted">
+            <span className="w-20 shrink-0">{t("Aligner", "Align")}</span>
+            <AlignButton label="⇤" title={t("À gauche", "Left")} onClick={() => patchVisual({ x: 0.05 })} />
+            <AlignButton label="⇔" title={t("Centré", "Centre")} onClick={() => patchVisual({ x: 0.5 })} />
+            <AlignButton label="⇥" title={t("À droite", "Right")} onClick={() => patchVisual({ x: 0.95 })} />
+            <AlignButton label="⤒" title={t("En haut", "Top")} onClick={() => patchVisual({ y: 0.05 })} />
+            <AlignButton label="⇕" title={t("Milieu", "Middle")} onClick={() => patchVisual({ y: 0.5 })} />
+            <AlignButton label="⤓" title={t("En bas", "Bottom")} onClick={() => patchVisual({ y: 0.9 })} />
+          </div>
+        </Panel>
+      )}
+
+      {/* ── Texte — le lot de sous-titres d'une transcription ──────────────── */}
+      {allTexts && (
+        <Panel title={t("Texte", "Text")}>
+          <SelectRow
+            label={t("Police", "Font")}
+            value={(sharedValue(texts.map((l) => l.font)) as TextLayer["font"] | undefined) ?? "sans"}
+            options={Object.entries(FONT_STACKS).map(([key, f]) => ({ value: key, label: f.label }))}
+            onChange={(v) => batchText({ font: v as TextLayer["font"] })}
+          />
+          <div className="grid grid-cols-2 gap-2">
+            <MultiNumberRow label={t("Taille", "Size")} unit="%" scale={100} step={1} min={1} compact
+              value={sharedValue(texts.map((l) => l.sizePct))}
+              onChange={(v) => batchText({ sizePct: v / 100 })}
+              scrub={scrubText((v) => ({ sizePct: v / 100 }))} />
+            <MultiNumberRow label={t("Interligne", "Line height")} unit="×" step={0.05} min={0.5} compact
+              value={sharedValue(texts.map((l) => l.lineHeight))}
+              onChange={(v) => batchText({ lineHeight: v })}
+              scrub={scrubText((v) => ({ lineHeight: v }))} />
+            <MultiNumberRow label={t("Retour ligne", "Wrap")} unit="%" scale={100} step={5} min={0} max={100} compact
+              value={sharedValue(texts.map((l) => l.wrapPct))}
+              onChange={(v) => batchText({ wrapPct: v / 100 })}
+              scrub={scrubText((v) => ({ wrapPct: v / 100 }))} />
+          </div>
+          <ColorSwatches
+            value={(sharedValue(texts.map((l) => l.color)) as string | undefined) ?? PRESET_COLORS[0]}
+            onChange={(c) => batchText({ color: c })}
+            brand={brand}
+          />
+          <div className="flex flex-wrap items-center gap-1">
+            <ToggleChip icon="𝐁" label={t("Gras", "Bold")} on={sharedValue(texts.map((l) => l.bold)) === true}
+              onClick={() => batchText({ bold: sharedValue(texts.map((l) => l.bold)) !== true })} />
+            <ToggleChip icon="▬" label={t("Bandeau", "Band")} on={sharedValue(texts.map((l) => l.bg)) === true}
+              onClick={() => batchText({ bg: sharedValue(texts.map((l) => l.bg)) !== true })} />
+            <ToggleChip icon="◌" label={t("Contour", "Outline")} on={sharedValue(texts.map((l) => l.outline)) === true}
+              onClick={() => batchText({ outline: sharedValue(texts.map((l) => l.outline)) !== true })} />
+            <ToggleChip icon="◍" label={t("Ombre", "Shadow")} on={sharedValue(texts.map((l) => l.shadow)) === true}
+              onClick={() => batchText({ shadow: sharedValue(texts.map((l) => l.shadow)) !== true })} />
+          </div>
+          <div className="flex flex-wrap items-center gap-1">
+            {(["left", "center", "right"] as const).map((a) => (
+              <ToggleChip
+                key={a}
+                on={sharedValue(texts.map((l) => l.align)) === a}
+                icon={a === "left" ? "⯇" : a === "center" ? "≡" : "⯈"}
+                label={a === "left" ? t("Gauche", "Left") : a === "center" ? t("Centre", "Centre") : t("Droite", "Right")}
+                onClick={() => batchText({ align: a })}
+              />
+            ))}
+          </div>
+        </Panel>
+      )}
+
+      {/* ── Animations — un plan n'en a pas, le bloc l'exclut donc ─────────── */}
+      {allLayers && (
+        <Panel title={t("Animation", "Animation")}>
+          <div className="grid grid-cols-2 gap-2">
+            <SelectRow compact label={t("Entrée", "In")}
+              value={(animIn as AnimationKind | undefined) ?? "none"}
+              options={ANIMATIONS.map((a) => ({ value: a.key, label: t(a.fr, a.en) }))}
+              onChange={(v) => patchVisual({ animIn: v as AnimationKind })} />
+            <SelectRow compact label={t("Sortie", "Out")}
+              value={(animOut as AnimationKind | undefined) ?? "none"}
+              options={ANIMATIONS.map((a) => ({ value: a.key, label: t(a.fr, a.en) }))}
+              onChange={(v) => patchVisual({ animOut: v as AnimationKind })} />
+          </div>
+          <p className="text-2xs text-muted">
+            {t(`Durée fixe de ${ANIMATION_SECONDS} s.`, `Fixed duration of ${ANIMATION_SECONDS}s.`)}
+          </p>
+        </Panel>
+      )}
+
+      {/* ── Minutage et piste — communs à TOUS les types, son compris ──────── */}
+      <Panel title={t("Minutage et piste", "Timing and track")}>
+        <div className="flex flex-wrap items-center gap-1 text-2xs text-muted">
+          <span className="w-20 shrink-0">{t("Décaler", "Offset")}</span>
+          {[-1, -0.1, 0.1, 1].map((d) => (
+            <button
+              key={d}
+              type="button"
+              onClick={() => nudge(d)}
+              className="rounded px-1.5 py-0.5 tabular-nums ring-1 ring-hair hover:text-ink"
+            >
+              {d > 0 ? `+${d}` : d} s
+            </button>
+          ))}
+        </div>
+        {(allVisual || allAudio) && (
+          <TrackPicker
+            project={project}
+            family={allAudio ? "audio" : "visual"}
+            value={typeof track === "string" ? track : ""}
+            onChange={(trackId) => batch((p, sel) => moveElement(p, { kind: sel.kind, id: sel.id }, { trackId }))}
+          />
+        )}
+        <p className="text-2xs text-muted">
+          {t(
+            `Film de ${total.toFixed(1)} s. Le décalage conserve les écarts entre les éléments du groupe.`,
+            `${total.toFixed(1)}s film. The offset preserves the gaps between the elements of the group.`
+          )}
+        </p>
+      </Panel>
+    </div>
+  );
+}
+
+/**
+ * Champ numérique d'une sélection multiple. `MIXED` s'affiche VIDE, avec un
+ * tiret en filigrane : montrer la valeur du premier élément laisserait croire
+ * que tout le groupe la partage. `scale` évite de convertir de part et
+ * d'autre (0..1 dans le modèle, pourcentage à l'écran).
+ */
+function MultiNumberRow({
+  label, unit, value, scale = 1, step, min, max, compact, onChange, scrub,
+}: {
+  label: string;
+  unit: string;
+  value: Shared<number>;
+  scale?: number;
+  step: number;
+  min?: number;
+  max?: number;
+  compact?: boolean;
+  onChange: (v: number) => void;
+  scrub?: { begin: () => void; live: (v: number) => void; commit: () => void };
+}) {
+  const t = useT();
+  const mixed = value === MIXED || value === undefined;
+  // Une valeur MIXTE part de zéro : il n'y a pas de valeur commune d'où
+  // partir, et le glisser vaut alors comme une saisie — il uniformise.
+  const { scrubbing, handlers } = useValueScrubber({
+    value: mixed ? 0 : (value as number) * scale,
+    step, min, max,
+    onScrub: (v) => (scrub ? scrub.live(v) : onChange(v)),
+    onStart: () => scrub?.begin(),
+    onEnd: () => scrub?.commit(),
+  });
+  return (
+    <label className={`flex items-center gap-1.5 text-2xs text-muted ${compact ? "" : "w-full"}`}>
+      <span className={compact ? "w-14 shrink-0" : "w-20 shrink-0"}>{label}</span>
+      <input
+        type="number"
+        value={mixed ? "" : Math.round((value as number) * scale * 100) / 100}
+        placeholder={mixed ? "—" : undefined}
+        step={step}
+        min={min}
+        max={max}
+        onChange={(e) => {
+          const v = Number(e.target.value);
+          if (e.target.value !== "" && Number.isFinite(v)) onChange(v);
+        }}
+        {...(scrub ? handlers : {})}
+        title={scrub
+          ? t("Tirez à gauche ou à droite pour ajuster tout le groupe", "Drag left or right to adjust the whole group")
+          : undefined}
+        className={`w-full min-w-0 ${SCRUB_INPUT} ${scrub ? "" : "cursor-text"} ${scrubbing ? "select-none ring-1 ring-page" : ""}`}
+      />
+      <span className="shrink-0">{unit}</span>
+    </label>
+  );
+}
+
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="space-y-2 rounded-lg border border-hair p-3">
+    // `min-w-0` + `overflow-hidden` : un enfant en `flex` peut sinon imposer sa
+    // largeur intrinsèque et déborder du cadre, ce qui se voyait sur les
+    // libellés longs et la rangée de pastilles de couleur.
+    <div className="min-w-0 space-y-2 overflow-hidden rounded-lg border border-hair p-3">
       <p className="text-2xs font-semibold uppercase tracking-wide text-muted">{title}</p>
       {children}
     </div>
@@ -507,6 +1376,37 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
  * Optionnel : un bouton déjà libellé en toutes lettres (« Remplir », etc.)
  * n'en a pas besoin.
  */
+/**
+ * Bascule LIBELLÉE. Les symboles seuls — G, ▬, ◌, ◍ — n'étaient déchiffrables
+ * qu'en cliquant pour voir ce qui change : une infobulle ne se lit qu'au
+ * survol, et jamais sur un écran tactile. Le mot tient dans la largeur du
+ * panneau dès qu'on laisse les puces passer à la ligne.
+ */
+function ToggleChip({
+  on, onClick, icon, label, title,
+}: {
+  on: boolean;
+  onClick: () => void;
+  icon: string;
+  label: string;
+  title?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={on}
+      title={title ?? label}
+      className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] leading-none ${
+        on ? "bg-page text-white" : "text-muted ring-1 ring-hair hover:text-ink"
+      }`}
+    >
+      <span aria-hidden className="text-[11px]">{icon}</span>
+      <span>{label}</span>
+    </button>
+  );
+}
+
 function Toggle({ on, onClick, title, children }: { on: boolean; onClick: () => void; title?: string; children: React.ReactNode }) {
   return (
     <button type="button" onClick={onClick} aria-pressed={on} title={title} aria-label={title}
@@ -542,7 +1442,7 @@ function ColorSwatches({
       {[...PRESET_COLORS, ...brand.palette].slice(0, 10).map((c, i) => (
         <button key={`${c}-${i}`} type="button" aria-label={c} title={c}
           onClick={() => onChange(c)}
-          className={`h-5 w-5 rounded-full ring-1 ring-hair ${value === c ? "ring-2 ring-page" : ""}`}
+          className={`h-5 w-5 shrink-0 rounded-full ring-1 ring-hair ${value === c ? "ring-2 ring-page" : ""}`}
           style={{ background: c }} />
       ))}
       <label
@@ -577,12 +1477,18 @@ function Range({
   label: string; min: number; max: number; step: number; value: number; display: string;
   onChange: (v: number) => void;
 }) {
+  // Étiquette et valeur SUR LEUR PROPRE LIGNE, curseur en dessous. Sur une
+  // seule ligne, une étiquette fixée à 80 px et une valeur à 40 px ne
+  // laissaient presque rien au curseur dans une colonne de 300 px, et un
+  // libellé un peu long débordait de son cadre (« Largeur de bloc … libre »).
   return (
-    <label className="flex items-center gap-2 text-2xs text-muted">
-      <span className="w-20 shrink-0">{label}</span>
+    <label className="block space-y-0.5 text-2xs text-muted">
+      <span className="flex items-baseline justify-between gap-2">
+        <span className="min-w-0 truncate" title={label}>{label}</span>
+        <span className="shrink-0 tabular-nums text-ink">{display}</span>
+      </span>
       <input type="range" min={min} max={max} step={step} value={value}
-        onChange={(e) => onChange(Number(e.target.value))} className="flex-1 accent-page" />
-      <span className="w-10 shrink-0 text-right text-ink">{display}</span>
+        onChange={(e) => onChange(Number(e.target.value))} className="w-full accent-page" />
     </label>
   );
 }
@@ -592,11 +1498,17 @@ function Range({
  * clavier : tout passait par un curseur ou un glisser, donc à l'estime.
  */
 function NumberRow({
-  label, unit, value, step, min, max, compact, onChange, autoLabel,
+  label, unit, value, step, min, max, compact, onChange, autoLabel, scrub,
 }: {
   label: string; unit: string; value: number; step: number;
   min?: number; max?: number; compact?: boolean;
   onChange: (v: number) => void;
+  /**
+   * Ajustement au glisser. Absent, le champ reste une simple saisie — c'est le
+   * cas des valeurs qu'on ne cherche PAS par essais (un instant précis en
+   * secondes), où tirer à la souris n'apporterait rien.
+   */
+  scrub?: { begin: () => void; live: (v: number) => void; commit: () => void };
   /**
    * Si fourni, une valeur de 0 affiche ce texte en filigrane plutôt que le
    * chiffre « 0 » — pour un champ où 0 signifie « valeur déduite », pas une
@@ -608,9 +1520,16 @@ function NumberRow({
   autoLabel?: string;
 }) {
   const isAuto = autoLabel !== undefined && value === 0;
+  const t = useT();
+  const { scrubbing, handlers } = useValueScrubber({
+    value, step, min, max,
+    onScrub: (v) => (scrub ? scrub.live(v) : onChange(v)),
+    onStart: () => scrub?.begin(),
+    onEnd: () => scrub?.commit(),
+  });
   return (
     <label className={`flex items-center gap-1.5 text-2xs text-muted ${compact ? "" : "w-full"}`}>
-      <span className={compact ? "w-14 shrink-0" : "w-20 shrink-0"}>{label}</span>
+      <span className={`truncate ${compact ? "w-14 shrink-0" : "w-20 shrink-0"}`} title={label}>{label}</span>
       <input
         type="number"
         value={isAuto ? "" : Number.isFinite(value) ? Math.round(value * 100) / 100 : 0}
@@ -622,12 +1541,17 @@ function NumberRow({
           const v = Number(e.target.value);
           if (Number.isFinite(v)) onChange(v);
         }}
+        {...(scrub ? handlers : {})}
+        title={scrub
+          ? t("Tirez à gauche ou à droite pour ajuster · Maj pour affiner · cliquez pour saisir",
+              "Drag left or right to adjust · Shift to fine-tune · click to type")
+          : undefined}
         // Les flèches natives d'incrément consomment à elles seules ~16 px —
         // dans une colonne de 300 px partagée en deux, il ne restait presque
         // plus de place pour le CHIFFRE : une opacité de 100 % s'affichait
         // tronquée en « 10 » (valeur réelle correcte, seul l'affichage était
         // en cause — audit Editing Bench, P1-12).
-        className="w-full min-w-0 rounded-md border border-hair bg-transparent px-1 py-0.5 text-right tabular-nums text-ink placeholder:text-muted placeholder:italic [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+        className={`w-full min-w-0 ${SCRUB_INPUT} ${scrub ? "" : "cursor-text"} ${scrubbing ? "select-none ring-1 ring-page" : ""}`}
       />
       <span className="shrink-0">{unit}</span>
     </label>
@@ -680,7 +1604,7 @@ function SelectRow({
 }) {
   return (
     <label className={`flex items-center gap-1.5 text-2xs text-muted ${compact ? "" : "gap-2"}`}>
-      <span className={compact ? "w-12 shrink-0" : "w-20 shrink-0"}>{label}</span>
+      <span className={`truncate ${compact ? "w-12 shrink-0" : "w-20 shrink-0"}`} title={label}>{label}</span>
       <select value={value} onChange={(e) => onChange(e.target.value)} className="input min-w-0 flex-1 py-0.5 text-2xs">
         {options.map((o) => (
           <option key={o.value} value={o.value}>{o.label}</option>

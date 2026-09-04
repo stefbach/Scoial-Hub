@@ -14,23 +14,26 @@
 // qu'un panneau s'ouvrait. Ici, trois zones à défilement indépendant occupent
 // tout l'écran et la timeline reste ancrée en bas, toujours visible.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useT } from "@/lib/i18n";
+import { LanguageSwitcher, useT } from "@/lib/i18n";
 import { Spinner } from "@/components/ui/Spinner";
 import { hostMedia, MAX_UPLOAD_BYTES, formatSize } from "@/lib/media/host";
 import { SUBTITLE_LANGS } from "@/lib/ai/subtitle-langs";
 import {
-  addAudio, addButton, addClip, addImageLayer, addShape, addText, addTrack, duplicateAudio,
+  addAudio, addButton, addClip, addImageLayer, addMarker, addShape, addText, addTrack, copyElements, duckMusicUnderVoice, duplicateAudio,
   duplicateClip, duplicateImageLayer, duplicateShape, duplicateText,
+  pasteElements, patchAnimated, projectMedia,
   emptyProject, FORMAT_SIZE, moveElement, projectDuration, removeAudio,
-  removeClip, removeImageLayer, removeShape, removeText, removeTrack, reorderTrack,
+  removeClip, removeImageLayer, removeMarker, removeShape, removeText, removeTrack, reorderTrack,
+  nextMarker, setTrackHeight, toggleTrackSolo, toSrt,
   setClipBox, setClipFraming, setClipLength,
-  setClipSpeed, setClipTransition, setProjectDuration, setTrackDefMeta, shapesAt, splitAt, splitAudioAt, splitLayerAt,
+  setClipSpeed, setClipTransition, setProjectDuration, setTrackDefMeta, shapesAt, imagesAt, textsAt, splitAt, splitAudioAt, splitLayerAt,
   trimClip, trimLayer,
   updateAudio, updateImageLayer, updateShape, updateText, usedTracks, visibleProject,
-  type AnimationKind, type EditorFormat, type EditorProject, type ShapeKind,
-  type TimedLayerKind, type TransitionKind, type VisualLayer,
+  type AnimationKind, type ClipboardEntry, type EditorFormat, type EditorProject,
+  type AudioRole, type ShapeKind,
+  type TimedLayerKind, type TrackFamily, type TransitionKind, type VisualLayer,
 } from "@/lib/editor/project";
 import {
   applyTemplate, brandStyleFrom, rescaleTextsForFormat, TEMPLATES, type BrandStyle,
@@ -39,11 +42,16 @@ import {
   canRedo, canUndo, commitGesture as commitGestureHistory, initHistory, push, redo,
   replacePresent, undo, type History,
 } from "@/lib/editor/history";
-import { browserOverlays, decideRenderTarget, toBrowserPlan, type OverlayInput } from "@/lib/editor/render-plan";
+import {
+  browserOverlays, decideRenderTarget, overlayFrameName, toBrowserPlan,
+  unrenderableFeatures, type OverlayInput,
+} from "@/lib/editor/render-plan";
 import { drawImages, drawShapes, drawTexts, ensureFontsReady, FONT_STACKS, loadImage } from "@/lib/editor/draw";
 import BrandKitPanel from "@/components/studio/BrandKitPanel";
 import { Timeline, type TimelineSelection } from "./Timeline";
 import { Preview, type LayerPatch } from "./Preview";
+import { MediaBin } from "./MediaBin";
+import { VoiceRecorder } from "./VoiceRecorder";
 import { ProjectLibrary } from "./ProjectLibrary";
 import { TemplateGallery } from "./TemplateGallery";
 import { AssetLibrary, type AcquiredAsset } from "./AssetLibrary";
@@ -65,6 +73,10 @@ const SHAPES: { kind: ShapeKind; glyph: string; fr: string; en: string }[] = [
 /** Compteur d'identifiants, stable pour une session d'édition. */
 let seq = 0;
 const nextId = (prefix: string) => `${prefix}-${(seq += 1).toString(36)}-${Date.now().toString(36)}`;
+
+/** Où sont retenus les réglages d'export, d'une session à l'autre. */
+const EXPORT_QUALITY_KEY = "axon.export.quality";
+const EXPORT_FPS_KEY = "axon.export.fps";
 
 /** Suivi du rendu serveur — mêmes constantes que le Studio Vidéo. */
 const RENDER_POLL_MS = 4000;
@@ -101,7 +113,50 @@ export function StudioEditor({
    * Editing Bench, P2-4 — sélection multiple était totalement absente).
    */
   const [multiSelection, setMultiSelection] = useState<Map<string, NonNullable<TimelineSelection>>>(new Map());
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+  /**
+   * Menu contextuel — il porte désormais SA CIBLE : un élément (ou le groupe
+   * qui le contient) ou le vide d'une piste. Le menu n'a pas les mêmes
+   * entrées dans les deux cas, et sans cette distinction le clic droit dans
+   * le vide n'avait rien à proposer (audit v4, constat 4).
+   */
+  const [contextMenu, setContextMenu] = useState<
+    | { x: number; y: number; target: { type: "element" } | { type: "lane"; trackId: string; time: number } }
+    | null
+  >(null);
+  /**
+   * Réglages d'EXPORT. Ils ne font pas partie du montage — deux exports du
+   * même projet peuvent viser des usages différents — mais on ne veut pas les
+   * reposer à chaque fois : ils vivent donc à côté, retenus par le navigateur.
+   */
+  const [exportQuality, setExportQuality] = useState<"standard" | "high">("standard");
+  const [exportFps, setExportFps] = useState<30 | 60>(30);
+  useEffect(() => {
+    try {
+      setExportQuality(window.localStorage.getItem(EXPORT_QUALITY_KEY) === "high" ? "high" : "standard");
+      setExportFps(window.localStorage.getItem(EXPORT_FPS_KEY) === "60" ? 60 : 30);
+    } catch { /* stockage refusé */ }
+  }, []);
+  const chooseQuality = (q: "standard" | "high") => {
+    setExportQuality(q);
+    try { window.localStorage.setItem(EXPORT_QUALITY_KEY, q); } catch { /* stockage refusé */ }
+  };
+  const chooseFps = (f: 30 | 60) => {
+    setExportFps(f);
+    try { window.localStorage.setItem(EXPORT_FPS_KEY, String(f)); } catch { /* stockage refusé */ }
+  };
+
+  /** Presse-papier du banc — vit le temps de la session, jamais enregistré. */
+  const [clipboard, setClipboard] = useState<ClipboardEntry[]>([]);
+  /** La cible « piste » du menu, isolée une fois : les gestionnaires du menu
+      sont des fermetures, où le rétrécissement de type ne survit pas. */
+  const laneTarget = contextMenu?.target.type === "lane" ? contextMenu.target : null;
+  /**
+   * Position RÉELLE du menu, une fois ramené dans la fenêtre. Le point du clic
+   * ne suffit pas : la timeline est ancrée en bas de l'écran, donc un menu
+   * ouvert depuis un bloc sort systématiquement par le bas — la moitié de ses
+   * entrées passait sous la barre des tâches.
+   */
+  const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
@@ -361,11 +416,13 @@ export function StudioEditor({
    */
   const kb = useRef({
     playhead, duration, selection, apply, saveNow, playing, shortcutsOpen, exporting,
-    removeSelection, duplicateSelection,
+    removeSelection, duplicateSelection, cutSelection, copySelection, pasteAt,
+    project, setPlayhead,
   });
   kb.current = {
     playhead, duration, selection, apply, saveNow, playing, shortcutsOpen, exporting,
-    removeSelection, duplicateSelection,
+    removeSelection, duplicateSelection, cutSelection, copySelection, pasteAt,
+    project, setPlayhead,
   };
 
   useEffect(() => {
@@ -379,6 +436,8 @@ export function StudioEditor({
         playhead: ph, duration: dur, selection: sel, apply: doApply, saveNow: doSave,
         playing: isPlaying, shortcutsOpen: refOpen, exporting: isExporting,
         removeSelection: doRemoveSelection, duplicateSelection: doDuplicateSelection,
+        cutSelection: doCut, copySelection: doCopy, pasteAt: doPaste,
+        project: doc, setPlayhead: doSeek,
       } = kb.current;
 
       // Le montage est verrouillé pendant un export — seul Échap reste actif,
@@ -410,6 +469,13 @@ export function StudioEditor({
         doDuplicateSelection();
         return;
       }
+      // Couper / copier / coller. Le presse-papier est celui du BANC, pas
+      // celui du système : on ne lit ni n'écrit le presse-papier du navigateur,
+      // qui ne saurait pas quoi faire d'un plan de montage.
+      if (meta && lower === "x") { e.preventDefault(); doCut(); return; }
+      if (meta && lower === "c") { e.preventDefault(); doCopy(); return; }
+      if (meta && lower === "v") { e.preventDefault(); doPaste(ph); return; }
+
       if (meta) return; // autre combinaison Ctrl/Cmd : laissée au navigateur
 
       if (lower === "c" || lower === "s") {
@@ -448,6 +514,19 @@ export function StudioEditor({
         setPlayhead((p) => Math.max(0, Math.min(dur, p + dir * step)));
         return;
       }
+      // Repères : poser à la tête de lecture, naviguer de l'un à l'autre.
+      // « M » est la lettre universelle du marqueur, et Maj+M saute au
+      // suivant — la navigation la plus courante une fois qu'on en a posé.
+      if (lower === "m") {
+        e.preventDefault();
+        if (e.shiftKey) {
+          const target = nextMarker(doc, ph, 1) ?? nextMarker(doc, ph, -1);
+          if (target) doSeek(target.time);
+        } else {
+          doApply((p) => addMarker(p, nextId("mk"), ph));
+        }
+        return;
+      }
       if (e.key === "Home") { e.preventDefault(); setPlayhead(0); return; }
       if (e.key === "End") { e.preventDefault(); setPlayhead(dur); return; }
       if (e.key === "Escape") {
@@ -469,6 +548,24 @@ export function StudioEditor({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
+
+  /**
+   * Ramène le menu dans la fenêtre — mesuré APRÈS rendu (sa hauteur dépend de
+   * ses entrées) mais AVANT peinture, pour qu'il ne soit jamais vu ailleurs
+   * qu'à sa place définitive. Tant que la mesure n'a pas eu lieu, le menu est
+   * rendu invisible plutôt que mal placé.
+   */
+  useLayoutEffect(() => {
+    if (!contextMenu) { setMenuPos(null); return; }
+    const el = contextMenuRef.current;
+    if (!el) return;
+    const PAD = 8;
+    const { width, height } = el.getBoundingClientRect();
+    setMenuPos({
+      x: Math.max(PAD, Math.min(contextMenu.x, window.innerWidth - width - PAD)),
+      y: Math.max(PAD, Math.min(contextMenu.y, window.innerHeight - height - PAD)),
+    });
+  }, [contextMenu]);
 
   /** Referme le menu contextuel au clic ailleurs — sans quoi il reste ouvert
       indéfiniment, recouvrant la timeline (P3-7). */
@@ -538,6 +635,47 @@ export function StudioEditor({
       probe.src = url;
     },
     [apply, companyId, playhead, t]
+  );
+
+  /**
+   * Pose une prise de voix off enregistrée au micro (constat 5). Distincte de
+   * `importFile` sur deux points qui comptent : la prise arrive comme un Blob
+   * sans nom de fichier, et surtout elle doit se poser À L'INSTANT où
+   * l'enregistrement a commencé — pas au début du film, comme le fait
+   * `addAudio` pour une musique de fond.
+   */
+  const insertVoiceTake = useCallback(
+    async (blob: Blob, fileName: string, at: number, duration: number): Promise<boolean> => {
+      setBusy(t("Hébergement de la voix off…", "Hosting the voiceover…"));
+      const res = await hostMedia(companyId, blob, fileName, "editor");
+      setBusy(null);
+      if (!res.url) {
+        setNote(t(`Hébergement impossible (${res.error ?? "erreur"}).`, `Hosting failed (${res.error ?? "error"}).`));
+        return false;
+      }
+      sourceBytes.current += blob.size;
+      const url = res.url;
+      const id = nextId("a");
+      const start = Math.max(0, at);
+      apply((p) => updateAudio(
+        addAudio(p, { id, src: url, name: fileName, role: "voice", sourceDuration: duration }),
+        id,
+        { start, length: duration }
+      ));
+
+      // Un son ne dépasse jamais la fin du film — invariant de `normalize`.
+      // Le dire tout de suite vaut mieux que de laisser découvrir une prise
+      // silencieusement tronquée.
+      const room = Math.max(0, projectDuration(project) - start);
+      if (duration > room + 0.05) {
+        setNote(t(
+          `Prise de ${duration.toFixed(1)} s posée à ${start.toFixed(1)} s : il ne restait que ${room.toFixed(1)} s de film, elle a été raccourcie d'autant.`,
+          `${duration.toFixed(1)}s take placed at ${start.toFixed(1)}s: only ${room.toFixed(1)}s of film remained, so it was shortened.`
+        ));
+      }
+      return true;
+    },
+    [apply, companyId, project, t]
   );
 
   /**
@@ -655,6 +793,14 @@ export function StudioEditor({
    * ne doit pas empêcher de la retrouver pour la démasquer.
    */
   const displayProject = useMemo(() => visibleProject(project), [project]);
+  /** Chutier : dérivé du document, jamais tenu à part — un média disparaît de
+      la liste dès que le dernier élément qui l'utilisait est supprimé. */
+  const media = useMemo(() => projectMedia(project), [project]);
+  /** Le ducking n'a de sens que s'il y a quelque chose à baisser, et sous quoi. */
+  const hasVoiceAndMusic =
+    project.audios.some((a) => a.role === "voice" && !a.muted) &&
+    project.audios.some((a) => a.role === "music");
+
 
   /* ── Export ────────────────────────────────────────────────────────────── */
   const decision = useMemo(() => decideRenderTarget(displayProject, sourceBytes.current), [displayProject]);
@@ -667,7 +813,7 @@ export function StudioEditor({
    * n'étaient pas respectées, et un texte hors de cette position était perdu
    * sans avertissement. Les incrustations d'image n'étaient jamais dessinées.
    */
-  const buildOverlays = useCallback(async (): Promise<{ overlay: OverlayInput; bytes: Uint8Array }[]> => {
+  const buildOverlays = useCallback(async (): Promise<{ overlay: OverlayInput; frames: Uint8Array[] }[]> => {
     const wanted = browserOverlays(project);
     if (wanted.length === 0) return [];
     const { width, height } = FORMAT_SIZE[project.format];
@@ -682,28 +828,54 @@ export function StudioEditor({
     // l'aperçu — une divergence qui ne produit aucune erreur.
     await ensureFontsReady(project.texts.map((l) => l.font));
 
-    const out: { overlay: OverlayInput; bytes: Uint8Array }[] = [];
-    for (const overlay of wanted) {
-      const canvas = document.createElement("canvas");
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) continue;
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return [];
 
+    /**
+     * Compose UNE image du calque, à l'instant demandé. Le dessin passe par
+     * `textsAt`/`imagesAt`/`shapesAt`, exactement comme l'aperçu : les
+     * images-clés y sont résolues au même endroit, donc l'export ne peut pas
+     * s'écarter de ce qui est affiché à l'écran.
+     */
+    const composeAt = async (overlay: OverlayInput, at: number): Promise<Uint8Array | null> => {
+      ctx.clearRect(0, 0, width, height);
       if (overlay.kind === "shape") {
-        const l = project.shapes.find((s) => s.id === overlay.layerId);
+        const l = shapesAt(project, at).find((s) => s.id === overlay.layerId)
+          ?? project.shapes.find((s) => s.id === overlay.layerId);
         if (l) drawShapes(ctx, width, height, [l]);
       } else if (overlay.kind === "image") {
-        const l = project.images.find((s) => s.id === overlay.layerId);
+        const l = imagesAt(project, at).find((s) => s.id === overlay.layerId)
+          ?? project.images.find((s) => s.id === overlay.layerId);
         if (l) drawImages(ctx, width, height, [l], loaded);
       } else {
-        const l = project.texts.find((s) => s.id === overlay.layerId);
+        const l = textsAt(project, at).find((s) => s.id === overlay.layerId)
+          ?? project.texts.find((s) => s.id === overlay.layerId);
         if (l) drawTexts(ctx, width, height, [l]);
       }
-
       const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, "image/png"));
-      if (!blob) continue;
-      out.push({ overlay, bytes: new Uint8Array(await blob.arrayBuffer()) });
+      return blob ? new Uint8Array(await blob.arrayBuffer()) : null;
+    };
+
+    const out: { overlay: OverlayInput; frames: Uint8Array[] }[] = [];
+    for (const overlay of wanted) {
+      // Calque FIXE : une seule image, gravée sur tout l'intervalle — le
+      // comportement de toujours, et de très loin le cas courant.
+      if (overlay.frames <= 1) {
+        const bytes = await composeAt(overlay, overlay.start);
+        if (bytes) out.push({ overlay, frames: [bytes] });
+        continue;
+      }
+      // Calque ANIMÉ : une image par pas de temps, sur son propre intervalle.
+      const frames: Uint8Array[] = [];
+      const step = 1 / overlay.fps;
+      for (let i = 0; i < overlay.frames; i += 1) {
+        const bytes = await composeAt(overlay, overlay.start + i * step);
+        if (bytes) frames.push(bytes);
+      }
+      if (frames.length > 0) out.push({ overlay, frames });
     }
     return out;
   }, [project]);
@@ -829,7 +1001,10 @@ export function StudioEditor({
     setBusy(t("Préparation du moteur vidéo…", "Loading video engine…"));
     try {
       const composed = await buildOverlays();
-      const plan = toBrowserPlan(displayProject, composed.map((c) => c.overlay));
+      const plan = toBrowserPlan(displayProject, composed.map((c) => c.overlay), {
+        quality: exportQuality,
+        fps: exportFps,
+      });
 
       const { FFmpeg } = await import("@ffmpeg/ffmpeg");
       const { fetchFile, toBlobURL } = await import("@ffmpeg/util");
@@ -847,11 +1022,23 @@ export function StudioEditor({
       });
 
       setBusy(t("Rendu de la vidéo…", "Rendering video…"));
-      const composedByName = new Map(composed.map((c) => [c.overlay.name, c.bytes]));
+      // Un calque animé n'est pas UN fichier mais une séquence : le nom porté
+      // par le plan est alors un MOTIF, jamais écrit tel quel. Chaque image
+      // est déposée sous le nom que ffmpeg ira chercher.
+      const composedByName = new Map(composed.map((c) => [c.overlay.name, c.frames]));
       for (const input of plan.inputs) {
-        const bytes = composedByName.get(input.name);
-        if (bytes) await ffmpeg.writeFile(input.name, bytes);
-        else await ffmpeg.writeFile(input.name, await fetchFile(input.src));
+        const frames = composedByName.get(input.name);
+        if (!frames) {
+          await ffmpeg.writeFile(input.name, await fetchFile(input.src));
+          continue;
+        }
+        if (frames.length === 1 && !input.name.includes("%03d")) {
+          await ffmpeg.writeFile(input.name, frames[0]);
+          continue;
+        }
+        for (let i = 0; i < frames.length; i += 1) {
+          await ffmpeg.writeFile(overlayFrameName(input.name, i), frames[i]);
+        }
       }
 
       // `exec` de ffmpeg.wasm : arguments passés en TABLEAU à un module
@@ -888,7 +1075,7 @@ export function StudioEditor({
       setBusy(null);
       setExporting(false);
     }
-  }, [project, displayProject, decision.target, companyId, savedId, buildOverlays, onExport, onClose, t]);
+  }, [project, displayProject, decision.target, companyId, savedId, buildOverlays, onExport, onClose, t, exportQuality, exportFps]);
 
   /**
    * Manipulation directe dans la zone de travail — glisser, redimensionner,
@@ -903,22 +1090,27 @@ export function StudioEditor({
       if (patch.y !== undefined) box.y = patch.y;
       if (patch.rotation !== undefined) box.rotation = patch.rotation;
 
+      // Glisser un calque ANIMÉ pose une image-clé à la tête de lecture plutôt
+      // que de décaler toute l'animation — la même règle qu'à la saisie dans
+      // le panneau, et la seule qui permette de corriger une clé après coup
+      // (Lot 7). Un calque sans clé passe au travers, inchangé.
       if (sel.kind === "text") {
-        return updateText(p, sel.id, { ...box, ...(patch.w !== undefined ? { wrapPct: patch.w } : {}) });
+        return patchAnimated(p, { kind: "text", id: sel.id },
+          { ...box, ...(patch.w !== undefined ? { wrapPct: patch.w } : {}) }, playhead);
       }
       if (sel.kind === "image") {
-        return updateImageLayer(p, sel.id, {
+        return patchAnimated(p, { kind: "image", id: sel.id }, {
           ...box,
           ...(patch.w !== undefined ? { scale: patch.w } : {}),
           ...(patch.h !== undefined ? { heightPct: patch.h } : {}),
-        });
+        }, playhead);
       }
       if (sel.kind === "shape") {
-        return updateShape(p, sel.id, {
+        return patchAnimated(p, { kind: "shape", id: sel.id }, {
           ...box,
           ...(patch.w !== undefined ? { w: patch.w } : {}),
           ...(patch.h !== undefined ? { h: patch.h } : {}),
-        });
+        }, playhead);
       }
       if (sel.kind === "clip") {
         // Pas de rotation sur un plan (P2-1) : `patch.rotation` n'a nulle part
@@ -927,7 +1119,7 @@ export function StudioEditor({
       }
       return p;
     });
-  }, [applyLive]);
+  }, [applyLive, playhead]);
 
   if (!mounted) return null;
   return createPortal(
@@ -992,6 +1184,11 @@ export function StudioEditor({
         </div>
 
         <div className="flex items-center gap-1.5">
+          {/* Le banc occupe tout l'écran : le sélecteur de langue de
+              l'application passe DERRIÈRE et devient inatteignable tant qu'il
+              est ouvert. Le même composant, repris ici — pas un second
+              sélecteur qui pourrait diverger. */}
+          <LanguageSwitcher />
           <button
             type="button" onClick={() => setLibraryOpen(true)}
             title={t("Mes montages", "My edits")} aria-label={t("Mes montages", "My edits")}
@@ -1066,52 +1263,138 @@ export function StudioEditor({
               </div>
 
               {tool === "media" && (
-                <div className="space-y-2">
-                  <ImportButton label={t("＋ Plan vidéo ou photo", "＋ Video or photo")} accept="video/*,image/*" onFile={(f) => importFile(f, "clip")} />
-                  <ImportButton label={t("♪ Musique", "♪ Music")} accept="audio/*" onFile={(f) => importFile(f, "music")} />
-                  <ImportButton label={t("🎙 Voix off", "🎙 Voiceover")} accept="audio/*" onFile={(f) => importFile(f, "voice")} />
-                  <ImportButton label={t("🖼 Incrustation", "🖼 Overlay")} accept="image/*" onFile={(f) => importFile(f, "overlay")} />
-                  <hr className="border-hair" />
-                  <button
-                    type="button"
-                    onClick={() => apply((p) => addText(p, nextId("t"), t("Votre texte", "Your text"), playhead, brand.font))}
-                    className="btn-secondary w-full text-xs"
-                  >
-                    ➕ {t("Ajouter un texte", "Add text")}
-                  </button>
-                  {/* Langue RÉELLEMENT parlée dans le média — jamais imposée
-                      depuis la langue de l'interface (audit Editing Bench,
-                      P1-7). Vide = détection automatique par Whisper. */}
-                  <label className="block text-2xs text-muted">
-                    {t("Langue parlée dans le média", "Language spoken in the media")}
-                    <select
-                      value={subtitleLang}
-                      onChange={(e) => setSubtitleLang(e.target.value)}
-                      className="input mt-0.5 w-full text-xs"
+                <div className="space-y-3">
+                  {/* IMPORTER · CRÉER · VOIX OFF · CHUTIER · SOUS-TITRES.
+                      Le panneau était une pile plate de boutons et de réglages
+                      sans hiérarchie : quatre imports, un enregistreur, un
+                      chutier, un bouton de texte et trois réglages de
+                      sous-titrage se suivaient au même niveau. Les sections
+                      nommées disent ce qu'on cherche AVANT de le lire. */}
+                  <Section title={t("Importer", "Import")}>
+                    <ImportButton label={t("Plan vidéo ou photo", "Video or photo")} icon="🎬" accept="video/*,image/*" onFile={(f) => importFile(f, "clip")} />
+                    <ImportButton label={t("Incrustation", "Overlay")} icon="🖼" accept="image/*" onFile={(f) => importFile(f, "overlay")} />
+                    <ImportButton label={t("Musique", "Music")} icon="♪" accept="audio/*" onFile={(f) => importFile(f, "music")} />
+                  </Section>
+
+                  <Section title={t("Ajouter", "Add")}>
+                    <button
+                      type="button"
+                      onClick={() => apply((p) => addText(p, nextId("t"), t("Votre texte", "Your text"), playhead, brand.font))}
+                      className="btn-secondary flex w-full items-center gap-2 text-xs"
                     >
-                      <option value="">{t("Détection automatique", "Auto-detect")}</option>
-                      {SUBTITLE_LANGS.map((l) => (
-                        <option key={l.code} value={l.code}>{lang === "en" ? l.en : l.fr}</option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="flex items-center gap-1.5 text-2xs text-muted">
-                    <input
-                      type="checkbox"
-                      checked={subtitleTranslate}
-                      onChange={(e) => setSubtitleTranslate(e.target.checked)}
-                    />
-                    {t("Traduire vers l'anglais", "Translate to English")}
-                  </label>
-                  <button
-                    type="button"
-                    onClick={transcribe}
-                    disabled={Boolean(busy)}
-                    className="btn-secondary w-full text-xs disabled:opacity-50"
-                    title={t("Transcrit la parole et pose des sous-titres minutés", "Transcribes speech into timed subtitles")}
-                  >
-                    💬 {t("Sous-titrer automatiquement", "Auto-subtitle")}
-                  </button>
+                      <span aria-hidden className="w-4 text-center">T</span>
+                      {t("Texte", "Text")}
+                    </button>
+                    <p className="text-[10px] text-muted">
+                      {t("Formes et boutons : onglet Formes.", "Shapes and buttons: Shapes tab.")}
+                    </p>
+                  </Section>
+
+                  {/* Enregistrement au micro ET import de fichier au même
+                      endroit : ce sont deux façons d'obtenir la MÊME chose, les
+                      séparer obligeait à chercher la seconde ailleurs
+                      (audit v4, constat 5). */}
+                  <VoiceRecorder
+                    playhead={playhead}
+                    busy={Boolean(busy)}
+                    onPlay={() => setPlaying(true)}
+                    onPause={() => setPlaying(false)}
+                    onInsert={insertVoiceTake}
+                    onImportFile={(f) => importFile(f, "voice")}
+                  />
+
+                  {/* Chutier — reposer un média déjà dans le projet sans le
+                      réimporter, ce qui créait jusqu'ici un second fichier
+                      hébergé pour le même contenu (audit v4, constat 6). */}
+                  <MediaBin
+                    media={media}
+                    onAddClip={(m) => apply((p) => addClip(p, {
+                      id: nextId("c"), src: m.src,
+                      kind: m.kind === "image" ? "image" : "video",
+                      sourceDuration: m.duration,
+                      provenance: m.provenance,
+                    }))}
+                    onAddOverlay={(m) => apply((p) => addImageLayer(p, nextId("i"), m.src, m.provenance, playhead))}
+                    onAddAudio={(m) => apply((p) => addAudio(p, {
+                      id: nextId("a"), src: m.src, name: m.name,
+                      role: audioRoleOf(p, m.src),
+                      sourceDuration: m.duration,
+                      provenance: m.provenance,
+                    }))}
+                  />
+
+                  <Section title={t("Son", "Sound")}>
+                    {/* Le geste le plus courant d'un montage parlé, et le plus
+                        fastidieux à la main : quatre images-clés par phrase,
+                        sur chaque musique. */}
+                    <button
+                      type="button"
+                      onClick={() => apply((p) => duckMusicUnderVoice(p, nextId))}
+                      disabled={!hasVoiceAndMusic}
+                      title={hasVoiceAndMusic
+                        ? t("Pose des images-clés de volume : la musique descend sous chaque passage parlé", "Adds volume keyframes: the music dips under every spoken passage")
+                        : t("Demande au moins une voix off et une musique", "Requires at least one voiceover and one music track")}
+                      className="btn-secondary flex w-full items-center gap-2 text-xs disabled:opacity-40"
+                    >
+                      <span aria-hidden className="w-4 text-center">🔉</span>
+                      {t("Baisser la musique sous la voix", "Duck music under voice")}
+                    </button>
+                    <p className="text-[10px] text-muted">
+                      {t(
+                        "Pose des images-clés modifiables ensuite, pas un effet figé.",
+                        "Adds keyframes you can edit afterwards, not a fixed effect."
+                      )}
+                    </p>
+                  </Section>
+
+                  <Section title={t("Sous-titres", "Subtitles")}>
+                    {/* Langue RÉELLEMENT parlée dans le média — jamais imposée
+                        depuis la langue de l'interface (audit Editing Bench,
+                        P1-7). Vide = détection automatique par Whisper. */}
+                    <label className="block text-2xs text-muted">
+                      {t("Langue parlée", "Spoken language")}
+                      <select
+                        value={subtitleLang}
+                        onChange={(e) => setSubtitleLang(e.target.value)}
+                        className="input mt-0.5 w-full text-xs"
+                      >
+                        <option value="">{t("Détection automatique", "Auto-detect")}</option>
+                        {SUBTITLE_LANGS.map((l) => (
+                          <option key={l.code} value={l.code}>{lang === "en" ? l.en : l.fr}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="flex items-center gap-1.5 text-2xs text-muted">
+                      <input
+                        type="checkbox"
+                        checked={subtitleTranslate}
+                        onChange={(e) => setSubtitleTranslate(e.target.checked)}
+                      />
+                      {t("Traduire vers l'anglais", "Translate to English")}
+                    </label>
+                    <button
+                      type="button"
+                      onClick={transcribe}
+                      disabled={Boolean(busy)}
+                      className="btn-secondary w-full text-xs disabled:opacity-50"
+                      title={t("Transcrit la parole et pose des sous-titres minutés", "Transcribes speech into timed subtitles")}
+                    >
+                      💬 {t("Sous-titrer automatiquement", "Auto-subtitle")}
+                    </button>
+                    {/* Un sous-titre gravé dans l'image n'est lu par aucune
+                        plateforme : ni référencé, ni traduit, ni activable par
+                        une personne sourde ou malentendante. Le .srt existe
+                        pour ça, et le montage a déjà tout ce qu'il faut. */}
+                    <button
+                      type="button"
+                      onClick={downloadSrt}
+                      disabled={project.texts.every((l) => l.text.trim().length === 0)}
+                      title={t("Télécharge les textes du montage comme fichier de sous-titres", "Downloads the edit's texts as a subtitle file")}
+                      className="btn-secondary w-full text-xs disabled:opacity-40"
+                    >
+                      ⤓ {t("Exporter les sous-titres (.srt)", "Export subtitles (.srt)")}
+                    </button>
+                  </Section>
                 </div>
               )}
 
@@ -1198,7 +1481,7 @@ export function StudioEditor({
             </main>
 
             {/* Colonne droite : propriétés */}
-            <aside className="hidden min-h-0 overflow-y-auto overscroll-contain border-l border-hair bg-card p-3 lg:block">
+            <aside className="hidden min-h-0 min-w-0 overflow-y-auto overscroll-contain border-l border-hair bg-card p-3 lg:block">
               <PropertyPanel
                 project={project}
                 selection={selection}
@@ -1207,6 +1490,8 @@ export function StudioEditor({
                 brand={brand}
                 onChange={apply}
                 onDeselect={() => { setSelection(null); setMultiSelection(new Map()); }}
+                onSeek={setPlayhead}
+                gesture={{ begin: beginGesture, live: applyLive, commit: commitGesture }}
               />
             </aside>
           </div>
@@ -1220,15 +1505,23 @@ export function StudioEditor({
               multiSelectedKeys={new Set(multiSelection.keys())}
               onSeek={setPlayhead}
               onSelect={onTimelineSelect}
+              onMarqueeSelect={onMarqueeSelect}
               onContextMenu={(sel, e) => {
-                // Le menu contextuel n'a d'intérêt que sur une sélection de
-                // GROUPE — un seul élément a déjà la barre d'outils juste
-                // au-dessus de l'aperçu (P3-7). Clic droit sur un élément
-                // hors du groupe sélectionné : on ne montre rien plutôt que
-                // d'agir sur un élément que l'utilisateur n'a pas choisi.
+                // Clic droit sur un élément HORS de la sélection courante : il
+                // devient la sélection, comme dans tout logiciel de montage —
+                // agir sur autre chose que ce qu'on vient de viser serait pire
+                // que ne rien faire. S'il fait déjà partie du groupe, le
+                // groupe est conservé et le menu porte sur lui tout entier.
                 const inSelection = selectedItems().some((s) => s.kind === sel.kind && s.id === sel.id);
-                if (multiSelection.size === 0 || !inSelection) return;
-                setContextMenu({ x: e.clientX, y: e.clientY });
+                if (!inSelection) onTimelineSelect(sel);
+                setContextMenu({ x: e.clientX, y: e.clientY, target: { type: "element" } });
+              }}
+              onLaneContextMenu={(ctx, e) => {
+                // Le vide d'une piste ne désigne aucun élément : on désélectionne
+                // pour que le menu ne laisse pas croire qu'il agit sur ce qui
+                // était sélectionné ailleurs.
+                onTimelineSelect(null);
+                setContextMenu({ x: e.clientX, y: e.clientY, target: { type: "lane", trackId: ctx.trackId, time: ctx.time } });
               }}
               onTrim={(clipId, edge, delta) => applyLive((p) => trimClip(p, clipId, edge === "head" ? { head: delta } : { tail: delta }))}
               onTrimLayer={(kind, id, edge, delta) => applyLive((p) => trimLayer(p, kind, id, edge, delta))}
@@ -1241,17 +1534,15 @@ export function StudioEditor({
               onToggleTrackHidden={(trackId) => apply((p) => setTrackDefMeta(p, trackId, {
                 hidden: !(p.tracks ?? []).find((tr) => tr.id === trackId)?.hidden,
               }))}
+              onToggleTrackSolo={(trackId) => apply((p) => toggleTrackSolo(p, trackId))}
+              // La hauteur d'une piste est un réglage d'AFFICHAGE : elle ne
+              // touche pas au rendu, et n'a donc rien à faire dans l'historique
+              // d'annulation, où elle noierait les vraies modifications.
+              onSetTrackHeight={(trackId, height) => applyLive((p) => setTrackHeight(p, trackId, height))}
+              onAddMarker={(time) => apply((p) => addMarker(p, nextId("mk"), time))}
+              onRemoveMarker={(id) => apply((p) => removeMarker(p, id))}
               onAddTrack={(family) => apply((p) => addTrack(p, nextId("trk"), family))}
-              onRemoveTrack={(trackId) => {
-                // Une piste non vide se supprime avec son contenu — mieux
-                // vaut le dire avant de le faire disparaître d'un clic perdu.
-                const hasContent = [...project.clips, ...project.texts, ...project.images, ...project.shapes, ...project.audios]
-                  .some((el) => el.trackId === trackId);
-                if (hasContent && typeof window !== "undefined" && !window.confirm(
-                  t("Supprimer cette piste et tout ce qu'elle porte ?", "Delete this track and everything on it?")
-                )) return;
-                apply((p) => removeTrack(p, trackId));
-              }}
+              onRemoveTrack={removeTrackWithConfirm}
               onReorderTrack={(trackId, direction) => apply((p) => reorderTrack(p, trackId, direction))}
             />
           </div>
@@ -1278,6 +1569,40 @@ export function StudioEditor({
           <span className="text-2xs text-muted">
             {t("Rendu", "Render")} : {decision.target === "server" ? t("nos serveurs", "our servers") : t("votre navigateur", "your browser")}
             {" · "}{decision.reason}
+          </span>
+          {/* Seul le navigateur sait rendre les images-clés (il échantillonne
+              les calques animés). Quand un autre critère impose le serveur,
+              les animations en sortiraient figées : on le dit AVANT l'export
+              plutôt que de livrer un fichier amputé en silence (Lot 7). */}
+          {decision.keyframesFrozen && (
+            <span className="text-2xs font-medium text-danger">
+              ⚠ {t(
+                `Ce rendu ne saura pas reproduire : ${unrenderableFeatures(displayProject, decision.target).join(", ")}.`,
+                `This render cannot reproduce: ${unrenderableFeatures(displayProject, decision.target).join(", ")}.`
+              )}
+            </span>
+          )}
+          {/* Réglages d'export, là où on décide d'exporter — pas dans un
+              panneau qu'il faudrait aller chercher ailleurs. Le défaut reste
+              celui de toujours : on ne change le comportement de personne. */}
+          <span className="flex items-center gap-1 text-2xs text-muted">
+            <SegButton on={exportQuality === "standard"} onClick={() => chooseQuality("standard")}
+              title={t("Fichier plus léger, encodage rapide", "Lighter file, fast encoding")}>
+              {t("Standard", "Standard")}
+            </SegButton>
+            <SegButton on={exportQuality === "high"} onClick={() => chooseQuality("high")}
+              title={t("Image plus propre, encodage plus lent", "Cleaner image, slower encoding")}>
+              {t("Qualité", "High")}
+            </SegButton>
+            <span className="mx-0.5 h-3 w-px bg-hair" />
+            <SegButton on={exportFps === 30} onClick={() => chooseFps(30)}
+              title={t("30 images par seconde — le standard des réseaux", "30 frames per second — the social standard")}>
+              30
+            </SegButton>
+            <SegButton on={exportFps === 60} onClick={() => chooseFps(60)}
+              title={t("60 images par seconde — mouvement plus fluide, fichier plus lourd", "60 frames per second — smoother motion, heavier file")}>
+              60
+            </SegButton>
           </span>
           {busy && (
             <span className="flex items-center gap-2 text-2xs text-muted">
@@ -1363,32 +1688,68 @@ export function StudioEditor({
       )}
       <ShortcutsPanel open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
 
-      {/* Menu contextuel — n'apparaît que sur une sélection de groupe, où il
-          offre une prise directe qui manquait totalement jusqu'ici (audit
-          Editing Bench, P3-7). Un seul élément a déjà la barre d'outils. */}
+      {/* Menu contextuel — sur TOUT ce que porte la timeline : un élément
+          seul, un groupe, ou le vide d'une piste. Auparavant réservé aux
+          sélections de groupe, il laissait le menu de Chrome s'ouvrir partout
+          ailleurs (audit Editing Bench v4, constat 4 ; P3-7). */}
       {contextMenu && (
         <div
           ref={contextMenuRef}
           role="menu"
-          className="fixed z-50 min-w-[10rem] rounded-md border border-hair bg-card py-1 text-xs shadow-lg"
-          style={{ left: contextMenu.x, top: contextMenu.y }}
+          className="fixed z-50 min-w-[13rem] overflow-y-auto rounded-md border border-hair bg-card py-1 text-xs shadow-lg"
+          style={{
+            left: menuPos?.x ?? contextMenu.x,
+            top: menuPos?.y ?? contextMenu.y,
+            // Un menu plus haut que la fenêtre défile plutôt que de déborder :
+            // sur un petit écran, aucune combinaison de position ne le ferait
+            // tenir entier.
+            maxHeight: "calc(100vh - 16px)",
+            visibility: menuPos ? "visible" : "hidden",
+          }}
         >
-          <button
-            type="button"
-            role="menuitem"
-            onClick={duplicateSelection}
-            className="block w-full px-3 py-1.5 text-left hover:bg-canvas"
-          >
-            ⧉ {t("Dupliquer le groupe", "Duplicate group")} ({selectedItems().length})
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            onClick={removeSelection}
-            className="block w-full px-3 py-1.5 text-left text-danger hover:bg-canvas"
-          >
-            🗑 {t("Supprimer le groupe", "Delete group")} ({selectedItems().length})
-          </button>
+          {contextMenu.target.type === "element" ? (
+            <ElementMenu
+              count={selectedItems().length}
+              single={selectedItems().length === 1}
+              clipboardSize={clipboard.length}
+              trackLocked={(() => {
+                const only = selectedItems()[0];
+                const trackId = only ? trackIdOf(project, only) : null;
+                return Boolean(trackId && (project.tracks ?? []).find((tr) => tr.id === trackId)?.locked);
+              })()}
+              canUp={canMoveSelectionToTrack("up")}
+              canDown={canMoveSelectionToTrack("down")}
+              onCut={cutSelection}
+              onCopy={copySelection}
+              onPaste={() => pasteAt(playhead)}
+              onDuplicate={duplicateSelection}
+              onSplit={() => { splitSelectionAt(playhead); setContextMenu(null); }}
+              onUp={() => moveSelectionToAdjacentTrack("up")}
+              onDown={() => moveSelectionToAdjacentTrack("down")}
+              onToggleLock={() => {
+                const only = selectedItems()[0];
+                const trackId = only ? trackIdOf(project, only) : null;
+                if (trackId) toggleTrackLock(trackId);
+              }}
+              onDelete={removeSelection}
+            />
+          ) : (
+            <LaneMenu
+              locked={Boolean((project.tracks ?? []).find((tr) => tr.id === laneTarget?.trackId)?.locked)}
+              hidden={Boolean((project.tracks ?? []).find((tr) => tr.id === laneTarget?.trackId)?.hidden)}
+              clipboardSize={clipboard.length}
+              canRemove={
+                (project.tracks ?? []).find((tr) => tr.id === laneTarget?.trackId)?.family === "audio"
+                || (project.tracks ?? []).filter((tr) => tr.family === "visual").length > 1
+              }
+              onPaste={() => { if (laneTarget) pasteAt(laneTarget.time, laneTarget.trackId); }}
+              onAddVisual={() => { apply((p) => addTrack(p, nextId("trk"), "visual")); setContextMenu(null); }}
+              onAddAudio={() => { apply((p) => addTrack(p, nextId("trk"), "audio")); setContextMenu(null); }}
+              onToggleLock={() => { if (laneTarget) toggleTrackLock(laneTarget.trackId); }}
+              onToggleHidden={() => { if (laneTarget) toggleTrackHidden(laneTarget.trackId); }}
+              onRemove={() => { if (laneTarget) removeTrackWithConfirm(laneTarget.trackId); }}
+            />
+          )}
         </div>
       )}
     </div>,
@@ -1434,6 +1795,55 @@ export function StudioEditor({
     setMultiSelection(new Map());
   }
 
+  /**
+   * Sélection au rectangle : le cadre remplace la sélection, ou l'étend s'il
+   * est parti avec Maj/Ctrl/⌘. Un cadre VIDE et non additif désélectionne —
+   * c'est le geste par lequel on repart de zéro, et le refuser laisserait
+   * l'utilisateur sans moyen d'annuler une sélection au rectangle.
+   *
+   * La sélection PRINCIPALE devient le premier élément touché : c'est elle
+   * que lisent le panneau de propriétés et le glisser dans l'aperçu, qui ne
+   * connaissent pas la sélection multiple (P2-4).
+   */
+  function onMarqueeSelect(sels: NonNullable<TimelineSelection>[], additive: boolean) {
+    setMultiSelection((prev) => {
+      const next = new Map(additive ? prev : []);
+      // Une sélection simple déjà en place fait partie de ce qu'on étend :
+      // sans cela, Maj+cadre repartirait de l'élément cliqué juste avant.
+      if (additive && next.size === 0 && selection) next.set(selKey(selection), selection);
+      for (const sel of sels) next.set(selKey(sel), sel);
+      return next;
+    });
+    if (sels.length > 0) setSelection(sels[0]);
+    else if (!additive) setSelection(null);
+  }
+
+  /**
+   * Rôle à donner à un son reposé depuis le chutier : celui qu'il a déjà dans
+   * le montage. Remettre une voix off en « musique » lui appliquerait le
+   * volume réduit et les fondus de la musique de fond, ce que personne
+   * n'attend en reposant le MÊME fichier.
+   */
+  function audioRoleOf(p: EditorProject, src: string): AudioRole {
+    return p.audios.find((a) => a.src === src)?.role ?? "music";
+  }
+
+  /**
+   * Télécharge les sous-titres. Le fichier est construit ici et relâché tout
+   * de suite : une URL d'objet retenue est une fuite mémoire, et celle-ci n'a
+   * aucune raison de survivre au clic.
+   */
+  function downloadSrt() {
+    if (typeof document === "undefined") return;
+    const blob = new Blob([toSrt(project)], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${(project.name || "montage").replace(/[^\w.-]+/g, "-")}.srt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   function removeSelection() {
     const items = selectedItems();
     if (items.length === 0) return;
@@ -1468,6 +1878,118 @@ export function StudioEditor({
     setContextMenu(null);
   }
 
+  /* ── Presse-papier et pistes (menu contextuel, audit v4 constat 4) ────── */
+
+  /** Piste QUI PORTE l'élément désigné — le modèle ne l'expose pas autrement. */
+  function trackIdOf(p: EditorProject, sel: NonNullable<TimelineSelection>): string | null {
+    if (sel.kind === "clip") return p.clips.find((c) => c.id === sel.id)?.trackId ?? null;
+    if (sel.kind === "text") return p.texts.find((l) => l.id === sel.id)?.trackId ?? null;
+    if (sel.kind === "image") return p.images.find((l) => l.id === sel.id)?.trackId ?? null;
+    if (sel.kind === "shape") return p.shapes.find((l) => l.id === sel.id)?.trackId ?? null;
+    return p.audios.find((a) => a.id === sel.id)?.trackId ?? null;
+  }
+
+  function copySelection() {
+    const items = selectedItems();
+    if (items.length === 0) return;
+    setClipboard(copyElements(project, items));
+    setContextMenu(null);
+  }
+
+  /** Couper = copier puis supprimer. `removeSelection` referme déjà le menu. */
+  function cutSelection() {
+    const items = selectedItems();
+    if (items.length === 0) return;
+    setClipboard(copyElements(project, items));
+    removeSelection();
+  }
+
+  /**
+   * Colle à l'instant demandé. Un élément SEUL rejoint la piste désignée par
+   * le clic droit, si elle est de sa famille — c'est le geste attendu quand
+   * on vise une piste précise. Un groupe, lui, garde l'agencement de ses
+   * pistes d'origine : le reposer entier sur une seule piste l'écraserait.
+   */
+  function pasteAt(time: number, trackId?: string) {
+    if (clipboard.length === 0) return;
+    let entries = clipboard;
+    const target = trackId ? (project.tracks ?? []).find((tr) => tr.id === trackId) : undefined;
+    if (target && clipboard.length === 1) {
+      const only = clipboard[0];
+      const family: TrackFamily = only.kind === "audio" ? "audio" : "visual";
+      if (family === target.family) {
+        entries = [
+          only.kind === "clip" ? { kind: "clip", data: { ...only.data, trackId: target.id } }
+          : only.kind === "audio" ? { kind: "audio", data: { ...only.data, trackId: target.id } }
+          : only.kind === "text" ? { kind: "text", data: { ...only.data, trackId: target.id } }
+          : only.kind === "image" ? { kind: "image", data: { ...only.data, trackId: target.id } }
+          : { kind: "shape", data: { ...only.data, trackId: target.id } },
+        ];
+      }
+    }
+    apply((p) => pasteElements(p, entries, time, nextId));
+    setContextMenu(null);
+  }
+
+  /**
+   * Fait changer de piste l'élément (ou le groupe) sélectionné, d'un cran
+   * dans SA famille. "up" rapproche de l'avant — la même convention que
+   * `reorderTrack`, donc le même sens que la flèche affichée.
+   */
+  function moveSelectionToAdjacentTrack(direction: "up" | "down") {
+    const items = selectedItems();
+    if (items.length === 0) return;
+    apply((p) => items.reduce((acc, sel) => {
+      const current = trackIdOf(acc, sel);
+      if (!current) return acc;
+      const family: TrackFamily = sel.kind === "audio" ? "audio" : "visual";
+      const sameFamily = (acc.tracks ?? []).filter((tr) => tr.family === family);
+      const at = sameFamily.findIndex((tr) => tr.id === current);
+      const next = sameFamily[at + (direction === "up" ? 1 : -1)];
+      if (at < 0 || !next) return acc;
+      return moveElement(acc, { kind: sel.kind, id: sel.id }, { trackId: next.id });
+    }, p));
+    setContextMenu(null);
+  }
+
+  /** Vrai si le groupe sélectionné peut encore glisser d'un cran dans ce sens. */
+  function canMoveSelectionToTrack(direction: "up" | "down"): boolean {
+    return selectedItems().some((sel) => {
+      const current = trackIdOf(project, sel);
+      if (!current) return false;
+      const family: TrackFamily = sel.kind === "audio" ? "audio" : "visual";
+      const sameFamily = (project.tracks ?? []).filter((tr) => tr.family === family);
+      const at = sameFamily.findIndex((tr) => tr.id === current);
+      return at >= 0 && Boolean(sameFamily[at + (direction === "up" ? 1 : -1)]);
+    });
+  }
+
+  /**
+   * Supprime une piste. Une piste NON VIDE part avec tout ce qu'elle porte —
+   * mieux vaut le dire avant de le faire disparaître d'un clic perdu. Partagée
+   * entre l'étiquette de piste et le menu contextuel : une seule règle, pas
+   * deux comportements selon l'endroit d'où on la déclenche.
+   */
+  function removeTrackWithConfirm(trackId: string) {
+    const hasContent = [...project.clips, ...project.texts, ...project.images, ...project.shapes, ...project.audios]
+      .some((el) => el.trackId === trackId);
+    if (hasContent && typeof window !== "undefined" && !window.confirm(
+      t("Supprimer cette piste et tout ce qu'elle porte ?", "Delete this track and everything on it?")
+    )) { setContextMenu(null); return; }
+    apply((p) => removeTrack(p, trackId));
+    setContextMenu(null);
+  }
+
+  function toggleTrackLock(trackId: string) {
+    apply((p) => setTrackDefMeta(p, trackId, { locked: !(p.tracks ?? []).find((tr) => tr.id === trackId)?.locked }));
+    setContextMenu(null);
+  }
+
+  function toggleTrackHidden(trackId: string) {
+    apply((p) => setTrackDefMeta(p, trackId, { hidden: !(p.tracks ?? []).find((tr) => tr.id === trackId)?.hidden }));
+    setContextMenu(null);
+  }
+
   /**
    * Scinde l'élément sélectionné à l'instant `time`, quel que soit son type —
    * auparavant réservé au premier plan vidéo trouvé par balayage du temps, en
@@ -1488,6 +2010,127 @@ export function StudioEditor({
   }
 }
 
+/* ── Menu contextuel ─────────────────────────────────────────────────────── */
+
+/** Une entrée de menu. Désactivée, elle reste VISIBLE : disparaître d'un clic
+    droit à l'autre rendrait le menu impossible à mémoriser. */
+function MenuItem({
+  children, onClick, disabled, danger, shortcut,
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+  disabled?: boolean;
+  danger?: boolean;
+  shortcut?: string;
+}) {
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      disabled={disabled}
+      onClick={onClick}
+      className={`flex w-full items-center justify-between gap-4 px-3 py-1.5 text-left disabled:opacity-40 ${
+        danger ? "text-danger" : ""
+      } enabled:hover:bg-canvas`}
+    >
+      <span>{children}</span>
+      {shortcut && <span className="text-2xs text-muted">{shortcut}</span>}
+    </button>
+  );
+}
+
+function MenuSeparator() {
+  return <div role="separator" className="my-1 border-t border-hair" />;
+}
+
+/** Menu sur un élément — ou sur le groupe entier s'il en fait partie. */
+function ElementMenu({
+  count, single, clipboardSize, trackLocked, canUp, canDown,
+  onCut, onCopy, onPaste, onDuplicate, onSplit, onUp, onDown, onToggleLock, onDelete,
+}: {
+  count: number;
+  single: boolean;
+  clipboardSize: number;
+  trackLocked: boolean;
+  canUp: boolean;
+  canDown: boolean;
+  onCut: () => void;
+  onCopy: () => void;
+  onPaste: () => void;
+  onDuplicate: () => void;
+  onSplit: () => void;
+  onUp: () => void;
+  onDown: () => void;
+  onToggleLock: () => void;
+  onDelete: () => void;
+}) {
+  const t = useT();
+  // Le décompte n'a de sens qu'au-delà d'un élément : « Copier (1) » est du
+  // bruit sur le geste le plus courant du banc.
+  const n = count > 1 ? ` (${count})` : "";
+  return (
+    <>
+      <MenuItem onClick={onCut} shortcut="Ctrl+X">✂ {t("Couper", "Cut")}{n}</MenuItem>
+      <MenuItem onClick={onCopy} shortcut="Ctrl+C">⧉ {t("Copier", "Copy")}{n}</MenuItem>
+      <MenuItem onClick={onPaste} disabled={clipboardSize === 0} shortcut="Ctrl+V">
+        📋 {t("Coller à la tête de lecture", "Paste at playhead")}
+      </MenuItem>
+      <MenuItem onClick={onDuplicate} shortcut="Ctrl+D">⧉ {t("Dupliquer", "Duplicate")}{n}</MenuItem>
+      <MenuSeparator />
+      <MenuItem onClick={onSplit} disabled={!single} shortcut="C">
+        ✄ {t("Scinder à la tête de lecture", "Split at playhead")}
+      </MenuItem>
+      <MenuItem onClick={onUp} disabled={!canUp}>↑ {t("Monter d'une piste", "Move up one track")}</MenuItem>
+      <MenuItem onClick={onDown} disabled={!canDown}>↓ {t("Descendre d'une piste", "Move down one track")}</MenuItem>
+      <MenuItem onClick={onToggleLock} disabled={!single}>
+        {trackLocked ? `🔓 ${t("Déverrouiller la piste", "Unlock track")}` : `🔒 ${t("Verrouiller la piste", "Lock track")}`}
+      </MenuItem>
+      <MenuSeparator />
+      <MenuItem onClick={onDelete} danger shortcut="Suppr">🗑 {t("Supprimer", "Delete")}{n}</MenuItem>
+    </>
+  );
+}
+
+/** Menu sur le vide d'une piste — il n'y a pas d'élément à désigner, les
+    actions portent donc sur la piste elle-même et sur le presse-papier. */
+function LaneMenu({
+  locked, hidden, clipboardSize, canRemove,
+  onPaste, onAddVisual, onAddAudio, onToggleLock, onToggleHidden, onRemove,
+}: {
+  locked: boolean;
+  hidden: boolean;
+  clipboardSize: number;
+  canRemove: boolean;
+  onPaste: () => void;
+  onAddVisual: () => void;
+  onAddAudio: () => void;
+  onToggleLock: () => void;
+  onToggleHidden: () => void;
+  onRemove: () => void;
+}) {
+  const t = useT();
+  return (
+    <>
+      <MenuItem onClick={onPaste} disabled={clipboardSize === 0}>
+        📋 {t("Coller ici", "Paste here")}
+      </MenuItem>
+      <MenuSeparator />
+      <MenuItem onClick={onAddVisual}>➕ {t("Ajouter une piste vidéo", "Add a video track")}</MenuItem>
+      <MenuItem onClick={onAddAudio}>➕ {t("Ajouter une piste son", "Add an audio track")}</MenuItem>
+      <MenuSeparator />
+      <MenuItem onClick={onToggleLock}>
+        {locked ? `🔓 ${t("Déverrouiller cette piste", "Unlock this track")}` : `🔒 ${t("Verrouiller cette piste", "Lock this track")}`}
+      </MenuItem>
+      <MenuItem onClick={onToggleHidden}>
+        {hidden ? `👁 ${t("Afficher cette piste", "Show this track")}` : `🚫 ${t("Masquer cette piste", "Hide this track")}`}
+      </MenuItem>
+      <MenuItem onClick={onRemove} danger disabled={!canRemove}>
+        🗑 {t("Supprimer cette piste", "Delete this track")}
+      </MenuItem>
+    </>
+  );
+}
+
 /* ── Petits composants d'interface ───────────────────────────────────────── */
 
 function ToolButton({ children, onClick, disabled }: { children: React.ReactNode; onClick: () => void; disabled?: boolean }) {
@@ -1497,11 +2140,50 @@ function ToolButton({ children, onClick, disabled }: { children: React.ReactNode
   );
 }
 
-function ImportButton({ label, accept, onFile }: { label: string; accept: string; onFile: (f: File) => void }) {
+/**
+ * Section nommée du panneau d'outils. Le titre n'est pas décoratif : c'est ce
+ * qui permet de trouver un réglage SANS le lire — on cherche « Sous-titres »,
+ * pas « le troisième menu déroulant en partant du bas ».
+ */
+/** Bouton d'un groupe de choix exclusifs — qualité, cadence. */
+function SegButton({ on, onClick, title, children }: { on: boolean; onClick: () => void; title: string; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={on}
+      title={title}
+      className={`rounded px-1.5 py-0.5 text-2xs ${on ? "bg-page text-white" : "text-muted ring-1 ring-hair hover:text-ink"}`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="space-y-1.5 rounded-lg border border-hair p-2">
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">{title}</p>
+      {children}
+    </section>
+  );
+}
+
+function ImportButton({ label, icon, accept, onFile }: { label: string; icon?: string; accept: string; onFile: (f: File) => void }) {
   const ref = useRef<HTMLInputElement>(null);
   return (
     <>
-      <button type="button" onClick={() => ref.current?.click()} className="btn-secondary w-full text-2xs">{label}</button>
+      {/* Icône dans une gouttière de largeur FIXE : sans elle, les libellés
+          ne s'alignaient pas d'un bouton à l'autre et la colonne se lisait
+          comme une liste en désordre. */}
+      <button
+        type="button"
+        onClick={() => ref.current?.click()}
+        className="btn-secondary flex w-full items-center gap-2 text-xs"
+      >
+        {icon && <span aria-hidden className="w-4 shrink-0 text-center">{icon}</span>}
+        <span className="min-w-0 truncate text-left">{label}</span>
+      </button>
       <input ref={ref} type="file" accept={accept} className="hidden"
         onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); e.target.value = ""; }} />
     </>

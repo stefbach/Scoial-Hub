@@ -27,6 +27,7 @@ async function main() {
   const gallery = read("components/editor/TemplateGallery.tsx");
   const timeline = read("components/editor/Timeline.tsx");
   const preview = read("components/editor/Preview.tsx");
+  const shortcuts = read("components/editor/ShortcutsPanel.tsx");
   const upload = read("components/ui/MediaUpload.tsx");
   const compose = read("app/(organic)/compose/page.tsx");
   const host = read("lib/media/host.ts");
@@ -88,7 +89,9 @@ async function main() {
     check("A-04 · musique posée sous la voix par défaut", /DEFAULT_MUSIC_VOLUME = 0\.25/.test(projectSrc));
     check("A-04 · le son d'origine n'est coupé que sur demande explicite", /role === "original" && a\.muted/.test(preview));
     check("A-04 · la musique est écoutable avant le rendu", /<audio src=\{audio\.src\} controls/.test(panel) && /audioRefs/.test(preview));
-    check("A-04 · volume et fondus réglables par piste", /updateAudio\(p, audio\.id, \{ volume: v \}\)/.test(panel) && /fadeIn: v/.test(panel));
+    check("A-04 · volume et fondus réglables par piste",
+      /prop="volume" label=\{t\("Volume", "Volume"\)\}[\s\S]{0,200}?sel=\{\{ kind: "audio", id: audio\.id \}\}/.test(panel) &&
+      /fadeIn: v/.test(panel));
   }
 
   // ── A-01 · Plafond d'import relevé et expliqué ────────────────────────────
@@ -106,7 +109,10 @@ async function main() {
     check("A-09 · cœur ffmpeg servi par notre origine", /const base = "\/ffmpeg"/.test(studio) && !/unpkg\.com/.test(editor));
     check("A-09 · les fichiers du moteur sont livrés", existsSync("public/ffmpeg/ffmpeg-core.js") && existsSync("public/ffmpeg/ffmpeg-core.wasm"));
     check("A-09 · dépendance figée dans le projet", /"@ffmpeg\/core":/.test(read("package.json")));
-    check("A-09 · encodage plus compact qu'ultrafast", /-preset", "veryfast/.test(read("lib/editor/render-plan.ts")));
+    check("A-09 · encodage plus compact qu'ultrafast",
+      /standard: \{ preset: "veryfast", crf: "23"/.test(read("lib/editor/render-plan.ts")));
+    check("A-09 · une qualité supérieure est proposée, sans devenir le défaut",
+      /high: \{ preset: "medium", crf: "19"/.test(read("lib/editor/render-plan.ts")));
   }
 
   // ── A-08 · Le libellé annonce ce que l'outil fait ─────────────────────────
@@ -147,7 +153,13 @@ async function main() {
     check("A-07 · les modèles se calibrent sur le kit de marque", /brandStyleFrom\(d\?\.kit \?\? null\)/.test(studio));
     check("A-07 · changer de format retranspose les textes", /rescaleTextsForFormat\(\{ \.\.\.p, format \}, p\.format\)/.test(studio));
     check("A-07 · recadrage réglable", /setClipFraming\(p, clip\.id, \{ focusX: v \}\)/.test(panel) && /setClipFraming\(p, clip\.id, \{ fit: "contain" \}\)/.test(panel));
-    check("A-07 · transition choisie par plan", /setClipTransition\(p, clip\.id, v as TransitionKind\)/.test(panel));
+    check("A-07 · transition choisie par plan",
+      /setClipTransition\(p, clip\.id, \{ kind: v as TransitionKind \}\)/.test(panel));
+    check("A-07 · sa DURÉE se règle aussi, bornée à la moitié du plus court des deux plans",
+      /setClipTransition\(p, clip\.id, \{ seconds: v \}\)/.test(panel) &&
+      /export function transitionSpan\(/.test(read("lib/editor/project.ts")));
+    check("A-07 · le choix ne se limite plus au fondu",
+      /value: "wipe-left"/.test(panel) && /value: "slide-up"/.test(panel));
     check("A-07 · l'aperçu montre le cadrage du rendu", /object-contain" : "object-cover/.test(preview) && /objectPosition/.test(preview));
     check("A-07 · incrustation déplaçable à la souris", /startMove\(e, \{ kind: "image", id: l\.id \}, l\)/.test(preview));
     check("A-07 · bibliothèque de montages", /<ProjectLibrary/.test(studio) && /api\/editor\/projects\?companyId=/.test(library));
@@ -209,15 +221,17 @@ async function main() {
   // A2) : une piste n'a plus de statut de « base » particulier.
   {
     check("P2-1/P2-2 · l'opacité d'un plan est réglable dans le panneau, quelle que soit sa piste",
-      /setClipOpacity\(p, clip\.id, v \/ 100\)/.test(panel));
+      /\["x", "y", "w", "h", "opacity"\] as const/.test(panel) &&
+      /sel=\{\{ kind: "clip", id: clip\.id \}\}/.test(panel));
     // Position ET taille : la vraie « image dans l'image », une fenêtre
     // d'incrustation posée dans un coin plutôt qu'un plan qui couvre
     // toujours tout le cadre — la moitié la plus visible de P2-1.
+    // Les quatre champs passent désormais par `AnimatableRow`, qui écrit via
+    // `patchAnimated` — lequel retombe sur `setClipBox` tant que rien n'est
+    // animé. Le réglage reste donc exactement le même geste.
     check("P2-1 · le cadre (position, taille) d'un plan d'incrustation est réglable dans le panneau",
-      /setClipBox\(p, clip\.id, \{ x: v \/ 100 \}\)/.test(panel) &&
-      /setClipBox\(p, clip\.id, \{ y: v \/ 100 \}\)/.test(panel) &&
-      /setClipBox\(p, clip\.id, \{ w: v \/ 100 \}\)/.test(panel) &&
-      /setClipBox\(p, clip\.id, \{ h: v \/ 100 \}\)/.test(panel));
+      /\["x", "y", "w", "h", "opacity"\] as const/.test(panel) &&
+      /q = setClipBox\(q, sel\.id, box\)/.test(read("lib/editor/project.ts")));
     // Câblage côté aperçu : glisser-déposer et poignée de redimensionnement
     // pour un plan, sans poignée de rotation (P2-1 exclut délibérément la
     // rotation d'un plan, faute de savoir ce qu'elle signifie pour le
@@ -354,15 +368,20 @@ async function main() {
   // ── B-08 · Propriétés visuelles complètes, en saisie numérique ───────────
   {
     check("B-08 · un bloc de propriétés COMMUN", /const patchVisual = \(patch: Partial<VisualLayer>\)/.test(panel));
+    // Ces champs passent désormais par `AnimatableRow`, qui porte la saisie
+    // numérique ET le chronomètre d'images-clés sur la même ligne. Le réglage
+    // au clavier reste donc entier, sur les cinq propriétés.
     for (const [nom, motif] of [
-      ["position", /patchVisual\(\{ x: v \/ 100 \}\)/],
-      ["rotation", /patchVisual\(\{ rotation: v \}\)/],
-      ["opacité", /patchVisual\(\{ opacity: v \/ 100 \}\)/],
-      ["largeur", /updateShape\(p, shape\.id, \{ w: v \/ 100 \}\)/],
-      ["hauteur", /updateShape\(p, shape\.id, \{ h: v \/ 100 \}\)/],
+      ["position", /<AnimatableRow prop="x"/],
+      ["rotation", /<AnimatableRow prop="rotation"/],
+      ["opacité", /<AnimatableRow prop="opacity"/],
+      ["largeur", /<AnimatableRow prop="w"/],
+      ["hauteur", /<AnimatableRow prop="h"/],
     ] as const) {
       check(`B-08 · « ${nom} » réglable au clavier`, motif.test(panel));
     }
+    check("B-08 · une valeur saisie sur une ligne animable devient une clé, pas une valeur fixe",
+      /const write = \(value: number\) =>/.test(panel) && /patchAnimated\(p, sel, \{ \[prop\]: value \/ scale \}, playhead\)/.test(panel));
     check("B-08 · saisie numérique généralisée", /function NumberRow\(/.test(panel));
     check("B-08 · manipulation directe conservée", /mode: "resize"/.test(preview) && /mode: "rotate"/.test(preview));
   }
@@ -409,7 +428,11 @@ async function main() {
     check("B-04 · le rendu serveur empile les pistes",
       /filter\(\(tr\) => tr\.family === "visual"\)\.slice\(\)\.reverse\(\)/.test(plan));
     check("B-02 · sous-pistes calculées par le modèle", /export function packLanes<T/.test(projectSrc));
-    check("B-02 · la timeline leur donne de la place", /LANE_H \* rowsOf\(items\)/.test(timeline));
+    check("B-02 · la timeline leur donne de la place",
+      /const laneHeightOf = \(track: TrackDef, items: Placed\[\]\) => rowHeightOf\(track\) \* rowsOf\(items\)/.test(timeline));
+    check("B-02 · et cette place se règle — une piste agrandie se LIT mieux",
+      /const rowHeightOf = \(track: TrackDef\) => LANE_H \* clampHeight\(track\.height\)/.test(timeline) &&
+      /onSetTrackHeight/.test(timeline));
   }
 
   // ── P0-2 · Le fondu enchaîné se voit dans l'aperçu (audit Editing Bench v3) ──
@@ -484,8 +507,11 @@ async function main() {
   // Absente jusqu'ici : la sélection était un objet unique, sans aucun moyen
   // d'agir sur plusieurs éléments à la fois. Maj/Ctrl-clic ajoute un élément
   // à un groupe ; le groupe entier se duplique/supprime en une seule entrée
-  // d'historique ; un menu contextuel apparaît sur le groupe (jamais sur un
-  // simple élément, qui a déjà la barre d'outils).
+  // d'historique.
+  //
+  // Le menu contextuel, lui, ne se limite PLUS au groupe (audit v4, constat 4) :
+  // réservé aux sélections multiples, il laissait le menu de Chrome s'ouvrir
+  // partout ailleurs — sur un élément seul comme sur le vide d'une piste.
   {
     check("P2-4 · Maj/Ctrl/⌘-clic ajoute un élément à la sélection au lieu de la remplacer",
       /if \(sel && e && \(e\.shiftKey \|\| e\.ctrlKey \|\| e\.metaKey\)\)/.test(studio));
@@ -499,10 +525,75 @@ async function main() {
       /multiSelectionItems\.length > 1/.test(panel) && /éléments sélectionnés/.test(panel));
     check("P2-4 · la timeline reflète la sélection multiple, pas seulement l'élément principal",
       /multiSelectedKeys\?\.has\(/.test(timeline));
-    check("P3-7 · un menu contextuel n'apparaît que sur une sélection de groupe",
-      /multiSelection\.size === 0 \|\| !inSelection\) return;/.test(studio));
-    check("P3-7 · le menu contextuel propose dupliquer ET supprimer le groupe",
-      /Dupliquer le groupe/.test(studio) && /Supprimer le groupe/.test(studio));
+    check("constat 4 · le clic droit sur un élément HORS sélection le sélectionne au lieu de ne rien faire",
+      /if \(!inSelection\) onTimelineSelect\(sel\);/.test(studio));
+    check("constat 4 · le menu s'ouvre sur tout élément, sans condition de groupe",
+      !/multiSelection\.size === 0 \|\| !inSelection\) return;/.test(studio) &&
+      /setContextMenu\(\{ x: e\.clientX, y: e\.clientY, target: \{ type: "element" \} \}\)/.test(studio));
+    check("constat 4 · le vide d'une piste a son PROPRE menu, porté par la piste et l'instant visés",
+      /onLaneContextMenu=\{\(ctx, e\) =>/.test(studio) &&
+      /type: "lane", trackId: ctx\.trackId, time: ctx\.time/.test(studio));
+    check("constat 4 · la timeline neutralise le menu du navigateur sur le vide comme sur un élément",
+      /onLaneContextMenu\(\{ trackId: track\.id, time: timeFromEvent\(e\.clientX\) \}, e\)/.test(timeline) &&
+      /if \(!onLaneContextMenu\) return;\s*\n\s*e\.preventDefault\(\);/.test(timeline));
+    check("constat 1 · un glisser parti du vide devient un rectangle de sélection au-delà d'un seuil",
+      /const MARQUEE_THRESHOLD_PX = /.test(timeline) &&
+      /Math\.hypot\(e\.clientX - d\.startX, e\.clientY - d\.startY\) > MARQUEE_THRESHOLD_PX/.test(timeline) &&
+      /drag\.current = \{ type: "marquee"/.test(timeline));
+    check("constat 1 · sous le seuil, le geste reste un balayage de la tête de lecture",
+      /if \(d\.type === "scrub"\) \{[\s\S]{0,900}?seekTo\(e\.clientX\);\s*\n\s*return;/.test(timeline));
+    check("constat 1 · le rectangle retient les éléments qu'il EFFLEURE, pas seulement ceux qu'il contient",
+      /function elementsInBox\(/.test(timeline) &&
+      /x2 >= left && x1 <= right && y2 >= top && y1 <= bottom/.test(timeline));
+    check("constat 1 · le rectangle ne scelle aucune entrée d'historique (il ne modifie pas le document)",
+      /if \(d\?\.type === "marquee"\)[\s\S]{0,400}?onMarqueeSelect\?\.\(elementsInBox\(box\), d\.additive\)/.test(timeline));
+    check("constat 1 · le geste part de TOUT le cadre, pas des seules rangées de 40 px",
+      /onPointerDown=\{onFramePointerDown\}/.test(timeline) &&
+      /function onFramePointerDown\(e: React\.PointerEvent\)/.test(timeline) &&
+      /function beginEmptyGesture\(e: React\.PointerEvent, seek: boolean\)/.test(timeline));
+    check("constat 1 · rangées, graduation et blocs consomment le geste — le filet ne le rejoue pas",
+      /function onLanePointerDown\(e: React\.PointerEvent\) \{[\s\S]{0,600}?e\.stopPropagation\(\);\s*\n\s*beginEmptyGesture/.test(timeline) &&
+      /onScrub=\{\(e\) => \{ e\.stopPropagation\(\); startScrub\(e\); \}\}/.test(timeline));
+    check("constat 1 · les commandes de piste ne démarrent jamais un rectangle",
+      /closest\("button, select, input, a, \[role='slider'\], \[role='separator'\]"\)/.test(timeline));
+    check("constat 1 · hors de l'axe du temps, le geste ne renvoie pas la tête de lecture à zéro",
+      /if \(d\.seek\) seekTo\(e\.clientX\);/.test(timeline) &&
+      /beginEmptyGesture\(e, false\)/.test(timeline));
+    check("constat 1 · Maj/Ctrl/⌘ étend la sélection au lieu de la remplacer",
+      /const additive = e\.shiftKey \|\| e\.ctrlKey \|\| e\.metaKey;\s*\n\s*if \(!additive\) onSelect\(null\);/.test(timeline) &&
+      /function onMarqueeSelect\(sels: NonNullable<TimelineSelection>\[\], additive: boolean\)/.test(studio));
+    check("constat 1 · le cadre alimente la MÊME sélection multiple que Maj-clic",
+      /onMarqueeSelect=\{onMarqueeSelect\}/.test(studio) &&
+      /setMultiSelection\(\(prev\) => \{[\s\S]{0,400}?next\.set\(selKey\(sel\), sel\)/.test(studio));
+    check("constat 1 · le geste est documenté dans le panneau de raccourcis",
+      /Sélectionner au rectangle/.test(shortcuts));
+    check("constat 4 · TOUT le cadre de la timeline est couvert, pas seulement les rangées",
+      /if \(e\.defaultPrevented \|\| !onLaneContextMenu\) return;/.test(timeline) &&
+      /function trackAt\(clientY: number\)/.test(timeline) &&
+      /laneRefs\.current\.set\(track\.id, el\)/.test(timeline));
+    check("constat 4 · le menu est ramené dans la fenêtre au lieu de déborder sous l'écran",
+      /useLayoutEffect\(\(\) => \{[\s\S]{0,600}?window\.innerHeight - height - PAD/.test(studio) &&
+      /visibility: menuPos \? "visible" : "hidden"/.test(studio));
+    check("constat 4 · le clic DROIT dans le vide ne désélectionne ni ne déplace la tête de lecture",
+      /function onLanePointerDown\(e: React\.PointerEvent\) \{[\s\S]{0,400}?if \(e\.button === 2\) return;/.test(timeline));
+    check("constat 4 · le menu d'élément couvre couper/copier/coller/dupliquer/scinder/piste/verrou/supprimer",
+      /function ElementMenu\(/.test(studio) &&
+      ["onCut", "onCopy", "onPaste", "onDuplicate", "onSplit", "onUp", "onDown", "onToggleLock", "onDelete"]
+        .every((prop) => new RegExp(`${prop}=\\{`).test(studio)));
+    check("constat 4 · le menu de piste couvre coller/ajouter/verrouiller/masquer/supprimer",
+      /function LaneMenu\(/.test(studio) &&
+      ["onPaste", "onAddVisual", "onAddAudio", "onToggleLock", "onToggleHidden", "onRemove"]
+        .every((prop) => new RegExp(`${prop}=\\{`).test(studio)));
+    const model = read("lib/editor/project.ts");
+    check("constat 4 · le presse-papier est une opération de MODÈLE, pas une astuce d'interface",
+      /export function copyElements\(/.test(model) && /export function pasteElements\(/.test(model));
+    check("constat 4 · couper prélève AVANT de supprimer — sans quoi il n'y aurait plus rien à coller",
+      /function cutSelection\(\) \{[\s\S]{0,320}?setClipboard\(copyElements\(project, items\)\);[\s\S]{0,120}?removeSelection\(\);/.test(studio));
+    check("constat 4 · Ctrl/⌘ + X · C · V sont câblés, et documentés dans le panneau de raccourcis",
+      /if \(meta && lower === "x"\)/.test(studio) &&
+      /if \(meta && lower === "c"\)/.test(studio) &&
+      /if \(meta && lower === "v"\)/.test(studio) &&
+      /Ctrl\/⌘ \+ V/.test(shortcuts));
     check("P3-7 · le clic droit sur la timeline est câblé (plans ET calques)",
       /onContextMenu=\{\(e\) => onContextMenu\?\.\(\{ kind: "clip", id: it\.id \}, e\)\}/.test(timeline) &&
       /onContextMenu=\{\(e\) => onContextMenu\?\.\(\{ kind, id: it\.id \}, e\)\}/.test(timeline));
@@ -521,11 +612,233 @@ async function main() {
     check("P2-10 · la transcription sélectionne tout le lot posé, pas un sous-titre isolé",
       /newIds\.push\(id\)/.test(studio) && /setMultiSelection\(new Map\(newIds\.map/.test(studio));
     check("P2-10 · le panneau propose un réglage commun quand le groupe est entièrement du même type texte",
-      /const allTexts = multiSelectionItems\.every\(\(s\) => s\.kind === "text"\)/.test(panel));
+      /const allTexts = kinds\.size === 1 && kinds\.has\("text"\)/.test(panel));
     check("P2-10 · le réglage commun s'applique en une seule entrée d'historique, pas une par sous-titre",
-      /textIds\.reduce\(\(acc, id\) => updateText\(acc, id, patch\), p\)/.test(panel));
-    check("P2-10 · un groupe mixte (pas seulement des sous-titres) garde le résumé neutre existant",
-      /if \(!allTexts\) \{/.test(panel));
+      /onChange\(\(p\) => items\.reduce\(\(acc, sel\) => fn\(acc, sel\), p\)\)/.test(panel));
+
+    // ── constat 2 · Les propriétés communes ne se limitent plus à la police
+    // et à la couleur (audit v4). La TAILLE d'un lot de sous-titres, geste le
+    // plus courant après une transcription, était impossible autrement qu'un
+    // par un ; un groupe mixte n'obtenait, lui, aucun réglage du tout.
+    check("constat 2 · un groupe de textes règle aussi taille, interligne, retour à la ligne et alignement",
+      /batchText\(\{ sizePct: v \/ 100 \}\)/.test(panel) &&
+      /batchText\(\{ lineHeight: v \}\)/.test(panel) &&
+      /batchText\(\{ wrapPct: v \/ 100 \}\)/.test(panel) &&
+      /batchText\(\{ align: a \}\)/.test(panel));
+    check("constat 2 · un groupe visuel de types MÊLÉS règle position, opacité et alignement",
+      /\{allVisual && \(/.test(panel) &&
+      /patchVisual\(\{ x: v \/ 100 \}\)/.test(panel) &&
+      /patchVisual\(\{ opacity: v \/ 100 \}\)/.test(panel));
+    check("constat 2 · rotation et animations restent réservées aux calques — un plan n'en a pas",
+      /const allLayers = allVisual && !kinds\.has\("clip"\)/.test(panel) &&
+      /\{allLayers && \(/.test(panel));
+    check("constat 2 · minutage et piste s'appliquent à TOUS les types, son compris",
+      /const nudge = \(delta: number\) =>/.test(panel) &&
+      /moveElement\(p, \{ kind: sel\.kind, id: sel\.id \}, \{ trackId \}\)/.test(panel));
+    check("constat 2 · une valeur qui diffère d'un élément à l'autre s'affiche VIDE, pas avec celle du premier",
+      /const MIXED = Symbol\("mixed"\)/.test(panel) &&
+      /function sharedValue</.test(panel) &&
+      /placeholder=\{mixed \? "—" : undefined\}/.test(panel));
+    check("constat 2 · les nombres sont comparés arrondis — deux positions d'un même glisser ne sont pas « différentes »",
+      /Math\.round\(v \* 1e4\) \/ 1e4/.test(panel));
+    check("constat 2 · un groupe mêlant son et visuel dit ce qui s'applique quand même",
+      /\{!allVisual && !allAudio && \(/.test(panel));
+  }
+
+  // ── constat 7 · Images-clés (audit Editing Bench v4) ─────────────────────
+  // Rien n'existait : `keyframe` n'apparaissait nulle part dans le dépôt. Les
+  // seules animations possibles étaient les entrées/sorties prédéfinies, sans
+  // aucun réglage manuel dans le temps.
+  {
+    const model = read("lib/editor/project.ts");
+    const plan = read("lib/editor/render-plan.ts");
+    check("constat 7 · le modèle porte les images-clés et sait interpoler",
+      /export function valueAt\(/.test(model) && /export function setKeyframe\(/.test(model) &&
+      /export type EasingKind/.test(model));
+    check("constat 7 · l'aperçu ET l'export passent par le MÊME entonnoir résolu",
+      /\.map\(\(l\) => layerAt\(l, time\)\)/.test(model) &&
+      /textsAt\(project, at\)/.test(studio) && /imagesAt\(project, at\)/.test(studio) &&
+      /shapesAt\(project, at\)/.test(studio));
+    check("constat 7 · un calque animé est composé en SÉQUENCE de PNG",
+      /const step = 1 \/ overlay\.fps/.test(studio) && /export const KEYFRAME_FPS/.test(plan));
+    check("constat 7 · la séquence est lue à sa cadence et recalée sur son instant",
+      /args\.push\("-framerate", String\(o\.fps\), "-i", o\.name\)/.test(plan) &&
+      /setpts=PTS\+\$\{start\}\/TB/.test(plan));
+    check("constat 7 · écrire sur une propriété animée pose une CLÉ, pas une valeur fixe",
+      /export function patchAnimated\(/.test(model) &&
+      /patchAnimated\(p, \{ kind, id \}, patch, playhead\)/.test(panel));
+    check("constat 7 · le chronomètre est SUR LA LIGNE de la propriété, pas dans un bloc à part",
+      /function AnimatableRow\(/.test(panel) && /Clé précédente/.test(panel) &&
+      !/function KeyframeRow\(/.test(panel));
+    check("constat 7 · un PLAN s'anime aussi — cadre, opacité, volume",
+      /sel=\{\{ kind: "clip", id: clip\.id \}\}/.test(panel) &&
+      /if \(kind === "clip"\) return \["x", "y", "w", "h", "opacity", "volume"\]/.test(model));
+    check("constat 7 · un SON s'anime par son volume — baisser la musique sous une voix",
+      /sel=\{\{ kind: "audio", id: audio\.id \}\}/.test(panel) &&
+      /if \(kind === "audio"\) return \["volume"\]/.test(model));
+    check("constat 7 · un volume animé est RENDU, par expression ffmpeg",
+      /export function volumeExpression\(/.test(plan) && /volume=volume='\$\{expr\}':eval=frame/.test(plan));
+    check("constat 7 · les images-clés SUIVENT leur élément quand il se déplace",
+      /export function shiftKeyframes\(/.test(model) &&
+      /keyframes: shiftKeyframes\(el\.keyframes, start - el\.start\)/.test(model));
+    check("constat 7 · l'avertissement nomme ce que le moteur ne sait pas animer",
+      /export function unrenderableKeyframes\(/.test(plan));
+    check("constat 7 · figer une animation garde la valeur VUE, pas une valeur oubliée",
+      /export function clearKeyframes\(/.test(model) && /const frozen = el \? valueAt\(el, prop, time\) : undefined/.test(model));
+    check("constat 7 · la timeline montre les clés sur TOUS les blocs, plans compris",
+      /keyframeTimes=\{keyframesOfElement\(kind, it\.id\)\}/.test(timeline) &&
+      /keyframeTimes=\{keyframesOfElement\("clip", it\.id\)\}/.test(timeline) &&
+      /rotate-45 bg-page/.test(timeline));
+    check("constat 7 · un rendu qui ne saura PAS les animer est signalé avant l'export",
+      /keyframesFrozen\?: boolean/.test(plan) && /decision\.keyframesFrozen && \(/.test(studio));
+    check("constat 7 · un élément sans clé garde exactement son comportement",
+      /if \(!hasKeyframes\(el\)\) return el;/.test(model));
+    check("constat 7 · GLISSER un calque animé dans l'aperçu pose aussi une clé",
+      /patchAnimated\(p, \{ kind: "text", id: sel\.id \}/.test(studio) &&
+      /patchAnimated\(p, \{ kind: "image", id: sel\.id \}/.test(studio) &&
+      /patchAnimated\(p, \{ kind: "shape", id: sel\.id \}/.test(studio));
+  }
+
+  // ── constat 5 · Voix off enregistrée au micro (audit Editing Bench v4) ────
+  // Le module n'était qu'un import de fichier, identique à « Musique » au rôle
+  // près : pour poser un commentaire, il fallait sortir de la plateforme,
+  // enregistrer ailleurs, exporter, revenir, importer — et découvrir seulement
+  // à ce moment-là si le texte tombe juste.
+  {
+    const rec = read("components/editor/VoiceRecorder.tsx");
+    check("constat 5 · l'enregistrement passe par le micro, pas par un fichier",
+      /navigator\.mediaDevices\?\.getUserMedia/.test(rec) && /new MediaRecorder\(/.test(rec));
+    check("constat 5 · un décompte précède la prise — sans lui la première syllabe est perdue",
+      /const COUNT_IN = /.test(rec) && /phase === "counting"/.test(rec));
+    check("constat 5 · le montage JOUE pendant la prise",
+      /onPlay\(\);/.test(rec) && /onPlay=\{\(\) => setPlaying\(true\)\}/.test(studio));
+    // Le conteneur WebM de MediaRecorder n'a pas d'en-tête de durée : Chrome
+    // le charge avec une durée infinie et refuse de le lire. La prise est donc
+    // DÉCODÉE, ce qui donne sa durée réelle et une pré-écoute qui n'a que
+    // faire du conteneur — c'était le défaut « j'enregistre, et rien ne sort ».
+    check("constat 5 · la prise est décodée, pas confiée à un <audio> sur un WebM sans durée",
+      /decodeAudioData\(await blob\.arrayBuffer\(\)\)/.test(rec) &&
+      !/<audio src=\{take\.url\}/.test(rec));
+    check("constat 5 · la pré-écoute passe par le graphe audio",
+      /ctx\.createBufferSource\(\)/.test(rec) && /node\.buffer = take\.buffer/.test(rec));
+    check("constat 5 · une prise inexploitable le DIT, au lieu d'un lecteur muet",
+      /La prise n'a pas pu être relue/.test(rec) && /buffer\.duration <= 0\.05/.test(rec));
+    check("constat 5 · l'enregistrement écrit par morceaux réguliers",
+      /rec\.start\(250\)/.test(rec));
+    check("constat 5 · la durée insérée est la durée RÉELLE du son décodé",
+      /duration: buffer\.duration/.test(rec));
+    check("constat 5 · pré-écoute AVANT insertion — une prise ratée ne passe pas par la timeline",
+      /phase === "review"/.test(rec) && /Écouter la prise/.test(rec));
+    check("constat 5 · refaire une prise et la jeter sont deux gestes distincts",
+      /Refaire/.test(rec) && /Jeter/.test(rec));
+    check("constat 5 · un voyant de niveau prouve que le micro capte",
+      /createAnalyser\(\)/.test(rec) && /getByteTimeDomainData/.test(rec));
+    check("constat 5 · micro et pré-écoute TOUJOURS relâchés — démontage compris",
+      /useEffect\(\(\) => \(\) => \{[\s\S]{0,240}?teardown\(\);\s*\n\s*\}, \[teardown, stopPreview\]\)/.test(rec) &&
+      /stream\.current\?\.getTracks\(\)\.forEach\(\(tr\) => tr\.stop\(\)\)/.test(rec));
+    check("constat 5 · chaque cause d'échec du micro a son propre message",
+      /window\.isSecureContext === false/.test(rec) && /NotAllowedError/.test(rec) &&
+      /NotFoundError/.test(rec) && /NotReadableError/.test(rec) &&
+      /Micro indisponible\$\{name \? ` \(\$\{name\}\)` : ""\}/.test(rec));
+    check("constat 5 · la demande d'autorisation est VISIBLE — le bouton ne reste pas inerte",
+      /setPhase\("asking"\)/.test(rec) && /phase === "asking"/.test(rec));
+    // Brancher un graphe audio sur la piste ENREGISTRÉE est un moyen connu de
+    // faire capturer du silence au recorder sur certaines versions de Chrome :
+    // le voyant du micro s'allume, le fichier pèse son poids, et ne contient
+    // rien. L'analyse tourne donc sur un clone.
+    check("constat 5 · l'analyse de niveau ne touche pas la piste enregistrée",
+      /new MediaStream\(src\.getAudioTracks\(\)\.map\(\(tr\) => tr\.clone\(\)\)\)/.test(rec) &&
+      /meterStream\.current\?\.getTracks\(\)\.forEach\(\(tr\) => tr\.stop\(\)\)/.test(rec));
+    check("constat 5 · une prise SILENCIEUSE est détectée et nommée, pas livrée muette",
+      /function peakOf\(buffer: AudioBuffer\)/.test(rec) && /peak < 0\.005/.test(rec) &&
+      /Prise silencieuse/.test(rec));
+    check("constat 5 · le message distingue « le micro captait » de « il ne captait pas »",
+      /seenLevel\.current > 0\.02/.test(rec));
+    check("constat 5 · l'entrée audio se choisit — c'est ce qui débloque une mauvaise entrée par défaut",
+      /enumerateDevices\(\)/.test(rec) && /deviceId: \{ exact: deviceId \}/.test(rec));
+    check("constat 5 · le niveau atteint est affiché avant l'insertion",
+      /Niveau maximal/.test(rec) && /take\.peak < 0\.08/.test(rec));
+    check("constat 5 · l'import d'un fichier son vit au même endroit que l'enregistrement",
+      /onImportFile/.test(rec) && /onImportFile=\{\(f\) => importFile\(f, "voice"\)\}/.test(studio));
+    check("constat 5 · la prise se pose à l'instant où l'enregistrement a commencé",
+      /const insertVoiceTake = useCallback\(/.test(studio) &&
+      /role: "voice", sourceDuration: duration \}\),/.test(studio) &&
+      /\{ start, length: duration \}/.test(studio));
+    check("constat 5 · une prise plus longue que le film restant est signalée, pas tronquée en silence",
+      /const room = Math\.max\(0, projectDuration\(project\) - start\)/.test(studio) &&
+      /elle a été raccourcie d'autant/.test(studio));
+  }
+
+  // ── constat 6 · Chutier « fichiers du projet » (audit Editing Bench v4) ──
+  // L'onglet Médias ne savait qu'importer : reposer une vidéo déjà utilisée
+  // obligeait à la réenvoyer, créant un second fichier hébergé pour le même
+  // contenu. `ProjectLibrary`, malgré son nom, liste les PROJETS enregistrés.
+  {
+    const bin = read("components/editor/MediaBin.tsx");
+    const model = read("lib/editor/project.ts");
+    check("constat 6 · le chutier est DÉRIVÉ du document, jamais tenu à part",
+      /export function projectMedia\(/.test(model) &&
+      /const media = useMemo\(\(\) => projectMedia\(project\), \[project\]\)/.test(studio));
+    check("constat 6 · il vit dans l'onglet Médias, sous les boutons d'import",
+      /<MediaBin/.test(studio) && /Fichiers du projet/.test(bin));
+    check("constat 6 · un média se repose sans réimport — plan, incrustation ou son",
+      /onAddClip=\{\(m\) => apply\(\(p\) => addClip\(/.test(studio) &&
+      /onAddOverlay=\{\(m\) => apply\(\(p\) => addImageLayer\(/.test(studio) &&
+      /onAddAudio=\{\(m\) => apply\(\(p\) => addAudio\(/.test(studio));
+    check("constat 6 · un son reposé garde le RÔLE qu'il a déjà (pas « musique » par défaut)",
+      /function audioRoleOf\(p: EditorProject, src: string\): AudioRole/.test(studio) &&
+      /role: audioRoleOf\(p, m\.src\)/.test(studio));
+    check("constat 6 · un chutier vide explique ce qui s'y trouvera, plutôt que de rester nu",
+      /media\.length === 0/.test(bin));
+    check("constat 6 · deux affichages au choix — vignettes ou liste — et le choix est retenu",
+      /type BinView = "list" \| "grid"/.test(bin) && /localStorage\.setItem\(VIEW_KEY, v\)/.test(bin) &&
+      /useEffect\(\(\) => setView\(readView\(\)\), \[\]\)/.test(bin));
+    check("constat 6 · une vignette qui ne se charge pas retombe sur la pastille de type",
+      /onError=\{\(\) => setBroken\(true\)\}/.test(bin) && /m\.kind === "audio" \|\| broken/.test(bin));
+  }
+
+  // ── Lisibilité des panneaux (retours du 4 septembre) ─────────────────────
+  // Trois défauts relevés à l'usage : un panneau d'outils sans hiérarchie, des
+  // libellés qui débordent de leur cadre, et des bascules de style que rien ne
+  // permet de comprendre sans cliquer.
+  {
+    const bin = read("components/editor/MediaBin.tsx");
+    check("lisibilité · le panneau d'outils est découpé en sections nommées",
+      /function Section\(\{ title, children \}/.test(studio) &&
+      /<Section title=\{t\("Importer", "Import"\)\}/.test(studio) &&
+      /<Section title=\{t\("Sous-titres", "Subtitles"\)\}/.test(studio));
+    check("lisibilité · les boutons d'import alignent leur icône dans une gouttière fixe",
+      /<span aria-hidden className="w-4 shrink-0 text-center">\{icon\}<\/span>/.test(studio));
+    check("lisibilité · les bascules de style portent un MOT, pas un seul glyphe",
+      /function ToggleChip\(/.test(panel) && /label=\{t\("Bandeau", "Band"\)\}/.test(panel) &&
+      /label=\{t\("Contour", "Outline"\)\}/.test(panel));
+    check("lisibilité · un curseur met sa valeur sur sa propre ligne, plus rien ne déborde",
+      /<span className="flex items-baseline justify-between gap-2">/.test(panel));
+    check("lisibilité · les cadres de propriétés ne laissent plus échapper leur contenu",
+      /min-w-0 space-y-2 overflow-hidden rounded-lg border border-hair p-3/.test(panel));
+    check("lisibilité · la timeline dessine ses pistes, au lieu d'une surface unique",
+      /rounded-md border border-hair bg-card\/60 px-1/.test(timeline) &&
+      /track\.family === "audio" \? "bg-ai-textbg\/30" : "bg-card\/60"/.test(timeline));
+    check("ajustement · un champ numérique se règle en TIRANT à la souris",
+      /function useValueScrubber\(/.test(panel) &&
+      /const SCRUB_THRESHOLD_PX = /.test(panel) &&
+      /cursor-ew-resize/.test(panel));
+    check("ajustement · le clic simple donne toujours le focus pour la saisie",
+      /if \(Math\.abs\(dx\) < SCRUB_THRESHOLD_PX\) return;/.test(panel));
+    check("ajustement · Maj affine le réglage",
+      /const fine = e\.shiftKey \? 0\.1 : 1;/.test(panel));
+    check("ajustement · la course est calibrée pour viser, pas pour balayer la plage en un geste",
+      /const SCRUB_UNITS_PER_PX = 0\.25;/.test(panel) &&
+      /dx \* step \* SCRUB_UNITS_PER_PX \* fine/.test(panel));
+    check("banc · le sélecteur de langue reste atteignable quand le banc est ouvert",
+      /<LanguageSwitcher \/>/.test(studio));
+    check("ajustement · le glisser ne produit QU'UNE entrée d'historique",
+      /onStart: gesture\.begin/.test(panel) && /onEnd: gesture\.commit/.test(panel) &&
+      /gesture=\{\{ begin: beginGesture, live: applyLive, commit: commitGesture \}\}/.test(studio));
+    check("ajustement · il agit aussi sur un GROUPE, en une seule entrée",
+      /const scrubVisual = /.test(panel) && /const scrubText = /.test(panel));
+    check("lisibilité · le chutier propose vignettes OU liste",
+      /<ViewButton icon="▦"/.test(bin) && /<ViewButton icon="☰"/.test(bin));
   }
 
   // ── P1-13 · Un calque neuf se pose à la tête de lecture (audit Editing
@@ -552,13 +865,15 @@ async function main() {
     check("P3-1 · Toggle porte désormais un titre explicatif (infobulle + lecteur d'écran)",
       /function Toggle\(\{ on, onClick, title, children \}/.test(panel) &&
       /aria-label=\{title\}/.test(panel));
+    // Mieux qu'une infobulle : le mot est ÉCRIT sur la puce. Une infobulle ne
+    // se lit qu'au survol, et jamais sur un écran tactile.
     check("P3-1 · Gras/Bandeau/Contour/Ombre sont expliqués sur le panneau texte",
-      /title=\{t\("Gras", "Bold"\)\}/.test(panel) &&
-      /title=\{t\("Bandeau", "Background band"\)\}/.test(panel) &&
-      /title=\{t\("Contour", "Outline"\)\}/.test(panel) &&
-      /title=\{t\("Ombre", "Shadow"\)\}/.test(panel));
+      /label=\{t\("Gras", "Bold"\)\}/.test(panel) &&
+      /label=\{t\("Bandeau", "Band"\)\}/.test(panel) &&
+      /label=\{t\("Contour", "Outline"\)\}/.test(panel) &&
+      /label=\{t\("Ombre", "Shadow"\)\}/.test(panel));
     check("P3-1 · l'alignement de texte est expliqué, pas seulement dessiné en flèches",
-      /Aligné à gauche/.test(panel) && /Aligné à droite/.test(panel));
+      /t\("Gauche", "Left"\)/.test(panel) && /t\("Droite", "Right"\)/.test(panel));
     check("P3-1 · muet/audible s'explique sans avoir à deviner l'émoji",
       /Muet — cliquer pour réactiver/.test(panel) || /Muted — click to unmute/.test(panel));
   }
@@ -573,7 +888,7 @@ async function main() {
       /function ColorSwatches\(/.test(panel) && /type="color"/.test(panel));
     check("P2-12 · le texte (individuel ET groupe de sous-titres) utilise le sélecteur",
       /<ColorSwatches value=\{text\.color\}/.test(panel) &&
-      /<ColorSwatches value=\{first\?\.color/.test(panel));
+      /value=\{\(sharedValue\(texts\.map\(\(l\) => l\.color\)\) as string \| undefined\) \?\? PRESET_COLORS\[0\]\}/.test(panel));
     check("P2-12 · le remplissage ET le contour d'une forme utilisent le sélecteur",
       /<ColorSwatches value=\{shape\.fill\}/.test(panel) &&
       /<ColorSwatches[\s\S]{0,40}value=\{shape\.stroke\}/.test(panel));

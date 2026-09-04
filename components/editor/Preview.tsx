@@ -18,6 +18,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useT } from "@/lib/i18n";
 import {
   clipsAt,
+  cssImageFilter,
   FORMAT_SIZE,
   imagesAt,
   layerProgress,
@@ -42,6 +43,18 @@ export type LayerPatch = Partial<Pick<VisualLayer, "x" | "y" | "rotation">> & {
   w?: number;
   h?: number;
 };
+
+/**
+ * Zones de sécurité — la part du cadre que l'interface des plateformes
+ * recouvre. Mesurées sur TikTok et les Reels, les plus couvrantes : la barre
+ * de légende et les boutons de compte en bas, la colonne d'actions à droite,
+ * et l'en-tête en haut. Respecter la plus stricte les respecte toutes.
+ */
+const SAFE_KEY = "axon.preview.safezones";
+const SAFE_TOP = 0.08;
+const SAFE_BOTTOM = 0.20;
+const SAFE_SIDE = 0.05;
+const SAFE_RIGHT = 0.17;
 
 /** Repères d'alignement : centres, bords, marges. */
 const GUIDES_X = [0, 0.05, 0.5, 0.95, 1];
@@ -91,6 +104,18 @@ export function Preview({
 }) {
   const t = useT();
   const duration = projectDuration(project);
+  /** Zones de sécurité — retenues d'une session à l'autre : qui publie sur
+      TikTok les veut TOUJOURS, et qui n'y publie pas ne les veut jamais. */
+  const [safeZones, setSafeZones] = useState(false);
+  useEffect(() => {
+    try { setSafeZones(window.localStorage.getItem(SAFE_KEY) === "on"); } catch { /* stockage refusé */ }
+  }, []);
+  const toggleSafeZones = () => {
+    setSafeZones((on) => {
+      try { window.localStorage.setItem(SAFE_KEY, on ? "off" : "on"); } catch { /* stockage refusé */ }
+      return !on;
+    });
+  };
   const [volume, setVolume] = useState(1);
   const [muted, setMuted] = useState(false);
   const [zoom, setZoom] = useState(1);
@@ -459,6 +484,10 @@ export function Preview({
                   height: clip.h * frame.height,
                   objectPosition: `${clip.focusX * 100}% ${clip.focusY * 100}%`,
                   opacity,
+                  // Correction d'image : les MÊMES nombres alimentent le filtre
+                  // `eq` du rendu. C'est ce qui garantit que l'image vue est
+                  // l'image produite.
+                  filter: cssImageFilter(clip) || undefined,
                 };
                 const fitClass = clip.fit === "contain" ? "object-contain" : "object-cover";
                 const movable = Boolean(onLayerChange);
@@ -614,6 +643,36 @@ export function Preview({
               </p>
             )}
 
+            {/* ZONES DE SÉCURITÉ. L'interface des plateformes recouvre le bas
+                de l'écran et la colonne de droite : sans repère, on place un
+                texte qui sera masqué à la publication, et on ne le découvre
+                qu'après. Les proportions sont celles de TikTok et des Reels,
+                les plus couvrantes — respecter la plus stricte les respecte
+                toutes. Purement visuel : rien n'en sort dans le rendu. */}
+            {safeZones && (
+              <div aria-hidden className="pointer-events-none absolute inset-0 z-20">
+                <div
+                  className="absolute inset-0 border-2 border-dashed border-white/40"
+                  style={{
+                    top: frame.height * SAFE_TOP,
+                    bottom: frame.height * SAFE_BOTTOM,
+                    left: frame.width * SAFE_SIDE,
+                    right: frame.width * SAFE_RIGHT,
+                  }}
+                />
+                <div className="absolute inset-x-0 bottom-0 bg-danger-500/10"
+                     style={{ height: frame.height * SAFE_BOTTOM }} />
+                <div className="absolute inset-y-0 right-0 bg-danger-500/10"
+                     style={{ width: frame.width * SAFE_RIGHT }} />
+                <span
+                  className="absolute left-1/2 -translate-x-1/2 rounded bg-black/60 px-2 py-0.5 text-white"
+                  style={{ bottom: frame.height * (SAFE_BOTTOM + 0.01), fontSize: frame.height * 0.016 }}
+                >
+                  {t("Zone masquée par l'interface", "Covered by the app interface")}
+                </span>
+              </div>
+            )}
+
             {/* Repères d'alignement */}
             {guides.x !== null && (
               <div className="pointer-events-none absolute inset-y-0 w-[2px] bg-ai-visual"
@@ -666,6 +725,21 @@ export function Preview({
             <button type="button" onClick={() => setZoom((z) => Math.min(6, z * 1.25))}
               aria-label={t("Zoomer l'aperçu", "Zoom in preview")}
               className="h-5 w-5 rounded text-xs text-white/80 hover:text-white">+</button>
+          </Tooltip>
+          <span className="mx-1 h-3 w-px bg-white/20" />
+          <Tooltip label={t(
+            "Montre la part du cadre que l'interface de TikTok et des Reels recouvre",
+            "Shows the part of the frame covered by the TikTok and Reels interface"
+          )}>
+            <button
+              type="button"
+              onClick={toggleSafeZones}
+              aria-pressed={safeZones}
+              aria-label={t("Zones de sécurité", "Safe zones")}
+              className={`h-5 rounded px-1.5 text-2xs ${safeZones ? "bg-page text-white" : "text-white/80 hover:text-white"}`}
+            >
+              ⧉ {t("Zones sûres", "Safe zones")}
+            </button>
           </Tooltip>
         </div>
       </div>

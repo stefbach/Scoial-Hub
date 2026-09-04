@@ -213,7 +213,11 @@ export function Timeline({
     | { type: "move"; kind: ElementKind; id: string; startX: number; startY: number; fromStart: number; fromLaneIndex: number; family: TrackFamily }
     // Le balayage retient son origine : parti du VIDE d'une piste, il se
     // transforme en rectangle de sélection dès que la main s'éloigne assez.
-    | { type: "scrub"; startX: number; startY: number; fromLane: boolean; additive: boolean }
+    // `seek` distingue le balayage RÉEL (graduation, rangée — le pointeur est
+    // sur l'axe du temps) du geste parti d'une zone qui n'en fait pas partie
+    // (colonne des libellés, marge sous la dernière piste) : là, déplacer la
+    // tête de lecture à l'abscisse du clic la renverrait à zéro sans raison.
+    | { type: "scrub"; startX: number; startY: number; fromLane: boolean; additive: boolean; seek: boolean }
     | { type: "marquee"; startX: number; startY: number; additive: boolean };
 
   const drag = useRef<DragState | null>(null);
@@ -273,10 +277,13 @@ export function Timeline({
    * un rectangle de sélection — c'est le déplacement qui tranche, pas le
    * point de départ.
    */
-  function startScrub(e: React.PointerEvent, fromLane = false, additive = false) {
-    drag.current = { type: "scrub", startX: e.clientX, startY: e.clientY, fromLane, additive };
+  function startScrub(
+    e: React.PointerEvent,
+    { fromLane = false, additive = false, seek = true }: { fromLane?: boolean; additive?: boolean; seek?: boolean } = {}
+  ) {
+    drag.current = { type: "scrub", startX: e.clientX, startY: e.clientY, fromLane, additive, seek };
     (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
-    seekTo(e.clientX);
+    if (seek) seekTo(e.clientX);
   }
 
   function onLanePointerDown(e: React.PointerEvent) {
@@ -284,12 +291,42 @@ export function Timeline({
     // bouton. Sans lui, le clic droit dans le vide effaçait la sélection et
     // déplaçait la tête de lecture avant même d'ouvrir son menu.
     if (e.button === 2) return;
+    // Consommé ici : le filet de sécurité posé sur le cadre entier ne doit pas
+    // rejouer le même geste une seconde fois.
+    e.stopPropagation();
+    beginEmptyGesture(e, true);
+  }
+
+  /**
+   * Geste parti d'une zone SANS élément — une rangée vide, mais aussi tout le
+   * reste du cadre. Il désélectionne, et devient un rectangle de sélection dès
+   * qu'il dépasse le seuil.
+   */
+  function beginEmptyGesture(e: React.PointerEvent, seek: boolean) {
     // Maj/Ctrl/⌘ : le geste vient ÉTENDRE la sélection, il ne doit donc pas
     // commencer par l'effacer.
     const additive = e.shiftKey || e.ctrlKey || e.metaKey;
     if (!additive) onSelect(null);
     frameRect.current = frameRef.current?.getBoundingClientRect() ?? null;
-    startScrub(e, true, additive);
+    startScrub(e, { fromLane: true, additive, seek });
+  }
+
+  /**
+   * Filet de sécurité sur TOUT le cadre — même raison que pour le clic droit :
+   * les rangées ne couvrent qu'une bande de 40 px par piste. Les interstices,
+   * la graduation, la colonne des libellés et surtout la grande marge sous la
+   * dernière piste — l'endroit le plus naturel où commencer un rectangle — n'y
+   * appartiennent pas, et le geste n'y démarrait tout simplement pas.
+   *
+   * Les blocs et les rangées ont déjà consommé l'événement ; il ne reste ici
+   * que le vide. Les commandes de piste (verrou, œil, flèches, corbeille) sont
+   * écartées explicitement : un clic sur un bouton n'est pas un début de
+   * sélection.
+   */
+  function onFramePointerDown(e: React.PointerEvent) {
+    if (e.button === 2 || !onMarqueeSelect) return;
+    if ((e.target as HTMLElement | null)?.closest("button, select, input, a, [role='slider'], [role='separator']")) return;
+    beginEmptyGesture(e, false);
   }
 
   /** Ouvre un geste continu — une seule entrée d'historique le scellera. */
@@ -425,7 +462,7 @@ export function Timeline({
         setMarquee(box);
         return;
       }
-      seekTo(e.clientX);
+      if (d.seek) seekTo(e.clientX);
       return;
     }
     if (d.type === "marquee") {
@@ -639,6 +676,7 @@ export function Timeline({
         ref={frameRef}
         className="relative flex gap-2 overflow-y-auto overscroll-contain rounded-lg border border-hair bg-canvas/60 p-2"
         style={{ minHeight: 180, maxHeight: "38vh" }}
+        onPointerDown={onFramePointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={endDrag}
         onPointerLeave={endDrag}
@@ -722,7 +760,10 @@ export function Timeline({
             <Ruler
               duration={duration}
               pxPerSec={pxPerSec}
-              onScrub={startScrub}
+              // Consommé, comme les rangées : sans quoi le filet de sécurité du
+              // cadre rejouerait le geste et transformerait un balayage sur la
+              // graduation en rectangle de sélection.
+              onScrub={(e) => { e.stopPropagation(); startScrub(e); }}
               label={t("Se déplacer dans le film", "Scrub the film")}
             />
 

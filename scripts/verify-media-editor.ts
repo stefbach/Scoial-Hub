@@ -525,6 +525,18 @@ async function main() {
       /x2 >= left && x1 <= right && y2 >= top && y1 <= bottom/.test(timeline));
     check("constat 1 · le rectangle ne scelle aucune entrée d'historique (il ne modifie pas le document)",
       /if \(d\?\.type === "marquee"\)[\s\S]{0,400}?onMarqueeSelect\?\.\(elementsInBox\(box\), d\.additive\)/.test(timeline));
+    check("constat 1 · le geste part de TOUT le cadre, pas des seules rangées de 40 px",
+      /onPointerDown=\{onFramePointerDown\}/.test(timeline) &&
+      /function onFramePointerDown\(e: React\.PointerEvent\)/.test(timeline) &&
+      /function beginEmptyGesture\(e: React\.PointerEvent, seek: boolean\)/.test(timeline));
+    check("constat 1 · rangées, graduation et blocs consomment le geste — le filet ne le rejoue pas",
+      /function onLanePointerDown\(e: React\.PointerEvent\) \{[\s\S]{0,600}?e\.stopPropagation\(\);\s*\n\s*beginEmptyGesture/.test(timeline) &&
+      /onScrub=\{\(e\) => \{ e\.stopPropagation\(\); startScrub\(e\); \}\}/.test(timeline));
+    check("constat 1 · les commandes de piste ne démarrent jamais un rectangle",
+      /closest\("button, select, input, a, \[role='slider'\], \[role='separator'\]"\)/.test(timeline));
+    check("constat 1 · hors de l'axe du temps, le geste ne renvoie pas la tête de lecture à zéro",
+      /if \(d\.seek\) seekTo\(e\.clientX\);/.test(timeline) &&
+      /beginEmptyGesture\(e, false\)/.test(timeline));
     check("constat 1 · Maj/Ctrl/⌘ étend la sélection au lieu de la remplacer",
       /const additive = e\.shiftKey \|\| e\.ctrlKey \|\| e\.metaKey;\s*\n\s*if \(!additive\) onSelect\(null\);/.test(timeline) &&
       /function onMarqueeSelect\(sels: NonNullable<TimelineSelection>\[\], additive: boolean\)/.test(studio));

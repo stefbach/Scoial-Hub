@@ -13,7 +13,7 @@
 // disponible partout d'un coup. Les panneaux spécifiques ne portent plus que ce
 // qui est propre à leur type.
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useT } from "@/lib/i18n";
 import {
   ANIMATION_SECONDS,
@@ -25,7 +25,14 @@ import {
   setClipLength,
   setClipOpacity,
   setClipSpeed,
+  setClipAdjust,
   setClipTransition,
+  hasImageAdjust,
+  IMAGE_ADJUST_PROPS,
+  IMAGE_ADJUST_RANGE,
+  CLIP_TRANSITION_SECONDS,
+  MIN_TRANSITION_SECONDS,
+  MAX_TRANSITION_SECONDS,
   updateAudio,
   updateImageLayer,
   animatableProps,
@@ -43,6 +50,7 @@ import {
   type AnimatableKind,
   type AnimatableProp,
   type AnimationKind,
+  type ImageAdjustProp,
   type EasingKind,
   type AudioTrack,
   type Clip,
@@ -57,6 +65,13 @@ import {
 import { FONT_STACKS } from "@/lib/editor/draw";
 import type { BrandStyle } from "@/lib/editor/templates";
 import type { TimelineSelection } from "./Timeline";
+
+/** Libellés des corrections d'image. */
+const ADJUST_LABEL = (t: (fr: string, en: string) => string): Record<ImageAdjustProp, string> => ({
+  brightness: t("Luminosité", "Brightness"),
+  contrast: t("Contraste", "Contrast"),
+  saturation: t("Saturation", "Saturation"),
+});
 
 const PRESET_COLORS = ["#ffffff", "#000000", "#ff3b30", "#ffcc00", "#34c759", "#0a84ff"];
 
@@ -253,17 +268,63 @@ export function PropertyPanel({
             onChange={(trackId) => onChange((p) => moveElement(p, { kind: "clip", id: clip.id }, { trackId }))}
           />
 
+          {/* Correction d'image. Trois réglages, pas quatre : la température
+              de couleur n'a pas d'équivalent exact à la fois dans l'aperçu et
+              dans le rendu, et un aperçu qui ment est pire qu'un réglage
+              absent. Ceux-ci se traduisent au même résultat des deux côtés. */}
+          <div className="space-y-1 border-t border-hair pt-2">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[10px] uppercase tracking-wide text-muted">{t("Image", "Image")}</p>
+              {hasImageAdjust(clip) && (
+                <button
+                  type="button"
+                  onClick={() => onChange((p) => setClipAdjust(p, clip.id, { brightness: 0, contrast: 0, saturation: 0 }))}
+                  className="rounded px-1.5 py-0.5 text-[10px] text-muted ring-1 ring-hair hover:text-ink"
+                >
+                  {t("Réinitialiser", "Reset")}
+                </button>
+              )}
+            </div>
+            {IMAGE_ADJUST_PROPS.map((prop) => (
+              <Range
+                key={prop}
+                label={ADJUST_LABEL(t)[prop]}
+                min={IMAGE_ADJUST_RANGE[prop].min}
+                max={IMAGE_ADJUST_RANGE[prop].max}
+                step={0.02}
+                value={clip[prop] ?? 0}
+                display={`${(clip[prop] ?? 0) > 0 ? "+" : ""}${Math.round((clip[prop] ?? 0) * 100)}`}
+                onChange={(v) => onChange((p) => setClipAdjust(p, clip.id, { [prop]: v }))}
+              />
+            ))}
+          </div>
+
           {project.clips.some((c) => c.track === clip.track && c.start < clip.start) && (
-            <SelectRow
-              label={t("Transition", "Transition")}
-              value={clip.transitionIn}
-              options={[
-                { value: "none", label: t("Coupe franche", "Hard cut") },
-                { value: "fade", label: t("Fondu", "Fade") },
-                { value: "dissolve", label: t("Fondu enchaîné", "Dissolve") },
-              ]}
-              onChange={(v) => onChange((p) => setClipTransition(p, clip.id, v as TransitionKind))}
-            />
+            <>
+              <SelectRow
+                label={t("Transition", "Transition")}
+                value={clip.transitionIn}
+                options={[
+                  { value: "none", label: t("Coupe franche", "Hard cut") },
+                  { value: "fade", label: t("Fondu", "Fade") },
+                  { value: "dissolve", label: t("Fondu enchaîné", "Dissolve") },
+                  { value: "wipe-left", label: t("Balayage ←", "Wipe ←") },
+                  { value: "wipe-right", label: t("Balayage →", "Wipe →") },
+                  { value: "slide-up", label: t("Glissement ↑", "Slide ↑") },
+                  { value: "slide-down", label: t("Glissement ↓", "Slide ↓") },
+                ]}
+                onChange={(v) => onChange((p) => setClipTransition(p, clip.id, { kind: v as TransitionKind }))}
+              />
+              {clip.transitionIn !== "none" && (
+                <Range
+                  label={t("Durée de la transition", "Transition length")}
+                  min={MIN_TRANSITION_SECONDS} max={MAX_TRANSITION_SECONDS} step={0.1}
+                  value={clip.transitionSeconds ?? CLIP_TRANSITION_SECONDS}
+                  display={`${(clip.transitionSeconds ?? CLIP_TRANSITION_SECONDS).toFixed(1)}s`}
+                  onChange={(v) => onChange((p) => setClipTransition(p, clip.id, { seconds: v }))}
+                />
+              )}
+            </>
           )}
 
           <p className="text-2xs text-muted">
@@ -414,6 +475,17 @@ export function PropertyPanel({
             display={text.wrapPct === 0 ? t("libre", "free") : `${Math.round(text.wrapPct * 100)}%`}
             onChange={(v) => onChange((p) => updateText(p, text.id, { wrapPct: v }))} />
 
+          {/* Styles enregistrés. Un montage a rarement un seul sous-titre :
+              refaire police, taille, couleur, contour et alignement sur chaque
+              nouveau texte est le genre de répétition qui décourage de bien
+              faire. Un style se pose en un clic, et se met à jour à partir du
+              texte courant. */}
+          <TextStyleBar
+            companyId={project.companyId}
+            current={text}
+            onApply={(style) => onChange((p) => updateText(p, text.id, style))}
+          />
+
           <ColorSwatches value={text.color} onChange={(c) => onChange((p) => updateText(p, text.id, { color: c }))} brand={brand} />
 
           <div className="space-y-1">
@@ -542,6 +614,121 @@ const centerY = (h?: number) => (h ? (1 - h) / 2 : 0.45);
 const bottomY = (h?: number) => (h ? 0.95 - h : 0.85);
 
 /* ── Petits composants ───────────────────────────────────────────────────── */
+
+/* ── Styles de texte enregistrés ─────────────────────────────────────────── */
+
+/** Ce qu'un style retient d'un texte — son APPARENCE, jamais son contenu. */
+type TextStyle = Pick<
+  TextLayer,
+  "font" | "color" | "bold" | "bg" | "outline" | "shadow" | "align" | "sizePct" | "lineHeight"
+>;
+interface SavedTextStyle extends TextStyle { id: string; name: string }
+
+const STYLE_KEY = (companyId: string) => `axon.textstyles.${companyId}`;
+/** Au-delà, la rangée déborde et le choix devient plus lent que le réglage. */
+const MAX_STYLES = 6;
+
+function readStyles(companyId: string): SavedTextStyle[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(STYLE_KEY(companyId));
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? (parsed as SavedTextStyle[]).slice(0, MAX_STYLES) : [];
+  } catch {
+    // Stockage refusé, ou contenu abîmé par une version antérieure : on repart
+    // d'une liste vide plutôt que de faire échouer tout le panneau.
+    return [];
+  }
+}
+
+function writeStyles(companyId: string, styles: SavedTextStyle[]) {
+  try { window.localStorage.setItem(STYLE_KEY(companyId), JSON.stringify(styles)); } catch { /* stockage refusé */ }
+}
+
+function styleOf(l: TextLayer): TextStyle {
+  const { font, color, bold, bg, outline, shadow, align, sizePct, lineHeight } = l;
+  return { font, color, bold, bg, outline, shadow, align, sizePct, lineHeight };
+}
+
+function TextStyleBar({
+  companyId, current, onApply,
+}: {
+  companyId: string;
+  current: TextLayer;
+  onApply: (style: TextStyle) => void;
+}) {
+  const t = useT();
+  const [styles, setStyles] = useState<SavedTextStyle[]>([]);
+  // Lu APRÈS le montage : lire `localStorage` pendant le rendu ferait diverger
+  // le HTML du serveur de celui du client.
+  useEffect(() => setStyles(readStyles(companyId)), [companyId]);
+
+  const save = () => {
+    const next = [
+      { id: `st-${Date.now().toString(36)}`, name: `${t("Style", "Style")} ${styles.length + 1}`, ...styleOf(current) },
+      ...styles,
+    ].slice(0, MAX_STYLES);
+    setStyles(next);
+    writeStyles(companyId, next);
+  };
+  const remove = (id: string) => {
+    const next = styles.filter((st) => st.id !== id);
+    setStyles(next);
+    writeStyles(companyId, next);
+  };
+
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[10px] uppercase tracking-wide text-muted">{t("Styles", "Styles")}</p>
+        <button
+          type="button"
+          onClick={save}
+          disabled={styles.length >= MAX_STYLES}
+          title={styles.length >= MAX_STYLES
+            ? t("Six styles au maximum — retirez-en un pour en ajouter", "Six styles maximum — remove one to add another")
+            : t("Enregistre l'apparence de ce texte comme style réutilisable", "Saves this text's appearance as a reusable style")}
+          className="rounded px-1.5 py-0.5 text-[10px] text-muted ring-1 ring-hair hover:text-ink disabled:opacity-40"
+        >
+          ＋ {t("Enregistrer", "Save")}
+        </button>
+      </div>
+      {styles.length === 0 ? (
+        <p className="text-[10px] text-muted">
+          {t(
+            "Réglez un texte à votre goût, puis enregistrez-le : les suivants s'y conformeront en un clic.",
+            "Style a text the way you like, then save it: the next ones match it in one click."
+          )}
+        </p>
+      ) : (
+        <div className="flex flex-wrap gap-1">
+          {styles.map((st) => (
+            <span key={st.id} className="flex items-center overflow-hidden rounded ring-1 ring-hair">
+              <button
+                type="button"
+                onClick={() => onApply(styleOf({ ...current, ...st }))}
+                title={t("Appliquer ce style", "Apply this style")}
+                className="px-1.5 py-0.5 text-[10px] hover:bg-canvas"
+                style={{ color: st.color, fontWeight: st.bold ? 700 : 400 }}
+              >
+                {st.name}
+              </button>
+              <button
+                type="button"
+                onClick={() => remove(st.id)}
+                aria-label={t("Retirer ce style", "Remove this style")}
+                title={t("Retirer ce style", "Remove this style")}
+                className="px-1 py-0.5 text-[10px] text-muted hover:text-danger"
+              >
+                ×
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 /* ── Ajustement au glisser ───────────────────────────────────────────────── */
 

@@ -53,7 +53,8 @@
     "test:montagepressepapier": "tsx scripts/verify-editor-clipboard.ts",
     "test:montagechutier": "tsx scripts/verify-editor-mediabin.ts",
     "test:montagekeyframes": "tsx scripts/verify-editor-keyframes.ts",
-    "test:montagemultiplan": "tsx scripts/verify-editor-render-multiclip.ts"
+    "test:montagemultiplan": "tsx scripts/verify-editor-render-multiclip.ts",
+    "test:montageartisan": "tsx scripts/verify-editor-craft.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.100.1",

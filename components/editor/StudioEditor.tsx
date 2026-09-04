@@ -21,11 +21,12 @@ import { Spinner } from "@/components/ui/Spinner";
 import { hostMedia, MAX_UPLOAD_BYTES, formatSize } from "@/lib/media/host";
 import { SUBTITLE_LANGS } from "@/lib/ai/subtitle-langs";
 import {
-  addAudio, addButton, addClip, addImageLayer, addShape, addText, addTrack, copyElements, duplicateAudio,
+  addAudio, addButton, addClip, addImageLayer, addMarker, addShape, addText, addTrack, copyElements, duckMusicUnderVoice, duplicateAudio,
   duplicateClip, duplicateImageLayer, duplicateShape, duplicateText,
   pasteElements, patchAnimated, projectMedia,
   emptyProject, FORMAT_SIZE, moveElement, projectDuration, removeAudio,
-  removeClip, removeImageLayer, removeShape, removeText, removeTrack, reorderTrack,
+  removeClip, removeImageLayer, removeMarker, removeShape, removeText, removeTrack, reorderTrack,
+  nextMarker, setTrackHeight, toggleTrackSolo, toSrt,
   setClipBox, setClipFraming, setClipLength,
   setClipSpeed, setClipTransition, setProjectDuration, setTrackDefMeta, shapesAt, imagesAt, textsAt, splitAt, splitAudioAt, splitLayerAt,
   trimClip, trimLayer,
@@ -41,7 +42,10 @@ import {
   canRedo, canUndo, commitGesture as commitGestureHistory, initHistory, push, redo,
   replacePresent, undo, type History,
 } from "@/lib/editor/history";
-import { browserOverlays, decideRenderTarget, overlayFrameName, toBrowserPlan, type OverlayInput } from "@/lib/editor/render-plan";
+import {
+  browserOverlays, decideRenderTarget, overlayFrameName, toBrowserPlan,
+  unrenderableFeatures, type OverlayInput,
+} from "@/lib/editor/render-plan";
 import { drawImages, drawShapes, drawTexts, ensureFontsReady, FONT_STACKS, loadImage } from "@/lib/editor/draw";
 import BrandKitPanel from "@/components/studio/BrandKitPanel";
 import { Timeline, type TimelineSelection } from "./Timeline";
@@ -69,6 +73,10 @@ const SHAPES: { kind: ShapeKind; glyph: string; fr: string; en: string }[] = [
 /** Compteur d'identifiants, stable pour une session d'édition. */
 let seq = 0;
 const nextId = (prefix: string) => `${prefix}-${(seq += 1).toString(36)}-${Date.now().toString(36)}`;
+
+/** Où sont retenus les réglages d'export, d'une session à l'autre. */
+const EXPORT_QUALITY_KEY = "axon.export.quality";
+const EXPORT_FPS_KEY = "axon.export.fps";
 
 /** Suivi du rendu serveur — mêmes constantes que le Studio Vidéo. */
 const RENDER_POLL_MS = 4000;
@@ -115,6 +123,28 @@ export function StudioEditor({
     | { x: number; y: number; target: { type: "element" } | { type: "lane"; trackId: string; time: number } }
     | null
   >(null);
+  /**
+   * Réglages d'EXPORT. Ils ne font pas partie du montage — deux exports du
+   * même projet peuvent viser des usages différents — mais on ne veut pas les
+   * reposer à chaque fois : ils vivent donc à côté, retenus par le navigateur.
+   */
+  const [exportQuality, setExportQuality] = useState<"standard" | "high">("standard");
+  const [exportFps, setExportFps] = useState<30 | 60>(30);
+  useEffect(() => {
+    try {
+      setExportQuality(window.localStorage.getItem(EXPORT_QUALITY_KEY) === "high" ? "high" : "standard");
+      setExportFps(window.localStorage.getItem(EXPORT_FPS_KEY) === "60" ? 60 : 30);
+    } catch { /* stockage refusé */ }
+  }, []);
+  const chooseQuality = (q: "standard" | "high") => {
+    setExportQuality(q);
+    try { window.localStorage.setItem(EXPORT_QUALITY_KEY, q); } catch { /* stockage refusé */ }
+  };
+  const chooseFps = (f: 30 | 60) => {
+    setExportFps(f);
+    try { window.localStorage.setItem(EXPORT_FPS_KEY, String(f)); } catch { /* stockage refusé */ }
+  };
+
   /** Presse-papier du banc — vit le temps de la session, jamais enregistré. */
   const [clipboard, setClipboard] = useState<ClipboardEntry[]>([]);
   /** La cible « piste » du menu, isolée une fois : les gestionnaires du menu
@@ -387,10 +417,12 @@ export function StudioEditor({
   const kb = useRef({
     playhead, duration, selection, apply, saveNow, playing, shortcutsOpen, exporting,
     removeSelection, duplicateSelection, cutSelection, copySelection, pasteAt,
+    project, setPlayhead,
   });
   kb.current = {
     playhead, duration, selection, apply, saveNow, playing, shortcutsOpen, exporting,
     removeSelection, duplicateSelection, cutSelection, copySelection, pasteAt,
+    project, setPlayhead,
   };
 
   useEffect(() => {
@@ -405,6 +437,7 @@ export function StudioEditor({
         playing: isPlaying, shortcutsOpen: refOpen, exporting: isExporting,
         removeSelection: doRemoveSelection, duplicateSelection: doDuplicateSelection,
         cutSelection: doCut, copySelection: doCopy, pasteAt: doPaste,
+        project: doc, setPlayhead: doSeek,
       } = kb.current;
 
       // Le montage est verrouillé pendant un export — seul Échap reste actif,
@@ -479,6 +512,19 @@ export function StudioEditor({
         const step = e.shiftKey ? 1 : 1 / 30;
         const dir = e.key === "ArrowLeft" ? -1 : 1;
         setPlayhead((p) => Math.max(0, Math.min(dur, p + dir * step)));
+        return;
+      }
+      // Repères : poser à la tête de lecture, naviguer de l'un à l'autre.
+      // « M » est la lettre universelle du marqueur, et Maj+M saute au
+      // suivant — la navigation la plus courante une fois qu'on en a posé.
+      if (lower === "m") {
+        e.preventDefault();
+        if (e.shiftKey) {
+          const target = nextMarker(doc, ph, 1) ?? nextMarker(doc, ph, -1);
+          if (target) doSeek(target.time);
+        } else {
+          doApply((p) => addMarker(p, nextId("mk"), ph));
+        }
         return;
       }
       if (e.key === "Home") { e.preventDefault(); setPlayhead(0); return; }
@@ -750,6 +796,11 @@ export function StudioEditor({
   /** Chutier : dérivé du document, jamais tenu à part — un média disparaît de
       la liste dès que le dernier élément qui l'utilisait est supprimé. */
   const media = useMemo(() => projectMedia(project), [project]);
+  /** Le ducking n'a de sens que s'il y a quelque chose à baisser, et sous quoi. */
+  const hasVoiceAndMusic =
+    project.audios.some((a) => a.role === "voice" && !a.muted) &&
+    project.audios.some((a) => a.role === "music");
+
 
   /* ── Export ────────────────────────────────────────────────────────────── */
   const decision = useMemo(() => decideRenderTarget(displayProject, sourceBytes.current), [displayProject]);
@@ -950,7 +1001,10 @@ export function StudioEditor({
     setBusy(t("Préparation du moteur vidéo…", "Loading video engine…"));
     try {
       const composed = await buildOverlays();
-      const plan = toBrowserPlan(displayProject, composed.map((c) => c.overlay));
+      const plan = toBrowserPlan(displayProject, composed.map((c) => c.overlay), {
+        quality: exportQuality,
+        fps: exportFps,
+      });
 
       const { FFmpeg } = await import("@ffmpeg/ffmpeg");
       const { fetchFile, toBlobURL } = await import("@ffmpeg/util");
@@ -1021,7 +1075,7 @@ export function StudioEditor({
       setBusy(null);
       setExporting(false);
     }
-  }, [project, displayProject, decision.target, companyId, savedId, buildOverlays, onExport, onClose, t]);
+  }, [project, displayProject, decision.target, companyId, savedId, buildOverlays, onExport, onClose, t, exportQuality, exportFps]);
 
   /**
    * Manipulation directe dans la zone de travail — glisser, redimensionner,
@@ -1269,6 +1323,30 @@ export function StudioEditor({
                     }))}
                   />
 
+                  <Section title={t("Son", "Sound")}>
+                    {/* Le geste le plus courant d'un montage parlé, et le plus
+                        fastidieux à la main : quatre images-clés par phrase,
+                        sur chaque musique. */}
+                    <button
+                      type="button"
+                      onClick={() => apply((p) => duckMusicUnderVoice(p, nextId))}
+                      disabled={!hasVoiceAndMusic}
+                      title={hasVoiceAndMusic
+                        ? t("Pose des images-clés de volume : la musique descend sous chaque passage parlé", "Adds volume keyframes: the music dips under every spoken passage")
+                        : t("Demande au moins une voix off et une musique", "Requires at least one voiceover and one music track")}
+                      className="btn-secondary flex w-full items-center gap-2 text-xs disabled:opacity-40"
+                    >
+                      <span aria-hidden className="w-4 text-center">🔉</span>
+                      {t("Baisser la musique sous la voix", "Duck music under voice")}
+                    </button>
+                    <p className="text-[10px] text-muted">
+                      {t(
+                        "Pose des images-clés modifiables ensuite, pas un effet figé.",
+                        "Adds keyframes you can edit afterwards, not a fixed effect."
+                      )}
+                    </p>
+                  </Section>
+
                   <Section title={t("Sous-titres", "Subtitles")}>
                     {/* Langue RÉELLEMENT parlée dans le média — jamais imposée
                         depuis la langue de l'interface (audit Editing Bench,
@@ -1302,6 +1380,19 @@ export function StudioEditor({
                       title={t("Transcrit la parole et pose des sous-titres minutés", "Transcribes speech into timed subtitles")}
                     >
                       💬 {t("Sous-titrer automatiquement", "Auto-subtitle")}
+                    </button>
+                    {/* Un sous-titre gravé dans l'image n'est lu par aucune
+                        plateforme : ni référencé, ni traduit, ni activable par
+                        une personne sourde ou malentendante. Le .srt existe
+                        pour ça, et le montage a déjà tout ce qu'il faut. */}
+                    <button
+                      type="button"
+                      onClick={downloadSrt}
+                      disabled={project.texts.every((l) => l.text.trim().length === 0)}
+                      title={t("Télécharge les textes du montage comme fichier de sous-titres", "Downloads the edit's texts as a subtitle file")}
+                      className="btn-secondary w-full text-xs disabled:opacity-40"
+                    >
+                      ⤓ {t("Exporter les sous-titres (.srt)", "Export subtitles (.srt)")}
                     </button>
                   </Section>
                 </div>
@@ -1443,6 +1534,13 @@ export function StudioEditor({
               onToggleTrackHidden={(trackId) => apply((p) => setTrackDefMeta(p, trackId, {
                 hidden: !(p.tracks ?? []).find((tr) => tr.id === trackId)?.hidden,
               }))}
+              onToggleTrackSolo={(trackId) => apply((p) => toggleTrackSolo(p, trackId))}
+              // La hauteur d'une piste est un réglage d'AFFICHAGE : elle ne
+              // touche pas au rendu, et n'a donc rien à faire dans l'historique
+              // d'annulation, où elle noierait les vraies modifications.
+              onSetTrackHeight={(trackId, height) => applyLive((p) => setTrackHeight(p, trackId, height))}
+              onAddMarker={(time) => apply((p) => addMarker(p, nextId("mk"), time))}
+              onRemoveMarker={(id) => apply((p) => removeMarker(p, id))}
               onAddTrack={(family) => apply((p) => addTrack(p, nextId("trk"), family))}
               onRemoveTrack={removeTrackWithConfirm}
               onReorderTrack={(trackId, direction) => apply((p) => reorderTrack(p, trackId, direction))}
@@ -1479,11 +1577,33 @@ export function StudioEditor({
           {decision.keyframesFrozen && (
             <span className="text-2xs font-medium text-danger">
               ⚠ {t(
-                "Les images-clés ne seront pas animées dans ce rendu.",
-                "Keyframes will not be animated in this render."
+                `Ce rendu ne saura pas reproduire : ${unrenderableFeatures(displayProject, decision.target).join(", ")}.`,
+                `This render cannot reproduce: ${unrenderableFeatures(displayProject, decision.target).join(", ")}.`
               )}
             </span>
           )}
+          {/* Réglages d'export, là où on décide d'exporter — pas dans un
+              panneau qu'il faudrait aller chercher ailleurs. Le défaut reste
+              celui de toujours : on ne change le comportement de personne. */}
+          <span className="flex items-center gap-1 text-2xs text-muted">
+            <SegButton on={exportQuality === "standard"} onClick={() => chooseQuality("standard")}
+              title={t("Fichier plus léger, encodage rapide", "Lighter file, fast encoding")}>
+              {t("Standard", "Standard")}
+            </SegButton>
+            <SegButton on={exportQuality === "high"} onClick={() => chooseQuality("high")}
+              title={t("Image plus propre, encodage plus lent", "Cleaner image, slower encoding")}>
+              {t("Qualité", "High")}
+            </SegButton>
+            <span className="mx-0.5 h-3 w-px bg-hair" />
+            <SegButton on={exportFps === 30} onClick={() => chooseFps(30)}
+              title={t("30 images par seconde — le standard des réseaux", "30 frames per second — the social standard")}>
+              30
+            </SegButton>
+            <SegButton on={exportFps === 60} onClick={() => chooseFps(60)}
+              title={t("60 images par seconde — mouvement plus fluide, fichier plus lourd", "60 frames per second — smoother motion, heavier file")}>
+              60
+            </SegButton>
+          </span>
           {busy && (
             <span className="flex items-center gap-2 text-2xs text-muted">
               <Spinner size={12} className="text-page" /> {busy}
@@ -1706,6 +1826,22 @@ export function StudioEditor({
    */
   function audioRoleOf(p: EditorProject, src: string): AudioRole {
     return p.audios.find((a) => a.src === src)?.role ?? "music";
+  }
+
+  /**
+   * Télécharge les sous-titres. Le fichier est construit ici et relâché tout
+   * de suite : une URL d'objet retenue est une fuite mémoire, et celle-ci n'a
+   * aucune raison de survivre au clic.
+   */
+  function downloadSrt() {
+    if (typeof document === "undefined") return;
+    const blob = new Blob([toSrt(project)], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${(project.name || "montage").replace(/[^\w.-]+/g, "-")}.srt`;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   function removeSelection() {
@@ -2009,6 +2145,21 @@ function ToolButton({ children, onClick, disabled }: { children: React.ReactNode
  * qui permet de trouver un réglage SANS le lire — on cherche « Sous-titres »,
  * pas « le troisième menu déroulant en partant du bas ».
  */
+/** Bouton d'un groupe de choix exclusifs — qualité, cadence. */
+function SegButton({ on, onClick, title, children }: { on: boolean; onClick: () => void; title: string; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={on}
+      title={title}
+      className={`rounded px-1.5 py-0.5 text-2xs ${on ? "bg-page text-white" : "text-muted ring-1 ring-hair hover:text-ink"}`}
+    >
+      {children}
+    </button>
+  );
+}
+
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="space-y-1.5 rounded-lg border border-hair p-2">

@@ -49,11 +49,23 @@ const ZOOM_LEVELS = [10, 20, 40, 80, 160];
 /** Aimantation : distance en secondes sous laquelle on colle à un repère. */
 const SNAP_SECONDS = 0.15;
 
+/** Où l'on retient si l'aimantation est active. */
+const SNAP_KEY = "axon.timeline.snap";
+
 /** Hauteurs partagées par la colonne des libellés et par les pistes. */
 const RULER_H = 20;
 const LANE_H = 40;
 /** Espace vertical entre deux pistes — voir `space-y-1.5` plus bas. */
 const LANE_GAP = 6;
+/** Hauteur de la bande des repères. */
+const MARKER_H = 12;
+
+/** Hauteur d'une piste, bornée — le modèle borne aussi, on ne fait pas foi
+    à une valeur venue d'un projet enregistré. */
+function clampHeight(h: number | undefined): number {
+  if (!Number.isFinite(h)) return 1;
+  return Math.min(4, Math.max(1, Math.round(h as number)));
+}
 
 /**
  * Distance à parcourir avant qu'un glisser parti du vide devienne un
@@ -122,9 +134,13 @@ export function Timeline({
   onDragEnd,
   onToggleTrackLock,
   onToggleTrackHidden,
+  onToggleTrackSolo,
+  onSetTrackHeight,
   onAddTrack,
   onRemoveTrack,
   onReorderTrack,
+  onAddMarker,
+  onRemoveMarker,
 }: {
   project: EditorProject;
   playhead: number;
@@ -177,6 +193,13 @@ export function Timeline({
   /** Verrouillage et masquage d'une piste QUELCONQUE (Lot A2), par son id. */
   onToggleTrackLock: (trackId: string) => void;
   onToggleTrackHidden: (trackId: string) => void;
+  /** Écoute isolée d'une piste sonore — les autres se taisent. */
+  onToggleTrackSolo: (trackId: string) => void;
+  /** Hauteur d'affichage d'une piste. Réglage de LECTURE, sans effet sur le rendu. */
+  onSetTrackHeight: (trackId: string, height: number) => void;
+  /** Repères : poser à l'instant courant, retirer celui qu'on désigne. */
+  onAddMarker: (time: number) => void;
+  onRemoveMarker: (id: string) => void;
   /** Créer / supprimer / réordonner une piste — nouveau au Lot A2. */
   onAddTrack: (family: TrackFamily) => void;
   onRemoveTrack: (trackId: string) => void;
@@ -185,6 +208,28 @@ export function Timeline({
   const t = useT();
   const [zoomIdx, setZoomIdx] = useState(1);
   const pxPerSec = ZOOM_LEVELS[zoomIdx];
+  /**
+   * Aimantation. Toujours active jusqu'ici : poser un élément à deux images
+   * d'une coupe était impossible, alors que c'est précisément là qu'on veut
+   * de la précision. Tous les bancs ont ce bouton, et il se retient d'une
+   * session à l'autre — un monteur ne le rebascule pas à chaque ouverture.
+   */
+  const [snapOn, setSnapOn] = useState(true);
+  useEffect(() => {
+    try { setSnapOn(window.localStorage.getItem(SNAP_KEY) !== "off"); } catch { /* stockage refusé */ }
+  }, []);
+  const toggleSnap = useCallback(() => {
+    setSnapOn((on) => {
+      try { window.localStorage.setItem(SNAP_KEY, on ? "off" : "on"); } catch { /* stockage refusé */ }
+      return !on;
+    });
+  }, []);
+  /** Aimante — ou pas. Un seul point de passage : le geste ne peut pas
+      appliquer une règle que le bouton dit désactivée. */
+  const snapTime = useCallback(
+    (time: number) => (snapOn ? snap(time, marksRef.current) : time),
+    [snapOn]
+  );
   const duration = projectDuration(project);
   /** Élément qui porte le temps : origine unique de toutes les coordonnées. */
   const timeRef = useRef<HTMLDivElement>(null);
@@ -203,8 +248,15 @@ export function Timeline({
   const marks = useMemo(() => {
     const m = [0, duration, playhead];
     for (const c of project.clips) m.push(c.start, c.start + c.length);
+    // Un repère est un point d'intérêt DÉCLARÉ : c'est exactement ce sur quoi
+    // on veut que les éléments se collent.
+    for (const mk of project.markers ?? []) m.push(mk.time);
     return m;
-  }, [project.clips, duration, playhead]);
+  }, [project.clips, project.markers, duration, playhead]);
+  /** Les repères, lus au moment du geste — sans re-créer `snapTime` à chaque
+      frappe, ce qui casserait la stabilité des gestionnaires. */
+  const marksRef = useRef(marks);
+  marksRef.current = marks;
 
   /** Geste en cours. Nommé plutôt qu'anonyme : `beginDrag` doit pouvoir s'y
       typer sans conversion aveugle, que l'union s'allonge ou non. */
@@ -251,8 +303,8 @@ export function Timeline({
   );
 
   const seekTo = useCallback(
-    (clientX: number) => onSeek(snap(timeFromEvent(clientX), marks)),
-    [onSeek, timeFromEvent, marks]
+    (clientX: number) => onSeek(snapTime(timeFromEvent(clientX))),
+    [onSeek, timeFromEvent, snapTime]
   );
 
   /**
@@ -391,6 +443,11 @@ export function Timeline({
     return el ? keyframeTimes(el) : [];
   }
   const rowsOf = (items: Placed[]) => Math.max(1, ...items.map((it) => it.lane + 1));
+  /** Hauteur d'UNE rangée de la piste — agrandie, une piste se LIT mieux :
+      forme d'onde plus haute, vignettes plus grandes. Réglage d'affichage. */
+  const rowHeightOf = (track: TrackDef) => LANE_H * clampHeight(track.height);
+  /** Hauteur totale de la piste : ses rangées empilées. */
+  const laneHeightOf = (track: TrackDef, items: Placed[]) => rowHeightOf(track) * rowsOf(items);
 
   /** Sommet cumulé de chaque piste affichée — sert au calcul du glissement
       vertical, dont le pas n'est plus constant depuis que des pistes
@@ -400,7 +457,7 @@ export function Timeline({
     let acc = 0;
     for (const l of lanes) {
       tops.push(acc);
-      acc += rowsOf(l.items) * LANE_H + LANE_GAP;
+      acc += laneHeightOf(l.track, l.items) + LANE_GAP;
     }
     return tops;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -419,8 +476,7 @@ export function Timeline({
     }
     if (first < 0) return -1;
     for (let i = first; i <= last; i++) {
-      const rows = rowsOf(lanes[i].items);
-      if (y < laneTops[i] + rows * LANE_H + LANE_GAP) return i;
+      if (y < laneTops[i] + laneHeightOf(lanes[i].track, lanes[i].items) + LANE_GAP) return i;
     }
     return last;
   }
@@ -502,7 +558,7 @@ export function Timeline({
     const targetY = laneTops[d.fromLaneIndex] + (e.clientY - d.startY);
     const targetIdx = laneIndexAtY(Math.max(0, targetY), d.family);
     const targetTrackId = targetIdx >= 0 ? displayTracks[targetIdx].id : undefined;
-    const start = Math.max(0, snap(d.fromStart + deltaSec, marks));
+    const start = Math.max(0, snapTime(d.fromStart + deltaSec));
     const trackChanged = targetTrackId !== undefined && targetIdx !== d.fromLaneIndex;
     if (Math.abs(start - d.fromStart) > 0.02 || trackChanged) {
       onMoveElement({ kind: d.kind, id: d.id }, { start, ...(trackChanged ? { trackId: targetTrackId } : {}) });
@@ -644,6 +700,34 @@ export function Timeline({
               ♪+
             </button>
           </Tooltip>
+          <Tooltip label={t(
+            "Pose un repère à la tête de lecture (M)",
+            "Drops a marker at the playhead (M)"
+          )}>
+            <button
+              type="button"
+              onClick={() => onAddMarker(playhead)}
+              aria-label={t("Poser un repère", "Add a marker")}
+              className="flex h-6 w-6 items-center justify-center rounded-md text-2xs text-muted ring-1 ring-hair hover:text-ink"
+            >
+              ⚑
+            </button>
+          </Tooltip>
+          <Tooltip label={snapOn
+            ? t("Aimantation active — les éléments collent aux coupes et aux repères", "Snapping on — elements stick to cuts and markers")
+            : t("Aimantation désactivée — placement libre", "Snapping off — free placement")}>
+            <button
+              type="button"
+              onClick={toggleSnap}
+              aria-pressed={snapOn}
+              aria-label={t("Aimantation", "Snapping")}
+              className={`flex h-6 w-6 items-center justify-center rounded-md text-2xs ${
+                snapOn ? "bg-page text-white" : "text-muted ring-1 ring-hair hover:text-ink"
+              }`}
+            >
+              🧲
+            </button>
+          </Tooltip>
           <span className="mx-1 h-4 w-px bg-hair" />
           <Tooltip label={t("Dézoomer la timeline — molette", "Zoom out timeline — wheel")}>
             <button
@@ -736,10 +820,13 @@ export function Timeline({
         {/* Colonne des libellés — HORS du flux temporel */}
         <div className="shrink-0 space-y-1.5">
           <div style={{ height: RULER_H }} />
+          {/* La bande des repères décale les pistes : sans ce vide en regard,
+              les libellés ne seraient plus en face de leur rangée. */}
+          {(project.markers ?? []).length > 0 && <div style={{ height: MARKER_H }} />}
           {lanes.map(({ track, items }, i) => (
             <div
               key={track.id}
-              style={{ height: LANE_H * rowsOf(items) }}
+              style={{ height: laneHeightOf(track, items) }}
               className={`flex w-20 items-center rounded-md border border-hair bg-card/60 px-1 text-[9px] uppercase tracking-wide text-muted ${
                 track.hidden ? "opacity-40" : ""
               }`}
@@ -752,8 +839,14 @@ export function Timeline({
                 }
                 locked={Boolean(track.locked)}
                 hidden={Boolean(track.hidden)}
+                solo={Boolean(track.solo)}
+                isAudio={track.family === "audio"}
+                height={clampHeight(track.height)}
                 onToggleLock={() => onToggleTrackLock(track.id)}
                 onToggleHidden={() => onToggleTrackHidden(track.id)}
+                onToggleSolo={() => onToggleTrackSolo(track.id)}
+                onGrow={() => onSetTrackHeight(track.id, clampHeight(track.height) + 1)}
+                onShrink={() => onSetTrackHeight(track.id, clampHeight(track.height) - 1)}
                 onMoveUp={() => onReorderTrack(track.id, "up")}
                 onMoveDown={() => onReorderTrack(track.id, "down")}
                 onRemove={() => onRemoveTrack(track.id)}
@@ -780,6 +873,33 @@ export function Timeline({
               label={t("Se déplacer dans le film", "Scrub the film")}
             />
 
+            {/* Bande des repères — juste sous la graduation, au-dessus des
+                pistes. C'est là qu'on les cherche : ils appartiennent au FILM,
+                pas à une piste en particulier. */}
+            {(project.markers ?? []).length > 0 && (
+              <div className="relative" style={{ height: MARKER_H }}>
+                {(project.markers ?? []).map((mk) => (
+                  <button
+                    key={mk.id}
+                    type="button"
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={() => onSeek(mk.time)}
+                    onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); onRemoveMarker(mk.id); }}
+                    title={`${mk.label || t("Repère", "Marker")} · ${formatTime(mk.time)} — ${t("clic pour y aller, clic droit pour retirer", "click to jump, right-click to remove")}`}
+                    aria-label={mk.label || t("Repère", "Marker")}
+                    className="absolute top-0 h-full w-3 -translate-x-1/2 cursor-pointer"
+                    style={{ left: timeToPx(mk.time, pxPerSec) }}
+                  >
+                    <span
+                      aria-hidden
+                      className="mx-auto block h-2.5 w-2.5 rounded-sm ring-1 ring-card"
+                      style={{ background: mk.color }}
+                    />
+                  </button>
+                ))}
+              </div>
+            )}
+
             {lanes.map(({ track, items }, laneIdx) => (
               <div
                 key={track.id}
@@ -787,7 +907,7 @@ export function Timeline({
                   if (el) laneRefs.current.set(track.id, el);
                   else laneRefs.current.delete(track.id);
                 }}
-                style={{ height: LANE_H * rowsOf(items) }}
+                style={{ height: laneHeightOf(track, items) }}
                 // Une bande dessinée, pas un vide : sans fond ni bordure, rien
                 // ne disait où finissait une piste et où commençait la
                 // suivante — la timeline se lisait comme une seule surface.
@@ -823,6 +943,7 @@ export function Timeline({
                         clip={clip}
                         pxPerSec={pxPerSec}
                         lane={it.lane}
+                        rowHeight={rowHeightOf(track)}
                         selected={(selection?.kind === "clip" && selection.id === it.id) || Boolean(multiSelectedKeys?.has(`clip:${it.id}`))}
                         locked={locked}
                         dim={Boolean(track.hidden)}
@@ -842,6 +963,7 @@ export function Timeline({
                       start={it.start}
                       length={Math.max(MIN_CLIP_SECONDS, it.end - it.start)}
                       lane={it.lane}
+                      rowHeight={rowHeightOf(track)}
                       pxPerSec={pxPerSec}
                       tone={kind}
                       muted={kind === "audio" ? audioExtra(it.id).muted : undefined}
@@ -931,6 +1053,7 @@ function ClipBlock({
   clip,
   pxPerSec,
   lane,
+  rowHeight = LANE_H,
   selected,
   locked,
   dim,
@@ -944,6 +1067,8 @@ function ClipBlock({
   pxPerSec: number;
   /** Rangée au sein de la piste — plusieurs types peuvent la partager (A2). */
   lane: number;
+  /** Hauteur d'une rangée — la piste peut avoir été agrandie pour se lire. */
+  rowHeight?: number;
   selected: boolean;
   /** Piste verrouillée — le plan se sélectionne toujours, mais ne bouge plus. */
   locked?: boolean;
@@ -965,8 +1090,8 @@ function ClipBlock({
       style={{
         left: timeToPx(clip.start, pxPerSec),
         width: Math.max(12, timeToPx(clip.length, pxPerSec)),
-        top: lane * LANE_H,
-        height: LANE_H,
+        top: lane * rowHeight,
+        height: rowHeight,
       }}
       onPointerDown={(e) => {
         e.stopPropagation();
@@ -986,7 +1111,11 @@ function ClipBlock({
         onContextMenu(e);
       }}
     >
-      <span className="pointer-events-none block truncate px-2 py-1 text-ink">
+      {/* Vignettes : la timeline n'affichait qu'une durée. On reconnaît un
+          plan à son IMAGE, pas à « 8.0s » — et sur un montage de dix plans,
+          la durée ne distingue rien du tout. */}
+      <ClipThumbnails clip={clip} pxPerSec={pxPerSec} height={rowHeight} />
+      <span className="pointer-events-none relative block truncate px-2 py-1 text-ink">
         {locked ? "🔒 " : dim ? "🚫 " : ""}{clip.kind === "image" ? "🖼" : "🎬"} {clip.length.toFixed(1)}s
         {clip.speed !== 1 && ` · ${clip.speed}×`}
       </span>
@@ -1022,13 +1151,135 @@ function ClipBlock({
   );
 }
 
+/* ── Vignettes de plan ───────────────────────────────────────────────────── */
+
+/** Espacement visé entre deux vignettes, en pixels. */
+const THUMB_EVERY_PX = 96;
+/** Au-delà, on ne décode plus : un plan de dix minutes n'a pas à saturer l'onglet. */
+const MAX_THUMBS_PER_CLIP = 8;
+
+/**
+ * Une image d'un média, à un instant donné, en cache.
+ *
+ * Le décodage d'une frame de vidéo coûte cher : sans mémoire partagée, chaque
+ * changement de zoom relancerait autant de décodages qu'il y a de vignettes à
+ * l'écran. La clé porte la source ET l'instant — deux plans issus du même
+ * fichier partagent donc leurs vignettes.
+ */
+const thumbCache = new Map<string, string>();
+const thumbPending = new Map<string, Promise<string | null>>();
+
+function grabFrame(src: string, at: number): Promise<string | null> {
+  const key = `${src}@${at.toFixed(2)}`;
+  const cached = thumbCache.get(key);
+  if (cached) return Promise.resolve(cached);
+  const pending = thumbPending.get(key);
+  if (pending) return pending;
+
+  const job = new Promise<string | null>((resolve) => {
+    if (typeof document === "undefined") return resolve(null);
+    const video = document.createElement("video");
+    video.preload = "metadata";
+    video.muted = true;
+    // Sans cet attribut, un média hébergé sur un autre domaine « salit » le
+    // canevas et toute lecture de pixels échoue.
+    video.crossOrigin = "anonymous";
+    let settled = false;
+    const done = (value: string | null) => {
+      if (settled) return;
+      settled = true;
+      video.removeAttribute("src");
+      video.load();
+      if (value) thumbCache.set(key, value);
+      thumbPending.delete(key);
+      resolve(value);
+    };
+    video.onloadeddata = () => { video.currentTime = Math.max(0, at); };
+    video.onseeked = () => {
+      try {
+        const canvas = document.createElement("canvas");
+        // Une vignette de timeline n'a pas besoin de définition : 96 px de
+        // large suffisent, et le coût mémoire s'en ressent directement.
+        const w = 96;
+        const ratio = video.videoHeight > 0 ? video.videoHeight / video.videoWidth : 0.5625;
+        canvas.width = w;
+        canvas.height = Math.max(1, Math.round(w * ratio));
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return done(null);
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        done(canvas.toDataURL("image/jpeg", 0.6));
+      } catch {
+        // Média hors CORS : pas de vignette, et surtout aucune erreur visible.
+        done(null);
+      }
+    };
+    video.onerror = () => done(null);
+    // Un média qui ne répond pas ne doit pas retenir une promesse pour toujours.
+    window.setTimeout(() => done(null), 8000);
+    video.src = src;
+  });
+  thumbPending.set(key, job);
+  return job;
+}
+
+/**
+ * Bande de vignettes d'un plan.
+ *
+ * Une PHOTO n'a qu'une image : elle est répétée en fond, sans décodage. Une
+ * vidéo est échantillonnée le long du bloc — une vignette tous les cent
+ * pixels environ, ce qui donne un repère visuel sans transformer la timeline
+ * en pelliculaire.
+ */
+function ClipThumbnails({ clip, pxPerSec, height }: { clip: Clip; pxPerSec: number; height: number }) {
+  const width = Math.max(12, timeToPx(clip.length, pxPerSec));
+  const count = clip.kind === "image"
+    ? 1
+    : Math.min(MAX_THUMBS_PER_CLIP, Math.max(1, Math.round(width / THUMB_EVERY_PX)));
+
+  const times = useMemo(() => {
+    if (clip.kind === "image") return [0];
+    return Array.from({ length: count }, (_, i) => clip.trimStart + (i + 0.5) * (clip.length * clip.speed) / count);
+  }, [clip.kind, clip.trimStart, clip.length, clip.speed, count]);
+
+  const [frames, setFrames] = useState<(string | null)[]>([]);
+
+  useEffect(() => {
+    let alive = true;
+    if (clip.kind === "image") { setFrames([clip.src]); return () => { alive = false; }; }
+    setFrames([]);
+    void Promise.all(times.map((at) => grabFrame(clip.src, at))).then((got) => {
+      if (alive) setFrames(got);
+    });
+    return () => { alive = false; };
+  }, [clip.src, clip.kind, times]);
+
+  if (frames.length === 0 || frames.every((f) => !f)) return null;
+  return (
+    <span aria-hidden className="pointer-events-none absolute inset-0 flex opacity-70">
+      {frames.map((src, i) => (
+        <span
+          key={i}
+          className="h-full flex-1 bg-cover bg-center"
+          style={{ backgroundImage: src ? `url(${src})` : undefined, height }}
+        />
+      ))}
+    </span>
+  );
+}
+
 /** Nom de piste + verrouillage/masquage/réordonnancement/suppression (Lot A2). */
 function TrackLabel({
   name,
   locked,
   hidden,
+  solo,
+  isAudio,
+  height,
   onToggleLock,
   onToggleHidden,
+  onToggleSolo,
+  onGrow,
+  onShrink,
   onMoveUp,
   onMoveDown,
   onRemove,
@@ -1039,8 +1290,15 @@ function TrackLabel({
   name: string;
   locked: boolean;
   hidden: boolean;
+  /** Écoute isolée — pistes sonores uniquement. */
+  solo: boolean;
+  isAudio: boolean;
+  height: number;
   onToggleLock: () => void;
   onToggleHidden: () => void;
+  onToggleSolo: () => void;
+  onGrow: () => void;
+  onShrink: () => void;
   onMoveUp: () => void;
   onMoveDown: () => void;
   onRemove: () => void;
@@ -1103,6 +1361,26 @@ function TrackLabel({
             {hidden ? "🚫" : "👁"}
           </button>
         </Tooltip>
+        {/* SOLO — pistes sonores seulement. Isoler une voix pour l'écouter
+            seule sans couper les cinq autres une par une puis les rétablir. */}
+        {isAudio && (
+          <Tooltip label={solo
+            ? t("Rétablir toutes les pistes", "Restore all tracks")
+            : t("N'écouter que cette piste", "Listen to this track only")}>
+            <button
+              type="button"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={onToggleSolo}
+              aria-pressed={solo}
+              aria-label={t("Écoute isolée", "Solo")}
+              className={`flex h-3.5 w-3.5 items-center justify-center rounded text-[9px] font-bold ${
+                solo ? "bg-page text-white" : "text-muted hover:text-ink"
+              }`}
+            >
+              S
+            </button>
+          </Tooltip>
+        )}
         <Tooltip label={t("Supprimer la piste (et son contenu)", "Delete track (and its content)")}>
           <button
             type="button"
@@ -1113,6 +1391,34 @@ function TrackLabel({
             className="flex h-3.5 w-3.5 items-center justify-center rounded text-[9px] text-muted hover:text-danger disabled:opacity-30"
           >
             🗑
+          </button>
+        </Tooltip>
+      </div>
+      {/* Hauteur d'affichage. Une piste agrandie se LIT mieux : forme d'onde
+          plus haute, vignettes plus grandes. Le rendu n'en sait rien. */}
+      <div className="flex items-center gap-1">
+        <Tooltip label={t("Réduire la hauteur de la piste", "Shrink track height")}>
+          <button
+            type="button"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={onShrink}
+            disabled={height <= 1}
+            aria-label={t("Réduire la piste", "Shrink track")}
+            className="flex h-3 w-3 items-center justify-center rounded text-[8px] text-muted hover:text-ink disabled:opacity-30"
+          >
+            ⤡
+          </button>
+        </Tooltip>
+        <Tooltip label={t("Agrandir la hauteur de la piste", "Grow track height")}>
+          <button
+            type="button"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={onGrow}
+            disabled={height >= 4}
+            aria-label={t("Agrandir la piste", "Grow track")}
+            className="flex h-3 w-3 items-center justify-center rounded text-[8px] text-muted hover:text-ink disabled:opacity-30"
+          >
+            ⤢
           </button>
         </Tooltip>
       </div>
@@ -1219,6 +1525,7 @@ function LayerBlock({
   start,
   length,
   lane,
+  rowHeight = LANE_H,
   pxPerSec,
   tone,
   selected,
@@ -1236,6 +1543,8 @@ function LayerBlock({
   length: number;
   /** Rangée au sein de la piste — calculée par le modèle. */
   lane: number;
+  /** Hauteur d'une rangée — la piste peut avoir été agrandie pour se lire. */
+  rowHeight?: number;
   pxPerSec: number;
   tone: "text" | "image" | "shape" | "audio";
   selected: boolean;
@@ -1280,8 +1589,8 @@ function LayerBlock({
       style={{
         left: timeToPx(start, pxPerSec),
         width: Math.max(12, timeToPx(length, pxPerSec)),
-        top: lane * LANE_H + 4,
-        height: LANE_H - 8,
+        top: lane * rowHeight + 4,
+        height: rowHeight - 8,
       }}
     >
       {peaks && <WaveformBars peaks={peaks} />}

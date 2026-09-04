@@ -153,7 +153,13 @@ async function main() {
     check("A-07 · les modèles se calibrent sur le kit de marque", /brandStyleFrom\(d\?\.kit \?\? null\)/.test(studio));
     check("A-07 · changer de format retranspose les textes", /rescaleTextsForFormat\(\{ \.\.\.p, format \}, p\.format\)/.test(studio));
     check("A-07 · recadrage réglable", /setClipFraming\(p, clip\.id, \{ focusX: v \}\)/.test(panel) && /setClipFraming\(p, clip\.id, \{ fit: "contain" \}\)/.test(panel));
-    check("A-07 · transition choisie par plan", /setClipTransition\(p, clip\.id, v as TransitionKind\)/.test(panel));
+    check("A-07 · transition choisie par plan",
+      /setClipTransition\(p, clip\.id, \{ kind: v as TransitionKind \}\)/.test(panel));
+    check("A-07 · sa DURÉE se règle aussi, bornée à la moitié du plus court des deux plans",
+      /setClipTransition\(p, clip\.id, \{ seconds: v \}\)/.test(panel) &&
+      /export function transitionSpan\(/.test(read("lib/editor/project.ts")));
+    check("A-07 · le choix ne se limite plus au fondu",
+      /value: "wipe-left"/.test(panel) && /value: "slide-up"/.test(panel));
     check("A-07 · l'aperçu montre le cadrage du rendu", /object-contain" : "object-cover/.test(preview) && /objectPosition/.test(preview));
     check("A-07 · incrustation déplaçable à la souris", /startMove\(e, \{ kind: "image", id: l\.id \}, l\)/.test(preview));
     check("A-07 · bibliothèque de montages", /<ProjectLibrary/.test(studio) && /api\/editor\/projects\?companyId=/.test(library));
@@ -422,7 +428,11 @@ async function main() {
     check("B-04 · le rendu serveur empile les pistes",
       /filter\(\(tr\) => tr\.family === "visual"\)\.slice\(\)\.reverse\(\)/.test(plan));
     check("B-02 · sous-pistes calculées par le modèle", /export function packLanes<T/.test(projectSrc));
-    check("B-02 · la timeline leur donne de la place", /LANE_H \* rowsOf\(items\)/.test(timeline));
+    check("B-02 · la timeline leur donne de la place",
+      /const laneHeightOf = \(track: TrackDef, items: Placed\[\]\) => rowHeightOf\(track\) \* rowsOf\(items\)/.test(timeline));
+    check("B-02 · et cette place se règle — une piste agrandie se LIT mieux",
+      /const rowHeightOf = \(track: TrackDef\) => LANE_H \* clampHeight\(track\.height\)/.test(timeline) &&
+      /onSetTrackHeight/.test(timeline));
   }
 
   // ── P0-2 · Le fondu enchaîné se voit dans l'aperçu (audit Editing Bench v3) ──

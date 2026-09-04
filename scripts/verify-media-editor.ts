@@ -514,6 +514,13 @@ async function main() {
     check("constat 4 · la timeline neutralise le menu du navigateur sur le vide comme sur un élément",
       /onLaneContextMenu\(\{ trackId: track\.id, time: timeFromEvent\(e\.clientX\) \}, e\)/.test(timeline) &&
       /if \(!onLaneContextMenu\) return;\s*\n\s*e\.preventDefault\(\);/.test(timeline));
+    check("constat 4 · TOUT le cadre de la timeline est couvert, pas seulement les rangées",
+      /if \(e\.defaultPrevented \|\| !onLaneContextMenu\) return;/.test(timeline) &&
+      /function trackAt\(clientY: number\)/.test(timeline) &&
+      /laneRefs\.current\.set\(track\.id, el\)/.test(timeline));
+    check("constat 4 · le menu est ramené dans la fenêtre au lieu de déborder sous l'écran",
+      /useLayoutEffect\(\(\) => \{[\s\S]{0,600}?window\.innerHeight - height - PAD/.test(studio) &&
+      /visibility: menuPos \? "visible" : "hidden"/.test(studio));
     check("constat 4 · le clic DROIT dans le vide ne désélectionne ni ne déplace la tête de lecture",
       /function onLanePointerDown\(e: React\.PointerEvent\) \{[\s\S]{0,400}?if \(e\.button === 2\) return;/.test(timeline));
     check("constat 4 · le menu d'élément couvre couper/copier/coller/dupliquer/scinder/piste/verrou/supprimer",

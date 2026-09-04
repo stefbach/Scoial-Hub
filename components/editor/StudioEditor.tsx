@@ -14,7 +14,7 @@
 // qu'un panneau s'ouvrait. Ici, trois zones à défilement indépendant occupent
 // tout l'écran et la timeline reste ancrée en bas, toujours visible.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useT } from "@/lib/i18n";
 import { Spinner } from "@/components/ui/Spinner";
@@ -117,6 +117,13 @@ export function StudioEditor({
   /** La cible « piste » du menu, isolée une fois : les gestionnaires du menu
       sont des fermetures, où le rétrécissement de type ne survit pas. */
   const laneTarget = contextMenu?.target.type === "lane" ? contextMenu.target : null;
+  /**
+   * Position RÉELLE du menu, une fois ramené dans la fenêtre. Le point du clic
+   * ne suffit pas : la timeline est ancrée en bas de l'écran, donc un menu
+   * ouvert depuis un bloc sort systématiquement par le bas — la moitié de ses
+   * entrées passait sous la barre des tâches.
+   */
+  const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
@@ -492,6 +499,24 @@ export function StudioEditor({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
+
+  /**
+   * Ramène le menu dans la fenêtre — mesuré APRÈS rendu (sa hauteur dépend de
+   * ses entrées) mais AVANT peinture, pour qu'il ne soit jamais vu ailleurs
+   * qu'à sa place définitive. Tant que la mesure n'a pas eu lieu, le menu est
+   * rendu invisible plutôt que mal placé.
+   */
+  useLayoutEffect(() => {
+    if (!contextMenu) { setMenuPos(null); return; }
+    const el = contextMenuRef.current;
+    if (!el) return;
+    const PAD = 8;
+    const { width, height } = el.getBoundingClientRect();
+    setMenuPos({
+      x: Math.max(PAD, Math.min(contextMenu.x, window.innerWidth - width - PAD)),
+      y: Math.max(PAD, Math.min(contextMenu.y, window.innerHeight - height - PAD)),
+    });
+  }, [contextMenu]);
 
   /** Referme le menu contextuel au clic ailleurs — sans quoi il reste ouvert
       indéfiniment, recouvrant la timeline (P3-7). */
@@ -1392,8 +1417,16 @@ export function StudioEditor({
         <div
           ref={contextMenuRef}
           role="menu"
-          className="fixed z-50 min-w-[13rem] rounded-md border border-hair bg-card py-1 text-xs shadow-lg"
-          style={{ left: contextMenu.x, top: contextMenu.y }}
+          className="fixed z-50 min-w-[13rem] overflow-y-auto rounded-md border border-hair bg-card py-1 text-xs shadow-lg"
+          style={{
+            left: menuPos?.x ?? contextMenu.x,
+            top: menuPos?.y ?? contextMenu.y,
+            // Un menu plus haut que la fenêtre défile plutôt que de déborder :
+            // sur un petit écran, aucune combinaison de position ne le ferait
+            // tenir entier.
+            maxHeight: "calc(100vh - 16px)",
+            visibility: menuPos ? "visible" : "hidden",
+          }}
         >
           {contextMenu.target.type === "element" ? (
             <ElementMenu

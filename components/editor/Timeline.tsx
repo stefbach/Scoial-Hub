@@ -171,6 +171,14 @@ export function Timeline({
   const duration = projectDuration(project);
   /** Élément qui porte le temps : origine unique de toutes les coordonnées. */
   const timeRef = useRef<HTMLDivElement>(null);
+  /**
+   * Rangée affichée de chaque piste. Le clic droit doit ouvrir le menu du banc
+   * PARTOUT dans la timeline — y compris dans les interstices entre rangées,
+   * sur la graduation, dans la colonne des libellés et sous la dernière piste,
+   * qui n'appartiennent à aucune rangée. Sans ce registre, il n'y aurait aucun
+   * moyen de dire quelle piste l'utilisateur visait (audit v4, constat 4).
+   */
+  const laneRefs = useRef(new Map<string, HTMLDivElement>());
   /** Conteneur à défilement horizontal — cible de Maj+molette et du recentrage. */
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -209,6 +217,23 @@ export function Timeline({
     (clientX: number) => onSeek(snap(timeFromEvent(clientX), marks)),
     [onSeek, timeFromEvent, marks]
   );
+
+  /**
+   * Piste désignée par un point de l'écran — celle dont la rangée contient
+   * l'ordonnée, sinon la plus proche verticalement. Un clic sous la dernière
+   * piste vise donc cette dernière piste, pas le vide.
+   */
+  function trackAt(clientY: number): string | null {
+    let best: { id: string; distance: number } | null = null;
+    for (const [id, el] of laneRefs.current) {
+      const rect = el.getBoundingClientRect();
+      if (rect.height === 0) continue;
+      const distance = clientY < rect.top ? rect.top - clientY : clientY > rect.bottom ? clientY - rect.bottom : 0;
+      if (distance === 0) return id;
+      if (!best || distance < best.distance) best = { id, distance };
+    }
+    return best?.id ?? null;
+  }
 
   /** Démarre un balayage : la lecture suit le geste jusqu'au relâchement. */
   function startScrub(e: React.PointerEvent) {
@@ -514,6 +539,18 @@ export function Timeline({
         onPointerMove={onPointerMove}
         onPointerUp={endDrag}
         onPointerLeave={endDrag}
+        onContextMenu={(e) => {
+          // Filet de sécurité : les blocs et les rangées ont déjà leur propre
+          // gestionnaire et neutralisent l'événement. Tout le RESTE du cadre —
+          // graduation, colonne des libellés, interstices, zone sous la
+          // dernière piste — arrive ici, et ne doit jamais retomber sur le
+          // menu du navigateur.
+          if (e.defaultPrevented || !onLaneContextMenu) return;
+          const trackId = trackAt(e.clientY);
+          if (!trackId) return;
+          e.preventDefault();
+          onLaneContextMenu({ trackId, time: timeFromEvent(e.clientX) }, e);
+        }}
       >
         {/* État vide explicite — un cadre nu, sans le moindre repère, ne dit
             pas à l'utilisateur ce qu'il doit faire (itération 3, chapitre 9,
@@ -569,6 +606,10 @@ export function Timeline({
             {lanes.map(({ track, items }, laneIdx) => (
               <div
                 key={track.id}
+                ref={(el) => {
+                  if (el) laneRefs.current.set(track.id, el);
+                  else laneRefs.current.delete(track.id);
+                }}
                 style={{ height: LANE_H * rowsOf(items) }}
                 className={`relative ${track.hidden ? "opacity-40" : ""}`}
                 onPointerDown={onLanePointerDown}

@@ -30,7 +30,11 @@ import {
   updateShape,
   updateText,
   type AnimationKind,
+  type AudioTrack,
+  type Clip,
   type EditorProject,
+  type ImageLayer,
+  type ShapeLayer,
   type TrackFamily,
   type TransitionKind,
   type TextLayer,
@@ -95,51 +99,14 @@ export function PropertyPanel({
   }
 
   if (multiSelectionItems.length > 1) {
-    const allTexts = multiSelectionItems.every((s) => s.kind === "text");
-    if (!allTexts) {
-      return (
-        <div className="space-y-2 p-2 text-2xs text-muted">
-          <p>
-            {t(`${multiSelectionItems.length} éléments sélectionnés.`, `${multiSelectionItems.length} elements selected.`)}
-          </p>
-          <p>
-            {t(
-              "Utilisez Dupliquer ou Supprimer (barre d'outils, clic droit, ou Ctrl/⌘+D et Suppr) pour agir sur le groupe entier.",
-              "Use Duplicate or Delete (toolbar, right-click, or Ctrl/⌘+D and Delete) to act on the whole group."
-            )}
-          </p>
-        </div>
-      );
-    }
-
-    const textIds = multiSelectionItems.map((s) => s.id);
-    /** Applique un patch commun à TOUS les textes du groupe, en une seule
-        entrée d'historique — jamais une par élément reformaté. */
-    const batchText = (patch: Partial<TextLayer>) =>
-      onChange((p) => textIds.reduce((acc, id) => updateText(acc, id, patch), p));
-    const first = project.texts.find((l) => l.id === textIds[0]);
-
     return (
-      <Panel title={t(`${textIds.length} sous-titres sélectionnés`, `${textIds.length} subtitles selected`)}>
-        <p className="text-2xs text-muted">
-          {t(
-            "Réglage commun à tout le groupe — utile après une transcription automatique. Dupliquer/Supprimer (barre d'outils, clic droit) agissent aussi sur le groupe entier.",
-            "Setting applied to the whole group — useful right after an automatic transcription. Duplicate/Delete (toolbar, right-click) also act on the whole group."
-          )}
-        </p>
-        <SelectRow
-          label={t("Police", "Font")} value={first?.font ?? "sans"}
-          options={Object.entries(FONT_STACKS).map(([key, f]) => ({ value: key, label: f.label }))}
-          onChange={(v) => batchText({ font: v as TextLayer["font"] })}
-        />
-        <ColorSwatches value={first?.color ?? PRESET_COLORS[0]} onChange={(c) => batchText({ color: c })} brand={brand} />
-        <div className="flex flex-wrap items-center gap-1.5">
-          <Toggle title={t("Gras", "Bold")} on={Boolean(first?.bold)} onClick={() => batchText({ bold: !first?.bold })}>G</Toggle>
-          <Toggle title={t("Bandeau", "Background band")} on={Boolean(first?.bg)} onClick={() => batchText({ bg: !first?.bg })}>▬</Toggle>
-          <Toggle title={t("Contour", "Outline")} on={Boolean(first?.outline)} onClick={() => batchText({ outline: !first?.outline })}>◌</Toggle>
-          <Toggle title={t("Ombre", "Shadow")} on={Boolean(first?.shadow)} onClick={() => batchText({ shadow: !first?.shadow })}>◍</Toggle>
-        </div>
-      </Panel>
+      <MultiSelectionPanel
+        project={project}
+        items={multiSelectionItems}
+        total={total}
+        brand={brand}
+        onChange={onChange}
+      />
     );
   }
 
@@ -490,6 +457,314 @@ const centerY = (h?: number) => (h ? (1 - h) / 2 : 0.45);
 const bottomY = (h?: number) => (h ? 0.95 - h : 0.85);
 
 /* ── Petits composants ───────────────────────────────────────────────────── */
+
+/* ── Sélection multiple ──────────────────────────────────────────────────── */
+
+/** N'importe quel élément sélectionnable, vu par ses champs communs. */
+type AnyElement = Clip | TextLayer | ImageLayer | ShapeLayer | AudioTrack;
+
+function elementOf(p: EditorProject, sel: NonNullable<TimelineSelection>): AnyElement | undefined {
+  if (sel.kind === "clip") return p.clips.find((c) => c.id === sel.id);
+  if (sel.kind === "text") return p.texts.find((l) => l.id === sel.id);
+  if (sel.kind === "image") return p.images.find((l) => l.id === sel.id);
+  if (sel.kind === "shape") return p.shapes.find((l) => l.id === sel.id);
+  return p.audios.find((a) => a.id === sel.id);
+}
+
+/** Marqueur d'une valeur qui DIFFÈRE d'un élément à l'autre du groupe. */
+const MIXED = Symbol("mixed");
+type Shared<T> = T | typeof MIXED | undefined;
+
+/**
+ * Valeur commune à tout le groupe, ou `MIXED`. Les nombres sont comparés
+ * arrondis : deux positions issues d'un même glisser diffèrent au dix-millième
+ * sans que l'utilisateur ait la moindre raison de les voir comme distinctes.
+ */
+function sharedValue<T>(values: (T | undefined)[]): Shared<T> {
+  const known = values.filter((v): v is T => v !== undefined);
+  if (known.length === 0) return undefined;
+  const key = (v: T) => (typeof v === "number" ? Math.round(v * 1e4) / 1e4 : v);
+  const first = key(known[0]);
+  return known.every((v) => key(v) === first) ? known[0] : MIXED;
+}
+
+/**
+ * Panneau d'une sélection de plusieurs éléments.
+ *
+ * Il ne se contentait jusqu'ici que d'un résumé neutre — sauf pour un groupe
+ * de textes, qui n'obtenait que police et couleur. Sélectionner douze
+ * sous-titres pour en changer la TAILLE, geste le plus courant après une
+ * transcription, était donc impossible autrement qu'un par un (audit v4,
+ * constat 2).
+ *
+ * Chaque bloc n'apparaît que si TOUS les éléments du groupe le possèdent :
+ * proposer un réglage qui n'en toucherait qu'une partie serait pire que ne
+ * pas le proposer. Un champ dont la valeur diffère d'un élément à l'autre
+ * s'affiche VIDE plutôt qu'avec la valeur du premier — y écrire l'applique à
+ * tout le groupe, la convention de tous les logiciels de montage.
+ */
+function MultiSelectionPanel({
+  project, items, total, brand, onChange,
+}: {
+  project: EditorProject;
+  items: NonNullable<TimelineSelection>[];
+  total: number;
+  brand: BrandStyle;
+  onChange: (fn: (p: EditorProject) => EditorProject) => void;
+}) {
+  const t = useT();
+
+  const kinds = new Set(items.map((i) => i.kind));
+  const allTexts = kinds.size === 1 && kinds.has("text");
+  const allAudio = kinds.size === 1 && kinds.has("audio");
+  // Un plan porte x/y/opacité comme un calque, mais NI rotation NI animations
+  // d'entrée/sortie : les deux ensembles ne se recouvrent pas complètement.
+  const allVisual = !kinds.has("audio");
+  const allLayers = allVisual && !kinds.has("clip");
+
+  const elements = items.map((sel) => elementOf(project, sel)).filter((el): el is AnyElement => Boolean(el));
+  const texts = allTexts
+    ? items.map((sel) => project.texts.find((l) => l.id === sel.id)).filter((l): l is TextLayer => Boolean(l))
+    : [];
+
+  /** Une seule entrée d'historique pour tout le groupe, jamais une par élément. */
+  const batch = (fn: (p: EditorProject, sel: NonNullable<TimelineSelection>) => EditorProject) =>
+    onChange((p) => items.reduce((acc, sel) => fn(acc, sel), p));
+
+  /** Champs visuels communs, appliqués selon le type réel de chaque élément. */
+  const patchVisual = (patch: { x?: number; y?: number; opacity?: number; rotation?: number; animIn?: AnimationKind; animOut?: AnimationKind }) =>
+    batch((p, sel) => {
+      if (sel.kind === "clip") {
+        let q = p;
+        if (patch.x !== undefined || patch.y !== undefined) q = setClipBox(q, sel.id, { x: patch.x, y: patch.y });
+        if (patch.opacity !== undefined) q = setClipOpacity(q, sel.id, patch.opacity);
+        // Un plan n'a ni rotation ni animation d'entrée/sortie — les blocs qui
+        // les portent ne s'affichent pas quand un plan est dans le groupe.
+        return q;
+      }
+      if (sel.kind === "text") return updateText(p, sel.id, patch);
+      if (sel.kind === "image") return updateImageLayer(p, sel.id, patch);
+      if (sel.kind === "shape") return updateShape(p, sel.id, patch);
+      return p;
+    });
+
+  const batchText = (patch: Partial<TextLayer>) =>
+    batch((p, sel) => (sel.kind === "text" ? updateText(p, sel.id, patch) : p));
+
+  /**
+   * Décalage dans le temps, en secondes. C'est un DÉCALAGE et non un instant
+   * absolu : reposer douze sous-titres au même début les empilerait tous au
+   * même moment, ce que personne ne demande jamais.
+   */
+  const nudge = (delta: number) =>
+    batch((p, sel) => {
+      const el = elementOf(p, sel);
+      if (!el) return p;
+      return moveElement(p, { kind: sel.kind, id: sel.id }, { start: Math.max(0, el.start + delta) });
+    });
+
+  const num = (read: (el: AnyElement) => number | undefined) => sharedValue(elements.map(read));
+  const visualOf = (el: AnyElement): VisualLayer | undefined => ("rotation" in el ? el : undefined);
+
+  const x = num((el) => ("x" in el ? el.x : undefined));
+  const y = num((el) => ("y" in el ? el.y : undefined));
+  const opacity = num((el) => ("opacity" in el ? el.opacity : undefined));
+  const rotation = num((el) => visualOf(el)?.rotation);
+  const track = sharedValue(elements.map((el) => el.trackId));
+  const animIn = sharedValue(elements.map((el) => visualOf(el)?.animIn));
+  const animOut = sharedValue(elements.map((el) => visualOf(el)?.animOut));
+
+  const title = allTexts
+    ? t(`${items.length} textes sélectionnés`, `${items.length} text layers selected`)
+    : t(`${items.length} éléments sélectionnés`, `${items.length} elements selected`);
+
+  return (
+    <div className="space-y-3">
+      <Panel title={title}>
+        <p className="text-2xs text-muted">
+          {t(
+            "Un réglage s'applique à tout le groupe, en une seule annulation. Un champ vide signale une valeur qui diffère d'un élément à l'autre — y écrire l'uniformise.",
+            "A setting applies to the whole group, as a single undo. An empty field means the value differs between elements — typing one makes them match."
+          )}
+        </p>
+        {!allVisual && !allAudio && (
+          <p className="text-2xs text-muted">
+            {t(
+              "Le groupe mêle des sons et des éléments visuels : seuls le décalage dans le temps, Dupliquer et Supprimer s'appliquent à tous.",
+              "The group mixes audio and visual elements: only the time offset, Duplicate and Delete apply to all of them."
+            )}
+          </p>
+        )}
+      </Panel>
+
+      {/* ── Position et apparence — dès que le groupe est entièrement visuel ── */}
+      {allVisual && (
+        <Panel title={t("Position et apparence", "Position and appearance")}>
+          <div className="grid grid-cols-2 gap-2">
+            <MultiNumberRow label="X" unit="%" value={x} scale={100} step={1} compact
+              onChange={(v) => patchVisual({ x: v / 100 })} />
+            <MultiNumberRow label="Y" unit="%" value={y} scale={100} step={1} compact
+              onChange={(v) => patchVisual({ y: v / 100 })} />
+            {allLayers && (
+              <MultiNumberRow label={t("Rotation", "Rotation")} unit="°" value={rotation} step={5} compact
+                onChange={(v) => patchVisual({ rotation: v })} />
+            )}
+            <MultiNumberRow label={t("Opacité", "Opacity")} unit="%" value={opacity} scale={100} step={5} min={0} max={100} compact
+              onChange={(v) => patchVisual({ opacity: v / 100 })} />
+          </div>
+
+          {/* L'alignement pose une valeur ABSOLUE, identique pour tous — c'est
+              précisément ce qu'on attend de « tout aligner à gauche ». */}
+          <div className="flex flex-wrap items-center gap-1 text-2xs text-muted">
+            <span className="w-20 shrink-0">{t("Aligner", "Align")}</span>
+            <AlignButton label="⇤" title={t("À gauche", "Left")} onClick={() => patchVisual({ x: 0.05 })} />
+            <AlignButton label="⇔" title={t("Centré", "Centre")} onClick={() => patchVisual({ x: 0.5 })} />
+            <AlignButton label="⇥" title={t("À droite", "Right")} onClick={() => patchVisual({ x: 0.95 })} />
+            <AlignButton label="⤒" title={t("En haut", "Top")} onClick={() => patchVisual({ y: 0.05 })} />
+            <AlignButton label="⇕" title={t("Milieu", "Middle")} onClick={() => patchVisual({ y: 0.5 })} />
+            <AlignButton label="⤓" title={t("En bas", "Bottom")} onClick={() => patchVisual({ y: 0.9 })} />
+          </div>
+        </Panel>
+      )}
+
+      {/* ── Texte — le lot de sous-titres d'une transcription ──────────────── */}
+      {allTexts && (
+        <Panel title={t("Texte", "Text")}>
+          <SelectRow
+            label={t("Police", "Font")}
+            value={(sharedValue(texts.map((l) => l.font)) as TextLayer["font"] | undefined) ?? "sans"}
+            options={Object.entries(FONT_STACKS).map(([key, f]) => ({ value: key, label: f.label }))}
+            onChange={(v) => batchText({ font: v as TextLayer["font"] })}
+          />
+          <div className="grid grid-cols-2 gap-2">
+            <MultiNumberRow label={t("Taille", "Size")} unit="%" scale={100} step={1} min={1} compact
+              value={sharedValue(texts.map((l) => l.sizePct))}
+              onChange={(v) => batchText({ sizePct: v / 100 })} />
+            <MultiNumberRow label={t("Interligne", "Line height")} unit="×" step={0.05} min={0.5} compact
+              value={sharedValue(texts.map((l) => l.lineHeight))}
+              onChange={(v) => batchText({ lineHeight: v })} />
+            <MultiNumberRow label={t("Retour ligne", "Wrap")} unit="%" scale={100} step={5} min={0} max={100} compact
+              value={sharedValue(texts.map((l) => l.wrapPct))}
+              onChange={(v) => batchText({ wrapPct: v / 100 })} />
+          </div>
+          <ColorSwatches
+            value={(sharedValue(texts.map((l) => l.color)) as string | undefined) ?? PRESET_COLORS[0]}
+            onChange={(c) => batchText({ color: c })}
+            brand={brand}
+          />
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Toggle title={t("Gras", "Bold")} on={sharedValue(texts.map((l) => l.bold)) === true}
+              onClick={() => batchText({ bold: sharedValue(texts.map((l) => l.bold)) !== true })}>G</Toggle>
+            <Toggle title={t("Bandeau", "Background band")} on={sharedValue(texts.map((l) => l.bg)) === true}
+              onClick={() => batchText({ bg: sharedValue(texts.map((l) => l.bg)) !== true })}>▬</Toggle>
+            <Toggle title={t("Contour", "Outline")} on={sharedValue(texts.map((l) => l.outline)) === true}
+              onClick={() => batchText({ outline: sharedValue(texts.map((l) => l.outline)) !== true })}>◌</Toggle>
+            <Toggle title={t("Ombre", "Shadow")} on={sharedValue(texts.map((l) => l.shadow)) === true}
+              onClick={() => batchText({ shadow: sharedValue(texts.map((l) => l.shadow)) !== true })}>◍</Toggle>
+            <span className="mx-1 h-4 w-px bg-hair" />
+            <Toggle title={t("Aligner à gauche", "Align left")} on={sharedValue(texts.map((l) => l.align)) === "left"}
+              onClick={() => batchText({ align: "left" })}>⇤</Toggle>
+            <Toggle title={t("Centrer", "Align centre")} on={sharedValue(texts.map((l) => l.align)) === "center"}
+              onClick={() => batchText({ align: "center" })}>⇔</Toggle>
+            <Toggle title={t("Aligner à droite", "Align right")} on={sharedValue(texts.map((l) => l.align)) === "right"}
+              onClick={() => batchText({ align: "right" })}>⇥</Toggle>
+          </div>
+        </Panel>
+      )}
+
+      {/* ── Animations — un plan n'en a pas, le bloc l'exclut donc ─────────── */}
+      {allLayers && (
+        <Panel title={t("Animation", "Animation")}>
+          <div className="grid grid-cols-2 gap-2">
+            <SelectRow compact label={t("Entrée", "In")}
+              value={(animIn as AnimationKind | undefined) ?? "none"}
+              options={ANIMATIONS.map((a) => ({ value: a.key, label: t(a.fr, a.en) }))}
+              onChange={(v) => patchVisual({ animIn: v as AnimationKind })} />
+            <SelectRow compact label={t("Sortie", "Out")}
+              value={(animOut as AnimationKind | undefined) ?? "none"}
+              options={ANIMATIONS.map((a) => ({ value: a.key, label: t(a.fr, a.en) }))}
+              onChange={(v) => patchVisual({ animOut: v as AnimationKind })} />
+          </div>
+          <p className="text-2xs text-muted">
+            {t(`Durée fixe de ${ANIMATION_SECONDS} s.`, `Fixed duration of ${ANIMATION_SECONDS}s.`)}
+          </p>
+        </Panel>
+      )}
+
+      {/* ── Minutage et piste — communs à TOUS les types, son compris ──────── */}
+      <Panel title={t("Minutage et piste", "Timing and track")}>
+        <div className="flex flex-wrap items-center gap-1 text-2xs text-muted">
+          <span className="w-20 shrink-0">{t("Décaler", "Offset")}</span>
+          {[-1, -0.1, 0.1, 1].map((d) => (
+            <button
+              key={d}
+              type="button"
+              onClick={() => nudge(d)}
+              className="rounded px-1.5 py-0.5 tabular-nums ring-1 ring-hair hover:text-ink"
+            >
+              {d > 0 ? `+${d}` : d} s
+            </button>
+          ))}
+        </div>
+        {(allVisual || allAudio) && (
+          <TrackPicker
+            project={project}
+            family={allAudio ? "audio" : "visual"}
+            value={typeof track === "string" ? track : ""}
+            onChange={(trackId) => batch((p, sel) => moveElement(p, { kind: sel.kind, id: sel.id }, { trackId }))}
+          />
+        )}
+        <p className="text-2xs text-muted">
+          {t(
+            `Film de ${total.toFixed(1)} s. Le décalage conserve les écarts entre les éléments du groupe.`,
+            `${total.toFixed(1)}s film. The offset preserves the gaps between the elements of the group.`
+          )}
+        </p>
+      </Panel>
+    </div>
+  );
+}
+
+/**
+ * Champ numérique d'une sélection multiple. `MIXED` s'affiche VIDE, avec un
+ * tiret en filigrane : montrer la valeur du premier élément laisserait croire
+ * que tout le groupe la partage. `scale` évite de convertir de part et
+ * d'autre (0..1 dans le modèle, pourcentage à l'écran).
+ */
+function MultiNumberRow({
+  label, unit, value, scale = 1, step, min, max, compact, onChange,
+}: {
+  label: string;
+  unit: string;
+  value: Shared<number>;
+  scale?: number;
+  step: number;
+  min?: number;
+  max?: number;
+  compact?: boolean;
+  onChange: (v: number) => void;
+}) {
+  const mixed = value === MIXED || value === undefined;
+  return (
+    <label className={`flex items-center gap-1.5 text-2xs text-muted ${compact ? "" : "w-full"}`}>
+      <span className={compact ? "w-14 shrink-0" : "w-20 shrink-0"}>{label}</span>
+      <input
+        type="number"
+        value={mixed ? "" : Math.round((value as number) * scale * 100) / 100}
+        placeholder={mixed ? "—" : undefined}
+        step={step}
+        min={min}
+        max={max}
+        onChange={(e) => {
+          const v = Number(e.target.value);
+          if (e.target.value !== "" && Number.isFinite(v)) onChange(v);
+        }}
+        className="w-full min-w-0 rounded-md border border-hair bg-transparent px-1 py-0.5 text-right tabular-nums text-ink placeholder:text-muted [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+      />
+      <span className="shrink-0">{unit}</span>
+    </label>
+  );
+}
 
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (

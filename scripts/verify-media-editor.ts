@@ -578,11 +578,37 @@ async function main() {
     check("P2-10 · la transcription sélectionne tout le lot posé, pas un sous-titre isolé",
       /newIds\.push\(id\)/.test(studio) && /setMultiSelection\(new Map\(newIds\.map/.test(studio));
     check("P2-10 · le panneau propose un réglage commun quand le groupe est entièrement du même type texte",
-      /const allTexts = multiSelectionItems\.every\(\(s\) => s\.kind === "text"\)/.test(panel));
+      /const allTexts = kinds\.size === 1 && kinds\.has\("text"\)/.test(panel));
     check("P2-10 · le réglage commun s'applique en une seule entrée d'historique, pas une par sous-titre",
-      /textIds\.reduce\(\(acc, id\) => updateText\(acc, id, patch\), p\)/.test(panel));
-    check("P2-10 · un groupe mixte (pas seulement des sous-titres) garde le résumé neutre existant",
-      /if \(!allTexts\) \{/.test(panel));
+      /onChange\(\(p\) => items\.reduce\(\(acc, sel\) => fn\(acc, sel\), p\)\)/.test(panel));
+
+    // ── constat 2 · Les propriétés communes ne se limitent plus à la police
+    // et à la couleur (audit v4). La TAILLE d'un lot de sous-titres, geste le
+    // plus courant après une transcription, était impossible autrement qu'un
+    // par un ; un groupe mixte n'obtenait, lui, aucun réglage du tout.
+    check("constat 2 · un groupe de textes règle aussi taille, interligne, retour à la ligne et alignement",
+      /batchText\(\{ sizePct: v \/ 100 \}\)/.test(panel) &&
+      /batchText\(\{ lineHeight: v \}\)/.test(panel) &&
+      /batchText\(\{ wrapPct: v \/ 100 \}\)/.test(panel) &&
+      /batchText\(\{ align: "center" \}\)/.test(panel));
+    check("constat 2 · un groupe visuel de types MÊLÉS règle position, opacité et alignement",
+      /\{allVisual && \(/.test(panel) &&
+      /patchVisual\(\{ x: v \/ 100 \}\)/.test(panel) &&
+      /patchVisual\(\{ opacity: v \/ 100 \}\)/.test(panel));
+    check("constat 2 · rotation et animations restent réservées aux calques — un plan n'en a pas",
+      /const allLayers = allVisual && !kinds\.has\("clip"\)/.test(panel) &&
+      /\{allLayers && \(/.test(panel));
+    check("constat 2 · minutage et piste s'appliquent à TOUS les types, son compris",
+      /const nudge = \(delta: number\) =>/.test(panel) &&
+      /moveElement\(p, \{ kind: sel\.kind, id: sel\.id \}, \{ trackId \}\)/.test(panel));
+    check("constat 2 · une valeur qui diffère d'un élément à l'autre s'affiche VIDE, pas avec celle du premier",
+      /const MIXED = Symbol\("mixed"\)/.test(panel) &&
+      /function sharedValue</.test(panel) &&
+      /placeholder=\{mixed \? "—" : undefined\}/.test(panel));
+    check("constat 2 · les nombres sont comparés arrondis — deux positions d'un même glisser ne sont pas « différentes »",
+      /Math\.round\(v \* 1e4\) \/ 1e4/.test(panel));
+    check("constat 2 · un groupe mêlant son et visuel dit ce qui s'applique quand même",
+      /\{!allVisual && !allAudio && \(/.test(panel));
   }
 
   // ── P1-13 · Un calque neuf se pose à la tête de lecture (audit Editing
@@ -630,7 +656,7 @@ async function main() {
       /function ColorSwatches\(/.test(panel) && /type="color"/.test(panel));
     check("P2-12 · le texte (individuel ET groupe de sous-titres) utilise le sélecteur",
       /<ColorSwatches value=\{text\.color\}/.test(panel) &&
-      /<ColorSwatches value=\{first\?\.color/.test(panel));
+      /value=\{\(sharedValue\(texts\.map\(\(l\) => l\.color\)\) as string \| undefined\) \?\? PRESET_COLORS\[0\]\}/.test(panel));
     check("P2-12 · le remplissage ET le contour d'une forme utilisent le sélecteur",
       /<ColorSwatches value=\{shape\.fill\}/.test(panel) &&
       /<ColorSwatches[\s\S]{0,40}value=\{shape\.stroke\}/.test(panel));

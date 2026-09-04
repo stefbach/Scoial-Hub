@@ -961,12 +961,26 @@ function main() {
   // `fadeIn`/`fadeOut`/`muted` en font désormais une propriété du plan lui-
   // même, au même titre qu'`AudioTrack` pour un fichier son séparé.
   {
-    // Un plan neuf arrive MUET par défaut — l'utilisateur active son son
-    // plutôt que d'avoir à couper celui de chaque plan ajouté.
+    // Un plan neuf arrive AUDIBLE — une vidéo posée sur la timeline garde son
+    // son, comme dans n'importe quel banc de montage professionnel.
     const fresh = addClip(emptyProject("c", "p"), { id: "a", src: "a.mp4", kind: "video", sourceDuration: 10 });
     const a0 = fresh.clips[0];
-    check("un plan neuf est muet par défaut",
-      a0.muted === true && a0.volume === 1 && a0.fadeIn === 0 && a0.fadeOut === 0, JSON.stringify(a0));
+    check("un plan neuf est audible par défaut",
+      a0.muted === false && a0.volume === 1 && a0.fadeIn === 0 && a0.fadeOut === 0, JSON.stringify(a0));
+
+    // Seule exception : un plan posé PAR-DESSUS un autre (incrustation) —
+    // son son se superposerait à une bande déjà en place.
+    const withPip = addClip(fresh, { id: "pip", src: "pip.mp4", kind: "video", sourceDuration: 4, track: 1, start: 2 });
+    check("un plan posé en incrustation par-dessus un autre arrive muet",
+      withPip.clips.find((c) => c.id === "pip")!.muted === true,
+      JSON.stringify(withPip.clips.find((c) => c.id === "pip")));
+
+    // Mais une piste supérieure vide de tout recouvrement n'est pas une
+    // incrustation : le plan y est un plan à part entière, donc audible.
+    const asideNoOverlap = addClip(fresh, { id: "aside", src: "aside.mp4", kind: "video", sourceDuration: 3, track: 1, start: 40 });
+    check("un plan seul sur une piste supérieure reste audible",
+      asideNoOverlap.clips.find((c) => c.id === "aside")!.muted === false,
+      JSON.stringify(asideNoOverlap.clips.find((c) => c.id === "aside")));
 
     // setClipAudio — même motif que updateAudio, borné de la même façon.
     let p = setClipAudio(fresh, "a", { volume: 0.6, fadeIn: 1.5, fadeOut: 2, muted: false });
@@ -1003,12 +1017,12 @@ function main() {
     // Projection serveur — seul un plan qui dévie du plein volume (coupé ou
     // atténué) transmet `volume` au moteur ; le reste garde le comportement
     // d'avant ce champ, silencieux dans le JSON transmis.
-    const audible = setClipAudio(fresh, "a", { muted: false });
+    const audible = fresh;
     const edit = toServerEdit(audible) as { timeline: { tracks: { clips: { asset: Record<string, unknown> }[] }[] } };
     const assetAudible = edit.timeline.tracks.flatMap((tr) => tr.clips).find((c) => c.asset.src === "a.mp4")!.asset;
     check("un plan audible à plein volume ne transmet pas `volume` au moteur serveur",
       assetAudible.volume === undefined, JSON.stringify(assetAudible));
-    const editMuted = toServerEdit(fresh) as { timeline: { tracks: { clips: { asset: Record<string, unknown> }[] }[] } };
+    const editMuted = toServerEdit(setClipAudio(fresh, "a", { muted: true })) as { timeline: { tracks: { clips: { asset: Record<string, unknown> }[] }[] } };
     const assetMuted = editMuted.timeline.tracks.flatMap((tr) => tr.clips).find((c) => c.asset.src === "a.mp4")!.asset;
     check("un plan muet transmet volume:0 au moteur serveur",
       assetMuted.volume === 0, JSON.stringify(assetMuted));

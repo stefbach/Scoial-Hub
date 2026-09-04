@@ -1733,6 +1733,14 @@ export function addClip(
   const length = input.kind === "image" ? DEFAULT_IMAGE_SECONDS : sourceDuration || DEFAULT_IMAGE_SECONDS;
   const track = Math.max(0, Math.round(input.track ?? 0));
   const onTrack = p.clips.filter((c) => c.track === track);
+  const start = input.start !== undefined ? Math.max(0, input.start) : trackEnd(p, track);
+  // Un plan est une incrustation s'il est posé sur une piste supérieure ET
+  // qu'il recouvre, au même instant, un plan d'une piste inférieure. Un plan
+  // simplement rangé sur une autre piste, sans rien en dessous, reste un plan
+  // à part entière : son son est légitime.
+  const overlaps =
+    track > 0 &&
+    p.clips.some((c) => c.track < track && c.start < start + length && start < c.start + c.length);
   const clip: Clip = {
     id: input.id,
     src: input.src,
@@ -1740,7 +1748,7 @@ export function addClip(
     track,
     // Recalculée par `normalize()`, appelé en sortie de cette fonction (Lot A1).
     trackId: "",
-    start: input.start !== undefined ? Math.max(0, input.start) : trackEnd(p, track),
+    start,
     length,
     trimStart: 0,
     sourceDuration,
@@ -1751,13 +1759,15 @@ export function addClip(
     focusY: 0.5,
     opacity: 1,
     x: 0, y: 0, w: 1, h: 1,
-    // Muet par défaut : un plan neuf se superpose souvent à d'autres sons
-    // déjà en place, l'utilisateur active le sien s'il le souhaite plutôt
-    // que d'avoir à couper celui de chaque plan ajouté (Lot A4).
+    // Audible par défaut : une vidéo posée sur la timeline arrive avec son
+    // son, comme dans n'importe quel banc de montage professionnel. On coupe
+    // en revanche le son des plans posés PAR-DESSUS un autre (incrustation,
+    // image dans l'image) : ceux-là se superposent à une bande déjà en place
+    // et leur son ne ferait que la brouiller.
     volume: 1,
     fadeIn: 0,
     fadeOut: 0,
-    muted: true,
+    muted: overlaps,
     provenance: input.provenance,
   };
   return normalize({ ...p, clips: [...p.clips, clip] });

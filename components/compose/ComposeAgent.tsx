@@ -49,6 +49,11 @@ export function ComposeAgent({
   const [pubLang, setPubLang] = useState<string>(lang);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
+  // Démarrage rapide « mots-clés → prompt éditable » (même principe que le
+  // studio LinkedIn), avant d'envoyer le prompt finalisé à l'agent.
+  const [kwInput, setKwInput] = useState("");
+  const [kwPrompt, setKwPrompt] = useState("");
+  const [kwGenerating, setKwGenerating] = useState(false);
   const [genBusy, setGenBusy] = useState<string | null>(null);
   // #20 : prompt du dernier visuel généré avec succès — affiche un message
   // près du bouton (le média est attaché plus bas dans la page).
@@ -77,6 +82,21 @@ export function ComposeAgent({
     } catch (e) {
       setMsgs((p) => [...p, { role: "assistant", content: e instanceof Error ? e.message : "Erreur." }]);
     } finally { setBusy(false); }
+  }
+
+  /** Transforme quelques mots-clés en un prompt éditable, prêt à envoyer à l'agent. */
+  async function genKeywordPrompt() {
+    if (!kwInput.trim() || kwGenerating) return;
+    setKwGenerating(true);
+    try {
+      const r = await fetch("/api/ai/series-prompt", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyId: company.id, platform: "compose", input: kwInput, source: "keywords", language: pubLang, useMemory }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (r.ok && d.prompt) setKwPrompt(d.prompt as string);
+      else setMsgs((p) => [...p, { role: "assistant", content: (d.error as string) || t("Échec de la génération du prompt.", "Prompt generation failed.") }]);
+    } finally { setKwGenerating(false); }
   }
 
   /** Génère le visuel proposé par l'agent (image ou vidéo) et l'attache au post. */
@@ -119,6 +139,30 @@ export function ComposeAgent({
       </div>
 
       <div className="p-3">
+        {msgs.length === 0 && (
+          <div className="mb-3 rounded-lg border border-hair bg-canvas p-2.5 space-y-1.5">
+            <p className="section-label text-ai-text">{t("🧠 Démarrer avec des mots-clés", "🧠 Start from keywords")}</p>
+            <div className="flex items-end gap-2">
+              <textarea value={kwInput} onChange={(e) => setKwInput(e.target.value)} rows={1}
+                placeholder={t("Ex : « lancement produit, offre de rentrée »", "E.g. “product launch, back-to-school offer”")}
+                className="max-h-24 min-h-[2.4rem] flex-1 resize-none rounded-lg border border-hair bg-card px-3 py-2 text-sm text-ink outline-none focus:border-primary-400" />
+              <button type="button" onClick={genKeywordPrompt} disabled={kwGenerating || !kwInput.trim()}
+                className="btn-secondary h-[2.4rem] shrink-0 px-3 text-2xs disabled:opacity-50">
+                {kwGenerating ? t("Prompt…", "Prompt…") : t("Générer un prompt", "Generate a prompt")}
+              </button>
+            </div>
+            {kwPrompt && (
+              <>
+                <textarea value={kwPrompt} onChange={(e) => setKwPrompt(e.target.value)} rows={3}
+                  className="w-full resize-y rounded-lg border border-hair bg-card px-3 py-2 text-sm text-ink outline-none focus:border-primary-400" />
+                <button type="button" onClick={() => send(kwPrompt)} disabled={busy}
+                  className="btn-primary text-2xs disabled:opacity-50">
+                  {t("Utiliser ce prompt", "Use this prompt")}
+                </button>
+              </>
+            )}
+          </div>
+        )}
         {msgs.length > 0 && (
           <div ref={scrollRef} className="mb-2 max-h-64 space-y-2 overflow-y-auto">
             {msgs.map((m, i) => (

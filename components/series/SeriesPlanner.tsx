@@ -21,6 +21,7 @@ import { Modal } from "@/components/ui/Modal";
 import { ImageEditor } from "@/components/studio/ImageEditor";
 import { PublishLanguageSelect } from "@/components/ui/PublishLanguageSelect";
 import { SERIES_CONFIG, type SeriesPlatform } from "@/lib/social-series";
+import { generateVideoPolling, videoGenErrorMessage } from "@/lib/ai/generate-video-client";
 
 type Cadence = "daily" | "every2" | "weekly";
 const CADENCE_STEP: Record<Cadence, number> = { daily: 1, every2: 2, weekly: 7 };
@@ -73,6 +74,7 @@ export function SeriesPlanner({ platform }: { platform: SeriesPlatform }) {
   const [themeMissing, setThemeMissing] = useState(false);
   const brandThemeList = useBrandThemes(companyId);
   const [count, setCount] = useState(5);
+  const [promptGenerating, setPromptGenerating] = useState(false);
   const [seriesFormat, setSeriesFormat] = useState<"post" | "article">("post");
   // Langue de PUBLICATION (≠ langue de l'interface) ; défaut = langue de l'app.
   const [pubLang, setPubLang] = useState<string>(lang);
@@ -103,6 +105,22 @@ export function SeriesPlanner({ platform }: { platform: SeriesPlatform }) {
   }
   function patchDraft(i: number, patch: Partial<DraftItem>) {
     setDrafts((arr) => arr.map((x, j) => (j === i ? { ...x, ...patch } : x)));
+  }
+
+  /** Transforme quelques mots-clés en un prompt éditable et détaillé (même principe que le studio LinkedIn), avant de lancer la génération de la série. */
+  async function genPrompt() {
+    if (!theme.trim()) { setThemeMissing(true); return; }
+    setThemeMissing(false);
+    setPromptGenerating(true); setMsg(null);
+    try {
+      const r = await fetch("/api/ai/series-prompt", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyId, platform, input: theme, source: "keywords", language: pubLang, useMemory }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { setMsg((d.error as string) ?? t("Échec de la génération du prompt.", "Prompt generation failed.")); return; }
+      if (d.prompt) setTheme(d.prompt as string);
+    } finally { setPromptGenerating(false); }
   }
 
   async function generateSeries() {
@@ -168,6 +186,35 @@ export function SeriesPlanner({ platform }: { platform: SeriesPlatform }) {
       else setMsg(t("Aucune image renvoyée. Réessayez.", "No image returned. Try again."));
     } catch (e) {
       setMsg(e instanceof Error ? e.message : t("Échec de génération d'image.", "Image generation failed."));
+    } finally { setGenImgIdx(null); }
+  }
+
+  /** Génère la vidéo de TOUS les éléments sans média (séquentiel, TikTok). */
+  async function genAllVideos() {
+    if (!isVideo) return;
+    setGenAll(true); setMsg(null);
+    const targets = drafts.map((d, i) => ({ d, i })).filter(({ d }) => d.body.trim() && !d.media);
+    if (targets.length === 0) { setMsg(t("Tous les éléments ont déjà un média.", "Every item already has a media.")); setGenAll(false); return; }
+    let done = 0;
+    for (const { i } of targets) {
+      setMsg(t(`Génération des vidéos… (${done + 1}/${targets.length})`, `Generating videos… (${done + 1}/${targets.length})`));
+      await genVideo(i);
+      done++;
+    }
+    setMsg(t(`Vidéos générées ✓ (${done})`, `Videos generated ✓ (${done})`));
+    setGenAll(false);
+  }
+
+  async function genVideo(i: number) {
+    const item = drafts[i];
+    const vp = (item?.visualPrompt || item?.body || theme || "").trim();
+    if (!vp) { setMsg(t("Aucun contenu pour générer une vidéo.", "No content to generate a video.")); return; }
+    setGenImgIdx(i); setMsg(null);
+    try {
+      const r = await generateVideoPolling({ prompt: vp.slice(0, 400), platform, companyId });
+      if (r.url) { patchDraft(i, { media: r.url, mediaKind: "video" }); return; }
+      if (r.simulated) setMsg(t("Génération vidéo non configurée (REPLICATE_API_TOKEN).", "Video generation not configured (REPLICATE_API_TOKEN)."));
+      else setMsg(videoGenErrorMessage(r.error, t));
     } finally { setGenImgIdx(null); }
   }
 
@@ -242,14 +289,22 @@ export function SeriesPlanner({ platform }: { platform: SeriesPlatform }) {
           value={theme}
           onPick={(v) => { setTheme(v); setThemeMissing(false); }}
         />
+        {/* Mots-clés → prompt éditable (même principe que le studio LinkedIn) :
+            on affine d'abord ce qu'on va générer avant de lancer la série. */}
+        <textarea
+          value={theme}
+          onChange={(e) => { setTheme(e.target.value); if (e.target.value.trim()) setThemeMissing(false); }}
+          aria-invalid={themeMissing}
+          rows={theme.length > 120 ? 4 : 2}
+          placeholder={t("Quelques mots-clés (ex. « lancement produit, offre de rentrée »)…", "A few keywords (e.g. “product launch, back-to-school offer”)…")}
+          className={`${inputCls} resize-y ${themeMissing ? "border-danger-500 ring-2 ring-danger-500/20" : ""}`}
+        />
         <div className="flex flex-wrap items-center gap-2">
-          <input
-            value={theme}
-            onChange={(e) => { setTheme(e.target.value); if (e.target.value.trim()) setThemeMissing(false); }}
-            aria-invalid={themeMissing}
-            placeholder={t("Thème de la série", "Series theme")}
-            className={`${inputCls} min-w-[200px] flex-1 ${themeMissing ? "border-danger-500 ring-2 ring-danger-500/20" : ""}`}
-          />
+          <button onClick={genPrompt} disabled={promptGenerating || !canEdit}
+            className="btn-secondary inline-flex items-center gap-1.5 text-xs disabled:opacity-50">
+            {promptGenerating && <Spinner size={14} className="text-current" />}
+            {promptGenerating ? t("Prompt…", "Prompt…") : t("🧠 Générer un prompt (IA)", "🧠 Generate a prompt (AI)")}
+          </button>
           <select value={count} onChange={(e) => setCount(Number(e.target.value))}
             className="rounded-lg border border-hair bg-canvas px-2 py-2 text-sm text-ink outline-none focus:border-primary-400">
             {[3, 4, 5, 6, 7, 8, 9, 10].map((n) => <option key={n} value={n}>{n}</option>)}
@@ -267,13 +322,21 @@ export function SeriesPlanner({ platform }: { platform: SeriesPlatform }) {
               {genAll ? t("Visuels…", "Visuals…") : t("✨ Générer tous les visuels", "✨ Generate all visuals")}
             </button>
           )}
+          {isVideo && (
+            <button onClick={genAllVideos} disabled={genAll || generating || !canEdit || filledDrafts.length === 0}
+              title={t("Génère une vidéo pour chaque élément sans média", "Generate a video for each item without a media")}
+              className="btn-secondary inline-flex items-center gap-1.5 text-xs disabled:opacity-50">
+              {genAll && <Spinner size={14} className="text-current" />}
+              {genAll ? t("Vidéos…", "Videos…") : t("✨ Générer toutes les vidéos", "✨ Generate all videos")}
+            </button>
+          )}
         </div>
 
         {themeMissing && (
           <p role="alert" className="text-2xs font-semibold text-danger-600">
             {t(
-              "Indiquez un thème ci-dessus pour lancer la génération — ou choisissez-en un dans les thèmes de votre marque.",
-              "Enter a theme above to start generating — or pick one from your brand themes."
+              "Indiquez quelques mots-clés ci-dessus pour lancer la génération — ou choisissez un thème dans ceux de votre marque.",
+              "Enter a few keywords above to start generating — or pick one from your brand themes."
             )}
           </p>
         )}
@@ -386,6 +449,13 @@ export function SeriesPlanner({ platform }: { platform: SeriesPlatform }) {
                       className="btn-secondary inline-flex items-center gap-1 text-2xs disabled:opacity-50">
                       {genImgIdx === i && <Spinner size={12} className="text-current" />}
                       {genImgIdx === i ? t("Génération…", "Generating…") : t("✨ Générer le visuel", "✨ Generate visual")}
+                    </button>
+                  )}
+                  {isVideo && (
+                    <button onClick={() => genVideo(i)} disabled={genImgIdx === i || !canEdit || !d.body.trim()}
+                      className="btn-secondary inline-flex items-center gap-1 text-2xs disabled:opacity-50">
+                      {genImgIdx === i && <Spinner size={12} className="text-current" />}
+                      {genImgIdx === i ? t("Génération…", "Generating…") : t("✨ Générer la vidéo", "✨ Generate video")}
                     </button>
                   )}
                   <MediaLibraryButton companyId={companyId} accept={attachAccept}

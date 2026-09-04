@@ -16,7 +16,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useT } from "@/lib/i18n";
+import { LanguageSwitcher, useT } from "@/lib/i18n";
 import { Spinner } from "@/components/ui/Spinner";
 import { hostMedia, MAX_UPLOAD_BYTES, formatSize } from "@/lib/media/host";
 import { SUBTITLE_LANGS } from "@/lib/ai/subtitle-langs";
@@ -1130,6 +1130,11 @@ export function StudioEditor({
         </div>
 
         <div className="flex items-center gap-1.5">
+          {/* Le banc occupe tout l'écran : le sélecteur de langue de
+              l'application passe DERRIÈRE et devient inatteignable tant qu'il
+              est ouvert. Le même composant, repris ici — pas un second
+              sélecteur qui pourrait diverger. */}
+          <LanguageSwitcher />
           <button
             type="button" onClick={() => setLibraryOpen(true)}
             title={t("Mes montages", "My edits")} aria-label={t("Mes montages", "My edits")}

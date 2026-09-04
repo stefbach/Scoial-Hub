@@ -549,6 +549,15 @@ const bottomY = (h?: number) => (h ? 0.95 - h : 0.85);
 const SCRUB_THRESHOLD_PX = 3;
 
 /**
+ * Pas parcouru par pixel de glissement, en fraction du pas du champ. À 1, un
+ * réglage en pourcentage parcourait toute sa plage en cent pixels — le pouce
+ * n'a alors aucune chance de s'arrêter sur une valeur précise. À 0,25, la
+ * course complète demande quatre cents pixels, soit la largeur d'une main : on
+ * vise sans effort, et Maj divise encore par dix pour l'approche fine.
+ */
+const SCRUB_UNITS_PER_PX = 0.25;
+
+/**
  * Rend un champ numérique AJUSTABLE À LA SOURIS : le curseur devient une
  * double flèche au survol, et tirer à gauche ou à droite fait varier la valeur.
  *
@@ -600,7 +609,7 @@ function useValueScrubber({
         }
         e.preventDefault();
         const fine = e.shiftKey ? 0.1 : 1;
-        let next = d.from + dx * step * fine;
+        let next = d.from + dx * step * SCRUB_UNITS_PER_PX * fine;
         if (min !== undefined) next = Math.max(min, next);
         if (max !== undefined) next = Math.min(max, next);
         onScrub(Math.round(next * 1000) / 1000);

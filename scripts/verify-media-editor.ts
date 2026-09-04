@@ -729,6 +729,22 @@ async function main() {
       /Micro indisponible\$\{name \? ` \(\$\{name\}\)` : ""\}/.test(rec));
     check("constat 5 · la demande d'autorisation est VISIBLE — le bouton ne reste pas inerte",
       /setPhase\("asking"\)/.test(rec) && /phase === "asking"/.test(rec));
+    // Brancher un graphe audio sur la piste ENREGISTRÉE est un moyen connu de
+    // faire capturer du silence au recorder sur certaines versions de Chrome :
+    // le voyant du micro s'allume, le fichier pèse son poids, et ne contient
+    // rien. L'analyse tourne donc sur un clone.
+    check("constat 5 · l'analyse de niveau ne touche pas la piste enregistrée",
+      /new MediaStream\(src\.getAudioTracks\(\)\.map\(\(tr\) => tr\.clone\(\)\)\)/.test(rec) &&
+      /meterStream\.current\?\.getTracks\(\)\.forEach\(\(tr\) => tr\.stop\(\)\)/.test(rec));
+    check("constat 5 · une prise SILENCIEUSE est détectée et nommée, pas livrée muette",
+      /function peakOf\(buffer: AudioBuffer\)/.test(rec) && /peak < 0\.005/.test(rec) &&
+      /Prise silencieuse/.test(rec));
+    check("constat 5 · le message distingue « le micro captait » de « il ne captait pas »",
+      /seenLevel\.current > 0\.02/.test(rec));
+    check("constat 5 · l'entrée audio se choisit — c'est ce qui débloque une mauvaise entrée par défaut",
+      /enumerateDevices\(\)/.test(rec) && /deviceId: \{ exact: deviceId \}/.test(rec));
+    check("constat 5 · le niveau atteint est affiché avant l'insertion",
+      /Niveau maximal/.test(rec) && /take\.peak < 0\.08/.test(rec));
     check("constat 5 · l'import d'un fichier son vit au même endroit que l'enregistrement",
       /onImportFile/.test(rec) && /onImportFile=\{\(f\) => importFile\(f, "voice"\)\}/.test(studio));
     check("constat 5 · la prise se pose à l'instant où l'enregistrement a commencé",
@@ -798,6 +814,11 @@ async function main() {
       /if \(Math\.abs\(dx\) < SCRUB_THRESHOLD_PX\) return;/.test(panel));
     check("ajustement · Maj affine le réglage",
       /const fine = e\.shiftKey \? 0\.1 : 1;/.test(panel));
+    check("ajustement · la course est calibrée pour viser, pas pour balayer la plage en un geste",
+      /const SCRUB_UNITS_PER_PX = 0\.25;/.test(panel) &&
+      /dx \* step \* SCRUB_UNITS_PER_PX \* fine/.test(panel));
+    check("banc · le sélecteur de langue reste atteignable quand le banc est ouvert",
+      /<LanguageSwitcher \/>/.test(studio));
     check("ajustement · le glisser ne produit QU'UNE entrée d'historique",
       /onStart: gesture\.begin/.test(panel) && /onEnd: gesture\.commit/.test(panel) &&
       /gesture=\{\{ begin: beginGesture, live: applyLive, commit: commitGesture \}\}/.test(studio));

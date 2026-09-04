@@ -73,11 +73,20 @@ export function VoiceRecorder({
    * obtient la durée RÉELLE, et la pré-écoute passe par le graphe audio, qui
    * n'a que faire du conteneur.
    */
-  const [take, setTake] = useState<{ blob: Blob; buffer: AudioBuffer; duration: number; at: number } | null>(null);
+  const [take, setTake] = useState<{ blob: Blob; buffer: AudioBuffer; duration: number; at: number; peak: number } | null>(null);
+  /** Entrées audio disponibles, et celle qu'on utilise. Les intitulés ne sont
+      lisibles qu'une fois l'autorisation accordée — la liste se remplit donc
+      après la première prise. */
+  const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
+  const [deviceId, setDeviceId] = useState<string>("");
+  /** Niveau MAXIMAL vu pendant la prise — la preuve que le micro captait. */
+  const seenLevel = useRef(0);
   const [inserting, setInserting] = useState(false);
   const [preview, setPreview] = useState(false);
 
   const stream = useRef<MediaStream | null>(null);
+  /** Piste CLONÉE, réservée à l'analyse de niveau (voir `watchLevel`). */
+  const meterStream = useRef<MediaStream | null>(null);
   const recorder = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
   const audioCtx = useRef<AudioContext | null>(null);
@@ -110,6 +119,8 @@ export function VoiceRecorder({
     // sont pas arrêtées — même une fois l'enregistrement terminé.
     stream.current?.getTracks().forEach((tr) => tr.stop());
     stream.current = null;
+    meterStream.current?.getTracks().forEach((tr) => tr.stop());
+    meterStream.current = null;
     void audioCtx.current?.close();
     audioCtx.current = null;
     setLevel(0);
@@ -125,26 +136,64 @@ export function VoiceRecorder({
     teardown();
   }, [teardown, stopPreview]);
 
-  /** Niveau d'entrée — la seule preuve visible que le micro capte vraiment. */
+  /**
+   * Niveau d'entrée — la seule preuve visible que le micro capte vraiment.
+   *
+   * L'analyse tourne sur une piste CLONÉE, jamais sur celle que MediaRecorder
+   * enregistre. Brancher un graphe audio sur la piste enregistrée est un moyen
+   * connu de faire capturer du SILENCE au recorder sur certaines versions de
+   * Chrome : le voyant du micro s'allume, la prise fait plusieurs centaines de
+   * kilo-octets, et ne contient rien. Un clone coûte quelques octets et écarte
+   * définitivement ce risque.
+   */
   function watchLevel(src: MediaStream) {
     try {
+      const clone = new MediaStream(src.getAudioTracks().map((tr) => tr.clone()));
+      meterStream.current = clone;
       const ctx = new AudioContext();
       audioCtx.current = ctx;
       const analyser = ctx.createAnalyser();
       analyser.fftSize = 512;
-      ctx.createMediaStreamSource(src).connect(analyser);
+      ctx.createMediaStreamSource(clone).connect(analyser);
       const data = new Uint8Array(analyser.frequencyBinCount);
       const tick = () => {
         analyser.getByteTimeDomainData(data);
         let peak = 0;
         for (const v of data) peak = Math.max(peak, Math.abs(v - 128) / 128);
         setLevel(peak);
+        seenLevel.current = Math.max(seenLevel.current, peak);
         raf.current = requestAnimationFrame(tick);
       };
       tick();
     } catch {
       // Analyse indisponible (contexte audio refusé) : l'enregistrement lui-même
       // n'en dépend pas, on se passe du voyant plutôt que d'échouer.
+    }
+  }
+
+  /**
+   * Niveau maximal du son enregistré. Échantillonné, pas parcouru : une prise
+   * d'une minute fait plusieurs millions de valeurs, et les lire toutes
+   * bloquerait l'onglet pour un chiffre dont on n'a besoin qu'à la louche.
+   */
+  function peakOf(buffer: AudioBuffer): number {
+    let peak = 0;
+    for (let c = 0; c < buffer.numberOfChannels; c += 1) {
+      const data = buffer.getChannelData(c);
+      const stride = Math.max(1, Math.floor(data.length / 20000));
+      for (let i = 0; i < data.length; i += stride) peak = Math.max(peak, Math.abs(data[i]));
+    }
+    return peak;
+  }
+
+  /** Entrées audio du système — intitulés lisibles une fois l'accès accordé. */
+  async function refreshDevices() {
+    try {
+      const all = await navigator.mediaDevices.enumerateDevices();
+      setDevices(all.filter((d) => d.kind === "audioinput"));
+    } catch {
+      // Énumération refusée : le choix d'appareil ne s'affiche pas, le reste
+      // continue de fonctionner avec l'entrée par défaut.
     }
   }
 
@@ -185,7 +234,12 @@ export function VoiceRecorder({
         // Réglages d'une VOIX, pas d'une captation musicale : la suppression
         // d'écho évite que le montage joué dans les haut-parleurs revienne
         // dans la prise.
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          ...(deviceId ? { deviceId: { exact: deviceId } } : {}),
+        },
       });
     } catch (err) {
       setPhase("idle");
@@ -214,7 +268,11 @@ export function VoiceRecorder({
     }
 
     stream.current = src;
+    seenLevel.current = 0;
     watchLevel(src);
+    // Les intitulés des entrées ne sont lisibles qu'une fois l'autorisation
+    // accordée : c'est ici, et pas avant, que la liste devient utile.
+    void refreshDevices();
 
     // Décompte : la première syllabe d'une prise lancée sans préavis est
     // perdue à tous les coups.
@@ -280,7 +338,25 @@ export function VoiceRecorder({
         setError(t("Prise trop courte — rien d'exploitable.", "Take too short — nothing usable."));
         return;
       }
-      setTake({ blob, buffer, duration: buffer.duration, at: startedAt.current });
+      const peak = peakOf(buffer);
+      // Une prise SILENCIEUSE se voit ici, et nulle part ailleurs : le fichier
+      // pèse son poids, se décode sans erreur, et ne contient que du zéro. Le
+      // dire épargne la boucle « j'enregistre, j'écoute, rien ne sort ».
+      if (peak < 0.005) {
+        setPhase("idle");
+        setError(seenLevel.current > 0.02
+          ? t(
+              "Le micro captait bien, mais l'enregistrement est silencieux. Essayez une autre entrée audio ci-dessous.",
+              "The microphone was picking up sound, but the recording is silent. Try another audio input below."
+            )
+          : t(
+              "Prise silencieuse — l'entrée audio sélectionnée ne capte rien. Choisissez-en une autre ci-dessous, ou vérifiez que le micro n'est pas coupé au niveau du système.",
+              "Silent take — the selected audio input captures nothing. Pick another one below, or check the microphone is not muted at system level."
+            ));
+        void refreshDevices();
+        return;
+      }
+      setTake({ blob, buffer, duration: buffer.duration, at: startedAt.current, peak });
     } catch {
       setPhase("idle");
       setError(t(
@@ -360,6 +436,27 @@ export function VoiceRecorder({
               `${COUNT_IN}s count-in, then the edit plays from the playhead (${playhead.toFixed(1)}s).`
             )}
           </p>
+          {/* Choix de l'entrée audio. Il n'apparaît qu'une fois les intitulés
+              connus — c'est-à-dire après une première autorisation — et c'est
+              précisément le réglage qui débloque une prise silencieuse quand
+              le navigateur a retenu la mauvaise entrée par défaut. */}
+          {devices.length > 1 && (
+            <label className="block text-[10px] text-muted">
+              {t("Entrée audio", "Audio input")}
+              <select
+                value={deviceId}
+                onChange={(e) => setDeviceId(e.target.value)}
+                className="input mt-0.5 w-full text-2xs"
+              >
+                <option value="">{t("Entrée par défaut", "Default input")}</option>
+                {devices.map((d, i) => (
+                  <option key={d.deviceId} value={d.deviceId}>
+                    {d.label || t(`Micro ${i + 1}`, `Microphone ${i + 1}`)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <FileButton
             label={t("Ou importer un fichier son", "Or import a sound file")}
             accept="audio/*"
@@ -428,6 +525,13 @@ export function VoiceRecorder({
               `Prise de ${take.duration.toFixed(1)} s, à poser à ${take.at.toFixed(1)} s.`,
               `${take.duration.toFixed(1)}s take, to be placed at ${take.at.toFixed(1)}s.`
             )}
+          </p>
+          {/* Niveau atteint : un son enregistré très bas s'entend mal une fois
+              posé sous une musique, et mieux vaut le voir avant l'insertion
+              qu'après un export. */}
+          <p className={`text-[10px] ${take.peak < 0.08 ? "text-danger" : "text-muted"}`}>
+            {t("Niveau maximal", "Peak level")} : {Math.round(take.peak * 100)} %
+            {take.peak < 0.08 && ` — ${t("très faible, rapprochez-vous du micro", "very low, move closer to the microphone")}`}
           </p>
           {/* Pré-écoute AVANT insertion : une prise ratée ne doit pas polluer la
               timeline puis l'historique pour être défaite ensuite. Elle passe

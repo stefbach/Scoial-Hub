@@ -854,6 +854,93 @@ export function moveElement(
   return normalize({ ...p, shapes: p.shapes.map((x) => (x.id === sel.id ? { ...x, ...layerPatch } : x)) });
 }
 
+/* ── Chutier : les médias du projet ──────────────────────────────────────── */
+
+/**
+ * Un média DISTINCT référencé par le montage — pas un élément de la timeline.
+ * Le même fichier posé trois fois n'est qu'une seule entrée, avec `uses` à 3 :
+ * le chutier répond à « quels fichiers ce projet utilise-t-il ? », pas à
+ * « que contient la timeline ? », question à laquelle la timeline répond déjà.
+ */
+export interface ProjectMedium {
+  src: string;
+  kind: "video" | "image" | "audio";
+  /** Nom lisible : celui du fichier pour un son, déduit de l'URL sinon. */
+  name: string;
+  /** Nombre d'éléments du montage qui pointent sur ce média. */
+  uses: number;
+  /**
+   * Durée connue du média, en secondes — native pour un plan vidéo, jouée pour
+   * un son (`AudioTrack` ne retient pas la native). 0 quand rien ne la donne :
+   * une photo, ou un projet enregistré avant que la durée soit sondée.
+   */
+  duration: number;
+  provenance?: Provenance;
+}
+
+/**
+ * Nom lisible d'un média d'après son URL. Les fichiers hébergés portent un
+ * préfixe aléatoire pour éviter les collisions ; on retire donc ce qui
+ * ressemble à un identifiant en tête, sans jamais rendre le nom VIDE — mieux
+ * vaut un nom laid qu'une ligne anonyme dans le chutier.
+ */
+export function mediaName(src: string): string {
+  const path = src.split(/[?#]/)[0];
+  const last = path.split("/").filter(Boolean).pop() ?? src;
+  let name = last;
+  try {
+    name = decodeURIComponent(last);
+  } catch {
+    // URL mal encodée : on garde le segment brut plutôt que d'échouer.
+  }
+  const stripped = name.replace(/^[0-9a-f]{8,}[-_]/i, "");
+  return stripped.trim() || name.trim() || src;
+}
+
+/**
+ * Les médias du projet, dédupliqués par source. Ordre d'apparition sur la
+ * timeline, par famille : plans, puis incrustations, puis sons — l'ordre dans
+ * lequel on les cherche quand on veut en reposer un.
+ */
+export function projectMedia(p: EditorProject): ProjectMedium[] {
+  const bySrc = new Map<string, ProjectMedium>();
+
+  const add = (m: Omit<ProjectMedium, "uses">) => {
+    if (!m.src) return;
+    const seen = bySrc.get(m.src);
+    if (seen) {
+      seen.uses += 1;
+      // Une durée native connue vaut mieux qu'une inconnue, quel que soit
+      // l'élément qui la porte : la même vidéo posée deux fois peut n'avoir
+      // été sondée qu'une seule.
+      if (!seen.duration && m.duration) seen.duration = m.duration;
+      if (!seen.provenance && m.provenance) seen.provenance = m.provenance;
+      return;
+    }
+    bySrc.set(m.src, { ...m, uses: 1 });
+  };
+
+  const byStart = <T extends { start: number }>(list: T[]): T[] => list.slice().sort((a, b) => a.start - b.start);
+
+  for (const c of byStart(p.clips)) {
+    add({
+      src: c.src,
+      kind: c.kind === "image" ? "image" : "video",
+      name: mediaName(c.src),
+      duration: c.sourceDuration || 0,
+      provenance: c.provenance,
+    });
+  }
+  for (const l of byStart(p.images)) {
+    add({ src: l.src, kind: "image", name: mediaName(l.src), duration: 0, provenance: l.provenance });
+  }
+  for (const a of byStart(p.audios)) {
+    add({ src: a.src, kind: "audio", name: a.name || mediaName(a.src), duration: a.length || 0, provenance: a.provenance });
+  }
+
+  return [...bySrc.values()];
+}
+
 /* ── Presse-papier ───────────────────────────────────────────────────────── */
 
 /**

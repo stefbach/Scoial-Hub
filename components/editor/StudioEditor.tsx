@@ -23,14 +23,15 @@ import { SUBTITLE_LANGS } from "@/lib/ai/subtitle-langs";
 import {
   addAudio, addButton, addClip, addImageLayer, addShape, addText, addTrack, copyElements, duplicateAudio,
   duplicateClip, duplicateImageLayer, duplicateShape, duplicateText,
-  pasteElements,
+  pasteElements, projectMedia,
   emptyProject, FORMAT_SIZE, moveElement, projectDuration, removeAudio,
   removeClip, removeImageLayer, removeShape, removeText, removeTrack, reorderTrack,
   setClipBox, setClipFraming, setClipLength,
   setClipSpeed, setClipTransition, setProjectDuration, setTrackDefMeta, shapesAt, splitAt, splitAudioAt, splitLayerAt,
   trimClip, trimLayer,
   updateAudio, updateImageLayer, updateShape, updateText, usedTracks, visibleProject,
-  type AnimationKind, type ClipboardEntry, type EditorFormat, type EditorProject, type ShapeKind,
+  type AnimationKind, type ClipboardEntry, type EditorFormat, type EditorProject,
+  type AudioRole, type ShapeKind,
   type TimedLayerKind, type TrackFamily, type TransitionKind, type VisualLayer,
 } from "@/lib/editor/project";
 import {
@@ -45,6 +46,7 @@ import { drawImages, drawShapes, drawTexts, ensureFontsReady, FONT_STACKS, loadI
 import BrandKitPanel from "@/components/studio/BrandKitPanel";
 import { Timeline, type TimelineSelection } from "./Timeline";
 import { Preview, type LayerPatch } from "./Preview";
+import { MediaBin } from "./MediaBin";
 import { ProjectLibrary } from "./ProjectLibrary";
 import { TemplateGallery } from "./TemplateGallery";
 import { AssetLibrary, type AcquiredAsset } from "./AssetLibrary";
@@ -703,6 +705,9 @@ export function StudioEditor({
    * ne doit pas empêcher de la retrouver pour la démasquer.
    */
   const displayProject = useMemo(() => visibleProject(project), [project]);
+  /** Chutier : dérivé du document, jamais tenu à part — un média disparaît de
+      la liste dès que le dernier élément qui l'utilisait est supprimé. */
+  const media = useMemo(() => projectMedia(project), [project]);
 
   /* ── Export ────────────────────────────────────────────────────────────── */
   const decision = useMemo(() => decideRenderTarget(displayProject, sourceBytes.current), [displayProject]);
@@ -1119,6 +1124,26 @@ export function StudioEditor({
                   <ImportButton label={t("♪ Musique", "♪ Music")} accept="audio/*" onFile={(f) => importFile(f, "music")} />
                   <ImportButton label={t("🎙 Voix off", "🎙 Voiceover")} accept="audio/*" onFile={(f) => importFile(f, "voice")} />
                   <ImportButton label={t("🖼 Incrustation", "🖼 Overlay")} accept="image/*" onFile={(f) => importFile(f, "overlay")} />
+                  <hr className="border-hair" />
+                  {/* Chutier — reposer un média déjà dans le projet sans le
+                      réimporter, ce qui créait jusqu'ici un second fichier
+                      hébergé pour le même contenu (audit v4, constat 6). */}
+                  <MediaBin
+                    media={media}
+                    onAddClip={(m) => apply((p) => addClip(p, {
+                      id: nextId("c"), src: m.src,
+                      kind: m.kind === "image" ? "image" : "video",
+                      sourceDuration: m.duration,
+                      provenance: m.provenance,
+                    }))}
+                    onAddOverlay={(m) => apply((p) => addImageLayer(p, nextId("i"), m.src, m.provenance, playhead))}
+                    onAddAudio={(m) => apply((p) => addAudio(p, {
+                      id: nextId("a"), src: m.src, name: m.name,
+                      role: audioRoleOf(p, m.src),
+                      sourceDuration: m.duration,
+                      provenance: m.provenance,
+                    }))}
+                  />
                   <hr className="border-hair" />
                   <button
                     type="button"
@@ -1538,6 +1563,16 @@ export function StudioEditor({
     });
     if (sels.length > 0) setSelection(sels[0]);
     else if (!additive) setSelection(null);
+  }
+
+  /**
+   * Rôle à donner à un son reposé depuis le chutier : celui qu'il a déjà dans
+   * le montage. Remettre une voix off en « musique » lui appliquerait le
+   * volume réduit et les fondus de la musique de fond, ce que personne
+   * n'attend en reposant le MÊME fichier.
+   */
+  function audioRoleOf(p: EditorProject, src: string): AudioRole {
+    return p.audios.find((a) => a.src === src)?.role ?? "music";
   }
 
   function removeSelection() {

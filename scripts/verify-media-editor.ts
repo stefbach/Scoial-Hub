@@ -623,6 +623,31 @@ async function main() {
       /\{!allVisual && !allAudio && \(/.test(panel));
   }
 
+  // ── constat 6 · Chutier « fichiers du projet » (audit Editing Bench v4) ──
+  // L'onglet Médias ne savait qu'importer : reposer une vidéo déjà utilisée
+  // obligeait à la réenvoyer, créant un second fichier hébergé pour le même
+  // contenu. `ProjectLibrary`, malgré son nom, liste les PROJETS enregistrés.
+  {
+    const bin = read("components/editor/MediaBin.tsx");
+    const model = read("lib/editor/project.ts");
+    check("constat 6 · le chutier est DÉRIVÉ du document, jamais tenu à part",
+      /export function projectMedia\(/.test(model) &&
+      /const media = useMemo\(\(\) => projectMedia\(project\), \[project\]\)/.test(studio));
+    check("constat 6 · il vit dans l'onglet Médias, sous les boutons d'import",
+      /<MediaBin/.test(studio) && /Fichiers du projet/.test(bin));
+    check("constat 6 · un média se repose sans réimport — plan, incrustation ou son",
+      /onAddClip=\{\(m\) => apply\(\(p\) => addClip\(/.test(studio) &&
+      /onAddOverlay=\{\(m\) => apply\(\(p\) => addImageLayer\(/.test(studio) &&
+      /onAddAudio=\{\(m\) => apply\(\(p\) => addAudio\(/.test(studio));
+    check("constat 6 · un son reposé garde le RÔLE qu'il a déjà (pas « musique » par défaut)",
+      /function audioRoleOf\(p: EditorProject, src: string\): AudioRole/.test(studio) &&
+      /role: audioRoleOf\(p, m\.src\)/.test(studio));
+    check("constat 6 · un chutier vide explique ce qui s'y trouvera, plutôt que de rester nu",
+      /media\.length === 0/.test(bin));
+    check("constat 6 · une vignette qui ne se charge pas ne laisse pas une image cassée",
+      /onError=\{\(e\) => \{ \(e\.currentTarget as HTMLImageElement\)\.style\.visibility = "hidden"; \}\}/.test(bin));
+  }
+
   // ── P1-13 · Un calque neuf se pose à la tête de lecture (audit Editing
   // Bench v3, Lot 4) ─────────────────────────────────────────────────────
   // Un texte, une incrustation ou une forme posés aux trois quarts d'une

@@ -596,8 +596,8 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
       en: "Configure all your external access — social networks, advertising, AI, measurement.",
     },
     whatFor: {
-      fr: "La page Connecteurs centralise la configuration de toutes les intégrations externes d'AXON-AI : réseaux sociaux (Facebook, Instagram, LinkedIn, TikTok), publicité (Meta Ads), mesure (Meta Pixel + CAPI, Google Analytics 4), IA (Anthropic Claude, Replicate) et veille (YouTube Data API). Chaque connecteur documente ses capacités de lecture (statistiques, insights) et d'écriture (publication, campagnes) ainsi que la procédure pour obtenir les clés nécessaires.",
-      en: "The Connectors page centralises the configuration of all AXON-AI external integrations: social networks (Facebook, Instagram, LinkedIn, TikTok), advertising (Meta Ads), measurement (Meta Pixel + CAPI, Google Analytics 4), AI (Anthropic Claude, Replicate) and watch (YouTube Data API). Each connector documents its read (stats, insights) and write (publishing, campaigns) capabilities and the procedure to obtain the required keys.",
+      fr: "La page Connecteurs centralise la configuration de toutes les intégrations externes d'AXON-AI : réseaux sociaux (Facebook, Instagram, LinkedIn, TikTok), publicité (Meta Ads), mesure (Meta Pixel + CAPI), IA (Anthropic Claude, Replicate) et veille (YouTube Data API). Chaque connecteur documente ses capacités de lecture (statistiques, insights) et d'écriture (publication, campagnes) ainsi que la procédure pour obtenir les clés nécessaires.",
+      en: "The Connectors page centralises the configuration of all AXON-AI external integrations: social networks (Facebook, Instagram, LinkedIn, TikTok), advertising (Meta Ads), measurement (Meta Pixel + CAPI), AI (Anthropic Claude, Replicate) and watch (YouTube Data API). Each connector documents its read (stats, insights) and write (publishing, campaigns) capabilities and the procedure to obtain the required keys.",
     },
     actions: [
       {
@@ -615,10 +615,10 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
         },
       },
       {
-        label: { fr: "Configurer la mesure (Pixel + GA4)", en: "Configure measurement (Pixel + GA4)" },
+        label: { fr: "Configurer la mesure (Meta Pixel + CAPI)", en: "Configure measurement (Meta Pixel + CAPI)" },
         detail: {
-          fr: "Meta Pixel + CAPI : renseignez le Pixel ID et le CAPI Access Token pour le suivi des conversions navigateur et serveur. GA4 : renseignez le Property ID, Measurement ID et l'API Secret pour les rapports et le Measurement Protocol.",
-          en: "Meta Pixel + CAPI: enter the Pixel ID and CAPI Access Token for browser and server-side conversion tracking. GA4: enter the Property ID, Measurement ID and API Secret for reports and the Measurement Protocol.",
+          fr: "Renseignez le Pixel ID et le CAPI Access Token pour le suivi des conversions navigateur et serveur.",
+          en: "Enter the Pixel ID and CAPI Access Token for browser and server-side conversion tracking.",
         },
       },
       {
@@ -771,8 +771,8 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
     ],
     tips: [
       {
-        fr: "Rédigez d'abord pour le réseau avec les contraintes les plus strictes (Twitter/X : 280 caractères), puis adaptez pour les autres.",
-        en: "Write first for the network with the strictest constraints (Twitter/X: 280 characters), then adapt for the others.",
+        fr: "Rédigez d'abord pour le réseau avec les contraintes les plus strictes, puis adaptez pour les autres.",
+        en: "Write first for the network with the strictest constraints, then adapt for the others.",
       },
       {
         fr: "Utilisez l'assistant IA pour générer 3 variantes et choisir la meilleure plutôt que de partir de zéro.",

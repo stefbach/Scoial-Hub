@@ -23,9 +23,7 @@ lib/connectors/
 │                       + ConnectorPlatform (surensemble de Platform, isolé ici)
 ├── provider-spec.ts    Fabrique DÉCLARATIVE : makeOAuth2Connector(spec)
 ├── providers/
-│   ├── twitter.ts      Twitter/X   — pure config (OAuth2 + PKCE)
-│   ├── pinterest.ts    Pinterest   — pure config (OAuth2, Basic auth)
-│   └── threads.ts      Threads     — pure config (flux container → publish)
+│   └── tiktok.ts       TikTok      — pure config (OAuth2 + PKCE S256)
 ├── meta.ts             Facebook + Instagram (flux Page Meta spécifique)
 ├── linkedin.ts         LinkedIn (UGC/Posts + Marketing API)
 └── index.ts            Registre : getConnector(), listConnectorStatus(),
@@ -51,15 +49,16 @@ app/api/connectors/
 
 `Platform` (`lib/types.ts`) est utilisé dans des dizaines de `Record<Platform,…>`
 exhaustifs partout dans l'app. L'étendre casserait ces cartes. Les nouveaux
-réseaux n'existent que dans la couche publication/connexion : on les ajoute donc
-à `ConnectorPlatform = Platform | "twitter" | "pinterest" | "threads"`, isolé au
-sous-système connecteurs. **Sobriété : on ne propage pas un changement de type à
-66 fichiers pour ajouter un bouton de publication.**
+réseaux n'existent que dans la couche publication/connexion : on les ajouterait
+donc à `ConnectorPlatform` (aujourd'hui égal à `Platform`, extensible sans
+casser ces cartes), isolé au sous-système connecteurs. **Sobriété : on ne
+propage pas un changement de type à 66 fichiers pour ajouter un bouton de
+publication.**
 
 ## 2. Ajouter un nouveau réseau (la recette complète)
 
-La plupart des réseaux (Twitter/X, Pinterest, Threads, Mastodon, Reddit,
-YouTube…) suivent le flux OAuth 2.0 `authorization_code`. Pour les ajouter :
+La plupart des réseaux (Mastodon, Reddit, YouTube…) suivent le flux OAuth 2.0
+`authorization_code`. Pour les ajouter :
 
 ### Étape 1 — créer la spec (≈ 30 lignes)
 
@@ -134,7 +133,7 @@ Options de `OAuth2ProviderSpec` :
 | `authorizeUrl` / `tokenUrl` / `scopes` | Endpoints OAuth standards |
 | `scopeSeparator` | `" "` (défaut) ou `","` selon le réseau |
 | `tokenAuth` | `"body"` (défaut) ou `"basic"` (Authorization: Basic) |
-| `pkce` | `"plain"` pour les réseaux qui l'exigent (Twitter/X) |
+| `pkce` | `"plain"` ou `"S256"` pour les réseaux qui l'exigent (ex. TikTok en S256) |
 | `fetchAccount` | Récupère l'identité du compte après token |
 | `publish` | Adaptateur d'écriture réel |
 | `metrics` | Adaptateur de métriques réel (optionnel) |
@@ -151,7 +150,7 @@ appel réseau). On développe et démontre le produit sans aucune app validée.
   réponses HTTP.
 - **CSRF + anti open-redirect** : `lib/connectors/oauth-state.ts` génère un
   `state` à nonce aléatoire et n'accepte que des chemins de retour internes.
-- **PKCE** : supporté (méthode `plain`) pour les réseaux qui l'imposent.
+- **PKCE** : supporté (méthodes `plain` et `S256`) pour les réseaux qui l'imposent.
 - **Secrets hors code** : uniquement via variables d'environnement.
 - **Contrôle d'accès** : `requireCompanyAccess` empêche de rattacher un compte à
   une société non autorisée.

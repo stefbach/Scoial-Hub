@@ -14,7 +14,7 @@ interface TestResult {
   sentiment: string;
 }
 
-const CHANNELS: InboxChannel[] = ["facebook", "instagram", "linkedin", "telegram", "twitter"];
+const CHANNELS: InboxChannel[] = ["facebook", "instagram", "linkedin", "telegram"];
 
 /** Création / édition d'un agent de réponse. */
 export function AgentModal({

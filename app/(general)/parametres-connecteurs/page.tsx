@@ -169,30 +169,6 @@ const CONNECTOR_CATALOG: ConnectorMeta[] = [
     ],
     fields: [],
   },
-  {
-    id: "ga4",
-    label: "Google Analytics 4",
-    color: "#E8710A",
-    icon: "G",
-    description: "Mesure web, attribution multi-touch et audiences GA4.",
-    where: "analytics.google.com → Admin → Property + Cloud (Data API)",
-    group: "measure",
-    capabilities: [
-      { type: "read", label: "Lecture rapports" },
-      { type: "read", label: "Lecture audiences" },
-      { type: "write", label: "Envoi Measurement Protocol" },
-    ],
-    fields: [
-      { key: "property_id", label: "Property ID", placeholder: "GA4 property" },
-      { key: "measurement_id", label: "Measurement ID", placeholder: "G-XXXXXXX" },
-      {
-        key: "api_secret",
-        label: "API Secret (Measurement Protocol)",
-        secret: true,
-      },
-    ],
-  },
-
   // Note : IA (Anthropic Claude), génération (Replicate) et veille (YouTube) sont
   // INTÉGRÉES à l'application (clés gérées côté plateforme / MCP) → pas affichées.
 ];
@@ -335,7 +311,7 @@ export default function ParametresConnecteursPage() {
       return connections[meta.nativeVia]?.status === "connected" ? "connected" : "disconnected";
     }
     if (!CHANNEL_IDS.has(meta.id)) {
-      // Connecteurs externes sans API de sauvegarde (ex. GA4) : statut simulé.
+      // Connecteurs externes sans API de sauvegarde : statut simulé.
       return "simulated";
     }
     const conn = connections[meta.id];

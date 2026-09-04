@@ -10,7 +10,7 @@ import { useT } from "@/lib/i18n";
 import { SeriesPlanner } from "@/components/series/SeriesPlanner";
 import { SERIES_CONFIG, type SeriesPlatform } from "@/lib/social-series";
 
-const ORDER: SeriesPlatform[] = ["facebook", "instagram", "twitter", "pinterest", "tiktok"];
+const ORDER: SeriesPlatform[] = ["facebook", "instagram", "tiktok"];
 
 export default function SeriesPage() {
   const t = useT();

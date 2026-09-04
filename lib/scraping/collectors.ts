@@ -4,7 +4,7 @@
  * Architecture :
  * - YouTube : YouTube Data API v3 (gratuit, 10 000 unités/jour) si YOUTUBE_API_KEY présent.
  * - Autres réseaux : endpoints publics oEmbed / pages publiques (best-effort, fetch natif).
- *   Les plateformes fermées (Instagram, TikTok, LinkedIn, Twitter/X) n'exposent pas
+ *   Les plateformes fermées (Instagram, TikTok, LinkedIn) n'exposent pas
  *   d'API publique gratuite pour scraper les comptes tiers. Un scraping robuste
  *   nécessiterait une infrastructure dédiée (proxies rotatifs, headless browser,
  *   comptes connectés, conformité CGU). Ici on couvre le gratuit/officiel uniquement.
@@ -133,13 +133,6 @@ const CAPTION_TEMPLATES: Record<ScrapeNetwork, string[]> = {
     "Mon avis honnête sur {keyword} après 6 mois d'implémentation",
     "Pourquoi {keyword} va redéfinir notre secteur d'ici {year}",
   ],
-  twitter: [
-    "Thread 🧵 : Tout ce que vous devez savoir sur {keyword} en {year}",
-    "Hot take : {keyword} est surestimé. Je vous explique pourquoi →",
-    "Quelqu'un peut m'expliquer pourquoi {keyword} devient viral en {geo} ? 👀",
-    "Mise à jour : {keyword} vient d'atteindre un nouveau palier. Data ici →",
-    "PSA : si vous n'utilisez pas encore {keyword}, vous prenez du retard 🚨",
-  ],
   facebook: [
     "🔥 {keyword} : notre équipe partage ses meilleures pratiques !",
     "Concours ! Partagez votre expérience {keyword} et gagnez... 🎁",
@@ -154,7 +147,6 @@ const ENGAGEMENT_RANGES: Record<ScrapeNetwork, { views: [number, number]; er: [n
   instagram: { views: [2000,  200000], er: [0.03, 0.12] },
   tiktok:    { views: [10000, 2000000], er: [0.04, 0.15] },
   linkedin:  { views: [500,   50000],  er: [0.02, 0.10] },
-  twitter:   { views: [1000,  100000], er: [0.01, 0.06] },
   facebook:  { views: [3000,  300000], er: [0.01, 0.05] },
 };
 
@@ -163,7 +155,6 @@ const CONTENT_TYPES: Record<ScrapeNetwork, Array<CompetitorContent["type"]>> = {
   instagram: ["post", "reel", "story"],
   tiktok:    ["video"],
   linkedin:  ["post", "video"],
-  twitter:   ["post"],
   facebook:  ["post", "video"],
 };
 
@@ -515,7 +506,7 @@ class YouTubeCollector implements Collector {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   Collecteur oEmbed (Instagram, LinkedIn, Twitter) — best-effort
+   Collecteur oEmbed (Instagram, LinkedIn) — best-effort
    Ces plateformes bloquent le scraping non authentifié. oEmbed retourne
    uniquement des métadonnées basiques (titre, auteur) sans métriques.
    Utile pour valider qu'un handle existe et récupérer son nom d'affichage.
@@ -779,8 +770,8 @@ class XpozCollector implements Collector {
 
 /* ─────────────────────────────────────────────────────────────────────────────
    Collecteur ScrapeCreators (données RÉELLES, TOUS réseaux, une seule clé)
-   API REST unique couvrant Instagram, TikTok, YouTube, LinkedIn, Facebook,
-   Twitter/X. Auth : header `x-api-key`. Base : https://api.scrapecreators.com
+   API REST unique couvrant Instagram, TikTok, YouTube, LinkedIn, Facebook.
+   Auth : header `x-api-key`. Base : https://api.scrapecreators.com
    Nécessite : SCRAPECREATORS_API_KEY dans l'environnement.
 
    NOTE : les schémas de réponse varient selon le réseau / la version d'endpoint.
@@ -812,7 +803,6 @@ const SC_ENDPOINTS: Record<ScrapeNetwork, ScEndpoint> = {
   youtube:   { path: "/v1/youtube/channel-videos", handleParam: "handle" },
   linkedin:  { path: "/v1/linkedin/company/posts", handleParam: "handle" },
   facebook:  { path: "/v1/facebook/profile/posts", handleParam: "url", idShape: "profileUrl" },
-  twitter:   { path: "/v1/twitter/user-tweets", handleParam: "handle" },
 };
 
 /** Conteneurs possibles d'un tableau de posts dans la réponse JSON. */
@@ -966,7 +956,6 @@ class ScrapeCreatorsCollector implements Collector {
       youtube: `https://www.youtube.com/@${username}`,
       linkedin: `https://www.linkedin.com/company/${username}`,
       facebook: `https://www.facebook.com/${username}`,
-      twitter: `https://x.com/${username}`,
     };
     return host[this.network];
   }
@@ -985,7 +974,7 @@ function getCollector(network: ScrapeNetwork, query: ScrapeQuery): Collector {
   }
 
   // Priorité : ScrapeCreators — une seule clé couvre TOUS les réseaux
-  // (Instagram, TikTok, YouTube, LinkedIn, Facebook, Twitter).
+  // (Instagram, TikTok, YouTube, LinkedIn, Facebook).
   const scKey = process.env.SCRAPECREATORS_API_KEY;
   if (scKey) return new ScrapeCreatorsCollector(network, scKey);
 
@@ -997,7 +986,7 @@ function getCollector(network: ScrapeNetwork, query: ScrapeQuery): Collector {
     // …sinon xpoz.ai si configuré.
     if (process.env.XPOZ_API_KEY) return new XpozCollector("instagram");
   }
-  if ((network === "tiktok" || network === "twitter") && process.env.XPOZ_API_KEY) {
+  if (network === "tiktok" && process.env.XPOZ_API_KEY) {
     return new XpozCollector(network);
   }
   // Autres réseaux (et réseaux sans clé/connexion) : simulateur déterministe

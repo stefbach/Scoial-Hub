@@ -13,9 +13,7 @@ export type VideoPlatform =
   | "facebook_story"
   | "facebook_landscape"
   | "linkedin"
-  | "linkedin_square"
-  | "twitter"
-  | "pinterest";
+  | "linkedin_square";
 
 export interface PlatformMeta {
   id: VideoPlatform;
@@ -39,8 +37,6 @@ export const VIDEO_PLATFORMS: PlatformMeta[] = [
   { id: "youtube", label: "YouTube · 16:9", aspect: "16:9", maxSeconds: 600 },
   { id: "linkedin", label: "LinkedIn · 16:9", aspect: "16:9", maxSeconds: 120 },
   { id: "linkedin_square", label: "LinkedIn · 1:1", aspect: "1:1", maxSeconds: 120 },
-  { id: "twitter", label: "X / Twitter · 16:9", aspect: "16:9", maxSeconds: 140 },
-  { id: "pinterest", label: "Pinterest · 2:3", aspect: "2:3", maxSeconds: 60 },
 ];
 
 // ── Médias source ─────────────────────────────────────────────────────────────

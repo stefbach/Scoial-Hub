@@ -6,7 +6,7 @@
 // (longueur, média requis, format, mode de diffusion) via lib/social-series.
 //
 //   - Facebook / Instagram : programmation auto (cron). Instagram impose un visuel.
-//   - Twitter / Pinterest / TikTok : « Publier maintenant » via le connecteur.
+//   - TikTok : « Publier maintenant » via le connecteur.
 
 import { useMemo, useState } from "react";
 import { addDays, format } from "date-fns";
@@ -89,7 +89,6 @@ export function SeriesPlanner({ platform }: { platform: SeriesPlatform }) {
   const [startDate, setStartDate] = useState<Date>(() => addDays(new Date(), 1));
   const [cadence, setCadence] = useState<Cadence>("daily");
   const [batchTime, setBatchTime] = useState("09:00");
-  const [boardId, setBoardId] = useState("");
   const [working, setWorking] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
@@ -186,8 +185,6 @@ export function SeriesPlanner({ platform }: { platform: SeriesPlatform }) {
         : t(`${missing} élément(s) sans visuel. ${cfg.label} exige une image par publication.`, `${missing} item(s) without a visual. ${cfg.label} requires an image per post.`));
       return;
     }
-    if (cfg.needsBoard && !boardId.trim()) { setMsg(t("Indiquez l'ID du board Pinterest cible.", "Enter the target Pinterest board ID.")); return; }
-
     setWorking(true); setMsg(null);
     let ok = 0, failed = 0;
     try {
@@ -213,7 +210,6 @@ export function SeriesPlanner({ platform }: { platform: SeriesPlatform }) {
             body: JSON.stringify({
               companyId, platform, text: bodyText,
               ...(isVideo ? { videoUrl: imgUrl } : { imageUrl: imgUrl }),
-              ...(cfg.needsBoard ? { boardId: boardId.trim() } : {}),
             }),
           });
           const d = await r.json().catch(() => ({}));
@@ -459,15 +455,6 @@ export function SeriesPlanner({ platform }: { platform: SeriesPlatform }) {
           );
         })()}
       </Modal>
-
-      {/* Pinterest : board cible */}
-      {cfg.needsBoard && (
-        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-hair bg-canvas p-3">
-          <span className="section-label">{t("Board Pinterest", "Pinterest board")}</span>
-          <input value={boardId} onChange={(e) => setBoardId(e.target.value)} placeholder={t("ID du board cible", "Target board ID")}
-            className={`${inputCls} max-w-[260px]`} />
-        </div>
-      )}
 
       {/* Diffusion : programmer (FB/IG) OU publier maintenant (autres) */}
       <div className="flex flex-wrap items-end gap-3 rounded-xl border border-hair bg-canvas p-3">

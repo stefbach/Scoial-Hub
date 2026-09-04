@@ -2,12 +2,12 @@
  * POST /api/social/publish
  *
  * Publication immédiate, scopée par SOCIÉTÉ, pour les réseaux gérés via leurs
- * connecteurs déclaratifs (Twitter/X, Pinterest, TikTok…). Lit la connexion de
- * la société dans sh_channel_connections (token + identifiant de compte), puis
- * appelle le connecteur. Équivalent générique de /api/linkedin/publish pour les
- * réseaux pas encore branchés sur le moteur de programmation automatique.
+ * connecteurs déclaratifs (TikTok…). Lit la connexion de la société dans
+ * sh_channel_connections (token + identifiant de compte), puis appelle le
+ * connecteur. Équivalent générique de /api/linkedin/publish pour les réseaux
+ * pas encore branchés sur le moteur de programmation automatique.
  *
- * Body : { companyId, platform, text, imageUrl?, videoUrl?, boardId? }
+ * Body : { companyId, platform, text, imageUrl?, videoUrl? }
  */
 
 export const runtime = "nodejs";
@@ -23,7 +23,7 @@ import { ensurePublishableImageUrl } from "@/lib/repositories/media";
 
 export async function POST(req: NextRequest) {
   try {
-    const { companyId, platform, text, imageUrl, videoUrl, boardId } = await req.json();
+    const { companyId, platform, text, imageUrl, videoUrl } = await req.json();
 
     if (!companyId) return NextResponse.json({ error: "companyId requis" }, { status: 400 });
     if (!platform || !isSupportedPlatform(platform)) {
@@ -51,8 +51,7 @@ export async function POST(req: NextRequest) {
     } else {
       const conn = await getConnection(uuid, platform);
       token = conn?.config?.access_token;
-      // Pinterest : un board cible est requis (boardId prioritaire sur la config).
-      externalId = boardId || conn?.config?.board_id || conn?.config?.external_id;
+      externalId = conn?.config?.external_id;
       connected = !!conn && conn.status === "connected" && !!token;
     }
 

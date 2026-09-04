@@ -5,7 +5,6 @@ export type ScrapeNetwork =
   | "instagram"
   | "tiktok"
   | "linkedin"
-  | "twitter"
   | "facebook";
 
 export type ContentType = "post" | "video" | "reel" | "story";

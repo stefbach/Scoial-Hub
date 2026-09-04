@@ -3,8 +3,8 @@
 // ── NetworkSpace — espace dédié par réseau (façon « Espace LinkedIn ») ─────────
 // Regroupe, pour UN réseau : l'état de connexion (+ assistant de connexion) et
 // le planificateur de série (génération posts/articles + visuels, adapté aux
-// contraintes du réseau). Réutilisable pour Facebook, Instagram, Twitter/X,
-// Pinterest, TikTok via une seule route dynamique.
+// contraintes du réseau). Réutilisable pour Facebook, Instagram, TikTok via
+// une seule route dynamique.
 
 import { useEffect, useState } from "react";
 import { useCompany } from "@/lib/company-context";
@@ -20,8 +20,6 @@ import type { ConnectorStatus } from "@/lib/connectors/types";
 const CONNECT_VIA: Record<SeriesPlatform, ConnectHelpKey> = {
   facebook: "meta",
   instagram: "meta",
-  twitter: "twitter",
-  pinterest: "pinterest",
   tiktok: "tiktok",
 };
 

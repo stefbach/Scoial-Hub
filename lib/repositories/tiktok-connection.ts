@@ -1,8 +1,8 @@
 // Répertoire d'accès à la connexion TikTok — Brique 2 (partielle) : table
 // DÉDIÉE à TikTok (public.sh_tiktok_connections), volontairement séparée de
-// sh_channel_connections que partagent Facebook/Instagram/LinkedIn/Twitter/
-// Pinterest/Threads. Une seule connexion par société (unique(company_id)) :
-// pas de notion de "channel", contrairement au répertoire générique.
+// sh_channel_connections que partagent Facebook/Instagram/LinkedIn. Une seule
+// connexion par société (unique(company_id)) : pas de notion de "channel",
+// contrairement au répertoire générique.
 //
 // Le reste du pipeline TikTok (posts programmés, cron, historique) continue
 // d'utiliser les tables génériques — seule la connexion/le token est isolé.

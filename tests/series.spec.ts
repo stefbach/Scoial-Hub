@@ -12,8 +12,8 @@ test("séries multi-réseaux : sélecteur + génération de visuels + adaptation
   await expect(page.getByText(/Post series/i).first()).toBeVisible();
   await expect(page.getByText(/Something went wrong|Une erreur est survenue/i)).toHaveCount(0);
 
-  // Sélecteur de réseau (les 5).
-  for (const net of ["Facebook", "Instagram", "Twitter / X", "Pinterest", "TikTok"]) {
+  // Sélecteur de réseau (les 3).
+  for (const net of ["Facebook", "Instagram", "TikTok"]) {
     await expect(page.getByRole("button", { name: net, exact: true })).toBeVisible();
   }
 

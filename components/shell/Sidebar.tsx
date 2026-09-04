@@ -36,7 +36,6 @@ const NAV_TR: Record<string, [string, string]> = {
   "Series": ["Séries", "Post series"],
   "Espace Facebook": ["Espace Facebook", "Facebook space"],
   "Espace Instagram": ["Espace Instagram", "Instagram space"],
-  "Espace Twitter": ["Espace Twitter / X", "Twitter / X space"],
   "Espace TikTok": ["Espace TikTok", "TikTok space"],
   "Article LinkedIn": ["Article LinkedIn", "LinkedIn Article"],
   "Video Studio": ["Studio Créatif", "Creative Studio"],
@@ -183,11 +182,6 @@ const ICONS: Record<string, React.ReactNode> = {
       <rect x="2.5" y="2.5" width="10" height="10" rx="3" stroke="currentColor" strokeWidth="1.2" fill="none"/>
       <circle cx="7.5" cy="7.5" r="2.2" stroke="currentColor" strokeWidth="1.2" fill="none"/>
       <circle cx="10.6" cy="4.4" r="0.8" fill="currentColor"/>
-    </svg>
-  ),
-  "/reseau/twitter": (
-    <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
-      <path d="M2.5 2.5h3.2l3 4 3.4-4h1.4L9.3 7.4l4.2 5.1h-3.2L7 8.3l-3.7 4.2H1.9l4.4-5.1-3.8-4.9Z" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round" fill="none"/>
     </svg>
   ),
   "/reseau/tiktok": (
@@ -392,7 +386,6 @@ const GROUPS: NavGroup[] = [
       { href: "/linkedin",          label: "Mon LinkedIn" },
       { href: "/reseau/facebook",   label: "Espace Facebook" },
       { href: "/reseau/instagram",  label: "Espace Instagram" },
-      { href: "/reseau/twitter",    label: "Espace Twitter" },
       { href: "/reseau/tiktok",     label: "Espace TikTok" },
       { href: "/pages-meta",  label: "Mes Pages" },
     ],

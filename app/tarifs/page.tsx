@@ -257,7 +257,7 @@ const MATRIX: { g: L; rows: { l: L; s?: L; v: [Cell, Cell, Cell] }[] }[] = [
     rows: [
       { l: ["LinkedIn", "LinkedIn"], v: ["y", "y", "y"] },
       { l: ["Facebook & Instagram", "Facebook & Instagram"], v: ["n", "y", "y"] },
-      { l: ["TikTok, X, Pinterest, Threads", "TikTok, X, Pinterest, Threads"], v: ["n", "y", "y"] },
+      { l: ["TikTok", "TikTok"], v: ["n", "y", "y"] },
       { l: ["Calendrier et programmation", "Calendar and scheduling"], s: ["Validation en un clic, publication automatique", "One-click approval, automatic publishing"], v: ["y", "y", "y"] },
       { l: ["Historique complet et traçabilité", "Full history and traceability"], v: ["y", "y", "y"] },
     ],

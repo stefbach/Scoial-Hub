@@ -7,7 +7,6 @@ export type InboxChannel =
   | "instagram"
   | "linkedin"
   | "telegram"
-  | "twitter"
   | "web"
   | "other";
 
@@ -78,7 +77,6 @@ export const CHANNEL_LABELS: Record<InboxChannel, string> = {
   instagram: "Instagram",
   linkedin: "LinkedIn",
   telegram: "Telegram",
-  twitter: "X / Twitter",
   web: "Web & presse",
   other: "Autre",
 };

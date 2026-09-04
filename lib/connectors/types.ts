@@ -16,12 +16,12 @@ import type { Platform, TikTokPublishOptions } from "@/lib/types";
  *
  * `Platform` (lib/types) est volontairement laissé inchangé : il est utilisé
  * dans des dizaines de `Record<Platform, …>` exhaustifs à travers l'app. Les
- * nouveaux réseaux (Twitter/X, Pinterest, Threads…) n'existent QUE dans la
- * couche publication/connexion : on les ajoute donc ici sans rien casser
- * ailleurs. Ajouter un réseau = étendre cette union + 1 objet de config
- * (aucune nouvelle route, aucun nouveau connecteur écrit à la main).
+ * nouveaux réseaux OAuth 2.0 déclaratifs n'existent QUE dans la couche
+ * publication/connexion : on les ajoute donc ici sans rien casser ailleurs.
+ * Ajouter un réseau = étendre cette union + 1 objet de config (aucune
+ * nouvelle route, aucun nouveau connecteur écrit à la main).
  */
-export type ConnectorPlatform = Platform | "twitter" | "pinterest" | "threads";
+export type ConnectorPlatform = Platform;
 
 // ---------------------------------------------------------------------------
 // Erreurs d'authentification
@@ -260,7 +260,7 @@ export interface SocialConnector {
    * Échange le code d'autorisation OAuth contre un jeu de tokens.
    * @param code   Code reçu dans le callback OAuth.
    * @param state  Valeur `state` reçue au callback (porte le code_verifier PKCE
-   *               pour les providers qui l'exigent, ex. Twitter/X). Optionnel.
+   *               pour les providers qui l'exigent). Optionnel.
    */
   exchangeCode(code: string, state?: string): Promise<TokenSet>;
 

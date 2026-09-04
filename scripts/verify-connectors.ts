@@ -5,8 +5,8 @@
 // 1 objet de config, 0 nouvelle route ». On contrôle donc que :
 //   - chaque plateforme enregistrée se résout en un connecteur cohérent ;
 //   - le registre est dérivé d'une seule source (pas de liste codée en dur) ;
-//   - les providers déclaratifs (Twitter/Pinterest/Threads) se dégradent
-//     proprement en mode simulé tant que les credentials sont absents ;
+//   - les providers déclaratifs (TikTok) se dégradent proprement en mode
+//     simulé tant que les credentials sont absents ;
 //   - une spec déclarative produit un connecteur valide (auth URL, exchange,
 //     publish simulé) sans écrire de classe à la main.
 //
@@ -27,7 +27,7 @@ function check(name: string, cond: boolean, detail = "") {
 
 async function main() {
   console.log("\n— 1) Le registre couvre tous les réseaux attendus —");
-  const expected = ["facebook", "instagram", "linkedin", "tiktok", "twitter", "pinterest", "threads"];
+  const expected = ["facebook", "instagram", "linkedin", "tiktok"];
   for (const p of expected) {
     check(`plateforme « ${p} » enregistrée`, isSupportedPlatform(p), SUPPORTED_PLATFORMS.join(", "));
   }
@@ -43,7 +43,7 @@ async function main() {
 
   console.log("\n— 3) Providers déclaratifs : dégradation gracieuse (mode simulé) —");
   // Sans credentials d'env, les nouveaux réseaux doivent simuler, jamais throw.
-  for (const p of ["twitter", "pinterest", "threads", "tiktok"] as const) {
+  for (const p of ["tiktok"] as const) {
     const c = getConnector(p);
     check(`${p} non configuré hors env`, c.isConfigured() === false);
     const token = await c.exchangeCode("fake_code", "fake_state");
@@ -56,7 +56,7 @@ async function main() {
 
   console.log("\n— 4) La fabrique produit un connecteur valide depuis une simple config —");
   const demo = makeOAuth2Connector({
-    platform: "twitter", // réutilise une plateforme connue pour le typage
+    platform: "tiktok", // réutilise une plateforme connue pour le typage
     label: "Demo Net",
     clientIdEnv: "DEMO_NET_CLIENT_ID_UNSET",
     clientSecretEnv: "DEMO_NET_CLIENT_SECRET_UNSET",
@@ -72,12 +72,12 @@ async function main() {
   const dpub = await demo.publishPost({ externalAccountId: "", accessToken: "", text: "hi" });
   check("config minimale → publish simulé", dpub.simulated === true);
 
-  console.log("\n— 5) PKCE plain : le verifier dérive du state (Twitter/X) —");
+  console.log("\n— 5) PKCE S256 : le verifier dérive du state (TikTok) —");
   // En mode configuré on ne peut pas tester sans credentials ; on vérifie au
   // moins que l'URL d'autorisation simulée porte bien le state transmis.
-  const tw = getConnector("twitter");
-  const authUrl = tw.getAuthUrl("abc123.def.ghi");
-  check("twitter : state propagé dans l'URL d'auth", authUrl.includes("abc123"), authUrl);
+  const tt = getConnector("tiktok");
+  const authUrl = tt.getAuthUrl("abc123.def.ghi");
+  check("tiktok : state propagé dans l'URL d'auth", authUrl.includes("abc123"), authUrl);
 
   console.log(`\n${failed === 0 ? "✓ TOUT VERT" : `✗ ${failed} échec(s)`}\n`);
   process.exit(failed === 0 ? 0 : 1);

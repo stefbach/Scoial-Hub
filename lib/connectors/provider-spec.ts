@@ -5,9 +5,9 @@
  *
  * Objectif : ajouter un réseau social = écrire UN objet de configuration
  * (`OAuth2ProviderSpec`), pas un connecteur de 250 lignes ni 3 routes API.
- * La très grande majorité des plateformes (Twitter/X, Pinterest, Threads,
- * Mastodon, Reddit, YouTube…) suivent le même flux « authorization_code » :
- * cette fabrique le factorise une fois pour toutes.
+ * La très grande majorité des plateformes (Mastodon, Reddit, YouTube…)
+ * suivent le même flux « authorization_code » : cette fabrique le factorise
+ * une fois pour toutes.
  *
  * Dégradation gracieuse : tant que les credentials (env) sont absents, le
  * connecteur fonctionne en MODE SIMULÉ (aucun appel réseau, identifiants et
@@ -81,7 +81,7 @@ export interface OAuth2ProviderSpec {
   /**
    * Active PKCE. Le `code_verifier` est dérivé du paramètre `state` (opaque,
    * déjà anti-CSRF) — pas de stockage serveur nécessaire.
-   * - "plain" : challenge === verifier (ex. Twitter/X).
+   * - "plain" : challenge === verifier.
    * - "S256"  : challenge === base64url(sha256(verifier)) (ex. TikTok).
    */
   pkce?: "plain" | "S256";

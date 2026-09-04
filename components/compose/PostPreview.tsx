@@ -13,7 +13,7 @@ import { useT } from "@/lib/i18n";
  * Reproduit l'entête, la mise en page et la troncature « …voir plus » propres à
  * Facebook, Instagram et LinkedIn pour donner une idée fidèle du rendu final.
  */
-export type PreviewPlatform = "facebook" | "instagram" | "linkedin" | "tiktok" | "twitter";
+export type PreviewPlatform = "facebook" | "instagram" | "linkedin" | "tiktok";
 
 interface PostPreviewProps {
   platform: PreviewPlatform;
@@ -34,7 +34,6 @@ const TRUNCATE_AT: Record<PreviewPlatform, number> = {
   instagram: 125,
   linkedin: 210,
   tiktok: 150,
-  twitter: 280,
 };
 
 /** Initiales de la marque pour l'avatar (max 3 caractères). */

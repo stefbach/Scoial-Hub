@@ -81,14 +81,14 @@ Mots-clés : ${keywords.join(", ") || "non précisés"}
 Zone géographique : ${geo.toUpperCase()}
 
 Identifie les 5 à 8 compétiteurs les PLUS PUISSANTS et influents (audience la plus large, engagement le plus fort, autorité reconnue) pour cette thématique et cette zone. Privilégie des comptes RÉELS et reconnus (leaders, marques dominantes) plutôt que des comptes obscurs.
-Pour chaque compte, indique le réseau le plus pertinent parmi : youtube, instagram, tiktok, linkedin, twitter, facebook.
+Pour chaque compte, indique le réseau le plus pertinent parmi : youtube, instagram, tiktok, linkedin, facebook.
 
 IMPORTANT : N'INVENTE PAS de handle. Si tu n'es pas certain que le compte (handle) existe réellement, mets le champ "handle" à null plutôt que de fabriquer une adresse. Ces résultats seront présentés à l'utilisateur comme des SUGGESTIONS À VÉRIFIER, jamais comme des comptes confirmés.
 
 Réponds UNIQUEMENT avec ce JSON (aucun texte avant ou après) :
 [
   {
-    "network": "instagram|tiktok|youtube|linkedin|twitter|facebook",
+    "network": "instagram|tiktok|youtube|linkedin|facebook",
     "handle": "@handle_reel_ou_null",
     "name": "Nom du compte",
     "rationale": "Pourquoi ce compte est pertinent (1 phrase)"

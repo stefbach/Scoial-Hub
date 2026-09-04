@@ -514,6 +514,25 @@ async function main() {
     check("constat 4 · la timeline neutralise le menu du navigateur sur le vide comme sur un élément",
       /onLaneContextMenu\(\{ trackId: track\.id, time: timeFromEvent\(e\.clientX\) \}, e\)/.test(timeline) &&
       /if \(!onLaneContextMenu\) return;\s*\n\s*e\.preventDefault\(\);/.test(timeline));
+    check("constat 1 · un glisser parti du vide devient un rectangle de sélection au-delà d'un seuil",
+      /const MARQUEE_THRESHOLD_PX = /.test(timeline) &&
+      /Math\.hypot\(e\.clientX - d\.startX, e\.clientY - d\.startY\) > MARQUEE_THRESHOLD_PX/.test(timeline) &&
+      /drag\.current = \{ type: "marquee"/.test(timeline));
+    check("constat 1 · sous le seuil, le geste reste un balayage de la tête de lecture",
+      /if \(d\.type === "scrub"\) \{[\s\S]{0,900}?seekTo\(e\.clientX\);\s*\n\s*return;/.test(timeline));
+    check("constat 1 · le rectangle retient les éléments qu'il EFFLEURE, pas seulement ceux qu'il contient",
+      /function elementsInBox\(/.test(timeline) &&
+      /x2 >= left && x1 <= right && y2 >= top && y1 <= bottom/.test(timeline));
+    check("constat 1 · le rectangle ne scelle aucune entrée d'historique (il ne modifie pas le document)",
+      /if \(d\?\.type === "marquee"\)[\s\S]{0,400}?onMarqueeSelect\?\.\(elementsInBox\(box\), d\.additive\)/.test(timeline));
+    check("constat 1 · Maj/Ctrl/⌘ étend la sélection au lieu de la remplacer",
+      /const additive = e\.shiftKey \|\| e\.ctrlKey \|\| e\.metaKey;\s*\n\s*if \(!additive\) onSelect\(null\);/.test(timeline) &&
+      /function onMarqueeSelect\(sels: NonNullable<TimelineSelection>\[\], additive: boolean\)/.test(studio));
+    check("constat 1 · le cadre alimente la MÊME sélection multiple que Maj-clic",
+      /onMarqueeSelect=\{onMarqueeSelect\}/.test(studio) &&
+      /setMultiSelection\(\(prev\) => \{[\s\S]{0,400}?next\.set\(selKey\(sel\), sel\)/.test(studio));
+    check("constat 1 · le geste est documenté dans le panneau de raccourcis",
+      /Sélectionner au rectangle/.test(shortcuts));
     check("constat 4 · TOUT le cadre de la timeline est couvert, pas seulement les rangées",
       /if \(e\.defaultPrevented \|\| !onLaneContextMenu\) return;/.test(timeline) &&
       /function trackAt\(clientY: number\)/.test(timeline) &&

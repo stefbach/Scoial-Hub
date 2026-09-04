@@ -42,6 +42,8 @@ export function ShortcutsPanel({ open, onClose }: { open: boolean; onClose: () =
         { keys: "Ctrl/⌘ + C", label: t("Copier la sélection", "Copy the selection") },
         { keys: "Ctrl/⌘ + V", label: t("Coller à la tête de lecture", "Paste at the playhead") },
         { keys: t("Clic droit", "Right-click"), label: t("Menu contextuel — élément ou piste", "Context menu — element or track") },
+        { keys: t("Glisser dans le vide", "Drag on empty space"), label: t("Sélectionner au rectangle", "Rubber-band selection") },
+        { keys: t("Maj + glisser", "Shift + drag"), label: t("Ajouter le rectangle à la sélection", "Add the rubber band to the selection") },
         { keys: "Ctrl/⌘ + Z", label: t("Annuler", "Undo") },
         { keys: t("Ctrl/⌘ + Maj + Z", "Ctrl/⌘ + Shift + Z"), label: t("Rétablir", "Redo") },
         { keys: "Ctrl/⌘ + S", label: t("Enregistrer", "Save") },

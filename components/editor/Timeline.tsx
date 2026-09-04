@@ -54,6 +54,14 @@ const LANE_H = 40;
 /** Espace vertical entre deux pistes — voir `space-y-1.5` plus bas. */
 const LANE_GAP = 6;
 
+/**
+ * Distance à parcourir avant qu'un glisser parti du vide devienne un
+ * RECTANGLE DE SÉLECTION plutôt qu'un balayage de la tête de lecture. Sans ce
+ * seuil, le moindre frémissement de la main pendant un clic ouvrirait un
+ * rectangle et effacerait la sélection en cours.
+ */
+const MARQUEE_THRESHOLD_PX = 5;
+
 export type TimelineSelection =
   | { kind: "clip"; id: string }
   | { kind: "text"; id: string }
@@ -103,6 +111,7 @@ export function Timeline({
   multiSelectedKeys,
   onSeek,
   onSelect,
+  onMarqueeSelect,
   onContextMenu,
   onLaneContextMenu,
   onTrim,
@@ -133,6 +142,13 @@ export function Timeline({
    * clic dans le vide ou une sélection programmatique.
    */
   onSelect: (sel: TimelineSelection, e?: { shiftKey: boolean; ctrlKey: boolean; metaKey: boolean }) => void;
+  /**
+   * Sélection au rectangle : tous les éléments touchés par le cadre tracé
+   * dans le vide de la timeline, d'un coup. `additive` est vrai si le geste
+   * est parti avec Maj/Ctrl/⌘ — le cadre s'ajoute alors à la sélection en
+   * cours au lieu de la remplacer.
+   */
+  onMarqueeSelect?: (sels: NonNullable<TimelineSelection>[], additive: boolean) => void;
   /**
    * Clic droit sur un élément. La timeline neutralise systématiquement le
    * menu du navigateur et remonte le geste : c'est à l'appelant de décider
@@ -189,13 +205,29 @@ export function Timeline({
     return m;
   }, [project.clips, duration, playhead]);
 
-  const drag = useRef<
+  /** Geste en cours. Nommé plutôt qu'anonyme : `beginDrag` doit pouvoir s'y
+      typer sans conversion aveugle, que l'union s'allonge ou non. */
+  type DragState =
     | { type: "trim"; clipId: string; edge: "head" | "tail"; startX: number }
     | { type: "trimLayer"; kind: TimedLayerKind; id: string; edge: "head" | "tail"; startX: number }
     | { type: "move"; kind: ElementKind; id: string; startX: number; startY: number; fromStart: number; fromLaneIndex: number; family: TrackFamily }
-    | { type: "scrub" }
-    | null
-  >(null);
+    // Le balayage retient son origine : parti du VIDE d'une piste, il se
+    // transforme en rectangle de sélection dès que la main s'éloigne assez.
+    | { type: "scrub"; startX: number; startY: number; fromLane: boolean; additive: boolean }
+    | { type: "marquee"; startX: number; startY: number; additive: boolean };
+
+  const drag = useRef<DragState | null>(null);
+
+  /**
+   * Cadre en cours de tracé, en coordonnées ÉCRAN. Doublé d'un ref : `endDrag`
+   * conclut le geste hors du cycle de rendu et ne peut pas compter sur l'état
+   * React, qui n'est pas encore à jour à cet instant.
+   */
+  const marqueeRef = useRef<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
+  const [marquee, setMarquee] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
+  /** Cadre de la timeline, figé au début du geste — borne visuelle du tracé. */
+  const frameRef = useRef<HTMLDivElement>(null);
+  const frameRect = useRef<DOMRect | null>(null);
 
   /**
    * Instant désigné par un point de l'écran.
@@ -235,9 +267,14 @@ export function Timeline({
     return best?.id ?? null;
   }
 
-  /** Démarre un balayage : la lecture suit le geste jusqu'au relâchement. */
-  function startScrub(e: React.PointerEvent) {
-    drag.current = { type: "scrub" };
+  /**
+   * Démarre un balayage : la lecture suit le geste jusqu'au relâchement.
+   * Parti du vide d'une piste (`fromLane`), le même geste peut encore devenir
+   * un rectangle de sélection — c'est le déplacement qui tranche, pas le
+   * point de départ.
+   */
+  function startScrub(e: React.PointerEvent, fromLane = false, additive = false) {
+    drag.current = { type: "scrub", startX: e.clientX, startY: e.clientY, fromLane, additive };
     (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
     seekTo(e.clientX);
   }
@@ -247,14 +284,18 @@ export function Timeline({
     // bouton. Sans lui, le clic droit dans le vide effaçait la sélection et
     // déplaçait la tête de lecture avant même d'ouvrir son menu.
     if (e.button === 2) return;
-    onSelect(null);
-    startScrub(e);
+    // Maj/Ctrl/⌘ : le geste vient ÉTENDRE la sélection, il ne doit donc pas
+    // commencer par l'effacer.
+    const additive = e.shiftKey || e.ctrlKey || e.metaKey;
+    if (!additive) onSelect(null);
+    frameRect.current = frameRef.current?.getBoundingClientRect() ?? null;
+    startScrub(e, true, additive);
   }
 
   /** Ouvre un geste continu — une seule entrée d'historique le scellera. */
-  function beginDrag<T extends { type: string }>(state: T) {
+  function beginDrag(state: DragState) {
     onDragStart?.();
-    drag.current = state as NonNullable<typeof drag.current>;
+    drag.current = state;
   }
 
   /* ── Pistes affichées ──────────────────────────────────────────────────
@@ -336,11 +377,61 @@ export function Timeline({
     return last;
   }
 
+  /**
+   * Éléments touchés par le cadre — ceux qui l'EFFLEURENT, pas seulement ceux
+   * qu'il contient entièrement : c'est la convention de tous les bancs de
+   * montage, et la seule praticable quand un plan est plus large que l'écran.
+   *
+   * La géométrie est reconstruite depuis le modèle plutôt que lue sur le DOM :
+   * chaque rangée donne son sommet réel (les hauteurs diffèrent d'une piste à
+   * l'autre depuis le Lot A2), et l'axe du temps donne l'origine horizontale,
+   * défilement compris.
+   */
+  function elementsInBox(box: { x0: number; y0: number; x1: number; y1: number }): NonNullable<TimelineSelection>[] {
+    const timeRect = timeRef.current?.getBoundingClientRect();
+    if (!timeRect) return [];
+    const left = Math.min(box.x0, box.x1);
+    const right = Math.max(box.x0, box.x1);
+    const top = Math.min(box.y0, box.y1);
+    const bottom = Math.max(box.y0, box.y1);
+
+    const hits: NonNullable<TimelineSelection>[] = [];
+    for (const { track, items } of lanes) {
+      const laneEl = laneRefs.current.get(track.id);
+      if (!laneEl) continue;
+      const laneTop = laneEl.getBoundingClientRect().top;
+      for (const it of items) {
+        const x1 = timeRect.left + timeToPx(it.start, pxPerSec);
+        const x2 = timeRect.left + timeToPx(Math.max(it.end, it.start + MIN_CLIP_SECONDS), pxPerSec);
+        const y1 = laneTop + it.lane * LANE_H;
+        const y2 = y1 + LANE_H;
+        if (x2 >= left && x1 <= right && y2 >= top && y1 <= bottom) hits.push({ kind: it.kind, id: it.id });
+      }
+    }
+    return hits;
+  }
+
   function onPointerMove(e: React.PointerEvent) {
     const d = drag.current;
     if (!d) return;
     if (d.type === "scrub") {
+      // Le geste parti du vide bascule en rectangle de sélection dès qu'il
+      // dépasse le seuil — et cesse alors de déplacer la tête de lecture.
+      if (d.fromLane && onMarqueeSelect
+        && Math.hypot(e.clientX - d.startX, e.clientY - d.startY) > MARQUEE_THRESHOLD_PX) {
+        drag.current = { type: "marquee", startX: d.startX, startY: d.startY, additive: d.additive };
+        const box = { x0: d.startX, y0: d.startY, x1: e.clientX, y1: e.clientY };
+        marqueeRef.current = box;
+        setMarquee(box);
+        return;
+      }
       seekTo(e.clientX);
+      return;
+    }
+    if (d.type === "marquee") {
+      const box = { x0: d.startX, y0: d.startY, x1: e.clientX, y1: e.clientY };
+      marqueeRef.current = box;
+      setMarquee(box);
       return;
     }
     const deltaSec = pxToTime(e.clientX - d.startX, pxPerSec);
@@ -377,7 +468,18 @@ export function Timeline({
       point 3). `endDrag` referme le geste ouvert par `onTrimStart`/
       `onMoveStart`, jamais un simple balayage de la tête de lecture. */
   function endDrag() {
-    if (drag.current && drag.current.type !== "scrub") onDragEnd?.();
+    const d = drag.current;
+    if (d?.type === "marquee") {
+      // Le rectangle ne modifie pas le document : aucune entrée d'historique
+      // à sceller, contrairement à un glisser ou à un rognage.
+      const box = marqueeRef.current;
+      if (box) onMarqueeSelect?.(elementsInBox(box), d.additive);
+      marqueeRef.current = null;
+      setMarquee(null);
+      drag.current = null;
+      return;
+    }
+    if (d && d.type !== "scrub") onDragEnd?.();
     drag.current = null;
   }
 
@@ -534,6 +636,7 @@ export function Timeline({
           — jamais de croissance du bloc, sinon le total dépasse la fenêtre
           dès qu'on empile pistes vidéo, textes, formes et audios (§3.2). */}
       <div
+        ref={frameRef}
         className="relative flex gap-2 overflow-y-auto overscroll-contain rounded-lg border border-hair bg-canvas/60 p-2"
         style={{ minHeight: 180, maxHeight: "38vh" }}
         onPointerMove={onPointerMove}
@@ -552,6 +655,26 @@ export function Timeline({
           onLaneContextMenu({ trackId, time: timeFromEvent(e.clientX) }, e);
         }}
       >
+        {/* Rectangle de sélection. Positionné en coordonnées ÉCRAN (`fixed`) :
+            le geste peut sortir du cadre, et convertir en coordonnées locales
+            imposerait de recalculer le défilement à chaque déplacement. Borné
+            au cadre de la timeline pour ne jamais s'afficher par-dessus le
+            reste de l'éditeur. */}
+        {marquee && frameRect.current && (() => {
+          const f = frameRect.current;
+          const left = Math.max(f.left, Math.min(marquee.x0, marquee.x1));
+          const right = Math.min(f.right, Math.max(marquee.x0, marquee.x1));
+          const top = Math.max(f.top, Math.min(marquee.y0, marquee.y1));
+          const bottom = Math.min(f.bottom, Math.max(marquee.y0, marquee.y1));
+          return (
+            <div
+              aria-hidden="true"
+              className="pointer-events-none fixed z-20 rounded-sm border border-page bg-page/15"
+              style={{ left, top, width: Math.max(0, right - left), height: Math.max(0, bottom - top) }}
+            />
+          );
+        })()}
+
         {/* État vide explicite — un cadre nu, sans le moindre repère, ne dit
             pas à l'utilisateur ce qu'il doit faire (itération 3, chapitre 9,
             point 6). */}

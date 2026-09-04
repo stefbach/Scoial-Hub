@@ -1268,6 +1268,7 @@ export function StudioEditor({
               multiSelectedKeys={new Set(multiSelection.keys())}
               onSeek={setPlayhead}
               onSelect={onTimelineSelect}
+              onMarqueeSelect={onMarqueeSelect}
               onContextMenu={(sel, e) => {
                 // Clic droit sur un élément HORS de la sélection courante : il
                 // devient la sélection, comme dans tout logiciel de montage —
@@ -1514,6 +1515,29 @@ export function StudioEditor({
     }
     setSelection(sel);
     setMultiSelection(new Map());
+  }
+
+  /**
+   * Sélection au rectangle : le cadre remplace la sélection, ou l'étend s'il
+   * est parti avec Maj/Ctrl/⌘. Un cadre VIDE et non additif désélectionne —
+   * c'est le geste par lequel on repart de zéro, et le refuser laisserait
+   * l'utilisateur sans moyen d'annuler une sélection au rectangle.
+   *
+   * La sélection PRINCIPALE devient le premier élément touché : c'est elle
+   * que lisent le panneau de propriétés et le glisser dans l'aperçu, qui ne
+   * connaissent pas la sélection multiple (P2-4).
+   */
+  function onMarqueeSelect(sels: NonNullable<TimelineSelection>[], additive: boolean) {
+    setMultiSelection((prev) => {
+      const next = new Map(additive ? prev : []);
+      // Une sélection simple déjà en place fait partie de ce qu'on étend :
+      // sans cela, Maj+cadre repartirait de l'élément cliqué juste avant.
+      if (additive && next.size === 0 && selection) next.set(selKey(selection), selection);
+      for (const sel of sels) next.set(selKey(sel), sel);
+      return next;
+    });
+    if (sels.length > 0) setSelection(sels[0]);
+    else if (!additive) setSelection(null);
   }
 
   function removeSelection() {

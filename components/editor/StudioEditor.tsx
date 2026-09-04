@@ -23,11 +23,11 @@ import { SUBTITLE_LANGS } from "@/lib/ai/subtitle-langs";
 import {
   addAudio, addButton, addClip, addImageLayer, addShape, addText, addTrack, copyElements, duplicateAudio,
   duplicateClip, duplicateImageLayer, duplicateShape, duplicateText,
-  pasteElements, projectMedia,
+  pasteElements, patchAnimated, projectMedia,
   emptyProject, FORMAT_SIZE, moveElement, projectDuration, removeAudio,
   removeClip, removeImageLayer, removeShape, removeText, removeTrack, reorderTrack,
   setClipBox, setClipFraming, setClipLength,
-  setClipSpeed, setClipTransition, setProjectDuration, setTrackDefMeta, shapesAt, splitAt, splitAudioAt, splitLayerAt,
+  setClipSpeed, setClipTransition, setProjectDuration, setTrackDefMeta, shapesAt, imagesAt, textsAt, splitAt, splitAudioAt, splitLayerAt,
   trimClip, trimLayer,
   updateAudio, updateImageLayer, updateShape, updateText, usedTracks, visibleProject,
   type AnimationKind, type ClipboardEntry, type EditorFormat, type EditorProject,
@@ -41,7 +41,7 @@ import {
   canRedo, canUndo, commitGesture as commitGestureHistory, initHistory, push, redo,
   replacePresent, undo, type History,
 } from "@/lib/editor/history";
-import { browserOverlays, decideRenderTarget, toBrowserPlan, type OverlayInput } from "@/lib/editor/render-plan";
+import { browserOverlays, decideRenderTarget, overlayFrameName, toBrowserPlan, type OverlayInput } from "@/lib/editor/render-plan";
 import { drawImages, drawShapes, drawTexts, ensureFontsReady, FONT_STACKS, loadImage } from "@/lib/editor/draw";
 import BrandKitPanel from "@/components/studio/BrandKitPanel";
 import { Timeline, type TimelineSelection } from "./Timeline";
@@ -762,7 +762,7 @@ export function StudioEditor({
    * n'étaient pas respectées, et un texte hors de cette position était perdu
    * sans avertissement. Les incrustations d'image n'étaient jamais dessinées.
    */
-  const buildOverlays = useCallback(async (): Promise<{ overlay: OverlayInput; bytes: Uint8Array }[]> => {
+  const buildOverlays = useCallback(async (): Promise<{ overlay: OverlayInput; frames: Uint8Array[] }[]> => {
     const wanted = browserOverlays(project);
     if (wanted.length === 0) return [];
     const { width, height } = FORMAT_SIZE[project.format];
@@ -777,28 +777,54 @@ export function StudioEditor({
     // l'aperçu — une divergence qui ne produit aucune erreur.
     await ensureFontsReady(project.texts.map((l) => l.font));
 
-    const out: { overlay: OverlayInput; bytes: Uint8Array }[] = [];
-    for (const overlay of wanted) {
-      const canvas = document.createElement("canvas");
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) continue;
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return [];
 
+    /**
+     * Compose UNE image du calque, à l'instant demandé. Le dessin passe par
+     * `textsAt`/`imagesAt`/`shapesAt`, exactement comme l'aperçu : les
+     * images-clés y sont résolues au même endroit, donc l'export ne peut pas
+     * s'écarter de ce qui est affiché à l'écran.
+     */
+    const composeAt = async (overlay: OverlayInput, at: number): Promise<Uint8Array | null> => {
+      ctx.clearRect(0, 0, width, height);
       if (overlay.kind === "shape") {
-        const l = project.shapes.find((s) => s.id === overlay.layerId);
+        const l = shapesAt(project, at).find((s) => s.id === overlay.layerId)
+          ?? project.shapes.find((s) => s.id === overlay.layerId);
         if (l) drawShapes(ctx, width, height, [l]);
       } else if (overlay.kind === "image") {
-        const l = project.images.find((s) => s.id === overlay.layerId);
+        const l = imagesAt(project, at).find((s) => s.id === overlay.layerId)
+          ?? project.images.find((s) => s.id === overlay.layerId);
         if (l) drawImages(ctx, width, height, [l], loaded);
       } else {
-        const l = project.texts.find((s) => s.id === overlay.layerId);
+        const l = textsAt(project, at).find((s) => s.id === overlay.layerId)
+          ?? project.texts.find((s) => s.id === overlay.layerId);
         if (l) drawTexts(ctx, width, height, [l]);
       }
-
       const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, "image/png"));
-      if (!blob) continue;
-      out.push({ overlay, bytes: new Uint8Array(await blob.arrayBuffer()) });
+      return blob ? new Uint8Array(await blob.arrayBuffer()) : null;
+    };
+
+    const out: { overlay: OverlayInput; frames: Uint8Array[] }[] = [];
+    for (const overlay of wanted) {
+      // Calque FIXE : une seule image, gravée sur tout l'intervalle — le
+      // comportement de toujours, et de très loin le cas courant.
+      if (overlay.frames <= 1) {
+        const bytes = await composeAt(overlay, overlay.start);
+        if (bytes) out.push({ overlay, frames: [bytes] });
+        continue;
+      }
+      // Calque ANIMÉ : une image par pas de temps, sur son propre intervalle.
+      const frames: Uint8Array[] = [];
+      const step = 1 / overlay.fps;
+      for (let i = 0; i < overlay.frames; i += 1) {
+        const bytes = await composeAt(overlay, overlay.start + i * step);
+        if (bytes) frames.push(bytes);
+      }
+      if (frames.length > 0) out.push({ overlay, frames });
     }
     return out;
   }, [project]);
@@ -942,11 +968,23 @@ export function StudioEditor({
       });
 
       setBusy(t("Rendu de la vidéo…", "Rendering video…"));
-      const composedByName = new Map(composed.map((c) => [c.overlay.name, c.bytes]));
+      // Un calque animé n'est pas UN fichier mais une séquence : le nom porté
+      // par le plan est alors un MOTIF, jamais écrit tel quel. Chaque image
+      // est déposée sous le nom que ffmpeg ira chercher.
+      const composedByName = new Map(composed.map((c) => [c.overlay.name, c.frames]));
       for (const input of plan.inputs) {
-        const bytes = composedByName.get(input.name);
-        if (bytes) await ffmpeg.writeFile(input.name, bytes);
-        else await ffmpeg.writeFile(input.name, await fetchFile(input.src));
+        const frames = composedByName.get(input.name);
+        if (!frames) {
+          await ffmpeg.writeFile(input.name, await fetchFile(input.src));
+          continue;
+        }
+        if (frames.length === 1 && !input.name.includes("%03d")) {
+          await ffmpeg.writeFile(input.name, frames[0]);
+          continue;
+        }
+        for (let i = 0; i < frames.length; i += 1) {
+          await ffmpeg.writeFile(overlayFrameName(input.name, i), frames[i]);
+        }
       }
 
       // `exec` de ffmpeg.wasm : arguments passés en TABLEAU à un module
@@ -998,22 +1036,27 @@ export function StudioEditor({
       if (patch.y !== undefined) box.y = patch.y;
       if (patch.rotation !== undefined) box.rotation = patch.rotation;
 
+      // Glisser un calque ANIMÉ pose une image-clé à la tête de lecture plutôt
+      // que de décaler toute l'animation — la même règle qu'à la saisie dans
+      // le panneau, et la seule qui permette de corriger une clé après coup
+      // (Lot 7). Un calque sans clé passe au travers, inchangé.
       if (sel.kind === "text") {
-        return updateText(p, sel.id, { ...box, ...(patch.w !== undefined ? { wrapPct: patch.w } : {}) });
+        return patchAnimated(p, { kind: "text", id: sel.id },
+          { ...box, ...(patch.w !== undefined ? { wrapPct: patch.w } : {}) }, playhead);
       }
       if (sel.kind === "image") {
-        return updateImageLayer(p, sel.id, {
+        return patchAnimated(p, { kind: "image", id: sel.id }, {
           ...box,
           ...(patch.w !== undefined ? { scale: patch.w } : {}),
           ...(patch.h !== undefined ? { heightPct: patch.h } : {}),
-        });
+        }, playhead);
       }
       if (sel.kind === "shape") {
-        return updateShape(p, sel.id, {
+        return patchAnimated(p, { kind: "shape", id: sel.id }, {
           ...box,
           ...(patch.w !== undefined ? { w: patch.w } : {}),
           ...(patch.h !== undefined ? { h: patch.h } : {}),
-        });
+        }, playhead);
       }
       if (sel.kind === "clip") {
         // Pas de rotation sur un plan (P2-1) : `patch.rotation` n'a nulle part
@@ -1022,7 +1065,7 @@ export function StudioEditor({
       }
       return p;
     });
-  }, [applyLive]);
+  }, [applyLive, playhead]);
 
   if (!mounted) return null;
   return createPortal(
@@ -1333,6 +1376,7 @@ export function StudioEditor({
                 brand={brand}
                 onChange={apply}
                 onDeselect={() => { setSelection(null); setMultiSelection(new Map()); }}
+                onSeek={setPlayhead}
               />
             </aside>
           </div>
@@ -1404,6 +1448,18 @@ export function StudioEditor({
             {t("Rendu", "Render")} : {decision.target === "server" ? t("nos serveurs", "our servers") : t("votre navigateur", "your browser")}
             {" · "}{decision.reason}
           </span>
+          {/* Seul le navigateur sait rendre les images-clés (il échantillonne
+              les calques animés). Quand un autre critère impose le serveur,
+              les animations en sortiraient figées : on le dit AVANT l'export
+              plutôt que de livrer un fichier amputé en silence (Lot 7). */}
+          {decision.keyframesFrozen && (
+            <span className="text-2xs font-medium text-danger">
+              ⚠ {t(
+                "Les images-clés ne seront pas animées dans ce rendu.",
+                "Keyframes will not be animated in this render."
+              )}
+            </span>
+          )}
           {busy && (
             <span className="flex items-center gap-2 text-2xs text-muted">
               <Spinner size={12} className="text-page" /> {busy}

@@ -623,6 +623,45 @@ async function main() {
       /\{!allVisual && !allAudio && \(/.test(panel));
   }
 
+  // ── constat 7 · Images-clés (audit Editing Bench v4) ─────────────────────
+  // Rien n'existait : `keyframe` n'apparaissait nulle part dans le dépôt. Les
+  // seules animations possibles étaient les entrées/sorties prédéfinies, sans
+  // aucun réglage manuel dans le temps.
+  {
+    const model = read("lib/editor/project.ts");
+    const plan = read("lib/editor/render-plan.ts");
+    check("constat 7 · le modèle porte les images-clés et sait interpoler",
+      /export function valueAt\(/.test(model) && /export function setKeyframe\(/.test(model) &&
+      /export type EasingKind/.test(model));
+    check("constat 7 · l'aperçu ET l'export passent par le MÊME entonnoir résolu",
+      /\.map\(\(l\) => layerAt\(l, time\)\)/.test(model) &&
+      /textsAt\(project, at\)/.test(studio) && /imagesAt\(project, at\)/.test(studio) &&
+      /shapesAt\(project, at\)/.test(studio));
+    check("constat 7 · un calque animé est composé en SÉQUENCE de PNG",
+      /const step = 1 \/ overlay\.fps/.test(studio) && /export const KEYFRAME_FPS/.test(plan));
+    check("constat 7 · la séquence est lue à sa cadence et recalée sur son instant",
+      /args\.push\("-framerate", String\(o\.fps\), "-i", o\.name\)/.test(plan) &&
+      /setpts=PTS\+\$\{start\}\/TB/.test(plan));
+    check("constat 7 · écrire sur une propriété animée pose une CLÉ, pas une valeur fixe",
+      /export function patchAnimated\(/.test(model) &&
+      /patchAnimated\(p, \{ kind, id \}, patch, playhead\)/.test(panel));
+    check("constat 7 · un chronomètre par propriété, avec navigation et accélération",
+      /function KeyframeRow\(/.test(panel) && /Clé précédente/.test(panel) && /EasingKind/.test(panel));
+    check("constat 7 · figer une animation garde la valeur VUE, pas une valeur oubliée",
+      /export function clearKeyframes\(/.test(model) && /valueAt\(layer, prop, time\)/.test(model));
+    check("constat 7 · la timeline montre les clés sur le bloc",
+      /keyframeTimes=\{keyframesOfElement\(kind, it\.id\)\}/.test(timeline) &&
+      /rotate-45 bg-page/.test(timeline));
+    check("constat 7 · un rendu qui ne saura PAS les animer est signalé avant l'export",
+      /keyframesFrozen\?: boolean/.test(plan) && /decision\.keyframesFrozen && \(/.test(studio));
+    check("constat 7 · un calque sans clé garde exactement son comportement",
+      /if \(!hasKeyframes\(l\)\) return l;/.test(model));
+    check("constat 7 · GLISSER un calque animé dans l'aperçu pose aussi une clé",
+      /patchAnimated\(p, \{ kind: "text", id: sel\.id \}/.test(studio) &&
+      /patchAnimated\(p, \{ kind: "image", id: sel\.id \}/.test(studio) &&
+      /patchAnimated\(p, \{ kind: "shape", id: sel\.id \}/.test(studio));
+  }
+
   // ── constat 5 · Voix off enregistrée au micro (audit Editing Bench v4) ────
   // Le module n'était qu'un import de fichier, identique à « Musique » au rôle
   // près : pour poser un commentaire, il fallait sortir de la plateforme,

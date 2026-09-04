@@ -27,9 +27,20 @@ import {
   setClipTransition,
   updateAudio,
   updateImageLayer,
+  animatableProps,
+  clearKeyframes,
+  hasKeyframes,
+  keyframesOf,
+  patchAnimated,
+  removeKeyframe,
+  setKeyframe,
+  staticValue,
   updateShape,
   updateText,
+  valueAt,
+  type AnimatableProp,
   type AnimationKind,
+  type EasingKind,
   type AudioTrack,
   type Clip,
   type EditorProject,
@@ -64,6 +75,7 @@ export function PropertyPanel({
   brand,
   onChange,
   onDeselect,
+  onSeek,
 }: {
   project: EditorProject;
   selection: TimelineSelection;
@@ -83,6 +95,9 @@ export function PropertyPanel({
   brand: BrandStyle;
   onChange: (fn: (p: EditorProject) => EditorProject) => void;
   onDeselect: () => void;
+  /** Déplace la tête de lecture — la navigation d'image-clé à image-clé en a
+      besoin : atteindre une clé sans y amener la lecture ne servirait à rien. */
+  onSeek: (time: number) => void;
 }) {
   const t = useT();
   const total = projectDuration(project);
@@ -116,11 +131,20 @@ export function PropertyPanel({
   const shape = selection.kind === "shape" ? project.shapes.find((l) => l.id === selection.id) : null;
   const audio = selection.kind === "audio" ? project.audios.find((a) => a.id === selection.id) : null;
 
-  /** Applique un patch au calque visuel sélectionné, quel que soit son type. */
+  /**
+   * Applique un patch au calque visuel sélectionné, quel que soit son type.
+   *
+   * Une propriété ANIMÉE reçoit une image-clé à la tête de lecture plutôt
+   * qu'une nouvelle valeur fixe (`patchAnimated`) : sur un calque animé, taper
+   * une valeur ne peut pas vouloir dire « décale toute l'animation », sinon
+   * plus aucune clé ne serait modifiable après coup. Les propriétés non
+   * animées, elles, se comportent exactement comme avant.
+   */
   const patchVisual = (patch: Partial<VisualLayer>) => {
-    if (text) onChange((p) => updateText(p, text.id, patch));
-    else if (image) onChange((p) => updateImageLayer(p, image.id, patch));
-    else if (shape) onChange((p) => updateShape(p, shape.id, patch));
+    const kind = text ? "text" : image ? "image" : shape ? "shape" : null;
+    const id = text?.id ?? image?.id ?? shape?.id;
+    if (!kind || !id) return;
+    onChange((p) => patchAnimated(p, { kind, id }, patch, playhead));
   };
 
   const visual: VisualLayer | null = text ?? image ?? shape ?? null;
@@ -293,6 +317,27 @@ export function PropertyPanel({
             <AlignButton label="⤓" title={t("En bas", "Bottom")} onClick={() => patchVisual({ y: bottomY(shape?.h ?? image?.heightPct) })} />
           </div>
 
+          {/* Images-clés — le chronomètre par propriété, comme dans tout banc
+              de montage : c'est lui qui transforme une valeur fixe en valeur
+              animée (audit v4, constat 7). */}
+          {visualKind && visualId && (
+            <div className="space-y-1 border-t border-hair pt-2">
+              <p className="text-2xs text-muted">{t("Images-clés", "Keyframes")}</p>
+              {animatableProps(visualKind).map((prop) => (
+                <KeyframeRow
+                  key={prop}
+                  prop={prop}
+                  layer={visual}
+                  playhead={playhead}
+                  onSet={(value, easing) => onChange((p) => setKeyframe(p, { kind: visualKind, id: visualId }, prop, playhead, value, easing))}
+                  onRemove={(at) => onChange((p) => removeKeyframe(p, { kind: visualKind, id: visualId }, prop, at))}
+                  onClear={() => onChange((p) => clearKeyframes(p, { kind: visualKind, id: visualId }, prop, playhead))}
+                  onSeek={onSeek}
+                />
+              ))}
+            </div>
+          )}
+
           <BoundsRow
             start={visual.start} end={visual.end} max={total} playhead={playhead}
             onStart={(v) => patchVisual({ start: v })}
@@ -457,6 +502,119 @@ const centerY = (h?: number) => (h ? (1 - h) / 2 : 0.45);
 const bottomY = (h?: number) => (h ? 0.95 - h : 0.85);
 
 /* ── Petits composants ───────────────────────────────────────────────────── */
+
+/* ── Images-clés ─────────────────────────────────────────────────────────── */
+
+const PROP_LABEL: Record<AnimatableProp, { fr: string; en: string }> = {
+  x: { fr: "Position X", en: "Position X" },
+  y: { fr: "Position Y", en: "Position Y" },
+  opacity: { fr: "Opacité", en: "Opacity" },
+  rotation: { fr: "Rotation", en: "Rotation" },
+  scale: { fr: "Échelle", en: "Scale" },
+};
+
+const EASINGS: { key: EasingKind; fr: string; en: string }[] = [
+  { key: "linear", fr: "Linéaire", en: "Linear" },
+  { key: "ease-in", fr: "Départ doux", en: "Ease in" },
+  { key: "ease-out", fr: "Arrivée douce", en: "Ease out" },
+  { key: "ease-in-out", fr: "Doux aux deux bouts", en: "Ease in-out" },
+];
+
+/** Tolérance pour dire qu'une clé se trouve « à » la tête de lecture. */
+const AT_PLAYHEAD = 0.02;
+
+/**
+ * Une ligne d'images-clés, pour UNE propriété.
+ *
+ * Le chronomètre est l'interrupteur : éteint, la propriété est fixe et se
+ * règle au champ juste au-dessus ; allumé, elle est animée et chaque valeur
+ * saisie devient une clé à la tête de lecture. L'éteindre ne remet pas le
+ * calque dans un état oublié — il le fige sur ce qu'on voit à cet instant.
+ */
+function KeyframeRow({
+  prop, layer, playhead, onSet, onRemove, onClear, onSeek,
+}: {
+  prop: AnimatableProp;
+  layer: VisualLayer;
+  playhead: number;
+  onSet: (value: number, easing: EasingKind) => void;
+  onRemove: (at: number) => void;
+  onClear: () => void;
+  onSeek: (time: number) => void;
+}) {
+  const t = useT();
+  const keys = keyframesOf(layer, prop);
+  const animated = keys.length > 0;
+  const here = keys.find((k) => Math.abs(k.time - playhead) <= AT_PLAYHEAD) ?? null;
+  const prev = [...keys].reverse().find((k) => k.time < playhead - AT_PLAYHEAD) ?? null;
+  const next = keys.find((k) => k.time > playhead + AT_PLAYHEAD) ?? null;
+  const label = t(PROP_LABEL[prop].fr, PROP_LABEL[prop].en);
+
+  return (
+    <div className="flex items-center gap-1 text-2xs text-muted">
+      <button
+        type="button"
+        aria-pressed={animated}
+        title={animated
+          ? t(`${label} : animée — cliquer pour figer sur la valeur actuelle`, `${label}: animated — click to freeze at the current value`)
+          : t(`${label} : fixe — cliquer pour l'animer`, `${label}: static — click to animate it`)}
+        onClick={() => (animated ? onClear() : onSet(staticValue(layer, prop), "linear"))}
+        className={`h-5 w-5 shrink-0 rounded text-[10px] ${animated ? "bg-page text-white" : "text-muted ring-1 ring-hair"}`}
+      >
+        ⏱
+      </button>
+      <span className="w-14 shrink-0 truncate" title={label}>{label}</span>
+
+      {animated ? (
+        <>
+          <KfButton label="◀" title={t("Clé précédente", "Previous keyframe")}
+            disabled={!prev} onClick={() => prev && onSeek(prev.time)} />
+          {/* Losange plein : une clé est posée ICI. Creux : il n'y en a pas —
+              cliquer en pose une avec la valeur interpolée du moment, ce qui
+              ne change donc rien à l'image tant qu'on ne la modifie pas. */}
+          <KfButton
+            label={here ? "◆" : "◇"}
+            title={here ? t("Retirer la clé ici", "Remove the keyframe here") : t("Poser une clé ici", "Add a keyframe here")}
+            onClick={() => (here ? onRemove(here.time) : onSet(valueAt(layer, prop, playhead), "linear"))}
+          />
+          <KfButton label="▶" title={t("Clé suivante", "Next keyframe")}
+            disabled={!next} onClick={() => next && onSeek(next.time)} />
+          <select
+            value={here?.easing ?? "linear"}
+            disabled={!here}
+            title={t("Accélération du segment qui part de cette clé", "Easing of the segment starting at this keyframe")}
+            onChange={(e) => here && onSet(here.value, e.target.value as EasingKind)}
+            className="input min-w-0 flex-1 py-0.5 text-[10px] disabled:opacity-40"
+          >
+            {EASINGS.map((o) => (
+              <option key={o.key} value={o.key}>{t(o.fr, o.en)}</option>
+            ))}
+          </select>
+          <span className="shrink-0 tabular-nums">{keys.length}</span>
+        </>
+      ) : (
+        <span className="flex-1 truncate text-[10px]">
+          {t("valeur fixe", "static value")}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function KfButton({ label, title, onClick, disabled }: { label: string; title: string; onClick: () => void; disabled?: boolean }) {
+  return (
+    <button
+      type="button"
+      title={title}
+      aria-label={title}
+      disabled={disabled}
+      onClick={onClick}
+      className="h-5 w-5 shrink-0 rounded text-[10px] text-muted ring-1 ring-hair enabled:hover:text-ink disabled:opacity-30"
+    >
+      {label}
+    </button>
+  );
+}
 
 /* ── Sélection multiple ──────────────────────────────────────────────────── */
 

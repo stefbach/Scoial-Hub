@@ -51,7 +51,8 @@
     "test:videoerrormsg": "tsx scripts/verify-video-error-message.ts",
     "test:approval": "tsx scripts/verify-approval-workflow.ts",
     "test:montagepressepapier": "tsx scripts/verify-editor-clipboard.ts",
-    "test:montagechutier": "tsx scripts/verify-editor-mediabin.ts"
+    "test:montagechutier": "tsx scripts/verify-editor-mediabin.ts",
+    "test:montagekeyframes": "tsx scripts/verify-editor-keyframes.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.100.1",

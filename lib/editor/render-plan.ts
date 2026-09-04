@@ -10,7 +10,9 @@
 import {
   ANIMATION_SECONDS,
   FORMAT_SIZE,
+  hasKeyframes,
   projectDuration,
+  projectHasKeyframes,
   type AnimationKind,
   type AudioTrack,
   type Clip,
@@ -78,6 +80,14 @@ export interface RenderDecision {
   target: RenderTarget;
   /** Motif du basculement, affichable tel quel. */
   reason: string;
+  /**
+   * Le montage porte des images-clés que le moteur retenu NE RENDRA PAS.
+   * Seul le navigateur sait les rendre (par échantillonnage) ; quand un autre
+   * critère impose le serveur, les calques animés y sortent figés sur leur
+   * valeur de départ. On le dit — livrer un fichier amputé de son animation
+   * sans avertir serait exactement le genre de silence que cet audit traque.
+   */
+  keyframesFrozen?: boolean;
 }
 
 /**
@@ -87,22 +97,23 @@ export interface RenderDecision {
  */
 export function decideRenderTarget(p: EditorProject, totalSourceBytes: number): RenderDecision {
   const duration = projectDuration(p);
-  if (totalSourceBytes > BROWSER_LIMITS.maxBytes) {
-    return { target: "server", reason: "sources volumineuses" };
+  const animated = projectHasKeyframes(p);
+  /** Le serveur ne rend pas les images-clés : on le signale au lieu de le taire. */
+  const toServer = (reason: string): RenderDecision =>
+    animated ? { target: "server", reason, keyframesFrozen: true } : { target: "server", reason };
+
+  if (totalSourceBytes > BROWSER_LIMITS.maxBytes) return toServer("sources volumineuses");
+  if (p.clips.length > BROWSER_LIMITS.maxClips) return toServer("montage à plusieurs plans");
+  if (duration > BROWSER_LIMITS.maxSeconds) return toServer("film long");
+  if (browserOverlays(p).length > MAX_BROWSER_OVERLAYS) return toServer("calques nombreux");
+  // Les images-clés priment sur ce critère : un glissement animé par clés est
+  // rendu par la séquence de PNG, pas par l'animation d'entrée/sortie que
+  // seul le serveur sait faire.
+  if (!animated && needsServerAnimation(p)) return toServer("animations");
+  if (animated && keyframeFrameCount(p) > MAX_KEYFRAME_FRAMES) {
+    return toServer("images-clés trop longues à composer");
   }
-  if (p.clips.length > BROWSER_LIMITS.maxClips) {
-    return { target: "server", reason: "montage à plusieurs plans" };
-  }
-  if (duration > BROWSER_LIMITS.maxSeconds) {
-    return { target: "server", reason: "film long" };
-  }
-  if (browserOverlays(p).length > MAX_BROWSER_OVERLAYS) {
-    return { target: "server", reason: "calques nombreux" };
-  }
-  if (needsServerAnimation(p)) {
-    return { target: "server", reason: "animations" };
-  }
-  return { target: "browser", reason: "montage léger" };
+  return { target: "browser", reason: animated ? "montage léger, calques animés" : "montage léger" };
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -336,6 +347,43 @@ export interface OverlayInput {
   end: number;
   animIn: AnimationKind;
   animOut: AnimationKind;
+  /**
+   * Nombre d'images à composer. 1 = un PNG fixe, gravé sur tout l'intervalle
+   * comme depuis toujours. Au-delà, le calque porte des images-clés : il est
+   * échantillonné en une SÉQUENCE de PNG, une par pas de temps, et c'est cette
+   * séquence qui est incrustée. Le dessin est celui de l'aperçu, appelé aux
+   * mêmes instants — l'export ne peut donc pas diverger de ce qu'on voit.
+   */
+  frames: number;
+  /** Cadence de la séquence, en images par seconde. Ignoré si `frames` vaut 1. */
+  fps: number;
+}
+
+/**
+ * Cadence d'échantillonnage d'un calque animé. Douze images par seconde
+ * suffisent à lire un mouvement de calque — ce n'est pas de la vidéo — et
+ * gardent le nombre de PNG à composer dans ce que l'onglet supporte.
+ */
+export const KEYFRAME_FPS = 12;
+
+/**
+ * Plafond du nombre TOTAL d'images composées pour les calques animés. Chaque
+ * image est un PNG au format de sortie : au-delà, la mémoire de l'onglet ne
+ * suit plus. Le montage part alors au serveur — qui ne sait pas rendre les
+ * images-clés, ce que la décision de rendu signale explicitement plutôt que
+ * de livrer un fichier où l'animation aurait disparu en silence.
+ */
+export const MAX_KEYFRAME_FRAMES = 360;
+
+/** Nom du fichier d'une image de séquence — partagé avec qui écrit les fichiers. */
+export function overlayFrameName(pattern: string, index: number): string {
+  return pattern.replace("%03d", String(index).padStart(3, "0"));
+}
+
+/** Nombre d'images à composer pour un calque, et leur cadence. */
+export function sampleCount(start: number, end: number): number {
+  const span = Math.max(0, end - start);
+  return Math.max(2, Math.ceil(span * KEYFRAME_FPS) + 1);
 }
 
 /**
@@ -363,15 +411,27 @@ export function browserOverlays(p: EditorProject): OverlayInput[] {
     ...p.images.map((l) => ({ l, kind: "image" as const })),
     ...p.texts.map((l) => ({ l, kind: "text" as const })),
   ].sort((a, b) => trackIndex(a.l.trackId) - trackIndex(b.l.trackId));
-  return ordered.map(({ l, kind }, i) => ({
-    name: `ov${i}.png`,
-    layerId: l.id,
-    kind,
-    start: l.start,
-    end: l.end,
-    animIn: l.animIn,
-    animOut: l.animOut,
-  }));
+  return ordered.map(({ l, kind }, i) => {
+    const animated = hasKeyframes(l);
+    const frames = animated ? sampleCount(l.start, l.end) : 1;
+    return {
+      // Une séquence est désignée à ffmpeg par un MOTIF, pas par un fichier.
+      name: animated ? `ov${i}_%03d.png` : `ov${i}.png`,
+      layerId: l.id,
+      kind,
+      start: l.start,
+      end: l.end,
+      animIn: l.animIn,
+      animOut: l.animOut,
+      frames,
+      fps: KEYFRAME_FPS,
+    };
+  });
+}
+
+/** Total des images à composer pour les calques animés du montage. */
+export function keyframeFrameCount(p: EditorProject): number {
+  return browserOverlays(p).reduce((n, o) => n + (o.frames > 1 ? o.frames : 0), 0);
 }
 
 /** Au-delà, la chaîne de filtres devient trop longue pour l'onglet. */
@@ -417,11 +477,14 @@ export function toBrowserPlan(p: EditorProject, overlays: OverlayInput[] = []): 
   if (clip.trimStart > 0) args.push("-ss", String(clip.trimStart));
   args.push("-i", "in0");
 
-  // Les PNG de calques sont des images fixes : `-loop 1` les rend disponibles
-  // sur toute la durée, l'activation temporelle se joue ensuite dans `overlay`.
+  // Un calque FIXE est un PNG unique : `-loop 1` le rend disponible sur toute
+  // la durée, l'activation temporelle se joue ensuite dans `overlay`. Un
+  // calque ANIMÉ est une séquence : elle est lue à sa cadence, une fois, et
+  // recalée plus bas sur l'instant où le calque apparaît.
   for (const o of overlays) {
     inputs.push({ name: o.name, src: "" });
-    args.push("-loop", "1", "-i", o.name);
+    if (o.frames > 1) args.push("-framerate", String(o.fps), "-i", o.name);
+    else args.push("-loop", "1", "-i", o.name);
   }
 
   const audible = p.audios.filter((a) => !a.muted && a.role !== "original" && a.length > 0);
@@ -456,6 +519,12 @@ export function toBrowserPlan(p: EditorProject, overlays: OverlayInput[] = []): 
     const end = o.end.toFixed(2);
     let src = `${idx}:v`;
 
+    // Une séquence commence à l'instant 0 de SA propre base de temps : sans ce
+    // décalage, un calque animé apparaissant à la cinquième seconde jouerait
+    // son animation dès la première, puis figerait sur sa dernière image.
+    const steps: string[] = [];
+    if (o.frames > 1 && o.start > 0) steps.push(`setpts=PTS+${start}/TB`);
+
     // Le fondu porte sur la couche ALPHA : le calque s'efface, il ne noircit
     // pas. Les instants sont ceux du film — l'image bouclée partage sa base de
     // temps avec la vidéo.
@@ -467,8 +536,8 @@ export function toBrowserPlan(p: EditorProject, overlays: OverlayInput[] = []): 
       const from = Math.max(o.start, o.end - ANIMATION_SECONDS).toFixed(2);
       fades.push(`fade=t=out:st=${from}:d=${ANIMATION_SECONDS}:alpha=1`);
     }
-    if (fades.length > 0) {
-      filters.push(`[${idx}:v]format=rgba,${fades.join(",")}[fa${i}]`);
+    if (fades.length > 0 || steps.length > 0) {
+      filters.push(`[${idx}:v]format=rgba${steps.length ? `,${steps.join(",")}` : ""}${fades.length ? `,${fades.join(",")}` : ""}[fa${i}]`);
       src = `fa${i}`;
     }
 

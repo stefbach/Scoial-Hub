@@ -31,6 +31,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useT } from "@/lib/i18n";
 import {
+  keyframeTimes,
   MIN_CLIP_SECONDS,
   packLanes,
   projectDuration,
@@ -379,6 +380,16 @@ export function Timeline({
   }
 
   const lanes = displayTracks.map((tr) => ({ track: tr, items: placedOn(tr.id) }));
+
+  /** Instants des images-clés d'un calque — vide pour un plan ou un son, qui
+      n'en portent pas (voir `AnimatableProp`). */
+  function keyframesOfElement(kind: ElementKind, id: string): number[] {
+    const l = kind === "text" ? project.texts.find((x) => x.id === id)
+      : kind === "image" ? project.images.find((x) => x.id === id)
+      : kind === "shape" ? project.shapes.find((x) => x.id === id)
+      : undefined;
+    return l ? keyframeTimes(l) : [];
+  }
   const rowsOf = (items: Placed[]) => Math.max(1, ...items.map((it) => it.lane + 1));
 
   /** Sommet cumulé de chaque piste affichée — sert au calcul du glissement
@@ -826,6 +837,7 @@ export function Timeline({
                       src={kind === "audio" ? audioExtra(it.id).src : undefined}
                       trimStart={kind === "audio" ? audioExtra(it.id).trimStart : undefined}
                       selected={(selection?.kind === kind && selection.id === it.id) || Boolean(multiSelectedKeys?.has(`${kind}:${it.id}`))}
+                      keyframeTimes={keyframesOfElement(kind, it.id)}
                       onSelect={(e) => onSelect({ kind, id: it.id }, e)}
                       onContextMenu={(e) => onContextMenu?.({ kind, id: it.id }, e)}
                       onTrimStart={(edge, e) => beginDrag({ type: "trimLayer", kind, id: it.id, edge, startX: e.clientX })}
@@ -1189,6 +1201,7 @@ function LayerBlock({
   muted,
   src,
   trimStart,
+  keyframeTimes: keys = [],
   onSelect,
   onContextMenu,
   onTrimStart,
@@ -1206,6 +1219,8 @@ function LayerBlock({
   /** Piste son uniquement — source et point d'entrée pour la forme d'onde. */
   src?: string;
   trimStart?: number;
+  /** Instants ABSOLUS des images-clés du calque, repérés sur le bloc (Lot 7). */
+  keyframeTimes?: number[];
   onSelect: (e?: React.PointerEvent) => void;
   onContextMenu?: (e: { clientX: number; clientY: number }) => void;
   /** Rognage par une extrémité — même parité que les plans vidéo (C-04). */
@@ -1246,7 +1261,20 @@ function LayerBlock({
       }}
     >
       {peaks && <WaveformBars peaks={peaks} />}
-      <span className="pointer-events-none relative block truncate">{muted ? "🔇 " : ""}{label}</span>
+      {/* Images-clés : un losange par instant, au bas du bloc. Sans ce repère,
+          une animation n'existe que dans le panneau de droite — impossible de
+          voir d'un coup d'œil quel calque bouge, ni quand (Lot 7). */}
+      {keys.map((at) => (
+        <span
+          key={at}
+          aria-hidden
+          className="pointer-events-none absolute bottom-0.5 h-1.5 w-1.5 -translate-x-1/2 rotate-45 bg-page ring-1 ring-card"
+          style={{ left: Math.max(3, timeToPx(at - start, pxPerSec)) }}
+        />
+      ))}
+      <span className="pointer-events-none relative block truncate">
+        {muted ? "🔇 " : ""}{keys.length > 0 ? "◆ " : ""}{label}
+      </span>
       <span
         role="separator"
         aria-label={t("Rogner le début", "Trim start")}

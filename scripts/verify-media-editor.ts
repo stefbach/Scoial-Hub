@@ -27,6 +27,7 @@ async function main() {
   const gallery = read("components/editor/TemplateGallery.tsx");
   const timeline = read("components/editor/Timeline.tsx");
   const preview = read("components/editor/Preview.tsx");
+  const shortcuts = read("components/editor/ShortcutsPanel.tsx");
   const upload = read("components/ui/MediaUpload.tsx");
   const compose = read("app/(organic)/compose/page.tsx");
   const host = read("lib/media/host.ts");
@@ -484,8 +485,11 @@ async function main() {
   // Absente jusqu'ici : la sélection était un objet unique, sans aucun moyen
   // d'agir sur plusieurs éléments à la fois. Maj/Ctrl-clic ajoute un élément
   // à un groupe ; le groupe entier se duplique/supprime en une seule entrée
-  // d'historique ; un menu contextuel apparaît sur le groupe (jamais sur un
-  // simple élément, qui a déjà la barre d'outils).
+  // d'historique.
+  //
+  // Le menu contextuel, lui, ne se limite PLUS au groupe (audit v4, constat 4) :
+  // réservé aux sélections multiples, il laissait le menu de Chrome s'ouvrir
+  // partout ailleurs — sur un élément seul comme sur le vide d'une piste.
   {
     check("P2-4 · Maj/Ctrl/⌘-clic ajoute un élément à la sélection au lieu de la remplacer",
       /if \(sel && e && \(e\.shiftKey \|\| e\.ctrlKey \|\| e\.metaKey\)\)/.test(studio));
@@ -499,10 +503,37 @@ async function main() {
       /multiSelectionItems\.length > 1/.test(panel) && /éléments sélectionnés/.test(panel));
     check("P2-4 · la timeline reflète la sélection multiple, pas seulement l'élément principal",
       /multiSelectedKeys\?\.has\(/.test(timeline));
-    check("P3-7 · un menu contextuel n'apparaît que sur une sélection de groupe",
-      /multiSelection\.size === 0 \|\| !inSelection\) return;/.test(studio));
-    check("P3-7 · le menu contextuel propose dupliquer ET supprimer le groupe",
-      /Dupliquer le groupe/.test(studio) && /Supprimer le groupe/.test(studio));
+    check("constat 4 · le clic droit sur un élément HORS sélection le sélectionne au lieu de ne rien faire",
+      /if \(!inSelection\) onTimelineSelect\(sel\);/.test(studio));
+    check("constat 4 · le menu s'ouvre sur tout élément, sans condition de groupe",
+      !/multiSelection\.size === 0 \|\| !inSelection\) return;/.test(studio) &&
+      /setContextMenu\(\{ x: e\.clientX, y: e\.clientY, target: \{ type: "element" \} \}\)/.test(studio));
+    check("constat 4 · le vide d'une piste a son PROPRE menu, porté par la piste et l'instant visés",
+      /onLaneContextMenu=\{\(ctx, e\) =>/.test(studio) &&
+      /type: "lane", trackId: ctx\.trackId, time: ctx\.time/.test(studio));
+    check("constat 4 · la timeline neutralise le menu du navigateur sur le vide comme sur un élément",
+      /onLaneContextMenu\(\{ trackId: track\.id, time: timeFromEvent\(e\.clientX\) \}, e\)/.test(timeline) &&
+      /if \(!onLaneContextMenu\) return;\s*\n\s*e\.preventDefault\(\);/.test(timeline));
+    check("constat 4 · le clic DROIT dans le vide ne désélectionne ni ne déplace la tête de lecture",
+      /function onLanePointerDown\(e: React\.PointerEvent\) \{[\s\S]{0,400}?if \(e\.button === 2\) return;/.test(timeline));
+    check("constat 4 · le menu d'élément couvre couper/copier/coller/dupliquer/scinder/piste/verrou/supprimer",
+      /function ElementMenu\(/.test(studio) &&
+      ["onCut", "onCopy", "onPaste", "onDuplicate", "onSplit", "onUp", "onDown", "onToggleLock", "onDelete"]
+        .every((prop) => new RegExp(`${prop}=\\{`).test(studio)));
+    check("constat 4 · le menu de piste couvre coller/ajouter/verrouiller/masquer/supprimer",
+      /function LaneMenu\(/.test(studio) &&
+      ["onPaste", "onAddVisual", "onAddAudio", "onToggleLock", "onToggleHidden", "onRemove"]
+        .every((prop) => new RegExp(`${prop}=\\{`).test(studio)));
+    const model = read("lib/editor/project.ts");
+    check("constat 4 · le presse-papier est une opération de MODÈLE, pas une astuce d'interface",
+      /export function copyElements\(/.test(model) && /export function pasteElements\(/.test(model));
+    check("constat 4 · couper prélève AVANT de supprimer — sans quoi il n'y aurait plus rien à coller",
+      /function cutSelection\(\) \{[\s\S]{0,320}?setClipboard\(copyElements\(project, items\)\);[\s\S]{0,120}?removeSelection\(\);/.test(studio));
+    check("constat 4 · Ctrl/⌘ + X · C · V sont câblés, et documentés dans le panneau de raccourcis",
+      /if \(meta && lower === "x"\)/.test(studio) &&
+      /if \(meta && lower === "c"\)/.test(studio) &&
+      /if \(meta && lower === "v"\)/.test(studio) &&
+      /Ctrl\/⌘ \+ V/.test(shortcuts));
     check("P3-7 · le clic droit sur la timeline est câblé (plans ET calques)",
       /onContextMenu=\{\(e\) => onContextMenu\?\.\(\{ kind: "clip", id: it\.id \}, e\)\}/.test(timeline) &&
       /onContextMenu=\{\(e\) => onContextMenu\?\.\(\{ kind, id: it\.id \}, e\)\}/.test(timeline));

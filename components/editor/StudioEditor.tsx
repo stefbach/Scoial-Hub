@@ -21,16 +21,17 @@ import { Spinner } from "@/components/ui/Spinner";
 import { hostMedia, MAX_UPLOAD_BYTES, formatSize } from "@/lib/media/host";
 import { SUBTITLE_LANGS } from "@/lib/ai/subtitle-langs";
 import {
-  addAudio, addButton, addClip, addImageLayer, addShape, addText, addTrack, duplicateAudio,
+  addAudio, addButton, addClip, addImageLayer, addShape, addText, addTrack, copyElements, duplicateAudio,
   duplicateClip, duplicateImageLayer, duplicateShape, duplicateText,
+  pasteElements,
   emptyProject, FORMAT_SIZE, moveElement, projectDuration, removeAudio,
   removeClip, removeImageLayer, removeShape, removeText, removeTrack, reorderTrack,
   setClipBox, setClipFraming, setClipLength,
   setClipSpeed, setClipTransition, setProjectDuration, setTrackDefMeta, shapesAt, splitAt, splitAudioAt, splitLayerAt,
   trimClip, trimLayer,
   updateAudio, updateImageLayer, updateShape, updateText, usedTracks, visibleProject,
-  type AnimationKind, type EditorFormat, type EditorProject, type ShapeKind,
-  type TimedLayerKind, type TransitionKind, type VisualLayer,
+  type AnimationKind, type ClipboardEntry, type EditorFormat, type EditorProject, type ShapeKind,
+  type TimedLayerKind, type TrackFamily, type TransitionKind, type VisualLayer,
 } from "@/lib/editor/project";
 import {
   applyTemplate, brandStyleFrom, rescaleTextsForFormat, TEMPLATES, type BrandStyle,
@@ -101,7 +102,21 @@ export function StudioEditor({
    * Editing Bench, P2-4 — sélection multiple était totalement absente).
    */
   const [multiSelection, setMultiSelection] = useState<Map<string, NonNullable<TimelineSelection>>>(new Map());
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+  /**
+   * Menu contextuel — il porte désormais SA CIBLE : un élément (ou le groupe
+   * qui le contient) ou le vide d'une piste. Le menu n'a pas les mêmes
+   * entrées dans les deux cas, et sans cette distinction le clic droit dans
+   * le vide n'avait rien à proposer (audit v4, constat 4).
+   */
+  const [contextMenu, setContextMenu] = useState<
+    | { x: number; y: number; target: { type: "element" } | { type: "lane"; trackId: string; time: number } }
+    | null
+  >(null);
+  /** Presse-papier du banc — vit le temps de la session, jamais enregistré. */
+  const [clipboard, setClipboard] = useState<ClipboardEntry[]>([]);
+  /** La cible « piste » du menu, isolée une fois : les gestionnaires du menu
+      sont des fermetures, où le rétrécissement de type ne survit pas. */
+  const laneTarget = contextMenu?.target.type === "lane" ? contextMenu.target : null;
   const contextMenuRef = useRef<HTMLDivElement>(null);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
@@ -361,11 +376,11 @@ export function StudioEditor({
    */
   const kb = useRef({
     playhead, duration, selection, apply, saveNow, playing, shortcutsOpen, exporting,
-    removeSelection, duplicateSelection,
+    removeSelection, duplicateSelection, cutSelection, copySelection, pasteAt,
   });
   kb.current = {
     playhead, duration, selection, apply, saveNow, playing, shortcutsOpen, exporting,
-    removeSelection, duplicateSelection,
+    removeSelection, duplicateSelection, cutSelection, copySelection, pasteAt,
   };
 
   useEffect(() => {
@@ -379,6 +394,7 @@ export function StudioEditor({
         playhead: ph, duration: dur, selection: sel, apply: doApply, saveNow: doSave,
         playing: isPlaying, shortcutsOpen: refOpen, exporting: isExporting,
         removeSelection: doRemoveSelection, duplicateSelection: doDuplicateSelection,
+        cutSelection: doCut, copySelection: doCopy, pasteAt: doPaste,
       } = kb.current;
 
       // Le montage est verrouillé pendant un export — seul Échap reste actif,
@@ -410,6 +426,13 @@ export function StudioEditor({
         doDuplicateSelection();
         return;
       }
+      // Couper / copier / coller. Le presse-papier est celui du BANC, pas
+      // celui du système : on ne lit ni n'écrit le presse-papier du navigateur,
+      // qui ne saurait pas quoi faire d'un plan de montage.
+      if (meta && lower === "x") { e.preventDefault(); doCut(); return; }
+      if (meta && lower === "c") { e.preventDefault(); doCopy(); return; }
+      if (meta && lower === "v") { e.preventDefault(); doPaste(ph); return; }
+
       if (meta) return; // autre combinaison Ctrl/Cmd : laissée au navigateur
 
       if (lower === "c" || lower === "s") {
@@ -1221,14 +1244,21 @@ export function StudioEditor({
               onSeek={setPlayhead}
               onSelect={onTimelineSelect}
               onContextMenu={(sel, e) => {
-                // Le menu contextuel n'a d'intérêt que sur une sélection de
-                // GROUPE — un seul élément a déjà la barre d'outils juste
-                // au-dessus de l'aperçu (P3-7). Clic droit sur un élément
-                // hors du groupe sélectionné : on ne montre rien plutôt que
-                // d'agir sur un élément que l'utilisateur n'a pas choisi.
+                // Clic droit sur un élément HORS de la sélection courante : il
+                // devient la sélection, comme dans tout logiciel de montage —
+                // agir sur autre chose que ce qu'on vient de viser serait pire
+                // que ne rien faire. S'il fait déjà partie du groupe, le
+                // groupe est conservé et le menu porte sur lui tout entier.
                 const inSelection = selectedItems().some((s) => s.kind === sel.kind && s.id === sel.id);
-                if (multiSelection.size === 0 || !inSelection) return;
-                setContextMenu({ x: e.clientX, y: e.clientY });
+                if (!inSelection) onTimelineSelect(sel);
+                setContextMenu({ x: e.clientX, y: e.clientY, target: { type: "element" } });
+              }}
+              onLaneContextMenu={(ctx, e) => {
+                // Le vide d'une piste ne désigne aucun élément : on désélectionne
+                // pour que le menu ne laisse pas croire qu'il agit sur ce qui
+                // était sélectionné ailleurs.
+                onTimelineSelect(null);
+                setContextMenu({ x: e.clientX, y: e.clientY, target: { type: "lane", trackId: ctx.trackId, time: ctx.time } });
               }}
               onTrim={(clipId, edge, delta) => applyLive((p) => trimClip(p, clipId, edge === "head" ? { head: delta } : { tail: delta }))}
               onTrimLayer={(kind, id, edge, delta) => applyLive((p) => trimLayer(p, kind, id, edge, delta))}
@@ -1242,16 +1272,7 @@ export function StudioEditor({
                 hidden: !(p.tracks ?? []).find((tr) => tr.id === trackId)?.hidden,
               }))}
               onAddTrack={(family) => apply((p) => addTrack(p, nextId("trk"), family))}
-              onRemoveTrack={(trackId) => {
-                // Une piste non vide se supprime avec son contenu — mieux
-                // vaut le dire avant de le faire disparaître d'un clic perdu.
-                const hasContent = [...project.clips, ...project.texts, ...project.images, ...project.shapes, ...project.audios]
-                  .some((el) => el.trackId === trackId);
-                if (hasContent && typeof window !== "undefined" && !window.confirm(
-                  t("Supprimer cette piste et tout ce qu'elle porte ?", "Delete this track and everything on it?")
-                )) return;
-                apply((p) => removeTrack(p, trackId));
-              }}
+              onRemoveTrack={removeTrackWithConfirm}
               onReorderTrack={(trackId, direction) => apply((p) => reorderTrack(p, trackId, direction))}
             />
           </div>
@@ -1363,32 +1384,60 @@ export function StudioEditor({
       )}
       <ShortcutsPanel open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
 
-      {/* Menu contextuel — n'apparaît que sur une sélection de groupe, où il
-          offre une prise directe qui manquait totalement jusqu'ici (audit
-          Editing Bench, P3-7). Un seul élément a déjà la barre d'outils. */}
+      {/* Menu contextuel — sur TOUT ce que porte la timeline : un élément
+          seul, un groupe, ou le vide d'une piste. Auparavant réservé aux
+          sélections de groupe, il laissait le menu de Chrome s'ouvrir partout
+          ailleurs (audit Editing Bench v4, constat 4 ; P3-7). */}
       {contextMenu && (
         <div
           ref={contextMenuRef}
           role="menu"
-          className="fixed z-50 min-w-[10rem] rounded-md border border-hair bg-card py-1 text-xs shadow-lg"
+          className="fixed z-50 min-w-[13rem] rounded-md border border-hair bg-card py-1 text-xs shadow-lg"
           style={{ left: contextMenu.x, top: contextMenu.y }}
         >
-          <button
-            type="button"
-            role="menuitem"
-            onClick={duplicateSelection}
-            className="block w-full px-3 py-1.5 text-left hover:bg-canvas"
-          >
-            ⧉ {t("Dupliquer le groupe", "Duplicate group")} ({selectedItems().length})
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            onClick={removeSelection}
-            className="block w-full px-3 py-1.5 text-left text-danger hover:bg-canvas"
-          >
-            🗑 {t("Supprimer le groupe", "Delete group")} ({selectedItems().length})
-          </button>
+          {contextMenu.target.type === "element" ? (
+            <ElementMenu
+              count={selectedItems().length}
+              single={selectedItems().length === 1}
+              clipboardSize={clipboard.length}
+              trackLocked={(() => {
+                const only = selectedItems()[0];
+                const trackId = only ? trackIdOf(project, only) : null;
+                return Boolean(trackId && (project.tracks ?? []).find((tr) => tr.id === trackId)?.locked);
+              })()}
+              canUp={canMoveSelectionToTrack("up")}
+              canDown={canMoveSelectionToTrack("down")}
+              onCut={cutSelection}
+              onCopy={copySelection}
+              onPaste={() => pasteAt(playhead)}
+              onDuplicate={duplicateSelection}
+              onSplit={() => { splitSelectionAt(playhead); setContextMenu(null); }}
+              onUp={() => moveSelectionToAdjacentTrack("up")}
+              onDown={() => moveSelectionToAdjacentTrack("down")}
+              onToggleLock={() => {
+                const only = selectedItems()[0];
+                const trackId = only ? trackIdOf(project, only) : null;
+                if (trackId) toggleTrackLock(trackId);
+              }}
+              onDelete={removeSelection}
+            />
+          ) : (
+            <LaneMenu
+              locked={Boolean((project.tracks ?? []).find((tr) => tr.id === laneTarget?.trackId)?.locked)}
+              hidden={Boolean((project.tracks ?? []).find((tr) => tr.id === laneTarget?.trackId)?.hidden)}
+              clipboardSize={clipboard.length}
+              canRemove={
+                (project.tracks ?? []).find((tr) => tr.id === laneTarget?.trackId)?.family === "audio"
+                || (project.tracks ?? []).filter((tr) => tr.family === "visual").length > 1
+              }
+              onPaste={() => { if (laneTarget) pasteAt(laneTarget.time, laneTarget.trackId); }}
+              onAddVisual={() => { apply((p) => addTrack(p, nextId("trk"), "visual")); setContextMenu(null); }}
+              onAddAudio={() => { apply((p) => addTrack(p, nextId("trk"), "audio")); setContextMenu(null); }}
+              onToggleLock={() => { if (laneTarget) toggleTrackLock(laneTarget.trackId); }}
+              onToggleHidden={() => { if (laneTarget) toggleTrackHidden(laneTarget.trackId); }}
+              onRemove={() => { if (laneTarget) removeTrackWithConfirm(laneTarget.trackId); }}
+            />
+          )}
         </div>
       )}
     </div>,
@@ -1468,6 +1517,118 @@ export function StudioEditor({
     setContextMenu(null);
   }
 
+  /* ── Presse-papier et pistes (menu contextuel, audit v4 constat 4) ────── */
+
+  /** Piste QUI PORTE l'élément désigné — le modèle ne l'expose pas autrement. */
+  function trackIdOf(p: EditorProject, sel: NonNullable<TimelineSelection>): string | null {
+    if (sel.kind === "clip") return p.clips.find((c) => c.id === sel.id)?.trackId ?? null;
+    if (sel.kind === "text") return p.texts.find((l) => l.id === sel.id)?.trackId ?? null;
+    if (sel.kind === "image") return p.images.find((l) => l.id === sel.id)?.trackId ?? null;
+    if (sel.kind === "shape") return p.shapes.find((l) => l.id === sel.id)?.trackId ?? null;
+    return p.audios.find((a) => a.id === sel.id)?.trackId ?? null;
+  }
+
+  function copySelection() {
+    const items = selectedItems();
+    if (items.length === 0) return;
+    setClipboard(copyElements(project, items));
+    setContextMenu(null);
+  }
+
+  /** Couper = copier puis supprimer. `removeSelection` referme déjà le menu. */
+  function cutSelection() {
+    const items = selectedItems();
+    if (items.length === 0) return;
+    setClipboard(copyElements(project, items));
+    removeSelection();
+  }
+
+  /**
+   * Colle à l'instant demandé. Un élément SEUL rejoint la piste désignée par
+   * le clic droit, si elle est de sa famille — c'est le geste attendu quand
+   * on vise une piste précise. Un groupe, lui, garde l'agencement de ses
+   * pistes d'origine : le reposer entier sur une seule piste l'écraserait.
+   */
+  function pasteAt(time: number, trackId?: string) {
+    if (clipboard.length === 0) return;
+    let entries = clipboard;
+    const target = trackId ? (project.tracks ?? []).find((tr) => tr.id === trackId) : undefined;
+    if (target && clipboard.length === 1) {
+      const only = clipboard[0];
+      const family: TrackFamily = only.kind === "audio" ? "audio" : "visual";
+      if (family === target.family) {
+        entries = [
+          only.kind === "clip" ? { kind: "clip", data: { ...only.data, trackId: target.id } }
+          : only.kind === "audio" ? { kind: "audio", data: { ...only.data, trackId: target.id } }
+          : only.kind === "text" ? { kind: "text", data: { ...only.data, trackId: target.id } }
+          : only.kind === "image" ? { kind: "image", data: { ...only.data, trackId: target.id } }
+          : { kind: "shape", data: { ...only.data, trackId: target.id } },
+        ];
+      }
+    }
+    apply((p) => pasteElements(p, entries, time, nextId));
+    setContextMenu(null);
+  }
+
+  /**
+   * Fait changer de piste l'élément (ou le groupe) sélectionné, d'un cran
+   * dans SA famille. "up" rapproche de l'avant — la même convention que
+   * `reorderTrack`, donc le même sens que la flèche affichée.
+   */
+  function moveSelectionToAdjacentTrack(direction: "up" | "down") {
+    const items = selectedItems();
+    if (items.length === 0) return;
+    apply((p) => items.reduce((acc, sel) => {
+      const current = trackIdOf(acc, sel);
+      if (!current) return acc;
+      const family: TrackFamily = sel.kind === "audio" ? "audio" : "visual";
+      const sameFamily = (acc.tracks ?? []).filter((tr) => tr.family === family);
+      const at = sameFamily.findIndex((tr) => tr.id === current);
+      const next = sameFamily[at + (direction === "up" ? 1 : -1)];
+      if (at < 0 || !next) return acc;
+      return moveElement(acc, { kind: sel.kind, id: sel.id }, { trackId: next.id });
+    }, p));
+    setContextMenu(null);
+  }
+
+  /** Vrai si le groupe sélectionné peut encore glisser d'un cran dans ce sens. */
+  function canMoveSelectionToTrack(direction: "up" | "down"): boolean {
+    return selectedItems().some((sel) => {
+      const current = trackIdOf(project, sel);
+      if (!current) return false;
+      const family: TrackFamily = sel.kind === "audio" ? "audio" : "visual";
+      const sameFamily = (project.tracks ?? []).filter((tr) => tr.family === family);
+      const at = sameFamily.findIndex((tr) => tr.id === current);
+      return at >= 0 && Boolean(sameFamily[at + (direction === "up" ? 1 : -1)]);
+    });
+  }
+
+  /**
+   * Supprime une piste. Une piste NON VIDE part avec tout ce qu'elle porte —
+   * mieux vaut le dire avant de le faire disparaître d'un clic perdu. Partagée
+   * entre l'étiquette de piste et le menu contextuel : une seule règle, pas
+   * deux comportements selon l'endroit d'où on la déclenche.
+   */
+  function removeTrackWithConfirm(trackId: string) {
+    const hasContent = [...project.clips, ...project.texts, ...project.images, ...project.shapes, ...project.audios]
+      .some((el) => el.trackId === trackId);
+    if (hasContent && typeof window !== "undefined" && !window.confirm(
+      t("Supprimer cette piste et tout ce qu'elle porte ?", "Delete this track and everything on it?")
+    )) { setContextMenu(null); return; }
+    apply((p) => removeTrack(p, trackId));
+    setContextMenu(null);
+  }
+
+  function toggleTrackLock(trackId: string) {
+    apply((p) => setTrackDefMeta(p, trackId, { locked: !(p.tracks ?? []).find((tr) => tr.id === trackId)?.locked }));
+    setContextMenu(null);
+  }
+
+  function toggleTrackHidden(trackId: string) {
+    apply((p) => setTrackDefMeta(p, trackId, { hidden: !(p.tracks ?? []).find((tr) => tr.id === trackId)?.hidden }));
+    setContextMenu(null);
+  }
+
   /**
    * Scinde l'élément sélectionné à l'instant `time`, quel que soit son type —
    * auparavant réservé au premier plan vidéo trouvé par balayage du temps, en
@@ -1486,6 +1647,127 @@ export function StudioEditor({
     else if (sel.kind === "shape") apply((p) => splitLayerAt(p, "shape", sel.id, time, nextId("s")));
     else apply((p) => splitAudioAt(p, sel.id, time, nextId("a")));
   }
+}
+
+/* ── Menu contextuel ─────────────────────────────────────────────────────── */
+
+/** Une entrée de menu. Désactivée, elle reste VISIBLE : disparaître d'un clic
+    droit à l'autre rendrait le menu impossible à mémoriser. */
+function MenuItem({
+  children, onClick, disabled, danger, shortcut,
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+  disabled?: boolean;
+  danger?: boolean;
+  shortcut?: string;
+}) {
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      disabled={disabled}
+      onClick={onClick}
+      className={`flex w-full items-center justify-between gap-4 px-3 py-1.5 text-left disabled:opacity-40 ${
+        danger ? "text-danger" : ""
+      } enabled:hover:bg-canvas`}
+    >
+      <span>{children}</span>
+      {shortcut && <span className="text-2xs text-muted">{shortcut}</span>}
+    </button>
+  );
+}
+
+function MenuSeparator() {
+  return <div role="separator" className="my-1 border-t border-hair" />;
+}
+
+/** Menu sur un élément — ou sur le groupe entier s'il en fait partie. */
+function ElementMenu({
+  count, single, clipboardSize, trackLocked, canUp, canDown,
+  onCut, onCopy, onPaste, onDuplicate, onSplit, onUp, onDown, onToggleLock, onDelete,
+}: {
+  count: number;
+  single: boolean;
+  clipboardSize: number;
+  trackLocked: boolean;
+  canUp: boolean;
+  canDown: boolean;
+  onCut: () => void;
+  onCopy: () => void;
+  onPaste: () => void;
+  onDuplicate: () => void;
+  onSplit: () => void;
+  onUp: () => void;
+  onDown: () => void;
+  onToggleLock: () => void;
+  onDelete: () => void;
+}) {
+  const t = useT();
+  // Le décompte n'a de sens qu'au-delà d'un élément : « Copier (1) » est du
+  // bruit sur le geste le plus courant du banc.
+  const n = count > 1 ? ` (${count})` : "";
+  return (
+    <>
+      <MenuItem onClick={onCut} shortcut="Ctrl+X">✂ {t("Couper", "Cut")}{n}</MenuItem>
+      <MenuItem onClick={onCopy} shortcut="Ctrl+C">⧉ {t("Copier", "Copy")}{n}</MenuItem>
+      <MenuItem onClick={onPaste} disabled={clipboardSize === 0} shortcut="Ctrl+V">
+        📋 {t("Coller à la tête de lecture", "Paste at playhead")}
+      </MenuItem>
+      <MenuItem onClick={onDuplicate} shortcut="Ctrl+D">⧉ {t("Dupliquer", "Duplicate")}{n}</MenuItem>
+      <MenuSeparator />
+      <MenuItem onClick={onSplit} disabled={!single} shortcut="C">
+        ✄ {t("Scinder à la tête de lecture", "Split at playhead")}
+      </MenuItem>
+      <MenuItem onClick={onUp} disabled={!canUp}>↑ {t("Monter d'une piste", "Move up one track")}</MenuItem>
+      <MenuItem onClick={onDown} disabled={!canDown}>↓ {t("Descendre d'une piste", "Move down one track")}</MenuItem>
+      <MenuItem onClick={onToggleLock} disabled={!single}>
+        {trackLocked ? `🔓 ${t("Déverrouiller la piste", "Unlock track")}` : `🔒 ${t("Verrouiller la piste", "Lock track")}`}
+      </MenuItem>
+      <MenuSeparator />
+      <MenuItem onClick={onDelete} danger shortcut="Suppr">🗑 {t("Supprimer", "Delete")}{n}</MenuItem>
+    </>
+  );
+}
+
+/** Menu sur le vide d'une piste — il n'y a pas d'élément à désigner, les
+    actions portent donc sur la piste elle-même et sur le presse-papier. */
+function LaneMenu({
+  locked, hidden, clipboardSize, canRemove,
+  onPaste, onAddVisual, onAddAudio, onToggleLock, onToggleHidden, onRemove,
+}: {
+  locked: boolean;
+  hidden: boolean;
+  clipboardSize: number;
+  canRemove: boolean;
+  onPaste: () => void;
+  onAddVisual: () => void;
+  onAddAudio: () => void;
+  onToggleLock: () => void;
+  onToggleHidden: () => void;
+  onRemove: () => void;
+}) {
+  const t = useT();
+  return (
+    <>
+      <MenuItem onClick={onPaste} disabled={clipboardSize === 0}>
+        📋 {t("Coller ici", "Paste here")}
+      </MenuItem>
+      <MenuSeparator />
+      <MenuItem onClick={onAddVisual}>➕ {t("Ajouter une piste vidéo", "Add a video track")}</MenuItem>
+      <MenuItem onClick={onAddAudio}>➕ {t("Ajouter une piste son", "Add an audio track")}</MenuItem>
+      <MenuSeparator />
+      <MenuItem onClick={onToggleLock}>
+        {locked ? `🔓 ${t("Déverrouiller cette piste", "Unlock this track")}` : `🔒 ${t("Verrouiller cette piste", "Lock this track")}`}
+      </MenuItem>
+      <MenuItem onClick={onToggleHidden}>
+        {hidden ? `👁 ${t("Afficher cette piste", "Show this track")}` : `🚫 ${t("Masquer cette piste", "Hide this track")}`}
+      </MenuItem>
+      <MenuItem onClick={onRemove} danger disabled={!canRemove}>
+        🗑 {t("Supprimer cette piste", "Delete this track")}
+      </MenuItem>
+    </>
+  );
 }
 
 /* ── Petits composants d'interface ───────────────────────────────────────── */

@@ -854,6 +854,105 @@ export function moveElement(
   return normalize({ ...p, shapes: p.shapes.map((x) => (x.id === sel.id ? { ...x, ...layerPatch } : x)) });
 }
 
+/* ── Presse-papier ───────────────────────────────────────────────────────── */
+
+/**
+ * Un élément mis de côté par « Copier » ou « Couper ». On stocke l'OBJET
+ * COMPLET, pas une référence : couper le retire du projet, et il doit rester
+ * collable ensuite — une référence par id ne désignerait plus rien.
+ */
+export type ClipboardEntry =
+  | { kind: "clip"; data: Clip }
+  | { kind: "text"; data: TextLayer }
+  | { kind: "image"; data: ImageLayer }
+  | { kind: "shape"; data: ShapeLayer }
+  | { kind: "audio"; data: AudioTrack };
+
+/**
+ * Prélève une copie des éléments désignés, triée par instant de début — c'est
+ * cet ordre qui permet à `pasteElements` de préserver les écarts de temps à
+ * l'intérieur d'un groupe copié.
+ */
+export function copyElements(
+  p: EditorProject,
+  sels: { kind: "clip" | TimedLayerKind; id: string }[]
+): ClipboardEntry[] {
+  const out: ClipboardEntry[] = [];
+  for (const sel of sels) {
+    if (sel.kind === "clip") {
+      const c = p.clips.find((x) => x.id === sel.id);
+      if (c) out.push({ kind: "clip", data: { ...c } });
+    } else if (sel.kind === "audio") {
+      const a = p.audios.find((x) => x.id === sel.id);
+      if (a) out.push({ kind: "audio", data: { ...a } });
+    } else if (sel.kind === "text") {
+      const l = p.texts.find((x) => x.id === sel.id);
+      if (l) out.push({ kind: "text", data: { ...l } });
+    } else if (sel.kind === "image") {
+      const l = p.images.find((x) => x.id === sel.id);
+      if (l) out.push({ kind: "image", data: { ...l } });
+    } else {
+      const l = p.shapes.find((x) => x.id === sel.id);
+      if (l) out.push({ kind: "shape", data: { ...l } });
+    }
+  }
+  return out.sort((a, b) => a.data.start - b.data.start);
+}
+
+/**
+ * Colle le contenu du presse-papier à l'instant `atTime`. Le premier élément
+ * du groupe s'y pose, les autres conservent leur ÉCART avec lui : coller trois
+ * plans copiés ensemble reproduit leur agencement, pas un empilement au même
+ * instant.
+ *
+ * Chaque élément retrouve sa piste d'origine quand elle existe encore — sinon
+ * la première piste de sa famille, plutôt que de disparaître silencieusement
+ * (le cas après avoir coupé un élément puis supprimé sa piste).
+ */
+export function pasteElements(
+  p: EditorProject,
+  entries: ClipboardEntry[],
+  atTime: number,
+  newIdFor: (base: string) => string
+): EditorProject {
+  if (entries.length === 0) return p;
+
+  const tracks = p.tracks ?? [];
+  const homeTrack = (wanted: string, family: TrackFamily): string | null =>
+    tracks.some((tr) => tr.id === wanted) ? wanted : tracks.find((tr) => tr.family === family)?.id ?? null;
+
+  const base = Math.min(...entries.map((e) => e.data.start));
+  const at = Math.max(0, round(atTime));
+
+  let next = p;
+  for (const e of entries) {
+    const family: TrackFamily = e.kind === "audio" ? "audio" : "visual";
+    const trackId = homeTrack(e.data.trackId, family);
+    if (!trackId) continue;
+    const start = round(at + (e.data.start - base));
+
+    if (e.kind === "clip") {
+      const copy: Clip = { ...e.data, id: newIdFor("c"), trackId, start };
+      next = { ...next, clips: [...next.clips, copy] };
+      continue;
+    }
+    if (e.kind === "audio") {
+      const copy: AudioTrack = { ...e.data, id: newIdFor("a"), trackId, start };
+      next = { ...next, audios: [...next.audios, copy] };
+      continue;
+    }
+    // Calques temporels : la DURÉE est reportée, pas la borne de fin — coller
+    // plus loin dans le film ne doit pas raccourcir le calque.
+    const span = e.data.end - e.data.start;
+    const timing = { trackId, start, end: round(start + span) };
+    if (e.kind === "text") next = { ...next, texts: [...next.texts, { ...e.data, id: newIdFor("t"), ...timing }] };
+    else if (e.kind === "image") next = { ...next, images: [...next.images, { ...e.data, id: newIdFor("i"), ...timing }] };
+    else next = { ...next, shapes: [...next.shapes, { ...e.data, id: newIdFor("s"), ...timing }] };
+  }
+
+  return normalize(next);
+}
+
 /* ── Emplacements de gabarit ─────────────────────────────────────────────── */
 
 /** Déclare un nouvel emplacement, pointant vers un calque déjà posé. */

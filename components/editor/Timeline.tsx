@@ -104,6 +104,7 @@ export function Timeline({
   onSeek,
   onSelect,
   onContextMenu,
+  onLaneContextMenu,
   onTrim,
   onTrimLayer,
   onMoveElement,
@@ -133,11 +134,17 @@ export function Timeline({
    */
   onSelect: (sel: TimelineSelection, e?: { shiftKey: boolean; ctrlKey: boolean; metaKey: boolean }) => void;
   /**
-   * Clic droit sur un élément — n'ouvre un menu contextuel que si l'appelant
-   * décide qu'il y a de quoi l'afficher (une sélection multiple, chapitre 8,
-   * P3-7). Sans sélection multiple, le clic droit ne fait rien de spécial.
+   * Clic droit sur un élément. La timeline neutralise systématiquement le
+   * menu du navigateur et remonte le geste : c'est à l'appelant de décider
+   * quel menu ouvrir, jamais à Chrome (audit Editing Bench v4, constat 4).
    */
   onContextMenu?: (sel: NonNullable<TimelineSelection>, e: { clientX: number; clientY: number }) => void;
+  /**
+   * Clic droit sur le VIDE d'une piste — là où il n'y a aucun élément à
+   * désigner. Porte la piste visée et l'instant pointé, de quoi proposer un
+   * collage à cet endroit précis plutôt qu'à la tête de lecture.
+   */
+  onLaneContextMenu?: (ctx: { trackId: string; time: number }, e: { clientX: number; clientY: number }) => void;
   /** Rognage par une extrémité, en secondes (positif = raccourcit). */
   onTrim: (clipId: string, edge: "head" | "tail", delta: number) => void;
   onTrimLayer: (kind: TimedLayerKind, id: string, edge: "head" | "tail", delta: number) => void;
@@ -211,6 +218,10 @@ export function Timeline({
   }
 
   function onLanePointerDown(e: React.PointerEvent) {
+    // Même garde-fou que sur les blocs : `pointerdown` se déclenche pour TOUT
+    // bouton. Sans lui, le clic droit dans le vide effaçait la sélection et
+    // déplaçait la tête de lecture avant même d'ouvrir son menu.
+    if (e.button === 2) return;
     onSelect(null);
     startScrub(e);
   }
@@ -561,6 +572,11 @@ export function Timeline({
                 style={{ height: LANE_H * rowsOf(items) }}
                 className={`relative ${track.hidden ? "opacity-40" : ""}`}
                 onPointerDown={onLanePointerDown}
+                onContextMenu={(e) => {
+                  if (!onLaneContextMenu) return;
+                  e.preventDefault();
+                  onLaneContextMenu({ trackId: track.id, time: timeFromEvent(e.clientX) }, e);
+                }}
               >
                 {items.map((it) => {
                   const locked = Boolean(track.locked);

@@ -206,10 +206,14 @@ export default function StudioAffichePage() {
       const r = await fetch("/api/ai/suggest-image-prompt", {
         method: "POST", headers: { "Content-Type": "application/json" },
         // `language` : le prompt suggéré doit sortir dans la langue de l'UI.
-        body: JSON.stringify({ companyId, brief: [prompt, brandStyle].filter(Boolean).join(" — "), format: format.label, kind: format.print ? "affiche" : "visuel réseau social", language: lang }),
+        // `wantCopy` : à partir des mêmes mots-clés, l'IA propose aussi un
+        // titre/sous-titre — texte ET visuel générés depuis la même saisie.
+        body: JSON.stringify({ companyId, brief: [prompt, brandStyle].filter(Boolean).join(" — "), format: format.label, kind: format.print ? "affiche" : "visuel réseau social", language: lang, wantCopy: true }),
       });
       const d = await r.json();
       if (d.prompt) setPrompt(d.prompt);
+      if (d.headline) setHeadline(d.headline);
+      if (d.subtitle) setSubtitle(d.subtitle);
       if (d.aiGenerated === false) setNote(t("Prompt généré en mode démo (IA non configurée).", "Prompt generated in demo mode (AI not configured)."));
     } catch {
       setNote(t("Échec de la suggestion de prompt.", "Prompt suggestion failed."));
@@ -647,10 +651,10 @@ export default function StudioAffichePage() {
             </div>
 
             <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} rows={3}
-              placeholder={t("Décrivez le visuel… ou laissez l'IA proposer un prompt", "Describe the visual… or let the AI suggest a prompt")} className={inputCls} />
+              placeholder={t("Quelques mots-clés… ou laissez l'IA proposer un prompt", "A few keywords… or let the AI suggest a prompt")} className={inputCls} />
             <div className="flex flex-wrap gap-2">
               <button onClick={suggestPrompt} disabled={suggesting || !canEdit} className="btn-secondary text-xs disabled:opacity-50">
-                {suggesting ? <span className="inline-flex items-center gap-1.5"><Spinner size={12} className="text-primary-600" />{t("Prompt…", "Prompt…")}</span> : t("🧠 Suggérer un prompt (IA)", "🧠 Suggest a prompt (AI)")}
+                {suggesting ? <span className="inline-flex items-center gap-1.5"><Spinner size={12} className="text-primary-600" />{t("Prompt…", "Prompt…")}</span> : t("🧠 Générer texte + prompt (IA)", "🧠 Generate copy + prompt (AI)")}
               </button>
               <button onClick={() => generateBackground()} disabled={generating || !canEdit} title={!canEdit ? t("Lecture seule", "View only") : undefined} className="btn-primary text-xs disabled:opacity-50">
                 {generating ? <span className="inline-flex items-center gap-1.5"><Spinner size={12} className="text-white" />{t("Génération…", "Generating…")}</span> : t("✨ Générer le fond (IA)", "✨ Generate background (AI)")}

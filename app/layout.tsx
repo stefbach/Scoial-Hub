@@ -6,6 +6,7 @@ import { ScopeProvider } from "@/lib/scope";
 import { LangProvider } from "@/lib/i18n";
 import { AppShell } from "@/components/shell/AppShell";
 import { AccountGate } from "@/components/shell/AccountGate";
+import { InstallPrompt } from "@/components/pwa/InstallPrompt";
 
 /* ── Typographie premium ─────────────────────────────────────────────
    Fraunces : serif optique variable, éditorial et haut de gamme
@@ -34,11 +35,19 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 5,
   viewportFit: "cover",
+  themeColor: "#5b2d8e",
 };
 
 export const metadata: Metadata = {
   title: "AXON-AI · Social Media",
   description: "Pilotage intelligent des campagnes social media par agents IA — suite AXON-AI",
+  applicationName: "AXON-AI",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "AXON-AI",
+  },
 };
 
 export default function RootLayout({
@@ -67,6 +76,7 @@ export default function RootLayout({
               <AccountGate>
                 <AppShell>{children}</AppShell>
               </AccountGate>
+              <InstallPrompt />
             </ScopeProvider>
           </CompanyProvider>
         </LangProvider>

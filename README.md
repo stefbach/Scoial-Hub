@@ -5,6 +5,7 @@
 - **Stack** : Next.js 14 (App Router) · TypeScript strict · Tailwind · React 18 · Supabase (Postgres + Auth + RLS + Storage) · Anthropic Claude · Replicate.
 - **Déploiement** : Vercel (limite fonctions 60 s).
 - **Domaine de prod** : `https://scoial-hub.vercel.app`
+- **Application installable (PWA)** : icône sur le bureau/écran d'accueil, lancement en plein écran sans barre de navigateur. Depuis `scoial-hub.vercel.app` → bouton **Installer** (Chrome/Edge/Android) proposé automatiquement, ou **Safari → Partager → Sur l'écran d'accueil** (iOS). Voir §9.
 
 ---
 
@@ -163,3 +164,16 @@ docs/          AUDIT.md, UX_AUDIT.md, META_APP_REVIEW.md
 - `docs/AUDIT.md` — audit produit (P0/P1/P2, sécurité, dette).
 - `docs/UX_AUDIT.md` — audit UX multi-agents (simplicité + fraîcheur de l'aide).
 - `docs/META_APP_REVIEW.md` — dossier App Review Meta (permissions, vidéo, compte test).
+
+---
+
+## 9. Application installable (PWA)
+
+Le produit est une **Progressive Web App** : pas de build natif séparé, pas de store — l'app se déploie normalement sur Vercel et devient installable directement depuis le navigateur.
+
+- `app/manifest.ts` — manifeste (`/manifest.webmanifest`) : nom, icônes, `display: "standalone"`, `start_url: "/dashboard"`.
+- `app/icon-192.png/`, `app/icon-512.png/`, `app/icon-512-maskable.png/` — icônes générées (même tracé « Axon Core » que le favicon/icône iOS existants) via `next/og`.
+- `public/sw.js` — service worker minimal : **réseau d'abord** pour toute navigation (aucune donnée métier mise en cache — SaaS temps réel), retombe sur `public/offline.html` seulement si le réseau est indisponible.
+- `components/pwa/InstallPrompt.tsx` — bannière discrète « Installer AXON-AI » : capte l'événement natif `beforeinstallprompt` (Chrome/Edge/Android) ; sur iOS/Safari (qui n'expose pas cet événement), affiche l'instruction manuelle « Partager → Sur l'écran d'accueil ». Enregistre aussi le service worker.
+
+Une fois installée, l'app s'ouvre en fenêtre autonome (sans barre d'adresse), avec sa propre icône — comme une application de bureau/mobile classique, tout en restant servie par le même déploiement Vercel.

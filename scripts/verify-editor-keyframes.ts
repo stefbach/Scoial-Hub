@@ -14,11 +14,15 @@
 // Usage : npm run test:montagekeyframes
 
 import {
-  addClip, addText, clearKeyframes, emptyProject, hasKeyframes, imagesAt, keyframeTimes,
-  keyframesOf, patchAnimated, projectHasKeyframes, removeKeyframe, setKeyframe, shapesAt,
-  textsAt, updateText, valueAt, animatableProps, type EditorProject,
+  addAudio, addClip, addText, clearKeyframes, clipsAt, duplicateText, emptyProject, hasKeyframes,
+  imagesAt, keyframeTimes, keyframesOf, moveElement, patchAnimated, projectHasKeyframes,
+  removeKeyframe, setKeyframe, shapesAt, textsAt, updateText, valueAt, animatableProps,
+  type EditorProject,
 } from "../lib/editor/project";
-import { browserOverlays, decideRenderTarget, keyframeFrameCount, toBrowserPlan } from "../lib/editor/render-plan";
+import {
+  browserOverlays, decideRenderTarget, keyframeFrameCount, toBrowserPlan,
+  unrenderableKeyframes, volumeExpression,
+} from "../lib/editor/render-plan";
 
 let failures = 0;
 function check(label: string, ok: boolean, detail?: string) {
@@ -221,6 +225,80 @@ function main() {
 
     check("le nombre d'images à composer est mesurable", keyframeFrameCount(p) > 0);
     check("un montage sans clé n'en compose aucune", keyframeFrameCount(sample()) === 0);
+  }
+
+  // ── L'animation SUIT son élément ────────────────────────────────────────
+  {
+    let p = setKeyframe(sample(), SEL, "x", 0, 0);
+    p = setKeyframe(p, SEL, "x", 4, 1);
+    const moved = moveElement(p, { kind: "text", id: "titre" }, { start: 3 });
+    const keys = keyframesOf(titre(moved), "x").map((k) => k.time);
+    // Sans ce report, le texte partirait d'un côté et son animation
+    // resterait de l'autre — elle se jouerait quand il n'est plus là.
+    check("déplacer un calque emporte ses images-clés", keys.join(",") === "3,7", keys.join(","));
+    check("la forme de l'animation est intacte", near(valueAt(titre(moved), "x", 5), 0.5), `${valueAt(titre(moved), "x", 5)}`);
+
+    const back = moveElement(moved, { kind: "text", id: "titre" }, { start: 0 });
+    check("le retour à la position d'origine les ramène aussi",
+      keyframesOf(titre(back), "x").map((k) => k.time).join(",") === "0,4");
+
+    // Une copie emporte l'animation, recalée sur son propre début.
+    const dup = duplicateText(p, "titre", "copie");
+    const copy = dup.texts.find((l) => l.id === "copie")!;
+    check("une copie emporte l'animation, décalée d'autant",
+      keyframesOf(copy, "x").map((k) => k.time).join(",") === `${copy.start},${copy.start + 4}`,
+      keyframesOf(copy, "x").map((k) => k.time).join(","));
+  }
+
+  // ── Tous les types d'éléments, pas seulement les calques ────────────────
+  {
+    const CLIP = { kind: "clip" as const, id: "plan" };
+    let p = setKeyframe(sample(), CLIP, "opacity", 0, 0);
+    p = setKeyframe(p, CLIP, "opacity", 5, 1);
+    const clip = p.clips.find((c) => c.id === "plan")!;
+    check("un PLAN porte des images-clés", hasKeyframes(clip));
+    check("son opacité s'interpole", near(valueAt(clip, "opacity", 2.5), 0.5), `${valueAt(clip, "opacity", 2.5)}`);
+    check("`clipsAt` les résout comme pour un calque",
+      near(clipsAt(p, 2.5)[0].clip.opacity, 0.5), `${clipsAt(p, 2.5)[0].clip.opacity}`);
+    check("déplacer un plan emporte ses clés",
+      keyframesOf(moveElement(p, CLIP, { start: 2 }).clips.find((c) => c.id === "plan")!, "opacity")
+        .map((k) => k.time).join(",") === "2,7");
+
+    let q = addAudio(sample(), { id: "mus", src: "m.mp3", name: "M", role: "music" });
+    const AUD = { kind: "audio" as const, id: "mus" };
+    q = setKeyframe(q, AUD, "volume", 0, 1);
+    q = setKeyframe(q, AUD, "volume", 4, 0.2);
+    const aud = q.audios.find((a) => a.id === "mus")!;
+    check("un SON porte des images-clés de volume", hasKeyframes(aud, "volume"));
+    check("son volume s'interpole", near(valueAt(aud, "volume", 2), 0.6), `${valueAt(aud, "volume", 2)}`);
+
+    // Le volume est la seule propriété animée que la chaîne de filtres rend
+    // NATIVEMENT — sans séquence d'images.
+    const expr = volumeExpression(aud, aud.start);
+    check("un volume animé produit une expression ffmpeg", Boolean(expr) && expr!.includes("if(lt("), String(expr));
+    const args = toBrowserPlan(q, browserOverlays(q)).args.join(" ");
+    check("l'expression est bien posée sur le filtre volume", args.includes("volume=volume='"), args.slice(0, 300));
+    check("un son NON animé garde un volume constant",
+      toBrowserPlan(sample(), []).args.join(" ").includes("volume=volume='") === false);
+  }
+
+  // ── L'avertissement nomme précisément ce qui ne sera pas rendu ───────────
+  {
+    // Le cadre d'un plan : ni le navigateur ni le serveur ne l'animent.
+    let p = setKeyframe(sample(), { kind: "clip", id: "plan" }, "x", 0, 0);
+    p = setKeyframe(p, { kind: "clip", id: "plan" }, "x", 5, 0.5);
+    check("le cadre animé d'un plan est signalé comme non rendu par le navigateur",
+      unrenderableKeyframes(p, "browser").includes("x"), unrenderableKeyframes(p, "browser").join(","));
+    check("et la décision de rendu le répercute", decideRenderTarget(p, 1024).keyframesFrozen === true);
+
+    // Un volume animé, lui, est rendu par le navigateur.
+    let q = addAudio(sample(), { id: "mus", src: "m.mp3", name: "M", role: "music" });
+    q = setKeyframe(q, { kind: "audio", id: "mus" }, "volume", 0, 1);
+    q = setKeyframe(q, { kind: "audio", id: "mus" }, "volume", 3, 0);
+    check("un volume animé n'est PAS signalé côté navigateur",
+      unrenderableKeyframes(q, "browser").length === 0, unrenderableKeyframes(q, "browser").join(","));
+    check("le serveur, lui, n'en rend aucun",
+      unrenderableKeyframes(q, "server").includes("volume"));
   }
 
   console.log(`\n${failures === 0 ? "✓ TOUT VERT" : `✗ ${failures} échec(s)`}\n`);

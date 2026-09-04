@@ -89,7 +89,9 @@ async function main() {
     check("A-04 · musique posée sous la voix par défaut", /DEFAULT_MUSIC_VOLUME = 0\.25/.test(projectSrc));
     check("A-04 · le son d'origine n'est coupé que sur demande explicite", /role === "original" && a\.muted/.test(preview));
     check("A-04 · la musique est écoutable avant le rendu", /<audio src=\{audio\.src\} controls/.test(panel) && /audioRefs/.test(preview));
-    check("A-04 · volume et fondus réglables par piste", /updateAudio\(p, audio\.id, \{ volume: v \}\)/.test(panel) && /fadeIn: v/.test(panel));
+    check("A-04 · volume et fondus réglables par piste",
+      /prop="volume" label=\{t\("Volume", "Volume"\)\}[\s\S]{0,200}?sel=\{\{ kind: "audio", id: audio\.id \}\}/.test(panel) &&
+      /fadeIn: v/.test(panel));
   }
 
   // ── A-01 · Plafond d'import relevé et expliqué ────────────────────────────
@@ -210,15 +212,17 @@ async function main() {
   // A2) : une piste n'a plus de statut de « base » particulier.
   {
     check("P2-1/P2-2 · l'opacité d'un plan est réglable dans le panneau, quelle que soit sa piste",
-      /setClipOpacity\(p, clip\.id, v \/ 100\)/.test(panel));
+      /\["x", "y", "w", "h", "opacity"\] as const/.test(panel) &&
+      /sel=\{\{ kind: "clip", id: clip\.id \}\}/.test(panel));
     // Position ET taille : la vraie « image dans l'image », une fenêtre
     // d'incrustation posée dans un coin plutôt qu'un plan qui couvre
     // toujours tout le cadre — la moitié la plus visible de P2-1.
+    // Les quatre champs passent désormais par `AnimatableRow`, qui écrit via
+    // `patchAnimated` — lequel retombe sur `setClipBox` tant que rien n'est
+    // animé. Le réglage reste donc exactement le même geste.
     check("P2-1 · le cadre (position, taille) d'un plan d'incrustation est réglable dans le panneau",
-      /setClipBox\(p, clip\.id, \{ x: v \/ 100 \}\)/.test(panel) &&
-      /setClipBox\(p, clip\.id, \{ y: v \/ 100 \}\)/.test(panel) &&
-      /setClipBox\(p, clip\.id, \{ w: v \/ 100 \}\)/.test(panel) &&
-      /setClipBox\(p, clip\.id, \{ h: v \/ 100 \}\)/.test(panel));
+      /\["x", "y", "w", "h", "opacity"\] as const/.test(panel) &&
+      /q = setClipBox\(q, sel\.id, box\)/.test(read("lib/editor/project.ts")));
     // Câblage côté aperçu : glisser-déposer et poignée de redimensionnement
     // pour un plan, sans poignée de rotation (P2-1 exclut délibérément la
     // rotation d'un plan, faute de savoir ce qu'elle signifie pour le
@@ -355,15 +359,20 @@ async function main() {
   // ── B-08 · Propriétés visuelles complètes, en saisie numérique ───────────
   {
     check("B-08 · un bloc de propriétés COMMUN", /const patchVisual = \(patch: Partial<VisualLayer>\)/.test(panel));
+    // Ces champs passent désormais par `AnimatableRow`, qui porte la saisie
+    // numérique ET le chronomètre d'images-clés sur la même ligne. Le réglage
+    // au clavier reste donc entier, sur les cinq propriétés.
     for (const [nom, motif] of [
-      ["position", /patchVisual\(\{ x: v \/ 100 \}\)/],
-      ["rotation", /patchVisual\(\{ rotation: v \}\)/],
-      ["opacité", /patchVisual\(\{ opacity: v \/ 100 \}\)/],
-      ["largeur", /updateShape\(p, shape\.id, \{ w: v \/ 100 \}\)/],
-      ["hauteur", /updateShape\(p, shape\.id, \{ h: v \/ 100 \}\)/],
+      ["position", /<AnimatableRow prop="x"/],
+      ["rotation", /<AnimatableRow prop="rotation"/],
+      ["opacité", /<AnimatableRow prop="opacity"/],
+      ["largeur", /<AnimatableRow prop="w"/],
+      ["hauteur", /<AnimatableRow prop="h"/],
     ] as const) {
       check(`B-08 · « ${nom} » réglable au clavier`, motif.test(panel));
     }
+    check("B-08 · une valeur saisie sur une ligne animable devient une clé, pas une valeur fixe",
+      /const write = \(value: number\) =>/.test(panel) && /patchAnimated\(p, sel, \{ \[prop\]: value \/ scale \}, playhead\)/.test(panel));
     check("B-08 · saisie numérique généralisée", /function NumberRow\(/.test(panel));
     check("B-08 · manipulation directe conservée", /mode: "resize"/.test(preview) && /mode: "rotate"/.test(preview));
   }
@@ -602,7 +611,7 @@ async function main() {
       /batchText\(\{ sizePct: v \/ 100 \}\)/.test(panel) &&
       /batchText\(\{ lineHeight: v \}\)/.test(panel) &&
       /batchText\(\{ wrapPct: v \/ 100 \}\)/.test(panel) &&
-      /batchText\(\{ align: "center" \}\)/.test(panel));
+      /batchText\(\{ align: a \}\)/.test(panel));
     check("constat 2 · un groupe visuel de types MÊLÉS règle position, opacité et alignement",
       /\{allVisual && \(/.test(panel) &&
       /patchVisual\(\{ x: v \/ 100 \}\)/.test(panel) &&
@@ -645,17 +654,32 @@ async function main() {
     check("constat 7 · écrire sur une propriété animée pose une CLÉ, pas une valeur fixe",
       /export function patchAnimated\(/.test(model) &&
       /patchAnimated\(p, \{ kind, id \}, patch, playhead\)/.test(panel));
-    check("constat 7 · un chronomètre par propriété, avec navigation et accélération",
-      /function KeyframeRow\(/.test(panel) && /Clé précédente/.test(panel) && /EasingKind/.test(panel));
+    check("constat 7 · le chronomètre est SUR LA LIGNE de la propriété, pas dans un bloc à part",
+      /function AnimatableRow\(/.test(panel) && /Clé précédente/.test(panel) &&
+      !/function KeyframeRow\(/.test(panel));
+    check("constat 7 · un PLAN s'anime aussi — cadre, opacité, volume",
+      /sel=\{\{ kind: "clip", id: clip\.id \}\}/.test(panel) &&
+      /if \(kind === "clip"\) return \["x", "y", "w", "h", "opacity", "volume"\]/.test(model));
+    check("constat 7 · un SON s'anime par son volume — baisser la musique sous une voix",
+      /sel=\{\{ kind: "audio", id: audio\.id \}\}/.test(panel) &&
+      /if \(kind === "audio"\) return \["volume"\]/.test(model));
+    check("constat 7 · un volume animé est RENDU, par expression ffmpeg",
+      /export function volumeExpression\(/.test(plan) && /volume=volume='\$\{clipVolume\}':eval=frame/.test(plan));
+    check("constat 7 · les images-clés SUIVENT leur élément quand il se déplace",
+      /export function shiftKeyframes\(/.test(model) &&
+      /keyframes: shiftKeyframes\(el\.keyframes, start - el\.start\)/.test(model));
+    check("constat 7 · l'avertissement nomme ce que le moteur ne sait pas animer",
+      /export function unrenderableKeyframes\(/.test(plan));
     check("constat 7 · figer une animation garde la valeur VUE, pas une valeur oubliée",
-      /export function clearKeyframes\(/.test(model) && /valueAt\(layer, prop, time\)/.test(model));
-    check("constat 7 · la timeline montre les clés sur le bloc",
+      /export function clearKeyframes\(/.test(model) && /const frozen = el \? valueAt\(el, prop, time\) : undefined/.test(model));
+    check("constat 7 · la timeline montre les clés sur TOUS les blocs, plans compris",
       /keyframeTimes=\{keyframesOfElement\(kind, it\.id\)\}/.test(timeline) &&
+      /keyframeTimes=\{keyframesOfElement\("clip", it\.id\)\}/.test(timeline) &&
       /rotate-45 bg-page/.test(timeline));
     check("constat 7 · un rendu qui ne saura PAS les animer est signalé avant l'export",
       /keyframesFrozen\?: boolean/.test(plan) && /decision\.keyframesFrozen && \(/.test(studio));
-    check("constat 7 · un calque sans clé garde exactement son comportement",
-      /if \(!hasKeyframes\(l\)\) return l;/.test(model));
+    check("constat 7 · un élément sans clé garde exactement son comportement",
+      /if \(!hasKeyframes\(el\)\) return el;/.test(model));
     check("constat 7 · GLISSER un calque animé dans l'aperçu pose aussi une clé",
       /patchAnimated\(p, \{ kind: "text", id: sel\.id \}/.test(studio) &&
       /patchAnimated\(p, \{ kind: "image", id: sel\.id \}/.test(studio) &&
@@ -684,8 +708,14 @@ async function main() {
     check("constat 5 · le micro est TOUJOURS relâché — démontage compris",
       /useEffect\(\(\) => teardown, \[teardown\]\)/.test(rec) &&
       /stream\.current\?\.getTracks\(\)\.forEach\(\(tr\) => tr\.stop\(\)\)/.test(rec));
-    check("constat 5 · un refus d'accès au micro est expliqué, pas silencieux",
-      /NotAllowedError/.test(rec) && /Accès au micro refusé/.test(rec));
+    check("constat 5 · chaque cause d'échec du micro a son propre message",
+      /window\.isSecureContext === false/.test(rec) && /NotAllowedError/.test(rec) &&
+      /NotFoundError/.test(rec) && /NotReadableError/.test(rec) &&
+      /Micro indisponible\$\{name \? ` \(\$\{name\}\)` : ""\}/.test(rec));
+    check("constat 5 · la demande d'autorisation est VISIBLE — le bouton ne reste pas inerte",
+      /setPhase\("asking"\)/.test(rec) && /phase === "asking"/.test(rec));
+    check("constat 5 · l'import d'un fichier son vit au même endroit que l'enregistrement",
+      /onImportFile/.test(rec) && /onImportFile=\{\(f\) => importFile\(f, "voice"\)\}/.test(studio));
     check("constat 5 · la prise se pose à l'instant où l'enregistrement a commencé",
       /const insertVoiceTake = useCallback\(/.test(studio) &&
       /role: "voice", sourceDuration: duration \}\),/.test(studio) &&
@@ -716,8 +746,37 @@ async function main() {
       /role: audioRoleOf\(p, m\.src\)/.test(studio));
     check("constat 6 · un chutier vide explique ce qui s'y trouvera, plutôt que de rester nu",
       /media\.length === 0/.test(bin));
-    check("constat 6 · une vignette qui ne se charge pas ne laisse pas une image cassée",
-      /onError=\{\(e\) => \{ \(e\.currentTarget as HTMLImageElement\)\.style\.visibility = "hidden"; \}\}/.test(bin));
+    check("constat 6 · deux affichages au choix — vignettes ou liste — et le choix est retenu",
+      /type BinView = "list" \| "grid"/.test(bin) && /localStorage\.setItem\(VIEW_KEY, v\)/.test(bin) &&
+      /useEffect\(\(\) => setView\(readView\(\)\), \[\]\)/.test(bin));
+    check("constat 6 · une vignette qui ne se charge pas retombe sur la pastille de type",
+      /onError=\{\(\) => setBroken\(true\)\}/.test(bin) && /m\.kind === "audio" \|\| broken/.test(bin));
+  }
+
+  // ── Lisibilité des panneaux (retours du 4 septembre) ─────────────────────
+  // Trois défauts relevés à l'usage : un panneau d'outils sans hiérarchie, des
+  // libellés qui débordent de leur cadre, et des bascules de style que rien ne
+  // permet de comprendre sans cliquer.
+  {
+    const bin = read("components/editor/MediaBin.tsx");
+    check("lisibilité · le panneau d'outils est découpé en sections nommées",
+      /function Section\(\{ title, children \}/.test(studio) &&
+      /<Section title=\{t\("Importer", "Import"\)\}/.test(studio) &&
+      /<Section title=\{t\("Sous-titres", "Subtitles"\)\}/.test(studio));
+    check("lisibilité · les boutons d'import alignent leur icône dans une gouttière fixe",
+      /<span aria-hidden className="w-4 shrink-0 text-center">\{icon\}<\/span>/.test(studio));
+    check("lisibilité · les bascules de style portent un MOT, pas un seul glyphe",
+      /function ToggleChip\(/.test(panel) && /label=\{t\("Bandeau", "Band"\)\}/.test(panel) &&
+      /label=\{t\("Contour", "Outline"\)\}/.test(panel));
+    check("lisibilité · un curseur met sa valeur sur sa propre ligne, plus rien ne déborde",
+      /<span className="flex items-baseline justify-between gap-2">/.test(panel));
+    check("lisibilité · les cadres de propriétés ne laissent plus échapper leur contenu",
+      /min-w-0 space-y-2 overflow-hidden rounded-lg border border-hair p-3/.test(panel));
+    check("lisibilité · la timeline dessine ses pistes, au lieu d'une surface unique",
+      /rounded-md border border-hair bg-card\/60 px-1/.test(timeline) &&
+      /track\.family === "audio" \? "bg-ai-textbg\/30" : "bg-card\/60"/.test(timeline));
+    check("lisibilité · le chutier propose vignettes OU liste",
+      /<ViewButton icon="▦"/.test(bin) && /<ViewButton icon="☰"/.test(bin));
   }
 
   // ── P1-13 · Un calque neuf se pose à la tête de lecture (audit Editing
@@ -744,13 +803,15 @@ async function main() {
     check("P3-1 · Toggle porte désormais un titre explicatif (infobulle + lecteur d'écran)",
       /function Toggle\(\{ on, onClick, title, children \}/.test(panel) &&
       /aria-label=\{title\}/.test(panel));
+    // Mieux qu'une infobulle : le mot est ÉCRIT sur la puce. Une infobulle ne
+    // se lit qu'au survol, et jamais sur un écran tactile.
     check("P3-1 · Gras/Bandeau/Contour/Ombre sont expliqués sur le panneau texte",
-      /title=\{t\("Gras", "Bold"\)\}/.test(panel) &&
-      /title=\{t\("Bandeau", "Background band"\)\}/.test(panel) &&
-      /title=\{t\("Contour", "Outline"\)\}/.test(panel) &&
-      /title=\{t\("Ombre", "Shadow"\)\}/.test(panel));
+      /label=\{t\("Gras", "Bold"\)\}/.test(panel) &&
+      /label=\{t\("Bandeau", "Band"\)\}/.test(panel) &&
+      /label=\{t\("Contour", "Outline"\)\}/.test(panel) &&
+      /label=\{t\("Ombre", "Shadow"\)\}/.test(panel));
     check("P3-1 · l'alignement de texte est expliqué, pas seulement dessiné en flèches",
-      /Aligné à gauche/.test(panel) && /Aligné à droite/.test(panel));
+      /t\("Gauche", "Left"\)/.test(panel) && /t\("Droite", "Right"\)/.test(panel));
     check("P3-1 · muet/audible s'explique sans avoir à deviner l'émoji",
       /Muet — cliquer pour réactiver/.test(panel) || /Muted — click to unmute/.test(panel));
   }

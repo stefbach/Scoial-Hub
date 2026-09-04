@@ -24,7 +24,7 @@ import { Spinner } from "@/components/ui/Spinner";
 /** Décompte avant le début réel de la prise, en secondes. */
 const COUNT_IN = 3;
 
-type Phase = "idle" | "counting" | "recording" | "review";
+type Phase = "idle" | "asking" | "counting" | "recording" | "review";
 
 /** Le format que le navigateur sait produire, le meilleur en premier. */
 function pickMimeType(): string | undefined {
@@ -39,6 +39,7 @@ export function VoiceRecorder({
   onPlay,
   onPause,
   onInsert,
+  onImportFile,
 }: {
   /** Instant du montage où la prise commencera — figé au lancement. */
   playhead: number;
@@ -49,6 +50,9 @@ export function VoiceRecorder({
   onPause: () => void;
   /** Hébergement puis pose sur la piste voix, à `at`. Rend vrai si c'est fait. */
   onInsert: (blob: Blob, fileName: string, at: number, duration: number) => Promise<boolean>;
+  /** Import d'un fichier son EXISTANT comme voix off — l'autre façon d'obtenir
+      la même chose, qui n'a aucune raison de vivre ailleurs dans le panneau. */
+  onImportFile: (file: File) => void;
 }) {
   const t = useT();
   const [phase, setPhase] = useState<Phase>("idle");
@@ -112,10 +116,21 @@ export function VoiceRecorder({
 
   async function start() {
     setError(null);
+
+    // Un contexte non sécurisé ne DEMANDE même pas l'autorisation : le
+    // navigateur retire `mediaDevices` sans le moindre message, et le bouton
+    // paraît alors simplement mort. C'est le premier cas à nommer.
+    if (typeof window !== "undefined" && window.isSecureContext === false) {
+      setError(t(
+        "Le micro n'est accessible qu'en HTTPS. Cette page est servie en HTTP, le navigateur bloque l'accès sans même le demander.",
+        "The microphone is only available over HTTPS. This page is served over HTTP, so the browser blocks access without even asking."
+      ));
+      return;
+    }
     if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
       setError(t(
-        "Ce navigateur ne donne pas accès au micro. Sur mobile ou en HTTP, l'enregistrement est bloqué par le navigateur lui-même.",
-        "This browser gives no microphone access. On mobile or over HTTP, recording is blocked by the browser itself."
+        "Ce navigateur ne donne pas accès au micro (mediaDevices absent).",
+        "This browser gives no microphone access (mediaDevices missing)."
       ));
       return;
     }
@@ -124,6 +139,11 @@ export function VoiceRecorder({
       setError(t("Ce navigateur ne sait pas enregistrer de son.", "This browser cannot record audio."));
       return;
     }
+
+    // L'autorisation peut prendre plusieurs secondes — le temps que
+    // l'utilisateur voie la demande et y réponde. Sans cet état, le bouton
+    // reste inerte et donne l'impression de n'avoir rien déclenché.
+    setPhase("asking");
 
     let src: MediaStream;
     try {
@@ -134,11 +154,28 @@ export function VoiceRecorder({
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
       });
     } catch (err) {
-      const denied = err instanceof DOMException && (err.name === "NotAllowedError" || err.name === "SecurityError");
-      setError(denied
-        ? t("Accès au micro refusé. Autorisez-le dans la barre d'adresse, puis réessayez.",
-            "Microphone access denied. Allow it from the address bar, then try again.")
-        : t("Aucun micro disponible.", "No microphone available."));
+      setPhase("idle");
+      const name = err instanceof DOMException ? err.name : "";
+      if (name === "NotAllowedError" || name === "SecurityError") {
+        setError(t(
+          "Accès au micro refusé. Autorisez-le dans la barre d'adresse (icône de cadenas), puis réessayez.",
+          "Microphone access denied. Allow it from the address bar (padlock icon), then try again."
+        ));
+      } else if (name === "NotFoundError" || name === "OverconstrainedError") {
+        setError(t("Aucun micro détecté sur cet appareil.", "No microphone detected on this device."));
+      } else if (name === "NotReadableError") {
+        setError(t(
+          "Le micro est déjà utilisé par une autre application.",
+          "The microphone is already in use by another application."
+        ));
+      } else {
+        // Le nom de l'erreur est affiché : sans lui, un cas non prévu se
+        // résume à « ça ne marche pas », ce qui n'aide personne à le corriger.
+        setError(t(
+          `Micro indisponible${name ? ` (${name})` : ""}.`,
+          `Microphone unavailable${name ? ` (${name})` : ""}.`
+        ));
+      }
       return;
     }
 
@@ -245,7 +282,21 @@ export function VoiceRecorder({
               `${COUNT_IN}s count-in, then the edit plays from the playhead (${playhead.toFixed(1)}s).`
             )}
           </p>
+          <FileButton
+            label={t("Ou importer un fichier son", "Or import a sound file")}
+            accept="audio/*"
+            onFile={onImportFile}
+          />
         </>
+      )}
+
+      {phase === "asking" && (
+        <div className="space-y-1.5 text-center">
+          <p className="text-2xs text-muted">
+            {t("Autorisez l'accès au micro dans le navigateur…", "Allow microphone access in the browser…")}
+          </p>
+          <Spinner size={14} className="mx-auto text-page" />
+        </div>
       )}
 
       {phase === "counting" && (
@@ -322,5 +373,23 @@ export function VoiceRecorder({
         </div>
       )}
     </div>
+  );
+}
+
+/** Import d'un fichier — le pendant de l'enregistrement, au même endroit. */
+function FileButton({ label, accept, onFile }: { label: string; accept: string; onFile: (f: File) => void }) {
+  const ref = useRef<HTMLInputElement>(null);
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => ref.current?.click()}
+        className="w-full rounded px-1.5 py-1 text-[10px] text-muted ring-1 ring-hair hover:text-ink"
+      >
+        📁 {label}
+      </button>
+      <input ref={ref} type="file" accept={accept} className="hidden"
+        onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); e.target.value = ""; }} />
+    </>
   );
 }

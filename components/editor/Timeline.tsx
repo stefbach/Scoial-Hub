@@ -381,14 +381,14 @@ export function Timeline({
 
   const lanes = displayTracks.map((tr) => ({ track: tr, items: placedOn(tr.id) }));
 
-  /** Instants des images-clés d'un calque — vide pour un plan ou un son, qui
-      n'en portent pas (voir `AnimatableProp`). */
+  /** Instants des images-clés d'un élément, quel que soit son type. */
   function keyframesOfElement(kind: ElementKind, id: string): number[] {
-    const l = kind === "text" ? project.texts.find((x) => x.id === id)
+    const el = kind === "clip" ? project.clips.find((x) => x.id === id)
+      : kind === "text" ? project.texts.find((x) => x.id === id)
       : kind === "image" ? project.images.find((x) => x.id === id)
       : kind === "shape" ? project.shapes.find((x) => x.id === id)
-      : undefined;
-    return l ? keyframeTimes(l) : [];
+      : project.audios.find((x) => x.id === id);
+    return el ? keyframeTimes(el) : [];
   }
   const rowsOf = (items: Placed[]) => Math.max(1, ...items.map((it) => it.lane + 1));
 
@@ -740,7 +740,9 @@ export function Timeline({
             <div
               key={track.id}
               style={{ height: LANE_H * rowsOf(items) }}
-              className={`flex w-20 items-center text-[9px] uppercase tracking-wide text-muted ${track.hidden ? "opacity-40" : ""}`}
+              className={`flex w-20 items-center rounded-md border border-hair bg-card/60 px-1 text-[9px] uppercase tracking-wide text-muted ${
+                track.hidden ? "opacity-40" : ""
+              }`}
             >
               <TrackLabel
                 name={
@@ -786,7 +788,15 @@ export function Timeline({
                   else laneRefs.current.delete(track.id);
                 }}
                 style={{ height: LANE_H * rowsOf(items) }}
-                className={`relative ${track.hidden ? "opacity-40" : ""}`}
+                // Une bande dessinée, pas un vide : sans fond ni bordure, rien
+                // ne disait où finissait une piste et où commençait la
+                // suivante — la timeline se lisait comme une seule surface.
+                // Les pistes SONORES ont leur propre teinte : c'est la
+                // convention de tout banc de montage, et elle évite de
+                // confondre une piste son avec une piste vidéo vide.
+                className={`relative rounded-md border border-hair ${
+                  track.family === "audio" ? "bg-ai-textbg/30" : "bg-card/60"
+                } ${track.hidden ? "opacity-40" : ""}`}
                 onPointerDown={onLanePointerDown}
                 onContextMenu={(e) => {
                   if (!onLaneContextMenu) return;
@@ -816,6 +826,7 @@ export function Timeline({
                         selected={(selection?.kind === "clip" && selection.id === it.id) || Boolean(multiSelectedKeys?.has(`clip:${it.id}`))}
                         locked={locked}
                         dim={Boolean(track.hidden)}
+                        keyframeTimes={keyframesOfElement("clip", it.id)}
                         onSelect={(e) => onSelect({ kind: "clip", id: it.id }, e)}
                         onContextMenu={(e) => onContextMenu?.({ kind: "clip", id: it.id }, e)}
                         onTrimStart={(edge, e) => { if (!locked) beginDrag({ type: "trim", clipId: it.id, edge, startX: e.clientX }); }}
@@ -923,6 +934,7 @@ function ClipBlock({
   selected,
   locked,
   dim,
+  keyframeTimes: keys = [],
   onSelect,
   onContextMenu,
   onTrimStart,
@@ -937,6 +949,8 @@ function ClipBlock({
   locked?: boolean;
   /** Piste masquée — indication visuelle seule, la piste reste sélectionnable. */
   dim?: boolean;
+  /** Instants ABSOLUS des images-clés du plan, repérés sur le bloc. */
+  keyframeTimes?: number[];
   onSelect: (e: React.PointerEvent) => void;
   onContextMenu?: (e: { clientX: number; clientY: number }) => void;
   onTrimStart: (edge: "head" | "tail", e: React.PointerEvent) => void;
@@ -976,6 +990,16 @@ function ClipBlock({
         {locked ? "🔒 " : dim ? "🚫 " : ""}{clip.kind === "image" ? "🖼" : "🎬"} {clip.length.toFixed(1)}s
         {clip.speed !== 1 && ` · ${clip.speed}×`}
       </span>
+      {/* Images-clés : un losange par instant, au bas du bloc — le seul endroit
+          où l'on voit d'un coup d'œil quel élément bouge, et quand. */}
+      {keys.map((at) => (
+        <span
+          key={at}
+          aria-hidden
+          className="pointer-events-none absolute bottom-0.5 h-1.5 w-1.5 -translate-x-1/2 rotate-45 bg-page ring-1 ring-card"
+          style={{ left: Math.max(3, timeToPx(at - clip.start, pxPerSec)) }}
+        />
+      ))}
       {/* Poignées de rognage : une par extrémité — retirées si la piste est
           verrouillée, pour ne pas promettre un geste qui ne fera rien. */}
       {!locked && (

@@ -11,8 +11,12 @@ import {
   ANIMATION_SECONDS,
   FORMAT_SIZE,
   hasKeyframes,
+  keyframesOf,
   projectDuration,
   projectHasKeyframes,
+  type Animatable,
+  type AnimatableProp,
+  type Keyframe,
   type AnimationKind,
   type AudioTrack,
   type Clip,
@@ -98,7 +102,7 @@ export interface RenderDecision {
 export function decideRenderTarget(p: EditorProject, totalSourceBytes: number): RenderDecision {
   const duration = projectDuration(p);
   const animated = projectHasKeyframes(p);
-  /** Le serveur ne rend pas les images-clés : on le signale au lieu de le taire. */
+  /** Le serveur ne rend AUCUNE image-clé : on le signale au lieu de le taire. */
   const toServer = (reason: string): RenderDecision =>
     animated ? { target: "server", reason, keyframesFrozen: true } : { target: "server", reason };
 
@@ -113,7 +117,14 @@ export function decideRenderTarget(p: EditorProject, totalSourceBytes: number): 
   if (animated && keyframeFrameCount(p) > MAX_KEYFRAME_FRAMES) {
     return toServer("images-clés trop longues à composer");
   }
-  return { target: "browser", reason: animated ? "montage léger, calques animés" : "montage léger" };
+  // Le navigateur rend les calques animés et les volumes animés, mais pas le
+  // CADRE d'un plan : si le montage en anime un, on le dit aussi.
+  const frozen = animated && unrenderableKeyframes(p, "browser").length > 0;
+  return {
+    target: "browser",
+    reason: animated ? "montage léger, éléments animés" : "montage léger",
+    ...(frozen ? { keyframesFrozen: true } : {}),
+  };
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -375,6 +386,77 @@ export const KEYFRAME_FPS = 12;
  */
 export const MAX_KEYFRAME_FRAMES = 360;
 
+/**
+ * Expression ffmpeg d'un volume animé par images-clés.
+ *
+ * Le filtre `volume` accepte une expression évaluée à chaque image (`eval=frame`)
+ * — c'est la SEULE propriété animée que la chaîne de filtres sait rendre
+ * nativement, sans passer par une séquence d'images. `offset` traduit le temps
+ * du flux audio en temps du film : la piste est décodée depuis son propre
+ * zéro, mais ses clés sont posées sur la timeline.
+ *
+ * Les accélérations sont reproduites à l'identique de `EASINGS` côté modèle —
+ * une courbe qui diffèrerait entre l'aperçu et l'export serait pire que pas de
+ * courbe du tout. Renvoie null s'il n'y a rien à animer.
+ */
+export function volumeExpression(el: Animatable, offset: number): string | null {
+  const keys = keyframesOf(el, "volume");
+  if (keys.length === 0) return null;
+  const T = `(t+${offset.toFixed(3)})`;
+  const v = (n: number) => n.toFixed(4);
+  if (keys.length === 1) return v(keys[0].value);
+
+  /** Progression 0..1 dans le segment, courbée comme dans le modèle. */
+  const eased = (a: Keyframe, b: Keyframe): string => {
+    const q = `((${T}-${a.time.toFixed(3)})/${(b.time - a.time).toFixed(3)})`;
+    if (a.easing === "ease-in") return `pow(${q},2)`;
+    if (a.easing === "ease-out") return `(1-pow(1-${q},2))`;
+    if (a.easing === "ease-in-out") return `if(lt(${q},0.5),2*pow(${q},2),1-pow(-2*${q}+2,2)/2)`;
+    return q;
+  };
+
+  // Construit de la FIN vers le début : chaque segment enveloppe le suivant.
+  let expr = v(keys[keys.length - 1].value);
+  for (let i = keys.length - 2; i >= 0; i -= 1) {
+    const a = keys[i];
+    const b = keys[i + 1];
+    const seg = b.time - a.time <= 0
+      ? v(b.value)
+      : `${v(a.value)}+${v(b.value - a.value)}*(${eased(a, b)})`;
+    expr = `if(lt(${T},${b.time.toFixed(3)}),${seg},${expr})`;
+  }
+  // Avant la première clé, la valeur de cette clé — même règle que `valueAt`.
+  return `if(lt(${T},${keys[0].time.toFixed(3)}),${v(keys[0].value)},${expr})`;
+}
+
+/**
+ * Propriétés animées que le moteur retenu NE SAURA PAS rendre.
+ *
+ * Le navigateur échantillonne les calques en séquences de PNG et sait animer
+ * un volume par expression ; il ne sait pas animer le CADRE d'un plan, qui
+ * demanderait une expression temporelle dans la chaîne de mise au format. Le
+ * serveur, lui, ne rend aucune image-clé. Nommer précisément ce qui sera figé
+ * vaut mieux qu'un avertissement vague — ou pire, que le silence.
+ */
+export function unrenderableKeyframes(p: EditorProject, target: RenderTarget): AnimatableProp[] {
+  const found = new Set<AnimatableProp>();
+  const collect = (el: { keyframes?: Record<string, unknown> }, allowed: AnimatableProp[]) => {
+    for (const prop of Object.keys(el.keyframes ?? {}) as AnimatableProp[]) {
+      if (!hasKeyframes(el as Animatable, prop)) continue;
+      if (!allowed.includes(prop)) found.add(prop);
+    }
+  };
+  const none: AnimatableProp[] = [];
+  const layerOk: AnimatableProp[] = target === "browser" ? ["x", "y", "opacity", "rotation", "scale"] : none;
+  const clipOk: AnimatableProp[] = target === "browser" ? ["volume"] : none;
+  const audioOk: AnimatableProp[] = target === "browser" ? ["volume"] : none;
+
+  for (const c of p.clips) collect(c, clipOk);
+  for (const l of [...p.texts, ...p.images, ...p.shapes]) collect(l, layerOk);
+  for (const a of p.audios) collect(a, audioOk);
+  return [...found];
+}
+
 /** Nom du fichier d'une image de séquence — partagé avec qui écrit les fichiers. */
 export function overlayFrameName(pattern: string, index: number): string {
   return pattern.replace("%03d", String(index).padStart(3, "0"));
@@ -550,7 +632,10 @@ export function toBrowserPlan(p: EditorProject, overlays: OverlayInput[] = []): 
   // Le son embarqué du plan lui-même suit exactement le même traitement.
   const audioLabels: string[] = [];
   if (keepOriginal) {
-    const steps = [`volume=${clip.volume.toFixed(2)}`];
+    // Le son embarqué du plan est décodé depuis son propre zéro : ses clés,
+    // elles, sont posées sur la timeline. `clip.start` fait le pont.
+    const clipVolume = volumeExpression(clip, clip.start);
+    const steps = [clipVolume ? `volume=volume='${clipVolume}':eval=frame` : `volume=${clip.volume.toFixed(2)}`];
     if (clip.fadeIn > 0) steps.push(`afade=t=in:st=0:d=${clip.fadeIn}`);
     if (clip.fadeOut > 0) steps.push(`afade=t=out:st=${Math.max(0, clip.length - clip.fadeOut).toFixed(2)}:d=${clip.fadeOut}`);
     filters.push(`[0:a]${steps.join(",")}[mv]`);
@@ -558,7 +643,8 @@ export function toBrowserPlan(p: EditorProject, overlays: OverlayInput[] = []): 
   }
   audible.forEach((a, i) => {
     const idx = 1 + overlays.length + i;
-    const steps = [`volume=${a.volume.toFixed(2)}`];
+    const trackVolume = volumeExpression(a, a.start);
+    const steps = [trackVolume ? `volume=volume='${trackVolume}':eval=frame` : `volume=${a.volume.toFixed(2)}`];
     if (a.fadeIn > 0) steps.push(`afade=t=in:st=0:d=${a.fadeIn}`);
     if (a.fadeOut > 0) steps.push(`afade=t=out:st=${Math.max(0, a.length - a.fadeOut).toFixed(2)}:d=${a.fadeOut}`);
     filters.push(`[${idx}:a]${steps.join(",")}[m${i}]`);

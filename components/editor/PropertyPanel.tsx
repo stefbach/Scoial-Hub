@@ -38,6 +38,8 @@ import {
   updateShape,
   updateText,
   valueAt,
+  type Animatable,
+  type AnimatableKind,
   type AnimatableProp,
   type AnimationKind,
   type EasingKind,
@@ -212,20 +214,25 @@ export function PropertyPanel({
               Bench, P2-1). N'importe quel plan peut désormais s'en servir,
               pas seulement une « piste d'incrustation » — une piste n'a plus
               de statut particulier depuis les pistes libres (Lot A2). */}
-          <div className="grid grid-cols-2 gap-2">
-            <NumberRow label="X" unit="%" value={clip.x * 100} step={1} compact
-              onChange={(v) => onChange((p) => setClipBox(p, clip.id, { x: v / 100 }))} />
-            <NumberRow label="Y" unit="%" value={clip.y * 100} step={1} compact
-              onChange={(v) => onChange((p) => setClipBox(p, clip.id, { y: v / 100 }))} />
-            <NumberRow label={t("Largeur", "Width")} unit="%" value={clip.w * 100} step={1} min={2} compact
-              onChange={(v) => onChange((p) => setClipBox(p, clip.id, { w: v / 100 }))} />
-            <NumberRow label={t("Hauteur", "Height")} unit="%" value={clip.h * 100} step={1} min={2} compact
-              onChange={(v) => onChange((p) => setClipBox(p, clip.id, { h: v / 100 }))} />
-          </div>
-          <NumberRow
-            label={t("Opacité", "Opacity")} unit="%" value={clip.opacity * 100} step={5} min={0} max={100}
-            onChange={(v) => onChange((p) => setClipOpacity(p, clip.id, v / 100))}
-          />
+          {/* Un plan s'anime comme un calque : le cadre et l'opacité portent
+              leur propre chronomètre, sur la même ligne que la valeur. */}
+          {(["x", "y", "w", "h", "opacity"] as const).map((prop) => (
+            <AnimatableRow
+              key={prop}
+              prop={prop}
+              label={PROP_LABEL(t)[prop]}
+              unit="%"
+              scale={100}
+              step={prop === "opacity" ? 5 : 1}
+              min={prop === "w" || prop === "h" ? 2 : prop === "opacity" ? 0 : undefined}
+              max={prop === "opacity" ? 100 : undefined}
+              element={clip}
+              sel={{ kind: "clip", id: clip.id }}
+              playhead={playhead}
+              onChange={onChange}
+              onSeek={onSeek}
+            />
+          ))}
 
           <TrackPicker
             project={project} family="visual" value={clip.trackId}
@@ -254,9 +261,11 @@ export function PropertyPanel({
               v4). Sans objet pour une photo. */}
           {clip.kind === "video" && (
             <>
-              <Range label={t("Volume", "Volume")} min={0} max={1} step={0.05} value={clip.volume}
-                display={`${Math.round(clip.volume * 100)}%`}
-                onChange={(v) => onChange((p) => setClipAudio(p, clip.id, { volume: v }))} />
+              <AnimatableRow
+                prop="volume" label={t("Volume", "Volume")} unit="%" scale={100} step={5} min={0} max={100}
+                element={clip} sel={{ kind: "clip", id: clip.id }} playhead={playhead}
+                onChange={onChange} onSeek={onSeek}
+              />
               <Range label={t("Fondu d'entrée", "Fade in")} min={0} max={5} step={0.1} value={clip.fadeIn}
                 display={`${clip.fadeIn.toFixed(1)}s`}
                 onChange={(v) => onChange((p) => setClipAudio(p, clip.id, { fadeIn: v }))} />
@@ -277,33 +286,45 @@ export function PropertyPanel({
       {/* ── Bloc commun à tout élément visuel ────────────────────────────── */}
       {visual && (
         <Panel title={t("Position et apparence", "Position and appearance")}>
-          <div className="grid grid-cols-2 gap-2">
-            <NumberRow label="X" unit="%" value={visual.x * 100} step={1} compact
-              onChange={(v) => patchVisual({ x: v / 100 })} />
-            <NumberRow label="Y" unit="%" value={visual.y * 100} step={1} compact
-              onChange={(v) => patchVisual({ y: v / 100 })} />
-            {image && (
-              <>
-                <NumberRow label={t("Largeur", "Width")} unit="%" value={image.scale * 100} step={1} compact
-                  onChange={(v) => onChange((p) => updateImageLayer(p, image.id, { scale: v / 100 }))} />
-                <NumberRow label={t("Hauteur", "Height")} unit="%" value={image.heightPct * 100} step={1} compact
-                  autoLabel={t("auto", "auto")}
-                  onChange={(v) => onChange((p) => updateImageLayer(p, image.id, { heightPct: v / 100 }))} />
-              </>
-            )}
-            {shape && (
-              <>
-                <NumberRow label={t("Largeur", "Width")} unit="%" value={shape.w * 100} step={1} compact
-                  onChange={(v) => onChange((p) => updateShape(p, shape.id, { w: v / 100 }))} />
-                <NumberRow label={t("Hauteur", "Height")} unit="%" value={shape.h * 100} step={1} compact
-                  onChange={(v) => onChange((p) => updateShape(p, shape.id, { h: v / 100 }))} />
-              </>
-            )}
-            <NumberRow label={t("Rotation", "Rotation")} unit="°" value={visual.rotation} step={5} compact
-              onChange={(v) => patchVisual({ rotation: v })} />
-            <NumberRow label={t("Opacité", "Opacity")} unit="%" value={visual.opacity * 100} step={5} min={0} max={100} compact
-              onChange={(v) => patchVisual({ opacity: v / 100 })} />
-          </div>
+          {visualKind && visualId && (
+            <>
+              <AnimatableRow prop="x" label={PROP_LABEL(t).x} unit="%" scale={100} step={1}
+                element={visual} sel={{ kind: visualKind, id: visualId }} playhead={playhead}
+                onChange={onChange} onSeek={onSeek} />
+              <AnimatableRow prop="y" label={PROP_LABEL(t).y} unit="%" scale={100} step={1}
+                element={visual} sel={{ kind: visualKind, id: visualId }} playhead={playhead}
+                onChange={onChange} onSeek={onSeek} />
+              {image && (
+                <>
+                  <AnimatableRow prop="scale" label={PROP_LABEL(t).w} unit="%" scale={100} step={1} min={1}
+                    element={image} sel={{ kind: "image", id: image.id }} playhead={playhead}
+                    onChange={onChange} onSeek={onSeek} />
+                  {/* La hauteur d'une incrustation n'est pas animable : elle
+                      se déduit du rapport natif de l'image dès qu'on ne la
+                      force pas, ce qu'une clé rendrait incompréhensible. */}
+                  <NumberRow label={PROP_LABEL(t).h} unit="%" value={image.heightPct * 100} step={1}
+                    autoLabel={t("auto", "auto")}
+                    onChange={(v) => onChange((p) => updateImageLayer(p, image.id, { heightPct: v / 100 }))} />
+                </>
+              )}
+              {shape && (
+                <>
+                  <AnimatableRow prop="w" label={PROP_LABEL(t).w} unit="%" scale={100} step={1} min={2}
+                    element={shape} sel={{ kind: "shape", id: shape.id }} playhead={playhead}
+                    onChange={onChange} onSeek={onSeek} />
+                  <AnimatableRow prop="h" label={PROP_LABEL(t).h} unit="%" scale={100} step={1} min={2}
+                    element={shape} sel={{ kind: "shape", id: shape.id }} playhead={playhead}
+                    onChange={onChange} onSeek={onSeek} />
+                </>
+              )}
+              <AnimatableRow prop="rotation" label={PROP_LABEL(t).rotation} unit="°" step={5}
+                element={visual} sel={{ kind: visualKind, id: visualId }} playhead={playhead}
+                onChange={onChange} onSeek={onSeek} />
+              <AnimatableRow prop="opacity" label={PROP_LABEL(t).opacity} unit="%" scale={100} step={5} min={0} max={100}
+                element={visual} sel={{ kind: visualKind, id: visualId }} playhead={playhead}
+                onChange={onChange} onSeek={onSeek} />
+            </>
+          )}
 
           {/* Alignement — le champ existait dans le modèle sans être exposé
               nulle part, et rien ne permettait de caler un élément au cadre. */}
@@ -316,27 +337,6 @@ export function PropertyPanel({
             <AlignButton label="⇕" title={t("Milieu", "Middle")} onClick={() => patchVisual({ y: centerY(shape?.h ?? image?.heightPct) })} />
             <AlignButton label="⤓" title={t("En bas", "Bottom")} onClick={() => patchVisual({ y: bottomY(shape?.h ?? image?.heightPct) })} />
           </div>
-
-          {/* Images-clés — le chronomètre par propriété, comme dans tout banc
-              de montage : c'est lui qui transforme une valeur fixe en valeur
-              animée (audit v4, constat 7). */}
-          {visualKind && visualId && (
-            <div className="space-y-1 border-t border-hair pt-2">
-              <p className="text-2xs text-muted">{t("Images-clés", "Keyframes")}</p>
-              {animatableProps(visualKind).map((prop) => (
-                <KeyframeRow
-                  key={prop}
-                  prop={prop}
-                  layer={visual}
-                  playhead={playhead}
-                  onSet={(value, easing) => onChange((p) => setKeyframe(p, { kind: visualKind, id: visualId }, prop, playhead, value, easing))}
-                  onRemove={(at) => onChange((p) => removeKeyframe(p, { kind: visualKind, id: visualId }, prop, at))}
-                  onClear={() => onChange((p) => clearKeyframes(p, { kind: visualKind, id: visualId }, prop, playhead))}
-                  onSeek={onSeek}
-                />
-              ))}
-            </div>
-          )}
 
           <BoundsRow
             start={visual.start} end={visual.end} max={total} playhead={playhead}
@@ -396,20 +396,37 @@ export function PropertyPanel({
             onChange={(v) => onChange((p) => updateText(p, text.id, { wrapPct: v }))} />
 
           <ColorSwatches value={text.color} onChange={(c) => onChange((p) => updateText(p, text.id, { color: c }))} brand={brand} />
-          <div className="flex flex-wrap items-center gap-1.5">
-            <Toggle title={t("Gras", "Bold")} on={text.bold} onClick={() => onChange((p) => updateText(p, text.id, { bold: !text.bold }))}>G</Toggle>
-            <Toggle title={t("Bandeau", "Background band")} on={text.bg} onClick={() => onChange((p) => updateText(p, text.id, { bg: !text.bg }))}>▬</Toggle>
-            <Toggle title={t("Contour", "Outline")} on={text.outline} onClick={() => onChange((p) => updateText(p, text.id, { outline: !text.outline }))}>◌</Toggle>
-            <Toggle title={t("Ombre", "Shadow")} on={text.shadow} onClick={() => onChange((p) => updateText(p, text.id, { shadow: !text.shadow }))}>◍</Toggle>
-            {(["left", "center", "right"] as const).map((a) => (
-              <Toggle
-                key={a} on={text.align === a}
-                title={a === "left" ? t("Aligné à gauche", "Left-aligned") : a === "center" ? t("Centré", "Centered") : t("Aligné à droite", "Right-aligned")}
-                onClick={() => onChange((p) => updateText(p, text.id, { align: a }))}
-              >
-                {a === "left" ? "⯇" : a === "center" ? "≡" : "⯈"}
-              </Toggle>
-            ))}
+
+          <div className="space-y-1">
+            <p className="text-[10px] uppercase tracking-wide text-muted">{t("Style", "Style")}</p>
+            <div className="flex flex-wrap items-center gap-1">
+              <ToggleChip icon="𝐁" label={t("Gras", "Bold")} on={text.bold}
+                onClick={() => onChange((p) => updateText(p, text.id, { bold: !text.bold }))} />
+              <ToggleChip icon="▬" label={t("Bandeau", "Band")}
+                title={t("Bandeau semi-transparent derrière le texte", "Semi-transparent band behind the text")}
+                on={text.bg} onClick={() => onChange((p) => updateText(p, text.id, { bg: !text.bg }))} />
+              <ToggleChip icon="◌" label={t("Contour", "Outline")}
+                title={t("Contour sombre — lisibilité sur fond clair", "Dark outline — legibility on a light background")}
+                on={text.outline} onClick={() => onChange((p) => updateText(p, text.id, { outline: !text.outline }))} />
+              <ToggleChip icon="◍" label={t("Ombre", "Shadow")}
+                title={t("Ombre portée — lisibilité sur fond chargé", "Drop shadow — legibility on a busy background")}
+                on={text.shadow} onClick={() => onChange((p) => updateText(p, text.id, { shadow: !text.shadow }))} />
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <p className="text-[10px] uppercase tracking-wide text-muted">{t("Alignement", "Alignment")}</p>
+            <div className="flex flex-wrap items-center gap-1">
+              {(["left", "center", "right"] as const).map((a) => (
+                <ToggleChip
+                  key={a}
+                  on={text.align === a}
+                  icon={a === "left" ? "⯇" : a === "center" ? "≡" : "⯈"}
+                  label={a === "left" ? t("Gauche", "Left") : a === "center" ? t("Centre", "Centre") : t("Droite", "Right")}
+                  onClick={() => onChange((p) => updateText(p, text.id, { align: a }))}
+                />
+              ))}
+            </div>
           </div>
         </Panel>
       )}
@@ -460,9 +477,13 @@ export function PropertyPanel({
           <p className="truncate text-2xs text-muted" title={audio.name}>{audio.name}</p>
           {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
           <audio src={audio.src} controls className="w-full" />
-          <Range label={t("Volume", "Volume")} min={0} max={1} step={0.05} value={audio.volume}
-            display={`${Math.round(audio.volume * 100)}%`}
-            onChange={(v) => onChange((p) => updateAudio(p, audio.id, { volume: v }))} />
+          {/* Le seul réglage animable d'un son — et le plus utile : baisser la
+              musique sous une voix off se fait exactement comme ça. */}
+          <AnimatableRow
+            prop="volume" label={t("Volume", "Volume")} unit="%" scale={100} step={5} min={0} max={100}
+            element={audio} sel={{ kind: "audio", id: audio.id }} playhead={playhead}
+            onChange={onChange} onSeek={onSeek}
+          />
           <Range label={t("Fondu d'entrée", "Fade in")} min={0} max={5} step={0.1} value={audio.fadeIn}
             display={`${audio.fadeIn.toFixed(1)}s`}
             onChange={(v) => onChange((p) => updateAudio(p, audio.id, { fadeIn: v }))} />
@@ -503,79 +524,126 @@ const bottomY = (h?: number) => (h ? 0.95 - h : 0.85);
 
 /* ── Petits composants ───────────────────────────────────────────────────── */
 
-/* ── Images-clés ─────────────────────────────────────────────────────────── */
+/* ── Propriété animable ──────────────────────────────────────────────────── */
 
-const PROP_LABEL: Record<AnimatableProp, { fr: string; en: string }> = {
-  x: { fr: "Position X", en: "Position X" },
-  y: { fr: "Position Y", en: "Position Y" },
-  opacity: { fr: "Opacité", en: "Opacity" },
-  rotation: { fr: "Rotation", en: "Rotation" },
-  scale: { fr: "Échelle", en: "Scale" },
-};
+/** Libellés des propriétés animables — les mêmes partout dans le panneau. */
+const PROP_LABEL = (t: (fr: string, en: string) => string): Record<AnimatableProp, string> => ({
+  x: t("Position X", "Position X"),
+  y: t("Position Y", "Position Y"),
+  w: t("Largeur", "Width"),
+  h: t("Hauteur", "Height"),
+  opacity: t("Opacité", "Opacity"),
+  rotation: t("Rotation", "Rotation"),
+  scale: t("Largeur", "Width"),
+  volume: t("Volume", "Volume"),
+});
 
 const EASINGS: { key: EasingKind; fr: string; en: string }[] = [
   { key: "linear", fr: "Linéaire", en: "Linear" },
   { key: "ease-in", fr: "Départ doux", en: "Ease in" },
   { key: "ease-out", fr: "Arrivée douce", en: "Ease out" },
-  { key: "ease-in-out", fr: "Doux aux deux bouts", en: "Ease in-out" },
+  { key: "ease-in-out", fr: "Doux ↔", en: "Ease both" },
 ];
 
 /** Tolérance pour dire qu'une clé se trouve « à » la tête de lecture. */
 const AT_PLAYHEAD = 0.02;
 
 /**
- * Une ligne d'images-clés, pour UNE propriété.
+ * Une propriété réglable, avec son chronomètre d'images-clés SUR LA MÊME
+ * LIGNE.
  *
- * Le chronomètre est l'interrupteur : éteint, la propriété est fixe et se
- * règle au champ juste au-dessus ; allumé, elle est animée et chaque valeur
- * saisie devient une clé à la tête de lecture. L'éteindre ne remet pas le
- * calque dans un état oublié — il le fige sur ce qu'on voit à cet instant.
+ * C'est la disposition de tous les bancs de montage professionnels, et elle
+ * n'est pas cosmétique : une animation se règle en allant et venant entre la
+ * valeur et le temps. Séparer les deux dans deux blocs distincts obligeait à
+ * relier de tête un nom de propriété d'un côté à un champ de l'autre, et
+ * rendait invisible le fait qu'une propriété est animée quand on la modifie.
+ *
+ * La seconde ligne — navigation, accélération, décompte — n'apparaît QUE si la
+ * propriété est animée : une ligne inerte sous chaque réglage serait du bruit
+ * dans une colonne de trois cents pixels.
  */
-function KeyframeRow({
-  prop, layer, playhead, onSet, onRemove, onClear, onSeek,
+function AnimatableRow({
+  label, unit, prop, element, sel, playhead, scale = 1, step, min, max, autoLabel, onChange, onSeek,
 }: {
+  label: string;
+  unit: string;
   prop: AnimatableProp;
-  layer: VisualLayer;
+  /** L'élément TEL QU'IL EST ENREGISTRÉ — pas résolu : on lit ses clés. */
+  element: Animatable;
+  sel: { kind: AnimatableKind; id: string };
   playhead: number;
-  onSet: (value: number, easing: EasingKind) => void;
-  onRemove: (at: number) => void;
-  onClear: () => void;
+  /** Facteur d'affichage : 100 pour une fraction montrée en pourcentage. */
+  scale?: number;
+  step: number;
+  min?: number;
+  max?: number;
+  /** Texte en filigrane quand 0 signifie « déduite » plutôt que « nulle ». */
+  autoLabel?: string;
+  onChange: (fn: (p: EditorProject) => EditorProject) => void;
   onSeek: (time: number) => void;
 }) {
   const t = useT();
-  const keys = keyframesOf(layer, prop);
+  const keys = keyframesOf(element, prop);
   const animated = keys.length > 0;
   const here = keys.find((k) => Math.abs(k.time - playhead) <= AT_PLAYHEAD) ?? null;
   const prev = [...keys].reverse().find((k) => k.time < playhead - AT_PLAYHEAD) ?? null;
   const next = keys.find((k) => k.time > playhead + AT_PLAYHEAD) ?? null;
-  const label = t(PROP_LABEL[prop].fr, PROP_LABEL[prop].en);
+  // La valeur MONTRÉE est celle de l'instant courant, animée ou non — sans
+  // quoi le champ afficherait une valeur fixe que l'écran ne montre plus.
+  const shown = valueAt(element, prop, playhead) * scale;
+  const isAuto = autoLabel !== undefined && shown === 0;
+
+  const write = (value: number) =>
+    onChange((p) => patchAnimated(p, sel, { [prop]: value / scale }, playhead));
 
   return (
-    <div className="flex items-center gap-1 text-2xs text-muted">
-      <button
-        type="button"
-        aria-pressed={animated}
-        title={animated
-          ? t(`${label} : animée — cliquer pour figer sur la valeur actuelle`, `${label}: animated — click to freeze at the current value`)
-          : t(`${label} : fixe — cliquer pour l'animer`, `${label}: static — click to animate it`)}
-        onClick={() => (animated ? onClear() : onSet(staticValue(layer, prop), "linear"))}
-        className={`h-5 w-5 shrink-0 rounded text-[10px] ${animated ? "bg-page text-white" : "text-muted ring-1 ring-hair"}`}
-      >
-        ⏱
-      </button>
-      <span className="w-14 shrink-0 truncate" title={label}>{label}</span>
+    <div className="space-y-0.5">
+      <div className="flex items-center gap-1.5 text-2xs text-muted">
+        <button
+          type="button"
+          aria-pressed={animated}
+          title={animated
+            ? t(`${label} : animée — cliquer pour figer sur la valeur actuelle`, `${label}: animated — click to freeze at the current value`)
+            : t(`${label} : fixe — cliquer pour l'animer`, `${label}: static — click to animate it`)}
+          onClick={() => onChange((p) => (animated
+            ? clearKeyframes(p, sel, prop, playhead)
+            : setKeyframe(p, sel, prop, playhead, staticValue(element, prop), "linear")))}
+          className={`h-5 w-5 shrink-0 rounded text-[10px] leading-none ${
+            animated ? "bg-page text-white" : "text-muted ring-1 ring-hair hover:text-ink"
+          }`}
+        >
+          ⏱
+        </button>
+        <span className="min-w-0 flex-1 truncate" title={label}>{label}</span>
+        <input
+          type="number"
+          value={isAuto ? "" : Math.round(shown * 100) / 100}
+          placeholder={isAuto ? autoLabel : undefined}
+          step={step}
+          min={min}
+          max={max}
+          onChange={(e) => {
+            const v = Number(e.target.value);
+            if (e.target.value !== "" && Number.isFinite(v)) write(v);
+          }}
+          className="w-16 shrink-0 rounded-md border border-hair bg-transparent px-1 py-0.5 text-right tabular-nums text-ink placeholder:text-muted placeholder:italic [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+        />
+        <span className="w-3 shrink-0 text-[10px]">{unit}</span>
+      </div>
 
-      {animated ? (
-        <>
+      {animated && (
+        <div className="flex items-center gap-1 pl-6 text-2xs text-muted">
           <KfButton label="◀" title={t("Clé précédente", "Previous keyframe")}
             disabled={!prev} onClick={() => prev && onSeek(prev.time)} />
           {/* Losange plein : une clé est posée ICI. Creux : il n'y en a pas —
-              cliquer en pose une avec la valeur interpolée du moment, ce qui
-              ne change donc rien à l'image tant qu'on ne la modifie pas. */}
+              en poser une reprend la valeur interpolée du moment, ce qui ne
+              change donc rien à l'image tant qu'on ne la modifie pas. */}
           <KfButton
             label={here ? "◆" : "◇"}
             title={here ? t("Retirer la clé ici", "Remove the keyframe here") : t("Poser une clé ici", "Add a keyframe here")}
-            onClick={() => (here ? onRemove(here.time) : onSet(valueAt(layer, prop, playhead), "linear"))}
+            onClick={() => onChange((p) => (here
+              ? removeKeyframe(p, sel, prop, here.time)
+              : setKeyframe(p, sel, prop, playhead, valueAt(element, prop, playhead), "linear")))}
           />
           <KfButton label="▶" title={t("Clé suivante", "Next keyframe")}
             disabled={!next} onClick={() => next && onSeek(next.time)} />
@@ -583,19 +651,15 @@ function KeyframeRow({
             value={here?.easing ?? "linear"}
             disabled={!here}
             title={t("Accélération du segment qui part de cette clé", "Easing of the segment starting at this keyframe")}
-            onChange={(e) => here && onSet(here.value, e.target.value as EasingKind)}
+            onChange={(e) => here && onChange((p) => setKeyframe(p, sel, prop, here.time, here.value, e.target.value as EasingKind))}
             className="input min-w-0 flex-1 py-0.5 text-[10px] disabled:opacity-40"
           >
             {EASINGS.map((o) => (
               <option key={o.key} value={o.key}>{t(o.fr, o.en)}</option>
             ))}
           </select>
-          <span className="shrink-0 tabular-nums">{keys.length}</span>
-        </>
-      ) : (
-        <span className="flex-1 truncate text-[10px]">
-          {t("valeur fixe", "static value")}
-        </span>
+          <span className="shrink-0 tabular-nums" title={t("Nombre de clés", "Number of keyframes")}>{keys.length}</span>
+        </div>
       )}
     </div>
   );
@@ -609,7 +673,7 @@ function KfButton({ label, title, onClick, disabled }: { label: string; title: s
       aria-label={title}
       disabled={disabled}
       onClick={onClick}
-      className="h-5 w-5 shrink-0 rounded text-[10px] text-muted ring-1 ring-hair enabled:hover:text-ink disabled:opacity-30"
+      className="h-5 w-5 shrink-0 rounded text-[10px] leading-none text-muted ring-1 ring-hair enabled:hover:text-ink disabled:opacity-30"
     >
       {label}
     </button>
@@ -810,22 +874,26 @@ function MultiSelectionPanel({
             onChange={(c) => batchText({ color: c })}
             brand={brand}
           />
-          <div className="flex flex-wrap items-center gap-1.5">
-            <Toggle title={t("Gras", "Bold")} on={sharedValue(texts.map((l) => l.bold)) === true}
-              onClick={() => batchText({ bold: sharedValue(texts.map((l) => l.bold)) !== true })}>G</Toggle>
-            <Toggle title={t("Bandeau", "Background band")} on={sharedValue(texts.map((l) => l.bg)) === true}
-              onClick={() => batchText({ bg: sharedValue(texts.map((l) => l.bg)) !== true })}>▬</Toggle>
-            <Toggle title={t("Contour", "Outline")} on={sharedValue(texts.map((l) => l.outline)) === true}
-              onClick={() => batchText({ outline: sharedValue(texts.map((l) => l.outline)) !== true })}>◌</Toggle>
-            <Toggle title={t("Ombre", "Shadow")} on={sharedValue(texts.map((l) => l.shadow)) === true}
-              onClick={() => batchText({ shadow: sharedValue(texts.map((l) => l.shadow)) !== true })}>◍</Toggle>
-            <span className="mx-1 h-4 w-px bg-hair" />
-            <Toggle title={t("Aligner à gauche", "Align left")} on={sharedValue(texts.map((l) => l.align)) === "left"}
-              onClick={() => batchText({ align: "left" })}>⇤</Toggle>
-            <Toggle title={t("Centrer", "Align centre")} on={sharedValue(texts.map((l) => l.align)) === "center"}
-              onClick={() => batchText({ align: "center" })}>⇔</Toggle>
-            <Toggle title={t("Aligner à droite", "Align right")} on={sharedValue(texts.map((l) => l.align)) === "right"}
-              onClick={() => batchText({ align: "right" })}>⇥</Toggle>
+          <div className="flex flex-wrap items-center gap-1">
+            <ToggleChip icon="𝐁" label={t("Gras", "Bold")} on={sharedValue(texts.map((l) => l.bold)) === true}
+              onClick={() => batchText({ bold: sharedValue(texts.map((l) => l.bold)) !== true })} />
+            <ToggleChip icon="▬" label={t("Bandeau", "Band")} on={sharedValue(texts.map((l) => l.bg)) === true}
+              onClick={() => batchText({ bg: sharedValue(texts.map((l) => l.bg)) !== true })} />
+            <ToggleChip icon="◌" label={t("Contour", "Outline")} on={sharedValue(texts.map((l) => l.outline)) === true}
+              onClick={() => batchText({ outline: sharedValue(texts.map((l) => l.outline)) !== true })} />
+            <ToggleChip icon="◍" label={t("Ombre", "Shadow")} on={sharedValue(texts.map((l) => l.shadow)) === true}
+              onClick={() => batchText({ shadow: sharedValue(texts.map((l) => l.shadow)) !== true })} />
+          </div>
+          <div className="flex flex-wrap items-center gap-1">
+            {(["left", "center", "right"] as const).map((a) => (
+              <ToggleChip
+                key={a}
+                on={sharedValue(texts.map((l) => l.align)) === a}
+                icon={a === "left" ? "⯇" : a === "center" ? "≡" : "⯈"}
+                label={a === "left" ? t("Gauche", "Left") : a === "center" ? t("Centre", "Centre") : t("Droite", "Right")}
+                onClick={() => batchText({ align: a })}
+              />
+            ))}
           </div>
         </Panel>
       )}
@@ -926,7 +994,10 @@ function MultiNumberRow({
 
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="space-y-2 rounded-lg border border-hair p-3">
+    // `min-w-0` + `overflow-hidden` : un enfant en `flex` peut sinon imposer sa
+    // largeur intrinsèque et déborder du cadre, ce qui se voyait sur les
+    // libellés longs et la rangée de pastilles de couleur.
+    <div className="min-w-0 space-y-2 overflow-hidden rounded-lg border border-hair p-3">
       <p className="text-2xs font-semibold uppercase tracking-wide text-muted">{title}</p>
       {children}
     </div>
@@ -940,6 +1011,37 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
  * Optionnel : un bouton déjà libellé en toutes lettres (« Remplir », etc.)
  * n'en a pas besoin.
  */
+/**
+ * Bascule LIBELLÉE. Les symboles seuls — G, ▬, ◌, ◍ — n'étaient déchiffrables
+ * qu'en cliquant pour voir ce qui change : une infobulle ne se lit qu'au
+ * survol, et jamais sur un écran tactile. Le mot tient dans la largeur du
+ * panneau dès qu'on laisse les puces passer à la ligne.
+ */
+function ToggleChip({
+  on, onClick, icon, label, title,
+}: {
+  on: boolean;
+  onClick: () => void;
+  icon: string;
+  label: string;
+  title?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={on}
+      title={title ?? label}
+      className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] leading-none ${
+        on ? "bg-page text-white" : "text-muted ring-1 ring-hair hover:text-ink"
+      }`}
+    >
+      <span aria-hidden className="text-[11px]">{icon}</span>
+      <span>{label}</span>
+    </button>
+  );
+}
+
 function Toggle({ on, onClick, title, children }: { on: boolean; onClick: () => void; title?: string; children: React.ReactNode }) {
   return (
     <button type="button" onClick={onClick} aria-pressed={on} title={title} aria-label={title}
@@ -975,7 +1077,7 @@ function ColorSwatches({
       {[...PRESET_COLORS, ...brand.palette].slice(0, 10).map((c, i) => (
         <button key={`${c}-${i}`} type="button" aria-label={c} title={c}
           onClick={() => onChange(c)}
-          className={`h-5 w-5 rounded-full ring-1 ring-hair ${value === c ? "ring-2 ring-page" : ""}`}
+          className={`h-5 w-5 shrink-0 rounded-full ring-1 ring-hair ${value === c ? "ring-2 ring-page" : ""}`}
           style={{ background: c }} />
       ))}
       <label
@@ -1010,12 +1112,18 @@ function Range({
   label: string; min: number; max: number; step: number; value: number; display: string;
   onChange: (v: number) => void;
 }) {
+  // Étiquette et valeur SUR LEUR PROPRE LIGNE, curseur en dessous. Sur une
+  // seule ligne, une étiquette fixée à 80 px et une valeur à 40 px ne
+  // laissaient presque rien au curseur dans une colonne de 300 px, et un
+  // libellé un peu long débordait de son cadre (« Largeur de bloc … libre »).
   return (
-    <label className="flex items-center gap-2 text-2xs text-muted">
-      <span className="w-20 shrink-0">{label}</span>
+    <label className="block space-y-0.5 text-2xs text-muted">
+      <span className="flex items-baseline justify-between gap-2">
+        <span className="min-w-0 truncate" title={label}>{label}</span>
+        <span className="shrink-0 tabular-nums text-ink">{display}</span>
+      </span>
       <input type="range" min={min} max={max} step={step} value={value}
-        onChange={(e) => onChange(Number(e.target.value))} className="flex-1 accent-page" />
-      <span className="w-10 shrink-0 text-right text-ink">{display}</span>
+        onChange={(e) => onChange(Number(e.target.value))} className="w-full accent-page" />
     </label>
   );
 }
@@ -1043,7 +1151,7 @@ function NumberRow({
   const isAuto = autoLabel !== undefined && value === 0;
   return (
     <label className={`flex items-center gap-1.5 text-2xs text-muted ${compact ? "" : "w-full"}`}>
-      <span className={compact ? "w-14 shrink-0" : "w-20 shrink-0"}>{label}</span>
+      <span className={`truncate ${compact ? "w-14 shrink-0" : "w-20 shrink-0"}`} title={label}>{label}</span>
       <input
         type="number"
         value={isAuto ? "" : Number.isFinite(value) ? Math.round(value * 100) / 100 : 0}
@@ -1113,7 +1221,7 @@ function SelectRow({
 }) {
   return (
     <label className={`flex items-center gap-1.5 text-2xs text-muted ${compact ? "" : "gap-2"}`}>
-      <span className={compact ? "w-12 shrink-0" : "w-20 shrink-0"}>{label}</span>
+      <span className={`truncate ${compact ? "w-12 shrink-0" : "w-20 shrink-0"}`} title={label}>{label}</span>
       <select value={value} onChange={(e) => onChange(e.target.value)} className="input min-w-0 flex-1 py-0.5 text-2xs">
         {options.map((o) => (
           <option key={o.value} value={o.value}>{o.label}</option>

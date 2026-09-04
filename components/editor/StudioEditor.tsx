@@ -1204,23 +1204,46 @@ export function StudioEditor({
               </div>
 
               {tool === "media" && (
-                <div className="space-y-2">
-                  <ImportButton label={t("＋ Plan vidéo ou photo", "＋ Video or photo")} accept="video/*,image/*" onFile={(f) => importFile(f, "clip")} />
-                  <ImportButton label={t("♪ Musique", "♪ Music")} accept="audio/*" onFile={(f) => importFile(f, "music")} />
-                  <ImportButton label={t("🎙 Voix off (fichier)", "🎙 Voiceover (file)")} accept="audio/*" onFile={(f) => importFile(f, "voice")} />
-                  <ImportButton label={t("🖼 Incrustation", "🖼 Overlay")} accept="image/*" onFile={(f) => importFile(f, "overlay")} />
-                  <hr className="border-hair" />
-                  {/* Enregistrement au micro — le module « Voix off » n'était
-                      qu'un import de fichier, identique à « Musique » au rôle
-                      près (audit v4, constat 5). */}
+                <div className="space-y-3">
+                  {/* IMPORTER · CRÉER · VOIX OFF · CHUTIER · SOUS-TITRES.
+                      Le panneau était une pile plate de boutons et de réglages
+                      sans hiérarchie : quatre imports, un enregistreur, un
+                      chutier, un bouton de texte et trois réglages de
+                      sous-titrage se suivaient au même niveau. Les sections
+                      nommées disent ce qu'on cherche AVANT de le lire. */}
+                  <Section title={t("Importer", "Import")}>
+                    <ImportButton label={t("Plan vidéo ou photo", "Video or photo")} icon="🎬" accept="video/*,image/*" onFile={(f) => importFile(f, "clip")} />
+                    <ImportButton label={t("Incrustation", "Overlay")} icon="🖼" accept="image/*" onFile={(f) => importFile(f, "overlay")} />
+                    <ImportButton label={t("Musique", "Music")} icon="♪" accept="audio/*" onFile={(f) => importFile(f, "music")} />
+                  </Section>
+
+                  <Section title={t("Ajouter", "Add")}>
+                    <button
+                      type="button"
+                      onClick={() => apply((p) => addText(p, nextId("t"), t("Votre texte", "Your text"), playhead, brand.font))}
+                      className="btn-secondary flex w-full items-center gap-2 text-xs"
+                    >
+                      <span aria-hidden className="w-4 text-center">T</span>
+                      {t("Texte", "Text")}
+                    </button>
+                    <p className="text-[10px] text-muted">
+                      {t("Formes et boutons : onglet Formes.", "Shapes and buttons: Shapes tab.")}
+                    </p>
+                  </Section>
+
+                  {/* Enregistrement au micro ET import de fichier au même
+                      endroit : ce sont deux façons d'obtenir la MÊME chose, les
+                      séparer obligeait à chercher la seconde ailleurs
+                      (audit v4, constat 5). */}
                   <VoiceRecorder
                     playhead={playhead}
                     busy={Boolean(busy)}
                     onPlay={() => setPlaying(true)}
                     onPause={() => setPlaying(false)}
                     onInsert={insertVoiceTake}
+                    onImportFile={(f) => importFile(f, "voice")}
                   />
-                  <hr className="border-hair" />
+
                   {/* Chutier — reposer un média déjà dans le projet sans le
                       réimporter, ce qui créait jusqu'ici un second fichier
                       hébergé pour le même contenu (audit v4, constat 6). */}
@@ -1240,47 +1263,42 @@ export function StudioEditor({
                       provenance: m.provenance,
                     }))}
                   />
-                  <hr className="border-hair" />
-                  <button
-                    type="button"
-                    onClick={() => apply((p) => addText(p, nextId("t"), t("Votre texte", "Your text"), playhead, brand.font))}
-                    className="btn-secondary w-full text-xs"
-                  >
-                    ➕ {t("Ajouter un texte", "Add text")}
-                  </button>
-                  {/* Langue RÉELLEMENT parlée dans le média — jamais imposée
-                      depuis la langue de l'interface (audit Editing Bench,
-                      P1-7). Vide = détection automatique par Whisper. */}
-                  <label className="block text-2xs text-muted">
-                    {t("Langue parlée dans le média", "Language spoken in the media")}
-                    <select
-                      value={subtitleLang}
-                      onChange={(e) => setSubtitleLang(e.target.value)}
-                      className="input mt-0.5 w-full text-xs"
+
+                  <Section title={t("Sous-titres", "Subtitles")}>
+                    {/* Langue RÉELLEMENT parlée dans le média — jamais imposée
+                        depuis la langue de l'interface (audit Editing Bench,
+                        P1-7). Vide = détection automatique par Whisper. */}
+                    <label className="block text-2xs text-muted">
+                      {t("Langue parlée", "Spoken language")}
+                      <select
+                        value={subtitleLang}
+                        onChange={(e) => setSubtitleLang(e.target.value)}
+                        className="input mt-0.5 w-full text-xs"
+                      >
+                        <option value="">{t("Détection automatique", "Auto-detect")}</option>
+                        {SUBTITLE_LANGS.map((l) => (
+                          <option key={l.code} value={l.code}>{lang === "en" ? l.en : l.fr}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="flex items-center gap-1.5 text-2xs text-muted">
+                      <input
+                        type="checkbox"
+                        checked={subtitleTranslate}
+                        onChange={(e) => setSubtitleTranslate(e.target.checked)}
+                      />
+                      {t("Traduire vers l'anglais", "Translate to English")}
+                    </label>
+                    <button
+                      type="button"
+                      onClick={transcribe}
+                      disabled={Boolean(busy)}
+                      className="btn-secondary w-full text-xs disabled:opacity-50"
+                      title={t("Transcrit la parole et pose des sous-titres minutés", "Transcribes speech into timed subtitles")}
                     >
-                      <option value="">{t("Détection automatique", "Auto-detect")}</option>
-                      {SUBTITLE_LANGS.map((l) => (
-                        <option key={l.code} value={l.code}>{lang === "en" ? l.en : l.fr}</option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="flex items-center gap-1.5 text-2xs text-muted">
-                    <input
-                      type="checkbox"
-                      checked={subtitleTranslate}
-                      onChange={(e) => setSubtitleTranslate(e.target.checked)}
-                    />
-                    {t("Traduire vers l'anglais", "Translate to English")}
-                  </label>
-                  <button
-                    type="button"
-                    onClick={transcribe}
-                    disabled={Boolean(busy)}
-                    className="btn-secondary w-full text-xs disabled:opacity-50"
-                    title={t("Transcrit la parole et pose des sous-titres minutés", "Transcribes speech into timed subtitles")}
-                  >
-                    💬 {t("Sous-titrer automatiquement", "Auto-subtitle")}
-                  </button>
+                      💬 {t("Sous-titrer automatiquement", "Auto-subtitle")}
+                    </button>
+                  </Section>
                 </div>
               )}
 
@@ -1367,7 +1385,7 @@ export function StudioEditor({
             </main>
 
             {/* Colonne droite : propriétés */}
-            <aside className="hidden min-h-0 overflow-y-auto overscroll-contain border-l border-hair bg-card p-3 lg:block">
+            <aside className="hidden min-h-0 min-w-0 overflow-y-auto overscroll-contain border-l border-hair bg-card p-3 lg:block">
               <PropertyPanel
                 project={project}
                 selection={selection}
@@ -1980,11 +1998,35 @@ function ToolButton({ children, onClick, disabled }: { children: React.ReactNode
   );
 }
 
-function ImportButton({ label, accept, onFile }: { label: string; accept: string; onFile: (f: File) => void }) {
+/**
+ * Section nommée du panneau d'outils. Le titre n'est pas décoratif : c'est ce
+ * qui permet de trouver un réglage SANS le lire — on cherche « Sous-titres »,
+ * pas « le troisième menu déroulant en partant du bas ».
+ */
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="space-y-1.5 rounded-lg border border-hair p-2">
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">{title}</p>
+      {children}
+    </section>
+  );
+}
+
+function ImportButton({ label, icon, accept, onFile }: { label: string; icon?: string; accept: string; onFile: (f: File) => void }) {
   const ref = useRef<HTMLInputElement>(null);
   return (
     <>
-      <button type="button" onClick={() => ref.current?.click()} className="btn-secondary w-full text-2xs">{label}</button>
+      {/* Icône dans une gouttière de largeur FIXE : sans elle, les libellés
+          ne s'alignaient pas d'un bouton à l'autre et la colonne se lisait
+          comme une liste en désordre. */}
+      <button
+        type="button"
+        onClick={() => ref.current?.click()}
+        className="btn-secondary flex w-full items-center gap-2 text-xs"
+      >
+        {icon && <span aria-hidden className="w-4 shrink-0 text-center">{icon}</span>}
+        <span className="min-w-0 truncate text-left">{label}</span>
+      </button>
       <input ref={ref} type="file" accept={accept} className="hidden"
         onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); e.target.value = ""; }} />
     </>

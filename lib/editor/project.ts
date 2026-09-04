@@ -185,6 +185,8 @@ export interface Clip {
   muted: boolean;
   /** Traçabilité si le plan vient d'une bibliothèque externe (Lot A-3). */
   provenance?: Provenance;
+  /** Images-clés (constat 7). Absent tant que rien n'est animé. */
+  keyframes?: Keyframes;
 }
 
 /** Calque de texte. */
@@ -267,6 +269,8 @@ export interface AudioTrack {
   trackId: string;
   /** Traçabilité si le son vient d'une bibliothèque externe (Lot A-3). */
   provenance?: Provenance;
+  /** Images-clés — le volume seul, pour un son (constat 7). */
+  keyframes?: Keyframes;
 }
 
 /**
@@ -834,28 +838,37 @@ export function moveElement(
   sel: { kind: "clip" | TimedLayerKind; id: string },
   patch: { trackId?: string; start?: number }
 ): EditorProject {
+  // Un plan comme un son emporte ses images-clés : elles portent un instant
+  // absolu, et les laisser sur place ferait jouer l'animation là où l'élément
+  // n'est plus.
+  const moved = <T extends { id: string; start: number; trackId: string; keyframes?: Keyframes }>(el: T): T => {
+    const start = patch.start === undefined ? el.start : Math.max(0, round(patch.start));
+    return {
+      ...el,
+      trackId: patch.trackId ?? el.trackId,
+      start,
+      keyframes: shiftKeyframes(el.keyframes, start - el.start),
+    };
+  };
   if (sel.kind === "clip") {
-    return normalize({
-      ...p,
-      clips: p.clips.map((c) => (c.id === sel.id
-        ? { ...c, trackId: patch.trackId ?? c.trackId, start: patch.start === undefined ? c.start : Math.max(0, round(patch.start)) }
-        : c)),
-    });
+    return normalize({ ...p, clips: p.clips.map((c) => (c.id === sel.id ? moved(c) : c)) });
   }
   if (sel.kind === "audio") {
-    return normalize({
-      ...p,
-      audios: p.audios.map((a) => (a.id === sel.id
-        ? { ...a, trackId: patch.trackId ?? a.trackId, start: patch.start === undefined ? a.start : Math.max(0, round(patch.start)) }
-        : a)),
-    });
+    return normalize({ ...p, audios: p.audios.map((a) => (a.id === sel.id ? moved(a) : a)) });
   }
   const list = sel.kind === "text" ? p.texts : sel.kind === "image" ? p.images : p.shapes;
   const l = list.find((x) => x.id === sel.id);
   if (!l) return p;
   const span = l.end - l.start;
   const start = patch.start === undefined ? l.start : Math.max(0, round(patch.start));
-  const layerPatch = { start, end: round(start + span), trackId: patch.trackId ?? l.trackId };
+  // L'animation SUIT le calque : ses images-clés portent un instant absolu, et
+  // les laisser sur place ferait jouer l'animation là où l'élément n'est plus.
+  const layerPatch = {
+    start,
+    end: round(start + span),
+    trackId: patch.trackId ?? l.trackId,
+    keyframes: shiftKeyframes(l.keyframes, start - l.start),
+  };
   if (sel.kind === "text") return normalize({ ...p, texts: p.texts.map((x) => (x.id === sel.id ? { ...x, ...layerPatch } : x)) });
   if (sel.kind === "image") return normalize({ ...p, images: p.images.map((x) => (x.id === sel.id ? { ...x, ...layerPatch } : x)) });
   return normalize({ ...p, shapes: p.shapes.map((x) => (x.id === sel.id ? { ...x, ...layerPatch } : x)) });
@@ -866,49 +879,63 @@ export function moveElement(
 /**
  * Propriété qu'une image-clé sait animer.
  *
- * La liste s'arrête là où les DEUX moteurs de rendu s'arrêtent : ce sont les
- * valeurs que le dessin sur canevas produit à n'importe quel instant, donc
- * celles que l'aperçu et l'export navigateur peuvent reproduire à l'identique.
- * Animer la taille d'un texte ou les dimensions d'une forme n'aurait rien de
- * plus difficile à afficher — mais rien ne le rendrait à l'export, et un
- * aperçu qui ment est pire qu'une propriété absente.
+ * La liste couvre TOUS les types d'éléments — un plan vidéo comme un texte,
+ * un son comme une forme. Chaque type n'en expose que ce qu'il possède
+ * réellement (`animatableProps`) : animer la rotation d'un son n'aurait aucun
+ * sens, pas plus que l'échelle d'une forme, qui se dimensionne en `w`/`h`.
  */
-export type AnimatableProp = "x" | "y" | "opacity" | "rotation" | "scale";
+export type AnimatableProp = "x" | "y" | "w" | "h" | "opacity" | "rotation" | "scale" | "volume";
 
 /** Accélération du segment qui PART d'une image-clé. */
 export type EasingKind = "linear" | "ease-in" | "ease-out" | "ease-in-out";
 
 export interface Keyframe {
-  /** Instant ABSOLU sur la timeline, en secondes — jamais relatif au calque :
-      déplacer le calque doit emporter son animation sans la recalculer. */
+  /** Instant ABSOLU sur la timeline, en secondes. Un déplacement de l'élément
+      emporte ses clés (`shiftKeyframes`) : l'animation lui appartient. */
   time: number;
   value: number;
   easing: EasingKind;
 }
 
-/** Images-clés d'un calque, par propriété. Une propriété absente est fixe. */
+/** Images-clés d'un élément, par propriété. Une propriété absente est fixe. */
 export type Keyframes = Partial<Record<AnimatableProp, Keyframe[]>>;
 
-/** Type de calque animable — le plan de base en est exclu (voir `AnimatableProp`). */
-export type AnimatableKind = "text" | "image" | "shape";
+/** Tout élément animable — plan, calque ou son — vu par ses seuls champs utiles. */
+export type Animatable = { keyframes?: Keyframes } & Partial<Record<AnimatableProp, number>>;
+
+/** Type d'élément portant des images-clés. */
+export type AnimatableKind = "clip" | "text" | "image" | "shape" | "audio";
+
+/** Valeur d'une propriété quand l'élément ne la porte pas du tout. */
+const PROP_DEFAULT: Record<AnimatableProp, number> = {
+  x: 0, y: 0, w: 1, h: 1, opacity: 1, rotation: 0, scale: 1, volume: 1,
+};
+
+/** Bornes d'une propriété — les mêmes qu'appliquent les mises à jour ordinaires. */
+function clampProp(prop: AnimatableProp, v: number): number {
+  if (prop === "opacity" || prop === "volume") return clamp(v, 0, 1);
+  if (prop === "w" || prop === "h" || prop === "scale") return Math.max(0.02, v);
+  return v;
+}
 
 /**
- * Propriétés animables d'un type de calque. `scale` n'existe que sur une
- * incrustation : un texte se dimensionne par `sizePct`, une forme par `w`/`h`,
- * et ni l'un ni l'autre n'est rendu par une mise à l'échelle du dessin.
+ * Propriétés animables d'un type d'élément — strictement celles qu'il possède.
+ * Un plan n'a pas de rotation (P2-1) ; un texte se dimensionne par `sizePct`
+ * et une incrustation par `scale`, ni l'un ni l'autre par `w`/`h` ; un son n'a
+ * que son volume.
  */
 export function animatableProps(kind: AnimatableKind): AnimatableProp[] {
-  const common: AnimatableProp[] = ["x", "y", "opacity", "rotation"];
-  return kind === "image" ? [...common, "scale"] : common;
+  if (kind === "audio") return ["volume"];
+  if (kind === "clip") return ["x", "y", "w", "h", "opacity", "volume"];
+  if (kind === "image") return ["x", "y", "scale", "opacity", "rotation"];
+  if (kind === "shape") return ["x", "y", "w", "h", "opacity", "rotation"];
+  return ["x", "y", "opacity", "rotation"];
 }
 
 /** Valeur fixe d'une propriété — celle qui sert quand rien ne l'anime. */
-export function staticValue(l: VisualLayer, prop: AnimatableProp): number {
-  if (prop === "x") return l.x;
-  if (prop === "y") return l.y;
-  if (prop === "opacity") return l.opacity;
-  if (prop === "rotation") return l.rotation;
-  return (l as ImageLayer).scale ?? 1;
+export function staticValue(el: Animatable, prop: AnimatableProp): number {
+  const v = el[prop];
+  return typeof v === "number" && Number.isFinite(v) ? v : PROP_DEFAULT[prop];
 }
 
 const EASINGS: Record<EasingKind, (t: number) => number> = {
@@ -919,13 +946,13 @@ const EASINGS: Record<EasingKind, (t: number) => number> = {
 };
 
 /** Images-clés d'une propriété, TOUJOURS triées — l'ordre de pose est libre. */
-export function keyframesOf(l: VisualLayer, prop: AnimatableProp): Keyframe[] {
-  return (l.keyframes?.[prop] ?? []).slice().sort((a, b) => a.time - b.time);
+export function keyframesOf(el: Animatable, prop: AnimatableProp): Keyframe[] {
+  return (el.keyframes?.[prop] ?? []).slice().sort((a, b) => a.time - b.time);
 }
 
-export function hasKeyframes(l: VisualLayer, prop?: AnimatableProp): boolean {
-  if (prop) return keyframesOf(l, prop).length > 0;
-  return Object.values(l.keyframes ?? {}).some((ks) => (ks?.length ?? 0) > 0);
+export function hasKeyframes(el: Animatable, prop?: AnimatableProp): boolean {
+  if (prop) return (el.keyframes?.[prop]?.length ?? 0) > 0;
+  return Object.values(el.keyframes ?? {}).some((ks) => (ks?.length ?? 0) > 0);
 }
 
 /**
@@ -936,9 +963,9 @@ export function hasKeyframes(l: VisualLayer, prop?: AnimatableProp): boolean {
  * TIENT au-delà de ses bornes plutôt que de sauter à la valeur fixe, qui n'a
  * plus de sens dès qu'une clé existe.
  */
-export function valueAt(l: VisualLayer, prop: AnimatableProp, time: number): number {
-  const keys = keyframesOf(l, prop);
-  if (keys.length === 0) return staticValue(l, prop);
+export function valueAt(el: Animatable, prop: AnimatableProp, time: number): number {
+  const keys = keyframesOf(el, prop);
+  if (keys.length === 0) return staticValue(el, prop);
   if (keys.length === 1 || time <= keys[0].time) return keys[0].value;
   const last = keys[keys.length - 1];
   if (time >= last.time) return last.value;
@@ -955,57 +982,81 @@ export function valueAt(l: VisualLayer, prop: AnimatableProp, time: number): num
 }
 
 /**
- * Le calque tel qu'il est À CET INSTANT : ses propriétés animées remplacées
- * par leur valeur interpolée. Un calque sans image-clé est renvoyé TEL QUEL —
+ * L'élément tel qu'il est À CET INSTANT : ses propriétés animées remplacées
+ * par leur valeur interpolée. Un élément sans image-clé est renvoyé TEL QUEL —
  * même référence, donc aucun rendu inutile déclenché en aval.
  */
-export function layerAt<T extends VisualLayer>(l: T, time: number): T {
-  if (!hasKeyframes(l)) return l;
-  const out = { ...l };
-  for (const prop of Object.keys(l.keyframes ?? {}) as AnimatableProp[]) {
-    if (!hasKeyframes(l, prop)) continue;
-    const v = valueAt(l, prop, time);
-    if (prop === "x") out.x = v;
-    else if (prop === "y") out.y = v;
-    else if (prop === "opacity") out.opacity = clamp(v, 0, 1);
-    else if (prop === "rotation") out.rotation = v;
-    else (out as unknown as ImageLayer).scale = Math.max(0.01, v);
+export function layerAt<T extends Animatable>(el: T, time: number): T {
+  if (!hasKeyframes(el)) return el;
+  const out: Record<string, unknown> = { ...el };
+  for (const prop of Object.keys(el.keyframes ?? {}) as AnimatableProp[]) {
+    if (!hasKeyframes(el, prop)) continue;
+    out[prop] = clampProp(prop, valueAt(el, prop, time));
   }
-  return out;
+  return out as T;
 }
 
-/** Vrai dès qu'un calque du montage porte au moins une image-clé. */
+/** Vrai dès qu'un élément du montage porte au moins une image-clé. */
 export function projectHasKeyframes(p: EditorProject): boolean {
-  return [...p.texts, ...p.images, ...p.shapes].some((l) => hasKeyframes(l));
+  return [...p.clips, ...p.texts, ...p.images, ...p.shapes, ...p.audios].some((el) => hasKeyframes(el));
 }
 
-/** Instants où AU MOINS une propriété du calque porte une clé — pour la timeline. */
-export function keyframeTimes(l: VisualLayer): number[] {
+/** Instants où AU MOINS une propriété de l'élément porte une clé — pour la timeline. */
+export function keyframeTimes(el: Animatable): number[] {
   const times = new Set<number>();
-  for (const ks of Object.values(l.keyframes ?? {})) {
+  for (const ks of Object.values(el.keyframes ?? {})) {
     for (const k of ks ?? []) times.add(round(k.time));
   }
   return [...times].sort((a, b) => a - b);
 }
 
-/** Applique une transformation aux images-clés d'un calque, quel que soit son type. */
-function patchLayerKeyframes(
+/**
+ * Décale toutes les images-clés dans le temps.
+ *
+ * Les clés portent un instant ABSOLU : sans ce décalage, déplacer un élément
+ * laisserait son animation sur place — l'élément partirait d'un côté, ses clés
+ * resteraient de l'autre, et l'animation se jouerait à un moment où l'élément
+ * n'est plus là. Une animation appartient à son élément, elle le suit.
+ */
+export function shiftKeyframes(keyframes: Keyframes | undefined, delta: number): Keyframes | undefined {
+  if (!keyframes || Math.abs(delta) <= EPS) return keyframes;
+  const out: Keyframes = {};
+  for (const [prop, keys] of Object.entries(keyframes)) {
+    if (!keys?.length) continue;
+    out[prop as AnimatableProp] = keys.map((k) => ({ ...k, time: round(Math.max(0, k.time + delta)) }));
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+/** Applique une transformation aux images-clés d'un élément, quel que soit son type. */
+function patchElementKeyframes(
   p: EditorProject,
   sel: { kind: AnimatableKind; id: string },
   fn: (current: Keyframes) => Keyframes
 ): EditorProject {
-  const apply = <T extends VisualLayer & { id: string }>(list: T[]): T[] =>
+  const apply = <T extends Animatable & { id: string }>(list: T[]): T[] =>
     list.map((l) => {
       if (l.id !== sel.id) return l;
       const keyframes = fn(l.keyframes ?? {});
-      // Un objet vide plutôt qu'un champ vide : un calque qui n'a plus aucune
-      // clé doit redevenir indiscernable de celui qui n'en a jamais eu.
+      // Un champ absent plutôt qu'un objet vide : un élément qui n'a plus
+      // aucune clé doit redevenir indiscernable de celui qui n'en a jamais eu.
       const empty = Object.values(keyframes).every((ks) => (ks?.length ?? 0) === 0);
       return { ...l, keyframes: empty ? undefined : keyframes };
     });
+  if (sel.kind === "clip") return normalize({ ...p, clips: apply(p.clips) });
   if (sel.kind === "text") return normalize({ ...p, texts: apply(p.texts) });
   if (sel.kind === "image") return normalize({ ...p, images: apply(p.images) });
-  return normalize({ ...p, shapes: apply(p.shapes) });
+  if (sel.kind === "shape") return normalize({ ...p, shapes: apply(p.shapes) });
+  return normalize({ ...p, audios: apply(p.audios) });
+}
+
+/** L'élément désigné, vu par ses champs animables. */
+export function animatableOf(p: EditorProject, sel: { kind: AnimatableKind; id: string }): Animatable | undefined {
+  if (sel.kind === "clip") return p.clips.find((c) => c.id === sel.id);
+  if (sel.kind === "text") return p.texts.find((l) => l.id === sel.id);
+  if (sel.kind === "image") return p.images.find((l) => l.id === sel.id);
+  if (sel.kind === "shape") return p.shapes.find((l) => l.id === sel.id);
+  return p.audios.find((a) => a.id === sel.id);
 }
 
 /**
@@ -1013,9 +1064,9 @@ function patchLayerKeyframes(
  * écrasée : reposer une clé là où il y en a une est une correction, jamais un
  * empilement de deux valeurs au même moment.
  *
- * Poser la PREMIÈRE clé d'une propriété n'en pose qu'une : la valeur fixe
- * devient alors la valeur de cette clé partout, ce qui ne change rien à
- * l'image tant qu'une seconde n'est pas posée.
+ * Poser la PREMIÈRE clé d'une propriété n'en pose qu'une : la valeur devient
+ * alors celle de cette clé partout, ce qui ne change rien à l'image tant
+ * qu'une seconde n'est pas posée.
  */
 export function setKeyframe(
   p: EditorProject,
@@ -1026,9 +1077,12 @@ export function setKeyframe(
   easing: EasingKind = "linear"
 ): EditorProject {
   const at = round(Math.max(0, time));
-  return patchLayerKeyframes(p, sel, (current) => {
+  return patchElementKeyframes(p, sel, (current) => {
     const keys = (current[prop] ?? []).filter((k) => Math.abs(k.time - at) > EPS);
-    return { ...current, [prop]: [...keys, { time: at, value, easing }].sort((a, b) => a.time - b.time) };
+    return {
+      ...current,
+      [prop]: [...keys, { time: at, value: clampProp(prop, value), easing }].sort((a, b) => a.time - b.time),
+    };
   });
 }
 
@@ -1040,16 +1094,16 @@ export function removeKeyframe(
   time: number
 ): EditorProject {
   const at = round(time);
-  return patchLayerKeyframes(p, sel, (current) => ({
+  return patchElementKeyframes(p, sel, (current) => ({
     ...current,
     [prop]: (current[prop] ?? []).filter((k) => Math.abs(k.time - at) > EPS),
   }));
 }
 
 /**
- * Retire TOUTES les images-clés d'une propriété et fige le calque sur la
+ * Retire TOUTES les images-clés d'une propriété et fige l'élément sur la
  * valeur qu'il avait à `time` — sans quoi désactiver une animation ferait
- * sauter le calque à une position fixe oubliée depuis longtemps.
+ * sauter l'élément à une valeur fixe oubliée depuis longtemps.
  */
 export function clearKeyframes(
   p: EditorProject,
@@ -1057,56 +1111,59 @@ export function clearKeyframes(
   prop: AnimatableProp,
   time: number
 ): EditorProject {
-  const list: (VisualLayer & { id: string })[] =
-    sel.kind === "text" ? p.texts : sel.kind === "image" ? p.images : p.shapes;
-  const layer = list.find((l) => l.id === sel.id);
-  const frozen = layer ? valueAt(layer, prop, time) : undefined;
-  const cleared = patchLayerKeyframes(p, sel, (current) => ({ ...current, [prop]: [] }));
+  const el = animatableOf(p, sel);
+  const frozen = el ? valueAt(el, prop, time) : undefined;
+  const cleared = patchElementKeyframes(p, sel, (current) => ({ ...current, [prop]: [] }));
   if (frozen === undefined) return cleared;
   return patchAnimated(cleared, sel, { [prop]: frozen }, time);
 }
 
+const ANIMATABLE_KEYS = new Set<string>(["x", "y", "w", "h", "opacity", "rotation", "scale", "volume"]);
+
 /**
- * Écrit une valeur sur un calque en tenant compte de ses images-clés : une
+ * Écrit une valeur sur un élément en tenant compte de ses images-clés : une
  * propriété ANIMÉE reçoit une clé à l'instant courant, une propriété fixe est
  * simplement mise à jour.
  *
  * C'est la règle de tout banc de montage, et la seule cohérente : sur un
- * calque animé, déplacer l'élément ou taper une valeur ne peut pas signifier
+ * élément animé, le déplacer ou taper une valeur ne peut pas signifier
  * « décale toute l'animation » — sinon plus aucune clé ne serait modifiable
- * après coup.
+ * après coup. Tout champ étranger aux images-clés passe au travers inchangé,
+ * ce qui fait de cette fonction un passe-plat exact pour un élément sans clé.
  */
-const ANIMATABLE_KEYS = new Set<string>(["x", "y", "opacity", "rotation", "scale"]);
-
 export function patchAnimated(
   p: EditorProject,
   sel: { kind: AnimatableKind; id: string },
-  patch: Partial<VisualLayer> & Partial<Record<AnimatableProp, number>>,
+  patch: Record<string, unknown>,
   time: number
 ): EditorProject {
-  const list: (VisualLayer & { id: string })[] =
-    sel.kind === "text" ? p.texts : sel.kind === "image" ? p.images : p.shapes;
-  const layer = list.find((l) => l.id === sel.id);
-  if (!layer) return p;
+  const el = animatableOf(p, sel);
+  if (!el) return p;
 
   let out = p;
-  // Tout ce qui n'est pas une propriété ANIMÉE passe par la mise à jour
-  // ordinaire — y compris les bornes, les animations d'entrée/sortie et tout
-  // champ propre au type. Cette fonction reste donc un passe-plat exact pour
-  // un calque sans image-clé.
   const staticPatch: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(patch)) {
     if (value === undefined) continue;
-    if (ANIMATABLE_KEYS.has(key) && typeof value === "number" && hasKeyframes(layer, key as AnimatableProp)) {
+    if (ANIMATABLE_KEYS.has(key) && typeof value === "number" && hasKeyframes(el, key as AnimatableProp)) {
       const prop = key as AnimatableProp;
       // L'accélération d'une clé remplacée est celle qui s'y trouvait déjà.
-      const existing = keyframesOf(layer, prop).find((k) => Math.abs(k.time - round(time)) <= EPS);
+      const existing = keyframesOf(el, prop).find((k) => Math.abs(k.time - round(time)) <= EPS);
       out = setKeyframe(out, sel, prop, time, value, existing?.easing ?? "linear");
       continue;
     }
     staticPatch[key] = value;
   }
   if (Object.keys(staticPatch).length === 0) return out;
+  if (sel.kind === "clip") {
+    const { volume, fadeIn, fadeOut, muted, ...box } = staticPatch as Record<string, never>;
+    let q = out;
+    if (Object.keys(box).length > 0) q = setClipBox(q, sel.id, box);
+    if (volume !== undefined || fadeIn !== undefined || fadeOut !== undefined || muted !== undefined) {
+      q = setClipAudio(q, sel.id, { volume, fadeIn, fadeOut, muted });
+    }
+    return q;
+  }
+  if (sel.kind === "audio") return updateAudio(out, sel.id, staticPatch as Partial<AudioTrack>);
   if (sel.kind === "text") return updateText(out, sel.id, staticPatch as Partial<TextLayer>);
   if (sel.kind === "image") return updateImageLayer(out, sel.id, staticPatch as Partial<ImageLayer>);
   return updateShape(out, sel.id, staticPatch as Partial<ShapeLayer>);
@@ -1276,20 +1333,21 @@ export function pasteElements(
     if (!trackId) continue;
     const start = round(at + (e.data.start - base));
 
+    const shifted = shiftKeyframes(e.data.keyframes, start - e.data.start);
     if (e.kind === "clip") {
-      const copy: Clip = { ...e.data, id: newIdFor("c"), trackId, start };
+      const copy: Clip = { ...e.data, id: newIdFor("c"), trackId, start, keyframes: shifted };
       next = { ...next, clips: [...next.clips, copy] };
       continue;
     }
     if (e.kind === "audio") {
-      const copy: AudioTrack = { ...e.data, id: newIdFor("a"), trackId, start };
+      const copy: AudioTrack = { ...e.data, id: newIdFor("a"), trackId, start, keyframes: shifted };
       next = { ...next, audios: [...next.audios, copy] };
       continue;
     }
     // Calques temporels : la DURÉE est reportée, pas la borne de fin — coller
     // plus loin dans le film ne doit pas raccourcir le calque.
     const span = e.data.end - e.data.start;
-    const timing = { trackId, start, end: round(start + span) };
+    const timing = { trackId, start, end: round(start + span), keyframes: shifted };
     if (e.kind === "text") next = { ...next, texts: [...next.texts, { ...e.data, id: newIdFor("t"), ...timing }] };
     else if (e.kind === "image") next = { ...next, images: [...next.images, { ...e.data, id: newIdFor("i"), ...timing }] };
     else next = { ...next, shapes: [...next.shapes, { ...e.data, id: newIdFor("s"), ...timing }] };
@@ -1552,7 +1610,10 @@ export function duplicateClip(p: EditorProject, clipId: string, newId: string): 
   const source = p.clips.find((c) => c.id === clipId);
   if (!source) return p;
   // La copie se pose juste après l'original, et repousse la suite de la piste.
-  const copy: Clip = { ...source, id: newId, start: round(source.start + source.length) };
+  const copy: Clip = {
+    ...source, id: newId, start: round(source.start + source.length),
+    keyframes: shiftKeyframes(source.keyframes, source.length),
+  };
   const clips = ripple([...p.clips, copy], source.track, source.start, source.length);
   return normalize({ ...p, clips: clips.map((c) => (c.id === newId ? copy : c)) });
 }
@@ -1753,7 +1814,10 @@ export function duplicateText(p: EditorProject, id: string, newId: string): Edit
   const source = p.texts.find((l) => l.id === id);
   if (!source) return p;
   const span = source.end - source.start;
-  const copy: TextLayer = { ...source, id: newId, start: round(source.end), end: round(source.end + span) };
+  const copy: TextLayer = {
+    ...source, id: newId, start: round(source.end), end: round(source.end + span),
+    keyframes: shiftKeyframes(source.keyframes, round(source.end) - source.start),
+  };
   return normalize({ ...p, texts: [...p.texts, copy] });
 }
 
@@ -1777,7 +1841,10 @@ export function duplicateImageLayer(p: EditorProject, id: string, newId: string)
   const source = p.images.find((l) => l.id === id);
   if (!source) return p;
   const span = source.end - source.start;
-  const copy: ImageLayer = { ...source, id: newId, start: round(source.end), end: round(source.end + span) };
+  const copy: ImageLayer = {
+    ...source, id: newId, start: round(source.end), end: round(source.end + span),
+    keyframes: shiftKeyframes(source.keyframes, round(source.end) - source.start),
+  };
   return normalize({ ...p, images: [...p.images, copy] });
 }
 
@@ -1820,7 +1887,10 @@ export function duplicateShape(p: EditorProject, id: string, newId: string): Edi
   const source = p.shapes.find((l) => l.id === id);
   if (!source) return p;
   const span = source.end - source.start;
-  const copy: ShapeLayer = { ...source, id: newId, start: round(source.end), end: round(source.end + span) };
+  const copy: ShapeLayer = {
+    ...source, id: newId, start: round(source.end), end: round(source.end + span),
+    keyframes: shiftKeyframes(source.keyframes, round(source.end) - source.start),
+  };
   return normalize({ ...p, shapes: [...p.shapes, copy] });
 }
 
@@ -1906,7 +1976,10 @@ export function removeAudio(p: EditorProject, id: string): EditorProject {
 export function duplicateAudio(p: EditorProject, id: string, newId: string): EditorProject {
   const source = p.audios.find((a) => a.id === id);
   if (!source) return p;
-  const copy: AudioTrack = { ...source, id: newId, start: round(source.start + source.length) };
+  const copy: AudioTrack = {
+    ...source, id: newId, start: round(source.start + source.length),
+    keyframes: shiftKeyframes(source.keyframes, source.length),
+  };
   return normalize({ ...p, audios: [...p.audios, copy] });
 }
 
@@ -2057,9 +2130,12 @@ export interface ActiveClip {
  * deux plans occupent ainsi le même créneau sans changer la durée du montage.
  */
 export function clipsAt(p: EditorProject, time: number): ActiveClip[] {
+  // Les plans sont RÉSOLUS à l'instant demandé, comme les calques : cadre,
+  // opacité et volume animés portent déjà leur valeur interpolée.
   const current = p.clips
     .filter((c) => time >= c.start - EPS && time < c.start + c.length - EPS)
-    .sort((a, b) => a.track - b.track);
+    .sort((a, b) => a.track - b.track)
+    .map((c) => layerAt(c, time));
 
   const out: ActiveClip[] = [];
   for (const c of current) {

@@ -6,7 +6,7 @@ import { useCompany } from "@/lib/company-context";
 import { SOCIAL_FORMATS, type SocialPlatform } from "@/lib/social-formats";
 import { generateVideoPolling, videoGenErrorMessage } from "@/lib/ai/generate-video-client";
 import type { MediaAsset } from "@/lib/video/types";
-import { IMAGE_MODELS, VIDEO_MODELS, DEFAULT_IMAGE_MODEL_ID, DEFAULT_VIDEO_MODEL_ID } from "@/lib/ai/model-catalog";
+import { IMAGE_MODELS, DEFAULT_IMAGE_MODEL_ID, DEFAULT_VIDEO_MODEL_ID, videoModelsForPlatform, isLockedVideoPlatform } from "@/lib/ai/model-catalog";
 
 // ── Studio par prompt : génère une image OU une vidéo depuis un prompt IA ─────────
 
@@ -179,6 +179,23 @@ export default function PromptStudio({
     () => options.find((o) => o.value === formatValue) ?? options[0],
     [options, formatValue]
   );
+
+  // Modèles vidéo proposables pour le format choisi — verrouillé à 1-2 modèles
+  // au meilleur rapport qualité/prix sur Facebook/Instagram/LinkedIn (jamais
+  // les API vidéo les plus chères).
+  const videoModelOptions = useMemo(
+    () => videoModelsForPlatform(selected?.platform),
+    [selected?.platform]
+  );
+
+  // Si le format choisi verrouille la liste et que le modèle sélectionné n'y
+  // figure plus, on retombe sur le 1ᵉʳ modèle autorisé.
+  useEffect(() => {
+    if (kind === "video" && !videoModelOptions.some((m) => m.id === videoModel)) {
+      setVideoModel(videoModelOptions[0]?.id ?? DEFAULT_VIDEO_MODEL_ID);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kind, videoModelOptions]);
 
   function switchKind(next: Kind) {
     if (next === kind) return;
@@ -385,10 +402,18 @@ export default function PromptStudio({
           </select>
         ) : (
           <select className="input w-full text-sm" value={videoModel} onChange={(e) => setVideoModel(e.target.value)}>
-            {VIDEO_MODELS.map((m) => (
+            {videoModelOptions.map((m) => (
               <option key={m.id} value={m.id}>{m.label}{m.note ? ` — ${m.note}` : ""}</option>
             ))}
           </select>
+        )}
+        {kind === "video" && isLockedVideoPlatform(selected?.platform) && (
+          <p className="mt-1 text-2xs text-muted">
+            {t(
+              "Sélection restreinte aux modèles au meilleur rapport qualité/prix pour ce réseau.",
+              "Restricted to the best quality/price models for this network."
+            )}
+          </p>
         )}
       </div>
 

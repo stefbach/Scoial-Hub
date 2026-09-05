@@ -15,7 +15,7 @@ import { PostPreview, type PreviewPlatform } from "@/components/compose/PostPrev
 import BrandKitPanel from "@/components/studio/BrandKitPanel";
 import { brandPromptHints } from "@/lib/brand-kit/prompt";
 import { AgentLauncher } from "@/components/agents/AgentLauncher";
-import { IMAGE_MODELS, VIDEO_MODELS, DEFAULT_IMAGE_MODEL_ID, DEFAULT_VIDEO_MODEL_ID } from "@/lib/ai/model-catalog";
+import { IMAGE_MODELS, DEFAULT_IMAGE_MODEL_ID, DEFAULT_VIDEO_MODEL_ID, videoModelsForPlatform, isLockedVideoPlatform } from "@/lib/ai/model-catalog";
 import { MediaUpload, type UploadedMedia } from "@/components/ui/MediaUpload";
 import { AlbumUpload } from "@/components/compose/AlbumUpload";
 import { WhenToPublish } from "@/components/compose/WhenToPublish";
@@ -260,6 +260,23 @@ function ComposeContent() {
     ],
     [data.accounts, selected, tiktokOn]
   );
+
+  // Réseau qui verrouille le choix du modèle vidéo (Facebook/Instagram/
+  // LinkedIn) parmi ceux ciblés — undefined si seul TikTok est sélectionné,
+  // qui garde le catalogue complet.
+  const videoLockPlatform = selectedPlatforms.find((p) =>
+    ["facebook", "instagram", "linkedin"].includes(p)
+  );
+  const videoModelOptions = useMemo(
+    () => videoModelsForPlatform(videoLockPlatform),
+    [videoLockPlatform]
+  );
+  useEffect(() => {
+    if (!videoModelOptions.some((m) => m.id === videoModel)) {
+      setVideoModel(videoModelOptions[0]?.id ?? DEFAULT_VIDEO_MODEL_ID);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [videoModelOptions]);
 
   // Meilleur moment suggéré (retour client Rosiane #1) — calculé pour le
   // premier réseau choisi ; s'appuie sur l'historique mesuré de CE réseau
@@ -863,11 +880,19 @@ function ComposeContent() {
             <label className="flex items-center justify-between gap-2 text-xs">
               <span className="font-medium text-ink">🎬 {t("Modèle vidéo", "Video model")}</span>
               <select value={videoModel} onChange={(e) => setVideoModel(e.target.value)} className="input text-2xs" title={t("Modèle de génération vidéo", "Video generation model")}>
-                {VIDEO_MODELS.map((m) => (
+                {videoModelOptions.map((m) => (
                   <option key={m.id} value={m.id}>{m.label}{m.note ? ` — ${m.note}` : ""}</option>
                 ))}
               </select>
             </label>
+            {isLockedVideoPlatform(videoLockPlatform) && (
+              <p className="col-span-full -mt-1 text-2xs text-muted">
+                {t(
+                  "Vidéo : sélection restreinte aux modèles au meilleur rapport qualité/prix pour Facebook/Instagram/LinkedIn.",
+                  "Video: restricted to the best quality/price models for Facebook/Instagram/LinkedIn."
+                )}
+              </p>
+            )}
           </div>
 
           {/* ── L'AGENT DE PUBLICATION — le cœur de Compose ── */}

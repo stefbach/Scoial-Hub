@@ -20,6 +20,7 @@
     "test:imgformat": "tsx scripts/verify-image-format.ts",
     "test:publishfix": "tsx scripts/verify-publish-fixes.ts",
     "test:videoquota": "tsx scripts/verify-video-quota.ts",
+    "test:videolock": "tsx scripts/verify-video-lock.ts",
     "test:pilotage": "tsx scripts/verify-pilotage-seats.ts",
     "test:analytics": "tsx scripts/verify-analytics-real.ts",
     "test:igdm": "tsx scripts/verify-ig-dm-diagnosis.ts",

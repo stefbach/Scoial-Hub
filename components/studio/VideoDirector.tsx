@@ -5,10 +5,10 @@
 // automatiquement chaque clip vidéo (Kling / Seedance / Veo…). Les clips sont
 // ajoutés à la timeline du studio (onClip), prêts pour l'assemblage & le rendu.
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useCompany } from "@/lib/company-context";
 import { useT, useLang } from "@/lib/i18n";
-import { VIDEO_MODELS, DEFAULT_VIDEO_MODEL_ID } from "@/lib/ai/model-catalog";
+import { DEFAULT_VIDEO_MODEL_ID, videoModelsForPlatform, isLockedVideoPlatform } from "@/lib/ai/model-catalog";
 import { generateVideoPolling, videoGenErrorMessage } from "@/lib/ai/generate-video-client";
 import type { MediaAsset } from "@/lib/video/types";
 
@@ -43,6 +43,17 @@ export function VideoDirector({
   const [durationSec, setDurationSec] = useState(20);
   const [sceneCount, setSceneCount] = useState(4);
   const [model, setModel] = useState(DEFAULT_VIDEO_MODEL_ID);
+
+  // Modèles vidéo proposables pour le réseau choisi — verrouillé à 1-2 modèles
+  // au meilleur rapport qualité/prix sur Facebook/Instagram/LinkedIn (jamais
+  // les API vidéo les plus chères).
+  const modelOptions = useMemo(() => videoModelsForPlatform(network), [network]);
+  useEffect(() => {
+    if (!modelOptions.some((m) => m.id === model)) {
+      setModel(modelOptions[0]?.id ?? DEFAULT_VIDEO_MODEL_ID);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modelOptions]);
 
   const [planning, setPlanning] = useState(false);
   const [board, setBoard] = useState<Storyboard | null>(null);
@@ -85,7 +96,7 @@ export function VideoDirector({
         setStatus((st) => ({ ...st, [s.index]: "running" }));
         setProgress(t(`Génération du clip ${s.index}/${board.scenes.length}…`, `Generating clip ${s.index}/${board.scenes.length}…`));
         const res = await generateVideoPolling(
-          { prompt: s.prompt, aspect: board.aspect, seconds: s.seconds, model, companyId: company.id },
+          { prompt: s.prompt, platform: network, aspect: board.aspect, seconds: s.seconds, model, companyId: company.id },
           { timeoutMs: 6 * 60_000 }
         );
         if (res.url) {
@@ -139,7 +150,7 @@ export function VideoDirector({
           {NETWORKS.map((n) => <option key={n.id} value={n.id}>{n.label}</option>)}
         </select>
         <select value={model} onChange={(e) => setModel(e.target.value)} className="input text-xs" title={t("Modèle vidéo", "Video model")}>
-          {VIDEO_MODELS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+          {modelOptions.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
         </select>
         <label className="flex items-center gap-1.5 text-2xs text-muted">{t("Durée", "Duration")}
           <input type="number" min={10} max={60} value={durationSec} onChange={(e) => setDurationSec(Number(e.target.value) || 20)} className="input w-16 text-xs" />s
@@ -148,6 +159,14 @@ export function VideoDirector({
           <input type="number" min={3} max={6} value={sceneCount} onChange={(e) => setSceneCount(Number(e.target.value) || 4)} className="input w-14 text-xs" />
         </label>
       </div>
+      {isLockedVideoPlatform(network) && (
+        <p className="-mt-1 text-2xs text-muted">
+          {t(
+            "Sélection restreinte aux modèles au meilleur rapport qualité/prix pour ce réseau.",
+            "Restricted to the best quality/price models for this network."
+          )}
+        </p>
+      )}
 
       <button onClick={plan} disabled={planning || !brief.trim()} className="btn-secondary w-full justify-center text-sm disabled:opacity-50">
         {planning ? t("Écriture du storyboard…", "Writing the storyboard…") : t("✦ Écrire le storyboard", "✦ Write the storyboard")}

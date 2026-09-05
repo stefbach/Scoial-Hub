@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
     if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
     const resolvedAspect = aspect ?? resolveVideoAspect(platform);
 
-    const gm = getVideoModel(model);
+    const gm = getVideoModel(model, platform);
     const input = gm.buildInput(prompt, { aspect: resolvedAspect, seconds });
 
     // ── Quota : on RÉSERVE avant de lancer quoi que ce soit ──────────────────

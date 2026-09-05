@@ -290,6 +290,42 @@ export const VIDEO_MODELS: GenModel[] = [
   },
 ];
 
+/* ── Verrouillage vidéo (réseaux organiques Facebook/Instagram/LinkedIn) ──── *
+ * Sur ces réseaux, le format vidéo court n'expose JAMAIS les API les plus
+ * chères (Veo 3, Kling, Seedance Pro…) : seuls 1-2 modèles au meilleur
+ * rapport qualité/prix sont proposables. Appliqué ici (et pas seulement
+ * dans l'UI) pour que `getVideoModel` fasse foi côté serveur : un id hors
+ * liste envoyé par le client retombe sur le modèle autorisé par défaut.  */
+
+const LOCKED_VIDEO_PLATFORMS = new Set(["facebook", "instagram", "linkedin"]);
+
+/** VideoDirector utilise des ids de réseau plus spécifiques (Reels…). */
+function normalizeVideoPlatform(platform?: string): string | undefined {
+  if (platform === "instagram_reels") return "instagram";
+  return platform;
+}
+
+/** Modèles vidéo autorisés pour les réseaux verrouillés — jamais les plus chers. */
+const SHORT_FORM_VIDEO_MODEL_IDS = [
+  "minimax/hailuo-02", // Bon rapport qualité/prix
+  "bytedance/seedance-1-lite", // Plus économique
+];
+
+export const SHORT_FORM_VIDEO_MODELS: GenModel[] = SHORT_FORM_VIDEO_MODEL_IDS
+  .map((id) => VIDEO_MODELS.find((m) => m.id === id))
+  .filter((m): m is GenModel => Boolean(m));
+
+/** Vrai si ce réseau verrouille le choix du modèle vidéo (liste restreinte). */
+export function isLockedVideoPlatform(platform?: string): boolean {
+  const p = normalizeVideoPlatform(platform);
+  return Boolean(p && LOCKED_VIDEO_PLATFORMS.has(p));
+}
+
+/** Liste de modèles vidéo proposables pour un réseau donné (verrouillée ou complète). */
+export function videoModelsForPlatform(platform?: string): GenModel[] {
+  return isLockedVideoPlatform(platform) ? SHORT_FORM_VIDEO_MODELS : VIDEO_MODELS;
+}
+
 /* ── Lookups ───────────────────────────────────────────────────────────────── */
 
 // Défaut explicite = Flux 1.1 Pro (ne dépend pas de l'ordre du tableau, pour ne
@@ -303,8 +339,16 @@ const FALLBACK_IMAGE_MODEL =
 export function getImageModel(id?: string): GenModel {
   return IMAGE_MODELS.find((m) => m.id === id) ?? FALLBACK_IMAGE_MODEL;
 }
-export function getVideoModel(id?: string): GenModel {
-  return VIDEO_MODELS.find((m) => m.id === id) ?? VIDEO_MODELS[0];
+
+/**
+ * Résout le modèle vidéo à utiliser. Si `platform` est un réseau verrouillé
+ * (Facebook/Instagram/LinkedIn), un id hors de la liste autorisée (envoyé par
+ * un client obsolète ou trafiqué) retombe sur le 1ᵉʳ modèle autorisé — jamais
+ * sur une API premium.
+ */
+export function getVideoModel(id?: string, platform?: string): GenModel {
+  const allowed = videoModelsForPlatform(platform);
+  return allowed.find((m) => m.id === id) ?? allowed[0];
 }
 
 export const DEFAULT_EDIT_MODEL_ID = EDIT_MODELS[0].id;

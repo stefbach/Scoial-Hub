@@ -6,11 +6,12 @@
 // vidéo), conseille — et s'appuie sur la mémoire de marque (RAG) si activée.
 // Conversationnel : « plus court », « plus fun », « change le visuel »…
 
-import { useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useCompany } from "@/lib/company-context";
 import { useT, useLang } from "@/lib/i18n";
 import { PublishLanguageSelect } from "@/components/ui/PublishLanguageSelect";
 import { generateVideoPolling, videoGenErrorMessage } from "@/lib/ai/generate-video-client";
+import { DEFAULT_VIDEO_MODEL_ID, videoModelsForPlatform, isLockedVideoPlatform } from "@/lib/ai/model-catalog";
 
 export type ComposeNet = "facebook" | "instagram" | "tiktok";
 
@@ -61,6 +62,26 @@ export function ComposeAgent({
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // Modèle & durée vidéo (IA) — TikTok garde le catalogue COMPLET et sa durée
+  // librement réglable (retour client : le format court TikTok est essentiel
+  // et ne doit jamais être bridé). Le verrou « meilleur rapport qualité/prix »
+  // ne s'applique que si AUCUN réseau ciblé n'est TikTok.
+  const videoLockPlatform = networks.includes("tiktok")
+    ? undefined
+    : networks.find((n) => n === "facebook" || n === "instagram");
+  const videoModelOptions = useMemo(
+    () => videoModelsForPlatform(videoLockPlatform),
+    [videoLockPlatform]
+  );
+  const [videoModel, setVideoModel] = useState(DEFAULT_VIDEO_MODEL_ID);
+  const [videoSeconds, setVideoSeconds] = useState(8);
+  useEffect(() => {
+    if (!videoModelOptions.some((m) => m.id === videoModel)) {
+      setVideoModel(videoModelOptions[0]?.id ?? DEFAULT_VIDEO_MODEL_ID);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [videoModelOptions]);
+
   async function send(message: string) {
     const m = message.trim();
     if (!m || busy) return;
@@ -106,7 +127,14 @@ export function ComposeAgent({
     setGenDone(null);
     try {
       if (out.visualKind === "video") {
-        const r = await generateVideoPolling({ prompt: out.visualPrompt, aspect: "9:16", companyId: company.id });
+        const r = await generateVideoPolling({
+          prompt: out.visualPrompt,
+          aspect: "9:16",
+          platform: videoLockPlatform,
+          model: videoModel,
+          seconds: videoSeconds,
+          companyId: company.id,
+        });
         if (r.url) { onMedia({ url: r.url, kind: "video" }); setGenDone(out.visualPrompt); return; }
         setMsgs((p) => [...p, { role: "assistant", content: videoGenErrorMessage(r.error, t) }]);
         return;
@@ -206,9 +234,42 @@ export function ComposeAgent({
           </div>
         )}
 
-        <div className="mb-2 flex items-center justify-end">
+        <div className="mb-2 flex flex-wrap items-center justify-end gap-2">
+          <label className="flex items-center gap-1.5 text-2xs text-muted">
+            🎬 {t("Vidéo", "Video")}
+            <select
+              value={videoModel}
+              onChange={(e) => setVideoModel(e.target.value)}
+              className="input text-2xs"
+              title={t("Modèle de génération vidéo", "Video generation model")}
+            >
+              {videoModelOptions.map((m) => (
+                <option key={m.id} value={m.id}>{m.label}{m.note ? ` — ${m.note}` : ""}</option>
+              ))}
+            </select>
+          </label>
+          <span className="inline-flex items-center gap-1 text-2xs text-muted">
+            {[5, 8, 10].map((s) => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => setVideoSeconds(s)}
+                className={`rounded-full px-2 py-0.5 font-medium ${videoSeconds === s ? "bg-page text-white" : "bg-canvas text-muted ring-1 ring-hair hover:text-ink"}`}
+              >
+                {s}s
+              </button>
+            ))}
+          </span>
           <PublishLanguageSelect value={pubLang} onChange={setPubLang} />
         </div>
+        {isLockedVideoPlatform(videoLockPlatform) && (
+          <p className="-mt-1 mb-2 text-right text-2xs text-muted">
+            {t(
+              "Vidéo : sélection restreinte aux modèles au meilleur rapport qualité/prix (Facebook/Instagram).",
+              "Video: restricted to the best quality/price models (Facebook/Instagram)."
+            )}
+          </p>
+        )}
 
         <div className="flex items-end gap-2">
           <textarea

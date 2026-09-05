@@ -8,7 +8,7 @@
 //   - Facebook / Instagram : programmation auto (cron). Instagram impose un visuel.
 //   - TikTok : « Publier maintenant » via le connecteur.
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { addDays, format } from "date-fns";
 import { useCompany } from "@/lib/company-context";
 import { useT, useLang } from "@/lib/i18n";
@@ -22,15 +22,16 @@ import { ImageEditor } from "@/components/studio/ImageEditor";
 import { PublishLanguageSelect } from "@/components/ui/PublishLanguageSelect";
 import { SERIES_CONFIG, type SeriesPlatform } from "@/lib/social-series";
 import { generateVideoPolling, videoGenErrorMessage } from "@/lib/ai/generate-video-client";
+import {
+  IMAGE_MODELS,
+  DEFAULT_IMAGE_MODEL_ID,
+  DEFAULT_VIDEO_MODEL_ID,
+  videoModelsForPlatform,
+  isLockedVideoPlatform,
+} from "@/lib/ai/model-catalog";
 
 type Cadence = "daily" | "every2" | "weekly";
 const CADENCE_STEP: Record<Cadence, number> = { daily: 1, every2: 2, weekly: 7 };
-
-const VISUAL_MODELS = [
-  { id: "black-forest-labs/flux-1.1-pro-ultra", label: "Flux 1.1 Pro Ultra" },
-  { id: "google/imagen-4-ultra", label: "Imagen 4 Ultra" },
-  { id: "black-forest-labs/flux-1.1-pro", label: "Flux 1.1 Pro" },
-];
 
 interface DraftItem {
   body: string;
@@ -67,6 +68,11 @@ export function SeriesPlanner({ platform }: { platform: SeriesPlatform }) {
   const allowVideo = isVideo || platform === "facebook" || platform === "instagram";
   const attachAccept: "image" | "video" | "all" = isVideo ? "video" : allowVideo ? "all" : "image";
   const mediaRequired = cfg.media === "image" || cfg.media === "video";
+  // Génération IA : image pour tout réseau qui ne l'exclut pas (TikTok exige
+  // une vidéo), vidéo pour tout réseau qui l'accepte (FB/IG/TikTok) — les deux
+  // peuvent cohabiter (FB/IG choisissent l'un OU l'autre pour un même élément).
+  const canGenImage = cfg.media !== "video";
+  const canGenVideo = allowVideo;
 
   const [drafts, setDrafts] = useState<DraftItem[]>([{ body: "" }, { body: "" }, { body: "" }]);
   const [theme, setTheme] = useState("");
@@ -80,10 +86,23 @@ export function SeriesPlanner({ platform }: { platform: SeriesPlatform }) {
   const [pubLang, setPubLang] = useState<string>(lang);
   const [useMemory, setUseMemory] = useState(false);
   const [generating, setGenerating] = useState(false);
-  const [imgModel, setImgModel] = useState(VISUAL_MODELS[0].id);
+  const [imgModel, setImgModel] = useState(DEFAULT_IMAGE_MODEL_ID);
   // Format des visuels générés. Défaut 4:5 (portrait) : c'est le format qui
   // occupe LE PLUS de place dans le fil, donc le moins « petit ».
   const [imgFormat, setImgFormat] = useState("4:5");
+  // Modèle vidéo (IA) — verrouillé par défaut à 1-2 modèles au meilleur
+  // rapport qualité/prix sur Facebook/Instagram (jamais les API les plus
+  // chères) ; TikTok garde le catalogue complet. Ce verrou n'est PAS levable
+  // ici (réservé à Studio Créatif / Compose, cf. lib/ai/model-catalog.ts).
+  const videoModelOptions = useMemo(() => videoModelsForPlatform(platform), [platform]);
+  const [videoModel, setVideoModel] = useState(DEFAULT_VIDEO_MODEL_ID);
+  const [videoSeconds, setVideoSeconds] = useState(8);
+  useEffect(() => {
+    if (!videoModelOptions.some((m) => m.id === videoModel)) {
+      setVideoModel(videoModelOptions[0]?.id ?? DEFAULT_VIDEO_MODEL_ID);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [videoModelOptions]);
   const [genImgIdx, setGenImgIdx] = useState<number | null>(null);
   // Élément dont le visuel est ouvert en grand (aperçu + retouche).
   const [previewIdx, setPreviewIdx] = useState<number | null>(null);
@@ -153,7 +172,7 @@ export function SeriesPlanner({ platform }: { platform: SeriesPlatform }) {
 
   /** Génère le visuel de TOUS les éléments sans visuel (séquentiel). */
   async function genAllVisuals() {
-    if (isVideo) return; // pas de génération IA de vidéo
+    if (!canGenImage) return;
     setGenAll(true); setMsg(null);
     const targets = drafts.map((d, i) => ({ d, i })).filter(({ d }) => d.body.trim() && !d.media);
     if (targets.length === 0) { setMsg(t("Tous les éléments ont déjà un visuel.", "Every item already has a visual.")); setGenAll(false); return; }
@@ -188,9 +207,9 @@ export function SeriesPlanner({ platform }: { platform: SeriesPlatform }) {
     } finally { setGenImgIdx(null); }
   }
 
-  /** Génère la vidéo de TOUS les éléments sans média (séquentiel, TikTok). */
+  /** Génère la vidéo de TOUS les éléments sans média (séquentiel). */
   async function genAllVideos() {
-    if (!isVideo) return;
+    if (!canGenVideo) return;
     setGenAll(true); setMsg(null);
     const targets = drafts.map((d, i) => ({ d, i })).filter(({ d }) => d.body.trim() && !d.media);
     if (targets.length === 0) { setMsg(t("Tous les éléments ont déjà un média.", "Every item already has a media.")); setGenAll(false); return; }
@@ -210,7 +229,7 @@ export function SeriesPlanner({ platform }: { platform: SeriesPlatform }) {
     if (!vp) { setMsg(t("Aucun contenu pour générer une vidéo.", "No content to generate a video.")); return; }
     setGenImgIdx(i); setMsg(null);
     try {
-      const r = await generateVideoPolling({ prompt: vp.slice(0, 400), platform, companyId });
+      const r = await generateVideoPolling({ prompt: vp.slice(0, 400), platform, model: videoModel, seconds: videoSeconds, companyId });
       if (r.url) { patchDraft(i, { media: r.url, mediaKind: "video" }); return; }
       if (r.simulated) setMsg(t("Génération vidéo non configurée (REPLICATE_API_TOKEN).", "Video generation not configured (REPLICATE_API_TOKEN)."));
       else setMsg(videoGenErrorMessage(r.error, t));
@@ -310,7 +329,7 @@ export function SeriesPlanner({ platform }: { platform: SeriesPlatform }) {
             {generating && <Spinner size={14} className="text-current" />}
             {generating ? t("Génération…", "Generating…") : t("Générer", "Generate")}
           </button>
-          {!isVideo && (
+          {canGenImage && (
             <button onClick={genAllVisuals} disabled={genAll || generating || !canEdit || filledDrafts.length === 0}
               title={t("Génère un visuel pour chaque élément sans image", "Generate a visual for each item without an image")}
               className="btn-secondary inline-flex items-center gap-1.5 text-xs disabled:opacity-50">
@@ -318,7 +337,7 @@ export function SeriesPlanner({ platform }: { platform: SeriesPlatform }) {
               {genAll ? t("Visuels…", "Visuals…") : t("✨ Générer tous les visuels", "✨ Generate all visuals")}
             </button>
           )}
-          {isVideo && (
+          {canGenVideo && (
             <button onClick={genAllVideos} disabled={genAll || generating || !canEdit || filledDrafts.length === 0}
               title={t("Génère une vidéo pour chaque élément sans média", "Generate a video for each item without a media")}
               className="btn-secondary inline-flex items-center gap-1.5 text-xs disabled:opacity-50">
@@ -350,16 +369,16 @@ export function SeriesPlanner({ platform }: { platform: SeriesPlatform }) {
               ))}
             </div>
           )}
-          {!isVideo && (
+          {canGenImage && (
             <label className="flex items-center gap-1.5 text-2xs text-muted">
               {t("Modèle visuel :", "Visual model:")}
               <select value={imgModel} onChange={(e) => setImgModel(e.target.value)}
                 className="rounded-lg border border-hair bg-card px-2 py-1 text-2xs text-ink outline-none focus:border-primary-400">
-                {VISUAL_MODELS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+                {IMAGE_MODELS.map((m) => <option key={m.id} value={m.id}>{m.label}{m.note ? ` — ${m.note}` : ""}</option>)}
               </select>
             </label>
           )}
-          {!isVideo && (
+          {canGenImage && (
             <div className="inline-flex items-center gap-1">
               <span className="text-2xs text-muted">{t("Format :", "Format:")}</span>
               {[
@@ -375,11 +394,39 @@ export function SeriesPlanner({ platform }: { platform: SeriesPlatform }) {
               ))}
             </div>
           )}
+          {canGenVideo && (
+            <label className="flex items-center gap-1.5 text-2xs text-muted">
+              {t("Modèle vidéo :", "Video model:")}
+              <select value={videoModel} onChange={(e) => setVideoModel(e.target.value)}
+                className="rounded-lg border border-hair bg-card px-2 py-1 text-2xs text-ink outline-none focus:border-primary-400">
+                {videoModelOptions.map((m) => <option key={m.id} value={m.id}>{m.label}{m.note ? ` — ${m.note}` : ""}</option>)}
+              </select>
+            </label>
+          )}
+          {canGenVideo && (
+            <span className="inline-flex items-center gap-1 text-2xs text-muted">
+              {t("Durée :", "Duration:")}
+              {[5, 8, 10].map((s) => (
+                <button key={s} type="button" onClick={() => setVideoSeconds(s)}
+                  className={`rounded-full px-2 py-0.5 font-medium ${videoSeconds === s ? "bg-ink text-white" : "bg-card text-muted ring-1 ring-hair hover:text-ink"}`}>
+                  {s}s
+                </button>
+              ))}
+            </span>
+          )}
           <label className="inline-flex cursor-pointer items-center gap-1.5 text-2xs text-muted">
             <input type="checkbox" checked={useMemory} onChange={(e) => setUseMemory(e.target.checked)} className="h-3.5 w-3.5 accent-primary-600" />
             {t("S'appuyer sur la marque (RAG)", "Ground in brand (RAG)")}
           </label>
         </div>
+        {canGenVideo && isLockedVideoPlatform(platform) && (
+          <p className="text-2xs text-muted">
+            {t(
+              "Vidéo : sélection restreinte aux modèles au meilleur rapport qualité/prix pour ce réseau.",
+              "Video: restricted to the best quality/price models for this network."
+            )}
+          </p>
+        )}
         <p className="text-2xs text-muted">
           {t(`Contraintes ${cfg.label} : ${cfg.maxChars} caractères max`, `${cfg.label} constraints: ${cfg.maxChars} chars max`)}
           {cfg.media === "image" && t(" · image obligatoire", " · image required")}
@@ -440,14 +487,14 @@ export function SeriesPlanner({ platform }: { platform: SeriesPlatform }) {
                       {mediaRequired ? (isVideo ? t("Vidéo requise", "Video required") : allowVideo ? t("Image ou vidéo requise", "Image or video required") : t("Image requise", "Image required")) : t("Pas de visuel", "No visual")}
                     </span>
                   )}
-                  {!isVideo && (
+                  {canGenImage && (
                     <button onClick={() => genVisual(i)} disabled={genImgIdx === i || !canEdit || !d.body.trim()}
                       className="btn-secondary inline-flex items-center gap-1 text-2xs disabled:opacity-50">
                       {genImgIdx === i && <Spinner size={12} className="text-current" />}
                       {genImgIdx === i ? t("Génération…", "Generating…") : t("✨ Générer le visuel", "✨ Generate visual")}
                     </button>
                   )}
-                  {isVideo && (
+                  {canGenVideo && (
                     <button onClick={() => genVideo(i)} disabled={genImgIdx === i || !canEdit || !d.body.trim()}
                       className="btn-secondary inline-flex items-center gap-1 text-2xs disabled:opacity-50">
                       {genImgIdx === i && <Spinner size={12} className="text-current" />}

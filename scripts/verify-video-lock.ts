@@ -12,6 +12,8 @@
 //   3. `getVideoModel(id, platform)` fait foi CÔTÉ SERVEUR : un id premium
 //      envoyé pour un réseau verrouillé ne doit jamais être retourné tel
 //      quel — il retombe sur le modèle autorisé par défaut.
+//   4. `{ allowPremium: true }` lève le verrou (Studio Créatif / Compose) :
+//      un id premium est alors bien conservé tel quel.
 //
 // Usage : npm run test:videolock
 
@@ -72,6 +74,18 @@ async function main() {
   check("tiktok + Veo 3 → conservé (pas de verrou)", getVideoModel("google/veo-3", "tiktok").id === "google/veo-3");
   check("aucun réseau + Veo 3 → conservé (comportement historique)",
     getVideoModel("google/veo-3").id === "google/veo-3");
+
+  console.log("\n— 4) allowPremium lève le verrou (Studio Créatif / Compose) —");
+  for (const p of ["facebook", "instagram", "linkedin"]) {
+    check(`${p} + allowPremium → catalogue complet`,
+      videoModelsForPlatform(p, { allowPremium: true }).length === VIDEO_MODELS.length);
+    for (const premium of PREMIUM_IDS) {
+      check(`${p} + allowPremium + id premium (${premium}) → conservé`,
+        getVideoModel(premium, p, { allowPremium: true }).id === premium);
+    }
+  }
+  check("facebook SANS allowPremium (défaut) → toujours verrouillé",
+    videoModelsForPlatform("facebook").length === SHORT_FORM_VIDEO_MODELS.length);
 
   console.log(failures === 0 ? "\n✓ TOUT VERT" : `\n✗ ${failures} échec(s)`);
   if (failures > 0) process.exit(1);

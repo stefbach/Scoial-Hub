@@ -267,9 +267,12 @@ function ComposeContent() {
   const videoLockPlatform = selectedPlatforms.find((p) =>
     ["facebook", "instagram", "linkedin"].includes(p)
   );
+  // Compose peut lever ce verrou (case à cocher) — pas encore soumis à une
+  // autorisation réelle, cf. lib/ai/model-catalog.ts.
+  const [allowPremiumVideo, setAllowPremiumVideo] = useState(false);
   const videoModelOptions = useMemo(
-    () => videoModelsForPlatform(videoLockPlatform),
-    [videoLockPlatform]
+    () => videoModelsForPlatform(videoLockPlatform, { allowPremium: allowPremiumVideo }),
+    [videoLockPlatform, allowPremiumVideo]
   );
   useEffect(() => {
     if (!videoModelOptions.some((m) => m.id === videoModel)) {
@@ -886,12 +889,23 @@ function ComposeContent() {
               </select>
             </label>
             {isLockedVideoPlatform(videoLockPlatform) && (
-              <p className="col-span-full -mt-1 text-2xs text-muted">
-                {t(
-                  "Vidéo : sélection restreinte aux modèles au meilleur rapport qualité/prix pour Facebook/Instagram/LinkedIn.",
-                  "Video: restricted to the best quality/price models for Facebook/Instagram/LinkedIn."
-                )}
-              </p>
+              <div className="col-span-full -mt-1 space-y-1">
+                <p className="text-2xs text-muted">
+                  {t(
+                    "Vidéo : sélection restreinte aux modèles au meilleur rapport qualité/prix pour Facebook/Instagram/LinkedIn.",
+                    "Video: restricted to the best quality/price models for Facebook/Instagram/LinkedIn."
+                  )}
+                </p>
+                <label className="flex items-center gap-1.5 text-2xs text-muted">
+                  <input
+                    type="checkbox"
+                    checked={allowPremiumVideo}
+                    onChange={(e) => setAllowPremiumVideo(e.target.checked)}
+                    className="h-3.5 w-3.5 accent-page"
+                  />
+                  {t("Autoriser les modèles premium (coût plus élevé)", "Allow premium models (higher cost)")}
+                </label>
+              </div>
             )}
           </div>
 
@@ -936,6 +950,7 @@ function ComposeContent() {
             language={language}
             imageModel={imageModel}
             videoModel={videoModel}
+            allowPremiumVideo={allowPremiumVideo}
             onApplyText={setBody}
             onApplyMedia={setUpload}
           />
@@ -958,6 +973,7 @@ function ComposeContent() {
             platform={activePlatform}
             imageModel={imageModel}
             videoModel={videoModel}
+            allowPremiumVideo={allowPremiumVideo}
             brandHints={brandHints}
             companyId={company.id}
             onUse={(m) => setUpload({ url: m.url, name: m.kind === "video" ? "ai-video" : "ai-visual", size: 0, kind: m.kind })}

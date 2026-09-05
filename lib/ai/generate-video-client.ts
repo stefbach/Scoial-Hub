@@ -20,6 +20,11 @@ export interface VideoGenBody {
   seconds?: number;
   /** Identifiant de modèle Replicate (catalogue). */
   model?: string;
+  /**
+   * Lève le verrou « meilleur rapport qualité/prix » sur Facebook/Instagram/
+   * LinkedIn — réservé à Studio Créatif et Compose (cf. model-catalog.ts).
+   */
+  allowPremiumVideo?: boolean;
   /** Société courante — requise pour l'autorisation (mode édition). */
   companyId?: string;
 }

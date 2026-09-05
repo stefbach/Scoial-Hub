@@ -180,12 +180,14 @@ export default function PromptStudio({
     [options, formatValue]
   );
 
-  // Modèles vidéo proposables pour le format choisi — verrouillé à 1-2 modèles
-  // au meilleur rapport qualité/prix sur Facebook/Instagram/LinkedIn (jamais
-  // les API vidéo les plus chères).
+  // Modèles vidéo proposables pour le format choisi — verrouillé par défaut à
+  // 1-2 modèles au meilleur rapport qualité/prix sur Facebook/Instagram/
+  // LinkedIn. Studio Créatif peut lever ce verrou (case à cocher ci-dessous) —
+  // pas encore soumis à une autorisation réelle, cf. lib/ai/model-catalog.ts.
+  const [allowPremiumVideo, setAllowPremiumVideo] = useState(false);
   const videoModelOptions = useMemo(
-    () => videoModelsForPlatform(selected?.platform),
-    [selected?.platform]
+    () => videoModelsForPlatform(selected?.platform, { allowPremium: allowPremiumVideo }),
+    [selected?.platform, allowPremiumVideo]
   );
 
   // Si le format choisi verrouille la liste et que le modèle sélectionné n'y
@@ -306,6 +308,7 @@ export default function PromptStudio({
           platform: selected.platform,
           model: effVideoModel,
           seconds: videoSeconds,
+          allowPremiumVideo,
           companyId: company.id,
         });
         if (r.simulated) {
@@ -408,12 +411,23 @@ export default function PromptStudio({
           </select>
         )}
         {kind === "video" && isLockedVideoPlatform(selected?.platform) && (
-          <p className="mt-1 text-2xs text-muted">
-            {t(
-              "Sélection restreinte aux modèles au meilleur rapport qualité/prix pour ce réseau.",
-              "Restricted to the best quality/price models for this network."
-            )}
-          </p>
+          <>
+            <p className="mt-1 text-2xs text-muted">
+              {t(
+                "Sélection restreinte aux modèles au meilleur rapport qualité/prix pour ce réseau.",
+                "Restricted to the best quality/price models for this network."
+              )}
+            </p>
+            <label className="mt-1.5 flex items-center gap-1.5 text-2xs text-muted">
+              <input
+                type="checkbox"
+                checked={allowPremiumVideo}
+                onChange={(e) => setAllowPremiumVideo(e.target.checked)}
+                className="h-3.5 w-3.5 accent-page"
+              />
+              {t("Autoriser les modèles premium (coût plus élevé)", "Allow premium models (higher cost)")}
+            </label>
+          </>
         )}
       </div>
 

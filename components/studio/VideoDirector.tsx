@@ -44,10 +44,15 @@ export function VideoDirector({
   const [sceneCount, setSceneCount] = useState(4);
   const [model, setModel] = useState(DEFAULT_VIDEO_MODEL_ID);
 
-  // Modèles vidéo proposables pour le réseau choisi — verrouillé à 1-2 modèles
-  // au meilleur rapport qualité/prix sur Facebook/Instagram/LinkedIn (jamais
-  // les API vidéo les plus chères).
-  const modelOptions = useMemo(() => videoModelsForPlatform(network), [network]);
+  // Modèles vidéo proposables pour le réseau choisi — verrouillé par défaut à
+  // 1-2 modèles au meilleur rapport qualité/prix sur Facebook/Instagram/
+  // LinkedIn. Peut être levé ci-dessous (Studio Créatif) — pas encore soumis
+  // à une autorisation réelle, cf. lib/ai/model-catalog.ts.
+  const [allowPremiumVideo, setAllowPremiumVideo] = useState(false);
+  const modelOptions = useMemo(
+    () => videoModelsForPlatform(network, { allowPremium: allowPremiumVideo }),
+    [network, allowPremiumVideo]
+  );
   useEffect(() => {
     if (!modelOptions.some((m) => m.id === model)) {
       setModel(modelOptions[0]?.id ?? DEFAULT_VIDEO_MODEL_ID);
@@ -96,7 +101,7 @@ export function VideoDirector({
         setStatus((st) => ({ ...st, [s.index]: "running" }));
         setProgress(t(`Génération du clip ${s.index}/${board.scenes.length}…`, `Generating clip ${s.index}/${board.scenes.length}…`));
         const res = await generateVideoPolling(
-          { prompt: s.prompt, platform: network, aspect: board.aspect, seconds: s.seconds, model, companyId: company.id },
+          { prompt: s.prompt, platform: network, aspect: board.aspect, seconds: s.seconds, model, allowPremiumVideo, companyId: company.id },
           { timeoutMs: 6 * 60_000 }
         );
         if (res.url) {
@@ -160,12 +165,23 @@ export function VideoDirector({
         </label>
       </div>
       {isLockedVideoPlatform(network) && (
-        <p className="-mt-1 text-2xs text-muted">
-          {t(
-            "Sélection restreinte aux modèles au meilleur rapport qualité/prix pour ce réseau.",
-            "Restricted to the best quality/price models for this network."
-          )}
-        </p>
+        <div className="-mt-1 space-y-1">
+          <p className="text-2xs text-muted">
+            {t(
+              "Sélection restreinte aux modèles au meilleur rapport qualité/prix pour ce réseau.",
+              "Restricted to the best quality/price models for this network."
+            )}
+          </p>
+          <label className="flex items-center gap-1.5 text-2xs text-muted">
+            <input
+              type="checkbox"
+              checked={allowPremiumVideo}
+              onChange={(e) => setAllowPremiumVideo(e.target.checked)}
+              className="h-3.5 w-3.5 accent-page"
+            />
+            {t("Autoriser les modèles premium (coût plus élevé)", "Allow premium models (higher cost)")}
+          </label>
+        </div>
       )}
 
       <button onClick={plan} disabled={planning || !brief.trim()} className="btn-secondary w-full justify-center text-sm disabled:opacity-50">

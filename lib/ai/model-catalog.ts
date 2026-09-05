@@ -291,11 +291,16 @@ export const VIDEO_MODELS: GenModel[] = [
 ];
 
 /* ── Verrouillage vidéo (réseaux organiques Facebook/Instagram/LinkedIn) ──── *
- * Sur ces réseaux, le format vidéo court n'expose JAMAIS les API les plus
- * chères (Veo 3, Kling, Seedance Pro…) : seuls 1-2 modèles au meilleur
- * rapport qualité/prix sont proposables. Appliqué ici (et pas seulement
- * dans l'UI) pour que `getVideoModel` fasse foi côté serveur : un id hors
- * liste envoyé par le client retombe sur le modèle autorisé par défaut.  */
+ * Sur ces réseaux, le format vidéo court n'expose PAR DÉFAUT que 1-2 modèles
+ * au meilleur rapport qualité/prix — jamais les API les plus chères (Veo 3,
+ * Kling, Seedance Pro…). Appliqué ici (et pas seulement dans l'UI) pour que
+ * `getVideoModel` fasse foi côté serveur : un id hors liste envoyé par le
+ * client retombe sur le modèle autorisé par défaut, SAUF si l'appelant passe
+ * explicitement `{ allowPremium: true }` — réservé à Studio Créatif et
+ * Compose (seuls écrans où le déverrouillage est possible). Le verrou n'est
+ * PAS encore soumis à une autorisation réelle (habilitation par plan/rôle à
+ * brancher plus tard) : `allowPremium` est pour l'instant un simple choix de
+ * l'appelant, pas un droit vérifié. */
 
 const LOCKED_VIDEO_PLATFORMS = new Set(["facebook", "instagram", "linkedin"]);
 
@@ -321,8 +326,13 @@ export function isLockedVideoPlatform(platform?: string): boolean {
   return Boolean(p && LOCKED_VIDEO_PLATFORMS.has(p));
 }
 
-/** Liste de modèles vidéo proposables pour un réseau donné (verrouillée ou complète). */
-export function videoModelsForPlatform(platform?: string): GenModel[] {
+/**
+ * Liste de modèles vidéo proposables pour un réseau donné (verrouillée ou
+ * complète). `allowPremium` lève le verrou (Studio Créatif / Compose
+ * uniquement) — voir la note d'autorisation ci-dessus.
+ */
+export function videoModelsForPlatform(platform?: string, opts?: { allowPremium?: boolean }): GenModel[] {
+  if (opts?.allowPremium) return VIDEO_MODELS;
   return isLockedVideoPlatform(platform) ? SHORT_FORM_VIDEO_MODELS : VIDEO_MODELS;
 }
 
@@ -344,10 +354,11 @@ export function getImageModel(id?: string): GenModel {
  * Résout le modèle vidéo à utiliser. Si `platform` est un réseau verrouillé
  * (Facebook/Instagram/LinkedIn), un id hors de la liste autorisée (envoyé par
  * un client obsolète ou trafiqué) retombe sur le 1ᵉʳ modèle autorisé — jamais
- * sur une API premium.
+ * sur une API premium — sauf si `opts.allowPremium` est vrai (Studio Créatif /
+ * Compose : voir la note d'autorisation plus haut, pas encore un droit vérifié).
  */
-export function getVideoModel(id?: string, platform?: string): GenModel {
-  const allowed = videoModelsForPlatform(platform);
+export function getVideoModel(id?: string, platform?: string, opts?: { allowPremium?: boolean }): GenModel {
+  const allowed = videoModelsForPlatform(platform, opts);
   return allowed.find((m) => m.id === id) ?? allowed[0];
 }
 

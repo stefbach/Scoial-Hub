@@ -9,7 +9,6 @@ const NETWORK_COLORS: Record<ScrapeNetwork, string> = {
   instagram: "bg-pink-100 text-pink-700 border-pink-200",
   tiktok:    "bg-neutral-100 text-neutral-700 border-neutral-200",
   linkedin:  "bg-blue-100 text-blue-700 border-blue-200",
-  twitter:   "bg-sky-100 text-sky-700 border-sky-200",
   facebook:  "bg-indigo-100 text-indigo-700 border-indigo-200",
 };
 
@@ -18,7 +17,6 @@ const NETWORK_LABELS: Record<ScrapeNetwork, string> = {
   instagram: "Instagram",
   tiktok: "TikTok",
   linkedin: "LinkedIn",
-  twitter: "X / Twitter",
   facebook: "Facebook",
 };
 

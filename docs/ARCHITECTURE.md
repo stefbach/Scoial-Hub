@@ -54,9 +54,8 @@
 │  Meta Marketing API  │◄─────────│  Copywriter (Claude)              │
 │  Meta Pixel / CAPI   │          │  Creative (fal.ai / Runway)       │
 │  LinkedIn Pages API  │          │  Media Buyer (→ Meta Marketing)   │
-│  LinkedIn Ads API    │          │  Analyste (→ GA4 + Meta insights) │
-│  Google Analytics 4  │          │  Conformité (Claude, bloquant)    │
-│  Anthropic (Claude)  │          │                                   │
+│  LinkedIn Ads API    │          │  Analyste (→ Meta insights)       │
+│  Anthropic (Claude)  │          │  Conformité (Claude, bloquant)    │
 │  fal.ai (Flux/Kling) │          │  (voir docs/AGENTS.md)            │
 │  Runway / Luma       │          └───────────────────────────────────┘
 │  Apollo.io (MCP)     │
@@ -164,7 +163,7 @@ RLS active sur toutes les tables : un utilisateur ne voit que les données de so
 - [ ] Génération images via fal.ai (Flux Pro 1.1)
 - [ ] Génération vidéo via fal.ai (Kling 2.0) — asynchrone
 - [ ] Agent Conformité santé opérationnel (endpoint `/api/ai/compliance` enrichi)
-- [ ] Agent Analyste : collecte métriques GA4 + Meta Insights
+- [ ] Agent Analyste : collecte métriques Meta Insights
 - [ ] Agent Stratège : rapport hebdomadaire automatique (niveau 1)
 - [ ] Agent Copywriter avec brand voice par marque + variantes A/B
 - [ ] Prompt caching Anthropic sur les contextes de marque

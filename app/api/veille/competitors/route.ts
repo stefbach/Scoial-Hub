@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
     const guard = await requireCompanyAccess(companyId);
     if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
 
-    const validNetworks: ScrapeNetwork[] = ["youtube", "instagram", "tiktok", "linkedin", "twitter", "facebook"];
+    const validNetworks: ScrapeNetwork[] = ["youtube", "instagram", "tiktok", "linkedin", "facebook"];
     if (!validNetworks.includes(network as ScrapeNetwork)) {
       return NextResponse.json({ error: "Réseau non valide" }, { status: 400 });
     }

@@ -24,7 +24,6 @@ const NETWORK_BADGE: Record<string, { label: string; cls: string }> = {
   instagram: { label: "Instagram",  cls: "bg-pink-100 text-pink-700 border-pink-200" },
   tiktok:    { label: "TikTok",     cls: "bg-neutral-100 text-neutral-700 border-neutral-200" },
   linkedin:  { label: "LinkedIn",   cls: "bg-blue-100 text-blue-700 border-blue-200" },
-  twitter:   { label: "X",          cls: "bg-sky-100 text-sky-700 border-sky-200" },
   facebook:  { label: "Facebook",   cls: "bg-indigo-100 text-indigo-700 border-indigo-200" },
 };
 

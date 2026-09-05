@@ -46,10 +46,9 @@ L'architecture est solide et l'intention pédagogique forte (onboarding guidé e
 `/pages-meta`, `/linkedin`, `/article-linkedin`, `/inbox`, `/publicites`.
 
 À corriger (contenus datés, priorité moyenne) :
-- `/compose` : retirer/clarifier les références à Twitter/X (réseau non géré).
 - `/agents` : préciser les capacités de publication au niveau 3 (quels réseaux) + lien Studio Article.
 - `/studio-video` : clarifier la dépendance moteur de rendu (export auto vs plan de montage).
-- `/veille` : vérifier les réseaux réellement collectés (TikTok/YouTube/X).
+- `/veille` : vérifier les réseaux réellement collectés (TikTok/YouTube).
 - `/settings` : aligner le modèle de rôles documenté sur l'implémentation.
 - Définir les acronymes (CAPI, URN, RGPD) pour les non-experts.
 

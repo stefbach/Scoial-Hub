@@ -106,7 +106,6 @@ const OUT: [string, number, number][] = [
   ["1:1", 1080, 1080],
   ["16:9", 1920, 1080],
   ["4:5", 1080, 1350],
-  ["2:3", 1080, 1620],
 ];
 for (const [aspect, w, h] of OUT) {
   const e = buildEdit(baseCut({ aspect, assemblyType: "video_montage", secondsPerClip: 5 }), videoAssets(2), []);

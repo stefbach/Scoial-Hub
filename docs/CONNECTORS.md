@@ -154,28 +154,9 @@ LINKEDIN_CLIENT_SECRET=
 
 ## 3. Analytics & mesure
 
-### 3.1 Google Analytics 4
+### 3.1 UTM — paramètres de tracking
 
-**À quoi ça sert :** mesurer le trafic web issu des campagnes organic et paid via UTM, alimenter le reporting (`history_items.metrics`, `campaigns.metrics`).
-
-**Variables d'env :**
-```
-GA4_PROPERTY_ID=
-# Clé de compte de service Google (JSON) — à ajouter :
-GOOGLE_SERVICE_ACCOUNT_KEY=
-```
-
-**API utilisée :** Google Analytics Data API v1 (`analyticsdata.googleapis.com`).
-
-**Effort :** Faible à moyen. SDK client Google disponible. Requêtes en lecture seule.
-
-**Pièges :**
-- Les données GA4 ont un délai de 24–48h pour les rapports standard ; Data API en temps réel disponible mais limitée.
-- Service Account à créer dans Google Cloud Console + autoriser dans GA4.
-
-### 3.2 UTM — paramètres de tracking
-
-**À quoi ça sert :** attribuer chaque publication (organique et payant) à sa source dans GA4 et les tableaux de bord internes.
+**À quoi ça sert :** attribuer chaque publication (organique et payant) à sa source dans les tableaux de bord internes.
 
 **Convention recommandée :**
 ```
@@ -295,7 +276,6 @@ Ces MCP sont exploitables dans des Supabase Edge Functions ou des API routes via
 | **Meta Marketing API** (campagnes paid) | P0 | Module Paid — campagnes, ad sets, ads |
 | **Meta Pixel + CAPI** | P1 | Attribution, optimisation ML des campagnes |
 | **Génération images** (Replicate/fal.ai/OpenAI) | P1 | Créas visuelles, ads images |
-| **Google Analytics 4** | P1 | Reporting web, attribution UTM |
 | **Vercel Cron / Supabase Edge Functions cron** | P1 | Publication planifiée automatisée |
 | **LinkedIn Pages API** (organique) | P1 | Publication LinkedIn |
 | **Génération vidéo** (Runway/Luma/Kling) | P2 | Reels, ads vidéo IA |

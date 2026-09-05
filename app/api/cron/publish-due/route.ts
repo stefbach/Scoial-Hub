@@ -12,9 +12,9 @@
  * En cas d'échec (compte non connecté, token expiré…), le post reste
  * "scheduled" et sera retenté au prochain passage ; l'erreur est journalisée.
  *
- * Plateformes traitées : LinkedIn, Facebook, Instagram, Twitter/X, TikTok
- * (extensible — ajouter à PLATFORMS). NB Twitter = texte seul ; TikTok exige
- * une vidéo et reste en SELF_ONLY tant que l'app n'est pas auditée par TikTok.
+ * Plateformes traitées : LinkedIn, Facebook, Instagram, TikTok (extensible —
+ * ajouter à PLATFORMS). NB TikTok exige une vidéo et reste en SELF_ONLY tant
+ * que l'app n'est pas auditée par TikTok.
  *
  * Sécurité : valide le header `Authorization: Bearer <CRON_SECRET>`.
  * Si CRON_SECRET est absent (dev/local), laisse passer sans contrôle.
@@ -44,7 +44,7 @@ export const maxDuration = 60;
 // Publications traitées en parallèle par paquet (débit ↑ sans saturer les API).
 const CONCURRENCY = 8;
 
-const PLATFORMS: Platform[] = ["linkedin", "facebook", "instagram", "twitter", "tiktok"];
+const PLATFORMS: Platform[] = ["linkedin", "facebook", "instagram", "tiktok"];
 
 /** Fenêtre de retard tolérée, formulée pour le message d'erreur utilisateur. */
 const RETRY_WINDOW_LABEL = `${RETRY_WINDOW_HOURS} h`;

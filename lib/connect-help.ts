@@ -15,9 +15,6 @@
 export type ConnectHelpKey =
   | "meta"
   | "linkedin"
-  | "twitter"
-  | "pinterest"
-  | "threads"
   | "tiktok";
 
 /** Texte localisable. */
@@ -78,51 +75,6 @@ export const CONNECT_HELP: Record<ConnectHelpKey, ConnectHelp> = {
       en: "To publish on a company Page, LinkedIn's “Community Management” access is required.",
     },
     authPath: "/api/connectors/linkedin/auth",
-  },
-
-  twitter: {
-    title: { fr: "Connecter Twitter / X", en: "Connect Twitter / X" },
-    secure: SECURE_DEFAULT,
-    steps: [
-      { fr: "Cliquez « Continuer » : vous êtes redirigé vers X (Twitter).", en: "Click “Continue”: you'll be redirected to X (Twitter)." },
-      { fr: "Connectez-vous et autorisez la publication de tweets en votre nom.", en: "Sign in and authorize posting tweets on your behalf." },
-      { fr: "Vous revenez ici, connecté — prêt à publier.", en: "You come back here, connected — ready to post." },
-    ],
-    tip: {
-      fr: "Le compte connecté doit avoir les droits d'écriture (publication de tweets).",
-      en: "The connected account must have write access (posting tweets).",
-    },
-    authPath: "/api/connectors/twitter/auth",
-  },
-
-  pinterest: {
-    title: { fr: "Connecter Pinterest", en: "Connect Pinterest" },
-    secure: SECURE_DEFAULT,
-    steps: [
-      { fr: "Cliquez « Continuer » : vous êtes redirigé vers Pinterest.", en: "Click “Continue”: you'll be redirected to Pinterest." },
-      { fr: "Autorisez l'accès à vos tableaux (boards) et la création de Pins.", en: "Authorize access to your boards and Pin creation." },
-      { fr: "Vous revenez ici, connecté. Choisissez ensuite le tableau cible.", en: "You come back here, connected. Then pick the target board." },
-    ],
-    tip: {
-      fr: "Un Pin exige une image et un tableau cible : préparez un visuel avant de publier.",
-      en: "A Pin requires an image and a target board: prepare a visual before posting.",
-    },
-    authPath: "/api/connectors/pinterest/auth",
-  },
-
-  threads: {
-    title: { fr: "Connecter Threads", en: "Connect Threads" },
-    secure: SECURE_DEFAULT,
-    steps: [
-      { fr: "Cliquez « Continuer » : vous êtes redirigé vers Threads (Meta).", en: "Click “Continue”: you'll be redirected to Threads (Meta)." },
-      { fr: "Autorisez la publication sur votre compte Threads.", en: "Authorize posting to your Threads account." },
-      { fr: "Vous revenez ici, connecté — prêt à publier.", en: "You come back here, connected — ready to post." },
-    ],
-    tip: {
-      fr: "Threads nécessite un compte professionnel lié à votre espace Meta.",
-      en: "Threads requires a professional account linked to your Meta workspace.",
-    },
-    authPath: "/api/connectors/threads/auth",
   },
 
   tiktok: {

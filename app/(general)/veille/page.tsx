@@ -59,7 +59,6 @@ const NETWORKS: { value: ScrapeNetwork; label: string }[] = [
   { value: "tiktok",    label: "TikTok" },
   { value: "youtube",   label: "YouTube" },
   { value: "linkedin",  label: "LinkedIn" },
-  { value: "twitter",   label: "X / Twitter" },
   { value: "facebook",  label: "Facebook" },
 ];
 
@@ -70,7 +69,6 @@ const NETWORK_DOMAIN: Record<ScrapeNetwork, string> = {
   tiktok:    "tiktok.com",
   youtube:   "youtube.com",
   linkedin:  "linkedin.com",
-  twitter:   "x.com",
   facebook:  "facebook.com",
 };
 
@@ -83,7 +81,6 @@ function competitorVerifyUrl(network: ScrapeNetwork, name: string, handle?: stri
       case "tiktok":    return `https://www.tiktok.com/@${enc}`;
       case "youtube":   return `https://www.youtube.com/@${enc}`;
       case "linkedin":  return `https://www.linkedin.com/company/${enc}`;
-      case "twitter":   return `https://x.com/${enc}`;
       case "facebook":  return `https://www.facebook.com/${enc}`;
     }
   }

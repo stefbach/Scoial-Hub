@@ -5,7 +5,7 @@
 // composant générique SeriesPlanner. Chaque réseau a ses limites propres
 // (longueur, média requis, format, mode de diffusion).
 
-export type SeriesPlatform = "facebook" | "instagram" | "twitter" | "pinterest" | "tiktok";
+export type SeriesPlatform = "facebook" | "instagram" | "tiktok";
 
 export interface SeriesConfig {
   platform: SeriesPlatform;
@@ -17,7 +17,7 @@ export interface SeriesConfig {
    * Exigence de média :
    * - "none"     : aucun média
    * - "optional" : image facultative
-   * - "image"    : image OBLIGATOIRE (Instagram, Pinterest)
+   * - "image"    : image OBLIGATOIRE
    * - "video"    : vidéo OBLIGATOIRE (TikTok)
    */
   media: "none" | "optional" | "image" | "video";
@@ -26,12 +26,10 @@ export interface SeriesConfig {
   /**
    * Diffusion :
    * - "schedule" : programmation auto via le cron (Facebook, Instagram).
-   * - "publish"  : « Publier maintenant » via le connecteur (Twitter, Pinterest,
-   *                TikTok — pas encore dans le moteur de programmation auto).
+   * - "publish"  : « Publier maintenant » via le connecteur (TikTok — pas
+   *                encore dans le moteur de programmation auto).
    */
   delivery: "schedule" | "publish";
-  /** Pinterest : un board cible est requis. */
-  needsBoard?: boolean;
 }
 
 export const SERIES_CONFIG: Record<SeriesPlatform, SeriesConfig> = {
@@ -42,14 +40,6 @@ export const SERIES_CONFIG: Record<SeriesPlatform, SeriesConfig> = {
   instagram: {
     platform: "instagram", label: "Instagram", color: "#E1306C",
     maxChars: 2200, media: "image", formats: ["post"], delivery: "schedule",
-  },
-  twitter: {
-    platform: "twitter", label: "Twitter / X", color: "#000000",
-    maxChars: 280, media: "optional", formats: ["post"], delivery: "publish",
-  },
-  pinterest: {
-    platform: "pinterest", label: "Pinterest", color: "#E60023",
-    maxChars: 500, media: "image", formats: ["post"], delivery: "publish", needsBoard: true,
   },
   tiktok: {
     platform: "tiktok", label: "TikTok", color: "#000000",

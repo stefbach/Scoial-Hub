@@ -36,7 +36,6 @@ const DEFAULT_BEST_TIME: Record<Platform, { day: WeekDay; time: string }> = {
   instagram: { day: "wed", time: "11:00" },
   linkedin: { day: "tue", time: "10:00" },
   tiktok: { day: "fri", time: "18:00" },
-  twitter: { day: "tue", time: "09:00" },
 };
 
 /** En dessous, l'historique est trop mince pour être significatif. */

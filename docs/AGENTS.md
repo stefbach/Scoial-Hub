@@ -55,7 +55,6 @@ Tout agent fonctionne à l'un des trois niveaux suivants. Le niveau est configur
 - `history_items` (métriques des publications passées)
 - `campaigns.metrics` (performance paid)
 - Brief objectif (awareness / conversion / fidélisation)
-- Données GA4 (via API route de reporting)
 
 **Sorties :**
 - Recommandations de mix de contenu (formats, fréquences, thématiques)
@@ -64,7 +63,6 @@ Tout agent fonctionne à l'un des trois niveaux suivants. Le niveau est configur
 
 **Outils / API :**
 - Lecture `history_items`, `campaigns`, `ad_sets`
-- Google Analytics Data API (via `GA4_PROPERTY_ID`)
 - Écriture `audit_log` : `actor='agent:strategist'`
 
 **Niveau d'autonomie :** 1 par défaut (recommandations). Peut passer en 2 pour auto-alimenter le calendrier de publication.
@@ -171,7 +169,6 @@ Si solde insuffisant → blocage immédiat, alerte email (`Gmail MCP`).
 **Entrées :**
 - `history_items.metrics` (métriques organic par post)
 - `campaigns.metrics`, `ads.metrics` (métriques paid)
-- Google Analytics 4 Data API (trafic web, conversions)
 - Données Meta Pixel / CAPI (conversions attributées)
 
 **Sorties :**
@@ -181,7 +178,6 @@ Si solde insuffisant → blocage immédiat, alerte email (`Gmail MCP`).
 
 **Outils / API :**
 - Lecture toutes les tables métriques
-- Google Analytics Data API (`GA4_PROPERTY_ID`, `GOOGLE_SERVICE_ACCOUNT_KEY`)
 - Meta Graph API insights (métriques organiques)
 - Meta Marketing API reporting (métriques paid)
 - Gmail MCP : envoi du digest quotidien si `ad_safety.daily_digest = true`

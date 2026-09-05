@@ -83,9 +83,7 @@ export async function POST(req: NextRequest) {
 
     // Règles de format adaptées au réseau.
     const constraint =
-      platform === "twitter"
-        ? `Each body must be a single punchy message UNDER ${max} characters (hard limit), with at most 1 or 2 hashtags.`
-        : article
+      article
         ? `Each body: a structured mini-article (hook, intro, 2 to 4 key ideas with examples, key takeaways, conclusion + CTA), strictly under ${max} characters, ending with 3 to 5 hashtags.`
         : `Each body: a concise, engaging ${cfg.label} caption under ${max} characters (hook first line, clear CTA, ${platform === "instagram" ? "relevant emojis and " : ""}3 to 5 hashtags).`;
 

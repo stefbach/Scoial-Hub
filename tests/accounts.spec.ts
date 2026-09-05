@@ -2,8 +2,8 @@ import { test, expect } from "../e2e/helpers";
 
 // ── Parcours utilisateur — hub « Comptes & connexions » ───────────────────────
 // Valide la fonctionnalité centrale de cette branche : la page /accounts liste
-// TOUS les réseaux (dont les nouveaux : Twitter/X, Pinterest, Threads, TikTok)
-// et le bouton « Connecter » ouvre l'assistant guidé (aide pas-à-pas par réseau).
+// TOUS les réseaux (Facebook, Instagram, LinkedIn, TikTok) et le bouton
+// « Connecter » ouvre l'assistant guidé (aide pas-à-pas par réseau).
 //
 // /accounts est protégée : la fixture e2e (../e2e/helpers) pose le cookie de
 // bypass + force la langue anglaise.
@@ -19,9 +19,9 @@ test("hub Comptes : les connecteurs s'affichent et l'aide guidée s'ouvre", asyn
   await expect(connect.first()).toBeVisible({ timeout: 15_000 });
 
   // Tous les réseaux du hub sont rendus : un bouton « Connect » par réseau non
-  // connecté. En mode démo aucun n'est connecté → on attend les 7 réseaux
-  // (Facebook, Instagram, LinkedIn, Twitter/X, Pinterest, Threads, TikTok).
-  await expect(connect).toHaveCount(7);
+  // connecté. En mode démo aucun n'est connecté → on attend les 4 réseaux
+  // (Facebook, Instagram, LinkedIn, TikTok).
+  await expect(connect).toHaveCount(4);
 
   // Parcours : ouvrir l'assistant guidé → le modal d'aide (réassurance) s'affiche.
   await connect.first().click();

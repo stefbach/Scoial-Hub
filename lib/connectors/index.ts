@@ -14,9 +14,6 @@
 import type { SocialConnector, ConnectorStatus, ConnectorPlatform } from "@/lib/connectors/types";
 import { facebookConnector, instagramConnector } from "@/lib/connectors/meta";
 import { linkedinConnector } from "@/lib/connectors/linkedin";
-import { twitterConnector } from "@/lib/connectors/providers/twitter";
-import { pinterestConnector } from "@/lib/connectors/providers/pinterest";
-import { threadsConnector } from "@/lib/connectors/providers/threads";
 import { tiktokConnector } from "@/lib/connectors/providers/tiktok";
 
 // ---------------------------------------------------------------------------
@@ -33,9 +30,6 @@ const CONNECTORS: readonly SocialConnector[] = [
   instagramConnector,
   linkedinConnector,
   tiktokConnector,
-  twitterConnector,
-  pinterestConnector,
-  threadsConnector,
 ];
 
 /** Map interne plateforme → instance connecteur (dérivée de CONNECTORS). */

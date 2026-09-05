@@ -7,14 +7,13 @@ import type { CaptionSegment, MediaAsset, PlatformCut } from "./types";
 
 // Résolutions de sortie par ratio. Doit couvrir TOUS les ratios déclarés dans
 // VIDEO_PLATFORMS : un ratio manquant retombait silencieusement en 9:16, et le
-// rendu 4:5 (Instagram/Facebook portrait) ou 2:3 (Pinterest) sortait au mauvais
-// format, donc recadré par le réseau.
+// rendu 4:5 (Instagram/Facebook portrait) sortait au mauvais format, donc
+// recadré par le réseau.
 const SIZE: Record<string, { width: number; height: number }> = {
   "9:16": { width: 1080, height: 1920 },
   "1:1": { width: 1080, height: 1080 },
   "16:9": { width: 1920, height: 1080 },
   "4:5": { width: 1080, height: 1350 },
-  "2:3": { width: 1080, height: 1620 },
 };
 
 export type RenderState = "queued" | "rendering" | "done" | "failed" | "unsupported";

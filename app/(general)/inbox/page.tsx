@@ -935,7 +935,7 @@ function SimulateModal({
         <div className="mt-4 space-y-3">
           <div className="grid grid-cols-2 gap-2">
             <select value={channel} onChange={(e) => setChannel(e.target.value as InboxChannel)} className="rounded-lg border border-hair bg-canvas px-3 py-2 text-sm text-ink outline-none focus:border-primary-400">
-              {(["facebook", "instagram", "linkedin", "telegram", "twitter"] as InboxChannel[]).map((c) => (
+              {(["facebook", "instagram", "linkedin", "telegram"] as InboxChannel[]).map((c) => (
                 <option key={c} value={c}>{CHANNEL_LABELS[c]}</option>
               ))}
             </select>

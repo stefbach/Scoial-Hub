@@ -24,7 +24,7 @@ import { useT } from "@/lib/i18n";
 // GET /api/connectors?companyId=… (branché sur sh_channel_connections).
 // ---------------------------------------------------------------------------
 
-type PlatformId = "facebook" | "instagram" | "linkedin" | "twitter" | "pinterest" | "threads" | "tiktok";
+type PlatformId = "facebook" | "instagram" | "linkedin" | "tiktok";
 
 interface PlatformView {
   platform: PlatformId;
@@ -84,30 +84,6 @@ const PLATFORM_META: Record<
     dot: "bg-[#0A66C2]",
     connectVia: "linkedin",
   },
-  twitter: {
-    label: "Twitter / X",
-    color: "text-[#000000]",
-    bg: "bg-[#000000]/10",
-    ring: "ring-[#000000]/20",
-    dot: "bg-[#000000]",
-    connectVia: "twitter",
-  },
-  pinterest: {
-    label: "Pinterest",
-    color: "text-[#E60023]",
-    bg: "bg-[#E60023]/10",
-    ring: "ring-[#E60023]/20",
-    dot: "bg-[#E60023]",
-    connectVia: "pinterest",
-  },
-  threads: {
-    label: "Threads",
-    color: "text-[#000000]",
-    bg: "bg-[#000000]/10",
-    ring: "ring-[#000000]/20",
-    dot: "bg-[#000000]",
-    connectVia: "threads",
-  },
   tiktok: {
     label: "TikTok",
     color: "text-[#000000]",
@@ -122,9 +98,6 @@ const PLATFORMS: PlatformId[] = [
   "facebook",
   "instagram",
   "linkedin",
-  "twitter",
-  "pinterest",
-  "threads",
   "tiktok",
 ];
 
@@ -270,8 +243,8 @@ function AccountsPageInner() {
         <InfoIcon className="mt-0.5 shrink-0" />
         <span>
           {t(
-            "Connectez vos réseaux en un clic : Facebook, Instagram, LinkedIn, Twitter/X, Pinterest, Threads. La connexion Meta couvre Facebook et Instagram ensemble. Chaque réseau a un guide pas-à-pas — aucun token à copier.",
-            "Connect your networks in one click: Facebook, Instagram, LinkedIn, Twitter/X, Pinterest, Threads. The Meta connection covers Facebook and Instagram together. Each network has a step-by-step guide — no token to copy."
+            "Connectez vos réseaux en un clic : Facebook, Instagram, LinkedIn, TikTok. La connexion Meta couvre Facebook et Instagram ensemble. Chaque réseau a un guide pas-à-pas — aucun token à copier.",
+            "Connect your networks in one click: Facebook, Instagram, LinkedIn, TikTok. The Meta connection covers Facebook and Instagram together. Each network has a step-by-step guide — no token to copy."
           )}
         </span>
       </div>

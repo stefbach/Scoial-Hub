@@ -39,9 +39,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         "facebook",
         "instagram",
         "linkedin",
-        "twitter",
-        "pinterest",
-        "threads",
         "tiktok",
       ];
       const statuses: ConnectorStatus[] = platforms.map((p) => {

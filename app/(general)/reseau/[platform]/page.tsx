@@ -1,7 +1,7 @@
 "use client";
 
-// /reseau/[platform] — espace dédié d'un réseau (Facebook, Instagram, Twitter/X,
-// Pinterest, TikTok), façon « Espace LinkedIn ». LinkedIn garde son studio dédié.
+// /reseau/[platform] — espace dédié d'un réseau (Facebook, Instagram,
+// TikTok), façon « Espace LinkedIn ». LinkedIn garde son studio dédié.
 
 import { useParams } from "next/navigation";
 import { NetworkSpace } from "@/components/network/NetworkSpace";

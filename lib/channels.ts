@@ -4,8 +4,7 @@
 
 export type ChannelId =
   | "facebook" | "instagram" | "linkedin"
-  | "twitter" | "pinterest" | "threads"
-  | "meta_pixel" | "ga4" | "meta_app" | "telegram";
+  | "meta_pixel" | "meta_app" | "telegram";
 
 export interface ChannelField {
   key: string;
@@ -54,46 +53,12 @@ export const CHANNELS: ChannelDef[] = [
     ],
   },
   {
-    id: "twitter", label: "Twitter / X", group: "social", color: "#000000",
-    description: "Publication de tweets via l'API v2 (OAuth 2.0). Connexion sécurisée — aucun token à coller.",
-    where: "Connexion automatique : bouton « Connecter » (OAuth). Sinon developer.twitter.com → Project → App (OAuth 2.0).",
-    fields: [
-      { key: "external_id", label: "User ID (optionnel)", placeholder: "rempli automatiquement après connexion" },
-    ],
-  },
-  {
-    id: "pinterest", label: "Pinterest", group: "social", color: "#E60023",
-    description: "Création de Pins via l'API v5 (OAuth 2.0). Un board cible est requis pour publier.",
-    where: "Connexion automatique : bouton « Connecter » (OAuth). Sinon developers.pinterest.com → App.",
-    fields: [
-      { key: "external_id", label: "Board ID cible", placeholder: "id du board où publier les Pins" },
-    ],
-  },
-  {
-    id: "threads", label: "Threads", group: "social", color: "#000000",
-    description: "Publication sur Threads via la Threads Graph API (OAuth 2.0).",
-    where: "Connexion automatique : bouton « Connecter » (OAuth). Compte Threads professionnel lié à Meta.",
-    fields: [
-      { key: "external_id", label: "Threads User ID (optionnel)", placeholder: "rempli automatiquement après connexion" },
-    ],
-  },
-  {
     id: "meta_pixel", label: "Meta Pixel + CAPI", group: "measure", color: "#1877F2",
     description: "Suivi des conversions (Pixel + Conversions API).",
     where: "Meta Events Manager → Pixel → Conversions API",
     fields: [
       { key: "pixel_id", label: "Pixel ID", placeholder: "987654321" },
       { key: "capi_token", label: "CAPI Access Token", secret: true },
-    ],
-  },
-  {
-    id: "ga4", label: "Google Analytics 4", group: "measure", color: "#E8710A",
-    description: "Mesure web & attribution.",
-    where: "analytics.google.com → Admin → Property + Cloud (Data API)",
-    fields: [
-      { key: "property_id", label: "Property ID", placeholder: "GA4 property" },
-      { key: "measurement_id", label: "Measurement ID", placeholder: "G-XXXXXXX" },
-      { key: "api_secret", label: "API Secret (Measurement Protocol)", secret: true },
     ],
   },
   {

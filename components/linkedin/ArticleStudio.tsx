@@ -14,15 +14,7 @@ import { VisualPromptCoach } from "@/components/linkedin/VisualPromptCoach";
 import { formatForLinkedIn } from "@/lib/linkedin-format";
 import { MediaLibraryButton } from "@/components/studio/MediaLibrary";
 import { UploadMediaButton } from "@/components/studio/UploadMediaButton";
-
-// Modèles visuels de qualité proposés sur cet écran (du plus net au plus rapide).
-const VISUAL_MODELS: { id: string; label: string }[] = [
-  { id: "black-forest-labs/flux-1.1-pro-ultra", label: "Flux 1.1 Pro Ultra — ultra-net" },
-  { id: "google/imagen-4-ultra", label: "Imagen 4 Ultra (Google)" },
-  { id: "google/nano-banana", label: "Nano Banana (Gemini)" },
-  { id: "black-forest-labs/flux-1.1-pro", label: "Flux 1.1 Pro" },
-  { id: "ideogram-ai/ideogram-v3-quality", label: "Ideogram v3 — texte/affiche" },
-];
+import { IMAGE_MODELS, DEFAULT_IMAGE_MODEL_ID } from "@/lib/ai/model-catalog";
 
 /** Prompt visuel PILOTABLE : texte courant (éditable) + proposition d'origine
  *  de l'IA (`original`, null pour un visuel ajouté à la main) pour le « ↺ ». */
@@ -148,7 +140,7 @@ export function ArticleStudio({ seed }: { seed?: { nonce: number; text: string }
   // Assistant de prompt visuel (repliable) + index du prompt visuel actif.
   const [coachOpen, setCoachOpen] = useState(false);
   const [coachTarget, setCoachTarget] = useState(0);
-  const [imgModel, setImgModel] = useState(VISUAL_MODELS[0].id);
+  const [imgModel, setImgModel] = useState(DEFAULT_IMAGE_MODEL_ID);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   // Type du média choisi (le connecteur LinkedIn publie images ET vidéos).
   const [selectedKind, setSelectedKind] = useState<"image" | "video">("image");
@@ -620,7 +612,7 @@ export function ArticleStudio({ seed }: { seed?: { nonce: number; text: string }
               <label className="flex items-center gap-1.5 text-2xs text-muted">
                 {t("Modèle :", "Model:")}
                 <select value={imgModel} onChange={(e) => setImgModel(e.target.value)} className="rounded-lg border border-hair bg-canvas px-2 py-1 text-2xs text-ink outline-none focus:border-primary-400">
-                  {VISUAL_MODELS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+                  {IMAGE_MODELS.map((m) => <option key={m.id} value={m.id}>{m.label}{m.note ? ` — ${m.note}` : ""}</option>)}
                 </select>
               </label>
               <button type="button" onClick={() => setCoachOpen((o) => !o)}

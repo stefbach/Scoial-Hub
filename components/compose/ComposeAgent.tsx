@@ -69,9 +69,12 @@ export function ComposeAgent({
   const videoLockPlatform = networks.includes("tiktok")
     ? undefined
     : networks.find((n) => n === "facebook" || n === "instagram");
+  // Compose peut lever ce verrou (case à cocher) — pas encore soumis à une
+  // autorisation réelle, cf. lib/ai/model-catalog.ts.
+  const [allowPremiumVideo, setAllowPremiumVideo] = useState(false);
   const videoModelOptions = useMemo(
-    () => videoModelsForPlatform(videoLockPlatform),
-    [videoLockPlatform]
+    () => videoModelsForPlatform(videoLockPlatform, { allowPremium: allowPremiumVideo }),
+    [videoLockPlatform, allowPremiumVideo]
   );
   const [videoModel, setVideoModel] = useState(DEFAULT_VIDEO_MODEL_ID);
   const [videoSeconds, setVideoSeconds] = useState(8);
@@ -133,6 +136,7 @@ export function ComposeAgent({
           platform: videoLockPlatform,
           model: videoModel,
           seconds: videoSeconds,
+          allowPremiumVideo,
           companyId: company.id,
         });
         if (r.url) { onMedia({ url: r.url, kind: "video" }); setGenDone(out.visualPrompt); return; }
@@ -263,12 +267,23 @@ export function ComposeAgent({
           <PublishLanguageSelect value={pubLang} onChange={setPubLang} />
         </div>
         {isLockedVideoPlatform(videoLockPlatform) && (
-          <p className="-mt-1 mb-2 text-right text-2xs text-muted">
-            {t(
-              "Vidéo : sélection restreinte aux modèles au meilleur rapport qualité/prix (Facebook/Instagram).",
-              "Video: restricted to the best quality/price models (Facebook/Instagram)."
-            )}
-          </p>
+          <div className="-mt-1 mb-2 flex flex-wrap items-center justify-end gap-2 text-2xs text-muted">
+            <p>
+              {t(
+                "Vidéo : sélection restreinte aux modèles au meilleur rapport qualité/prix (Facebook/Instagram).",
+                "Video: restricted to the best quality/price models (Facebook/Instagram)."
+              )}
+            </p>
+            <label className="flex items-center gap-1.5">
+              <input
+                type="checkbox"
+                checked={allowPremiumVideo}
+                onChange={(e) => setAllowPremiumVideo(e.target.checked)}
+                className="h-3.5 w-3.5 accent-page"
+              />
+              {t("Autoriser les modèles premium (coût plus élevé)", "Allow premium models (higher cost)")}
+            </label>
+          </div>
         )}
 
         <div className="flex items-end gap-2">

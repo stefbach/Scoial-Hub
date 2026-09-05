@@ -31,6 +31,13 @@ interface RequestBody {
   aspect?: string;
   /** Identifiant de modèle Replicate (catalogue). Défaut : Veo 3. */
   model?: string;
+  /**
+   * Lève le verrou « meilleur rapport qualité/prix » sur Facebook/Instagram/
+   * LinkedIn — réservé à Studio Créatif et Compose. PAS ENCORE vérifié contre
+   * une autorisation réelle (habilitation par plan/rôle à brancher plus tard) :
+   * accepté tel quel pour l'instant, cf. lib/ai/model-catalog.ts.
+   */
+  allowPremiumVideo?: boolean;
   companyId?: string;
 }
 
@@ -48,12 +55,12 @@ async function creditBack(companyUuid: string, seconds: number): Promise<void> {
 export async function POST(req: NextRequest) {
   try {
     const body: RequestBody = await req.json().catch(() => ({}));
-    const { prompt = "", platform, aspect, seconds, model } = body;
+    const { prompt = "", platform, aspect, seconds, model, allowPremiumVideo } = body;
     const guard = await requireCompanyAccess(body.companyId, { mode: "edit" });
     if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
     const resolvedAspect = aspect ?? resolveVideoAspect(platform);
 
-    const gm = getVideoModel(model, platform);
+    const gm = getVideoModel(model, platform, { allowPremium: allowPremiumVideo });
     const input = gm.buildInput(prompt, { aspect: resolvedAspect, seconds });
 
     // ── Quota : on RÉSERVE avant de lancer quoi que ce soit ──────────────────

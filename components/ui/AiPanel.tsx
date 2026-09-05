@@ -272,6 +272,7 @@ export function AiVisualsPanel({
   platform = "facebook",
   imageModel,
   videoModel,
+  allowPremiumVideo,
   brandHints,
   companyId,
   onUse,
@@ -284,6 +285,8 @@ export function AiVisualsPanel({
   imageModel?: string;
   /** Modèle de génération vidéo (catalogue Replicate). */
   videoModel?: string;
+  /** Lève le verrou « meilleur rapport qualité/prix » (Studio Créatif / Compose). */
+  allowPremiumVideo?: boolean;
   /** Indications de style issues du brand kit (injectées dans le prompt). */
   brandHints?: string;
   /** Société — enregistre les visuels générés dans la bibliothèque média. */
@@ -326,7 +329,7 @@ export function AiVisualsPanel({
     try {
       if (isVideo) {
         // Génération vidéo asynchrone (Veo 3 / Kling / Seedance… selon le modèle).
-        const r = await generateVideoPolling({ prompt: text, platform, aspect: fmt, model: videoModel, seconds: 10, companyId });
+        const r = await generateVideoPolling({ prompt: text, platform, aspect: fmt, model: videoModel, seconds: 10, allowPremiumVideo, companyId });
         if (r.simulated || !r.url) {
           setMockMessage(
             r.simulated

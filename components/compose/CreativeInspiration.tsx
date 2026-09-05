@@ -33,6 +33,7 @@ export function CreativeInspiration({
   language,
   imageModel,
   videoModel,
+  allowPremiumVideo,
   onApplyText,
   onApplyMedia,
 }: {
@@ -45,6 +46,8 @@ export function CreativeInspiration({
   imageModel?: string;
   /** Modèle de génération vidéo (catalogue Replicate). */
   videoModel?: string;
+  /** Lève le verrou « meilleur rapport qualité/prix » (Studio Créatif / Compose). */
+  allowPremiumVideo?: boolean;
   onApplyText: (text: string) => void;
   onApplyMedia: (media: UploadedMedia) => void;
 }) {
@@ -161,7 +164,7 @@ export function CreativeInspiration({
               `Generating clip ${k + 1}/${scenes.length}… (Veo 3, ~1-3 min)`,
             ),
           );
-          const r = await generateVideoPolling({ prompt: scenes[k], platform, model: videoModel, seconds: 10, companyId });
+          const r = await generateVideoPolling({ prompt: scenes[k], platform, model: videoModel, seconds: 10, allowPremiumVideo, companyId });
           if (r.simulated) { simulated = true; break; }
           if (!r.url) { error = r.error; break; }
           urls.push(r.url);

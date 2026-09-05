@@ -18,6 +18,14 @@ import { DatePicker, TimePicker } from "@/components/ui/DateTimePicker";
 import { MediaLibraryButton } from "@/components/studio/MediaLibrary";
 import { UploadMediaButton } from "@/components/studio/UploadMediaButton";
 import { PublishLanguageSelect } from "@/components/ui/PublishLanguageSelect";
+import { generateVideoPolling, videoGenErrorMessage } from "@/lib/ai/generate-video-client";
+import {
+  IMAGE_MODELS,
+  DEFAULT_IMAGE_MODEL_ID,
+  DEFAULT_VIDEO_MODEL_ID,
+  videoModelsForPlatform,
+  isLockedVideoPlatform,
+} from "@/lib/ai/model-catalog";
 import type { ScheduledPost } from "@/lib/types";
 
 type Cadence = "daily" | "every2" | "weekly";
@@ -31,14 +39,9 @@ interface DraftItem {
   visualPrompt?: string;
   /** URL du visuel attaché (généré par IA ou choisi en bibliothèque). */
   media?: string | null;
+  /** Type du média attaché (image/vidéo) — propagé à la programmation. */
+  mediaKind?: "image" | "video" | null;
 }
-
-/** Modèles de génération de visuels (du plus net au plus rapide). */
-const SERIES_VISUAL_MODELS: { id: string; label: string }[] = [
-  { id: "black-forest-labs/flux-1.1-pro-ultra", label: "Flux 1.1 Pro Ultra" },
-  { id: "google/imagen-4-ultra", label: "Imagen 4 Ultra" },
-  { id: "black-forest-labs/flux-1.1-pro", label: "Flux 1.1 Pro" },
-];
 
 function extractImageUrls(data: unknown): string[] {
   const d = data as { images?: Array<string | { url?: string }> };
@@ -98,6 +101,7 @@ export function LinkedInScheduler() {
   const [editDate, setEditDate] = useState<Date>(new Date());
   const [editTime, setEditTime] = useState("09:00");
   const [editMedia, setEditMedia] = useState<string | null>(null);
+  const [editMediaKind, setEditMediaKind] = useState<"image" | "video">("image");
   const [savingEdit, setSavingEdit] = useState(false);
 
   function startEdit(p: ScheduledPost) {
@@ -106,6 +110,7 @@ export function LinkedInScheduler() {
     setEditDate(p.date ? new Date(`${p.date}T12:00:00`) : new Date());
     setEditTime(p.time || "09:00");
     setEditMedia(p.media?.url ?? null);
+    setEditMediaKind(p.media?.kind === "video" ? "video" : "image");
     setQueueMsg(null);
   }
 
@@ -122,7 +127,7 @@ export function LinkedInScheduler() {
           date: format(editDate, "yyyy-MM-dd"),
           time: editTime,
           // `null` retire le visuel ; un objet l'attache/le remplace.
-          media: editMedia ? { kind: "image", url: editMedia } : null,
+          media: editMedia ? { kind: editMediaKind, url: editMedia } : null,
         }),
       });
       if (!r.ok) {
@@ -187,7 +192,13 @@ export function LinkedInScheduler() {
   const [pubLang, setPubLang] = useState<string>(lang);
   const [useMemory, setUseMemory] = useState(false);
   const [generating, setGenerating] = useState(false);
-  const [imgModel, setImgModel] = useState(SERIES_VISUAL_MODELS[0].id);
+  const [imgModel, setImgModel] = useState(DEFAULT_IMAGE_MODEL_ID);
+  // Modèle vidéo (IA) — verrouillé par défaut à 1-2 modèles au meilleur
+  // rapport qualité/prix (jamais les API les plus chères) ; pas levable ici
+  // (réservé à Studio Créatif / Compose, cf. lib/ai/model-catalog.ts).
+  const videoModelOptions = useMemo(() => videoModelsForPlatform("linkedin"), []);
+  const [videoModel, setVideoModel] = useState(videoModelOptions[0]?.id ?? DEFAULT_VIDEO_MODEL_ID);
+  const [videoSeconds, setVideoSeconds] = useState(8);
   const [genImgIdx, setGenImgIdx] = useState<number | null>(null);
   const [startDate, setStartDate] = useState<Date>(() => addDays(new Date(), 1));
   const [cadence, setCadence] = useState<Cadence>("daily");
@@ -298,7 +309,7 @@ export function LinkedInScheduler() {
       }
       const urls = extractImageUrls(d);
       if (urls.length > 0) {
-        patchDraft(i, { media: urls[0] });
+        patchDraft(i, { media: urls[0], mediaKind: "image" });
       } else if (d.simulated) {
         setBatchMsg(t("Génération d'images non configurée (REPLICATE_API_TOKEN).", "Image generation not configured (REPLICATE_API_TOKEN)."));
       } else {
@@ -306,6 +317,46 @@ export function LinkedInScheduler() {
       }
     } catch (e) {
       setBatchMsg(e instanceof Error ? e.message : t("Échec de génération d'image.", "Image generation failed."));
+    } finally {
+      setGenImgIdx(null);
+    }
+  }
+
+  /** Génère la vidéo de TOUS les éléments sans média (séquentiel). */
+  async function genAllVideos() {
+    setGenAll(true);
+    setBatchMsg(null);
+    const targets = drafts.map((d, i) => ({ d, i })).filter(({ d }) => d.body.trim() && !d.media);
+    if (targets.length === 0) {
+      setBatchMsg(t("Tous les éléments ont déjà un média.", "Every item already has a media."));
+      setGenAll(false);
+      return;
+    }
+    let done = 0;
+    for (const { i } of targets) {
+      setBatchMsg(t(`Génération des vidéos… (${done + 1}/${targets.length})`, `Generating videos… (${done + 1}/${targets.length})`));
+      await genVideo(i);
+      done++;
+    }
+    setBatchMsg(t(`Vidéos générées ✓ (${done})`, `Videos generated ✓ (${done})`));
+    setGenAll(false);
+  }
+
+  /** Génère une vidéo IA pour un brouillon (à partir de son prompt visuel). */
+  async function genVideo(i: number) {
+    const item = drafts[i];
+    const vp = (item?.visualPrompt || item?.body || theme || "").trim();
+    if (!vp) {
+      setBatchMsg(t("Aucun contenu pour générer une vidéo.", "No content to generate a video."));
+      return;
+    }
+    setGenImgIdx(i);
+    setBatchMsg(null);
+    try {
+      const r = await generateVideoPolling({ prompt: vp.slice(0, 400), platform: "linkedin", model: videoModel, seconds: videoSeconds, companyId });
+      if (r.url) { patchDraft(i, { media: r.url, mediaKind: "video" }); return; }
+      if (r.simulated) setBatchMsg(t("Génération vidéo non configurée (REPLICATE_API_TOKEN).", "Video generation not configured (REPLICATE_API_TOKEN)."));
+      else setBatchMsg(videoGenErrorMessage(r.error, t));
     } finally {
       setGenImgIdx(null);
     }
@@ -324,8 +375,10 @@ export function LinkedInScheduler() {
       for (let i = 0; i < filledDrafts.length; i++) {
         const item = filledDrafts[i];
         const body = item.body.trim();
-        // Visuel : celui propre au post (généré/choisi), sinon le visuel commun.
-        const imgUrl = item.media || seriesImage || null;
+        // Média : celui propre au post (généré/choisi), sinon le visuel commun
+        // (toujours une image). Ne pas propager mediaKind depuis le fallback.
+        const mediaUrl = item.media || seriesImage || null;
+        const mediaKind: "image" | "video" = item.media ? (item.mediaKind ?? "image") : "image";
         const r = await fetch("/api/scheduled-posts", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -338,7 +391,7 @@ export function LinkedInScheduler() {
             time: batchTime,
             status: "scheduled",
             source: "manual",
-            media: imgUrl ? { kind: "image", url: imgUrl } : undefined,
+            media: mediaUrl ? { kind: mediaKind, url: mediaUrl } : undefined,
           }),
         });
         if (r.ok) ok++;
@@ -548,6 +601,15 @@ export function LinkedInScheduler() {
               {genAll && <Spinner size={14} className="text-current" />}
               {genAll ? t("Visuels…", "Visuals…") : t("✨ Générer tous les visuels", "✨ Generate all visuals")}
             </button>
+            <button
+              onClick={genAllVideos}
+              disabled={genAll || generating || !canEdit || filledDrafts.length === 0}
+              title={t("Génère une vidéo pour chaque élément sans média", "Generate a video for each item without a media")}
+              className="btn-secondary inline-flex items-center gap-1.5 text-xs disabled:opacity-50"
+            >
+              {genAll && <Spinner size={14} className="text-current" />}
+              {genAll ? t("Vidéos…", "Videos…") : t("✨ Générer toutes les vidéos", "✨ Generate all videos")}
+            </button>
           </div>
 
           {/* Type de contenu (posts courts ou articles) + modèle de visuel */}
@@ -573,12 +635,41 @@ export function LinkedInScheduler() {
                 onChange={(e) => setImgModel(e.target.value)}
                 className="rounded-lg border border-hair bg-card px-2 py-1 text-2xs text-ink outline-none focus:border-primary-400"
               >
-                {SERIES_VISUAL_MODELS.map((m) => (
-                  <option key={m.id} value={m.id}>{m.label}</option>
+                {IMAGE_MODELS.map((m) => (
+                  <option key={m.id} value={m.id}>{m.label}{m.note ? ` — ${m.note}` : ""}</option>
                 ))}
               </select>
             </label>
+            <label className="flex items-center gap-1.5 text-2xs text-muted">
+              {t("Modèle vidéo :", "Video model:")}
+              <select
+                value={videoModel}
+                onChange={(e) => setVideoModel(e.target.value)}
+                className="rounded-lg border border-hair bg-card px-2 py-1 text-2xs text-ink outline-none focus:border-primary-400"
+              >
+                {videoModelOptions.map((m) => (
+                  <option key={m.id} value={m.id}>{m.label}{m.note ? ` — ${m.note}` : ""}</option>
+                ))}
+              </select>
+            </label>
+            <span className="inline-flex items-center gap-1 text-2xs text-muted">
+              {t("Durée :", "Duration:")}
+              {[5, 8, 10].map((s) => (
+                <button key={s} type="button" onClick={() => setVideoSeconds(s)}
+                  className={`rounded-full px-2 py-0.5 font-medium ${videoSeconds === s ? "bg-ink text-white" : "bg-card text-muted ring-1 ring-hair hover:text-ink"}`}>
+                  {s}s
+                </button>
+              ))}
+            </span>
           </div>
+          {isLockedVideoPlatform("linkedin") && (
+            <p className="text-2xs text-muted">
+              {t(
+                "Vidéo : sélection restreinte aux modèles au meilleur rapport qualité/prix.",
+                "Video: restricted to the best quality/price models."
+              )}
+            </p>
+          )}
 
           <label className="inline-flex cursor-pointer items-center gap-1.5 text-2xs text-muted">
             <input
@@ -628,23 +719,27 @@ export function LinkedInScheduler() {
                 </button>
               </div>
 
-              {/* Visuel de cet élément : généré par IA ou choisi en bibliothèque */}
+              {/* Média de cet élément : généré par IA ou choisi en bibliothèque */}
               <div className="mt-2 flex flex-wrap items-center gap-2 pl-7">
                 {d.media ? (
                   <span className="relative inline-block">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={d.media} alt="" className="h-12 w-12 rounded-lg border border-hair object-cover" />
+                    {d.mediaKind === "video" ? (
+                      <video src={d.media} className="h-12 w-12 rounded-lg border border-hair object-cover" muted />
+                    ) : (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={d.media} alt="" className="h-12 w-12 rounded-lg border border-hair object-cover" />
+                    )}
                     <button
                       type="button"
-                      onClick={() => patchDraft(i, { media: null })}
-                      title={t("Retirer le visuel", "Remove visual")}
+                      onClick={() => patchDraft(i, { media: null, mediaKind: null })}
+                      title={t("Retirer le média", "Remove media")}
                       className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-ink text-2xs text-white"
                     >
                       ✕
                     </button>
                   </span>
                 ) : (
-                  <span className="text-2xs text-muted">{t("Pas de visuel", "No visual")}</span>
+                  <span className="text-2xs text-muted">{t("Pas de média", "No media")}</span>
                 )}
                 <button
                   onClick={() => genVisual(i)}
@@ -654,20 +749,28 @@ export function LinkedInScheduler() {
                   {genImgIdx === i && <Spinner size={12} className="text-current" />}
                   {genImgIdx === i ? t("Génération…", "Generating…") : t("✨ Générer le visuel", "✨ Generate visual")}
                 </button>
+                <button
+                  onClick={() => genVideo(i)}
+                  disabled={genImgIdx === i || !canEdit || !d.body.trim()}
+                  className="btn-secondary inline-flex items-center gap-1 text-2xs disabled:opacity-50"
+                >
+                  {genImgIdx === i && <Spinner size={12} className="text-current" />}
+                  {genImgIdx === i ? t("Génération…", "Generating…") : t("✨ Générer la vidéo", "✨ Generate video")}
+                </button>
                 <MediaLibraryButton
                   companyId={companyId}
-                  accept="image"
+                  accept="all"
                   label={t("📚 Bibliothèque", "📚 Library")}
                   className="btn-secondary text-2xs"
-                  onPick={(a) => patchDraft(i, { media: a.url })}
+                  onPick={(a) => patchDraft(i, { media: a.url, mediaKind: a.type })}
                 />
-                {/* Import direct : VOTRE visuel, depuis l'ordinateur. */}
+                {/* Import direct : VOTRE visuel ou vidéo, depuis l'ordinateur. */}
                 <UploadMediaButton
                   companyId={companyId}
-                  accept="image"
-                  label={t("📤 Importer mon visuel", "📤 Upload my visual")}
+                  accept="all"
+                  label={t("📤 Importer (image/vidéo)", "📤 Upload (image/video)")}
                   className="btn-secondary text-2xs"
-                  onUploaded={(url) => patchDraft(i, { media: url })}
+                  onUploaded={(url, kind) => patchDraft(i, { media: url, mediaKind: kind })}
                 />
               </div>
             </div>

@@ -28,6 +28,10 @@ const renderStatus = (): PlatformCut["renderStatus"] =>
 
 const SHORT_VIDEO: VideoPlatform[] = ["tiktok", "instagram_reels", "instagram_story", "youtube_shorts", "facebook_story"];
 
+// Montage : durée de chaque plan. Le film = nb de plans × PER_CLIP (illimité).
+// Même valeur que le découpage par défaut de `buildEdit` (lib/video/render.ts).
+const PER_CLIP = 5;
+
 /** Déduit le mode d'assemblage de base à partir des médias. */
 function inferAssembly(assets: MediaAsset[], requested: AssemblyMode): AssemblyMode {
   if (requested !== "auto") return requested;
@@ -48,6 +52,19 @@ function assemblyForPlatform(base: AssemblyMode, p: VideoPlatform): AssemblyMode
 
 function isStatic(mode: AssemblyMode): boolean {
   return mode === "carousel" || mode === "collage" || mode === "single";
+}
+
+/**
+ * Sous-titres alignés sur le montage RÉEL : quand un clip vidéo porte une
+ * `note` (voix off / texte du Réalisateur IA), on l'utilise directement
+ * plutôt que d'inventer une accroche marketing sans rapport avec la vidéo.
+ * Le plan `i` occupe [i·perClip, (i+1)·perClip] — même découpage que
+ * `buildEdit` (lib/video/render.ts).
+ */
+function captionsFromAssetNotes(assets: MediaAsset[], perClip: number): CaptionSegment[] {
+  return assets
+    .map((a, i) => (a.kind === "video" && a.note?.trim() ? { start: i * perClip, end: (i + 1) * perClip, text: a.note.trim().slice(0, 90) } : null))
+    .filter((c): c is CaptionSegment => c !== null);
 }
 
 // ── Mock déterministe ───────────────────────────────────────────────────────────
@@ -76,7 +93,17 @@ function buildMock(input: MarketizeInput): VideoMarketingPackage {
     }));
   }
 
-  const captions: CaptionSegment[] = hasVideo
+  // Un montage assemble TOUS les médias déposés (photos comprises), pas
+  // seulement les vidéos : compter les seules vidéos sous-estimait la durée.
+  const clipCount = input.assets.length;
+
+  // Retour client — les sous-titres "n'ont rien à voir avec la vidéo générée" :
+  // on privilégie le contenu RÉEL des clips (voix off/texte) quand il est connu.
+  const groundedCaptions = captionsFromAssetNotes(input.assets, PER_CLIP);
+
+  const captions: CaptionSegment[] = groundedCaptions.length > 0
+    ? groundedCaptions
+    : hasVideo
     ? [
         { start: 0, end: 3, text: fr ? "Voici ce que personne ne vous dit…" : "Here's what nobody tells you…" },
         { start: 3, end: 8, text: fr ? "En 30 secondes, l'essentiel." : "In 30 seconds, the essentials." },
@@ -85,12 +112,6 @@ function buildMock(input: MarketizeInput): VideoMarketingPackage {
         { start: 22, end: 28, text: fr ? "Envie d'en savoir plus ?" : "Want to know more?" },
       ]
     : [];
-
-  // Montage : durée de chaque plan. Le film = nb de plans × PER_CLIP (illimité).
-  // Un montage assemble TOUS les médias déposés (photos comprises), pas
-  // seulement les vidéos : compter les seules vidéos sous-estimait la durée.
-  const PER_CLIP = 5;
-  const clipCount = input.assets.length;
   // Durée du diaporama / vidéo simple = curseur de l'utilisateur (sans plafond 28s).
   const hintSec = Math.max(5, Math.round(Number(input.durationHintSec) || 20));
 
@@ -187,12 +208,19 @@ async function buildOneCut(
   const m = metaFor(platform);
   const images = input.assets.filter((a) => a.kind === "image").length;
   const videos = input.assets.filter((a) => a.kind === "video").length;
+  // Contenu RÉEL des plans (voix off / texte / prompt visuel) quand connu —
+  // sans ça, l'IA n'avait que des COMPTES de médias et inventait des captions
+  // marketing génériques sans rapport avec ce qui se passe à l'écran.
+  const shotNotes = input.assets
+    .map((a, i) => (a.note?.trim() ? `${i + 1}. [${a.kind}] ${a.note.trim()}` : null))
+    .filter(Boolean)
+    .join("\n");
 
   const prompt = `Tu es directeur artistique & social media manager senior. À partir de MÉDIAS BRUTS (photos/vidéos), tu conçois UNE déclinaison marketing pro pour LE réseau ${m.label} (${m.id}), format ${m.aspect}, durée max ${m.maxSeconds}s.
 
 Médias : ${input.assets.length} (${images} image(s), ${videos} vidéo(s)). Assemblage de base déduit : ${base}.
 Objectif : ${input.objective || "non précisé"}. Ton de marque : ${input.brandVoice || "professionnel, dynamique"}. Langue des textes : ${input.lang === "fr" ? "français" : "anglais"}.
-
+${shotNotes ? `\nContenu RÉEL de chaque plan, dans l'ordre du montage (utilise ces informations pour que "captions" corresponde VRAIMENT à ce qui se passe à l'écran à chaque instant — ne les invente JAMAIS) :\n${shotNotes}\n` : ""}
 Choisis "assemblyType" adapté à CE réseau : carousel | slideshow | collage | single | video | video_montage. Rappel : TikTok/Reels/Shorts ne supportent pas le carrousel → "slideshow".
 
 Réponds UNIQUEMENT en JSON strict, COMPACT (aucun texte autour) :
@@ -242,7 +270,6 @@ Limites STRICTES : slides ≤ 5, hookVariants ≤ 2, editNotes ≤ 4, captions �
   const assemblyType = (c.assemblyType ?? base) as AssemblyMode;
   // MONTAGE → durée = nb de clips × plan (illimité). Sinon → valeur IA bornée au
   // maximum réel du réseau (et non plus à 28 s).
-  const PER_CLIP = 5;
   const targetDurationSec =
     assemblyType === "video_montage"
       ? Math.max(input.assets.length, 1) * PER_CLIP
@@ -289,7 +316,10 @@ async function buildWithClaude(input: MarketizeInput): Promise<VideoMarketingPac
 
   const fr = input.lang === "fr";
   const meta = ok[0];
-  const captions = ok.find((r) => r.captions && r.captions.length > 0)?.captions ?? [];
+  // Contenu réel connu (notes des plans) → il prime toujours sur ce que Claude
+  // a pu inventer, quelle que soit la fidélité de sa réponse à la consigne.
+  const grounded = captionsFromAssetNotes(input.assets, PER_CLIP);
+  const captions = grounded.length > 0 ? grounded : (ok.find((r) => r.captions && r.captions.length > 0)?.captions ?? []);
 
   return {
     assets: input.assets,

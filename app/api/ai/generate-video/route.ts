@@ -111,8 +111,16 @@ export async function POST(req: NextRequest) {
     if (started.id) await recordVideoReservation(started.id, companyUuid, billed);
 
     if (started.status === "succeeded" && started.video) {
+      // Rapatrie l'URL éphémère Replicate vers notre stockage — comme pour
+      // l'image (generate-image, edit-image, avatar) : sans ça, le clip reste
+      // référencé par une adresse fournisseur qui peut expirer avant que le
+      // Studio Créatif ne le rende (Shotstack échoue alors en « média
+      // introuvable »). Dégradation gracieuse : renvoie l'URL d'origine en cas
+      // d'échec de la persistance.
+      const { persistRemoteMedia } = await import("@/lib/repositories/media");
+      const url = await persistRemoteMedia(body.companyId ?? "", started.video.url, "video");
       return NextResponse.json({
-        video: started.video, aspect: resolvedAspect, platform: platform ?? null, quota: quotaPayload,
+        video: { url }, aspect: resolvedAspect, platform: platform ?? null, quota: quotaPayload,
       });
     }
     // En cours → le client interrogera le statut via GET ?id=.
@@ -135,6 +143,7 @@ export async function POST(req: NextRequest) {
 
 export async function GET(req: NextRequest) {
   const id = req.nextUrl.searchParams.get("id");
+  const companyId = req.nextUrl.searchParams.get("companyId") ?? "";
   if (!id) {
     return NextResponse.json({ error: "id requis" }, { status: 400 });
   }
@@ -142,7 +151,11 @@ export async function GET(req: NextRequest) {
     const st = await getVideoPrediction(id);
     if (st.simulated) return NextResponse.json({ simulated: true });
     if (st.status === "succeeded" && st.video) {
-      return NextResponse.json({ status: "succeeded", video: st.video });
+      // Même rapatriement que ci-dessus (POST), pour le cas — le plus courant —
+      // où la vidéo n'est prête qu'au bout du polling.
+      const { persistRemoteMedia } = await import("@/lib/repositories/media");
+      const url = await persistRemoteMedia(companyId, st.video.url, "video");
+      return NextResponse.json({ status: "succeeded", video: { url } });
     }
     if (st.status === "failed" || st.status === "canceled") {
       // La génération a échoué après avoir démarré : on rend les secondes.

@@ -66,6 +66,7 @@ export function VideoDirector({
   const [progress, setProgress] = useState<string>("");
   const [filming, setFilming] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  const [improvingScene, setImprovingScene] = useState<number | null>(null);
 
   async function plan() {
     if (!brief.trim() || planning) return;
@@ -91,6 +92,30 @@ export function VideoDirector({
     setBoard((b) => b ? { ...b, scenes: b.scenes.map((s) => (s.index === i ? { ...s, ...patch } : s)) } : b);
   }
 
+  // Générateur de prompt par scène : réécrit le prompt visuel brut (souvent
+  // trop court une fois édité à la main) en un prompt riche prêt pour le
+  // modèle texte→vidéo — même moteur que PromptStudio (/api/ai/improve-prompt).
+  async function improveScenePrompt(i: number) {
+    const scene = board?.scenes.find((s) => s.index === i);
+    if (!scene || !scene.prompt.trim() || improvingScene !== null) return;
+    setImprovingScene(i);
+    try {
+      const res = await fetch("/api/ai/improve-prompt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: scene.prompt, kind: "video", brandVoice: company.brandVoice, language: lang }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && typeof data.prompt === "string" && data.prompt.trim()) {
+        setScene(i, { prompt: data.prompt.trim() });
+      }
+    } catch {
+      /* garde le prompt existant */
+    } finally {
+      setImprovingScene(null);
+    }
+  }
+
   async function film() {
     if (!board || filming) return;
     setFilming(true); setNote(null);
@@ -105,7 +130,11 @@ export function VideoDirector({
           { timeoutMs: 6 * 60_000 }
         );
         if (res.url) {
-          onClip({ url: res.url, kind: "video", name: `${t("Scène", "Scene")} ${s.index}` });
+          // La voix off / le texte à l'écran décrivent ce qui se passe VRAIMENT
+          // dans le clip — transmis pour que l'assemblage génère des sous-titres
+          // alignés sur la vidéo, pas des accroches marketing génériques.
+          const clipNote = [s.voiceover, s.onScreenText].filter((v) => v?.trim()).join(" — ") || s.prompt;
+          onClip({ url: res.url, kind: "video", name: `${t("Scène", "Scene")} ${s.index}`, note: clipNote });
           setStatus((st) => ({ ...st, [s.index]: "done" }));
           ok += 1;
         } else {
@@ -208,6 +237,22 @@ export function VideoDirector({
                 </div>
                 <textarea value={s.prompt} onChange={(e) => setScene(s.index, { prompt: e.target.value })} rows={2}
                   className="input resize-none text-2xs" title={t("Prompt visuel (anglais)", "Visual prompt (English)")} />
+                <button
+                  type="button"
+                  className="btn-ghost mt-1 text-2xs text-ai-text disabled:opacity-50"
+                  onClick={() => improveScenePrompt(s.index)}
+                  disabled={improvingScene !== null || !s.prompt.trim()}
+                  title={t("Réécrire ce prompt en un prompt de génération vidéo riche et précis.", "Rewrite this prompt into a rich, precise video-generation prompt.")}
+                >
+                  {improvingScene === s.index ? (
+                    <span className="flex items-center gap-1.5">
+                      <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-ai-text" />
+                      {t("Amélioration…", "Improving…")}
+                    </span>
+                  ) : (
+                    <>✨ {t("Générateur de prompt", "Prompt generator")}</>
+                  )}
+                </button>
                 {(s.onScreenText || s.voiceover) && (
                   <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-2xs text-muted">
                     {s.onScreenText && <span>📝 {s.onScreenText}</span>}

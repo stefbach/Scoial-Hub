@@ -11,6 +11,7 @@
     "lint": "next lint",
     "test:affiche": "tsx scripts/verify-affiche-layout.ts",
     "test:montage": "tsx scripts/verify-montage-duration.ts",
+    "test:captionsgrounded": "tsx scripts/verify-studio-captions-grounded.ts",
     "test:connectors": "tsx scripts/verify-connectors.ts",
     "test:inbox": "tsx scripts/verify-inbox-sync.ts",
     "test:e2e": "playwright test",

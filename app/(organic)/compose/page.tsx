@@ -24,7 +24,7 @@ import { Toast } from "@/components/ui/Toast";
 import { findDraft, findPost } from "@/lib/draft-store";
 import { findTemplate } from "@/lib/template-store";
 import { findHistoryItem } from "@/lib/history-store";
-import type { ScheduledPost, TikTokPublishOptions } from "@/lib/types";
+import type { ScheduledPost, TikTokPublishOptions, WeekDay } from "@/lib/types";
 
 /**
  * Réponse de GET /api/connectors/tiktok/creator-info — exigée par les
@@ -289,6 +289,34 @@ function ComposeContent() {
     if (!platform) return null;
     return { platform, suggestion: suggestBestTime(platform, data.history) };
   }, [selectedPlatforms, data.history]);
+
+  // Meilleur créneau APPRIS par le moteur d'apprentissage (Thompson Sampling,
+  // lib/learning-engine) : distinct de `bestTime` ci-dessus (moyenne simple
+  // sur l'historique visible côté client) — celui-ci lit l'état persistant,
+  // partagé entre toutes les sessions, alimenté par le cron learning-sync
+  // depuis les métriques réelles post-publication. Prend le pas sur `bestTime`
+  // dès qu'il existe (voir rendu plus bas), car il reflète un signal mesuré
+  // dans la durée plutôt qu'un instantané de l'historique local.
+  const [learnedSlot, setLearnedSlot] = useState<
+    { day: WeekDay; hour: number; confidence: number; sampleSize: number } | null
+  >(null);
+  useEffect(() => {
+    const platform = selectedPlatforms[0];
+    if (!platform) { setLearnedSlot(null); return; }
+    let cancelled = false;
+    setLearnedSlot(null);
+    fetch("/api/learning/best-slot", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ companyId: company.id, platform }),
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { slot?: typeof learnedSlot } | null) => {
+        if (!cancelled) setLearnedSlot(d?.slot ?? null);
+      })
+      .catch(() => { if (!cancelled) setLearnedSlot(null); });
+    return () => { cancelled = true; };
+  }, [selectedPlatforms, company.id]);
 
   // ── TikTok — Required UX Implementation ───────────────────────────────────
   const tiktokSelected = selectedPlatforms.includes("tiktok");
@@ -1046,8 +1074,35 @@ function ComposeContent() {
             onTimeChange={setTime}
           />
 
-          {/* Meilleur moment suggéré (retour client Rosiane #1). */}
-          {when === "schedule" && bestTime && (
+          {/* Meilleur créneau APPRIS (moteur d'apprentissage) — prioritaire dès
+              qu'il existe : signal mesuré dans la durée, partagé entre
+              sessions, plus fiable que la moyenne locale ci-dessous. */}
+          {when === "schedule" && learnedSlot && (
+            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-success-200 bg-success-50 px-3 py-2 text-2xs text-success-700">
+              <span>
+                🧠{" "}
+                {t(
+                  `Appris par le moteur d'apprentissage pour ${platformLabel(bestTime?.platform ?? selectedPlatforms[0])} : ${weekdayLabel(learnedSlot.day, t)} ${String(learnedSlot.hour).padStart(2, "0")}:00 (confiance ${Math.round(learnedSlot.confidence * 100)}%, ${learnedSlot.sampleSize} mesures).`,
+                  `Learned by the learning engine for ${platformLabel(bestTime?.platform ?? selectedPlatforms[0])}: ${weekdayLabel(learnedSlot.day, t)} ${String(learnedSlot.hour).padStart(2, "0")}:00 (confidence ${Math.round(learnedSlot.confidence * 100)}%, ${learnedSlot.sampleSize} samples).`
+                )}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  const time = `${String(learnedSlot.hour).padStart(2, "0")}:00`;
+                  setDate(nextDateForWeekday(learnedSlot.day, time));
+                  setTime(time);
+                }}
+                className="btn-secondary shrink-0 px-2 py-1 text-2xs"
+              >
+                {t("Appliquer ce créneau", "Apply this slot")}
+              </button>
+            </div>
+          )}
+
+          {/* Meilleur moment suggéré (retour client Rosiane #1) — repli tant que
+              le moteur d'apprentissage n'a pas encore assez de mesures. */}
+          {when === "schedule" && !learnedSlot && bestTime && (
             <div className="flex flex-wrap items-center gap-2 rounded-lg border-hair bg-canvas/60 px-3 py-2 text-2xs text-muted">
               <span>
                 💡{" "}

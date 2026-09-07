@@ -50,6 +50,45 @@ export async function loadArms(
   }
 }
 
+/**
+ * Liste tous les bras connus d'une dimension, optionnellement filtrés par
+ * préfixe de clé (ex. "facebook-" pour ne garder que les créneaux appris sur
+ * Facebook). Contrairement à `loadArms`, ne suppose pas de liste de
+ * candidats à l'avance — utile pour un classement (« quel est le meilleur
+ * créneau connu ? ») plutôt qu'un choix bandit parmi des options données.
+ */
+export async function listArms(
+  companyId: string,
+  dimension: LearningDimension,
+  armKeyPrefix = ""
+): Promise<ArmStat[]> {
+  if (!isSupabaseConfigured) {
+    const prefix = `${companyId}:${dimension}:`;
+    const out: ArmStat[] = [];
+    for (const [key, arm] of MEM_ARMS) {
+      if (key.startsWith(prefix) && arm.armKey.startsWith(armKeyPrefix)) out.push(arm);
+    }
+    return out;
+  }
+  try {
+    const supabase = createAdminClient();
+    if (!supabase) return [];
+    const uuid = await resolveCompanyUuid(companyId);
+    let q = supabase.from("sh_learning_arms").select("arm_key, alpha, beta").eq("company_id", uuid).eq("dimension", dimension);
+    if (armKeyPrefix) q = q.like("arm_key", `${armKeyPrefix}%`);
+    const { data, error } = await q;
+    if (error || !data) return [];
+    return (data as { arm_key: string; alpha: number; beta: number }[]).map((r) => ({
+      armKey: r.arm_key,
+      alpha: Number(r.alpha),
+      beta: Number(r.beta),
+    }));
+  } catch (err) {
+    console.error("[learning-engine] listArms exception:", err);
+    return [];
+  }
+}
+
 /** Écrit l'état appris d'un bras (upsert). */
 export async function saveArm(companyId: string, dimension: LearningDimension, arm: ArmStat): Promise<void> {
   if (!isSupabaseConfigured) {

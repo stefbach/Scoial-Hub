@@ -11,7 +11,7 @@
 // - recordOutcome()  : met à jour l'apprentissage à partir d'un résultat mesuré
 
 import { selectArm, updateArm, armMean, armSampleSize, type RandomFn } from "./bandit";
-import { loadArms, saveArm, logEvent } from "./store";
+import { loadArms, listArms, saveArm, logEvent } from "./store";
 import type { LearningDimension } from "./reward";
 
 export type { LearningDimension } from "./reward";
@@ -67,6 +67,42 @@ export async function recommend(
     sampleSize: armSampleSize(chosen),
     source: "learned",
   };
+}
+
+export interface BestArm {
+  armKey: string;
+  confidence: number;
+  sampleSize: number;
+}
+
+/**
+ * Meilleur bras PROUVÉ pour une dimension (optionnellement filtrée par
+ * préfixe de clé), c.-à-d. l'espérance apprise la plus haute parmi les bras
+ * ayant individuellement atteint `minSamples` — pas un choix bandit
+ * exploration/exploitation (`recommend`), mais un classement direct. Adapté
+ * à un espace de bras large et majoritairement non mesuré (ex. 168 créneaux
+ * horaire×jour possibles) où Thompson Sampling choisirait trop souvent un
+ * bras jamais mesuré. Renvoie `null` si aucun bras n'atteint le seuil.
+ */
+export async function bestLearnedArm(
+  companyId: string,
+  dimension: LearningDimension,
+  armKeyPrefix = "",
+  minSamples = MIN_SAMPLES_FOR_LEARNING
+): Promise<BestArm | null> {
+  const arms = await listArms(companyId, dimension, armKeyPrefix);
+  let best: { armKey: string; alpha: number; beta: number } | null = null;
+  let bestMean = -Infinity;
+  for (const arm of arms) {
+    if (armSampleSize(arm) < minSamples) continue;
+    const mean = armMean(arm);
+    if (mean > bestMean) {
+      bestMean = mean;
+      best = arm;
+    }
+  }
+  if (!best) return null;
+  return { armKey: best.armKey, confidence: armMean(best), sampleSize: armSampleSize(best) };
 }
 
 /** Enregistre un résultat mesuré : met à jour l'apprentissage + journal d'audit. */

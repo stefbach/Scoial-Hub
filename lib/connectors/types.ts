@@ -272,9 +272,13 @@ export interface SocialConnector {
 
   /**
    * Récupère les métriques d'un post publié.
-   * @param externalId  Identifiant de la publication côté plateforme.
+   * @param externalId   Identifiant de la publication côté plateforme.
+   * @param accessToken  Token du compte propriétaire du post — requis par la
+   *                      plupart des API d'insights (page token Meta, token
+   *                      LinkedIn…). Sans lui, le connecteur retombe sur des
+   *                      métriques simulées (`PostMetrics.simulated = true`).
    */
-  getMetrics(externalId: string): Promise<PostMetrics>;
+  getMetrics(externalId: string, accessToken?: string): Promise<PostMetrics>;
 
   /**
    * Crée une campagne publicitaire (optionnel — Meta Marketing API & LinkedIn Ads).

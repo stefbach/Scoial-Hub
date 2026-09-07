@@ -65,7 +65,9 @@ export async function generateVideoPolling(
     await new Promise((r) => setTimeout(r, intervalMs));
     let poll: Response;
     try {
-      poll = await fetch(`/api/ai/generate-video?id=${encodeURIComponent(id)}`);
+      const qs = new URLSearchParams({ id });
+      if (body.companyId) qs.set("companyId", body.companyId);
+      poll = await fetch(`/api/ai/generate-video?${qs.toString()}`);
     } catch {
       continue; // erreur réseau transitoire → on réessaie
     }

@@ -47,6 +47,14 @@ export interface MediaAsset {
   url: string;
   kind: MediaKind;
   name?: string;
+  /**
+   * Description COURTE du contenu réel du plan (voix off, texte à l'écran ou
+   * prompt visuel — pour un clip généré par le Réalisateur IA). Permet aux
+   * sous-titres/captions générés à l'assemblage de correspondre à ce qui se
+   * passe VRAIMENT dans la vidéo, plutôt qu'à des accroches marketing
+   * génériques déconnectées du montage.
+   */
+  note?: string;
 }
 
 /** Mode d'assemblage demandé pour produire le livrable. */

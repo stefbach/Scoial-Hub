@@ -1,8 +1,13 @@
 // « Cerveau » Publicité Meta : fusionne la PERFORMANCE RÉELLE du compte pub
 // (Marketing API), la MÉMOIRE STRATÉGIQUE (RAG : veille concurrents + pubs +
 // Page) et le contexte de marque, puis fait analyser le tout par un LLM
-// (stratège media buying senior). Les recommandations sont réinjectées dans le
-// RAG pour affiner les analyses suivantes (boucle d'apprentissage).
+// (stratège media buying senior). Les recommandations qualitatives sont
+// réinjectées dans le RAG pour affiner les analyses suivantes.
+//
+// En parallèle, chaque campagne alimente le MOTEUR D'APPRENTISSAGE quantitatif
+// (lib/learning-engine, Thompson Sampling bayésien) : `learningPick` désigne
+// la campagne statistiquement la plus prometteuse, appris depuis les résultats
+// réels — complémentaire, pas redondant, avec l'avis qualitatif du LLM.
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -15,6 +20,7 @@ import { resolveCompanyUuid } from "@/lib/repositories/resolve-company";
 import { getMemoryContext, appendMemory } from "@/lib/memory";
 import { callClaudeJSONRetry } from "@/lib/ai/claude-json";
 import { isAiConfigured } from "@/lib/env";
+import { recordOutcome, recommend, adReward } from "@/lib/learning-engine";
 
 type Lang = "fr" | "en";
 
@@ -32,6 +38,7 @@ interface Analysis {
 }
 
 interface CampaignPerf {
+  id: string;
   name: string;
   status: string;
   objective: string;
@@ -178,10 +185,48 @@ export async function POST(req: NextRequest) {
       const d = await fetchAdAccountData(ctx.userToken, ctx.adAccountId);
       account = d.account ? { name: d.account.name, currency: d.account.currency, amountSpent: d.account.amountSpent } : undefined;
       campaigns = d.campaigns.map((c) => ({
-        name: c.name, status: c.status, objective: c.objective,
+        id: c.id, name: c.name, status: c.status, objective: c.objective,
         spend: c.spend, impressions: c.impressions, clicks: c.clicks,
         ctr: c.ctr, cpc: c.cpc, conversions: c.conversions, currency: c.currency,
       }));
+    }
+
+    // Moteur d'apprentissage (Thompson Sampling) : chaque campagne est un
+    // « bras ». Le reward vient de la performance RÉELLE (CTR + taux de
+    // conversion, cf. lib/learning-engine/reward.ts) — statistique, distinct
+    // de la mémoire RAG textuelle ci-dessous. Best-effort, jamais bloquant.
+    let learningPick: { campaignId: string; campaignName: string; confidence: number; sampleSize: number } | null = null;
+    if (campaigns.length > 0) {
+      try {
+        await Promise.all(
+          campaigns
+            .filter((c) => c.id)
+            .map((c) =>
+              recordOutcome(
+                companyId,
+                "ad_campaign",
+                c.id,
+                adReward({ impressions: c.impressions, clicks: c.clicks, conversions: c.conversions }),
+                { name: c.name, spend: c.spend, ctr: c.ctr, conversions: c.conversions }
+              )
+            )
+        );
+        const rec = await recommend(
+          companyId,
+          "ad_campaign",
+          campaigns.filter((c) => c.id).map((c) => ({ armKey: c.id, meta: { name: c.name } }))
+        );
+        if (rec && rec.source === "learned") {
+          learningPick = {
+            campaignId: rec.armKey,
+            campaignName: String(rec.meta?.name ?? rec.armKey),
+            confidence: rec.confidence,
+            sampleSize: rec.sampleSize,
+          };
+        }
+      } catch (err) {
+        console.error("[ads-strategy] learning-engine non bloquant:", err);
+      }
     }
 
     // 2) Contexte de marque + RAG (veille concurrents, pubs, Page).
@@ -201,6 +246,7 @@ export async function POST(req: NextRequest) {
         analysis: fallbackAnalysis(campaigns, lang),
         account,
         campaignsCount: campaigns.length,
+        learningPick,
         fallback: true,
       });
     }
@@ -258,6 +304,7 @@ ${langDirective}`;
         analysis: fallbackAnalysis(campaigns, lang),
         account,
         campaignsCount: campaigns.length,
+        learningPick,
         fallback: true,
       });
     }
@@ -275,7 +322,10 @@ ${langDirective}`;
       aiGenerated: true,
     };
 
-    // 4) Boucle d'apprentissage : on conserve les recommandations dans le RAG.
+    // 4) Mémoire RAG : on conserve les recommandations QUALITATIVES du LLM
+    // pour affiner ses prochaines analyses (contexte textuel, cf. lib/memory).
+    // Distinct du moteur d'apprentissage QUANTITATIF ci-dessus (learningPick),
+    // qui score statistiquement les campagnes à partir de leur performance réelle.
     try {
       const entries = [
         { title: "Diagnostic pub", content: analysis.diagnostic, kind: "insight" as const },
@@ -286,7 +336,7 @@ ${langDirective}`;
       await appendMemory(companyId, entries.map((e) => ({ source: "ads" as const, kind: e.kind, title: e.title, content: e.content, score: 3 })));
     } catch { /* non bloquant */ }
 
-    return NextResponse.json({ analysis, account, campaignsCount: campaigns.length });
+    return NextResponse.json({ analysis, account, campaignsCount: campaigns.length, learningPick });
   } catch (e) {
     console.error("[POST /api/meta/ads-strategy]", e);
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });

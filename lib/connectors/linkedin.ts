@@ -555,16 +555,20 @@ class LinkedInConnector implements SocialConnector {
     };
   }
 
-  async getMetrics(externalId: string): Promise<PostMetrics> {
+  async getMetrics(externalId: string, accessToken?: string): Promise<PostMetrics> {
     if (!isLinkedInConfigured || externalId.includes("simulated")) {
       return simulatedMetrics();
     }
 
-    // API Share Statistics : GET /v2/socialActions/{shareUrn}
-    // Note : le token d'accès doit avoir r_organization_social ou être l'auteur.
-    // On ne dispose pas du token ici → on utilise des métriques simulées en
-    // production sans token. En production, passer le token via un paramètre
-    // enrichi ou depuis social_accounts.
+    // API Share Statistics : GET /v2/socialActions/{shareUrn}. Exige le token
+    // du compte propriétaire du post (r_organization_social ou auteur) — sans
+    // lui, l'appel échouerait de toute façon (401) : on retombe sur des
+    // métriques simulées plutôt qu'un appel voué à l'échec.
+    const token = accessToken?.trim();
+    if (!token || token.startsWith("simulated_")) {
+      return simulatedMetrics();
+    }
+
     const encodedId = encodeURIComponent(externalId);
 
     try {
@@ -575,7 +579,9 @@ class LinkedInConnector implements SocialConnector {
         clickCount?: number;
         impressionCount?: number;
         uniqueImpressionsCount?: number;
-      }>(`${LI_API_V2}/socialActions/${encodedId}`);
+      }>(`${LI_API_V2}/socialActions/${encodedId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
       return {
         reactions: data.likesSummary?.totalLikes ?? 0,

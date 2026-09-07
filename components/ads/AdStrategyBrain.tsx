@@ -22,6 +22,16 @@ interface Analysis {
   aiGenerated: boolean;
 }
 
+// Moteur d'apprentissage quantitatif (Thompson Sampling, lib/learning-engine) :
+// la campagne la plus prometteuse selon les résultats RÉELS mesurés au fil du
+// temps — distinct de l'avis qualitatif du LLM ci-dessus (winners/toFix).
+interface LearningPick {
+  campaignId: string;
+  campaignName: string;
+  confidence: number; // 0-1, espérance apprise
+  sampleSize: number;
+}
+
 // BUG #8/#9 : la pastille « basse » utilisait bg-canvas (#0a0710, quasi-noir)
 // + text-muted (gris-violet) → fond trop sombre et texte faiblement contrasté.
 // On bascule sur la surface carte + encre lisible (même langage que le badge
@@ -54,6 +64,7 @@ export function AdStrategyBrain() {
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [fallback, setFallback] = useState(false);
   const [meta, setMeta] = useState<{ campaignsCount: number; account?: { name: string } } | null>(null);
+  const [learningPick, setLearningPick] = useState<LearningPick | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -67,7 +78,10 @@ export function AdStrategyBrain() {
       });
       // Lecture tolérante : en cas de 504/erreur, la réponse n'est pas du JSON.
       const raw = await r.text();
-      let d: { error?: string; analysis?: Analysis; campaignsCount?: number; account?: { name: string }; fallback?: boolean } = {};
+      let d: {
+        error?: string; analysis?: Analysis; campaignsCount?: number; account?: { name: string };
+        fallback?: boolean; learningPick?: LearningPick | null;
+      } = {};
       try { d = raw ? JSON.parse(raw) : {}; }
       catch {
         setError(
@@ -81,6 +95,7 @@ export function AdStrategyBrain() {
       setAnalysis(d.analysis ?? null);
       setFallback(!!d.fallback);
       setMeta({ campaignsCount: d.campaignsCount ?? 0, account: d.account });
+      setLearningPick(d.learningPick ?? null);
     } catch (e) {
       setError(e instanceof Error ? e.message : t("Échec de l'analyse.", "Analysis failed."));
     } finally { setLoading(false); }
@@ -137,6 +152,24 @@ export function AdStrategyBrain() {
                   "Here is a summary computed directly from your real figures. You can use it as-is, or use “Re-analyze” for a more detailed AI analysis."
                 )}
               </p>
+            )}
+
+            {/* Moteur d'apprentissage quantitatif : appris statistiquement à
+                partir des résultats réels mesurés au fil des analyses, distinct
+                de l'avis qualitatif du LLM ci-dessus. N'apparaît qu'une fois le
+                signal jugé suffisant (cf. MIN_SAMPLES_FOR_LEARNING). */}
+            {learningPick && (
+              <div className="flex items-center gap-2 rounded-lg border border-success-200 bg-success-50 px-3 py-2 text-2xs text-success-700">
+                <span className="font-semibold">{t("Appris par le moteur d'apprentissage", "Learned by the learning engine")}</span>
+                <span>
+                  {t("→ ", "→ ")}
+                  <span className="font-semibold">{learningPick.campaignName}</span>
+                  {t(
+                    ` la plus prometteuse (confiance ${(learningPick.confidence * 100).toFixed(0)}%, ${learningPick.sampleSize} mesures).`,
+                    ` looks the most promising (confidence ${(learningPick.confidence * 100).toFixed(0)}%, ${learningPick.sampleSize} samples).`
+                  )}
+                </span>
+              </div>
             )}
 
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">

@@ -144,36 +144,29 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
       en: "Real-time overview of your brands.",
     },
     whatFor: {
-      fr: "Le tableau de bord centralise les indicateurs clés de performance (KPI) de toutes vos marques : portée, engagement, publications programmées et alertes en cours. C'est votre point d'entrée quotidien pour évaluer la santé globale de vos activités social media d'un seul coup d'œil. Les cartes métriques comparent la semaine courante à la précédente pour détecter instantanément les variations.",
-      en: "The dashboard centralises the key performance indicators (KPIs) for all your brands: reach, engagement, scheduled posts and active alerts. It's your daily entry point for assessing the overall health of your social media activities at a glance. Metric cards compare the current week to the previous one so you can instantly spot variations.",
+      fr: "Le tableau de bord centralise les indicateurs de la marque sélectionnée en deux sections : Organique (Programmés, Publiés sur 7 jours, Posts en échec) et Publicités payantes (Campagnes actives, Dépenses du mois en cours, Conversions, Budget IA). En dessous, deux blocs complètent la vue : les posts à venir et la publicité la plus performante. C'est votre point d'entrée quotidien pour repérer d'un coup d'œil ce qui nécessite une intervention.",
+      en: "The dashboard centralises the selected brand's indicators in two sections: Organic (Scheduled, Published over 7 days, Failed posts) and Paid Ads (Active campaigns, Month-to-date spend, Conversions, AI budget). Below, two more blocks complete the view: upcoming posts and the top-performing ad. It's your daily entry point for spotting what needs attention at a glance.",
     },
     actions: [
       {
         label: { fr: "Changer de marque", en: "Switch brand" },
         detail: {
-          fr: "Utilisez le sélecteur de marque en haut à gauche pour basculer entre vos entités. Chaque marque dispose de son propre périmètre de données — KPIs, alertes et publications.",
-          en: "Use the brand selector in the top-left to switch between your entities. Each brand has its own data scope — KPIs, alerts and posts.",
+          fr: "Utilisez le sélecteur de marque dans la barre latérale (en haut, dans l'en-tête sur mobile) pour basculer entre vos entités. Chaque marque dispose de son propre périmètre de données.",
+          en: "Use the brand selector in the sidebar (at the top, in the header on mobile) to switch between your entities. Each brand has its own data scope.",
         },
       },
       {
-        label: { fr: "Lire les alertes actives", en: "Read active alerts" },
+        label: { fr: "Repérer les posts en échec", en: "Spot failed posts" },
         detail: {
-          fr: "Les cartes d'alerte signalent les publications en échec, les automations suspendues, les tokens expirés ou les seuils d'engagement atteints. Cliquez sur une alerte pour accéder directement à l'élément concerné.",
-          en: "Alert cards flag failed posts, suspended automations, expired tokens or reached engagement thresholds. Click an alert to navigate directly to the affected item.",
-        },
-      },
-      {
-        label: { fr: "Consulter les métriques rapides", en: "Check quick metrics" },
-        detail: {
-          fr: "Les tuiles de métriques affichent portée, engagement et nombre de publications de la semaine en cours vs. semaine précédente, avec indicateur de tendance (flèche verte/rouge).",
-          en: "Metric tiles display reach, engagement and post count for the current week vs. the previous one, with a trend indicator (green/red arrow).",
+          fr: "La tuile « Posts en échec » affiche son chiffre en rouge dès qu'il est supérieur à zéro. Cliquez dessus pour ouvrir directement l'historique filtré sur les échecs.",
+          en: "The 'Failed posts' tile shows its number in red as soon as it is greater than zero. Click it to open the history directly, filtered to failures.",
         },
       },
       {
         label: { fr: "Naviguer vers une rubrique depuis le tableau", en: "Navigate to a section from the board" },
         detail: {
-          fr: "Chaque bloc du tableau de bord est cliquable et mène directement à la rubrique détaillée concernée (Publications programmées, Analytics, etc.).",
-          en: "Each block on the dashboard is clickable and leads directly to the relevant detailed section (Scheduled posts, Analytics, etc.).",
+          fr: "Chaque tuile du tableau de bord est cliquable et mène directement à la rubrique détaillée concernée (Publications programmées, Campagnes, Analytics des pubs, Paramètres IA…).",
+          en: "Each tile on the dashboard is clickable and leads directly to the relevant detailed section (Scheduled posts, Campaigns, Ad performance, AI settings…).",
         },
       },
     ],
@@ -183,27 +176,23 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
         en: "Check the dashboard every morning to quickly spot content that needs attention.",
       },
       {
-        fr: "Les variations de métriques affichées en rouge ou en vert vous donnent une tendance instantanée sans avoir à naviguer vers Analytics.",
-        en: "Metric variations displayed in red or green give you an instant trend without navigating to Analytics.",
-      },
-      {
-        fr: "Un badge orange sur une alerte signifie « avertissement » ; rouge signifie « critique » — priorisez les rouges.",
-        en: "An orange badge on an alert means 'warning'; red means 'critical' — prioritise the red ones.",
+        fr: "Le tableau de bord ne s'affiche qu'une fois le démarrage assisté terminé — avant ça, vous voyez uniquement le parcours de démarrage.",
+        en: "The dashboard only appears once assisted onboarding is complete — until then, you only see the onboarding journey.",
       },
     ],
     faq: [
       {
         q: { fr: "Les données sont-elles en temps réel ?", en: "Is the data real-time?" },
         a: {
-          fr: "Les KPIs sont rafraîchis à chaque chargement de page. Dès que vos connecteurs (Meta, LinkedIn) sont actifs, les données proviennent directement des APIs des plateformes.",
-          en: "KPIs are refreshed on every page load. Once your connectors (Meta, LinkedIn) are active, data comes directly from the platform APIs.",
+          fr: "Les indicateurs sont rafraîchis à chaque chargement de page. Dès que vos connecteurs (Meta, LinkedIn) sont actifs, les données proviennent directement des APIs des plateformes.",
+          en: "Indicators are refreshed on every page load. Once your connectors (Meta, LinkedIn) are active, data comes directly from the platform APIs.",
         },
       },
       {
-        q: { fr: "Pourquoi certaines métriques affichent « — » ?", en: "Why do some metrics show '—'?" },
+        q: { fr: "Pourquoi le bloc « Publicité la plus performante » est-il vide ?", en: "Why is the 'Top performing ad' block empty?" },
         a: {
-          fr: "Un connecteur non configuré ou un token expiré empêche la récupération de données réelles. Rendez-vous dans Connecteurs pour configurer l'accès.",
-          en: "An unconfigured connector or an expired token prevents real data from being fetched. Go to Connectors to set up access.",
+          fr: "Il affiche un état vide (« Aucune publicité diffusée pour l'instant ») tant qu'aucune de vos publicités n'a de dépense ou de conversion enregistrée — indépendamment de vos connecteurs.",
+          en: "It shows an empty state ('No ads running yet') until one of your ads has recorded spend or conversions — this is unrelated to your connectors.",
         },
       },
     ],
@@ -231,8 +220,8 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
       en: "Orchestrate your brand's AI-driven social media strategy.",
     },
     whatFor: {
-      fr: "Le centre de pilotage est la tour de contrôle stratégique. Il agrège les KPIs de tous vos réseaux, affiche le benchmark concurrentiel de votre marché, remonte les insights de veille et centralise les recommandations des agents IA à valider. Vous y définissez l'objectif global et le niveau d'autonomie des agents, puis lancez des cycles de pilotage pour obtenir des décisions actionnables.",
-      en: "The piloting center is the strategic control tower. It aggregates KPIs across all your networks, displays the competitive benchmark for your market, surfaces watch insights and centralises agent AI recommendations for your review. You define the global objective and agent autonomy level, then launch piloting cycles to get actionable decisions.",
+      fr: "Le centre de pilotage est la tour de contrôle stratégique. Il agrège les KPIs de tous vos réseaux, remonte les insights de veille et centralise les recommandations des agents IA à examiner. Vous y définissez l'objectif global et le niveau d'autonomie des agents, puis lancez des cycles de pilotage pour obtenir des décisions à approuver ou ignorer. Un tableau de benchmark concurrentiel est prévu mais pas encore implémenté : il reste vide pour l'instant.",
+      en: "The piloting center is the strategic control tower. It aggregates KPIs across all your networks, surfaces watch insights and centralises AI agent recommendations for your review. You define the global objective and agent autonomy level, then launch piloting cycles to get decisions to approve or dismiss. A competitive benchmark table is planned but not yet implemented: it stays empty for now.",
     },
     actions: [
       {
@@ -259,8 +248,8 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
       {
         label: { fr: "Valider ou ignorer une recommandation", en: "Approve or dismiss a recommendation" },
         detail: {
-          fr: "Chaque décision affiche l'agent source, son raisonnement et l'impact estimé. « Valider » envoie la décision en exécution ; « Ignorer » la marque comme rejetée sans la supprimer du journal.",
-          en: "Each decision shows the source agent, its rationale and estimated impact. 'Approve' sends the decision to execution; 'Dismiss' marks it as rejected without removing it from the log.",
+          fr: "Chaque décision affiche l'agent source, son raisonnement et l'impact estimé. « Valider » marque la décision comme approuvée dans la file (à l'écran) ; « Ignorer » la marque comme rejetée sans la supprimer du journal. Ni l'un ni l'autre n'exécute l'action réelle pour l'instant — c'est un suivi manuel, pas une exécution automatique.",
+          en: "Each decision shows the source agent, its rationale and estimated impact. 'Approve' marks the decision as approved in the on-screen queue; 'Dismiss' marks it as rejected without removing it from the log. Neither currently triggers the real action — it's manual tracking, not automatic execution.",
         },
       },
       {
@@ -273,8 +262,8 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
       {
         label: { fr: "Lire le benchmark marché", en: "Read the market benchmark" },
         detail: {
-          fr: "Le tableau de benchmark compare vos métriques aux moyennes du marché local (pays sélectionné). Une flèche verte indique que vous surpassez la moyenne ; rouge que vous êtes en dessous.",
-          en: "The benchmark table compares your metrics to local market averages (selected country). A green arrow means you are above average; red means below.",
+          fr: "Le tableau de benchmark doit comparer vos métriques aux moyennes du marché local (pays sélectionné), avec une flèche verte au-dessus de la moyenne et rouge en dessous. Cette fonctionnalité n'est pas encore développée : le tableau reste vide, quelle que soit la marque ou le pays.",
+          en: "The benchmark table is meant to compare your metrics to local market averages (selected country), with a green arrow above average and red below. This feature hasn't been built yet: the table stays empty regardless of brand or country.",
         },
       },
       {
@@ -328,8 +317,8 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
       {
         q: { fr: "Puis-je annuler une décision validée ?", en: "Can I cancel an approved decision?" },
         a: {
-          fr: "Une fois validée, la décision est envoyée en exécution. Pour annuler, rendez-vous dans Automations ou Historique selon le type d'action exécutée.",
-          en: "Once approved, the decision is sent for execution. To cancel, go to Automations or History depending on the type of action executed.",
+          fr: "Oui, sans problème : « Valider » ne fait aujourd'hui que changer l'étiquette de la décision à l'écran, sans appeler d'API ni rien exécuter réellement. Vous pouvez donc basculer son statut entre « Valider » et « Ignorer » librement, sans conséquence côté serveur.",
+          en: "Yes, easily: 'Approve' currently only changes the decision's on-screen label — it doesn't call any API or actually execute anything. You can therefore switch its status between 'Approve' and 'Dismiss' freely, with no server-side consequence.",
         },
       },
     ],
@@ -1704,47 +1693,54 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
 
   // ── /demarrage ──────────────────────────────────────────────────────────────
   "/demarrage": {
-    title: { fr: "Démarrage guidé", en: "Guided onboarding" },
+    title: { fr: "Démarrage assisté", en: "Assisted onboarding" },
     tagline: {
       fr: "Votre parcours pas-à-pas pour devenir totalement autonome.",
       en: "Your step-by-step path to becoming fully autonomous.",
     },
     whatFor: {
-      fr: "Le démarrage guidé est conçu pour qu'un nouveau client puisse mettre son compte en pilotage automatique sans aucune assistance. Il enchaîne, dans le bon ordre, les 6 étapes essentielles : connecter ses réseaux, analyser son marché, fixer un objectif et lancer les agents, créer et programmer du contenu, activer le bot Telegram, puis brancher Claude (MCP). Une barre de progression indique en temps réel ce qui est déjà fait (réseaux connectés, Telegram activé) et ce qu'il reste à faire. Chaque étape comporte un bouton qui ouvre directement la page concernée.",
-      en: "Guided onboarding is designed so a new client can put their account on autopilot with zero assistance. It walks, in the right order, through the 6 essential steps: connect your networks, analyse your market, set an objective and launch the agents, create and schedule content, activate the Telegram bot, then connect Claude (MCP). A progress bar shows in real time what is already done (networks connected, Telegram activated) and what remains. Each step has a button that opens the relevant page directly.",
+      fr: "Le démarrage assisté est un parcours guidé en 6 étapes, sur une seule page, où l'IA fait le travail et vous propose une suggestion à chaque étape : 1. Mon identité — 2. Mes objectifs — 3. Concurrence & mots-clés — 4. Création des visuels — 5. Lancer les agents IA — 6. Diffusion & pilotage. Pour une marque tout juste créée et jamais analysée, une étape 0 optionnelle démarre d'abord : une conversation avec un consultant de marque IA qui construit et verrouille votre identité (philosophie, ton, univers visuel) avant d'entamer le parcours en 6 étapes. Une barre de progression indique simplement l'étape où vous êtes (par exemple 3 sur 6).",
+      en: "Assisted onboarding is a guided 6-step journey, all on one page, where the AI does the work and offers a suggestion at each step: 1. My identity — 2. My objectives — 3. Competition & keywords — 4. Creative assets — 5. Launch AI agents — 6. Distribution & piloting. For a brand-new company that has never been analysed, an optional step 0 comes first: a conversation with an AI brand consultant who builds and locks your identity (philosophy, tone, visual world) before starting the 6-step journey. A progress bar simply shows which step you're on (e.g. 3 of 6).",
     },
     actions: [
       {
         label: { fr: "Suivre les étapes dans l'ordre", en: "Follow the steps in order" },
         detail: {
-          fr: "Chaque carte numérotée décrit une étape, son utilité et l'action concrète à réaliser. Cliquez sur le bouton de la carte pour ouvrir la page correspondante, faites l'action, puis revenez : la pastille devient verte une fois l'étape accomplie.",
-          en: "Each numbered card describes a step, its purpose and the concrete action to take. Click the card button to open the matching page, perform the action, then come back: the dot turns green once the step is complete.",
+          fr: "Le rail en haut de page affiche les 6 étapes sous forme de cercles numérotés cliquables : le cercle de l'étape en cours est mis en avant, les étapes déjà accomplies passent en vert. Vous restez sur la même page — le contenu de l'étape s'affiche au centre, sans ouvrir d'autre page. Utilisez « Continuer » pour avancer, « Retour » pour revenir en arrière, ou cliquez directement sur un cercle pour sauter à une étape.",
+          en: "The rail at the top of the page shows the 6 steps as clickable numbered circles: the current step's circle is highlighted, completed steps turn green. You stay on the same page — the step's content is shown in the centre, without opening another page. Use “Continue” to move forward, “Back” to go back, or click a circle directly to jump to a step.",
+        },
+      },
+      {
+        label: { fr: "Démarrer avec le consultant de marque (étape 0)", en: "Start with the brand consultant (step 0)" },
+        detail: {
+          fr: "Si votre marque n'a jamais été analysée, le parcours s'ouvre sur une conversation avec le consultant de marque IA. Cette étape est facultative : le bouton « Construire l'identité plus tard » saute directement à l'étape 1.",
+          en: "If your brand has never been analysed, the journey opens with a conversation with the AI brand consultant. This step is optional: the “Build the identity later” button skips straight to step 1.",
         },
       },
       {
         label: { fr: "Suivre votre progression", en: "Track your progress" },
         detail: {
-          fr: "La barre de progression en haut compte les étapes actionnables réalisées (réseaux connectés, Telegram activé). Les étapes « À explorer » sont des découvertes recommandées qui ne bloquent pas la progression.",
-          en: "The progress bar at the top counts completed actionable steps (networks connected, Telegram activated). 'To explore' steps are recommended discoveries that do not block progress.",
+          fr: "La barre de progression sous le rail avance selon l'étape où vous êtes (par exemple 40 % à l'étape 3 sur 6). Elle ne dépend d'aucune connexion de réseau social ni de Telegram.",
+          en: "The progress bar under the rail advances based on the step you're on (e.g. 40% at step 3 of 6). It has nothing to do with connected social networks or Telegram.",
         },
       },
     ],
     tips: [
       {
-        fr: "Ne sautez pas l'étape 1 (Connecteurs) : sans réseaux connectés, les agents travaillent en mode estimation et ne peuvent pas publier réellement.",
-        en: "Don't skip step 1 (Connectors): without connected networks, agents work in estimation mode and cannot publish for real.",
+        fr: "N'oubliez pas de connecter vos réseaux à l'étape 1 (Mon identité) : sans réseaux connectés, les agents travaillent en mode estimation et ne peuvent pas publier réellement.",
+        en: "Don't forget to connect your networks in step 1 (My identity): without connected networks, agents work in estimation mode and cannot publish for real.",
       },
       {
-        fr: "Vous pouvez revenir sur cette page à tout moment via « Démarrage guidé » dans la barre latérale.",
-        en: "You can return to this page anytime via 'Get started' in the sidebar.",
+        fr: "Vous pouvez revenir sur cette page à tout moment via « Démarrage assisté » dans la barre latérale.",
+        en: "You can return to this page anytime via 'Assisted onboarding' in the sidebar.",
       },
     ],
     faq: [
       {
         q: { fr: "Dois-je tout configurer d'un coup ?", en: "Do I have to set everything up at once?" },
         a: {
-          fr: "Non. Faites au moins les étapes 1 et 3 pour un premier résultat ; le reste (Telegram, MCP) peut être ajouté plus tard. Votre progression est sauvegardée automatiquement.",
-          en: "No. Do at least steps 1 and 3 for a first result; the rest (Telegram, MCP) can be added later. Your progress is saved automatically.",
+          fr: "Non. Vous pouvez avancer à votre rythme, sauter une étape avec « Passer cette étape » et y revenir plus tard — votre progression est sauvegardée automatiquement, sur tout appareil.",
+          en: "No. You can move at your own pace, skip a step with “Skip this step” and come back to it later — your progress is saved automatically, on any device.",
         },
       },
     ],
@@ -1823,7 +1819,7 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
       },
     ],
     related: [
-      { label: { fr: "Démarrage guidé", en: "Guided onboarding" }, href: "/demarrage" },
+      { label: { fr: "Démarrage assisté", en: "Assisted onboarding" }, href: "/demarrage" },
       { label: { fr: "Connecteur MCP", en: "MCP connector" }, href: "/mcp" },
       { label: { fr: "Centre de pilotage", en: "Piloting center" }, href: "/pilotage" },
     ],
@@ -1898,7 +1894,7 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
     ],
     related: [
       { label: { fr: "Telegram", en: "Telegram" }, href: "/telegram" },
-      { label: { fr: "Démarrage guidé", en: "Guided onboarding" }, href: "/demarrage" },
+      { label: { fr: "Démarrage assisté", en: "Assisted onboarding" }, href: "/demarrage" },
       { label: { fr: "Agents IA", en: "AI agents" }, href: "/agents" },
     ],
   },

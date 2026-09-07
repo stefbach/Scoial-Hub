@@ -7,7 +7,8 @@
 
 import { newArm, updateArm, armMean, armSampleSize, selectArm, sampleBeta, type ArmStat } from "../lib/learning-engine/bandit";
 import { engagementReward, adReward } from "../lib/learning-engine/reward";
-import { recommend, recordOutcome } from "../lib/learning-engine";
+import { recommend, recordOutcome, bestLearnedArm } from "../lib/learning-engine";
+import { timeSlotArmKey, timeSlotPrefix, parseTimeSlotArmKey } from "../lib/learning-engine/time-slot";
 
 let failed = 0;
 function check(name: string, cond: boolean, detail = "") {
@@ -151,6 +152,46 @@ console.log("\n— index.ts : recommend()/recordOutcome() (magasin en mémoire) 
     check("source 'learned' une fois le seuil de mesures dépassé", rec?.source === "learned", rec?.source);
     check("sampleSize reflète les résultats enregistrés pour le bras choisi",
       (rec?.sampleSize ?? 0) >= 8, `${rec?.sampleSize}`);
+  }
+
+  console.log("\n— index.ts : bestLearnedArm() (classement, pas un choix bandit) —");
+  {
+    const r = await bestLearnedArm("test-co-empty-best", "time_slot", "facebook-");
+    check("aucun bras connu → null", r === null);
+  }
+  {
+    const companyId = `test-co-${Date.now()}-bestarm`;
+    // "facebook-tue-18" nettement meilleur que "facebook-wed-09", au-delà du
+    // seuil minimal ; "facebook-fri-20" a un excellent reward mais trop peu
+    // de mesures pour être retenu (bruit non significatif).
+    for (let i = 0; i < 6; i++) await recordOutcome(companyId, "time_slot", "facebook-tue-18", 0.9, {});
+    for (let i = 0; i < 6; i++) await recordOutcome(companyId, "time_slot", "facebook-wed-09", 0.2, {});
+    await recordOutcome(companyId, "time_slot", "facebook-fri-20", 1, {});
+
+    const best = await bestLearnedArm(companyId, "time_slot", "facebook-");
+    check("retient le bras à la meilleure espérance PARMI les bras suffisamment mesurés",
+      best?.armKey === "facebook-tue-18", best?.armKey);
+    check("ignore un bras au reward élevé mais sous le seuil de mesures",
+      best?.armKey !== "facebook-fri-20");
+
+    const scopedToOtherPlatform = await bestLearnedArm(companyId, "time_slot", "linkedin-");
+    check("le préfixe de plateforme isole bien les bras entre réseaux",
+      scopedToOtherPlatform === null);
+  }
+
+  console.log("\n— time-slot.ts : clé de bras et parsing —");
+  {
+    // Mardi 2026-05-05 18:30 UTC, fuseau UTC — attendu "facebook-tue-18".
+    const key = timeSlotArmKey("facebook", "2026-05-05T18:30:00Z", "UTC");
+    check("clé construite : <plateforme>-<jour>-<heure>", key === "facebook-tue-18", key);
+    check("timeSlotPrefix() correspond au préfixe de la clé construite",
+      key.startsWith(timeSlotPrefix("facebook")));
+
+    const parsed = parseTimeSlotArmKey(key);
+    check("parseTimeSlotArmKey() retrouve le jour", parsed?.day === "tue", parsed?.day);
+    check("parseTimeSlotArmKey() retrouve l'heure", parsed?.hour === 18, `${parsed?.hour}`);
+
+    check("clé invalide → null", parseTimeSlotArmKey("n'importe quoi") === null);
   }
 
   console.log(`\n${failed === 0 ? "✓ TOUT VERT" : `✗ ${failed} échec(s)`}\n`);

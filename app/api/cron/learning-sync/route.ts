@@ -15,7 +15,8 @@
  *      si la plateforme n'expose pas encore d'API d'insights (TikTok
  *      aujourd'hui) : on ne nourrit JAMAIS l'apprentissage avec du simulé.
  *   3. Sur métriques réelles : reward = engagementReward(...), puis
- *      recordOutcome(companyId, "time_slot", "<jour>-<heure>", reward, …).
+ *      recordOutcome(companyId, "time_slot", "<plateforme>-<jour>-<heure>", reward, …)
+ *      — cf. lib/learning-engine/time-slot.ts pour le format de clé.
  *
  * Le créneau est calculé dans le fuseau de référence de l'app
  * (env.scheduleTimezone), pas le fuseau du serveur cron — cohérent avec la
@@ -37,6 +38,7 @@ import { getTikTokConnectionAdmin } from "@/lib/repositories/tiktok-connection";
 import { resolveCreds } from "@/lib/publishing/publish-scheduled";
 import { getConnector } from "@/lib/connectors/index";
 import { recordOutcome, engagementReward } from "@/lib/learning-engine";
+import { timeSlotArmKey } from "@/lib/learning-engine/time-slot";
 import type { Platform } from "@/lib/types";
 
 function isAuthorized(req: NextRequest): boolean {
@@ -53,30 +55,6 @@ const MIN_AGE_HOURS = 24;
 // (même logique bornée que reclaimStalePublishing / isPastRetryWindow).
 const MAX_AGE_HOURS = 24 * 7;
 const BATCH_LIMIT = 50;
-
-const WEEKDAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
-
-/** Créneau "<jour>-<heure>" d'un instant ISO, dans le fuseau de référence de l'app. */
-function slotKeyFor(iso: string, timeZone: string): string {
-  const d = new Date(iso);
-  let weekday = "sun";
-  let hour = "00";
-  try {
-    const parts = new Intl.DateTimeFormat("en-US", {
-      timeZone,
-      weekday: "short",
-      hour: "2-digit",
-      hour12: false,
-    }).formatToParts(d);
-    const w = parts.find((p) => p.type === "weekday")?.value.toLowerCase().slice(0, 3);
-    if (w && (WEEKDAY_KEYS as readonly string[]).includes(w)) weekday = w;
-    const h = parts.find((p) => p.type === "hour")?.value;
-    if (h) hour = (h === "24" ? "00" : h).padStart(2, "0");
-  } catch {
-    // Fuseau invalide → repli sur le créneau par défaut ci-dessus.
-  }
-  return `${weekday}-${hour}`;
-}
 
 interface DueRow {
   id: string;
@@ -156,7 +134,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
       if (!metrics.simulated) {
         const reward = engagementReward(metrics);
-        const slotKey = slotKeyFor(row.published_at, env.scheduleTimezone);
+        const slotKey = timeSlotArmKey(row.platform, row.published_at, env.scheduleTimezone);
         await recordOutcome(row.company_id, "time_slot", slotKey, reward, {
           postId: row.id,
           platform: row.platform,

@@ -59,5 +59,117 @@ console.log("\n— /pilotage (BUG 15-16) —");
   check("BUG 16 — précise que le tableau reste vide (fonctionnalité non développée)", /reste vide/.test(fr));
 }
 
+console.log("\n— /compose (audit large, session apprentissage) —");
+{
+  const fr = full("/compose", "fr");
+  check("mentionne TikTok comme réseau cible (pas seulement FB/IG/LinkedIn)", /TikTok/.test(fr));
+  check("ne décrit plus de ciblage d'audience inexistant en Compose", !/Cibler une audience/.test(fr));
+  check("mentionne le créneau suggéré/appris à la programmation", /créneau suggéré|Un bandeau propose un créneau/.test(fr));
+  check("EN mirror — title", getHelp("/compose", "en").title === "Compose");
+}
+
+console.log("\n— /ad-performance (audit large, session apprentissage) —");
+{
+  const fr = full("/ad-performance", "fr");
+  check("le whatFor ne prétend plus couvrir LinkedIn Ads (seuls Facebook/Instagram sont réels ici)", !/LinkedIn Ads/.test(getHelp("/ad-performance", "fr").whatFor));
+  check("aucune mention de ROAS (métrique inexistante sur cet écran)", !/ROAS/.test(fr));
+  check("aucun benchmark sectoriel inventé (CPC 2-4€, etc.)", !/benchmark[s]? sectoriel/i.test(fr));
+  check("décrit le Cerveau Pub", /Cerveau Pub/.test(fr));
+  check("décrit le Pilote Pub", /Pilote Pub/.test(fr));
+}
+
+console.log("\n— /scheduled (audit large, session apprentissage) —");
+{
+  const fr = full("/scheduled", "fr");
+  check("ne décrit plus de reprogrammation par glisser-déposer comme fonctionnalité active", !/[Ff]aites glisser un post|glisser-déposer pour le reprogrammer/.test(fr));
+  check("« Supprimer » n'est plus présenté comme une mise en brouillon", !/transforme le post en brouillon/.test(fr));
+  check("décrit le workflow de validation (onglet À valider)", /À valider/.test(fr) && /workflow de validation/i.test(fr));
+}
+
+console.log("\n— /settings (audit large, session apprentissage) —");
+{
+  const fr = full("/settings", "fr");
+  check("ne promet plus de webhooks sortants (fonctionnalité inexistante)", !/webhooks? sortant/i.test(fr));
+  check("ne promet plus une facturation fonctionnelle (bouton désactivé dans le vrai code)", !/gérez vos informations de paiement/.test(fr));
+  check("mentionne le workflow de validation et où l'activer", /[Ww]orkflow de validation/.test(fr));
+}
+
+console.log("\n— /agents (page morte → redirige vers /pilotage) —");
+{
+  const fr = full("/agents", "fr");
+  check("ne décrit plus d'agents « Planificateur »/« Optimiseur » inexistants", !/Planificateur|Optimiseur/.test(fr));
+  check("explique la redirection réelle vers /pilotage", /redirige/i.test(fr) && /\/pilotage/.test(fr));
+}
+
+console.log("\n— /library (page morte → redirige vers /media) —");
+{
+  const fr = full("/library", "fr");
+  check("explique la redirection réelle vers /media", /redirige/i.test(fr) && /\/media/.test(fr));
+}
+
+console.log("\n— /article-linkedin (page morte → fusionnée dans /linkedin) —");
+{
+  const fr = full("/article-linkedin", "fr");
+  check("explique la fusion/redirection vers /linkedin", /\/linkedin/.test(fr));
+}
+
+console.log("\n— /history (audit large, session apprentissage) —");
+{
+  const fr = full("/history", "fr");
+  check("ne promet plus impressions/portée inexistantes sur cet écran", !/portée sur 7 jours|taux d.engagement sur 7/i.test(fr));
+  check("le bouton réel est « Dupliquer » et non « Réutiliser »", /Dupliquer/.test(fr));
+}
+
+console.log("\n— /campaigns (audit large, session apprentissage) —");
+{
+  const fr = full("/campaigns", "fr");
+  check("ne décrit plus de lien entre posts organiques et campagnes (inexistant)", !/[Ll]ier des posts organiques/.test(fr));
+  check("précise que les campagnes sont Facebook/Instagram uniquement (pas LinkedIn)", /Facebook.*Instagram|Meta/i.test(getHelp("/campaigns", "fr").whatFor));
+}
+
+console.log("\n— /audiences (audit large, session apprentissage) —");
+{
+  const fr = full("/audiences", "fr");
+  check("aucune fourchette de taille d'audience inventée (500k-5M)", !/500\s*000|500k.*5\s*M/i.test(fr));
+  check("le hachage CSV est décrit comme local au navigateur, pas serveur", /navigateur|client/i.test(fr));
+}
+
+console.log("\n— /analytics (audit large, session apprentissage) —");
+{
+  const fr = full("/analytics", "fr");
+  check("ne décrit plus de « Top Posts » inexistant", !/Top Posts/.test(fr));
+  check("ne décrit plus de mode Comparaison inexistant", !/mode Comparaison/i.test(fr));
+  check("ne promet plus d'export PDF (seuls CSV/JSON existent)", !/export PDF/i.test(fr));
+  check("précise que les données payantes (Dépenses/Conversions) sont bien incluses", /[Dd]épenses.*[Cc]onversions|Ad spend/i.test(full("/analytics", "fr") + full("/analytics", "en")));
+}
+
+console.log("\n— /accounts (audit large, session apprentissage) —");
+{
+  const fr = full("/accounts", "fr");
+  check("ne décrit plus de badge « Token expiré » inexistant", !/[Tt]oken expiré/.test(fr));
+  check("décrit les 4 cartes fixes réelles (Facebook/Instagram/LinkedIn/TikTok)", /Facebook/.test(fr) && /Instagram/.test(fr) && /LinkedIn/.test(fr) && /TikTok/.test(fr));
+}
+
+console.log("\n— /parametres-connecteurs (audit large, session apprentissage) —");
+{
+  const fr = full("/parametres-connecteurs", "fr");
+  check("ne décrit plus de configuration manuelle Anthropic/Replicate/YouTube (fonctionnalités intégrées)", !/clé Anthropic|clé Replicate/i.test(fr));
+  check("ne décrit plus de champs manuels pour Meta Ads/Pixel (auto-activés)", !/configurer.{0,20}Meta Ads|configurer.{0,20}Pixel/i.test(fr));
+}
+
+console.log("\n— /mon-equipe (audit large, session apprentissage) —");
+{
+  const fr = full("/mon-equipe", "fr");
+  check("mentionne le bouton réel « Envoyer depuis ma messagerie » (mailto)", /Envoyer depuis ma messagerie/.test(fr));
+  check("le bouton de copie est « Copier » et non « Copier l'invitation »", /📋 Copier/.test(fr));
+}
+
+console.log("\n— /dashboard (bandeau Pilotage actif + Nouveau post) —");
+{
+  const fr = full("/dashboard", "fr");
+  check("décrit le bandeau « Pilotage actif » et ses 3 raccourcis", /Pilotage actif/.test(fr) && /Nouvelle campagne/.test(fr) && /Revoir mon parcours/.test(fr));
+  check("décrit le bouton d'en-tête « Nouveau post »", /Nouveau post/.test(fr));
+}
+
 console.log(failed === 0 ? "\n✓ TOUT VERT" : `\n✗ ${failed} ÉCHEC(S)`);
 process.exit(failed === 0 ? 0 : 1);

@@ -89,8 +89,15 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
       {
         label: { fr: "Ouvrir un compte", en: "Open an account" },
         detail: {
-          fr: "Cliquez sur la carte d'un compte pour le sélectionner comme entité active. L'application charge automatiquement toutes les données (publications, analytics, automations) liées à ce compte.",
-          en: "Click an account card to select it as the active entity. The app automatically loads all data (posts, analytics, automations) related to that account.",
+          fr: "Cliquez sur la carte d'un compte pour le sélectionner comme entité active. L'application charge automatiquement toutes les données (publications, analytics, publications programmées) liées à ce compte.",
+          en: "Click an account card to select it as the active entity. The app automatically loads all data (posts, analytics, scheduled posts) related to that account.",
+        },
+      },
+      {
+        label: { fr: "Créer une nouvelle société", en: "Create a new company" },
+        detail: {
+          fr: "Cliquez sur « + Nouvelle société », donnez-lui un nom et une couleur d'accent, puis cliquez sur « Créer et profiler ». Vous êtes redirigé vers le Démarrage assisté pour construire le profil de la marque à partir de votre site et de vos réseaux sociaux.",
+          en: "Click '+ New company', give it a name and an accent colour, then click 'Create & profile'. You are redirected to the assisted onboarding to build the brand profile from your website and social accounts.",
         },
       },
       {
@@ -103,8 +110,8 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
     ],
     tips: [
       {
-        fr: "Si vous gérez plusieurs clients, marquez les comptes fréquemment utilisés : ils apparaîtront en premier selon l'ordre défini par l'administrateur.",
-        en: "If you manage multiple clients, frequently used accounts appear first according to the order set by the administrator.",
+        fr: "Si vous gérez plusieurs clients, les comptes s'affichent dans l'ordre renvoyé par votre organisation ; repérez rapidement le bon compte grâce à son nom et sa pastille de couleur.",
+        en: "If you manage multiple clients, accounts are shown in the order returned by your organisation; use the account name and its coloured badge to quickly spot the right one.",
       },
       {
         fr: "L'identifiant e-mail affiché en haut confirme le compte Supabase actif — utile pour vérifier que vous êtes connecté avec le bon utilisateur.",
@@ -167,6 +174,20 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
         detail: {
           fr: "Chaque tuile du tableau de bord est cliquable et mène directement à la rubrique détaillée concernée (Publications programmées, Campagnes, Analytics des pubs, Paramètres IA…).",
           en: "Each tile on the dashboard is clickable and leads directly to the relevant detailed section (Scheduled posts, Campaigns, Ad performance, AI settings…).",
+        },
+      },
+      {
+        label: { fr: "Utiliser le bandeau « Pilotage actif »", en: "Use the 'Active piloting' banner" },
+        detail: {
+          fr: "Une fois votre parcours de démarrage terminé, un bandeau compact « Pilotage actif » reste affiché en haut du tableau de bord avec trois raccourcis : « Nouvelle campagne », « Voir le pilotage » et « Revoir mon parcours » (pour repasser sur le démarrage assisté).",
+          en: "Once your onboarding journey is complete, a compact 'Active piloting' banner stays displayed at the top of the dashboard with three shortcuts: 'New campaign', 'Open piloting' and 'Review setup' (to go back through assisted onboarding).",
+        },
+      },
+      {
+        label: { fr: "Créer un nouveau post", en: "Create a new post" },
+        detail: {
+          fr: "Le bouton « Nouveau post » en haut à droite de la page ouvre directement Composer, sans passer par le bandeau de pilotage.",
+          en: "The 'New post' button at the top right of the page opens Compose directly, without going through the piloting banner.",
         },
       },
     ],
@@ -280,6 +301,20 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
           en: "The 'By network' section lists Facebook, Instagram and LinkedIn with their engagement rate and period trend. Identify your best-performing network at a glance.",
         },
       },
+      {
+        label: { fr: "Lancer un agent IA ad hoc", en: "Run an ad hoc AI agent" },
+        detail: {
+          fr: "En haut de page, un bouton « Lancer un agent IA » indépendant du bandeau stratégie permet un cycle ponctuel avec un objectif libre et son propre niveau d'autonomie, sans passer par l'objectif global configuré plus bas.",
+          en: "At the top of the page, a 'Run an AI agent' button independent from the strategy banner allows a one-off cycle with a free-form objective and its own autonomy level, without going through the global objective configured further down.",
+        },
+      },
+      {
+        label: { fr: "Suivre la performance pub Meta", en: "Track Meta ad performance" },
+        detail: {
+          fr: "Dès que des campagnes Meta existent, un encart « Performance pub · Meta (30 j) » affiche dépense, impressions, clics et conversions réels, avec un lien vers le détail complet.",
+          en: "Once Meta campaigns exist, an 'Ad performance · Meta (30d)' panel shows real spend, impressions, clicks and conversions, with a link to the full detail.",
+        },
+      },
     ],
     tips: [
       {
@@ -301,17 +336,17 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
     ],
     faq: [
       {
-        q: { fr: "Quelle différence entre /pilotage et /agents ?", en: "What is the difference between /pilotage and /agents?" },
+        q: { fr: "Où est passée la page /agents ?", en: "Where did the /agents page go?" },
         a: {
-          fr: "/pilotage est la vue stratégique : KPIs, benchmark, décisions, veille. /agents est la vue technique : configuration et timeline d'exécution de chaque agent.",
-          en: "/pilotage is the strategic view: KPIs, benchmark, decisions, watch. /agents is the technical view: configuration and execution timeline for each agent.",
+          fr: "/agents redirige désormais vers le Centre de pilotage : il n'existe plus de page séparée. Les agents IA se lancent depuis un bouton « Lancer un agent IA » disponible sur plusieurs pages (Pilotage, Campagnes, Composer…).",
+          en: "/agents now redirects to the Piloting center: there is no separate page anymore. AI agents are launched from a 'Run an AI agent' button available on several pages (Piloting, Campaigns, Compose…).",
         },
       },
       {
         q: { fr: "Les indicateurs sont-ils basés sur des données réelles ?", en: "Are the indicators based on real data?" },
         a: {
-          fr: "Ils basculent sur les données réelles dès que les connecteurs Meta/LinkedIn sont actifs. En l'absence de connecteurs, des données estimées à partir du marché et des mots-clés sont affichées.",
-          en: "They switch to real data as soon as Meta/LinkedIn connectors are active. Without connectors, market- and keyword-estimated data is displayed.",
+          fr: "Oui, dès que les connecteurs Meta/LinkedIn sont actifs. Sans connecteur, les indicateurs et le benchmark restent à l'état vide — aucune valeur estimée ou simulée n'est affichée à la place.",
+          en: "Yes, as soon as Meta/LinkedIn connectors are active. Without a connector, indicators and the benchmark stay empty — no estimated or simulated value is shown instead.",
         },
       },
       {
@@ -342,61 +377,33 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
       en: "AI agents",
     },
     tagline: {
-      fr: "Pilotez l'orchestration multi-agent de vos campagnes sociales.",
-      en: "Control the multi-agent orchestration of your social campaigns.",
+      fr: "Cette page redirige désormais vers le Centre de pilotage.",
+      en: "This page now redirects to the Piloting center.",
     },
     whatFor: {
-      fr: "Le centre Agents expose les 8 agents IA spécialisés d'AXON-AI : Stratège, Copywriter, Creative, Media Buyer, Analyste, Conformité, Planificateur et Optimiseur. Depuis cette page vous configurez le brief, le niveau d'autonomie et la cible benchmark, puis lancez un run d'orchestration. La timeline d'exécution détaille chaque étape : statut, sortie et éventuelles erreurs de chaque agent.",
-      en: "The Agents center exposes AXON-AI's 8 specialised AI agents: Strategist, Copywriter, Creative, Media Buyer, Analyst, Compliance, Planner and Optimiser. From this page you configure the brief, autonomy level and benchmark target, then launch an orchestration run. The execution timeline details every step: status, output and any errors from each agent.",
+      fr: "/agents redirige automatiquement vers le Centre de pilotage (/pilotage) : il n'existe plus de page dédiée. Les agents IA se lancent depuis un bouton « Lancer un agent IA » disponible sur plusieurs pages (Pilotage, Campagnes, Composer…), via un panneau compact — objectif en texte libre et niveau d'autonomie — dont le résultat s'affiche directement en texte, sans timeline détaillée par agent.",
+      en: "/agents automatically redirects to the Piloting center (/pilotage): there is no dedicated page anymore. AI agents are launched from a 'Run an AI agent' button available on several pages (Piloting, Campaigns, Compose…), via a compact panel — free-text objective and autonomy level — whose result is shown inline as text, with no per-agent execution timeline.",
     },
     actions: [
       {
-        label: { fr: "Choisir la marque active", en: "Choose the active brand" },
+        label: { fr: "Rédiger l'objectif", en: "Write the objective" },
         detail: {
-          fr: "Le sélecteur de marque en haut de page (pastille couleur + nom) filtre les données et le brief pour l'entité sélectionnée. Changez de marque avant de lancer un run pour cibler la bonne entité.",
-          en: "The brand selector at the top of the page (colour dot + name) filters data and the brief for the selected entity. Switch brand before launching a run to target the right entity.",
+          fr: "Dans le panneau « Lancer un agent IA », décrivez votre objectif en langage naturel. Plus le brief est précis, plus le résultat est exploitable.",
+          en: "In the 'Run an AI agent' panel, describe your objective in natural language. The more precise the brief, the more actionable the result.",
         },
       },
       {
-        label: { fr: "Rédiger l'objectif de campagne", en: "Write the campaign objective" },
-        detail: {
-          fr: "Dans le panneau de lancement, décrivez votre objectif en langage naturel (ex. : « Augmenter les leads B2B via LinkedIn en Q2 »). Plus le brief est précis, plus les sorties des agents sont exploitables.",
-          en: "In the launch panel, describe your objective in natural language (e.g. 'Increase B2B leads via LinkedIn in Q2'). The more precise the brief, the more actionable the agent outputs.",
-        },
-      },
-      {
-        label: { fr: "Sélectionner le niveau d'autonomie", en: "Select the autonomy level" },
+        label: { fr: "Choisir le niveau d'autonomie", en: "Choose the autonomy level" },
         detail: {
           fr: "Niveau 1 : recommandations uniquement. Niveau 2 : semi-automatique (certaines actions sans validation). Niveau 3 : entièrement automatique. Commencez par le niveau 1.",
           en: "Level 1: recommendations only. Level 2: semi-automatic (some actions without validation). Level 3: fully automatic. Start with level 1.",
         },
       },
       {
-        label: { fr: "Définir la cible benchmark", en: "Set the benchmark target" },
+        label: { fr: "Lancer le cycle", en: "Launch the cycle" },
         detail: {
-          fr: "Indiquez la cible concurrentielle (ex. : « concurrents France secteur santé ») que les agents utiliseront pour calibrer leurs recommandations et évaluer vos performances relatives.",
-          en: "Specify the competitive target (e.g. 'France healthcare sector competitors') that agents will use to calibrate their recommendations and assess your relative performance.",
-        },
-      },
-      {
-        label: { fr: "Lancer le run d'orchestration", en: "Launch the orchestration run" },
-        detail: {
-          fr: "Le bouton « Lancer » appelle /api/agents/run et déclenche la séquence des 8 agents. Un indicateur de chargement s'affiche pendant l'exécution (10–30 s). La timeline apparaît dès la fin.",
-          en: "The 'Launch' button calls /api/agents/run and triggers the 8-agent sequence. A loading indicator is shown during execution (10–30 s). The timeline appears as soon as it is done.",
-        },
-      },
-      {
-        label: { fr: "Lire la timeline d'exécution", en: "Read the execution timeline" },
-        detail: {
-          fr: "La timeline liste chaque étape avec : nom de l'agent, statut (succès / avertissement / erreur), contenu produit et durée. Développez une étape pour lire la sortie complète de l'agent.",
-          en: "The timeline lists each step with: agent name, status (success / warning / error), produced content and duration. Expand a step to read the agent's full output.",
-        },
-      },
-      {
-        label: { fr: "Vérifier le statut de conformité", en: "Check compliance status" },
-        detail: {
-          fr: "L'agent Conformité vérifie chaque contenu produit au regard des règles réglementaires. Un verdict « block » signale un contenu non conforme — examinez la raison avant de le modifier.",
-          en: "The Compliance agent checks each produced piece of content against regulatory rules. A 'block' verdict flags non-compliant content — review the reason before editing.",
+          fr: "Le bouton d'appel appelle /api/agents/run et déclenche la séquence d'agents (Stratège, Copywriter, Creative, Conformité, Media Buyer, Analyste, plus deux étapes internes d'orchestration et de publication). Le résultat s'affiche en texte libre, directement dans le panneau, une fois le cycle terminé (10–30 s).",
+          en: "The launch button calls /api/agents/run and triggers the agent sequence (Strategist, Copywriter, Creative, Compliance, Media Buyer, Analyst, plus two internal orchestration and publishing steps). The result is shown as free text, directly in the panel, once the cycle completes (10–30 s).",
         },
       },
     ],
@@ -406,38 +413,23 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
         en: "Always enable human review (level 1 or 2) for medical or regulated content.",
       },
       {
-        fr: "Fournissez un brief détaillé avec le ton, les mots-clés à inclure et les contraintes pour obtenir des sorties exploitables dès le premier run.",
-        en: "Provide a detailed brief with tone, keywords to include and constraints to get actionable outputs from the first run.",
-      },
-      {
-        fr: "Commencez par l'agent Planificateur pour optimiser vos créneaux de publication avant d'introduire les agents de génération de contenu.",
-        en: "Start with the Planner agent to optimise your publishing slots before introducing content generation agents.",
-      },
-      {
-        fr: "Les résultats de run sont disponibles dans l'Historique — vous pouvez y retrouver les sorties passées même après navigation.",
-        en: "Run results are available in History — you can retrieve past outputs even after navigating away.",
+        fr: "Fournissez un objectif détaillé (ton, mots-clés à inclure, contraintes) pour obtenir un résultat exploitable dès le premier essai.",
+        en: "Provide a detailed objective (tone, keywords to include, constraints) to get an actionable result on the first try.",
       },
     ],
     faq: [
       {
-        q: { fr: "Combien d'agents sont disponibles ?", en: "How many agents are available?" },
+        q: { fr: "Combien d'agents sont impliqués dans un cycle ?", en: "How many agents are involved in a cycle?" },
         a: {
-          fr: "8 agents : Stratège, Copywriter, Creative, Media Buyer, Analyste, Conformité, Planificateur et Optimiseur. Ils s'exécutent toujours en séquence lors d'un run.",
-          en: "8 agents: Strategist, Copywriter, Creative, Media Buyer, Analyst, Compliance, Planner and Optimiser. They always run sequentially during a run.",
+          fr: "6 agents nommés (Stratège, Copywriter, Creative, Media Buyer, Analyste, Conformité), plus deux étapes internes d'orchestration et de publication. Ils s'exécutent toujours en séquence.",
+          en: "6 named agents (Strategist, Copywriter, Creative, Media Buyer, Analyst, Compliance), plus two internal orchestration and publishing steps. They always run in sequence.",
         },
       },
       {
         q: { fr: "Que faire si un agent retourne une erreur ?", en: "What if an agent returns an error?" },
         a: {
-          fr: "Vérifiez la clé API Anthropic dans Connecteurs (variable ANTHROPIC_API_KEY). Si la clé est valide, relancez le run — les erreurs transitoires se résolvent généralement seules.",
-          en: "Check the Anthropic API key in Connectors (ANTHROPIC_API_KEY variable). If the key is valid, relaunch the run — transient errors typically resolve on their own.",
-        },
-      },
-      {
-        q: { fr: "Les agents peuvent-ils publier directement ?", en: "Can agents publish directly?" },
-        a: {
-          fr: "Uniquement en niveau 3 (Auto) et si les connecteurs de publication (Facebook, Instagram, LinkedIn) sont configurés avec les droits en écriture.",
-          en: "Only at level 3 (Auto) and if publication connectors (Facebook, Instagram, LinkedIn) are configured with write permissions.",
+          fr: "Vérifiez la clé API Anthropic dans Connecteurs (variable ANTHROPIC_API_KEY). Si la clé est valide, relancez le cycle — les erreurs transitoires se résolvent généralement seules.",
+          en: "Check the Anthropic API key in Connectors (ANTHROPIC_API_KEY variable). If the key is valid, relaunch the cycle — transient errors typically resolve on their own.",
         },
       },
     ],
@@ -465,8 +457,8 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
       {
         label: { fr: "Définir la zone géographique", en: "Set the geographic area" },
         detail: {
-          fr: "Sélectionnez le pays cible dans la liste déroulante. Ce paramètre filtre les données concurrentielles et oriente l'identification automatique de concurrents vers les acteurs locaux pertinents.",
-          en: "Select the target country from the dropdown. This parameter filters competitive data and directs automatic competitor identification towards relevant local players.",
+          fr: "Tapez ou sélectionnez le pays cible dans le champ de recherche. Ce paramètre filtre les données concurrentielles et oriente l'identification automatique de concurrents vers les acteurs locaux pertinents.",
+          en: "Type or pick the target country in the search field. This parameter filters competitive data and directs automatic competitor identification towards relevant local players.",
         },
       },
       {
@@ -479,8 +471,8 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
       {
         label: { fr: "Ajouter un compétiteur manuellement", en: "Add a competitor manually" },
         detail: {
-          fr: "Sélectionnez le réseau (Instagram, TikTok, YouTube, LinkedIn, X, Facebook), entrez le @handle et un nom affiché optionnel, puis cliquez sur « Ajouter manuellement ». Le compétiteur est sauvegardé en base et persiste entre les sessions.",
-          en: "Select the network (Instagram, TikTok, YouTube, LinkedIn, X, Facebook), enter the @handle and an optional display name, then click 'Add manually'. The competitor is saved in the database and persists between sessions.",
+          fr: "Sélectionnez le réseau (Instagram, TikTok, YouTube, LinkedIn, Facebook), entrez le @handle et un nom affiché optionnel, puis cliquez sur « Ajouter manuellement ». Le compétiteur est sauvegardé en base et persiste entre les sessions.",
+          en: "Select the network (Instagram, TikTok, YouTube, LinkedIn, Facebook), enter the @handle and an optional display name, then click 'Add manually'. The competitor is saved in the database and persists between sessions.",
         },
       },
       {
@@ -536,8 +528,8 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
         en: "Use automatic identification as a starting point, then manually refine by adding players very specific to your niche.",
       },
       {
-        fr: "Programmez une analyse hebdomadaire (via Automations) pour suivre l'évolution des tendances concurrentielles dans le temps.",
-        en: "Schedule a weekly analysis (via Automations) to track competitive trend evolution over time.",
+        fr: "Relancez l'analyse régulièrement (manuellement) pour suivre l'évolution des tendances concurrentielles dans le temps.",
+        en: "Re-run the analysis regularly (manually) to track competitive trend evolution over time.",
       },
       {
         fr: "Les réseaux marqués « Simulé » dans la barre de statut utilisent des données fictives — activez le connecteur correspondant pour des données réelles.",
@@ -548,8 +540,8 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
       {
         q: { fr: "La veille est-elle en temps réel ?", en: "Is the watch real-time?" },
         a: {
-          fr: "Non, c'est une analyse lancée manuellement (ou via Automation). Les données sont collectées au moment du run et restent disponibles jusqu'au prochain run.",
-          en: "No, it is an analysis launched manually (or via Automation). Data is collected at run time and remains available until the next run.",
+          fr: "Non, c'est une analyse lancée manuellement. Les données sont collectées au moment du run et restent disponibles jusqu'au prochain run.",
+          en: "No, it is an analysis launched manually. Data is collected at run time and remains available until the next run.",
         },
       },
       {
@@ -585,36 +577,22 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
       en: "Configure all your external access — social networks, advertising, AI, measurement.",
     },
     whatFor: {
-      fr: "La page Connecteurs centralise la configuration de toutes les intégrations externes d'AXON-AI : réseaux sociaux (Facebook, Instagram, LinkedIn, TikTok), publicité (Meta Ads), mesure (Meta Pixel + CAPI), IA (Anthropic Claude, Replicate) et veille (YouTube Data API). Chaque connecteur documente ses capacités de lecture (statistiques, insights) et d'écriture (publication, campagnes) ainsi que la procédure pour obtenir les clés nécessaires.",
-      en: "The Connectors page centralises the configuration of all AXON-AI external integrations: social networks (Facebook, Instagram, LinkedIn, TikTok), advertising (Meta Ads), measurement (Meta Pixel + CAPI), AI (Anthropic Claude, Replicate) and watch (YouTube Data API). Each connector documents its read (stats, insights) and write (publishing, campaigns) capabilities and the procedure to obtain the required keys.",
+      fr: "La page Connecteurs centralise la configuration de vos réseaux sociaux (Facebook, Instagram, LinkedIn — TikTok reste en mode simulé ici), de la publicité (Meta Ads) et de la mesure (Meta Pixel + CAPI). Les connecteurs IA (Anthropic Claude, Replicate) et de veille (YouTube) sont intégrés à l'application et ne nécessitent aucune configuration ici.",
+      en: "The Connectors page centralises configuration for your social networks (Facebook, Instagram, LinkedIn — TikTok stays in simulated mode here), advertising (Meta Ads) and measurement (Meta Pixel + CAPI). AI connectors (Anthropic Claude, Replicate) and the watch connector (YouTube) are built into the app and need no configuration here.",
     },
     actions: [
       {
         label: { fr: "Configurer un connecteur réseau social", en: "Configure a social network connector" },
         detail: {
-          fr: "Développez la carte d'un réseau (Facebook, Instagram, LinkedIn, TikTok), renseignez les champs requis (Page ID, Access Token, Organization URN…) et cliquez sur « Enregistrer ». Le statut passe à « Connecté » si tous les champs obligatoires sont remplis.",
-          en: "Expand a network card (Facebook, Instagram, LinkedIn, TikTok), fill in the required fields (Page ID, Access Token, Organization URN…) and click 'Save'. Status switches to 'Connected' when all required fields are filled.",
+          fr: "Pour Facebook, Instagram et LinkedIn, développez la carte du réseau et renseignez les champs requis (Page ID, Access Token, Organization URN…), ou utilisez le bouton « ⚡ Connexion auto » pour lancer l'OAuth directement. Le statut passe à « Connecté » une fois les champs obligatoires remplis.",
+          en: "For Facebook, Instagram and LinkedIn, expand the network card and fill in the required fields (Page ID, Access Token, Organization URN…), or use the '⚡ Auto connect' button to launch OAuth directly. Status switches to 'Connected' once required fields are filled.",
         },
       },
       {
-        label: { fr: "Configurer Meta Ads", en: "Configure Meta Ads" },
+        label: { fr: "Meta Ads et Meta Pixel + CAPI", en: "Meta Ads and Meta Pixel + CAPI" },
         detail: {
-          fr: "Renseignez l'Ad Account ID (format act_XXXXXXXXX) et l'Access Token du compte publicitaire pour permettre la lecture des campagnes et performances ainsi que la création de publicités.",
-          en: "Fill in the Ad Account ID (format act_XXXXXXXXX) and the advertising account Access Token to enable reading campaign/performance data and creating ads.",
-        },
-      },
-      {
-        label: { fr: "Configurer la mesure (Meta Pixel + CAPI)", en: "Configure measurement (Meta Pixel + CAPI)" },
-        detail: {
-          fr: "Renseignez le Pixel ID et le CAPI Access Token pour le suivi des conversions navigateur et serveur.",
-          en: "Enter the Pixel ID and CAPI Access Token for browser and server-side conversion tracking.",
-        },
-      },
-      {
-        label: { fr: "Configurer les connecteurs IA (Anthropic, Replicate)", en: "Configure AI connectors (Anthropic, Replicate)" },
-        detail: {
-          fr: "Les connecteurs IA et veille (Anthropic Claude, Replicate, YouTube) utilisent des variables d'environnement (ANTHROPIC_API_KEY, REPLICATE_API_TOKEN, YOUTUBE_API_KEY) et non des champs de formulaire. Suivez les instructions de la carte « envHint » pour les ajouter dans Vercel ou .env.local.",
-          en: "AI and watch connectors (Anthropic Claude, Replicate, YouTube) use environment variables (ANTHROPIC_API_KEY, REPLICATE_API_TOKEN, YOUTUBE_API_KEY) rather than form fields. Follow the 'envHint' card instructions to add them in Vercel or .env.local.",
+          fr: "Ces deux connecteurs s'activent automatiquement dès que Facebook est connecté — rien à configurer ici.",
+          en: "These two connectors activate automatically as soon as Facebook is connected — nothing to configure here.",
         },
       },
       {
@@ -627,8 +605,8 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
       {
         label: { fr: "Vérifier l'état de connexion", en: "Check connection status" },
         detail: {
-          fr: "Le badge de statut (Connecté / En attente / Déconnecté / Simulé) est mis à jour à chaque sauvegarde. Le compteur « X/Y connectés » en haut de chaque groupe donne une vue rapide du taux de configuration.",
-          en: "The status badge (Connected / Pending / Disconnected / Simulated) is updated on every save. The 'X/Y connected' counter at the top of each group gives a quick configuration rate view.",
+          fr: "Statuts possibles : Connecté / En attente / Non configuré / Mode simulé (TikTok reste toujours en mode simulé sur cette page). Le compteur « X/Y connectés » en haut de chaque groupe donne une vue rapide du taux de configuration.",
+          en: "Possible statuses: Connected / Pending / Not configured / Simulated mode (TikTok always stays in simulated mode on this page). The 'X/Y connected' counter at the top of each group gives a quick configuration rate view.",
         },
       },
     ],
@@ -638,16 +616,12 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
         en: "Start by configuring Facebook and Instagram (they share the same Meta token) before other networks.",
       },
       {
-        fr: "Les tokens Facebook/Instagram expirent tous les 60 jours en mode utilisateur. Utilisez un System User Token pour une durée illimitée.",
-        en: "Facebook/Instagram tokens expire every 60 days in user mode. Use a System User Token for unlimited duration.",
+        fr: "Pour connecter réellement TikTok, utilisez la page Comptes plutôt que celle-ci.",
+        en: "To really connect TikTok, use the Accounts page rather than this one.",
       },
       {
-        fr: "Vérifiez les niveaux de permission (lecture seule vs. publication) pour éviter les erreurs silencieuses lors des publications automatiques.",
-        en: "Check permission levels (read-only vs. publishing) to avoid silent errors during automatic publishing.",
-      },
-      {
-        fr: "Les variables d'environnement pour Anthropic et Replicate doivent être ajoutées dans Vercel → Settings → Environment Variables et redéployées pour être prises en compte.",
-        en: "Environment variables for Anthropic and Replicate must be added in Vercel → Settings → Environment Variables and redeployed to take effect.",
+        fr: "Si le statut Facebook/Instagram reste « En attente » après connexion, c'est qu'aucune Page n'est encore associée : rendez-vous sur Mes Pages pour la choisir.",
+        en: "If the Facebook/Instagram status stays 'Pending' after connecting, no Page is linked yet: go to My Pages to pick one.",
       },
     ],
     faq: [
@@ -681,7 +655,7 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
     ],
     related: [
       { label: { fr: "Comptes connectés", en: "Connected accounts" }, href: "/accounts" },
-      { label: { fr: "Agents IA", en: "AI agents" }, href: "/agents" },
+      { label: { fr: "Mes Pages", en: "My Pages" }, href: "/pages-meta" },
       { label: { fr: "Performances publicitaires", en: "Ad performance" }, href: "/ad-performance" },
     ],
   },
@@ -697,8 +671,8 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
       en: "Create and publish content across all your networks at once.",
     },
     whatFor: {
-      fr: "L'éditeur de composition vous permet de rédiger, illustrer et cibler un post pour Facebook, Instagram ou LinkedIn. Vous pouvez publier immédiatement, programmer à une date précise ou sauvegarder en brouillon dans la Bibliothèque. L'assistant IA intégré génère des variantes de texte adaptées à chaque réseau et l'aperçu en temps réel respecte les contraintes de format de chaque plateforme.",
-      en: "The composition editor lets you write, illustrate and target a post for Facebook, Instagram or LinkedIn. You can publish immediately, schedule for a specific date or save as a draft in the Library. The built-in AI assistant generates text variants adapted to each network and the real-time preview respects each platform's format constraints.",
+      fr: "L'éditeur de composition vous permet de rédiger, illustrer et cibler un post pour Facebook, Instagram, LinkedIn ou TikTok. Vous pouvez publier immédiatement, programmer à une date précise ou sauvegarder en brouillon dans la Bibliothèque. L'assistant IA intégré génère des variantes de texte adaptées à chaque réseau et l'aperçu en temps réel respecte les contraintes de format de chaque plateforme. Pour Facebook/Instagram, un post peut aussi être publié en Story ou en Reel plutôt qu'au fil, et accepter un album/carrousel de plusieurs photos.",
+      en: "The composition editor lets you write, illustrate and target a post for Facebook, Instagram, LinkedIn or TikTok. You can publish immediately, schedule for a specific date or save as a draft in the Library. The built-in AI assistant generates text variants adapted to each network and the real-time preview respects each platform's format constraints. For Facebook/Instagram, a post can also be published as a Story or Reel instead of to the feed, and accept a multi-photo album/carousel.",
     },
     actions: [
       {
@@ -732,8 +706,15 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
       {
         label: { fr: "Programmer la publication", en: "Schedule the post" },
         detail: {
-          fr: "Cliquez sur « Programmer » pour choisir une date et une heure précises. Le post passe dans l'onglet « Publications programmées » et sera publié automatiquement à l'heure indiquée.",
-          en: "Click 'Schedule' to choose a specific date and time. The post moves to the 'Scheduled posts' tab and will be published automatically at the indicated time.",
+          fr: "Cliquez sur « Programmer » pour choisir une date et une heure précises. Le post passe dans l'onglet « Publications programmées » et sera publié automatiquement à l'heure indiquée. Un bandeau propose un créneau suggéré pour le réseau choisi — appris à partir des performances réelles mesurées dès qu'il y en a assez, sinon un repère général par réseau — avec un bouton pour l'appliquer directement.",
+          en: "Click 'Schedule' to choose a specific date and time. The post moves to the 'Scheduled posts' tab and will be published automatically at the indicated time. A banner suggests a slot for the chosen network — learned from real measured performance once there is enough of it, otherwise a general per-network benchmark — with a button to apply it directly.",
+        },
+      },
+      {
+        label: { fr: "Configurer les réglages TikTok", en: "Configure TikTok settings" },
+        detail: {
+          fr: "Quand TikTok est ciblé, un bloc dédié apparaît pour choisir la confidentialité de la publication et les interactions autorisées (commentaires, Duet, Stitch), conformément aux exigences de l'API TikTok — sans valeur par défaut, à définir à chaque fois.",
+          en: "When TikTok is targeted, a dedicated block appears to choose the post's privacy level and allowed interactions (comments, Duet, Stitch), per TikTok API requirements — with no default value, to be set every time.",
         },
       },
       {
@@ -748,13 +729,6 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
         detail: {
           fr: "Le bouton « Enregistrer en brouillon » stocke le contenu dans la Bibliothèque, prêt à être réutilisé ou modifié ultérieurement sans délai de publication.",
           en: "The 'Save as draft' button stores the content in the Library, ready to be reused or edited later without any publishing delay.",
-        },
-      },
-      {
-        label: { fr: "Cibler une audience", en: "Target an audience" },
-        detail: {
-          fr: "Pour LinkedIn, sélectionnez un segment défini dans la page Audiences pour restreindre la portée du post à un groupe professionnel spécifique.",
-          en: "For LinkedIn, select a segment defined in the Audiences page to restrict the post's reach to a specific professional group.",
         },
       },
     ],
@@ -794,8 +768,7 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
     ],
     related: [
       { label: { fr: "Publications programmées", en: "Scheduled posts" }, href: "/scheduled" },
-      { label: { fr: "Bibliothèque", en: "Library" }, href: "/library" },
-      { label: { fr: "Audiences", en: "Audiences" }, href: "/audiences" },
+      { label: { fr: "Médiathèque", en: "Media library" }, href: "/media" },
     ],
   },
 
@@ -810,58 +783,54 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
       en: "View and manage everything waiting to be published.",
     },
     whatFor: {
-      fr: "Les publications programmées listent l'ensemble des posts planifiés, triés par date de diffusion. Vous pouvez les modifier, les déprogrammer, changer leur créneau ou les réorganiser. La vue calendrier facilite la détection des jours sans publication et garantit la cohérence éditoriale avant diffusion.",
-      en: "Scheduled posts list all planned posts sorted by publication date. You can edit, unschedule, reschedule or reorganise them. The calendar view makes it easy to spot days with no posts and ensures editorial consistency before publishing.",
+      fr: "Les publications programmées listent tous les posts qui n'ont pas encore été diffusés, avec des onglets Tout / Planifiés / À valider (si le workflow de validation est activé pour la société) / Échecs / Brouillons. Un sélecteur bascule entre une liste groupée par date et une vue calendrier mensuelle. Cliquer un post ouvre une fenêtre pour le republanifier, le publier en avance ou le supprimer — et, s'il est en attente de validation, l'approuver ou le refuser.",
+      en: "Scheduled posts list everything not yet published, with tabs All / Scheduled / To approve (if the company's approval workflow is enabled) / Failed / Drafts. A selector switches between a list grouped by date and a monthly calendar view. Clicking a post opens a window to reschedule it, publish it early or delete it — and, if it is awaiting approval, to approve or reject it.",
     },
     actions: [
       {
-        label: { fr: "Modifier un post programmé", en: "Edit a scheduled post" },
+        label: { fr: "Reprogrammer un post", en: "Reschedule a post" },
         detail: {
-          fr: "Cliquez sur la carte d'un post pour ouvrir l'éditeur pré-rempli. Toutes les modifications sont sauvegardées et le post reste programmé à la même date sauf si vous la changez.",
-          en: "Click a post card to open the pre-filled editor. All changes are saved and the post remains scheduled for the same date unless you change it.",
+          fr: "Cliquez sur la carte d'un post pour ouvrir sa fiche, choisissez une nouvelle date et heure dans le bloc « Replanifier », puis « Enregistrer ». Il n'y a pas de glisser-déposer.",
+          en: "Click a post card to open its detail, pick a new date and time in the 'Reschedule' block, then 'Save'. There is no drag and drop.",
         },
       },
       {
-        label: { fr: "Reprogrammer par glisser-déposer", en: "Reschedule by drag and drop" },
+        label: { fr: "Publier en avance", en: "Publish early" },
         detail: {
-          fr: "En vue calendrier, faites glisser un post sur un nouveau créneau pour le reprogrammer instantanément. La modification est confirmée par une notification verte.",
-          en: "In calendar view, drag a post to a new slot to reschedule it instantly. The change is confirmed by a green notification.",
+          fr: "Un post planifié part automatiquement au cron à l'heure prévue ; le bouton « Publier maintenant » dans sa fiche l'envoie immédiatement sans attendre cette échéance.",
+          en: "A scheduled post is sent automatically by the cron at its due time; the 'Publish now' button in its detail sends it immediately instead of waiting.",
         },
       },
       {
-        label: { fr: "Déprogrammer un post", en: "Unschedule a post" },
+        label: { fr: "Approuver ou refuser une publication (workflow de validation)", en: "Approve or reject a post (approval workflow)" },
         detail: {
-          fr: "Le bouton « Déprogrammer » transforme le post en brouillon dans la Bibliothèque. Il n'est pas supprimé et reste modifiable à tout moment.",
-          en: "The 'Unschedule' button converts the post to a draft in the Library. It is not deleted and remains editable at any time.",
+          fr: "Si le workflow de validation est activé pour la société (réglage dans Paramètres), les publications programmées par un membre passent « À valider » : un owner/admin les approuve pour qu'elles partent normalement, ou les refuse avec un motif optionnel — la publication redevient alors un brouillon visible par son auteur.",
+          en: "If the company's approval workflow is enabled (setting in Settings), posts scheduled by a member go 'To approve': an owner/admin approves them so they go out normally, or rejects them with an optional note — the post then becomes a draft visible to its author again.",
         },
       },
       {
-        label: { fr: "Filtrer par marque ou réseau", en: "Filter by brand or network" },
+        label: { fr: "Supprimer un post", en: "Delete a post" },
         detail: {
-          fr: "Utilisez les filtres en haut pour afficher uniquement les publications d'une marque ou d'un réseau précis. Utile pour vérifier la charge de publication d'une entité spécifique.",
-          en: "Use the top filters to display only posts for a specific brand or network. Useful to check the publishing load for a specific entity.",
+          fr: "Le bouton « Supprimer » (dans la fiche ou au survol de la carte) efface définitivement le post — ce n'est pas une mise en brouillon.",
+          en: "The 'Delete' button (in the detail view or on card hover) permanently removes the post — this is not a move to draft.",
         },
       },
       {
         label: { fr: "Basculer entre vue liste et vue calendrier", en: "Switch between list and calendar view" },
         detail: {
-          fr: "Le sélecteur de vue permet de passer d'une liste chronologique à un calendrier mensuel ou hebdomadaire pour une vision éditoriale globale.",
-          en: "The view selector switches from a chronological list to a monthly or weekly calendar for a global editorial view.",
+          fr: "Le sélecteur de vue passe d'une liste groupée par jour à un calendrier mensuel avec navigation par mois.",
+          en: "The view selector switches from a list grouped by day to a monthly calendar with month navigation.",
         },
       },
     ],
     tips: [
       {
-        fr: "Activez la vue « Semaine » pour détecter les jours sans publication et combler les vides de votre calendrier éditorial.",
-        en: "Enable the 'Week' view to detect days with no posts and fill gaps in your editorial calendar.",
+        fr: "L'onglet « À valider » n'apparaît que si le workflow de validation est activé pour la société, ou tant qu'il reste des publications en attente après sa désactivation.",
+        en: "The 'To approve' tab only appears if the company's approval workflow is enabled, or while pending posts remain after it was disabled.",
       },
       {
-        fr: "Un code couleur par marque vous permet de voir d'un coup d'œil quelle marque publie quand, sans confusion.",
-        en: "A colour code per brand lets you see at a glance which brand publishes when, without confusion.",
-      },
-      {
-        fr: "Planifiez les posts importants (lancement, événement) au moins 48h à l'avance pour avoir le temps de les ajuster si nécessaire.",
-        en: "Schedule important posts (launch, event) at least 48h in advance to have time to adjust them if needed.",
+        fr: "Un post refusé redevient un brouillon avec le motif du refus visible — son auteur peut le corriger et le reprogrammer.",
+        en: "A rejected post becomes a draft again with the rejection reason visible — its author can fix it and reschedule it.",
       },
     ],
     faq: [
@@ -873,16 +842,17 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
         },
       },
       {
-        q: { fr: "Les automations peuvent-elles créer des posts programmés ?", en: "Can automations create scheduled posts?" },
+        q: { fr: "Qui peut approuver une publication en attente ?", en: "Who can approve a pending post?" },
         a: {
-          fr: "Oui, une automation de type « cycle récurrent » peut générer et programmer automatiquement des posts selon une fréquence définie.",
-          en: "Yes, a 'recurring cycle' automation can automatically generate and schedule posts according to a defined frequency.",
+          fr: "Seul un owner/admin de l'organisation peut approuver ou refuser — un Community Manager (member) qui programme dans une société où le workflow est actif passe systématiquement par cette étape.",
+          en: "Only an org owner/admin can approve or reject — a Community Manager (member) scheduling in a company with the workflow enabled always goes through this step.",
         },
       },
     ],
     related: [
       { label: { fr: "Composer un post", en: "Compose a post" }, href: "/compose" },
       { label: { fr: "Historique", en: "History" }, href: "/history" },
+      { label: { fr: "Paramètres", en: "Settings" }, href: "/settings" },
     ],
   },
 
@@ -893,179 +863,19 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
       en: "Library",
     },
     tagline: {
-      fr: "Stockez, organisez et réutilisez vos contenus et modèles.",
-      en: "Store, organise and reuse your content and templates.",
+      fr: "Cette page redirige désormais vers la Médiathèque.",
+      en: "This page now redirects to the Media library.",
     },
     whatFor: {
-      fr: "La Bibliothèque centralise tous vos brouillons, modèles de posts, visuels validés et contenus archivés. Vous pouvez filtrer par marque, réseau, statut ou tag pour retrouver rapidement un contenu existant et l'adapter sans repartir de zéro. C'est le centre de réutilisation des actifs éditoriaux de votre organisation.",
-      en: "The Library centralises all your drafts, post templates, approved visuals and archived content. You can filter by brand, network, status or tag to quickly find existing content and adapt it without starting from scratch. It is the editorial asset reuse centre for your organisation.",
+      fr: "La page Bibliothèque a été retirée (aucun intérêt constaté à l'usage) : /library redirige automatiquement vers la Médiathèque (/media), qui rassemble tous les visuels et vidéos réutilisables de la marque.",
+      en: "The Library page has been removed (found to add no value in practice): /library automatically redirects to the Media library (/media), which gathers all the brand's reusable visuals and videos.",
     },
-    actions: [
-      {
-        label: { fr: "Rechercher et filtrer", en: "Search and filter" },
-        detail: {
-          fr: "Utilisez la barre de recherche plein texte et les filtres (marque, réseau, tag, statut, date) pour localiser précisément un contenu. La recherche est en temps réel.",
-          en: "Use the full-text search bar and filters (brand, network, tag, status, date) to precisely locate content. Search is real-time.",
-        },
-      },
-      {
-        label: { fr: "Dupliquer un contenu", en: "Duplicate content" },
-        detail: {
-          fr: "Le bouton « Dupliquer » crée une copie modifiable du post ou du modèle sélectionné, utile pour décliner un format qui a bien fonctionné vers une autre marque ou réseau.",
-          en: "The 'Duplicate' button creates an editable copy of the selected post or template, useful for adapting a successful format to another brand or network.",
-        },
-      },
-      {
-        label: { fr: "Créer un modèle depuis un brouillon", en: "Create a template from a draft" },
-        detail: {
-          fr: "Depuis n'importe quel brouillon, cliquez sur « Enregistrer comme modèle » pour le rendre disponible dans Composer et accélérer la production future de contenus similaires.",
-          en: "From any draft, click 'Save as template' to make it available in Composer and speed up future production of similar content.",
-        },
-      },
-      {
-        label: { fr: "Archiver un contenu", en: "Archive content" },
-        detail: {
-          fr: "L'archivage retire le contenu de la vue principale tout en le conservant indéfiniment. Les contenus archivés sont accessibles via le filtre « Archivé » — préférez archiver plutôt que supprimer.",
-          en: "Archiving removes content from the main view while keeping it indefinitely. Archived content is accessible via the 'Archived' filter — prefer archiving over deleting.",
-        },
-      },
-      {
-        label: { fr: "Ouvrir un contenu dans Composer", en: "Open content in Composer" },
-        detail: {
-          fr: "Cliquez sur « Modifier » sur un brouillon ou modèle pour l'ouvrir dans l'éditeur Composer pré-rempli. Vous pouvez alors le modifier et le programmer ou le publier directement.",
-          en: "Click 'Edit' on a draft or template to open it in the pre-filled Composer editor. You can then modify and schedule or publish it directly.",
-        },
-      },
-      {
-        label: { fr: "Gérer les tags", en: "Manage tags" },
-        detail: {
-          fr: "Ajoutez, modifiez ou supprimez des tags depuis la fiche d'un contenu. Les tags sont libres — définissez une convention interne (ex. : campagne-été, produit-X) pour faciliter les recherches futures.",
-          en: "Add, edit or remove tags from a content card. Tags are free-form — define an internal convention (e.g. summer-campaign, product-X) to facilitate future searches.",
-        },
-      },
-    ],
-    tips: [
-      {
-        fr: "Taggez systématiquement vos contenus dès la création pour retrouver les assets d'une campagne en quelques secondes.",
-        en: "Tag your content systematically at creation time so you can find campaign assets in seconds.",
-      },
-      {
-        fr: "Les contenus archivés sont conservés indéfiniment — pensez à archiver plutôt que supprimer pour garder une trace historique exploitable.",
-        en: "Archived content is kept indefinitely — prefer archiving over deleting to maintain a usable historical record.",
-      },
-      {
-        fr: "Créez des modèles pour vos formats récurrents (post de lancement produit, post d'événement) et partagez-les avec toute votre équipe.",
-        en: "Create templates for your recurring formats (product launch post, event post) and share them with your whole team.",
-      },
-    ],
-    faq: [
-      {
-        q: { fr: "Quelle différence entre un brouillon et un modèle ?", en: "What is the difference between a draft and a template?" },
-        a: {
-          fr: "Un brouillon est un contenu en cours de rédaction, destiné à une publication spécifique. Un modèle est un contenu réutilisable, sans date ni réseau fixe, utilisé comme base dans Composer.",
-          en: "A draft is content being written, intended for a specific publication. A template is reusable content, with no fixed date or network, used as a base in Composer.",
-        },
-      },
-      {
-        q: { fr: "La Bibliothèque est-elle partagée entre toutes les marques ?", en: "Is the Library shared across all brands?" },
-        a: {
-          fr: "Non, chaque marque dispose de sa propre bibliothèque. Le filtre de marque en haut permet de passer de l'une à l'autre.",
-          en: "No, each brand has its own library. The brand filter at the top lets you switch between them.",
-        },
-      },
-    ],
+    actions: [],
+    tips: [],
+    faq: [],
     related: [
+      { label: { fr: "Médiathèque", en: "Media library" }, href: "/media" },
       { label: { fr: "Composer un post", en: "Compose a post" }, href: "/compose" },
-      { label: { fr: "Campagnes", en: "Campaigns" }, href: "/campaigns" },
-      { label: { fr: "Historique", en: "History" }, href: "/history" },
-    ],
-  },
-
-  // ── /automations ────────────────────────────────────────────────────────────
-  "/automations": {
-    title: {
-      fr: "Automations",
-      en: "Automations",
-    },
-    tagline: {
-      fr: "Automatisez les actions répétitives et les workflows éditoriaux.",
-      en: "Automate repetitive actions and editorial workflows.",
-    },
-    whatFor: {
-      fr: "Les automations permettent de créer des règles qui déclenchent des actions automatiques sans intervention manuelle : republication d'un top-post, notification lorsqu'un seuil d'engagement est atteint, cycle de publication récurrent ou déclenchement d'un run d'agents IA. Chaque automation est auditable, suspendable et modifiable sans suppression.",
-      en: "Automations allow you to create rules that trigger automatic actions without manual intervention: republishing a top post, notifying when an engagement threshold is reached, running a recurring publication cycle or triggering an AI agents run. Each automation is auditable, suspendable and editable without deletion.",
-    },
-    actions: [
-      {
-        label: { fr: "Créer une automation", en: "Create an automation" },
-        detail: {
-          fr: "Cliquez sur « Nouvelle automation », choisissez un déclencheur (calendrier, seuil de métrique, événement externe) et définissez l'action associée. Un résumé en langage naturel confirme la logique configurée avant l'activation.",
-          en: "Click 'New automation', choose a trigger (schedule, metric threshold, external event) and define the associated action. A natural language summary confirms the configured logic before activation.",
-        },
-      },
-      {
-        label: { fr: "Activer ou suspendre une automation", en: "Activate or suspend an automation" },
-        detail: {
-          fr: "Le toggle à droite de chaque automation l'active ou la suspend sans la supprimer. Les automations suspendues sont listées en gris et réactivables à tout moment.",
-          en: "The toggle to the right of each automation activates or suspends it without deleting it. Suspended automations are listed in grey and can be reactivated at any time.",
-        },
-      },
-      {
-        label: { fr: "Modifier une automation existante", en: "Edit an existing automation" },
-        detail: {
-          fr: "Cliquez sur le nom ou l'icône d'édition d'une automation pour ouvrir le formulaire de configuration. Les modifications sont appliquées au prochain déclenchement.",
-          en: "Click the name or edit icon of an automation to open the configuration form. Changes are applied on the next trigger.",
-        },
-      },
-      {
-        label: { fr: "Consulter le journal d'exécution", en: "View the execution log" },
-        detail: {
-          fr: "Chaque automation affiche son dernier déclenchement, son résultat (succès / échec) et la durée. Cliquez sur « Voir les logs » pour accéder au détail complet de chaque exécution.",
-          en: "Each automation shows its last trigger, result (success / failure) and duration. Click 'View logs' to access the full detail of each execution.",
-        },
-      },
-      {
-        label: { fr: "Supprimer une automation", en: "Delete an automation" },
-        detail: {
-          fr: "Le bouton « Supprimer » retire définitivement l'automation. Préférez la suspension si vous souhaitez conserver la configuration pour une réactivation future.",
-          en: "The 'Delete' button permanently removes the automation. Prefer suspending if you want to keep the configuration for future reactivation.",
-        },
-      },
-    ],
-    tips: [
-      {
-        fr: "Commencez par automatiser la republication hebdomadaire de vos meilleurs posts — c'est le cas d'usage le plus rapide à configurer et le plus rentable.",
-        en: "Start by automating the weekly republication of your best posts — it's the quickest use case to configure and the most cost-effective.",
-      },
-      {
-        fr: "Testez une automation sur une marque secondaire avant de la déployer sur votre marque principale.",
-        en: "Test an automation on a secondary brand before deploying it on your main brand.",
-      },
-      {
-        fr: "Configurez une alerte automation (webhook ou email) pour être notifié immédiatement en cas d'échec d'exécution.",
-        en: "Configure an automation alert (webhook or email) to be notified immediately on execution failure.",
-      },
-    ],
-    faq: [
-      {
-        q: { fr: "Une automation peut-elle déclencher un run d'agents IA ?", en: "Can an automation trigger an AI agents run?" },
-        a: {
-          fr: "Oui, en choisissant l'action « Lancer un cycle de pilotage IA » lors de la configuration. Les recommandations générées apparaissent dans le centre de pilotage.",
-          en: "Yes, by choosing the action 'Launch an AI piloting cycle' during configuration. Generated recommendations appear in the piloting center.",
-        },
-      },
-      {
-        q: { fr: "Combien d'automations puis-je créer ?", en: "How many automations can I create?" },
-        a: {
-          fr: "Le nombre dépend de votre abonnement. Consultez la page Paramètres pour connaître les limites de votre plan.",
-          en: "The number depends on your subscription. Check the Settings page to see your plan's limits.",
-        },
-      },
-    ],
-    related: [
-      { label: { fr: "Publications programmées", en: "Scheduled posts" }, href: "/scheduled" },
-      { label: { fr: "Agents IA", en: "AI agents" }, href: "/agents" },
-      { label: { fr: "Historique", en: "History" }, href: "/history" },
     ],
   },
 
@@ -1080,43 +890,50 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
       en: "Find all past publications and their performance.",
     },
     whatFor: {
-      fr: "L'Historique archive l'intégralité des posts publiés avec leur date, réseau, statut (succès / échec) et métriques d'engagement post-publication. Vous pouvez filtrer, exporter ou relancer un post existant directement depuis cet écran. C'est la mémoire éditoriale de votre organisation.",
-      en: "History archives all published posts with their date, network, status (success / failure) and post-publication engagement metrics. You can filter, export or relaunch an existing post directly from this screen. It is your organisation's editorial memory.",
+      fr: "L'Historique archive l'intégralité des posts publiés avec leur date, réseau, statut (publié / échoué) et métriques mesurées (réactions, commentaires, partages, clics sur le lien). Vous pouvez filtrer, rechercher, exporter ou dupliquer un post existant directement depuis cet écran. C'est la mémoire éditoriale de votre organisation.",
+      en: "History archives all published posts with their date, network, status (published / failed) and measured metrics (reactions, comments, shares, link clicks). You can filter, search, export or duplicate an existing post directly from this screen. It is your organisation's editorial memory.",
     },
     actions: [
       {
-        label: { fr: "Filtrer par période, réseau et statut", en: "Filter by period, network and status" },
+        label: { fr: "Filtrer par période, statut et recherche", en: "Filter by period, status and search" },
         detail: {
-          fr: "Sélectionnez une plage de dates, un ou plusieurs réseaux et un statut (succès, échec, tous) pour affiner la liste. Les filtres s'accumulent et peuvent être réinitialisés d'un clic.",
-          en: "Select a date range, one or more networks and a status (success, failure, all) to refine the list. Filters accumulate and can be reset with one click.",
+          fr: "Choisissez une période (7/30/90 jours, dernière année, tout le temps ou plage personnalisée) et un statut via les onglets Tout / Publiés / Échoués, puis affinez avec la recherche plein texte (texte du post ou nom de l'automation).",
+          en: "Choose a period (last 7/30/90 days, last year, all time or a custom range) and a status via the All / Published / Failed tabs, then refine with the full-text search (post text or automation name).",
         },
       },
       {
-        label: { fr: "Relancer un post existant", en: "Relaunch an existing post" },
+        label: { fr: "Dupliquer un post existant", en: "Duplicate an existing post" },
         detail: {
-          fr: "Le bouton « Réutiliser » ouvre l'éditeur Composer pré-rempli avec le contenu du post sélectionné. Modifiez-le puis programmez ou publiez directement.",
-          en: "The 'Reuse' button opens the Composer editor pre-filled with the selected post's content. Edit it then schedule or publish directly.",
+          fr: "Depuis la fiche détaillée d'un post, « Dupliquer en nouvelle publication » ouvre l'éditeur Composer pré-rempli avec son contenu.",
+          en: "From a post's detail sheet, 'Duplicate as new post' opens the Composer editor pre-filled with its content.",
         },
       },
       {
         label: { fr: "Exporter les données", en: "Export data" },
         detail: {
-          fr: "Exportez l'historique filtré en CSV pour l'intégrer dans un rapport externe, votre outil de BI ou un audit de performance.",
-          en: "Export the filtered history as CSV to integrate it in an external report, your BI tool or a performance audit.",
+          fr: "Le menu « Exporter » propose CSV ou JSON pour la liste actuellement affichée.",
+          en: "The 'Export' menu offers CSV or JSON for the currently displayed list.",
         },
       },
       {
         label: { fr: "Consulter les métriques d'un post", en: "View a post's metrics" },
         detail: {
-          fr: "Cliquez sur un post pour ouvrir sa fiche détaillée : impressions, portée, likes, commentaires, partages et taux d'engagement sur les 7 jours suivant la publication.",
-          en: "Click a post to open its detail sheet: impressions, reach, likes, comments, shares and engagement rate over the 7 days following publication.",
+          fr: "Cliquez sur un post pour ouvrir sa fiche détaillée : réactions, commentaires, partages et clics sur le lien, ainsi que le média publié et un lien vers la publication d'origine.",
+          en: "Click a post to open its detail sheet: reactions, comments, shares and link clicks, plus the published media and a link to the original post.",
         },
       },
       {
         label: { fr: "Republier un post en échec", en: "Republish a failed post" },
         detail: {
-          fr: "Les posts marqués « Échec » peuvent être republié via « Réutiliser ». Vérifiez d'abord que le connecteur concerné est correctement configuré dans la page Connecteurs.",
-          en: "Posts marked 'Failure' can be republished via 'Reuse'. First check that the relevant connector is correctly configured in the Connectors page.",
+          fr: "Les posts marqués « Échec » affichent un bouton « Réessayer » à côté du message d'erreur. Pour republier, utilisez « Dupliquer en nouvelle publication » depuis la fiche détaillée : le post se rouvre dans Composer, prêt à être renvoyé.",
+          en: "Posts marked 'Failed' show a 'Retry' button next to the error message. To republish, use 'Duplicate as new post' from the detail sheet: the post reopens in Composer, ready to resend.",
+        },
+      },
+      {
+        label: { fr: "Supprimer un post de l'historique", en: "Delete a post from history" },
+        detail: {
+          fr: "Depuis la fiche détaillée, le bouton « Supprimer » retire définitivement l'entrée après confirmation — action irréversible.",
+          en: "From the detail sheet, the 'Delete' button permanently removes the entry after confirmation — this cannot be undone.",
         },
       },
     ],
@@ -1129,14 +946,10 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
         fr: "Les posts en échec ont souvent besoin d'une re-publication manuelle — vérifiez la connexion du compte concerné dans Connecteurs.",
         en: "Failed posts often need manual republishing — check the relevant account connection in Connectors.",
       },
-      {
-        fr: "Utilisez l'export CSV mensuel pour construire vos rapports de performance et les partager avec votre direction.",
-        en: "Use the monthly CSV export to build your performance reports and share them with management.",
-      },
     ],
     faq: [
       {
-        q: { fr: "L'historique inclut-il les posts publiés par les automations ?", en: "Does history include posts published by automations?" },
+        q: { fr: "L'historique inclut-il les posts publiés par des automatisations ?", en: "Does history include posts published by automated flows?" },
         a: {
           fr: "Oui, tous les posts publiés via AXON-AI — manuellement ou automatiquement — apparaissent dans l'Historique.",
           en: "Yes, all posts published via AXON-AI — manually or automatically — appear in History.",
@@ -1145,8 +958,8 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
       {
         q: { fr: "Combien de temps les données sont-elles conservées ?", en: "How long is data retained?" },
         a: {
-          fr: "L'historique est conservé indéfiniment dans votre compte. Les métriques d'engagement sont mises à jour pendant 7 jours après publication, puis figées.",
-          en: "History is kept indefinitely in your account. Engagement metrics are updated for 7 days after publication, then frozen.",
+          fr: "L'historique est conservé indéfiniment dans votre compte, jusqu'à suppression manuelle d'une entrée.",
+          en: "History is kept indefinitely in your account, until you manually delete an entry.",
         },
       },
     ],
@@ -1168,43 +981,36 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
       en: "Manage your multi-channel campaigns end to end.",
     },
     whatFor: {
-      fr: "Une campagne regroupe un ensemble de posts organiques, d'annonces payantes et d'audiences autour d'un objectif commun (lancement produit, événement, sensibilisation). L'écran Campagnes offre une vue consolidée du budget, de la portée cumulée, du taux de réalisation et de l'avancement de chaque campagne active, répartis par marque et par canal.",
-      en: "A campaign groups together a set of organic posts, paid ads and audiences around a common objective (product launch, event, awareness). The Campaigns screen offers a consolidated view of budget, cumulative reach, completion rate and progress of each active campaign, broken down by brand and channel.",
+      fr: "Une campagne regroupe des publicités Meta (Facebook/Instagram) et leurs ensembles de publicités autour d'un objectif commun. L'écran Campagnes offre une vue consolidée du budget et de l'avancement de chaque campagne active.",
+      en: "A campaign groups Meta ads (Facebook/Instagram) and their ad sets around a common objective. The Campaigns screen offers a consolidated view of budget and progress for each active campaign.",
     },
     actions: [
       {
         label: { fr: "Créer une campagne", en: "Create a campaign" },
         detail: {
-          fr: "Définissez un nom, des dates de début et de fin, un objectif (notoriété, trafic, conversion) et assignez les marques et réseaux concernés. Les posts programmés dans la même période peuvent être rattachés à la campagne.",
-          en: "Define a name, start and end dates, an objective (awareness, traffic, conversion) and assign the relevant brands and networks. Scheduled posts within the same period can be linked to the campaign.",
+          fr: "Définissez un nom, des dates de début et de fin, un objectif (notoriété, trafic, conversion) et la marque concernée — une campagne appartient à une seule marque. Un « Brouillon local » permet une création simplifiée hors Meta, non publiée.",
+          en: "Define a name, start and end dates, an objective (awareness, traffic, conversion) and the relevant brand — a campaign belongs to a single brand. A 'Local draft' allows a simplified creation outside Meta, not published.",
         },
       },
       {
         label: { fr: "Suivre la progression", en: "Track progress" },
         detail: {
-          fr: "La jauge de progression indique le taux de réalisation des publications prévues. Un indicateur budgétaire montre le consommé vs. le budget alloué pour les campagnes payantes.",
-          en: "The progress gauge shows the completion rate of planned publications. A budget indicator shows actual spend vs. allocated budget for paid campaigns.",
+          fr: "La jauge de progression indique le budget dépensé par rapport au budget alloué à la campagne.",
+          en: "The progress gauge shows the budget spent against the campaign's allocated budget.",
         },
       },
       {
-        label: { fr: "Lier des posts organiques", en: "Link organic posts" },
+        label: { fr: "Ajouter un ensemble de publicités", en: "Add an ad set" },
         detail: {
-          fr: "Depuis la fiche campagne, ajoutez des posts organiques existants (depuis la Bibliothèque ou les Publications programmées) à la campagne pour consolider les métriques.",
-          en: "From the campaign card, add existing organic posts (from the Library or Scheduled posts) to the campaign to consolidate metrics.",
+          fr: "Depuis la fiche campagne, créez un nouvel ensemble de publicités (audience, budget, placements) rattaché à la campagne.",
+          en: "From the campaign card, create a new ad set (audience, budget, placements) linked to the campaign.",
         },
       },
       {
-        label: { fr: "Créer des publicités liées", en: "Create linked ads" },
+        label: { fr: "Mettre en pause ou supprimer une campagne", en: "Pause or delete a campaign" },
         detail: {
-          fr: "Depuis la fiche campagne, créez de nouvelles publicités payantes directement rattachées à la campagne. Le budget est automatiquement imputé au total de la campagne.",
-          en: "From the campaign card, create new paid ads directly linked to the campaign. The budget is automatically charged to the campaign total.",
-        },
-      },
-      {
-        label: { fr: "Archiver ou clôturer une campagne", en: "Archive or close a campaign" },
-        detail: {
-          fr: "À la fin d'une campagne, clôturez-la pour figer les métriques finales. L'archivage la retire de la vue active tout en conservant toutes les données pour les comparaisons futures.",
-          en: "At the end of a campaign, close it to freeze the final metrics. Archiving removes it from the active view while keeping all data for future comparisons.",
+          fr: "Le bouton bascule Actif/En pause arrête la diffusion sans perdre les données. La suppression est définitive et irréversible.",
+          en: "The Active/Paused toggle stops delivery without losing data. Deletion is permanent and cannot be undone.",
         },
       },
     ],
@@ -1217,24 +1023,20 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
         fr: "Définissez les Audiences en amont, puis réutilisez-les dans toutes les publicités de la campagne pour garantir la cohérence du ciblage.",
         en: "Define Audiences upfront, then reuse them across all campaign ads to ensure targeting consistency.",
       },
-      {
-        fr: "Comparez vos campagnes en activant le mode comparaison dans Analytics pour mesurer l'impact réel de chaque itération.",
-        en: "Compare your campaigns by enabling comparison mode in Analytics to measure the real impact of each iteration.",
-      },
     ],
     faq: [
       {
         q: { fr: "Peut-on associer une campagne à plusieurs marques ?", en: "Can a campaign be associated with multiple brands?" },
         a: {
-          fr: "Oui, lors de la création vous pouvez sélectionner plusieurs marques. Les métriques sont alors agrégées au niveau campagne et ventilées par marque dans la fiche détaillée.",
-          en: "Yes, during creation you can select multiple brands. Metrics are then aggregated at campaign level and broken down by brand in the detail sheet.",
+          fr: "Non, chaque campagne appartient à une seule marque (celle sélectionnée dans l'application).",
+          en: "No, each campaign belongs to a single brand (the one currently selected in the app).",
         },
       },
       {
         q: { fr: "Où voir le détail d'une publicité liée à une campagne ?", en: "Where to see the detail of an ad linked to a campaign?" },
         a: {
-          fr: "Depuis la fiche campagne, cliquez sur une publicité pour accéder à sa page dans Performances publicitaires ou Ad Sets.",
-          en: "From the campaign card, click an ad to access its page in Ad performance or Ad sets.",
+          fr: "Depuis la fiche campagne, ouvrez l'ensemble de publicités concerné, ou consultez Performances publicitaires pour la vue par publicité.",
+          en: "From the campaign card, open the relevant ad set, or check Ad performance for the per-ad view.",
         },
       },
     ],
@@ -1256,8 +1058,8 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
       en: "Define and manage target segments for your communications.",
     },
     whatFor: {
-      fr: "L'écran Audiences vous permet de créer des segments réutilisables à partir de critères démographiques, comportementaux ou de listes personnalisées. Ces segments sont ensuite utilisables dans Composer (ciblage organique LinkedIn) et dans les campagnes payantes (Facebook Ads, LinkedIn Ads). L'indicateur de taille estimée donne un ordre de grandeur avant de lancer une campagne.",
-      en: "The Audiences screen lets you create reusable segments based on demographic, behavioural or custom list criteria. These segments can then be used in Composer (LinkedIn organic targeting) and paid campaigns (Facebook Ads, LinkedIn Ads). The estimated size indicator gives a rough figure before launching a campaign.",
+      fr: "L'écran Audiences vous permet de créer des segments réutilisables à partir de critères démographiques, comportementaux ou de listes personnalisées. Ces segments sont ensuite utilisables dans les campagnes publicitaires Meta (Facebook Ads). L'indicateur de taille estimée donne un ordre de grandeur avant de lancer une campagne.",
+      en: "The Audiences screen lets you create reusable segments based on demographic, behavioural or custom list criteria. These segments can then be used in Meta ad campaigns (Facebook Ads). The estimated size indicator gives a rough figure before launching a campaign.",
     },
     actions: [
       {
@@ -1284,8 +1086,8 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
       {
         label: { fr: "Analyser la taille estimée", en: "Analyse estimated size" },
         detail: {
-          fr: "L'indicateur de taille estimée vous donne un ordre de grandeur de l'audience potentielle sur chaque réseau avant de lancer une campagne payante. Visez 500 000 à 5 M de personnes pour un CPC optimal.",
-          en: "The estimated size indicator gives a rough figure for the potential audience on each network before launching a paid campaign. Aim for 500,000 to 5M people for optimal CPC.",
+          fr: "L'indicateur de taille estimée vous donne un ordre de grandeur de l'audience potentielle avant de lancer une campagne payante. Une audience ni trop étroite ni trop large facilite généralement la diffusion — ajustez selon la taille affichée.",
+          en: "The estimated size indicator gives a rough figure for the potential audience before launching a paid campaign. An audience that's neither too narrow nor too broad generally helps delivery — adjust based on the displayed size.",
         },
       },
       {
@@ -1305,10 +1107,6 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
         fr: "Vérifiez systématiquement les restrictions de ciblage propres à Facebook (catégories « sensibles » : santé, finance) avant de lancer une publicité.",
         en: "Always check Facebook's targeting restrictions for 'sensitive' categories (health, finance) before launching an ad.",
       },
-      {
-        fr: "Segmentez par profession sur LinkedIn pour les campagnes B2B médicales (médecins, pharmaciens, décideurs hospitaliers).",
-        en: "Segment by profession on LinkedIn for medical B2B campaigns (doctors, pharmacists, hospital decision-makers).",
-      },
     ],
     faq: [
       {
@@ -1321,8 +1119,8 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
       {
         q: { fr: "Comment la liste CSV est-elle protégée ?", en: "How is the CSV list protected?" },
         a: {
-          fr: "Les e-mails sont hachés (SHA-256) côté serveur avant tout envoi aux APIs Meta/LinkedIn. La liste brute n'est jamais transmise aux plateformes.",
-          en: "Emails are hashed (SHA-256) server-side before any transmission to Meta/LinkedIn APIs. The raw list is never transmitted to the platforms.",
+          fr: "Les e-mails/numéros sont hachés localement dans votre navigateur avant tout envoi à Meta. La liste brute ne quitte jamais votre navigateur.",
+          en: "Emails/numbers are hashed locally in your browser before being sent to Meta. The raw list never leaves your browser.",
         },
       },
     ],
@@ -1344,73 +1142,87 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
       en: "Measure the ROI of your paid campaigns in real time.",
     },
     whatFor: {
-      fr: "Cet écran agrège les données publicitaires de toutes vos plateformes (Facebook Ads, Instagram Ads, LinkedIn Ads) en un seul tableau de bord. Vous y suivez les dépenses, le coût par clic (CPC), le taux de conversion et le retour sur investissement publicitaire (ROAS) de chaque campagne. Des benchmarks sectoriels sont affichés en référence pour chaque réseau.",
-      en: "This screen aggregates advertising data from all your platforms (Facebook Ads, Instagram Ads, LinkedIn Ads) into a single dashboard. You track spend, cost per click (CPC), conversion rate and return on ad spend (ROAS) for each campaign. Industry benchmarks are shown as reference for each network.",
+      fr: "Cet écran affiche la performance de vos publicités Meta (Facebook et Instagram) : dépenses, impressions, clics, conversions et CPC moyen, avec un graphique dans le temps et un tableau détaillé par publicité. Dès qu'un compte publicitaire Meta est connecté, les chiffres sont réels (bandeau vert « Réel · Meta ») ; sinon, ils sont estimés à partir du budget des campagnes (bandeau orange « Estimation · démo »). Deux modules IA complètent l'écran : le Cerveau Pub, qui analyse la performance réelle et la mémoire stratégique pour proposer une analyse et des recommandations, et le Pilote Pub, qui suggère des actions concrètes (pause, ajustement de budget, réactivation) à valider une par une.",
+      en: "This screen shows your Meta ad performance (Facebook and Instagram): spend, impressions, clicks, conversions and average CPC, with a chart over time and a detailed per-ad table. As soon as a Meta ad account is connected, figures are real (green 'Real · Meta' banner); otherwise they are estimated from campaign budgets (amber 'Estimate · demo' banner). Two AI modules complete the screen: the Ad Brain, which analyses real performance and strategic memory to propose an analysis and recommendations, and the Ad Pilot, which suggests concrete actions (pause, budget adjustment, reactivation) to approve one by one.",
     },
     actions: [
       {
-        label: { fr: "Comparer des campagnes", en: "Compare campaigns" },
+        label: { fr: "Connecter un compte publicitaire Meta", en: "Connect a Meta ad account" },
         detail: {
-          fr: "Utilisez le tableau comparatif pour mettre côte à côte deux campagnes ou deux marques sur la même période. Les colonnes sont triables pour identifier rapidement les campagnes les plus performantes.",
-          en: "Use the comparison table to place two campaigns or two brands side by side over the same period. Columns are sortable to quickly identify the top-performing campaigns.",
+          fr: "Le panneau en haut de page liste vos comptes publicitaires Meta et permet d'en sélectionner un. C'est la condition pour passer des chiffres estimés aux chiffres réels.",
+          en: "The panel at the top of the page lists your Meta ad accounts and lets you select one. This is what switches the screen from estimated to real figures.",
         },
       },
       {
-        label: { fr: "Analyser par réseau", en: "Analyse by network" },
+        label: { fr: "Lancer le Cerveau Pub", en: "Run the Ad Brain" },
         detail: {
-          fr: "Filtrez par plateforme pour isoler les performances Facebook, Instagram ou LinkedIn. Chaque réseau affiche ses propres benchmarks sectoriels en ligne de référence.",
-          en: "Filter by platform to isolate Facebook, Instagram or LinkedIn performance. Each network displays its own industry benchmarks as a reference line.",
+          fr: "Le bouton « Analyser la performance » combine vos chiffres réels, la mémoire stratégique (veille, pubs concurrentes, Page) et votre profil de marque pour produire un diagnostic, ce qui marche/à corriger, des pistes de budget et de créatifs — et, dès qu'assez de mesures existent, la campagne que le moteur d'apprentissage juge la plus prometteuse.",
+          en: "The 'Analyze performance' button combines your real figures, strategic memory (competitor watch, ads, Page) and brand profile into a diagnostic, what works/what to fix, budget and creative angles — and, once enough measurements exist, the campaign the learning engine considers most promising.",
+        },
+      },
+      {
+        label: { fr: "Suivre les suggestions du Pilote Pub", en: "Follow the Ad Pilot's suggestions" },
+        detail: {
+          fr: "Chaque action proposée (pause, hausse/baisse de budget, réactivation) est étiquetée « sûre » ou « dépense » et s'applique individuellement d'un clic — rien n'est jamais changé automatiquement sur votre compte publicitaire.",
+          en: "Each suggested action (pause, budget increase/decrease, reactivation) is tagged 'safe' or 'spend' and applies individually with one click — nothing is ever changed automatically on your ad account.",
         },
       },
       {
         label: { fr: "Sélectionner la période d'analyse", en: "Select the analysis period" },
         detail: {
-          fr: "Le sélecteur de dates permet de choisir n'importe quelle plage : aujourd'hui, les 7 derniers jours, le mois en cours ou une plage personnalisée. Toutes les métriques se recalculent en temps réel.",
-          en: "The date picker lets you choose any range: today, last 7 days, current month or a custom range. All metrics recalculate in real time.",
+          fr: "Le sélecteur de dates permet de choisir n'importe quelle plage : 7 derniers jours, 30 jours, 90 jours, l'année écoulée, tout le temps, ou une plage personnalisée. Toutes les métriques et le graphique se recalculent.",
+          en: "The date picker lets you choose any range: last 7 days, 30 days, 90 days, last year, all time, or a custom range. All metrics and the chart recalculate.",
         },
       },
       {
-        label: { fr: "Exporter le rapport", en: "Export the report" },
+        label: { fr: "Filtrer et trier le tableau des publicités", en: "Filter and sort the ads table" },
         detail: {
-          fr: "Générez un rapport PDF ou CSV de la période sélectionnée, prêt à partager avec votre direction ou votre agence publicitaire.",
-          en: "Generate a PDF or CSV report for the selected period, ready to share with management or your advertising agency.",
+          fr: "Recherchez par nom, filtrez par campagne, par plateforme (Facebook/Instagram) ou par statut (actif/en pause), et triez les colonnes Dépenses, CTR, CPC ou Conversions.",
+          en: "Search by name, filter by campaign, platform (Facebook/Instagram) or status (active/paused), and sort the Spend, CTR, CPC or Conversions columns.",
         },
       },
       {
-        label: { fr: "Accéder au détail d'un Ad Set", en: "Access an Ad Set's detail" },
+        label: { fr: "Exporter les données", en: "Export the data" },
         detail: {
-          fr: "Cliquez sur le nom d'une campagne pour accéder à la vue Ad Sets (/ad-sets) et voir les performances de chaque groupe de publicités.",
-          en: "Click a campaign name to access the Ad Sets view (/ad-sets) and see the performance of each ad group.",
+          fr: "Le bouton « Exporter » télécharge le tableau de publicités affiché au format CSV ou JSON.",
+          en: "The 'Export' button downloads the displayed ads table as CSV or JSON.",
         },
       },
     ],
     tips: [
       {
-        fr: "Un CPC supérieur au benchmark sectoriel (~2–4 € pour le secteur médical) est un signal pour revoir votre ciblage ou vos visuels publicitaires.",
-        en: "A CPC above the industry benchmark (~€2–4 for the medical sector) is a signal to review your targeting or ad visuals.",
+        fr: "L'insight IA en bas de page (meilleure publicité par coût de conversion) porte toujours l'étiquette « estimation », même quand le reste de l'écran affiche des données réelles.",
+        en: "The AI insight at the bottom of the page (best ad by cost per conversion) always carries the 'estimate' tag, even when the rest of the screen shows real data.",
       },
       {
-        fr: "Croisez ces données avec l'Analytics organique pour évaluer l'effet de halo de vos publicités sur l'engagement naturel.",
-        en: "Cross these figures with organic Analytics to assess the halo effect of your ads on natural engagement.",
+        fr: "Le Cerveau Pub et le Pilote Pub sont complémentaires : le premier explique le « pourquoi », le second propose le « quoi faire » — consultez les deux avant de changer un budget.",
+        en: "The Ad Brain and the Ad Pilot are complementary: the first explains the 'why', the second proposes the 'what to do' — check both before changing a budget.",
       },
       {
-        fr: "Un ROAS > 3 est généralement considéré comme rentable dans le secteur B2B médical — utilisez-le comme seuil de décision pour réallouer les budgets.",
-        en: "A ROAS > 3 is generally considered profitable in the medical B2B sector — use it as a decision threshold for budget reallocation.",
+        fr: "Cliquez une carte-métrique (Dépenses, Impressions…) pour isoler sa courbe dans le graphique ; cliquez-la à nouveau pour revenir à la vue par défaut.",
+        en: "Click a metric card (Spend, Impressions…) to isolate its curve in the chart; click it again to return to the default view.",
       },
     ],
     faq: [
       {
         q: { fr: "Les données sont-elles actualisées en temps réel ?", en: "Is the data updated in real time?" },
         a: {
-          fr: "Les données sont importées depuis les APIs Meta et LinkedIn toutes les 6 heures. Un rafraîchissement manuel est possible via le bouton « Actualiser ».",
-          en: "Data is imported from Meta and LinkedIn APIs every 6 hours. A manual refresh is available via the 'Refresh' button.",
+          fr: "Dès qu'un compte Meta est connecté, l'écran interroge l'API Marketing à chaque changement de période — il n'y a pas de délai fixe. Sans compte connecté, les chiffres affichés sont une estimation basée sur le budget des campagnes, pas des données publicitaires réelles.",
+          en: "Once a Meta account is connected, the screen queries the Marketing API on every period change — there is no fixed delay. Without a connected account, the figures shown are an estimate based on campaign budgets, not real ad data.",
         },
       },
       {
-        q: { fr: "Pourquoi les dépenses affichées diffèrent-elles du Business Manager ?", en: "Why does the displayed spend differ from Business Manager?" },
+        q: { fr: "Le Pilote Pub applique-t-il les actions tout seul ?", en: "Does the Ad Pilot apply actions on its own?" },
         a: {
-          fr: "Les données AXON-AI peuvent avoir jusqu'à 6h de décalage. Pour les montants exacts en temps réel, consultez directement le Business Manager Meta.",
-          en: "AXON-AI data can have up to a 6h lag. For exact real-time figures, check Meta Business Manager directly.",
+          fr: "Non. Chaque action proposée doit être validée individuellement ; rien n'est modifié sur votre compte publicitaire sans ce clic.",
+          en: "No. Each suggested action must be approved individually; nothing changes on your ad account without that click.",
+        },
+      },
+      {
+        q: { fr: "Pourquoi je ne vois pas LinkedIn Ads ici ?", en: "Why don't I see LinkedIn Ads here?" },
+        a: {
+          fr: "Cet écran couvre aujourd'hui Facebook et Instagram Ads (Meta). LinkedIn n'y est pas encore intégré.",
+          en: "This screen currently covers Facebook and Instagram Ads (Meta). LinkedIn is not yet integrated here.",
         },
       },
     ],
@@ -1432,80 +1244,60 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
       en: "Deep-dive into the organic performance of your brands.",
     },
     whatFor: {
-      fr: "L'écran Analytics offre des graphiques détaillés sur l'évolution de la portée, de l'engagement, des abonnés et des clics sur lien pour chaque marque et chaque réseau. Des rapports prédéfinis couvrent les performances hebdomadaires, mensuelles et comparatives entre marques ou entre périodes. Le tableau Top Posts identifie vos contenus les plus performants.",
-      en: "The Analytics screen provides detailed charts on the evolution of reach, engagement, followers and link clicks for each brand and network. Pre-defined reports cover weekly, monthly and comparative performance across brands or periods. The Top Posts table identifies your best-performing content.",
+      fr: "L'écran Analytics offre des graphiques sur l'évolution des publications, de l'engagement et — dès qu'un compte publicitaire est connecté — des dépenses et conversions payantes, pour chaque marque. Deux graphiques comparent l'engagement par entreprise et par plateforme (Facebook, Instagram ; LinkedIn affiché comme « non mesuré »).",
+      en: "The Analytics screen shows charts on the evolution of posts, engagement and — once an ad account is connected — paid spend and conversions, for each brand. Two charts compare engagement by company and by platform (Facebook, Instagram; LinkedIn shown as 'not measured').",
     },
     actions: [
       {
-        label: { fr: "Choisir la période et la granularité", en: "Choose period and granularity" },
+        label: { fr: "Choisir la période", en: "Choose the period" },
         detail: {
-          fr: "Sélectionnez une plage de dates via le sélecteur de période et choisissez la granularité (jour, semaine, mois) pour ajuster le niveau de détail des graphiques.",
-          en: "Select a date range via the period picker and choose the granularity (day, week, month) to adjust the chart detail level.",
+          fr: "Choisissez une plage de dates (7 jours, 30 jours, 90 jours, 1 an ou période personnalisée) ; les données restent au jour le jour.",
+          en: "Choose a date range (7 days, 30 days, 90 days, 1 year or custom); data stays daily.",
         },
       },
       {
-        label: { fr: "Comparer deux périodes", en: "Compare two periods" },
+        label: { fr: "Suivre la variation automatique", en: "Track the automatic comparison" },
         detail: {
-          fr: "Activez le mode « Comparaison » pour superposer deux périodes sur le même graphique et mesurer l'évolution d'une campagne ou d'un changement de stratégie.",
-          en: "Enable 'Comparison' mode to overlay two periods on the same chart and measure the evolution of a campaign or strategy change.",
+          fr: "Chaque carte-métrique affiche automatiquement sa variation (%) par rapport à la période précédente de même durée.",
+          en: "Each metric card automatically shows its variation (%) versus the previous period of equal length.",
         },
       },
       {
-        label: { fr: "Filtrer par réseau et par marque", en: "Filter by network and brand" },
+        label: { fr: "Filtrer par marque", en: "Filter by brand" },
         detail: {
-          fr: "Isolez les données d'un réseau spécifique (Facebook, Instagram, LinkedIn) ou d'une marque pour des analyses ciblées sans pollution par les autres entités.",
-          en: "Isolate data for a specific network (Facebook, Instagram, LinkedIn) or brand for targeted analysis without pollution from other entities.",
+          fr: "Le sélecteur « Portée » limite tous les graphiques à une marque ; cliquer sur Facebook, Instagram ou LinkedIn dans « Performance par plateforme » vous redirige vers l'écran dédié à ce réseau.",
+          en: "The 'Scope' selector limits all charts to one brand; clicking Facebook, Instagram or LinkedIn in 'Performance by platform' takes you to that network's dedicated screen.",
         },
       },
       {
-        label: { fr: "Identifier le meilleur contenu", en: "Identify best content" },
+        label: { fr: "Comparer par entreprise et par réseau", en: "Compare by company and network" },
         detail: {
-          fr: "Le tableau « Top posts » classe vos publications par taux d'engagement pour la période sélectionnée. Cliquez sur un post pour voir son détail ou le réutiliser dans Composer.",
-          en: "The 'Top posts' table ranks your publications by engagement rate for the selected period. Click a post to see its detail or reuse it in Composer.",
+          fr: "Deux graphiques à barres classent l'engagement par entreprise et par plateforme.",
+          en: "Two bar charts rank engagement by company and by platform.",
         },
       },
       {
-        label: { fr: "Exporter un rapport Analytics", en: "Export an Analytics report" },
+        label: { fr: "Exporter les données", en: "Export the data" },
         detail: {
-          fr: "Exportez les graphiques et tableaux en PDF ou les données brutes en CSV pour intégration dans vos outils de reporting internes.",
-          en: "Export charts and tables as PDF or raw data as CSV for integration into your internal reporting tools.",
-        },
-      },
-      {
-        label: { fr: "Lire les rapports prédéfinis", en: "Read pre-defined reports" },
-        detail: {
-          fr: "Les rapports « Semaine » et « Mois » sont préconfigurés et se chargent en un clic. Ils incluent un résumé exécutif des variations principales et des recommandations automatiques.",
-          en: "The 'Week' and 'Month' reports are pre-configured and load in one click. They include an executive summary of main variations and automatic recommendations.",
+          fr: "Exportez les données de la période en CSV ou JSON.",
+          en: "Export the period's data as CSV or JSON.",
         },
       },
     ],
-    tips: [
-      {
-        fr: "Consultez les analytics le lendemain d'une publication importante : les 24 premières heures donnent 80 % de l'engagement final.",
-        en: "Check analytics the day after an important publication: the first 24 hours account for 80% of the final engagement.",
-      },
-      {
-        fr: "Un taux d'engagement > 3 % sur LinkedIn est excellent dans le secteur médical — utilisez-le comme seuil de référence pour valider vos formats.",
-        en: "An engagement rate > 3% on LinkedIn is excellent in the medical sector — use it as a reference threshold to validate your formats.",
-      },
-      {
-        fr: "Le mode comparaison est idéal pour mesurer l'impact d'un changement de fréquence de publication ou d'un nouveau format visuel.",
-        en: "Comparison mode is ideal for measuring the impact of a posting frequency change or a new visual format.",
-      },
-    ],
+    tips: [],
     faq: [
       {
         q: { fr: "Les analytics incluent-ils les données payantes ?", en: "Do analytics include paid data?" },
         a: {
-          fr: "Non, la page Analytics couvre uniquement les performances organiques. Pour les données payantes, rendez-vous dans Performances publicitaires.",
-          en: "No, the Analytics page covers only organic performance. For paid data, go to Ad performance.",
+          fr: "Pas seulement les données organiques : les cartes « Dépenses pub. » et « Conversions » proviennent aussi du compte publicitaire connecté, quand il existe.",
+          en: "Not organic-only: the 'Ad spend' and 'Conversions' cards also come from the connected ad account, when one exists.",
         },
       },
       {
         q: { fr: "À quelle fréquence les données sont-elles mises à jour ?", en: "How often is data updated?" },
         a: {
-          fr: "Les données organiques sont rafraîchies toutes les 6 heures depuis les APIs des plateformes. Un rafraîchissement manuel est disponible.",
-          en: "Organic data is refreshed every 6 hours from platform APIs. A manual refresh is available.",
+          fr: "Les données sont mises en cache 5 minutes puis rechargées automatiquement à chaque changement de marque ou de période.",
+          en: "Data is cached for 5 minutes and reloads automatically whenever you change brand or period.",
         },
       },
     ],
@@ -1527,22 +1319,22 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
       en: "Manage social network connections for your brands.",
     },
     whatFor: {
-      fr: "L'écran Comptes liste tous les comptes de réseaux sociaux connectés à AXON-AI pour chacune de vos marques. Vous pouvez ajouter de nouveaux comptes, reconnecter un compte dont le token a expiré ou révoquer un accès. Le statut de chaque connexion est visible en temps réel et les alertes signalent proactivement les tokens à renouveler.",
-      en: "The Accounts screen lists all social network accounts connected to AXON-AI for each of your brands. You can add new accounts, reconnect an account whose token has expired or revoke access. Each connection's status is visible in real time and alerts proactively flag tokens that need renewal.",
+      fr: "L'écran Comptes présente une carte par réseau (Facebook, Instagram, LinkedIn, TikTok) avec un bouton « Connecter » qui lance un assistant guidé. Le statut de chaque réseau est visible en temps réel : « Connecté ✓ » ou « Non connecté ».",
+      en: "The Accounts screen shows one card per network (Facebook, Instagram, LinkedIn, TikTok) with a 'Connect' button that launches a guided assistant. Each network's status is visible in real time: 'Connected ✓' or 'Not connected'.",
     },
     actions: [
       {
-        label: { fr: "Connecter un nouveau compte", en: "Connect a new account" },
+        label: { fr: "Connecter un compte", en: "Connect an account" },
         detail: {
-          fr: "Cliquez sur « Ajouter un compte », sélectionnez la plateforme (Facebook, Instagram, LinkedIn…) et suivez le flux OAuth. Les permissions requises sont listées avant validation pour assurer la transparence.",
-          en: "Click 'Add account', select the platform (Facebook, Instagram, LinkedIn…) and follow the OAuth flow. Required permissions are listed before confirmation to ensure transparency.",
+          fr: "Cliquez sur « Connecter » sur la carte du réseau souhaité et suivez les étapes de l'assistant guidé — aucun token à copier. La connexion Meta (via Facebook) couvre Facebook ET Instagram en un seul clic.",
+          en: "Click 'Connect' on the card for the network you want and follow the guided assistant's steps — no token to copy. The Meta connection (via Facebook) covers both Facebook AND Instagram in one click.",
         },
       },
       {
-        label: { fr: "Reconnecter un compte expiré", en: "Reconnect an expired account" },
+        label: { fr: "Reconnecter un compte", en: "Reconnect an account" },
         detail: {
-          fr: "Un badge rouge « Token expiré » signale les connexions à renouveler. Cliquez sur « Reconnecter » pour relancer le flux d'authentification sans perdre les publications programmées.",
-          en: "A red 'Token expired' badge flags connections to renew. Click 'Reconnect' to restart the authentication flow without losing scheduled posts.",
+          fr: "Le bouton « Reconnecter » (affiché dès qu'un réseau est connecté) relance l'assistant guidé pour rafraîchir la connexion.",
+          en: "The 'Reconnect' button (shown as soon as a network is connected) reopens the guided assistant to refresh the connection.",
         },
       },
       {
@@ -1552,13 +1344,6 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
           en: "The 'Disconnect' button removes the access token on the AXON-AI side. Also remember to revoke permissions from the settings of the relevant platform.",
         },
       },
-      {
-        label: { fr: "Vérifier les niveaux de permission", en: "Check permission levels" },
-        detail: {
-          fr: "Pour chaque compte, la liste des permissions accordées (lecture seule, publication, gestion des publicités) est affichée. Un niveau insuffisant peut causer des échecs silencieux lors des publications.",
-          en: "For each account, the list of granted permissions (read-only, publishing, ad management) is displayed. An insufficient level can cause silent failures during publications.",
-        },
-      },
     ],
     tips: [
       {
@@ -1566,12 +1351,8 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
         en: "Facebook and Instagram tokens expire every 60 days — schedule a monthly reminder to renew them before they impact your publications.",
       },
       {
-        fr: "Utilisez un System User Token (Meta Business Manager) pour une durée de token illimitée sur Facebook et Instagram.",
-        en: "Use a System User Token (Meta Business Manager) for unlimited token duration on Facebook and Instagram.",
-      },
-      {
-        fr: "Après une révocation, vérifiez que les automations concernées ne tentent pas de publier avec l'ancien token — suspendez-les si nécessaire.",
-        en: "After revoking, check that concerned automations are not trying to publish with the old token — suspend them if necessary.",
+        fr: "Si le statut Facebook/Instagram reste « En attente » après connexion, c'est qu'aucune Page n'est encore associée : rendez-vous sur Mes Pages pour la choisir.",
+        en: "If the Facebook/Instagram status stays 'Pending' after connecting, no Page is linked yet: go to My Pages to pick one.",
       },
     ],
     faq: [
@@ -1592,6 +1373,7 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
     ],
     related: [
       { label: { fr: "Connecteurs", en: "Connectors" }, href: "/parametres-connecteurs" },
+      { label: { fr: "Mes Pages", en: "My Pages" }, href: "/pages-meta" },
       { label: { fr: "Paramètres", en: "Settings" }, href: "/settings" },
     ],
   },
@@ -1607,87 +1389,76 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
       en: "Configure AXON-AI to match your organisation's needs.",
     },
     whatFor: {
-      fr: "Les paramètres regroupent la configuration générale de l'application : gestion des marques et des entités, préférences de notification, fuseaux horaires, accès des membres de l'équipe, rôles et permissions, intégrations webhook et API. C'est également ici que vous gérez votre abonnement, vos données de facturation et les options de conformité RGPD.",
-      en: "Settings group the application's general configuration: brand and entity management, notification preferences, time zones, team member access, roles and permissions, webhook and API integrations. This is also where you manage your subscription, billing data and GDPR compliance options.",
+      fr: "Les paramètres sont organisés en trois groupes : Compte (Profil, Notifications), Organisation (Organisation, Entreprises, Équipe & rôles) et Plateforme (Préférences IA, Sécurité publicitaire, Journal d'audit). Chaque section a sa propre portée : certaines s'appliquent à l'ensemble de l'organisation, d'autres à la société active.",
+      en: "Settings are organised into three groups: Account (Profile, Notifications), Organization (Organization, Companies, Team & roles) and Platform (AI preferences, Ad Safety, Audit log). Each section has its own scope: some apply to the whole organisation, others to the active company.",
     },
     actions: [
       {
-        label: { fr: "Gérer les marques", en: "Manage brands" },
-        detail: {
-          fr: "Ajoutez, renommez ou archivez une marque. Chaque marque dispose de son propre espace de données, de ses comptes connectés et de sa brand voice.",
-          en: "Add, rename or archive a brand. Each brand has its own data space, connected accounts and brand voice.",
-        },
-      },
-      {
-        label: { fr: "Inviter des collaborateurs", en: "Invite collaborators" },
-        detail: {
-          fr: "Envoyez des invitations par e-mail et assignez des rôles : Administrateur (accès total), Éditeur (composer et programmer), Lecteur (consultation seule). Les invitations expirent après 7 jours.",
-          en: "Send email invitations and assign roles: Administrator (full access), Editor (compose and schedule), Reader (view-only). Invitations expire after 7 days.",
-        },
-      },
-      {
         label: { fr: "Configurer les notifications", en: "Configure notifications" },
         detail: {
-          fr: "Choisissez les événements déclencheurs (publication réussie, échec, seuil d'engagement, token expiré) et le canal de livraison (e-mail, notification in-app, webhook Slack).",
-          en: "Choose trigger events (successful publication, failure, engagement threshold, expired token) and delivery channel (email, in-app notification, Slack webhook).",
+          fr: "Activez ou non l'e-mail et l'in-app pour chaque type d'événement (récapitulatif de dépenses, résumé hebdomadaire, bibliothèque basse, publication échouée, anomalie publicitaire, nouveau membre, synchronisation d'audience), avec une fréquence globale et des heures calmes.",
+          en: "Turn email and in-app on or off for each event type (spend digest, weekly summary, low library, failed post, ad anomaly, new team member, audience sync), with a global frequency and quiet hours.",
         },
       },
       {
-        label: { fr: "Définir le fuseau horaire", en: "Set the time zone" },
+        label: { fr: "Gérer l'organisation", en: "Manage the organization" },
         detail: {
-          fr: "Configurez le fuseau horaire par défaut au niveau de chaque marque. Les publications programmées respectent le fuseau de la marque — essentiel pour les équipes multi-pays.",
-          en: "Configure the default time zone at brand level. Scheduled posts respect the brand's time zone — essential for multi-country teams.",
+          fr: "Renommez l'organisation, indiquez son secteur d'activité, et consultez en un coup d'œil le nombre d'entreprises et de membres d'équipe. Un aperçu « Abonnement & facturation » y figure également.",
+          en: "Rename the organisation, set its industry, and see the number of companies and team members at a glance. A 'Subscription & billing' overview is also shown there.",
         },
       },
       {
-        label: { fr: "Activer les webhooks sortants", en: "Enable outbound webhooks" },
+        label: { fr: "Gérer les entreprises", en: "Manage companies" },
         detail: {
-          fr: "Configurez une URL de webhook pour recevoir les événements AXON-AI (publication, alerte, run d'agent) dans votre CRM, Slack ou outil de reporting interne.",
-          en: "Configure a webhook URL to receive AXON-AI events (publication, alert, agent run) in your CRM, Slack or internal reporting tool.",
+          fr: "Ajoutez ou modifiez une entreprise : heure de publication par défaut, et activation du workflow de validation (les publications programmées par un membre passent alors « À valider » avant de partir).",
+          en: "Add or edit a company: default posting time, and enabling the approval workflow (posts scheduled by a member then go 'To approve' before going out).",
         },
       },
       {
-        label: { fr: "Gérer l'abonnement et la facturation", en: "Manage subscription and billing" },
+        label: { fr: "Gérer l'équipe et les rôles", en: "Manage the team and roles" },
         detail: {
-          fr: "Consultez votre plan actuel, les limites d'utilisation (automations, runs d'agents) et gérez vos informations de paiement depuis l'onglet Facturation.",
-          en: "View your current plan, usage limits (automations, agent runs) and manage your payment information from the Billing tab.",
+          fr: "Invitez des collaborateurs par e-mail et assignez un rôle : Administrateur (accès total), Éditeur (composer et programmer) ou Lecteur (consultation seule), avec un accès limitable à certaines entreprises.",
+          en: "Invite collaborators by email and assign a role: Administrator (full access), Editor (compose and schedule) or Viewer (view-only), with access that can be limited to specific companies.",
+        },
+      },
+      {
+        label: { fr: "Consulter le journal d'audit", en: "View the audit log" },
+        detail: {
+          fr: "Filtrez les actions par type (Publications, Campagnes, Audiences, Sécurité pub., Équipe, Paramètres), par utilisateur, par société ou par période, et exportez le résultat en CSV ou JSON.",
+          en: "Filter actions by type (Posts, Campaigns, Audiences, Ad Safety, Team, Settings), by user, by company or by period, and export the result as CSV or JSON.",
         },
       },
     ],
     tips: [
       {
-        fr: "Définissez le fuseau horaire au niveau de chaque marque si vos équipes travaillent dans des zones géographiques différentes.",
-        en: "Define the time zone at brand level if your teams work across different geographic zones.",
+        fr: "Le bouton « Changer d'offre » de l'aperçu Abonnement & facturation est désactivé : la gestion de la facturation n'est pas encore active (prévue pour une prochaine phase), toutes les sociétés sont en essai gratuit.",
+        en: "The 'Upgrade plan' button in the Subscription & billing overview is disabled: billing management is not active yet (planned for a future phase) — every company is on the free trial.",
       },
       {
-        fr: "Activez les webhooks sortants pour intégrer AXON-AI à votre CRM ou à votre outil de reporting — un simple endpoint HTTP suffit.",
-        en: "Enable outbound webhooks to integrate AXON-AI with your CRM or reporting tool — a simple HTTP endpoint is enough.",
-      },
-      {
-        fr: "Limitez le rôle Éditeur aux collaborateurs qui publient effectivement — le rôle Lecteur est suffisant pour les clients en accès consultation.",
-        en: "Limit the Editor role to collaborators who actually publish — the Reader role is sufficient for clients with view-only access.",
+        fr: "Entreprises, Préférences IA et Sécurité publicitaire se règlent par société active ; Profil, Notifications, Organisation, Équipe et Journal d'audit s'appliquent à tout le compte.",
+        en: "Companies, AI preferences and Ad Safety are set per active company; Profile, Notifications, Organization, Team and Audit log apply to the whole account.",
       },
     ],
     faq: [
       {
-        q: { fr: "Puis-je avoir des paramètres différents par marque ?", en: "Can I have different settings per brand?" },
+        q: { fr: "Comment activer le workflow de validation des publications ?", en: "How do I enable the post approval workflow?" },
         a: {
-          fr: "Oui, certains paramètres (fuseau horaire, brand voice, notifications) sont configurables par marque. D'autres (facturation, rôles globaux) s'appliquent à l'ensemble du compte.",
-          en: "Yes, some settings (time zone, brand voice, notifications) are configurable per brand. Others (billing, global roles) apply to the whole account.",
+          fr: "Dans Entreprises, ouvrez la société concernée et activez « Workflow de validation ». Les publications programmées par un membre (non owner/admin) passeront alors par l'onglet « À valider » de Publications programmées.",
+          en: "In Companies, open the relevant company and enable 'Approval workflow'. Posts scheduled by a member (non owner/admin) will then go through the 'To approve' tab in Scheduled posts.",
         },
       },
       {
         q: { fr: "Comment révoquer l'accès d'un collaborateur ?", en: "How to revoke a collaborator's access?" },
         a: {
-          fr: "Dans l'onglet Équipe, trouvez le collaborateur et cliquez sur « Révoquer l'accès ». La session est fermée immédiatement et l'utilisateur ne peut plus se connecter.",
-          en: "In the Team tab, find the collaborator and click 'Revoke access'. The session is closed immediately and the user can no longer log in.",
+          fr: "Dans Équipe & rôles, retrouvez le collaborateur et retirez son accès depuis sa fiche.",
+          en: "In Team & roles, find the collaborator and remove their access from their profile.",
         },
       },
     ],
     related: [
       { label: { fr: "Comptes connectés", en: "Connected accounts" }, href: "/accounts" },
       { label: { fr: "Connecteurs", en: "Connectors" }, href: "/parametres-connecteurs" },
-      { label: { fr: "Tableau de bord", en: "Dashboard" }, href: "/dashboard" },
+      { label: { fr: "Publications programmées", en: "Scheduled posts" }, href: "/scheduled" },
     ],
   },
 
@@ -1806,15 +1577,15 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
       {
         q: { fr: "Le bot fonctionne-t-il pour tous mes comptes ?", en: "Does the bot work for all my accounts?" },
         a: {
-          fr: "Chaque entité a son propre bot. Sélectionnez d'abord le bon compte (en haut), puis configurez son bot sur cette page.",
-          en: "Each entity has its own bot. First select the right account (top), then configure its bot on this page.",
+          fr: "Non, un seul bot Telegram central est partagé par tous les comptes. Sélectionnez d'abord le bon compte (en haut), puis reliez-le avec son propre code de jumelage sur cette page.",
+          en: "No, a single central Telegram bot is shared across all accounts. First select the right account (top), then link it using its own pairing code on this page.",
         },
       },
       {
-        q: { fr: "Que faire si le bouton Activer est grisé ?", en: "What if the Activate button is greyed out?" },
+        q: { fr: "Que faire si le bouton reste indisponible ?", en: "What if the button stays unavailable?" },
         a: {
-          fr: "Vous devez d'abord enregistrer un token bot valide. Le bouton s'active automatiquement une fois le token sauvegardé.",
-          en: "You must first save a valid bot token. The button activates automatically once the token is saved.",
+          fr: "Le bouton reste indisponible tant que l'administrateur n'a pas configuré le bot central (TELEGRAM_BOT_TOKEN / TELEGRAM_BOT_USERNAME dans Vercel, puis /api/telegram/bot/setup). Une fois cela fait, il s'active pour tous les comptes.",
+          en: "The button stays unavailable until the administrator has configured the central bot (TELEGRAM_BOT_TOKEN / TELEGRAM_BOT_USERNAME in Vercel, then /api/telegram/bot/setup). Once done, it activates for every account.",
         },
       },
     ],
@@ -1842,6 +1613,13 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
         detail: {
           fr: "À l'étape 1, donnez un nom à votre clé et cliquez sur Créer. La clé en clair s'affiche UNE seule fois — copiez-la immédiatement. Elle est stockée hachée : personne ne peut la relire, et vous pouvez la révoquer à tout moment.",
           en: "In step 1, name your key and click Create. The plain key is shown ONCE — copy it immediately. It is stored hashed: nobody can read it back, and you can revoke it anytime.",
+        },
+      },
+      {
+        label: { fr: "Vérifier les pré-requis", en: "Check prerequisites" },
+        detail: {
+          fr: "Avant de lancer la commande, assurez-vous d'avoir Claude Desktop installé et Node.js 18+ (téléchargeable depuis nodejs.org, ou `brew install node` sur Mac).",
+          en: "Before running the command, make sure Claude Desktop is installed and Node.js 18+ is available (download from nodejs.org, or `brew install node` on Mac).",
         },
       },
       {
@@ -1912,6 +1690,13 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
     },
     actions: [
       {
+        label: { fr: "Créer le média avec l'IA", en: "Create the media with AI" },
+        detail: {
+          fr: "Avant même d'importer un fichier, générez visuels, vidéos, musiques ou voix depuis quatre outils intégrés (Copilote, Réalisateur, Visuel, Musique & voix). Pour Facebook, Instagram et LinkedIn, les modèles vidéo proposés par défaut sont restreints aux mieux notés qualité/prix ; une case à cocher permet de débrider les modèles premium.",
+          en: "Even before uploading a file, generate visuals, videos, music or voices from four built-in tools (Copilot, Director, Visual, Music & voice). For Facebook, Instagram and LinkedIn, the video models offered by default are restricted to the best quality/price options; a checkbox unlocks premium models.",
+        },
+      },
+      {
         label: { fr: "Importer photos & vidéos", en: "Upload photos & videos" },
         detail: {
           fr: "Glissez-déposez plusieurs fichiers (JPG, PNG, MP4, MOV…) ou ajoutez des URLs. Mélangez images et vidéos : le studio s'adapte.",
@@ -1946,6 +1731,13 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
           en: "Download the .srt subtitles and copy captions, hashtags and thumbnail texts in one click to publish or hand to an editor.",
         },
       },
+      {
+        label: { fr: "Diffuser directement depuis le studio", en: "Distribute straight from the studio" },
+        detail: {
+          fr: "Enregistrez le résultat dans la médiathèque, puis publiez-le, programmez-le ou transformez-le en publicité Meta sans quitter le studio.",
+          en: "Save the result to the media library, then publish it, schedule it or turn it into a Meta ad without leaving the studio.",
+        },
+      },
     ],
     tips: [
       {
@@ -1953,8 +1745,8 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
         en: "A vertical clip shot on a phone is enough: the studio handles reframing and pacing.",
       },
       {
-        fr: "Pour un export vidéo entièrement automatique, un moteur de rendu doit être branché (VIDEO_RENDER_API_KEY). Sinon, vous obtenez le plan de montage complet à exécuter.",
-        en: "For a fully automatic video export, a render engine must be connected (VIDEO_RENDER_API_KEY). Otherwise you get the complete edit plan to execute.",
+        fr: "Pour un export vidéo entièrement automatique, un moteur de rendu doit être branché (clé SHOTSTACK_API_KEY). Sinon, vous obtenez le plan de montage complet à exécuter.",
+        en: "For a fully automatic video export, a render engine must be connected (SHOTSTACK_API_KEY). Otherwise you get the complete edit plan to execute.",
       },
     ],
     faq: [
@@ -1968,7 +1760,7 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
     ],
     related: [
       { label: { fr: "Composer", en: "Compose" }, href: "/compose" },
-      { label: { fr: "Bibliothèque", en: "Library" }, href: "/library" },
+      { label: { fr: "Médiathèque", en: "Media library" }, href: "/media" },
       { label: { fr: "Programmés", en: "Scheduled" }, href: "/scheduled" },
     ],
   },
@@ -2005,53 +1797,48 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
     title: { fr: "Espace LinkedIn", en: "LinkedIn space" },
     tagline: { fr: "Votre compte LinkedIn : publier et affiner la stratégie", en: "Your LinkedIn account: publish and refine strategy" },
     whatFor: {
-      fr: "L'espace dédié à LinkedIn : voir le compte connecté, choisir où publier (votre profil ou une Page entreprise), publier un post (rédigé par l'IA si besoin) et générer une stratégie de contenu LinkedIn.",
-      en: "The dedicated LinkedIn space: see the connected account, choose where to publish (your profile or a company Page), publish a post (AI-written if needed) and generate a LinkedIn content strategy.",
+      fr: "L'espace dédié à LinkedIn, tout-en-un : voir le compte connecté, choisir où publier (votre profil ou une Page entreprise), rédiger un post court ou un article complet avec visuels générés par IA (mots-clés/texte → prompt éditable → article → visuels), le publier ou le programmer, gérer la file d'attente, et générer une stratégie de contenu LinkedIn.",
+      en: "The dedicated, all-in-one LinkedIn space: see the connected account, choose where to publish (your profile or a company Page), write a short post or a full article with AI-generated visuals (keywords/text → editable prompt → article → visuals), publish or schedule it, manage the queue, and generate a LinkedIn content strategy.",
     },
     actions: [
       { label: { fr: "Connecter / reconnecter LinkedIn", en: "Connect / reconnect LinkedIn" }, detail: { fr: "Un clic lance l'OAuth LinkedIn ; la connexion est enregistrée pour cette société.", en: "One click starts the LinkedIn OAuth; the connection is saved for this company." } },
       { label: { fr: "Publier en tant que…", en: "Publish as…" }, detail: { fr: "Choisissez votre profil ou une Page entreprise (les Pages nécessitent l'accès « Community Management » de LinkedIn).", en: "Choose your profile or a company Page (Pages require LinkedIn's “Community Management” access)." } },
+      { label: { fr: "① Générer le prompt d'un article", en: "① Generate an article prompt" }, detail: { fr: "À partir de mots-clés ou d'un texte, plus votre profil de marque, l'IA rédige un brief éditorial que vous pouvez ajuster.", en: "From keywords or text, plus your brand profile, the AI writes an editorial brief you can adjust." } },
+      { label: { fr: "② Générer l'article et ses visuels", en: "② Generate the article and its visuals" }, detail: { fr: "Titre, accroche, corps structuré, points clés, hashtags et CTA, puis des visuels HD associés — le tout ajustable via un chatbot avant publication.", en: "Title, hook, structured body, key takeaways, hashtags and CTA, then associated HD visuals — all adjustable via a chatbot before publishing." } },
       { label: { fr: "Analyser ma stratégie", en: "Analyze my strategy" }, detail: { fr: "L'IA bâtit positionnement, cadence, piliers éditoriaux et idées de posts à partir de votre profil de marque.", en: "The AI builds positioning, cadence, content pillars and post ideas from your brand profile." } },
     ],
     tips: [
-      { fr: "Pour des articles longs et professionnels, utilisez le Studio Article LinkedIn.", en: "For long, professional articles, use the LinkedIn Article Studio." },
+      { fr: "La génération de visuels d'article nécessite la clé Replicate (REPLICATE_API_TOKEN) côté serveur.", en: "Article visual generation requires the Replicate key (REPLICATE_API_TOKEN) server-side." },
       { fr: "Publier sur une Page entreprise demande l'activation du produit « Community Management » côté LinkedIn.", en: "Publishing on a company Page requires enabling the “Community Management” product on LinkedIn's side." },
     ],
     faq: [
       { q: { fr: "Pourquoi je ne vois que mon profil et pas mes Pages ?", en: "Why do I only see my profile and not my Pages?" }, a: { fr: "L'accès aux Pages entreprise est protégé par LinkedIn (produit Community Management, soumis à validation). Tant qu'il n'est pas accordé, seul le profil est disponible.", en: "Access to company Pages is gated by LinkedIn (Community Management product, review required). Until granted, only the profile is available." } },
+      { q: { fr: "Faut-il LinkedIn connecté pour générer un article ?", en: "Do I need LinkedIn connected to generate an article?" }, a: { fr: "Non, la génération marche sans connexion. La connexion n'est requise que pour publier.", en: "No, generation works without a connection. A connection is only required to publish." } },
     ],
     related: [
-      { label: { fr: "Studio Article LinkedIn", en: "LinkedIn Article Studio" }, href: "/article-linkedin" },
       { label: { fr: "Mes Pages", en: "My Pages" }, href: "/pages-meta" },
       { label: { fr: "Connecteurs", en: "Connectors" }, href: "/parametres-connecteurs" },
+      { label: { fr: "Composer", en: "Compose" }, href: "/compose" },
     ],
   },
 
-  // ── /article-linkedin ─────────────────────────────────────────────────────
+  // ── /article-linkedin (page morte, fusionnée dans /linkedin) ────────────────
   "/article-linkedin": {
-    title: { fr: "Studio Article LinkedIn", en: "LinkedIn Article Studio" },
-    tagline: { fr: "Des mots-clés à un article professionnel, avec visuels", en: "From keywords to a professional article, with visuals" },
+    title: { fr: "Article LinkedIn", en: "LinkedIn article" },
+    tagline: { fr: "Cette page redirige désormais vers l'espace LinkedIn.", en: "This page now redirects to the LinkedIn space." },
     whatFor: {
-      fr: "Produire un article LinkedIn de niveau professionnel à partir de mots-clés OU d'un texte : l'app génère d'abord un prompt personnalisé (éditable), puis l'article complet, plus des visuels haute qualité associés. Vous publiez ensuite directement.",
-      en: "Produce a professional-grade LinkedIn article from keywords OR text: the app first generates a custom (editable) prompt, then the full article, plus associated high-quality visuals. You then publish directly.",
+      fr: "/article-linkedin redirige automatiquement vers l'Espace LinkedIn (/linkedin) : la génération d'article (① prompt → ② article + visuels) fait maintenant partie intégrante de cette page, plus besoin d'un écran séparé.",
+      en: "/article-linkedin automatically redirects to the LinkedIn space (/linkedin): article generation (① prompt → ② article + visuals) is now built directly into that page, no separate screen needed.",
     },
     actions: [
-      { label: { fr: "① Générer le prompt", en: "① Generate the prompt" }, detail: { fr: "À partir de votre saisie + profil de marque, l'IA rédige un brief éditorial que vous pouvez ajuster.", en: "From your input + brand profile, the AI writes an editorial brief you can adjust." } },
-      { label: { fr: "② Générer l'article", en: "② Generate the article" }, detail: { fr: "Titre, accroche, corps structuré, points clés, hashtags et CTA — fidèle à votre voix de marque.", en: "Title, hook, structured body, key takeaways, hashtags and CTA — true to your brand voice." } },
-      { label: { fr: "Générer les visuels", en: "Generate the visuals" }, detail: { fr: "L'IA propose des prompts d'image ; un clic produit des visuels HD téléchargeables.", en: "The AI suggests image prompts; one click produces downloadable HD visuals." } },
-      { label: { fr: "Publier sur LinkedIn", en: "Publish to LinkedIn" }, detail: { fr: "Envoi direct sur la cible choisie (profil ou Page) ; trace dans l'Historique.", en: "Direct send to the chosen target (profile or Page); logged in History." } },
+      { label: { fr: "Aller à l'Espace LinkedIn", en: "Go to the LinkedIn space" }, detail: { fr: "Consultez l'aide de /linkedin pour le détail du flux de génération d'article.", en: "See the /linkedin help for the full article generation flow." } },
     ],
-    tips: [
-      { fr: "Éditez le prompt avant l'article : c'est là que vous imposez l'angle et le ton exacts.", en: "Edit the prompt before the article: that's where you set the exact angle and tone." },
-      { fr: "La génération de visuels nécessite la clé Replicate (REPLICATE_API_TOKEN).", en: "Visual generation requires the Replicate key (REPLICATE_API_TOKEN)." },
-    ],
+    tips: [],
     faq: [
-      { q: { fr: "Faut-il LinkedIn connecté pour générer l'article ?", en: "Do I need LinkedIn connected to generate the article?" }, a: { fr: "Non, la génération marche sans connexion. La connexion n'est requise que pour publier.", en: "No, generation works without a connection. A connection is only required to publish." } },
+      { q: { fr: "Où est passée la génération d'article LinkedIn ?", en: "Where did LinkedIn article generation go?" }, a: { fr: "Elle est désormais directement dans l'Espace LinkedIn (/linkedin) — il n'existe plus de page dédiée à l'article.", en: "It is now directly in the LinkedIn space (/linkedin) — there is no dedicated article page anymore." } },
     ],
     related: [
       { label: { fr: "Espace LinkedIn", en: "LinkedIn space" }, href: "/linkedin" },
-      { label: { fr: "Studio Créatif", en: "Creative Studio" }, href: "/studio-video" },
-      { label: { fr: "Composer", en: "Compose" }, href: "/compose" },
     ],
   },
 
@@ -2065,12 +1852,15 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
     },
     actions: [
       { label: { fr: "Créer un agent", en: "Create an agent" }, detail: { fr: "Donnez-lui sa voix (persona), son périmètre, son autonomie et ses mots-clés d'escalade.", en: "Give it a voice (persona), scope, autonomy and escalation keywords." } },
-      { label: { fr: "Synchroniser Meta", en: "Sync Meta" }, detail: { fr: "Importe les commentaires Facebook/Instagram et les messages privés récents.", en: "Imports recent Facebook/Instagram comments and private messages." } },
-      { label: { fr: "Répondre ou valider", en: "Reply or approve" }, detail: { fr: "Générez une réponse IA, éditez-la, envoyez ; ou laissez l'agent autonome envoyer s'il est confiant.", en: "Generate an AI reply, edit it, send; or let the autonomous agent send when confident." } },
+      { label: { fr: "Synchroniser Meta", en: "Sync Meta" }, detail: { fr: "Importe les commentaires, avis et messages privés récents de vos Pages Facebook/Instagram.", en: "Imports recent comments, reviews and private messages from your Facebook/Instagram Pages." } },
+      { label: { fr: "Répondre ou valider", en: "Reply or approve" }, detail: { fr: "Générez une réponse IA, éditez-la, envoyez ; ou laissez l'agent autonome envoyer s'il est confiant. Pour un commentaire ou un avis Facebook/Instagram, cochez « Répondre en privé » pour envoyer la réponse en message privé à l'auteur plutôt qu'en public.", en: "Generate an AI reply, edit it, send; or let the autonomous agent send when confident. For a Facebook or Instagram comment/review, tick 'Reply privately' to send the reply as a private message to the author instead of publicly." } },
+      { label: { fr: "Diagnostiquer les DM Instagram", en: "Diagnose Instagram DMs" }, detail: { fr: "Vérifie pourquoi les messages privés Instagram n'arrivent pas (compte pro lié, permission accordée, webhook actif, portée réelle des permissions) et indique la cause probable et l'action à faire.", en: "Checks why Instagram private messages aren't arriving (linked professional account, granted permission, active webhook, actual permission scope) and shows the likely cause and next step." } },
+      { label: { fr: "Simuler un message", en: "Simulate a message" }, detail: { fr: "Ajoute un message fictif (canal, auteur, texte) pour tester vos agents sans connexion réelle ; rien n'est envoyé sur les réseaux.", en: "Adds a fake message (channel, author, text) to test your agents without a live connection; nothing is sent to the networks." } },
     ],
     tips: [
       { fr: "« Suggérer » = vous validez chaque réponse. « Auto » = l'agent envoie seul s'il est confiant et qu'aucun sujet sensible n'est détecté.", en: "“Suggest” = you approve every reply. “Auto” = the agent sends on its own when confident and no sensitive topic is detected." },
       { fr: "Les sujets sensibles (remboursement, juridique, santé…) sont toujours escaladés à un humain.", en: "Sensitive topics (refunds, legal, health…) are always escalated to a human." },
+      { fr: "Le bandeau « Humeur de vos audiences » résume le sentiment des messages chargés (négatif, question, neutre, positif) ; cliquez une catégorie pour filtrer la liste.", en: "The 'Audience mood' panel summarizes the sentiment of loaded messages (negative, question, neutral, positive); click a category to filter the list." },
     ],
     faq: [
       { q: { fr: "L'agent peut-il publier une bêtise tout seul ?", en: "Can the agent post something wrong on its own?" }, a: { fr: "En mode « Suggérer », jamais : vous validez. En mode « Auto », il n'envoie que s'il dépasse votre seuil de confiance et qu'aucun mot-clé d'escalade n'est présent.", en: "In “Suggest” mode, never: you approve. In “Auto” mode, it only sends above your confidence threshold and with no escalation keyword present." } },
@@ -2091,7 +1881,7 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
       en: "Collects and analyses your competitors' ads (Meta Ad Library). Spot the formats and angles that are running, and feed your strategy: the insights feed the strategic memory (RAG) used by content generation and the Ad Brain.",
     },
     actions: [
-      { label: { fr: "Rechercher des pubs", en: "Search ads" }, detail: { fr: "Par marque ou mot-clé ; les pubs actives remontent avec leurs visuels.", en: "By brand or keyword; active ads appear with their creatives." } },
+      { label: { fr: "Rechercher des pubs", en: "Search ads" }, detail: { fr: "Par marque ou mot-clé ; les pubs actives remontent en texte (titre, accroche, dépenses le cas échéant), avec un lien « Voir la publicité → » vers le visuel original sur Meta.", en: "By brand or keyword; active ads appear as text (title, copy, spend where available), with a 'View the ad →' link to the original creative on Meta." } },
       { label: { fr: "Analyser avec l'IA", en: "Analyze with AI" }, detail: { fr: "L'IA dégage les angles gagnants, formats et messages, et les conserve dans la mémoire stratégique.", en: "The AI extracts winning angles, formats and messaging, and stores them in strategic memory." } },
     ],
     tips: [
@@ -2194,8 +1984,8 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
       {
         label: { fr: "Suivre les invitations", en: "Track invitations" },
         detail: {
-          fr: "Les invitations en attente sont listées : « Copier l'invitation » copie le texte avec le lien d'inscription (utile si l'e-mail n'a pas pu partir) ; « Annuler » révoque l'invitation.",
-          en: "Pending invitations are listed: 'Copy invitation' copies the text with the signup link (useful if the email could not be sent); 'Cancel' revokes the invitation.",
+          fr: "L'envoi automatique d'e-mails est inactif sur cet espace : les invitations en attente affichent « ✉️ Envoyer depuis ma messagerie » (ouvre un brouillon pré-rempli dans votre messagerie) et « 📋 Copier » (copie le texte et le lien d'inscription, à coller où vous voulez) ; « Annuler » révoque l'invitation.",
+          en: "Automatic email sending is inactive on this space: pending invitations show '✉️ Send from my mailbox' (opens a pre-filled draft in your mail client) and '📋 Copy' (copies the text and signup link, to paste anywhere); 'Cancel' revokes the invitation.",
         },
       },
       {
@@ -2208,8 +1998,8 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
     ],
     tips: [
       {
-        fr: "Si l'e-mail d'invitation n'a pas pu être envoyé (service e-mail non configuré), le texte d'invitation est copié automatiquement — envoyez-le vous-même.",
-        en: "If the invitation email could not be sent (email service not configured), the invitation text is copied automatically — send it yourself.",
+        fr: "L'envoi automatique d'e-mails est inactif sur cet espace (variable RESEND_API_KEY non définie) : les invitations ne partent jamais toutes seules. Utilisez « ✉️ Envoyer depuis ma messagerie » ou « 📋 Copier » pour les transmettre vous-même.",
+        en: "Automatic email sending is inactive on this space (RESEND_API_KEY not set): invitations never go out on their own. Use '✉️ Send from my mailbox' or '📋 Copy' to send them yourself.",
       },
       {
         fr: "Privilégiez le mode Lecture pour les parties prenantes qui doivent consulter sans risquer de modifier (direction, client final).",
@@ -2220,8 +2010,8 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
       {
         q: { fr: "L'invité n'a pas reçu l'e-mail — que faire ?", en: "The invitee did not receive the email — what now?" },
         a: {
-          fr: "Utilisez « Copier l'invitation » sur l'invitation en attente et envoyez-lui le texte (lien d'inscription inclus). Ses accès s'activeront dès sa première connexion avec cette adresse.",
-          en: "Use 'Copy invitation' on the pending invitation and send them the text (signup link included). Their access activates on their first sign-in with that address.",
+          fr: "Normal : l'envoi automatique est inactif sur cet espace. Utilisez « ✉️ Envoyer depuis ma messagerie » (brouillon pré-rempli) ou « 📋 Copier » sur l'invitation en attente, et transmettez-la vous-même. Ses accès s'activeront dès sa première connexion avec cette adresse.",
+          en: "That's expected: automatic sending is inactive on this space. Use '✉️ Send from my mailbox' (pre-filled draft) or '📋 Copy' on the pending invitation, and send it yourself. Their access activates on their first sign-in with that address.",
         },
       },
       {
@@ -2257,8 +2047,15 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
       {
         label: { fr: "Verrouiller l'identité", en: "Lock the identity" },
         detail: {
-          fr: "Une fois l'ADN validé, verrouillez-le : il sert de référence aux générations de contenu. Vous pouvez le déverrouiller ou le réinitialiser à tout moment.",
-          en: "Once the DNA is validated, lock it: it becomes the reference for content generation. You can unlock or reset it at any time.",
+          fr: "Une fois l'ADN validé, verrouillez-le : il sert de référence aux générations de contenu. Vous pouvez à tout moment tout recommencer à zéro pour redéfinir l'identité (pas un simple déverrouillage — un reset complet).",
+          en: "Once the DNA is validated, lock it: it becomes the reference for content generation. You can start over from scratch at any time to redefine the identity (not a simple unlock — a full reset).",
+        },
+      },
+      {
+        label: { fr: "Gérer la mémoire stratégique (RAG)", en: "Manage strategic memory (RAG)" },
+        detail: {
+          fr: "Consultez le nombre d'insights mémorisés (veille, pubs, Pages) et remettez la mémoire à zéro si besoin — action irréversible.",
+          en: "View how many insights are stored (watch, ads, Pages) and reset the memory if needed — this action is irreversible.",
         },
       },
     ],
@@ -2266,6 +2063,10 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
       {
         fr: "Une identité verrouillée rend les contenus générés plus cohérents d'une campagne à l'autre.",
         en: "A locked identity makes generated content more consistent from one campaign to the next.",
+      },
+      {
+        fr: "Cette page est réservée aux utilisateurs ayant un accès en édition ; les lecteurs voient un message d'accès restreint.",
+        en: "This page is reserved for users with edit access; read-only users see a restricted-access message.",
       },
     ],
     faq: [],
@@ -2287,8 +2088,15 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
       {
         label: { fr: "Saisir les concurrents", en: "Enter competitors" },
         detail: {
-          fr: "Ajoutez les concurrents à comparer, avec leur URL de pricing si disponible pour affiner l'analyse tarifaire.",
-          en: "Add the competitors to compare, with their pricing URL if available to refine the price analysis.",
+          fr: "La liste démarre pré-remplie avec 4 concurrents génériques du secteur (Hootsuite, Sprout Social, Metricool, HeyGen) que vous pouvez modifier ou remplacer, avec leur URL de pricing si disponible pour affiner l'analyse tarifaire.",
+          en: "The list starts pre-filled with 4 generic sector competitors (Hootsuite, Sprout Social, Metricool, HeyGen) that you can edit or replace, with their pricing URL if available to refine the price analysis.",
+        },
+      },
+      {
+        label: { fr: "Suggérer des concurrents (IA)", en: "Suggest competitors (AI)" },
+        detail: {
+          fr: "Le bouton « ✨ Suggérer des concurrents » propose jusqu'à 6 concurrents pertinents (avec URL de pricing pré-remplie) à partir de la description de votre produit.",
+          en: "The '✨ Suggest competitors' button proposes up to 6 relevant competitors (with a prefilled pricing URL) based on your product description.",
         },
       },
       {
@@ -2312,29 +2120,36 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
     title: { fr: "Séries multi-réseaux", en: "Multi-network series" },
     tagline: { fr: "Générez une série de posts + visuels adaptée à chaque réseau.", en: "Generate a series of posts + visuals adapted to each network." },
     whatFor: {
-      fr: "Les séries permettent de générer une série de publications (posts/articles) avec leurs visuels, puis de la diffuser en l'adaptant aux contraintes de chaque réseau. LinkedIn conserve son espace dédié (studio article) ; cette page couvre les autres réseaux.",
-      en: "Series let you generate a set of publications (posts/articles) with their visuals, then distribute it adapted to each network's constraints. LinkedIn keeps its dedicated space (article studio); this page covers the other networks.",
+      fr: "Les séries génèrent plusieurs publications d'un coup pour UN réseau à la fois (Facebook, Instagram ou TikTok — LinkedIn garde son espace dédié). Le texte de chaque publication est généré d'abord ; les visuels (image ou vidéo selon le réseau) se génèrent ensuite, séparément.",
+      en: "Series generate several posts at once for ONE network at a time (Facebook, Instagram or TikTok — LinkedIn keeps its dedicated space). Each post's text is generated first; visuals (image or video depending on the network) are generated afterwards, separately.",
     },
     actions: [
       {
-        label: { fr: "Générer une série", en: "Generate a series" },
+        label: { fr: "Générer les textes de la série", en: "Generate the series' text" },
         detail: {
-          fr: "Décrivez le thème et les réseaux cibles : l'IA produit les posts et leurs visuels, adaptés aux contraintes de chaque plateforme.",
-          en: "Describe the theme and target networks: the AI produces the posts and their visuals, adapted to each platform's constraints.",
+          fr: "Choisissez d'abord un réseau, puis décrivez le thème : l'IA génère le texte de chaque publication de la série.",
+          en: "First choose a network, then describe the theme: the AI generates the text for each post in the series.",
+        },
+      },
+      {
+        label: { fr: "Générer les visuels", en: "Generate the visuals" },
+        detail: {
+          fr: "Générez ensuite les visuels — élément par élément, ou en un clic pour tous les éléments qui n'en ont pas encore.",
+          en: "Then generate the visuals — one by one, or in a single click for every item still missing one.",
         },
       },
       {
         label: { fr: "Diffuser la série", en: "Distribute the series" },
         detail: {
-          fr: "Relisez chaque élément puis publiez ou programmez la diffusion sur les réseaux sélectionnés.",
-          en: "Review each item then publish or schedule distribution on the selected networks.",
+          fr: "Pour Facebook et Instagram, définissez une date de départ, une cadence et une heure : la série est programmée automatiquement. Pour TikTok, la diffusion est immédiate (pas de programmation).",
+          en: "For Facebook and Instagram, set a start date, a cadence and a time: the series is scheduled automatically. For TikTok, distribution is immediate (no scheduling).",
         },
       },
     ],
     tips: [],
     faq: [],
     related: [
-      { label: { fr: "Article LinkedIn", en: "LinkedIn article" }, href: "/article-linkedin" },
+      { label: { fr: "Espace LinkedIn", en: "LinkedIn space" }, href: "/linkedin" },
       { label: { fr: "Publications programmées", en: "Scheduled posts" }, href: "/scheduled" },
     ],
   },
@@ -2344,22 +2159,22 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
     title: { fr: "Prédiction & Simulation", en: "Prediction & Simulation" },
     tagline: { fr: "Simulez la réception d'une campagne avant de dépenser.", en: "Simulate how a campaign will land before spending." },
     whatFor: {
-      fr: "Avant de dépenser, simulez : à partir d'un produit, d'une cible et d'un message (et des tendances issues de la Veille), l'IA génère des personas représentatifs, simule leurs réactions et agrège une prédiction de réception avec des recommandations. Résultat directionnel — une aide à la décision, pas un oracle.",
-      en: "Before spending, simulate: from a product, a target and a message (plus trends from Watch), the AI generates representative personas, simulates their reactions and aggregates a reception prediction with recommendations. Directional output — a decision aid, not an oracle.",
+      fr: "Avant de dépenser, simulez : le Copilote de lancement (mode par défaut) dialogue avec vous pour construire le brief à partir de votre marque et de votre mémoire stratégique, lance la simulation puis génère une stratégie applicable en un clic à vos campagnes. Le Mode manuel vous laisse saisir directement produit, cible et message. Dans les deux cas, l'IA génère des personas représentatifs, simule leurs réactions et agrège une prédiction de réception avec des recommandations. Résultat directionnel — une aide à la décision, pas un oracle.",
+      en: "Before spending, simulate: the Launch Copilot (default mode) chats with you to build the brief from your brand and strategic memory, runs the simulation, then generates a strategy you can apply to your campaigns in one click. Manual mode lets you enter product, target and message directly. Either way, the AI generates representative personas, simulates their reactions and aggregates a reception prediction with recommendations. Directional output — a decision aid, not an oracle.",
     },
     actions: [
       {
-        label: { fr: "Décrire la campagne", en: "Describe the campaign" },
+        label: { fr: "Dialoguer avec le Copilote de lancement", en: "Chat with the Launch Copilot" },
         detail: {
-          fr: "Renseignez produit, cible et message. Les tendances de la Veille enrichissent la simulation quand elles sont disponibles.",
-          en: "Fill in product, target and message. Watch trends enrich the simulation when available.",
+          fr: "Mode par défaut : le copilote récupère votre identité de marque et votre mémoire stratégique (veille, pubs, benchmark, campagnes), construit le brief par la conversation, lance la simulation puis propose une stratégie applicable directement.",
+          en: "Default mode: the copilot pulls your brand identity and strategic memory (watch, ads, benchmark, campaigns), builds the brief through conversation, runs the simulation, then proposes a strategy you can apply directly.",
         },
       },
       {
-        label: { fr: "Lancer la simulation", en: "Run the simulation" },
+        label: { fr: "Basculer en Mode manuel", en: "Switch to Manual mode" },
         detail: {
-          fr: "L'IA génère les personas, simule leurs réactions et restitue une prédiction agrégée avec des recommandations d'ajustement.",
-          en: "The AI generates personas, simulates their reactions and returns an aggregated prediction with adjustment recommendations.",
+          fr: "Renseignez directement produit, cible et message, puis lancez la simulation. Requiert un accès en Édition — les accès en Lecture ne peuvent pas la lancer.",
+          en: "Fill in product, target and message directly, then run the simulation. Requires Edit access — View-only users cannot run one.",
         },
       },
     ],
@@ -2367,6 +2182,10 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
       {
         fr: "Prenez la prédiction comme une tendance directionnelle : confirmez-la avec un petit test réel avant d'engager le budget complet.",
         en: "Treat the prediction as a directional trend: confirm it with a small real test before committing the full budget.",
+      },
+      {
+        fr: "Quand il est activé côté serveur, un moteur « Premium · MiroFish » (multi-agents) peut remplacer le moteur standard pour une simulation plus poussée.",
+        en: "When enabled server-side, a 'Premium · MiroFish' multi-agent engine can replace the standard engine for a deeper simulation.",
       },
     ],
     faq: [],
@@ -2406,6 +2225,20 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
           en: "Export the final visual as a high-definition PNG, also usable outside social networks (print).",
         },
       },
+      {
+        label: { fr: "Décliner en un clic pour tous les réseaux", en: "One-click decline for every network" },
+        detail: {
+          fr: "« Décliner en pub — IA plein cadre » recompose le fond par IA pour chaque format publicitaire sans coupe ni flou (nécessite un fond généré par IA). « Décliner sans coupe — instantané » remplit le cadre par un fond flouté et fonctionne aussi avec une image importée.",
+          en: "'Decline as ad — AI full-frame' recomposes the background with AI for each ad format with no crop or blur (requires an AI-generated background). 'Decline without cropping — instant' fills the frame with a blurred background and also works with an uploaded image.",
+        },
+      },
+      {
+        label: { fr: "Enregistrer et diffuser", en: "Save and distribute" },
+        detail: {
+          fr: "Enregistrez le résultat dans la médiathèque, puis publiez-le, programmez-le ou transformez-le en publicité Meta directement depuis le studio.",
+          en: "Save the result to the media library, then publish it, schedule it or turn it into a Meta ad directly from the studio.",
+        },
+      },
     ],
     tips: [],
     faq: [],
@@ -2425,17 +2258,24 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
     },
     actions: [
       {
-        label: { fr: "Fournir le visage et le sujet", en: "Provide the face and the topic" },
+        label: { fr: "Fournir ou générer le visage", en: "Provide or generate the face" },
         detail: {
-          fr: "Uploadez le visage (avec consentement de la personne) et décrivez le sujet de la vidéo : l'IA rédige le script.",
-          en: "Upload the face (with the person's consent) and describe the video topic: the AI writes the script.",
+          fr: "Uploadez le visage (avec consentement de la personne) ou générez-le par IA à partir d'un prompt, et décrivez le sujet de la vidéo : l'IA rédige le script.",
+          en: "Upload the face (with the person's consent) or generate it with AI from a prompt, and describe the video topic: the AI writes the script.",
+        },
+      },
+      {
+        label: { fr: "Personnaliser la scène, le modèle et la voix", en: "Customize the scene, model and voice" },
+        detail: {
+          fr: "Changez le décor du portrait par IA, choisissez un modèle d'avatar adapté à une photo ou à une vidéo source, et clonez votre propre voix (avec consentement) via micro ou fichier audio plutôt que la synthèse vocale par défaut.",
+          en: "Change the portrait's background with AI, pick an avatar model suited to a photo or a source video, and clone your own voice (with consent) via mic or audio file instead of the default text-to-speech.",
         },
       },
       {
         label: { fr: "Générer puis publier", en: "Generate then publish" },
         detail: {
-          fr: "Lancez la génération (voix + lip-sync), prévisualisez, puis téléchargez ou publiez la vidéo.",
-          en: "Launch generation (voice + lip-sync), preview, then download or publish the video.",
+          fr: "Lancez la génération (voix + lip-sync, avec sous-titres incrustés optionnels), prévisualisez, puis téléchargez ou publiez la vidéo. Les avatars générés sont enregistrés pour réutilisation.",
+          en: "Launch generation (voice + lip-sync, with optional burned-in subtitles), preview, then download or publish the video. Generated avatars are saved for reuse.",
         },
       },
     ],
@@ -2452,29 +2292,43 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
     title: { fr: "Médiathèque", en: "Media library" },
     tagline: { fr: "Tous les visuels et vidéos de la marque, au même endroit.", en: "All the brand's visuals and videos, in one place." },
     whatFor: {
-      fr: "La médiathèque est la galerie des visuels et vidéos de la marque, filtrable. Chaque média propose les actions « Décliner (IA) » pour en générer des variantes et « Créer une pub » pour l'utiliser comme base d'une publicité.",
-      en: "The media library is the filterable gallery of the brand's visuals and videos. Each media item offers 'Decline (AI)' to generate variants and 'Create an ad' to use it as the basis of an advertisement.",
+      fr: "La médiathèque est la galerie filtrable des visuels et vidéos de la marque. Depuis chaque vignette, vous pouvez publier directement, décliner un visuel par IA, l'utiliser comme base d'une publicité, importer de nouveaux médias ou en supprimer.",
+      en: "The media library is the filterable gallery of the brand's visuals and videos. From each thumbnail, you can publish directly, decline a visual with AI, use it as the basis of an ad, import new media or delete one.",
     },
     actions: [
       {
-        label: { fr: "Parcourir et filtrer", en: "Browse and filter" },
+        label: { fr: "Importer un média", en: "Import media" },
         detail: {
-          fr: "Filtrez la galerie pour retrouver rapidement un visuel ou une vidéo de la marque.",
-          en: "Filter the gallery to quickly find a brand visual or video.",
+          fr: "Utilisez « Importer des fichiers » pour envoyer une ou plusieurs images/vidéos depuis votre ordinateur, ou collez une URL directe puis cliquez sur « Ajouter ».",
+          en: "Use 'Upload files' to send one or more images/videos from your computer, or paste a direct URL then click 'Add'.",
+        },
+      },
+      {
+        label: { fr: "Publier directement", en: "Publish directly" },
+        detail: {
+          fr: "Le bouton « Publier », en haut de chaque vignette, ouvre Composer avec ce média déjà attaché, prêt à programmer ou publier.",
+          en: "The 'Publish' button, at the top of each thumbnail, opens Composer with that media already attached, ready to schedule or publish.",
         },
       },
       {
         label: { fr: "Décliner ou créer une pub", en: "Decline or create an ad" },
         detail: {
-          fr: "« Décliner (IA) » génère des variantes d'un média ; « Créer une pub » l'envoie comme base d'une nouvelle publicité.",
-          en: "'Decline (AI)' generates variants of a media item; 'Create an ad' uses it as the basis of a new advertisement.",
+          fr: "« Décliner » (images uniquement) génère des variantes par IA ; « Créer une pub » envoie le média comme base d'une nouvelle publicité.",
+          en: "'Decline' (images only) generates AI variants; 'Create an ad' sends the media as the basis of a new advertisement.",
+        },
+      },
+      {
+        label: { fr: "Supprimer un média", en: "Delete a media item" },
+        detail: {
+          fr: "Le bouton « Supprimer » retire définitivement le fichier après confirmation (irréversible). Les visuels du kit de marque ne peuvent pas être supprimés depuis cet écran.",
+          en: "The 'Delete' button permanently removes the file after confirmation (irreversible). Brand-kit visuals cannot be deleted from this screen.",
         },
       },
     ],
     tips: [],
     faq: [],
     related: [
-      { label: { fr: "Bibliothèque", en: "Library" }, href: "/library" },
+      { label: { fr: "Composer un post", en: "Compose a post" }, href: "/compose" },
       { label: { fr: "Studio Affiches", en: "Poster Studio" }, href: "/studio-affiche" },
     ],
   },

@@ -171,5 +171,43 @@ console.log("\n— /dashboard (bandeau Pilotage actif + Nouveau post) —");
   check("décrit le bouton d'en-tête « Nouveau post »", /Nouveau post/.test(fr));
 }
 
+console.log("\n— /pilotage (BUGSSocialHub29 1-7) —");
+{
+  const fr = full("/pilotage", "fr");
+  check("BUG 1 — le journal des décisions n'est plus présenté comme conservé", !/sans la supprimer du journal/.test(fr));
+  check("BUG 1 — précise l'absence de vrai journal persistant (perte au rafraîchissement)", /rafraîchi/i.test(fr) && /journal persistant/.test(fr));
+  check("BUG 2 — ne promet plus une recommandation par agent (pluriel)", !/leurs recommandations apparaissent dans la file/.test(fr));
+  check("BUG 2 — précise une seule décision agrégée par cycle", /une seule décision agrégée/.test(fr));
+  check("BUG 3 — LinkedIn n'est plus présenté comme affichant de vraies données", /LinkedIn n.expose pas ces statistiques|reste toujours vide/.test(fr));
+  check("BUG 4 — le sélecteur de pays n'est plus présenté comme filtrant KPIs/veille/benchmark", !/filtre à la fois les KPIs, le benchmark et les insights de veille/.test(fr));
+  check("BUG 5 — « 10-30 secondes » n'est plus donné comme une moyenne garantie", !/10.30 secondes/.test(fr));
+  check("BUG 5 — mentionne le vrai plafond de 2 minutes", /jusqu.à 2 minutes/.test(fr));
+  check("BUG 6 — la priorité « haute » de la veille n'est plus présentée comme garantie", !/apparaissent en tête de file avec la priorité « haute »/.test(fr));
+  check("BUG 7 — décrit la carte « Campagne du parcours »", /Campagne du parcours/.test(fr));
+  check("BUG 7 — décrit la section « Alertes »", /section « Alertes »|section "Alertes"/.test(fr) || /Repérer les alertes/.test(fr));
+  check("BUG 7 — précise que la rangée de raccourcis n'est pas des onglets internes", /raccourcis de navigation/.test(fr));
+  check("EN mirror — title", getHelp("/pilotage", "en").title === "Piloting center");
+}
+
+console.log("\n— /identite (BUGSSocialHub29 8-12) —");
+{
+  const fr = full("/identite", "fr");
+  check("BUG 8 — ne promet plus de déverrouillage (n'existe pas)", !/vous pouvez le déverrouiller/.test(fr));
+  check("BUG 9 — décrit la mémoire stratégique (RAG)", /mémoire stratégique/.test(fr));
+  check("BUG 10 — mentionne la restriction d'accès en édition", /accès en édition/.test(fr));
+  check("BUG 11/12 — décrit le test de visuels / moodboard IA", /moodboard/i.test(fr));
+  check("BUG 11/12 — décrit la détection de langue de l'ADN", /rédigé dans une autre langue|Régénérer en français/.test(fr));
+}
+
+console.log("\n— /mes-societes (BUGSSocialHub29 13-16) —");
+{
+  const fr = full("/mes-societes", "fr");
+  check("BUG 13 — le bouton n'est plus juste « Choisir »", !/« Choisir »/.test(fr));
+  check("BUG 13 — décrit « Ouvrir → » et « Choisir & ouvrir »", /Ouvrir →/.test(fr) && /Choisir & ouvrir/.test(fr));
+  check("BUG 14 — le bouton Connexions n'est plus présenté comme réservé aux admins", /disponible pour tous les utilisateurs/.test(fr));
+  check("BUG 15 — décrit l'état vide « Créer ma première société »", /Créer ma première société/.test(fr));
+  check("BUG 16 — distingue la palette fixe (création) du sélecteur libre (modification)", /6 couleurs prédéfinies/.test(fr) && /sélecteur.{0,20}libre|n.importe quelle couleur/.test(fr));
+}
+
 console.log(failed === 0 ? "\n✓ TOUT VERT" : `\n✗ ${failed} ÉCHEC(S)`);
 process.exit(failed === 0 ? 0 : 1);

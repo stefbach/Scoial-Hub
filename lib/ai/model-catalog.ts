@@ -236,14 +236,16 @@ export const VIDEO_MODELS: GenModel[] = [
     id: "google/veo-3",
     label: "Google Veo 3",
     note: "Qualité max + son (~8 s)",
-    buildInput: (p) => ({ prompt: p }),
+    // N'accepte que 16:9 (défaut) ou 9:16 — on ne force que le vertical (TikTok/Reels/Stories),
+    // sinon on laisse le modèle sur son défaut plutôt que de lui envoyer un ratio non supporté (ex. 1:1).
+    buildInput: (p, o) => ({ prompt: p, ...(vidRatio(o.aspect) === "9:16" ? { aspect_ratio: "9:16" } : {}) }),
     seconds: () => 8,
   },
   {
     id: "google/veo-3-fast",
     label: "Veo 3 Fast",
     note: "Veo 3 plus rapide/éco",
-    buildInput: (p) => ({ prompt: p }),
+    buildInput: (p, o) => ({ prompt: p, ...(vidRatio(o.aspect) === "9:16" ? { aspect_ratio: "9:16" } : {}) }),
     seconds: () => 8,
   },
   {

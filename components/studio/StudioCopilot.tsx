@@ -61,7 +61,9 @@ export function StudioCopilot({
       if (!r.ok) throw new Error(d?.error || t("Le copilote a échoué.", "Copilot failed."));
       const sug = d as CopilotSuggestion;
       setMsgs((m) => [...m, { role: "assistant", content: sug.reply || t("Voici ma proposition.", "Here's my suggestion."), sug }]);
-      // Auto-applique la 1re proposition pour aller vite (l'utilisateur peut réajuster).
+      // Pré-remplit le studio avec la 1re proposition (prompt, modèle, format) sans
+      // lancer la génération : l'utilisateur relit la proposition ci-dessus puis
+      // clique lui-même sur « Générer » dans le studio.
       onApply(sug);
       setTimeout(() => scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" }), 60);
     } catch (e) {

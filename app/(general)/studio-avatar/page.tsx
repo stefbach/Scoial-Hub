@@ -599,8 +599,8 @@ export default function StudioAvatarPage() {
                   setPersonMode("generate");
                   setPersonPrompt(s.prompt);
                   if (validModel) setImageModel(validModel);
-                  // Le copilote DÉCLENCHE la génération du portrait.
-                  if (canEdit) void genPerson({ prompt: s.prompt, model: validModel });
+                  // Le copilote pré-remplit le prompt/modèle mais ne déclenche plus la
+                  // génération : l'utilisateur relit et clique lui-même sur « Générer ».
                 }
               }}
             />

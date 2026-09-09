@@ -51,7 +51,7 @@ async function main() {
   {
     const series = read("components/series/SeriesPlanner.tsx");
     check("#11 · « Générer » sans thème marque le champ en erreur", /setThemeMissing\(true\)/.test(series));
-    check("#11 · message affiché près du champ", /role="alert"/.test(series) && /Indiquez un thème ci-dessus/.test(series));
+    check("#11 · message affiché près du champ", /role="alert"/.test(series) && /Indiquez quelques mots-clés ci-dessus/.test(series));
     check("#11 · l'erreur disparaît dès la saisie", /if \(e\.target\.value\.trim\(\)\) setThemeMissing\(false\)/.test(series));
   }
 

@@ -276,7 +276,8 @@ export default function StudioPage() {
                   prompt: s.prompt,
                   imageModel: s.modelId && IMAGE_MODELS.some((m) => m.id === s.modelId) ? s.modelId : undefined,
                   videoModel: s.modelId && VIDEO_MODELS.some((m) => m.id === s.modelId) ? s.modelId : undefined,
-                  autorun: true, // le copilote déclenche la génération directement
+                  // Le copilote pré-remplit le prompt/modèle mais ne déclenche plus la
+                  // génération : l'utilisateur relit et clique lui-même sur « Générer ».
                 });
               }}
             />

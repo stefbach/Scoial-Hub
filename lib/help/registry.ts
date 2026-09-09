@@ -262,15 +262,15 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
       {
         label: { fr: "Lancer un cycle de pilotage", en: "Launch a piloting cycle" },
         detail: {
-          fr: "Le bouton « Lancer un cycle » appelle l'API /agents/run avec l'objectif et le niveau d'autonomie configurés. Les 8 agents travaillent en séquence et leurs recommandations apparaissent dans la file de décisions.",
-          en: "The 'Launch cycle' button calls the /agents/run API with the configured objective and autonomy level. The 8 agents work in sequence and their recommendations appear in the decision queue.",
+          fr: "Le bouton « Lancer un cycle » appelle l'API /agents/run avec l'objectif et le niveau d'autonomie configurés. Plusieurs agents travaillent en séquence en interne, mais le cycle produit une seule décision agrégée en tête de file — pas une recommandation par agent.",
+          en: "The 'Launch cycle' button calls the /agents/run API with the configured objective and autonomy level. Several agents work in sequence internally, but the cycle produces one aggregated decision at the top of the queue — not one recommendation per agent.",
         },
       },
       {
         label: { fr: "Valider ou ignorer une recommandation", en: "Approve or dismiss a recommendation" },
         detail: {
-          fr: "Chaque décision affiche l'agent source, son raisonnement et l'impact estimé. « Valider » marque la décision comme approuvée dans la file (à l'écran) ; « Ignorer » la marque comme rejetée sans la supprimer du journal. Ni l'un ni l'autre n'exécute l'action réelle pour l'instant — c'est un suivi manuel, pas une exécution automatique.",
-          en: "Each decision shows the source agent, its rationale and estimated impact. 'Approve' marks the decision as approved in the on-screen queue; 'Dismiss' marks it as rejected without removing it from the log. Neither currently triggers the real action — it's manual tracking, not automatic execution.",
+          fr: "Chaque décision affiche l'agent source, son raisonnement et l'impact estimé. « Valider » ou « Ignorer » ne fait que changer l'étiquette affichée à l'écran — rien n'est enregistré côté serveur : la file entière (approuvées et ignorées) est perdue au rafraîchissement de la page, il n'existe pas de vrai journal persistant.",
+          en: "Each decision shows the source agent, its rationale and estimated impact. 'Approve' or 'Dismiss' only changes the on-screen label — nothing is saved server-side: the entire queue (approved and dismissed alike) is lost on page refresh, there is no real persistent log.",
         },
       },
       {
@@ -290,15 +290,15 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
       {
         label: { fr: "Consulter les insights de veille", en: "Check watch insights" },
         detail: {
-          fr: "Les insights de veille (formats, angles, benchmarks) proviennent du dernier run de la page Veille & Marché. Ils sont automatiquement injectés dans la file de décisions comme recommandations priorisées.",
-          en: "Watch insights (formats, angles, benchmarks) come from the last run of the Watch & Market page. They are automatically injected into the decision queue as prioritised recommendations.",
+          fr: "Les insights de veille (formats, angles, benchmarks) proviennent du dernier run de la page Veille & Marché. Ils sont automatiquement injectés en tête de la file de décisions ; leur étiquette de priorité (haute, moyenne ou basse) reflète l'analyse IA — seule leur position en tête de file est garantie, pas une priorité « haute » systématique.",
+          en: "Watch insights (formats, angles, benchmarks) come from the last run of the Watch & Market page. They are automatically injected at the top of the decision queue; their priority label (high, medium or low) reflects the AI's analysis — only their head-of-queue position is guaranteed, not a systematic 'high' priority.",
         },
       },
       {
         label: { fr: "Filtrer par réseau", en: "Filter by network" },
         detail: {
-          fr: "La section « Par réseau » liste Facebook, Instagram et LinkedIn avec leur taux d'engagement et la tendance sur la période. Identifiez le réseau le plus performant d'un coup d'œil.",
-          en: "The 'By network' section lists Facebook, Instagram and LinkedIn with their engagement rate and period trend. Identify your best-performing network at a glance.",
+          fr: "La section « Par réseau » liste Facebook, Instagram et LinkedIn avec leur taux d'engagement et la tendance sur la période. LinkedIn n'expose pas ces statistiques sans validation « Community Management » : sa ligne reste toujours vide, même connecté — seuls Facebook et Instagram affichent de vraies données.",
+          en: "The 'By network' section lists Facebook, Instagram and LinkedIn with their engagement rate and period trend. LinkedIn doesn't expose this data without 'Community Management' approval: its row always stays empty, even when connected — only Facebook and Instagram show real data.",
         },
       },
       {
@@ -315,6 +315,27 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
           en: "Once Meta campaigns exist, an 'Ad performance · Meta (30d)' panel shows real spend, impressions, clicks and conversions, with a link to the full detail.",
         },
       },
+      {
+        label: { fr: "Suivre la campagne du parcours", en: "Track the journey campaign" },
+        detail: {
+          fr: "La carte « Campagne du parcours » affiche la campagne créée à la fin du démarrage assisté (nom, réseaux, zone, cadence, prochaine publication).",
+          en: "The 'Journey campaign' card shows the campaign created at the end of assisted onboarding (name, networks, zone, cadence, next publication).",
+        },
+      },
+      {
+        label: { fr: "Repérer les alertes", en: "Spot alerts" },
+        detail: {
+          fr: "La section « Alertes » signale les réseaux sans publication récente (ex. « X jours sans publication »), un engagement en baisse ou des permissions manquantes pour suivre vos abonnés.",
+          en: "The 'Alerts' section flags networks with no recent post (e.g. 'X days without a post'), falling engagement, or missing permissions to track your followers.",
+        },
+      },
+      {
+        label: { fr: "Naviguer via les raccourcis", en: "Navigate via the shortcuts" },
+        detail: {
+          fr: "La rangée de puces Veille, Campagnes, Performance Ads, Messagerie, Médiathèque, Compose ressemble à des onglets mais ce sont de simples raccourcis de navigation : cliquer quitte le pilotage pour ouvrir la page correspondante, ce ne sont pas des sections internes de cet écran.",
+          en: "The row of Watch, Campaigns, Ad Performance, Inbox, Media, Compose pills looks like tabs but they're plain navigation shortcuts: clicking leaves the piloting page to open the corresponding page — they aren't internal sections of this screen.",
+        },
+      },
     ],
     tips: [
       {
@@ -326,12 +347,12 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
         en: "The global objective may be pre-filled from the entity admin config — make sure it is up to date before launching a cycle.",
       },
       {
-        fr: "Les recommandations de veille (issues de /veille) apparaissent en tête de file avec la priorité « haute » — traitez-les en premier.",
-        en: "Watch recommendations (from /veille) appear at the top of the queue with 'high' priority — handle them first.",
+        fr: "Les recommandations de veille (issues de /veille) apparaissent en tête de file, mais leur étiquette de priorité peut être haute, moyenne (valeur par défaut) ou basse selon l'analyse IA.",
+        en: "Watch recommendations (from /veille) appear at the top of the queue, but their priority label can be high, medium (the default) or low depending on the AI's analysis.",
       },
       {
-        fr: "Un cycle complet prend en moyenne 10–30 secondes selon la charge du serveur IA.",
-        en: "A full cycle takes about 10–30 seconds depending on the AI server load.",
+        fr: "Un cycle peut prendre jusqu'à 2 minutes selon le nombre d'appels IA enchaînés — ce n'est pas toujours l'affaire de quelques secondes.",
+        en: "A cycle can take up to 2 minutes depending on how many AI calls run in sequence — it isn't always a matter of a few seconds.",
       },
     ],
     faq: [
@@ -345,22 +366,22 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
       {
         q: { fr: "Les indicateurs sont-ils basés sur des données réelles ?", en: "Are the indicators based on real data?" },
         a: {
-          fr: "Oui, dès que les connecteurs Meta/LinkedIn sont actifs. Sans connecteur, les indicateurs et le benchmark restent à l'état vide — aucune valeur estimée ou simulée n'est affichée à la place.",
-          en: "Yes, as soon as Meta/LinkedIn connectors are active. Without a connector, indicators and the benchmark stay empty — no estimated or simulated value is shown instead.",
+          fr: "Oui pour Facebook et Instagram, dès que le connecteur Meta est actif. LinkedIn reste toujours vide (voir « Filtrer par réseau »). Sans connecteur, les indicateurs et le benchmark restent à l'état vide — aucune valeur estimée ou simulée n'est affichée à la place.",
+          en: "Yes for Facebook and Instagram, once the Meta connector is active. LinkedIn always stays empty (see 'Filter by network'). Without a connector, indicators and the benchmark stay empty — no estimated or simulated value is shown instead.",
         },
       },
       {
         q: { fr: "Puis-je annuler une décision validée ?", en: "Can I cancel an approved decision?" },
         a: {
-          fr: "Oui, sans problème : « Valider » ne fait aujourd'hui que changer l'étiquette de la décision à l'écran, sans appeler d'API ni rien exécuter réellement. Vous pouvez donc basculer son statut entre « Valider » et « Ignorer » librement, sans conséquence côté serveur.",
-          en: "Yes, easily: 'Approve' currently only changes the decision's on-screen label — it doesn't call any API or actually execute anything. You can therefore switch its status between 'Approve' and 'Dismiss' freely, with no server-side consequence.",
+          fr: "Oui, sans problème : « Valider » ne fait aujourd'hui que changer l'étiquette de la décision à l'écran, sans appeler d'API ni rien exécuter réellement. Vous pouvez donc basculer son statut entre « Valider » et « Ignorer » librement, sans conséquence côté serveur — et de toute façon, rien n'est conservé au-delà de la session : un rafraîchissement de la page efface toute la file.",
+          en: "Yes, easily: 'Approve' currently only changes the decision's on-screen label — it doesn't call any API or actually execute anything. You can therefore switch its status between 'Approve' and 'Dismiss' freely, with no server-side consequence — and nothing survives beyond the session anyway: refreshing the page clears the whole queue.",
         },
       },
     ],
     shortcuts: [
       {
-        fr: "Le sélecteur de pays (scope) en haut de page filtre à la fois les KPIs, le benchmark et les insights de veille.",
-        en: "The country selector (scope) at the top of the page filters KPIs, benchmark and watch insights simultaneously.",
+        fr: "Le sélecteur de pays (scope) en haut de page ne change que le libellé affiché et l'objectif auto-généré : il n'est transmis ni aux KPIs, ni à la veille, ni au benchmark (le benchmark reste de toute façon vide, cette fonctionnalité n'étant pas développée).",
+        en: "The country selector (scope) at the top of the page only changes the displayed label and the auto-generated objective: it isn't passed to the KPIs, the watch data, or the benchmark (which stays empty anyway, as that feature isn't built).",
       },
     ],
     related: [
@@ -1910,22 +1931,29 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
       {
         label: { fr: "Choisir la société active", en: "Select the active company" },
         detail: {
-          fr: "Cliquez sur une carte pour verrouiller le périmètre sur cette société, ou « Choisir & ouvrir » pour basculer directement sur son tableau de bord.",
-          en: "Click a card to lock the scope on that company, or 'Select & open' to jump straight to its dashboard.",
+          fr: "Le bouton d'une carte affiche « Ouvrir → » si cette société est déjà active, ou « Choisir & ouvrir » si elle ne l'est pas encore — cliquer verrouille le périmètre sur cette société et bascule sur son tableau de bord.",
+          en: "A card's button shows 'Open →' if that company is already active, or 'Select & open' if it isn't yet — clicking locks the scope on that company and jumps to its dashboard.",
+        },
+      },
+      {
+        label: { fr: "Accéder aux connexions", en: "Go to connections" },
+        detail: {
+          fr: "Le bouton « Connexions » de chaque carte bascule sur cette société puis ouvre directement ses comptes connectés (/accounts) — disponible pour tous les utilisateurs, pas seulement les administrateurs.",
+          en: "Each card's 'Connections' button switches to that company and opens its connected accounts directly (/accounts) — available to every user, not just administrators.",
         },
       },
       {
         label: { fr: "Créer une société", en: "Create a company" },
         detail: {
-          fr: "« + Nouvelle société » (admins) : donnez un nom et une couleur d'accent, puis le profil de marque est construit à l'étape suivante (Démarrage assisté).",
-          en: "'+ New company' (admins): give a name and an accent colour, then the brand profile is built in the next step (assisted start).",
+          fr: "« + Nouvelle société » (admins) : donnez un nom et une couleur d'accent parmi 6 couleurs prédéfinies, puis le profil de marque est construit à l'étape suivante (Démarrage assisté). Si l'organisation n'a encore aucune société, un état vide propose directement « + Créer ma première société ».",
+          en: "'+ New company' (admins): give a name and pick an accent colour from 6 predefined swatches, then the brand profile is built in the next step (assisted start). If the organisation has no company yet, an empty state offers '+ Create my first company' directly.",
         },
       },
       {
         label: { fr: "Modifier ou supprimer", en: "Edit or delete" },
         detail: {
-          fr: "« Modifier » ajuste nom, voix de marque et couleur d'accent. « Supprimer » ouvre une confirmation — l'action est définitive.",
-          en: "'Edit' adjusts name, brand voice and accent colour. 'Delete' opens a confirmation — the action is permanent.",
+          fr: "« Modifier » ajuste nom, voix de marque et couleur d'accent — ici via un sélecteur de couleur libre (n'importe quelle couleur), contrairement à la palette fixe de la création. « Supprimer » ouvre une confirmation — l'action est définitive.",
+          en: "'Edit' adjusts name, brand voice and accent colour — here via a free colour picker (any colour), unlike the fixed palette used at creation. 'Delete' opens a confirmation — the action is permanent.",
         },
       },
     ],
@@ -1934,13 +1962,17 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
         fr: "La couleur d'accent identifie la société partout dans l'interface (avatar, sélecteur) — choisissez des couleurs distinctes entre vos sociétés.",
         en: "The accent colour identifies the company across the interface (avatar, selector) — pick distinct colours for your companies.",
       },
+      {
+        fr: "À la création, seules 6 couleurs prédéfinies sont proposées ; à la modification, n'importe quelle couleur est possible via un sélecteur libre.",
+        en: "At creation, only 6 predefined colours are offered; when editing, any colour is possible via a free colour picker.",
+      },
     ],
     faq: [
       {
         q: { fr: "Qui peut créer ou supprimer une société ?", en: "Who can create or delete a company?" },
         a: {
-          fr: "Uniquement les administrateurs du compte (owner/admin). Les autres utilisateurs voient les sociétés auxquelles ils ont accès et peuvent en choisir une.",
-          en: "Only account administrators (owner/admin). Other users see the companies they have access to and can select one.",
+          fr: "Uniquement les administrateurs du compte (owner/admin). Les autres utilisateurs voient les sociétés auxquelles ils ont accès, peuvent en choisir une et accéder à ses connexions, mais ne voient pas « Modifier »/« Supprimer ».",
+          en: "Only account administrators (owner/admin). Other users see the companies they have access to, can select one and reach its connections, but don't see 'Edit'/'Delete'.",
         },
       },
     ],
@@ -2058,6 +2090,13 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
           en: "View how many insights are stored (watch, ads, Pages) and reset the memory if needed — this action is irreversible.",
         },
       },
+      {
+        label: { fr: "Tester les visuels (moodboard IA)", en: "Test visuals (AI moodboard)" },
+        detail: {
+          fr: "Dès que le consultant propose des pistes visuelles, « Générer le moodboard » crée jusqu'à 3 images IA ; marquez vos préférées (★) pour les intégrer à la direction artistique de l'ADN au verrouillage, et testez-en une en courte vidéo avec « Tester vidéo ».",
+          en: "Once the consultant proposes visual directions, 'Generate moodboard' creates up to 3 AI images; star (★) your favourites to fold them into the DNA's art direction on lock, and turn one into a short test video with 'Test video'.",
+        },
+      },
     ],
     tips: [
       {
@@ -2067,6 +2106,10 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
       {
         fr: "Cette page est réservée aux utilisateurs ayant un accès en édition ; les lecteurs voient un message d'accès restreint.",
         en: "This page is reserved for users with edit access; read-only users see a restricted-access message.",
+      },
+      {
+        fr: "Si l'ADN a été rédigé dans une autre langue que celle affichée, un bandeau le détecte et propose « Régénérer en français/anglais » pour le réexprimer dans la langue active.",
+        en: "If the DNA was written in a different language than the one shown, a banner detects it and offers 'Regenerate in French/English' to re-express it in the active language.",
       },
     ],
     faq: [],

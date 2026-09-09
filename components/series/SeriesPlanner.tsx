@@ -310,7 +310,7 @@ export function SeriesPlanner({ platform }: { platform: SeriesPlatform }) {
           value={theme}
           onChange={(e) => { setTheme(e.target.value); if (e.target.value.trim()) setThemeMissing(false); }}
           aria-invalid={themeMissing}
-          rows={theme.length > 120 ? 4 : 2}
+          rows={theme.length > 300 ? 8 : theme.length > 120 ? 4 : 2}
           placeholder={t("Quelques mots-clés (ex. « lancement produit, offre de rentrée »)…", "A few keywords (e.g. “product launch, back-to-school offer”)…")}
           className={`${inputCls} resize-y ${themeMissing ? "border-danger-500 ring-2 ring-danger-500/20" : ""}`}
         />

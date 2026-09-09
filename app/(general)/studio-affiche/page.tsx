@@ -574,13 +574,12 @@ export default function StudioAffichePage() {
               const validModel = s.modelId && IMAGE_MODELS.some((m) => m.id === s.modelId) ? s.modelId : undefined;
               if (s.prompt) setPrompt(s.prompt);
               if (validModel) setModelId(validModel);
-              let ar: string | undefined;
               if (s.aspect) {
                 const map: Record<string, string> = { "1:1": "sq", "9:16": "story", "16:9": "wide", "4:5": "portrait" };
-                if (map[s.aspect]) { setFormatId(map[s.aspect]); ar = s.aspect; }
+                if (map[s.aspect]) setFormatId(map[s.aspect]);
               }
-              // Le copilote DÉCLENCHE la génération (pas seulement le remplissage).
-              if (s.prompt && canEdit) void generateBackground({ prompt: s.prompt, model: validModel, ar });
+              // Le copilote pré-remplit le prompt/modèle/format mais ne déclenche plus la
+              // génération : l'utilisateur relit et clique lui-même sur « Générer ».
             }}
           />
           {/* Format — groupé par réseau (Instagram / Facebook / LinkedIn) + impression */}

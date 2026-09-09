@@ -12,6 +12,7 @@ import { useT, useLang } from "@/lib/i18n";
 import { PublishLanguageSelect } from "@/components/ui/PublishLanguageSelect";
 import { generateVideoPolling, videoGenErrorMessage } from "@/lib/ai/generate-video-client";
 import { DEFAULT_VIDEO_MODEL_ID, videoModelsForPlatform, isLockedVideoPlatform } from "@/lib/ai/model-catalog";
+import { resolveVideoAspect } from "@/lib/social-formats";
 
 export type ComposeNet = "facebook" | "instagram" | "tiktok";
 
@@ -132,7 +133,10 @@ export function ComposeAgent({
       if (out.visualKind === "video") {
         const r = await generateVideoPolling({
           prompt: out.visualPrompt,
-          aspect: "9:16",
+          // Landscape sur Facebook/LinkedIn, vertical sur TikTok/Instagram —
+          // videoLockPlatform vaut déjà undefined pour TikTok, qui résout
+          // correctement en "9:16" via le défaut de resolveVideoAspect().
+          aspect: resolveVideoAspect(videoLockPlatform),
           platform: videoLockPlatform,
           model: videoModel,
           seconds: videoSeconds,

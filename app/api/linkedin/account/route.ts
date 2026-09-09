@@ -17,7 +17,10 @@ export async function GET(req: NextRequest) {
   try {
     const conn = await getConnection(await resolveCompanyUuid(companyId), "linkedin");
     const token = conn?.config?.access_token;
-    if (!conn || !token) {
+    // Le statut prime sur la simple présence d'un token : markConnectionDisconnected()
+    // (token LinkedIn rejeté) garde volontairement le token en base pour diagnostic,
+    // donc vérifier uniquement `token` continuait d'afficher « connecté » après coup.
+    if (!conn || !token || conn.status !== "connected") {
       return NextResponse.json({ connected: false });
     }
 

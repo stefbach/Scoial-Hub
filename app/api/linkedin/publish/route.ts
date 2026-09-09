@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireCompanyAccess } from "@/lib/auth/guard";
-import { getConnection } from "@/lib/repositories/channel-connections";
+import { getConnection, markConnectionDisconnected } from "@/lib/repositories/channel-connections";
 import { resolveCompanyUuid } from "@/lib/repositories/resolve-company";
 import { getConnector } from "@/lib/connectors/index";
 import { createAdminClient } from "@/lib/supabase/server";
 import { ensurePublishableImageUrl } from "@/lib/repositories/media";
+import { isConnectorAuthError } from "@/lib/connectors/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -12,6 +13,7 @@ export const maxDuration = 60;
 // POST /api/linkedin/publish
 // { companyId, text, link?, imageUrl?, videoUrl?, linkTitle?, linkDescription? }
 export async function POST(req: NextRequest) {
+  let uuid: string | undefined;
   try {
     const { companyId, text, link, imageUrl, videoUrl, linkTitle, linkDescription } = await req.json();
     if (!companyId) return NextResponse.json({ error: "companyId requis" }, { status: 400 });
@@ -20,7 +22,7 @@ export async function POST(req: NextRequest) {
     const guard = await requireCompanyAccess(companyId, { mode: "edit" });
     if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
 
-    const uuid = await resolveCompanyUuid(companyId);
+    uuid = await resolveCompanyUuid(companyId);
     const conn = await getConnection(uuid, "linkedin");
     const token = conn?.config?.access_token;
     // Cible de publication : la Page/profil choisi (publish_as), sinon le profil.
@@ -77,6 +79,14 @@ export async function POST(req: NextRequest) {
   } catch (e) {
     console.error("[POST /api/linkedin/publish]", e);
     const message = e instanceof Error ? e.message : "Erreur serveur";
+    // Token rejeté par LinkedIn : pas transitoire — on invalide la connexion
+    // pour que /accounts et /linkedin cessent d'afficher « Connecté ✓ » et
+    // réclament une reconnexion (même traitement que le cron, cf.
+    // lib/publishing/publish-scheduled.ts).
+    if (uuid && isConnectorAuthError(e)) {
+      await markConnectionDisconnected(uuid, "linkedin", message).catch(() => {});
+      return NextResponse.json({ connected: false, error: message }, { status: 409 });
+    }
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

@@ -9,7 +9,7 @@ import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured, isAiConfigured, env } from "@/lib/env";
 import { resolveCompanyUuid } from "@/lib/repositories/resolve-company";
 
-export type MemorySource = "veille" | "ads" | "page" | "agent" | "manual";
+export type MemorySource = "veille" | "ads" | "organic" | "page" | "agent" | "manual";
 export type MemoryKind =
   | "insight" | "format" | "angle" | "competitor" | "keyword" | "recommendation" | "brief";
 

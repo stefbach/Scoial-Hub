@@ -209,5 +209,13 @@ console.log("\n— /mes-societes (BUGSSocialHub29 13-16) —");
   check("BUG 16 — distingue la palette fixe (création) du sélecteur libre (modification)", /6 couleurs prédéfinies/.test(fr) && /sélecteur.{0,20}libre|n.importe quelle couleur/.test(fr));
 }
 
+console.log("\n— /pilotage (Cerveau Contenu / Pilote Contenu, extension organique) —");
+{
+  const fr = full("/pilotage", "fr");
+  check("décrit le Cerveau Contenu", /Cerveau Contenu/.test(fr));
+  check("décrit le Pilote Contenu", /Pilote Contenu/.test(fr));
+  check("précise l'absence de dépense pour les actions organiques", /sans aucune dépense/.test(fr));
+}
+
 console.log(failed === 0 ? "\n✓ TOUT VERT" : `\n✗ ${failed} ÉCHEC(S)`);
 process.exit(failed === 0 ? 0 : 1);

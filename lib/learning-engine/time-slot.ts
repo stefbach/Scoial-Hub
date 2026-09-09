@@ -53,3 +53,17 @@ export function parseTimeSlotArmKey(armKey: string): { day: WeekDay; hour: numbe
   if (!(WEEKDAY_KEYS as readonly string[]).includes(dayStr)) return null;
   return { day: dayStr as WeekDay, hour };
 }
+
+/**
+ * Jour de semaine d'une date calendaire "YYYY-MM-DD", indépendant du fuseau :
+ * les posts programmés stockent déjà `date`/`time` en heure murale (cf.
+ * lib/publishing/publish-scheduled.ts `wallClockInZone`), donc le jour de la
+ * date elle-même n'a pas besoin d'une seconde conversion de fuseau. Utilisé
+ * par le Pilote Contenu (app/api/content/pilot) pour comparer un post déjà
+ * programmé au créneau appris par le moteur d'apprentissage.
+ */
+export function weekdayOfCalendarDate(dateStr: string): WeekDay | null {
+  const d = new Date(`${dateStr}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) return null;
+  return WEEKDAY_KEYS[d.getUTCDay()];
+}

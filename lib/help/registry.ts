@@ -316,6 +316,20 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
         },
       },
       {
+        label: { fr: "Analyser le contenu organique (Cerveau Contenu)", en: "Analyze organic content (Content Brain)" },
+        detail: {
+          fr: "Équivalent organique du Cerveau Pub : l'IA analyse vos indicateurs organiques réels (Facebook/Instagram) et la mémoire stratégique (veille) pour proposer un diagnostic, le réseau le plus performant, des formats et angles à tester.",
+          en: "The organic counterpart of the Ad Brain: the AI analyzes your real organic indicators (Facebook/Instagram) and strategic memory (watch) to propose a diagnosis, your best-performing network, and formats/angles to test.",
+        },
+      },
+      {
+        label: { fr: "Appliquer les actions du Pilote Contenu", en: "Apply Content Pilot actions" },
+        detail: {
+          fr: "Équivalent organique du Pilote Pub, sans aucune dépense : reprogramme en un clic un post déjà planifié le bon jour mais à la mauvaise heure (créneau prouvé par le moteur d'apprentissage), ou ouvre Composer face à un réseau en silence éditorial ou en perte d'engagement.",
+          en: "The organic counterpart of the Ad Pilot, with no spend involved: reschedules in one click a post already planned on the right day but at the wrong time (slot proven by the learning engine), or opens Compose when a network goes editorially silent or loses engagement.",
+        },
+      },
+      {
         label: { fr: "Suivre la campagne du parcours", en: "Track the journey campaign" },
         detail: {
           fr: "La carte « Campagne du parcours » affiche la campagne créée à la fin du démarrage assisté (nom, réseaux, zone, cadence, prochaine publication).",

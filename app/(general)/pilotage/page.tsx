@@ -8,6 +8,8 @@ import { useScope, countryLabel, countryFlag } from "@/lib/scope";
 import { AUTONOMY_LEVELS, type AutonomyLevel } from "@/lib/agents/autonomy";
 import { useLang, useT } from "@/lib/i18n";
 import { JourneyCampaignCard, zoneLabel } from "@/components/pilotage/JourneyCampaignCard";
+import { ContentBrain } from "@/components/organic/ContentBrain";
+import { ContentPilot } from "@/components/organic/ContentPilot";
 import { RecommendationModal, agentLabel, NET_LABEL } from "@/components/pilotage/RecommendationModal";
 import type { Campaign } from "@/lib/types";
 import type { OnboardingState } from "@/lib/onboarding/types";
@@ -363,6 +365,11 @@ export default function PilotagePage() {
           <p className="mt-1.5 text-2xs text-muted">{ads.count} {t("campagne(s) · données réelles", "campaign(s) · real data")}</p>
         </div>
       )}
+
+      {/* Cerveau Contenu / Pilote Contenu — équivalent organique de Cerveau
+          Pub / Pilote Pub, sur les indicateurs organiques réels. */}
+      <ContentBrain />
+      <ContentPilot />
 
       {/* ── Bandeau stratégie ──────────────────────────── */}
       <div className="card overflow-hidden">

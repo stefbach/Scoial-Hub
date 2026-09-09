@@ -61,7 +61,8 @@
     "test:learningengine": "tsx scripts/verify-learning-engine.ts",
     "test:videoaspect": "tsx scripts/verify-video-aspect.ts",
     "test:copilotgate": "tsx scripts/verify-copilot-review-gate.ts",
-    "test:contentbrain": "tsx scripts/verify-content-brain.ts"
+    "test:contentbrain": "tsx scripts/verify-content-brain.ts",
+    "test:linkedinauth": "tsx scripts/verify-linkedin-auth-invalidation.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.100.1",

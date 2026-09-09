@@ -273,7 +273,13 @@ export const VIDEO_MODELS: GenModel[] = [
     id: "minimax/hailuo-02",
     label: "Hailuo 02 (MiniMax)",
     note: "Bon rapport qualité/prix (6/10 s)",
-    buildInput: (p, o) => ({ prompt: p, duration: o.seconds && o.seconds >= 10 ? 10 : 6 }),
+    // 10 s n'est compatible qu'avec une résolution 768p ou 512p sur ce modèle
+    // (1080p, la valeur implicite par défaut, est un combo rejeté par
+    // Replicate) — on force donc 768p dès que la durée choisie est 10 s.
+    buildInput: (p, o) => {
+      const duration = o.seconds && o.seconds >= 10 ? 10 : 6;
+      return { prompt: p, duration, ...(duration === 10 ? { resolution: "768p" } : {}) };
+    },
     seconds: (o) => (o.seconds && o.seconds >= 10 ? 10 : 6),
   },
   {
@@ -312,10 +318,16 @@ function normalizeVideoPlatform(platform?: string): string | undefined {
   return platform;
 }
 
-/** Modèles vidéo autorisés pour les réseaux verrouillés — jamais les plus chers. */
+/**
+ * Modèles vidéo autorisés pour les réseaux verrouillés — jamais les plus chers.
+ * `minimax/hailuo-02` en est volontairement exclu : ce modèle n'expose aucun
+ * paramètre `aspect_ratio` (texte→vidéo), donc ne peut jamais produire le
+ * format vertical 9:16 requis par Instagram (Reels) ou par un Reel
+ * Facebook/LinkedIn — contrairement à `bytedance/seedance-1-lite`, qui
+ * respecte fidèlement l'aspect demandé.
+ */
 const SHORT_FORM_VIDEO_MODEL_IDS = [
-  "minimax/hailuo-02", // Bon rapport qualité/prix
-  "bytedance/seedance-1-lite", // Plus économique
+  "bytedance/seedance-1-lite", // Seul modèle économique à honorer l'aspect_ratio demandé
 ];
 
 export const SHORT_FORM_VIDEO_MODELS: GenModel[] = SHORT_FORM_VIDEO_MODEL_IDS

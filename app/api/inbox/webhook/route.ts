@@ -114,9 +114,14 @@ async function ingestLeadgen(pageId: string, value: Record<string, unknown>): Pr
   if (!token) return;
 
   try {
+    // « adgroup_id » n'existe QUE dans la charge du webhook, pas comme champ
+    // interrogeable sur le nœud /{leadgen_id} — le demander ici fait échouer
+    // tout l'appel Graph (#100 « Tried accessing nonexisting field »), donc
+    // field_data n'est alors jamais récupéré. On le lit uniquement depuis
+    // `value` (payload webhook), jamais via ce champ Graph API.
     const url = withAppSecretProof(
       `https://graph.facebook.com/${META_API_VERSION}/${encodeURIComponent(leadgenId)}` +
-        `?fields=created_time,field_data,ad_id,form_id,adgroup_id&access_token=${encodeURIComponent(token)}`
+        `?fields=created_time,field_data,ad_id,form_id&access_token=${encodeURIComponent(token)}`
     );
     const res = await fetch(url, { cache: "no-store" });
     const json = (await res.json()) as {
@@ -124,7 +129,6 @@ async function ingestLeadgen(pageId: string, value: Record<string, unknown>): Pr
       field_data?: Array<{ name?: string; values?: string[] }>;
       ad_id?: string;
       form_id?: string;
-      adgroup_id?: string;
       error?: { message?: string };
     };
     if (json.error) {
@@ -143,7 +147,7 @@ async function ingestLeadgen(pageId: string, value: Record<string, unknown>): Pr
       pageId,
       formId: json.form_id ?? String(value.form_id ?? ""),
       adId: json.ad_id ?? String(value.ad_id ?? ""),
-      adgroupId: json.adgroup_id ?? String(value.adgroup_id ?? ""),
+      adgroupId: String(value.adgroup_id ?? ""),
       fieldData,
       raw: json as Record<string, unknown>,
       leadCreatedAt: graphTimeToIso(json.created_time ?? value.created_time),

@@ -236,6 +236,64 @@ function shapeHtml(l: ShapeLayer, size: { width: number; height: number }): stri
   return `<div style="width:${w}px;height:${h}px;background:${safeHex(l.fill, "#000000")};border-radius:${radius};${stroke}"></div>`;
 }
 
+/**
+ * Éléments que le moteur de rendu serveur refusera — vérifiés AVANT l'envoi.
+ *
+ * Sans ce contrôle, un seul élément fautif fait répondre « Bad Request » au
+ * moteur, sans dire lequel : l'utilisateur reçoit alors un message générique
+ * (« transition, média ou police ») qui ne désigne rien et ne mène nulle part.
+ * Chaque problème est ici nommé avec l'élément concerné, en clair.
+ *
+ * Le numéro donné est celui que l'utilisateur voit sur la timeline : les plans
+ * sont comptés dans l'ordre du film, les calques dans leur ordre d'apparition.
+ */
+export function serverEditProblems(p: EditorProject): string[] {
+  const problems: string[] = [];
+
+  // Le moteur télécharge chaque source depuis SES serveurs : une adresse
+  // locale au navigateur (blob:, data:) ou un chemin relatif lui est
+  // inaccessible, et il rejette la demande entière.
+  const hosted = (src: string) => /^https?:\/\//i.test((src ?? "").trim());
+
+  const ordered = p.clips.slice().sort((a, b) => a.start - b.start);
+  ordered.forEach((c, i) => {
+    const n = i + 1;
+    if (!hosted(c.src)) {
+      problems.push(
+        `Plan ${n} : le média n'est pas hébergé en ligne, le moteur de rendu ne peut pas le télécharger. Réimportez-le dans le projet.`
+      );
+    }
+    if (c.length <= 0) problems.push(`Plan ${n} : durée nulle.`);
+  });
+
+  const texts = p.texts.slice().sort((a, b) => a.start - b.start);
+  texts.forEach((l, i) => {
+    if (!l.text.trim()) {
+      problems.push(`Texte ${i + 1} : vide. Saisissez du texte ou supprimez le calque.`);
+    }
+  });
+
+  const images = p.images.slice().sort((a, b) => a.start - b.start);
+  images.forEach((l, i) => {
+    if (!hosted(l.src)) {
+      problems.push(
+        `Image ${i + 1} : elle n'est pas hébergée en ligne, le moteur de rendu ne peut pas la télécharger. Réimportez-la dans le projet.`
+      );
+    }
+  });
+
+  const audios = p.audios.filter((a) => !a.muted && a.length > 0).slice().sort((a, b) => a.start - b.start);
+  audios.forEach((a, i) => {
+    if (!hosted(a.src)) {
+      problems.push(
+        `Piste son ${i + 1} : elle n'est pas hébergée en ligne, le moteur de rendu ne peut pas la télécharger. Réimportez-la dans le projet.`
+      );
+    }
+  });
+
+  return problems;
+}
+
 export function toServerEdit(p: EditorProject, callback?: string) {
   const size = FORMAT_SIZE[p.format];
 

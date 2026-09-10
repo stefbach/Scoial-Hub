@@ -21,11 +21,12 @@
 // Usage : npm run test:montagemultiplan
 
 import {
-  addAudio, addClip, emptyProject, setClipAdjust, setClipTransition, setKeyframe,
-  updateAudio, type EditorProject,
+  addAudio, addClip, addImageLayer, addText, emptyProject, moveClip, setClipAdjust,
+  setClipTransition, setKeyframe, updateAudio, updateText, type EditorProject,
 } from "../lib/editor/project";
 import {
-  baseTrackClips, browserOverlays, decideRenderTarget, toBrowserPlan, unrenderableFeatures,
+  baseTrackClips, browserOverlays, decideRenderTarget, serverEditProblems, toBrowserPlan,
+  unrenderableFeatures,
 } from "../lib/editor/render-plan";
 
 let failures = 0;
@@ -215,6 +216,66 @@ function main() {
 
   // ── Un montage vide ne produit rien ─────────────────────────────────────
   check("un projet sans plan ne produit aucun argument", toBrowserPlan(emptyProject("c", "p")).args.length === 0);
+
+  // ── Ce que le moteur SERVEUR refusera, dit avant l'envoi ────────────────
+  // Un seul élément fautif faisait répondre « Bad Request » au moteur, sans
+  // dire lequel : l'utilisateur recevait une phrase qui listait des suspects
+  // (« transition, média ou police ») et ne désignait rien.
+  {
+    const clean = addText(
+      addClip(emptyProject("c", "p"), {
+        id: "a", src: "https://cdn.exemple.com/a.mp4", kind: "video", sourceDuration: 91.9,
+      }),
+      "t1", "Eva et sa fievre"
+    );
+    check("un montage sain ne remonte aucun problème",
+      serverEditProblems(clean).length === 0, JSON.stringify(serverEditProblems(clean)));
+
+    // Un média resté local au navigateur : le moteur télécharge depuis SES
+    // serveurs et ne peut rien faire d'une adresse blob:.
+    const local = addClip(clean, {
+      id: "b", src: "blob:https://axon-ai.social/8f2c-4e", kind: "video", sourceDuration: 10,
+    });
+    const localProblems = serverEditProblems(local);
+    check("un média non hébergé est détecté", localProblems.length === 1, JSON.stringify(localProblems));
+    check("et le plan fautif est nommé par son numéro à l'écran",
+      /^Plan 2 /.test(localProblems[0] ?? ""), localProblems[0]);
+
+    // Le numéro suit l'ORDRE DU FILM, pas l'ordre d'ajout : c'est celui que
+    // l'utilisateur lit sur la timeline. On déplace ici le plan sain APRÈS le
+    // plan fautif, sans toucher à l'ordre du tableau — le fautif devient donc
+    // le plan 1 à l'écran tout en restant le second ajouté.
+    const reordered = moveClip(local, "a", { start: 500 });
+    const reorderedProblems = serverEditProblems(reordered);
+    check("le numéro suit l'ordre du film, pas l'ordre d'ajout",
+      /^Plan 1 /.test(reorderedProblems[0] ?? ""), reorderedProblems[0]);
+
+    // Un titre sans texte : le moteur exige un contenu, il refuse tout l'envoi.
+    const emptyText = updateText(clean, "t1", { text: "   " });
+    check("un texte vide est détecté et expliqué",
+      serverEditProblems(emptyText).some((x) => /^Texte 1 : vide/.test(x)),
+      JSON.stringify(serverEditProblems(emptyText)));
+
+    // Une incrustation image non hébergée.
+    const badImage = addImageLayer(clean, "i1", "data:image/png;base64,AAAA");
+    check("une image non hébergée est détectée",
+      serverEditProblems(badImage).some((x) => /^Image 1 /.test(x)),
+      JSON.stringify(serverEditProblems(badImage)));
+
+    // Une piste son non hébergée.
+    const badAudio = addAudio(clean, {
+      id: "s1", src: "blob:local", name: "Prise voix", role: "voice", sourceDuration: 12,
+    });
+    check("une piste son non hébergée est détectée",
+      serverEditProblems(badAudio).some((x) => /^Piste son 1 /.test(x)),
+      JSON.stringify(serverEditProblems(badAudio)));
+
+    // Plusieurs problèmes : tous remontent, pas seulement le premier — sinon
+    // l'utilisateur corrige, relance, et retombe sur le suivant.
+    const many = updateText(local, "t1", { text: "" });
+    check("plusieurs problèmes remontent ensemble", serverEditProblems(many).length === 2,
+      JSON.stringify(serverEditProblems(many)));
+  }
 
   console.log(`\n${failures === 0 ? "✓ TOUT VERT" : `✗ ${failures} échec(s)`}\n`);
   process.exit(failures === 0 ? 0 : 1);

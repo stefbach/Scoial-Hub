@@ -24,7 +24,7 @@ import { requireCompanyAccess } from "@/lib/auth/guard";
 import { env, isWebhookConfigured } from "@/lib/env";
 import { createRenderJob, setRenderJobPrediction } from "@/lib/jobs/render-jobs";
 import { normalize, type EditorProject } from "@/lib/editor/project";
-import { toServerEdit } from "@/lib/editor/render-plan";
+import { toServerEdit, serverEditProblems } from "@/lib/editor/render-plan";
 import type { CaptionSegment, MediaAsset, PlatformCut } from "@/lib/video/types";
 
 export async function POST(req: NextRequest) {
@@ -46,6 +46,16 @@ export async function POST(req: NextRequest) {
       const project = normalize(body.project);
       if (project.clips.length === 0) {
         return NextResponse.json({ error: "Le montage ne contient aucun plan." }, { status: 400 });
+      }
+      // Contrôle AVANT envoi : le moteur répond « Bad Request » sans dire quel
+      // élément le gêne. Autant nommer nous-mêmes ce que nous savons détecter,
+      // plutôt que renvoyer l'utilisateur vers une liste de suspects.
+      const problems = serverEditProblems(project);
+      if (problems.length > 0) {
+        return NextResponse.json(
+          { error: `Le montage ne peut pas être rendu :\n• ${problems.join("\n• ")}` },
+          { status: 400 }
+        );
       }
       const job = await openRenderJob(body.companyId);
       const result = await submitEdit(toServerEdit(project, job.callback));

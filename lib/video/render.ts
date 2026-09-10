@@ -39,10 +39,52 @@ const RENDERABLE = new Set(["video", "video_montage", "slideshow"]);
  * quel jusqu'à l'utilisateur du banc de montage (audit Editing Bench, P3-4 —
  * même chemin que P0-1 : le moteur relayé sans traduction).
  */
+/**
+ * Extrait la raison RÉELLE d'un refus du moteur.
+ *
+ * Sur une erreur de validation, le moteur répond « Bad Request » dans
+ * `message` et met le détail utile dans `response` — champ fautif compris.
+ * Ne lire que `message` revenait à jeter la seule information exploitable et
+ * à afficher une phrase qui liste des suspects au lieu de nommer la cause.
+ */
+function renderErrorDetail(data: unknown): string | undefined {
+  const d = data as { message?: string; response?: unknown } | undefined;
+  const r = d?.response;
+  if (typeof r === "string" && r.trim()) return r.trim();
+  if (r && typeof r === "object") {
+    const o = r as { error?: unknown; message?: unknown; details?: unknown };
+    const parts: string[] = [];
+    for (const v of [o.error, o.message]) {
+      if (typeof v === "string" && v.trim()) parts.push(v.trim());
+    }
+    const details = o.details;
+    if (typeof details === "string" && details.trim()) parts.push(details.trim());
+    else if (Array.isArray(details)) {
+      for (const item of details) {
+        if (typeof item === "string" && item.trim()) parts.push(item.trim());
+        else if (item && typeof item === "object") {
+          const it = item as { field?: unknown; message?: unknown };
+          const field = typeof it.field === "string" ? it.field : "";
+          const msg = typeof it.message === "string" ? it.message : "";
+          if (field || msg) parts.push(field ? `${field} : ${msg}` : msg);
+        }
+      }
+    }
+    // Doublons fréquents entre `error` et `message` : une seule mention suffit.
+    const seen = new Set<string>();
+    const unique = parts.filter((x) => (seen.has(x) ? false : (seen.add(x), true)));
+    if (unique.length) return unique.join(" — ");
+  }
+  return undefined;
+}
+
 function humanizeRenderError(raw: string | undefined, status?: number): string {
   const r = (raw ?? "").trim();
   if (!r || /^bad request$/i.test(r)) {
-    return "Le montage contient un réglage que le moteur de rendu n'accepte pas (transition, média ou police). Vérifiez ces éléments puis réessayez.";
+    // Dernier recours : le moteur a refusé sans rien préciser. Ne PAS lister de
+    // suspects au hasard — l'ancien message citait la police, qui n'est jamais
+    // transmise au moteur, et envoyait donc chercher là où il n'y a rien.
+    return "Le moteur de rendu a refusé le montage sans préciser la cause. Réessayez ; si cela persiste, retirez le dernier élément ajouté et relancez pour l'identifier.";
   }
   if (/unauthorized|forbidden/i.test(r)) {
     return "Rendu refusé par le moteur vidéo — problème de configuration côté serveur, indépendant de votre montage.";
@@ -253,7 +295,7 @@ export async function submitRender(
         lastErr = `Clé refusée par l'environnement « ${env} » (${res.status}). Vérifiez SHOTSTACK_ENV (stage vs v1).`;
         continue;
       }
-      return { ok: false, error: humanizeRenderError(data.message, res.status) };
+      return { ok: false, error: humanizeRenderError(renderErrorDetail(data) ?? data.message, res.status) };
     } catch (err) {
       lastErr = err instanceof Error ? err.message : "Erreur réseau";
     }
@@ -295,7 +337,7 @@ export async function submitEdit(edit: unknown): Promise<RenderSubmit> {
         lastErr = `Clé refusée par l'environnement « ${env} » (${res.status}). Vérifiez SHOTSTACK_ENV (stage vs v1).`;
         continue;
       }
-      return { ok: false, error: humanizeRenderError(data.message, res.status) };
+      return { ok: false, error: humanizeRenderError(renderErrorDetail(data) ?? data.message, res.status) };
     } catch (err) {
       lastErr = err instanceof Error ? err.message : "Erreur réseau";
     }

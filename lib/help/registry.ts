@@ -706,43 +706,64 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
       en: "Create and publish content across all your networks at once.",
     },
     whatFor: {
-      fr: "L'éditeur de composition vous permet de rédiger, illustrer et cibler un post pour Facebook, Instagram, LinkedIn ou TikTok. Vous pouvez publier immédiatement, programmer à une date précise ou sauvegarder en brouillon dans la Bibliothèque. L'assistant IA intégré génère des variantes de texte adaptées à chaque réseau et l'aperçu en temps réel respecte les contraintes de format de chaque plateforme. Pour Facebook/Instagram, un post peut aussi être publié en Story ou en Reel plutôt qu'au fil, et accepter un album/carrousel de plusieurs photos.",
-      en: "The composition editor lets you write, illustrate and target a post for Facebook, Instagram, LinkedIn or TikTok. You can publish immediately, schedule for a specific date or save as a draft in the Library. The built-in AI assistant generates text variants adapted to each network and the real-time preview respects each platform's format constraints. For Facebook/Instagram, a post can also be published as a Story or Reel instead of to the feed, and accept a multi-photo album/carousel.",
+      fr: "L'éditeur de composition vous permet de rédiger, illustrer et cibler un post pour Facebook, Instagram ou TikTok. LinkedIn n'est pas ciblable depuis Composer : il dispose de son propre espace de publication dédié (Espace LinkedIn). Vous pouvez publier immédiatement, programmer à une date précise, sauvegarder en brouillon (Publications programmées) ou enregistrer un texte réutilisable dans la Bibliothèque. Un agent IA toujours visible rédige un texte par réseau ciblé et l'aperçu en temps réel respecte les contraintes de format de chaque plateforme. Pour Facebook/Instagram, un post peut aussi être publié en Story ou en Reel plutôt qu'au fil, et accepter un album/carrousel de plusieurs photos.",
+      en: "The composition editor lets you write, illustrate and target a post for Facebook, Instagram or TikTok. LinkedIn cannot be targeted from Compose: it has its own dedicated publishing space (LinkedIn space). You can publish immediately, schedule for a specific date, save as a draft (Scheduled posts) or save a reusable text to the Library. An always-visible AI agent writes one text per targeted network and the real-time preview respects each platform's format constraints. For Facebook/Instagram, a post can also be published as a Story or Reel instead of to the feed, and accept a multi-photo album/carousel.",
     },
     actions: [
       {
         label: { fr: "Choisir les réseaux cibles", en: "Choose target networks" },
         detail: {
-          fr: "Cochez un ou plusieurs réseaux sociaux en haut du formulaire. L'aperçu se met à jour pour refléter les contraintes de format propres à chaque plateforme (longueur du texte, ratio d'image).",
-          en: "Check one or more social networks at the top of the form. The preview updates to reflect each platform's format constraints (text length, image ratio).",
+          fr: "Cochez un ou plusieurs réseaux parmi Facebook, Instagram et TikTok en haut du formulaire ; LinkedIn n'apparaît pas dans ce sélecteur — un lien renvoie vers son espace dédié. L'aperçu se met à jour pour refléter les contraintes de format propres à chaque plateforme (longueur du texte, ratio d'image).",
+          en: "Check one or more of Facebook, Instagram and TikTok at the top of the form; LinkedIn does not appear in this selector — a link points to its dedicated space. The preview updates to reflect each platform's format constraints (text length, image ratio).",
         },
       },
       {
         label: { fr: "Rédiger le texte du post", en: "Write the post text" },
         detail: {
-          fr: "Utilisez l'éditeur de texte principal pour rédiger votre contenu. Un compteur de caractères indique si vous approchez de la limite de chaque réseau sélectionné.",
-          en: "Use the main text editor to write your content. A character counter indicates when you are approaching each selected network's limit.",
+          fr: "Utilisez l'éditeur de texte principal pour rédiger votre contenu. Aucun compteur de caractères ni limite par réseau n'est affiché pendant la saisie — seul l'aperçu à droite tronque l'affichage avec « voir plus », à titre indicatif.",
+          en: "Use the main text editor to write your content. No character counter or per-network limit is shown while typing — the preview on the right only truncates the display with 'see more', for reference.",
         },
       },
       {
-        label: { fr: "Générer du contenu avec l'IA", en: "Generate content with AI" },
+        label: { fr: "Utiliser l'agent de publication (IA)", en: "Use the publishing agent (AI)" },
         detail: {
-          fr: "L'icône étoile ouvre l'assistant IA. Décrivez votre intention en quelques mots et l'IA génère une proposition de texte adaptée au réseau et à la brand voice configurée.",
-          en: "The star icon opens the AI assistant. Describe your intent in a few words and the AI generates a text proposal adapted to the network and the configured brand voice.",
+          fr: "Le bloc « Votre agent de publication » est visible en permanence sous la rédaction — l'étoile ✦ dans son en-tête est une icône décorative, pas un bouton à cliquer. Décrivez votre intention dans son champ de conversation : l'agent rédige un seul texte par réseau ciblé (pas plusieurs variantes à comparer) et propose un visuel ; redemandez une reformulation par un nouveau message (« plus court », « plus fun »…).",
+          en: "The 'Your publishing agent' block is permanently visible below the text editor — the ✦ star in its header is a decorative icon, not a clickable button. Describe your intent in its chat field: the agent writes a single text per targeted network (not several variants to compare) and suggests a visual; ask for a rewrite with a new message ('shorter', 'more fun'…).",
         },
       },
       {
         label: { fr: "Ajouter des médias", en: "Add media" },
         detail: {
-          fr: "Glissez-déposez une image ou une vidéo, ou sélectionnez un média depuis la Bibliothèque. Les formats acceptés et les dimensions recommandées sont indiqués dynamiquement selon le réseau choisi.",
-          en: "Drag and drop an image or video, or select media from the Library. Accepted formats and recommended dimensions are shown dynamically based on the selected network.",
+          fr: "Glissez-déposez une image ou une vidéo, ou sélectionnez un média depuis la Bibliothèque. Les formats acceptés (PNG, JPG, WebP, MP4, MOV, WebM) et la taille maximale (100 Mo) sont fixes, identiques quel que soit le réseau ciblé — aucune recommandation dynamique de dimensions par plateforme n'est affichée, et aucun redimensionnement automatique n'est appliqué : un fichier trop volumineux est refusé avec un message d'erreur plutôt que compressé.",
+          en: "Drag and drop an image or video, or select media from the Library. Accepted formats (PNG, JPG, WebP, MP4, MOV, WebM) and the maximum size (100 MB) are fixed and identical regardless of the targeted network — no dynamic per-platform dimension guidance is shown, and no automatic resizing is applied: an oversized file is rejected with an error message instead of being compressed.",
+        },
+      },
+      {
+        label: { fr: "Monter le média intégré (texte, musique, découpe)", en: "Edit the media in place (text, music, cutting)" },
+        detail: {
+          fr: "Le bouton « 🎬 Monter (texte, musique, découpe) » ouvre un banc de montage intégré directement dans Compose — ajout de texte, musique de fond, découpe non destructive — sans passer par le Studio Créatif séparé.",
+          en: "The '🎬 Edit (text, music, cutting)' button opens an editing bench built right into Compose — adding text, background music, non-destructive trimming — without going through the separate Creative Studio.",
+        },
+      },
+      {
+        label: { fr: "Choisir la langue et le modèle IA", en: "Choose the language and AI model" },
+        detail: {
+          fr: "Une langue de diffusion est sélectionnable parmi 10 (Français, Kreol Morisien, English, Español, Deutsch, Italiano, Português, Nederlands, العربية, 中文) pour orienter la rédaction. Le modèle de génération d'image et de vidéo est aussi choisissable ; pour Facebook/Instagram/LinkedIn, la vidéo est restreinte par défaut à un modèle économique, avec une case « Autoriser les modèles premium (coût plus élevé) » pour lever cette restriction.",
+          en: "A publishing language is selectable among 10 (Français, Kreol Morisien, English, Español, Deutsch, Italiano, Português, Nederlands, العربية, 中文) to steer the writing. The image and video generation model is also selectable; for Facebook/Instagram/LinkedIn, video defaults to a cost-effective model, with an 'Allow premium models (higher cost)' checkbox to lift that restriction.",
+        },
+      },
+      {
+        label: { fr: "S'appuyer sur le Brand Kit et l'inspiration créative", en: "Use the Brand Kit and creative inspiration" },
+        detail: {
+          fr: "Un panneau « Brand Kit » (logo, palette, style) et un panneau « S'inspirer d'une créa existante » (vos publicités, celles des concurrents via l'Ad Library, ou du contenu de veille) sont disponibles pour nourrir la création.",
+          en: "A 'Brand Kit' panel (logo, palette, style) and an 'Get inspired by an existing creative' panel (your own ads, competitors' via the Ad Library, or content watch results) are available to feed the creation.",
         },
       },
       {
         label: { fr: "Programmer la publication", en: "Schedule the post" },
         detail: {
-          fr: "Cliquez sur « Programmer » pour choisir une date et une heure précises. Le post passe dans l'onglet « Publications programmées » et sera publié automatiquement à l'heure indiquée. Un bandeau propose un créneau suggéré pour le réseau choisi — appris à partir des performances réelles mesurées dès qu'il y en a assez, sinon un repère général par réseau — avec un bouton pour l'appliquer directement.",
-          en: "Click 'Schedule' to choose a specific date and time. The post moves to the 'Scheduled posts' tab and will be published automatically at the indicated time. A banner suggests a slot for the chosen network — learned from real measured performance once there is enough of it, otherwise a general per-network benchmark — with a button to apply it directly.",
+          fr: "Cliquez sur « Programmer » pour choisir une date et une heure précises. Le post passe dans l'onglet « Publications programmées » et sera publié automatiquement à l'heure indiquée. Un bandeau propose un créneau suggéré pour le réseau choisi — appris à partir des performances réelles mesurées dès qu'il y en a assez, sinon un repère général par réseau — avec un bouton pour l'appliquer directement. Rouvrir Compose depuis un post déjà programmé (« Modifier ») met à jour ce post existant, sans créer de doublon.",
+          en: "Click 'Schedule' to choose a specific date and time. The post moves to the 'Scheduled posts' tab and will be published automatically at the indicated time. A banner suggests a slot for the chosen network — learned from real measured performance once there is enough of it, otherwise a general per-network benchmark — with a button to apply it directly. Reopening Compose from an already-scheduled post ('Edit') updates that existing post, without creating a duplicate.",
         },
       },
       {
@@ -760,10 +781,10 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
         },
       },
       {
-        label: { fr: "Sauvegarder en brouillon", en: "Save as draft" },
+        label: { fr: "Sauvegarder en brouillon ou dans la Bibliothèque", en: "Save as draft or to the Library" },
         detail: {
-          fr: "Le bouton « Enregistrer en brouillon » stocke le contenu dans la Bibliothèque, prêt à être réutilisé ou modifié ultérieurement sans délai de publication.",
-          en: "The 'Save as draft' button stores the content in the Library, ready to be reused or edited later without any publishing delay.",
+          fr: "« Enregistrer comme brouillon » enregistre le post au statut « brouillon » dans l'onglet « Brouillons » de Publications programmées — ce n'est pas la Bibliothèque. Pour enregistrer un texte réutilisable dans la Bibliothèque, utilisez le bouton séparé « Enregistrer dans la bibliothèque ». La rédaction est aussi sauvegardée automatiquement en brouillon après 2,5 secondes d'inactivité, avec un indicateur d'état (Enregistrement… / Enregistré / échec de la sauvegarde auto).",
+          en: "'Save as draft' saves the post with 'draft' status in the 'Drafts' tab of Scheduled posts — this is not the Library. To save a reusable text to the Library, use the separate 'Save to library' button. Writing is also autosaved as a draft after 2.5 seconds of inactivity, with a status indicator (Saving… / Saved / autosave failed).",
         },
       },
     ],
@@ -773,16 +794,12 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
         en: "Write first for the network with the strictest constraints, then adapt for the others.",
       },
       {
-        fr: "Utilisez l'assistant IA pour générer 3 variantes et choisir la meilleure plutôt que de partir de zéro.",
-        en: "Use the AI assistant to generate 3 variants and choose the best one rather than starting from scratch.",
+        fr: "LinkedIn n'est jamais dans la liste des réseaux cochables de Composer — utilisez l'Espace LinkedIn dédié pour ce réseau.",
+        en: "LinkedIn is never in Compose's list of checkable networks — use the dedicated LinkedIn space for that network.",
       },
       {
-        fr: "Les médias ajoutés sont automatiquement redimensionnés selon les spécifications du réseau sélectionné — vérifiez quand même l'aperçu.",
-        en: "Added media is automatically resized according to the selected network's specs — still check the preview.",
-      },
-      {
-        fr: "Sauvegardez régulièrement en brouillon pour ne pas perdre votre travail en cas de rechargement de page.",
-        en: "Save regularly as draft to avoid losing your work if the page reloads.",
+        fr: "Sauvegardez régulièrement en brouillon (ou laissez faire la sauvegarde automatique après 2,5 s d'inactivité) pour ne pas perdre votre travail en cas de rechargement de page.",
+        en: "Save regularly as draft (or let autosave do it after 2.5 s of inactivity) to avoid losing your work if the page reloads.",
       },
     ],
     faq: [
@@ -796,14 +813,22 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
       {
         q: { fr: "Puis-je publier sur plusieurs réseaux à la fois ?", en: "Can I publish on multiple networks at once?" },
         a: {
-          fr: "Oui, en cochant plusieurs réseaux dans le sélecteur. Chaque réseau reçoit le même contenu — adaptez le texte via l'IA si les contraintes de format diffèrent.",
-          en: "Yes, by checking multiple networks in the selector. Each network receives the same content — adapt the text via AI if format constraints differ.",
+          fr: "Oui, en cochant plusieurs réseaux (Facebook, Instagram, TikTok) dans le sélecteur. Chaque réseau reçoit son propre texte, rédigé par l'agent IA — adaptez-le si les contraintes de format diffèrent.",
+          en: "Yes, by checking multiple networks (Facebook, Instagram, TikTok) in the selector. Each network gets its own text, written by the AI agent — adjust it if format constraints differ.",
+        },
+      },
+      {
+        q: { fr: "Où va mon brouillon, et où va la Bibliothèque ?", en: "Where does my draft go, and where does the Library go?" },
+        a: {
+          fr: "Un « brouillon » (Enregistrer comme brouillon) est un post en attente dans l'onglet « Brouillons » de Publications programmées. La Bibliothèque est distincte : « Enregistrer dans la bibliothèque » y stocke un texte réutilisable, indépendamment de tout post.",
+          en: "A 'draft' (Save as draft) is a pending post in the 'Drafts' tab of Scheduled posts. The Library is separate: 'Save to library' stores a reusable text there, independently of any post.",
         },
       },
     ],
     related: [
       { label: { fr: "Publications programmées", en: "Scheduled posts" }, href: "/scheduled" },
       { label: { fr: "Médiathèque", en: "Media library" }, href: "/media" },
+      { label: { fr: "Espace LinkedIn", en: "LinkedIn space" }, href: "/linkedin" },
     ],
   },
 
@@ -1748,15 +1773,15 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
       {
         label: { fr: "Définir objectif & réseaux", en: "Set objective & networks" },
         detail: {
-          fr: "Décrivez l'objectif et cochez les réseaux : TikTok, Instagram Reels, YouTube Shorts, Facebook, LinkedIn. Chaque réseau reçoit sa déclinaison au bon format.",
-          en: "Describe the objective and tick the networks: TikTok, Instagram Reels, YouTube Shorts, Facebook, LinkedIn. Each network gets its own correctly-formatted cut.",
+          fr: "Décrivez l'objectif et cochez un ou plusieurs des 13 formats de destination proposés — TikTok, Instagram Reels/Story/Feed/Portrait, Facebook/Facebook Portrait/Story/Paysage, YouTube Shorts/YouTube, LinkedIn 16:9/carré — chacun avec son ratio et sa durée maximale propres.",
+          en: "Describe the objective and tick one or more of the 13 destination formats on offer — TikTok, Instagram Reels/Story/Feed/Portrait, Facebook/Facebook Portrait/Story/Landscape, YouTube Shorts/YouTube, LinkedIn 16:9/square — each with its own aspect ratio and maximum length.",
         },
       },
       {
         label: { fr: "Lancer le marketing automatique", en: "Run auto-marketing" },
         detail: {
-          fr: "Cliquez sur « Marketer automatiquement » : l'IA génère une carte par réseau avec accroches, sous-titres, montage, légende, hashtags et CTA.",
-          en: "Click “Auto-market this video”: the AI generates one card per network with hooks, subtitles, edit notes, caption, hashtags and CTA.",
+          fr: "Cliquez sur « Assembler & marketer » : l'IA génère une carte par réseau avec accroches, sous-titres, montage, légende, hashtags et CTA — chaque champ reste modifiable avant le rendu final.",
+          en: "Click “Assemble & market”: the AI generates one card per network with hooks, subtitles, edit notes, caption, hashtags and CTA — every field stays editable before the final render.",
         },
       },
       {
@@ -1769,8 +1794,8 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
       {
         label: { fr: "Diffuser directement depuis le studio", en: "Distribute straight from the studio" },
         detail: {
-          fr: "Enregistrez le résultat dans la médiathèque, puis publiez-le, programmez-le ou transformez-le en publicité Meta sans quitter le studio.",
-          en: "Save the result to the media library, then publish it, schedule it or turn it into a Meta ad without leaving the studio.",
+          fr: "Enregistrez le résultat dans la médiathèque, puis publiez-le ou programmez-le pour Facebook, Instagram ou LinkedIn — TikTok en est exclu (son API exige une application approuvée séparément ; le contenu généré pour TikTok se télécharge puis se publie depuis l'app TikTok). Le lien « Utiliser dans une pub Meta » redirige vers la création de campagne (/campaigns/new) avec le média et la légende pré-remplis — vous quittez le studio pour la finaliser.",
+          en: "Save the result to the media library, then publish or schedule it for Facebook, Instagram or LinkedIn — TikTok is excluded (its API requires a separately-approved app; content generated for TikTok is downloaded then published from the TikTok app). The “Use in a Meta ad” link redirects to campaign creation (/campaigns/new) with the media and caption pre-filled — you leave the studio to finish it there.",
         },
       },
     ],
@@ -1780,8 +1805,16 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
         en: "A vertical clip shot on a phone is enough: the studio handles reframing and pacing.",
       },
       {
-        fr: "Pour un export vidéo entièrement automatique, un moteur de rendu doit être branché (clé SHOTSTACK_API_KEY). Sinon, vous obtenez le plan de montage complet à exécuter.",
-        en: "For a fully automatic video export, a render engine must be connected (SHOTSTACK_API_KEY). Otherwise you get the complete edit plan to execute.",
+        fr: "Pour un export vidéo entièrement automatique, un moteur de rendu doit être branché (clé SHOTSTACK_API_KEY). Sinon, vous obtenez le plan de montage complet à exécuter. Les formats statiques (carrousel/collage/visuel unique) passent par un pipeline séparé (Cloudinary), indépendant du rendu vidéo.",
+        en: "For a fully automatic video export, a render engine must be connected (SHOTSTACK_API_KEY). Otherwise you get the complete edit plan to execute. Static formats (carousel/collage/single visual) go through a separate pipeline (Cloudinary), independent of the video render.",
+      },
+      {
+        fr: "La bibliothèque musicale intégrée n'est qu'une sélection de DÉMONSTRATION (pistes SoundHelix), non libre de droits pour un usage commercial — remplacez-la par votre propre fichier ou une banque licenciée avant toute publication réelle.",
+        en: "The built-in music library is a DEMO selection only (SoundHelix tracks), not royalty-free for commercial use — replace it with your own file or a licensed music library before any real publication.",
+      },
+      {
+        fr: "Un panneau « Brand kit » persistant réutilise le logo et la charte graphique de la société sur les rendus. Le montage se réordonne par glisser-déposer ou par flèches, et un bouton « Réinitialiser » (avec confirmation) vide entièrement le projet en conservant le brand kit.",
+        en: "A persistent “Brand kit” panel reuses the company's logo and colour palette on renders. The timeline reorders by drag-and-drop or arrows, and a “Reset” button (with a confirmation prompt) fully clears the project while keeping the brand kit.",
       },
     ],
     faq: [
@@ -2257,47 +2290,56 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
     title: { fr: "Studio Affiches & Visuels", en: "Poster & Visual Studio" },
     tagline: { fr: "Créez affiches et visuels de marque, print et réseaux.", en: "Create brand posters and visuals, print and social." },
     whatFor: {
-      fr: "Un studio visuel piloté par IA : formats print (A4/A3) et réseaux (carré, story, portrait, paysage), fond généré par IA ou image uploadée, texte en surimpression (titre + sous-titre, couleur, position), logo de la marque, grand aperçu en temps réel et export PNG haute définition.",
-      en: "An AI-driven visual studio: print (A4/A3) and social formats (square, story, portrait, landscape), AI-generated background or uploaded image, text overlay (title + subtitle, colour, position), brand logo, large real-time preview and high-definition PNG export.",
+      fr: "Un studio visuel piloté par IA : 17 formats précis (4 génériques, 3 Instagram, 3 Facebook, 3 LinkedIn et 4 print A4/A3 portrait/paysage), fond généré par IA ou image uploadée, texte en surimpression (titre + sous-titre, couleur, position), logo et charte de la marque, aperçu zoomable/déplaçable en temps réel et export PNG — haute définition pour le web, mais ~150 dpi pour le print (en dessous du standard 300 dpi professionnel).",
+      en: "An AI-driven visual studio: 17 precise formats (4 generic, 3 Instagram, 3 Facebook, 3 LinkedIn and 4 print A4/A3 portrait/landscape), AI-generated background or uploaded image, text overlay (title + subtitle, colour, position), brand logo and charter, a zoomable/pannable real-time preview and PNG export — high-definition for the web, but ~150 dpi for print (below the professional 300 dpi standard).",
     },
     actions: [
       {
         label: { fr: "Choisir le format", en: "Choose the format" },
         detail: {
-          fr: "Sélectionnez un format print (A4/A3) ou réseau (carré, story, portrait, paysage) selon la destination du visuel.",
-          en: "Pick a print (A4/A3) or social format (square, story, portrait, landscape) depending on where the visual will be used.",
+          fr: "Choisissez parmi 17 formats précis, groupés par destination : 4 formats génériques (carré, story, portrait, paysage), 3 Instagram (portrait 4:5, carré, story/Reel 9:16), 3 Facebook (fil 4:5, lien/paysage, story) et 3 LinkedIn (paysage, carré, portrait), plus 4 formats d'impression (A4 et A3, portrait et paysage).",
+          en: "Pick from 17 precise formats, grouped by destination: 4 generic formats (square, story, portrait, landscape), 3 Instagram (4:5 portrait, square, 9:16 story/Reel), 3 Facebook (4:5 feed, link/landscape, story) and 3 LinkedIn (landscape, square, portrait), plus 4 print formats (A4 and A3, portrait and landscape).",
         },
       },
       {
         label: { fr: "Composer le visuel", en: "Compose the visual" },
         detail: {
-          fr: "Générez un fond par IA ou uploadez une image, ajoutez titre/sous-titre et le logo, puis ajustez couleurs et positions dans l'aperçu.",
-          en: "Generate an AI background or upload an image, add title/subtitle and the logo, then adjust colours and positions in the preview.",
+          fr: "Générez un fond par IA (le copilote créatif ou le bouton « Générer texte + prompt (IA) » peuvent préparer prompt, modèle, format, titre et sous-titre pour vous) ou uploadez une image, retouchez le fond par instructions IA successives ou améliorez-le (upscale), ajoutez titre/sous-titre et le logo — le brand kit applique automatiquement palette et une couleur de texte recommandée —, puis ajustez couleurs et positions dans l'aperçu (zoom à la molette, déplacement au glisser, double-clic pour réinitialiser).",
+          en: "Generate an AI background (the creative copilot or the 'Generate text + prompt (AI)' button can prepare the prompt, model, format, title and subtitle for you) or upload an image, retouch the background with successive AI instructions or enhance it (upscale), add title/subtitle and the logo — the brand kit automatically applies the palette and a recommended text colour —, then adjust colours and positions in the preview (scroll to zoom, drag to pan, double-click to reset).",
         },
       },
       {
         label: { fr: "Exporter en PNG", en: "Export as PNG" },
         detail: {
-          fr: "Exportez le visuel final en PNG haute définition, utilisable hors réseaux également (print).",
-          en: "Export the final visual as a high-definition PNG, also usable outside social networks (print).",
+          fr: "Exportez le visuel final en PNG. Pour le web et les réseaux, la définition est haute ; pour les formats print (A4/A3), la résolution est d'environ 150 dpi — correcte pour un usage courant, mais en dessous du standard 300 dpi attendu pour une impression professionnelle.",
+          en: "Export the final visual as PNG. For the web and social networks, the definition is high; for print formats (A4/A3), the resolution is about 150 dpi — fine for everyday use, but below the 300 dpi standard expected for professional printing.",
         },
       },
       {
         label: { fr: "Décliner en un clic pour tous les réseaux", en: "One-click decline for every network" },
         detail: {
-          fr: "« Décliner en pub — IA plein cadre » recompose le fond par IA pour chaque format publicitaire sans coupe ni flou (nécessite un fond généré par IA). « Décliner sans coupe — instantané » remplit le cadre par un fond flouté et fonctionne aussi avec une image importée.",
-          en: "'Decline as ad — AI full-frame' recomposes the background with AI for each ad format with no crop or blur (requires an AI-generated background). 'Decline without cropping — instant' fills the frame with a blurred background and also works with an uploaded image.",
+          fr: "« Décliner en pub — IA plein cadre » recompose le fond par IA pour chaque format publicitaire sans coupe ni flou (nécessite un fond généré par IA) ; en cas d'échec ponctuel sur un format, le studio retente automatiquement puis, si besoin, utilise un repli sans coupe pour ne jamais sauter de format. « Décliner sans coupe — instantané » remplit le cadre par un fond flouté et fonctionne aussi avec une image importée.",
+          en: "'Decline as ad — AI full-frame' recomposes the background with AI for each ad format with no crop or blur (requires an AI-generated background); on a one-off failure for a format, the studio automatically retries then, if needed, falls back to an uncropped fill so no format is ever skipped. 'Decline without cropping — instant' fills the frame with a blurred background and also works with an uploaded image.",
         },
       },
       {
         label: { fr: "Enregistrer et diffuser", en: "Save and distribute" },
         detail: {
-          fr: "Enregistrez le résultat dans la médiathèque, puis publiez-le, programmez-le ou transformez-le en publicité Meta directement depuis le studio.",
-          en: "Save the result to the media library, then publish it, schedule it or turn it into a Meta ad directly from the studio.",
+          fr: "Enregistrez le résultat dans la médiathèque, puis publiez-le ou programmez-le directement depuis le studio, sans quitter la page. Le lien « Utiliser dans une pub Meta » redirige en revanche vers la création de campagne (/campaigns/new), avec le visuel et le texte déjà préremplis.",
+          en: "Save the result to the media library, then publish or schedule it directly from the studio, without leaving the page. The 'Use in a Meta ad' link, however, redirects to campaign creation (/campaigns/new), with the visual and text already pre-filled.",
         },
       },
     ],
-    tips: [],
+    tips: [
+      {
+        fr: "Un bouton « ↺ Réinitialiser » efface fond, texte et logo pour repartir d'une affiche vierge (le format choisi et le brand kit sont conservés).",
+        en: "A '↺ Reset' button clears background, text and logo to start over from a blank poster (the chosen format and brand kit are kept).",
+      },
+      {
+        fr: "Le modèle de génération d'image utilisé pour le fond est sélectionnable dans le panneau « Fond ».",
+        en: "The image-generation model used for the background is selectable in the 'Background' panel.",
+      },
+    ],
     faq: [],
     related: [
       { label: { fr: "Médiathèque", en: "Media library" }, href: "/media" },
@@ -2317,26 +2359,42 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
       {
         label: { fr: "Fournir ou générer le visage", en: "Provide or generate the face" },
         detail: {
-          fr: "Uploadez le visage (avec consentement de la personne) ou générez-le par IA à partir d'un prompt, et décrivez le sujet de la vidéo : l'IA rédige le script.",
-          en: "Upload the face (with the person's consent) or generate it with AI from a prompt, and describe the video topic: the AI writes the script.",
+          fr: "Uploadez le visage ou générez-le par IA à partir d'un prompt, et décrivez le sujet de la vidéo : l'IA rédige le script. Contrairement au clonage de voix, aucune case de consentement ne bloque cette étape — assurez-vous d'avoir le droit d'utiliser cette image avant de continuer.",
+          en: "Upload the face or generate it with AI from a prompt, and describe the video topic: the AI writes the script. Unlike voice cloning, no consent checkbox blocks this step — make sure you have the right to use that image before continuing.",
         },
       },
       {
         label: { fr: "Personnaliser la scène, le modèle et la voix", en: "Customize the scene, model and voice" },
         detail: {
-          fr: "Changez le décor du portrait par IA, choisissez un modèle d'avatar adapté à une photo ou à une vidéo source, et clonez votre propre voix (avec consentement) via micro ou fichier audio plutôt que la synthèse vocale par défaut.",
-          en: "Change the portrait's background with AI, pick an avatar model suited to a photo or a source video, and clone your own voice (with consent) via mic or audio file instead of the default text-to-speech.",
+          fr: "Changez le décor du portrait par IA, retouchez-le librement par instructions IA (tenue, éclairage…), choisissez un modèle d'avatar adapté à une photo ou à une vidéo source, et clonez votre propre voix via micro ou fichier audio plutôt que la synthèse vocale par défaut — le clonage exige de cocher une case de consentement, qui bloque l'enregistrement/l'upload tant qu'elle n'est pas cochée.",
+          en: "Change the portrait's background with AI, freely retouch it with AI instructions (outfit, lighting…), pick an avatar model suited to a photo or a source video, and clone your own voice via mic or audio file instead of the default text-to-speech — cloning requires ticking a consent checkbox, which blocks recording/upload until checked.",
+        },
+      },
+      {
+        label: { fr: "Régler durée, langue et voix", en: "Set duration, language and voice" },
+        detail: {
+          fr: "La durée (8 à 90 s) ajuste automatiquement la longueur du script généré. 16 langues sont proposées : le français et l'anglais utilisent des voix natives prêtes à l'emploi, les autres exigent une voix clonée. Un bouton « ▶ Écouter » prévisualise la voix avant de lancer le rendu complet.",
+          en: "Duration (8 to 90 s) automatically adjusts the generated script's length. 16 languages are available: French and English use ready-to-use native voices, the others require a cloned voice. A '▶ Listen' button previews the voice before launching the full render.",
         },
       },
       {
         label: { fr: "Générer puis publier", en: "Generate then publish" },
         detail: {
-          fr: "Lancez la génération (voix + lip-sync, avec sous-titres incrustés optionnels), prévisualisez, puis téléchargez ou publiez la vidéo. Les avatars générés sont enregistrés pour réutilisation.",
-          en: "Launch generation (voice + lip-sync, with optional burned-in subtitles), preview, then download or publish the video. Generated avatars are saved for reuse.",
+          fr: "Lancez la génération (voix + lip-sync, avec sous-titres incrustés optionnels), prévisualisez, puis téléchargez, publiez ou ouvrez le résultat directement dans Composer. La vidéo finale s'enregistre automatiquement dans la Médiathèque dès la génération réussie — et reprend automatiquement si vous rechargez la page ou revenez plus tard. Le portrait de base, lui, doit être enregistré manuellement via « 💾 Enregistrer cet avatar » pour être réutilisé.",
+          en: "Launch generation (voice + lip-sync, with optional burned-in subtitles), preview, then download, publish or open the result directly in Composer. The final video auto-saves to the Media Library as soon as generation succeeds — and resumes automatically if you reload the page or come back later. The base portrait, however, must be saved manually via '💾 Save this avatar' to be reused.",
         },
       },
     ],
-    tips: [],
+    tips: [
+      {
+        fr: "Le modèle « HeyGen Lipsync Precision » n'est pas une intégration de l'API HeyGen : c'est un modèle tiers hébergé sur Replicate qui synchronise seulement les lèvres sur une vidéo déjà fournie (doublage), il n'anime pas une simple photo.",
+        en: "The 'HeyGen Lipsync Precision' model is not a HeyGen API integration: it's a third-party model hosted on Replicate that only lip-syncs onto an already-supplied video (dubbing) — it does not animate a plain photo.",
+      },
+      {
+        fr: "Les modèles marqués comme nécessitant une vidéo source (dont HeyGen Lipsync Precision) n'acceptent pas une simple photo — préférez un modèle « photo » (ex. OmniHuman) si vous n'avez qu'un portrait.",
+        en: "Models flagged as requiring a source video (including HeyGen Lipsync Precision) don't accept a plain photo — prefer a 'photo' model (e.g. OmniHuman) if you only have a portrait.",
+      },
+    ],
     faq: [],
     related: [
       { label: { fr: "Studio Vidéo", en: "Video Studio" }, href: "/studio-video" },
@@ -2370,8 +2428,15 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
       {
         label: { fr: "Décliner ou créer une pub", en: "Decline or create an ad" },
         detail: {
-          fr: "« Décliner » (images uniquement) génère des variantes par IA ; « Créer une pub » envoie le média comme base d'une nouvelle publicité.",
-          en: "'Decline' (images only) generates AI variants; 'Create an ad' sends the media as the basis of a new advertisement.",
+          fr: "« Décliner » (images uniquement) génère une variante par IA dans le format choisi (1:1, 4:5, 9:16, 1.91:1 ou « Garder le format ») ; « Créer une pub » envoie le média comme base d'une nouvelle publicité.",
+          en: "'Decline' (images only) generates an AI variant in the chosen format (1:1, 4:5, 9:16, 1.91:1 or 'Keep format'); 'Create an ad' sends the media as the basis of a new advertisement.",
+        },
+      },
+      {
+        label: { fr: "Télécharger un média", en: "Download a media item" },
+        detail: {
+          fr: "Le bouton ⬇ télécharge le fichier original via un proxy limité à une liste d'hébergeurs autorisés (Replicate, Supabase, Cloudinary, Shotstack, Facebook/Instagram). Les dimensions réelles en pixels s'affichent sur chaque vignette dès son chargement.",
+          en: "The ⬇ button downloads the original file through a proxy limited to a list of authorized hosts (Replicate, Supabase, Cloudinary, Shotstack, Facebook/Instagram). Real pixel dimensions are shown on each thumbnail once it loads.",
         },
       },
       {
@@ -2382,7 +2447,20 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
         },
       },
     ],
-    tips: [],
+    tips: [
+      {
+        fr: "Le seul filtre disponible est le type de média (Tout / Images / Vidéos) — il n'existe aucun filtre par source, campagne ou date, bien que ces informations soient enregistrées pour chaque média.",
+        en: "The only available filter is media type (All / Images / Videos) — there is no filter by source, campaign or date, even though that information is stored for each media item.",
+      },
+      {
+        fr: "Le logo et la charte du kit de marque apparaissent directement dans cette galerie, mêlés aux médias importés — ils sont seulement protégés contre la suppression, pas isolés ailleurs.",
+        en: "The brand kit's logo and charter assets appear directly in this gallery, mixed in with imported media — they are only protected from deletion, not kept in a separate area.",
+      },
+      {
+        fr: "Il n'y a ni pagination, ni recherche, ni tri, ni action groupée : chaque média se gère individuellement. Si la médiathèque est vide, des liens rapides proposent d'aller générer un premier visuel dans Studio Affiches ou Studio Vidéo.",
+        en: "There is no pagination, search, sorting or bulk action: each media item is handled individually. If the library is empty, quick links suggest generating a first visual in Poster Studio or Video Studio.",
+      },
+    ],
     faq: [],
     related: [
       { label: { fr: "Composer un post", en: "Compose a post" }, href: "/compose" },

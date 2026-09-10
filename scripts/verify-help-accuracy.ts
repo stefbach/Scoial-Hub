@@ -68,6 +68,31 @@ console.log("\n— /compose (audit large, session apprentissage) —");
   check("EN mirror — title", getHelp("/compose", "en").title === "Compose");
 }
 
+console.log("\n— /compose (BUGSSocialHub30 4-11) —");
+{
+  const fr = full("/compose", "fr");
+  check("BUG 4 — LinkedIn n'est plus présenté comme ciblable depuis Composer", !/cibler un post pour Facebook, Instagram, LinkedIn ou TikTok/.test(fr));
+  check("BUG 4 — précise que LinkedIn a son propre espace dédié", /LinkedIn n.est pas ciblable depuis Composer/.test(fr) && /Espace LinkedIn/.test(fr));
+  check("BUG 5 — ne prétend plus qu'un compteur de caractères existe", !/Un compteur de caractères indique/.test(fr));
+  check("BUG 5 — précise l'absence de compteur de caractères", /Aucun compteur de caractères/.test(fr));
+  check("BUG 6 — ne décrit plus une étoile cliquable ouvrant l'assistant", !/icône étoile ouvre l.assistant IA/.test(fr));
+  check("BUG 6 — décrit le bloc agent toujours visible et l'étoile décorative", /visible en permanence/.test(fr) && /icône décorative/.test(fr));
+  check("BUG 7 — ne prétend plus générer 3 variantes", !/générer 3 variantes/.test(fr));
+  check("BUG 7 — précise un seul texte par réseau", /un seul texte par réseau ciblé/.test(fr));
+  check("BUG 8 — ne prétend plus des dimensions dynamiques par réseau", !/dimensions recommandées sont indiquées dynamiquement/.test(fr));
+  check("BUG 8 — précise un message fixe identique quel que soit le réseau", /identiques quel que soit le réseau ciblé/.test(fr));
+  check("BUG 9 — ne prétend plus un redimensionnement automatique", !/automatiquement redimensionnés/.test(fr));
+  check("BUG 9 — précise le rejet d'un fichier trop volumineux", /refusé avec un message d.erreur/.test(fr));
+  check("BUG 10 — ne prétend plus qu'un brouillon va dans la Bibliothèque", !/stocke le contenu dans la Bibliothèque/.test(fr));
+  check("BUG 10 — distingue Brouillons (Publications programmées) et « Enregistrer dans la bibliothèque »", /onglet « Brouillons » de Publications programmées/.test(fr) && /Enregistrer dans la bibliothèque/.test(fr));
+  check("BUG 11 — décrit le sélecteur de langue (10 langues)", /10 \(Français, Kreol Morisien/.test(fr));
+  check("BUG 11 — décrit le choix de modèle IA et l'option premium payante", /Autoriser les modèles premium/.test(fr));
+  check("BUG 11 — décrit le montage intégré (texte, musique, découpe)", /banc de montage intégré directement dans Compose/.test(fr));
+  check("BUG 11 — décrit la sauvegarde automatique après 2,5 s", /2,5 secondes d.inactivité/.test(fr));
+  check("BUG 11 — décrit le Brand Kit et l'inspiration créative (veille)", /Brand Kit/.test(fr) && /S.inspirer d.une créa existante/.test(fr));
+  check("BUG 11 — décrit la modification d'un post déjà programmé sans doublon", /met à jour ce post existant, sans créer de doublon/.test(fr));
+}
+
 console.log("\n— /ad-performance (audit large, session apprentissage) —");
 {
   const fr = full("/ad-performance", "fr");
@@ -215,6 +240,18 @@ console.log("\n— /pilotage (Cerveau Contenu / Pilote Contenu, extension organi
   check("décrit le Cerveau Contenu", /Cerveau Contenu/.test(fr));
   check("décrit le Pilote Contenu", /Pilote Contenu/.test(fr));
   check("précise l'absence de dépense pour les actions organiques", /sans aucune dépense/.test(fr));
+}
+
+console.log("\n— /studio-video (BUGSSocialHub30 13-18) —");
+{
+  const fr = full("/studio-video", "fr");
+  check("BUG 13 — le bouton s'intitule « Assembler & marketer », plus « Marketer automatiquement »", /Assembler & marketer/.test(fr) && !/Marketer automatiquement/.test(fr));
+  check("BUG 14 — les 13 formats de destination sont cités, plus « 5 réseaux »", /13 formats/.test(fr) && /Instagram Reels\/Story\/Feed\/Portrait/.test(fr) && /LinkedIn 16:9\/carré/.test(fr));
+  check("BUG 15 — la pub Meta est une redirection vers /campaigns/new, plus « sans quitter le studio »", /campaigns\/new/.test(fr) && !/sans quitter le studio/.test(fr));
+  check("BUG 16 — TikTok est exclu de la diffusion directe (app API séparée)", /TikTok en est exclu/.test(fr) && /application approuvée séparément/.test(fr));
+  check("BUG 17 — la bibliothèque musicale est signalée comme démo non libre de droits", /DÉMONSTRATION/.test(fr) && /non libre de droits/.test(fr));
+  check("BUG 18 — le Brand kit, le glisser-déposer et le bouton Réinitialiser sont décrits", /Brand kit/.test(fr) && /glisser-déposer/.test(fr) && /Réinitialiser/.test(fr));
+  check("BUG 18 — le pipeline Cloudinary (formats statiques) est mentionné, distinct du rendu vidéo", /Cloudinary/.test(fr));
 }
 
 console.log(failed === 0 ? "\n✓ TOUT VERT" : `\n✗ ${failed} ÉCHEC(S)`);

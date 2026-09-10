@@ -1,24 +1,30 @@
-// Webhook Meta (temps réel) : reçoit les commentaires Facebook/Instagram et les
-// messages privés (Messenger/IG DM) poussés par Meta, et les insère dans la
-// messagerie. Non authentifié par session (c'est Meta qui appelle) : sécurisé par
+// Webhook Meta (temps réel) : reçoit les commentaires Facebook/Instagram, les
+// messages privés (Messenger/IG DM) et les leads Lead Ads (leadgen) poussés
+// par Meta, et les insère dans la messagerie / la table des leads.
+// Non authentifié par session (c'est Meta qui appelle) : sécurisé par
 //  (1) le token de vérification au handshake (GET),
 //  (2) la signature X-Hub-Signature-256 (HMAC app secret) sur les events (POST).
 //
 // Configuration côté Meta :
 //   URL de rappel        : https://<domaine>/api/inbox/webhook
 //   Token de vérification: la valeur de META_WEBHOOK_VERIFY_TOKEN (Vercel)
-//   Champs à abonner     : feed (commentaires Page), messages (DM), + côté IG :
-//                          comments, messages.
+//   Champs à abonner     : feed (commentaires Page), messages (DM), leadgen
+//                          (leads Lead Ads), + côté IG : comments, messages.
 
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { createAdminClient } from "@/lib/supabase/server";
 import { ingestMessage } from "@/lib/repositories/inbox";
+import { insertLead } from "@/lib/repositories/leads";
 import { graphTimeToIso } from "@/lib/inbox/meta-sync";
+import { getMetaContext } from "@/lib/connectors/meta-pages";
+import { withAppSecretProof } from "@/lib/connectors/meta-appsecret";
 import type { InboxChannel } from "@/lib/inbox/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+const META_API_VERSION = process.env.META_API_VERSION ?? "v21.0";
 
 // Le repli « axon-verify-dev » ne vaut QU'EN DÉVELOPPEMENT : en production, une
 // variable d'environnement absente doit faire échouer la vérification bruyamment
@@ -72,6 +78,58 @@ async function companyForMeta(channel: "facebook" | "instagram", metaId: string)
   return data?.company_id ? String(data.company_id) : null;
 }
 
+// ── Leads (Lead Ads) : le webhook ne porte que l'id, on va chercher le détail ──
+async function ingestLeadgen(pageId: string, value: Record<string, unknown>): Promise<void> {
+  const leadgenId = String(value.leadgen_id ?? "");
+  if (!leadgenId) return;
+
+  const companyId = await companyForMeta("facebook", pageId);
+  if (!companyId) return;
+
+  const ctx = await getMetaContext(companyId);
+  const token = ctx.pageToken || ctx.userToken;
+  if (!token) return;
+
+  try {
+    const url = withAppSecretProof(
+      `https://graph.facebook.com/${META_API_VERSION}/${encodeURIComponent(leadgenId)}` +
+        `?fields=created_time,field_data,ad_id,form_id,adgroup_id&access_token=${encodeURIComponent(token)}`
+    );
+    const res = await fetch(url, { cache: "no-store" });
+    const json = (await res.json()) as {
+      created_time?: string;
+      field_data?: Array<{ name?: string; values?: string[] }>;
+      ad_id?: string;
+      form_id?: string;
+      adgroup_id?: string;
+      error?: { message?: string };
+    };
+    if (json.error) {
+      console.error("[inbox/webhook] leadgen fetch error:", json.error.message);
+      return;
+    }
+
+    const fieldData: Record<string, string> = {};
+    for (const f of json.field_data ?? []) {
+      if (f.name) fieldData[f.name] = (f.values ?? []).join(", ");
+    }
+
+    await insertLead({
+      companyId,
+      leadgenId,
+      pageId,
+      formId: json.form_id ?? String(value.form_id ?? ""),
+      adId: json.ad_id ?? String(value.ad_id ?? ""),
+      adgroupId: json.adgroup_id ?? String(value.adgroup_id ?? ""),
+      fieldData,
+      raw: json as Record<string, unknown>,
+      leadCreatedAt: graphTimeToIso(json.created_time ?? value.created_time),
+    });
+  } catch (e) {
+    console.error("[inbox/webhook] leadgen processing error:", e);
+  }
+}
+
 // ── Vérification de signature ─────────────────────────────────────────────────
 function validSignature(raw: string, header: string | null): boolean {
   if (!APP_SECRET) return true; // dev/démo : pas de secret → on ne bloque pas
@@ -121,6 +179,11 @@ export async function POST(req: NextRequest) {
             receivedAt: graphTimeToIso(value.created_time ?? entry.time),
             raw: value,
           });
+        }
+
+        // Facebook : field "leadgen" — nouveau lead soumis sur un formulaire Lead Ads.
+        if (object === "page" && field === "leadgen") {
+          await ingestLeadgen(entryId, value);
         }
 
         // Instagram : field "comments"

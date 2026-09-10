@@ -63,7 +63,8 @@
     "test:copilotgate": "tsx scripts/verify-copilot-review-gate.ts",
     "test:contentbrain": "tsx scripts/verify-content-brain.ts",
     "test:linkedinauth": "tsx scripts/verify-linkedin-auth-invalidation.ts",
-    "test:videogenlocked": "tsx scripts/verify-video-gen-locked-fixes.ts"
+    "test:videogenlocked": "tsx scripts/verify-video-gen-locked-fixes.ts",
+    "test:tiktokvisibilite": "tsx scripts/verify-tiktok-visibility.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.100.1",

@@ -21,6 +21,7 @@ import { Modal } from "@/components/ui/Modal";
 import { ImageEditor } from "@/components/studio/ImageEditor";
 import { PublishLanguageSelect } from "@/components/ui/PublishLanguageSelect";
 import { SERIES_CONFIG, type SeriesPlatform } from "@/lib/social-series";
+import { useTikTokOptions, TikTokOptionsPanel } from "@/components/compose/TikTokOptions";
 import { generateVideoPolling, videoGenErrorMessage } from "@/lib/ai/generate-video-client";
 import {
   IMAGE_MODELS,
@@ -61,6 +62,13 @@ export function SeriesPlanner({ platform }: { platform: SeriesPlatform }) {
 
   const inputCls =
     "w-full rounded-lg border border-hair bg-canvas px-3 py-2 text-sm text-ink outline-none focus:border-primary-400";
+
+  // TikTok — les réglages obligatoires (confidentialité, interactions,
+  // divulgation, consentement) valent pour TOUTE la série : un seul jeu de
+  // réglages, appliqué à chaque publication du lot. Sans cela, la série
+  // partait sans aucune option et le connecteur ne pouvait pas deviner qui
+  // avait le droit de voir les vidéos.
+  const tiktokState = useTikTokOptions({ companyId, active: platform === "tiktok" });
 
   const isVideo = cfg.media === "video";
   // Facebook et Instagram acceptent AUSSI les vidéos (connecteurs : /videos et
@@ -276,6 +284,7 @@ export function SeriesPlanner({ platform }: { platform: SeriesPlatform }) {
             body: JSON.stringify({
               companyId, platform, text: bodyText,
               ...(isVideo ? { videoUrl: imgUrl } : { imageUrl: imgUrl }),
+              ...(platform === "tiktok" && tiktokState.options ? { tiktok: tiktokState.options } : {}),
             }),
           });
           const d = await r.json().catch(() => ({}));
@@ -573,6 +582,10 @@ export function SeriesPlanner({ platform }: { platform: SeriesPlatform }) {
         })()}
       </Modal>
 
+      {/* Réglages TikTok — obligatoires avant toute publication (guidelines
+          Content Posting API). Ils valent pour toute la série. */}
+      {platform === "tiktok" && <TikTokOptionsPanel state={tiktokState} isImage={!isVideo} />}
+
       {/* Diffusion : programmer (FB/IG) OU publier maintenant (autres) */}
       <div className="flex flex-wrap items-end gap-3 rounded-xl border border-hair bg-canvas p-3">
         {cfg.delivery === "schedule" && (
@@ -596,8 +609,14 @@ export function SeriesPlanner({ platform }: { platform: SeriesPlatform }) {
             </div>
           </>
         )}
-        <button onClick={run} disabled={working || !canEdit || filledDrafts.length === 0}
-          title={!canEdit ? t("Lecture seule", "View only") : undefined}
+        <button onClick={run} disabled={working || !canEdit || filledDrafts.length === 0 || !tiktokState.ready}
+          title={
+            !canEdit
+              ? t("Lecture seule", "View only")
+              : !tiktokState.ready
+              ? t("Complétez les réglages TikTok ci-dessus.", "Complete the TikTok settings above.")
+              : undefined
+          }
           className="btn-primary ml-auto inline-flex items-center gap-1.5 text-sm disabled:opacity-50">
           {working && <Spinner size={16} className="text-white" />}
           {working

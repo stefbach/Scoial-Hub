@@ -7,7 +7,7 @@
  * connecteur. Équivalent générique de /api/linkedin/publish pour les réseaux
  * pas encore branchés sur le moteur de programmation automatique.
  *
- * Body : { companyId, platform, text, imageUrl?, videoUrl? }
+ * Body : { companyId, platform, text, imageUrl?, videoUrl?, tiktok? }
  */
 
 export const runtime = "nodejs";
@@ -20,10 +20,11 @@ import { getTikTokConnection } from "@/lib/repositories/tiktok-connection";
 import { resolveCompanyUuid } from "@/lib/repositories/resolve-company";
 import { getConnector, isSupportedPlatform } from "@/lib/connectors/index";
 import { ensurePublishableImageUrl } from "@/lib/repositories/media";
+import type { TikTokPublishOptions } from "@/lib/types";
 
 export async function POST(req: NextRequest) {
   try {
-    const { companyId, platform, text, imageUrl, videoUrl } = await req.json();
+    const { companyId, platform, text, imageUrl, videoUrl, tiktok } = await req.json();
 
     if (!companyId) return NextResponse.json({ error: "companyId requis" }, { status: 400 });
     if (!platform || !isSupportedPlatform(platform)) {
@@ -67,11 +68,16 @@ export async function POST(req: NextRequest) {
       ? { url: await ensurePublishableImageUrl(companyId, imageUrl as string), mimeType: "image/jpeg" }
       : undefined;
 
+    // Réglages TikTok choisis par l'utilisateur (confidentialité, interactions,
+    // divulgation commerciale). Ne pas les transmettre revenait à publier avec
+    // le repli du connecteur — c'est-à-dire en privé, sans que personne l'ait
+    // demandé ni ne s'en aperçoive.
     const result = await getConnector(platform).publishPost({
       externalAccountId: externalId ?? "",
       accessToken: token,
       text: (text ?? "").trim(),
       media,
+      ...(platform === "tiktok" && tiktok ? { tiktok: tiktok as TikTokPublishOptions } : {}),
     });
 
     return NextResponse.json({ connected: true, ...result });

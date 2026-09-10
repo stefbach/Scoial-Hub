@@ -165,10 +165,22 @@ const spec: OAuth2ProviderSpec = {
     // `tiktok` porte le choix explicite de l'utilisateur fait dans l'UI de
     // composition (menu déroulant confidentialité + cases Duet/Stitch/
     // Commentaire + divulgation commerciale — Required UX Implementation des
-    // guidelines TikTok). Absent (anciens posts programmés avant l'ajout de
-    // ces réglages, ou appel direct de l'API) → comportement historique
-    // inchangé : SELF_ONLY, aucune interaction explicitement désactivée.
-    const privacyLevel = tiktok?.privacyLevel ?? "SELF_ONLY";
+    // guidelines TikTok).
+    //
+    // Ce repli valait SELF_ONLY tant que l'application n'était pas auditée :
+    // TikTok imposait de toute façon cette visibilité aux clients non audités,
+    // le repli était donc sans effet observable. Depuis l'approbation Direct
+    // Post, il a un effet — et le pire qui soit : la publication réussit, elle
+    // est annoncée comme publiée, et personne ne la voit. Une visibilité non
+    // choisie est désormais une ERREUR, pas une valeur par défaut ; publier en
+    // privé reste possible, mais seulement si quelqu'un l'a demandé.
+    const privacyLevel = tiktok?.privacyLevel;
+    if (!privacyLevel) {
+      throw new Error(
+        "TikTok : la confidentialité de la publication n'a pas été choisie. " +
+          "Ouvrez la publication et sélectionnez qui peut la voir avant de publier."
+      );
+    }
     if (options.length > 0 && !options.includes(privacyLevel)) {
       throw new Error(
         `TikTok : la visibilité « ${privacyLevel} » n'est pas proposée par ce compte créateur (options reçues : ${options.join(", ")}).`

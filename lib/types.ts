@@ -88,8 +88,9 @@ export interface DashboardData {
  * Réglages TikTok obligatoires par les guidelines Content Posting API
  * (Required UX Implementation) : statut de confidentialité choisi par
  * l'utilisateur (sans valeur par défaut), permissions d'interaction, et
- * divulgation de contenu commercial. Absent = comportement historique du
- * connecteur (SELF_ONLY, aucune interaction désactivée explicitement).
+ * divulgation de contenu commercial. Absent = le connecteur REFUSE de publier :
+ * depuis l'approbation Direct Post, deviner une confidentialité reviendrait à
+ * publier en privé une vidéo destinée au public, sans que personne le voie.
  */
 export interface TikTokPublishOptions {
   /** Doit appartenir aux `privacy_level_options` renvoyées par creator_info. */

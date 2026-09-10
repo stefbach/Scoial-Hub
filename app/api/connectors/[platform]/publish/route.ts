@@ -15,7 +15,8 @@
  *   link?:               string,
  *   linkTitle?:          string,
  *   linkDescription?:    string,
- *   media?:              { url: string, caption?: string, mimeType?: string }
+ *   media?:              { url: string, caption?: string, mimeType?: string },
+ *   tiktok?:             TikTokPublishOptions  // TikTok : confidentialité + interactions + divulgation
  * }
  *
  * Retourne PublishResult { externalId, url?, simulated? }. Mode simulé tant que
@@ -27,6 +28,7 @@ export const runtime = "nodejs";
 import { type NextRequest, NextResponse } from "next/server";
 import { getConnector, isSupportedPlatform } from "@/lib/connectors/index";
 import type { PublishInput } from "@/lib/connectors/types";
+import type { TikTokPublishOptions } from "@/lib/types";
 
 export async function POST(
   request: NextRequest,
@@ -44,7 +46,7 @@ export async function POST(
     return NextResponse.json({ error: "Corps de requête JSON invalide." }, { status: 400 });
   }
 
-  const { companyId, accountId, text, link, media, linkTitle, linkDescription } = body;
+  const { companyId, accountId, text, link, media, linkTitle, linkDescription, tiktok } = body;
   if (!text || typeof text !== "string") {
     return NextResponse.json({ error: "Le champ `text` est requis." }, { status: 400 });
   }
@@ -88,6 +90,9 @@ export async function POST(
           mimeType: (media as Record<string, string>).mimeType,
         }
       : undefined,
+    // TikTok : réglages obligatoires choisis par l'utilisateur. Sans eux, le
+    // connecteur refuse de publier plutôt que de deviner une confidentialité.
+    tiktok: (tiktok as TikTokPublishOptions | undefined) ?? undefined,
   };
 
   try {

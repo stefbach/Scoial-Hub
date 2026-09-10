@@ -78,12 +78,35 @@ async function companyForMeta(channel: "facebook" | "instagram", metaId: string)
   return data?.company_id ? String(data.company_id) : null;
 }
 
+// ── Résolution Page → société, tolérante aux doublons ────────────────────────
+// Une même Page peut être connectée à PLUSIEURS sociétés (deux comptes internes
+// distincts ayant chacun câblé la même Page Facebook) — contrairement à
+// companyForMeta() (qui refuse de trancher pour ne jamais mélanger deux
+// entreprises différentes sur les commentaires/DM), un lead doit être capté
+// quelque part : puisque le page_id garantit qu'il s'agit toujours de la même
+// Page réelle, on choisit la connexion la plus récemment active plutôt que de
+// perdre le lead.
+async function resolveLeadCompanyId(pageId: string): Promise<string | null> {
+  const sb = createAdminClient();
+  if (!sb) return null;
+  const { data } = await sb
+    .from("sh_channel_connections")
+    .select("company_id")
+    .eq("channel", "facebook")
+    .eq("status", "connected")
+    .eq("config->>page_id", pageId)
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return data?.company_id ? String(data.company_id) : null;
+}
+
 // ── Leads (Lead Ads) : le webhook ne porte que l'id, on va chercher le détail ──
 async function ingestLeadgen(pageId: string, value: Record<string, unknown>): Promise<void> {
   const leadgenId = String(value.leadgen_id ?? "");
   if (!leadgenId) return;
 
-  const companyId = await companyForMeta("facebook", pageId);
+  const companyId = await resolveLeadCompanyId(pageId);
   if (!companyId) return;
 
   const ctx = await getMetaContext(companyId);

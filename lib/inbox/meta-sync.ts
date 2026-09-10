@@ -874,8 +874,9 @@ export async function syncMetaComments(companyId: string, budgetMs = 48_000): Pr
   // séquentiel une grosse Page dépassait le délai et perdait la fin de l'import.
   // ── Temps réel : abonne la Page au webhook de l'app (idempotent) ────────────
   // C'est le mécanisme qu'utilise Business Suite : chaque nouveau commentaire
-  // (posts sombres et boosts anciens inclus) et chaque DM arrive instantanément
-  // sur /api/inbox/webhook — le polling ne sert plus que de rattrapage.
+  // (posts sombres et boosts anciens inclus), chaque DM et chaque lead Lead Ads
+  // (leadgen) arrive instantanément sur /api/inbox/webhook — le polling ne sert
+  // plus que de rattrapage.
   async function subscribePageWebhook(): Promise<void> {
     if (!ctx.pageId) return;
     try {
@@ -884,7 +885,7 @@ export async function syncMetaComments(companyId: string, budgetMs = 48_000): Pr
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: signFormBody(
           new URLSearchParams({
-            subscribed_fields: "feed,messages,message_echoes",
+            subscribed_fields: "feed,messages,message_echoes,leadgen,leadgen_update",
             access_token: token!,
           })
         ).toString(),

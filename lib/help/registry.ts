@@ -2290,47 +2290,56 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
     title: { fr: "Studio Affiches & Visuels", en: "Poster & Visual Studio" },
     tagline: { fr: "Créez affiches et visuels de marque, print et réseaux.", en: "Create brand posters and visuals, print and social." },
     whatFor: {
-      fr: "Un studio visuel piloté par IA : formats print (A4/A3) et réseaux (carré, story, portrait, paysage), fond généré par IA ou image uploadée, texte en surimpression (titre + sous-titre, couleur, position), logo de la marque, grand aperçu en temps réel et export PNG haute définition.",
-      en: "An AI-driven visual studio: print (A4/A3) and social formats (square, story, portrait, landscape), AI-generated background or uploaded image, text overlay (title + subtitle, colour, position), brand logo, large real-time preview and high-definition PNG export.",
+      fr: "Un studio visuel piloté par IA : 17 formats précis (4 génériques, 3 Instagram, 3 Facebook, 3 LinkedIn et 4 print A4/A3 portrait/paysage), fond généré par IA ou image uploadée, texte en surimpression (titre + sous-titre, couleur, position), logo et charte de la marque, aperçu zoomable/déplaçable en temps réel et export PNG — haute définition pour le web, mais ~150 dpi pour le print (en dessous du standard 300 dpi professionnel).",
+      en: "An AI-driven visual studio: 17 precise formats (4 generic, 3 Instagram, 3 Facebook, 3 LinkedIn and 4 print A4/A3 portrait/landscape), AI-generated background or uploaded image, text overlay (title + subtitle, colour, position), brand logo and charter, a zoomable/pannable real-time preview and PNG export — high-definition for the web, but ~150 dpi for print (below the professional 300 dpi standard).",
     },
     actions: [
       {
         label: { fr: "Choisir le format", en: "Choose the format" },
         detail: {
-          fr: "Sélectionnez un format print (A4/A3) ou réseau (carré, story, portrait, paysage) selon la destination du visuel.",
-          en: "Pick a print (A4/A3) or social format (square, story, portrait, landscape) depending on where the visual will be used.",
+          fr: "Choisissez parmi 17 formats précis, groupés par destination : 4 formats génériques (carré, story, portrait, paysage), 3 Instagram (portrait 4:5, carré, story/Reel 9:16), 3 Facebook (fil 4:5, lien/paysage, story) et 3 LinkedIn (paysage, carré, portrait), plus 4 formats d'impression (A4 et A3, portrait et paysage).",
+          en: "Pick from 17 precise formats, grouped by destination: 4 generic formats (square, story, portrait, landscape), 3 Instagram (4:5 portrait, square, 9:16 story/Reel), 3 Facebook (4:5 feed, link/landscape, story) and 3 LinkedIn (landscape, square, portrait), plus 4 print formats (A4 and A3, portrait and landscape).",
         },
       },
       {
         label: { fr: "Composer le visuel", en: "Compose the visual" },
         detail: {
-          fr: "Générez un fond par IA ou uploadez une image, ajoutez titre/sous-titre et le logo, puis ajustez couleurs et positions dans l'aperçu.",
-          en: "Generate an AI background or upload an image, add title/subtitle and the logo, then adjust colours and positions in the preview.",
+          fr: "Générez un fond par IA (le copilote créatif ou le bouton « Générer texte + prompt (IA) » peuvent préparer prompt, modèle, format, titre et sous-titre pour vous) ou uploadez une image, retouchez le fond par instructions IA successives ou améliorez-le (upscale), ajoutez titre/sous-titre et le logo — le brand kit applique automatiquement palette et une couleur de texte recommandée —, puis ajustez couleurs et positions dans l'aperçu (zoom à la molette, déplacement au glisser, double-clic pour réinitialiser).",
+          en: "Generate an AI background (the creative copilot or the 'Generate text + prompt (AI)' button can prepare the prompt, model, format, title and subtitle for you) or upload an image, retouch the background with successive AI instructions or enhance it (upscale), add title/subtitle and the logo — the brand kit automatically applies the palette and a recommended text colour —, then adjust colours and positions in the preview (scroll to zoom, drag to pan, double-click to reset).",
         },
       },
       {
         label: { fr: "Exporter en PNG", en: "Export as PNG" },
         detail: {
-          fr: "Exportez le visuel final en PNG haute définition, utilisable hors réseaux également (print).",
-          en: "Export the final visual as a high-definition PNG, also usable outside social networks (print).",
+          fr: "Exportez le visuel final en PNG. Pour le web et les réseaux, la définition est haute ; pour les formats print (A4/A3), la résolution est d'environ 150 dpi — correcte pour un usage courant, mais en dessous du standard 300 dpi attendu pour une impression professionnelle.",
+          en: "Export the final visual as PNG. For the web and social networks, the definition is high; for print formats (A4/A3), the resolution is about 150 dpi — fine for everyday use, but below the 300 dpi standard expected for professional printing.",
         },
       },
       {
         label: { fr: "Décliner en un clic pour tous les réseaux", en: "One-click decline for every network" },
         detail: {
-          fr: "« Décliner en pub — IA plein cadre » recompose le fond par IA pour chaque format publicitaire sans coupe ni flou (nécessite un fond généré par IA). « Décliner sans coupe — instantané » remplit le cadre par un fond flouté et fonctionne aussi avec une image importée.",
-          en: "'Decline as ad — AI full-frame' recomposes the background with AI for each ad format with no crop or blur (requires an AI-generated background). 'Decline without cropping — instant' fills the frame with a blurred background and also works with an uploaded image.",
+          fr: "« Décliner en pub — IA plein cadre » recompose le fond par IA pour chaque format publicitaire sans coupe ni flou (nécessite un fond généré par IA) ; en cas d'échec ponctuel sur un format, le studio retente automatiquement puis, si besoin, utilise un repli sans coupe pour ne jamais sauter de format. « Décliner sans coupe — instantané » remplit le cadre par un fond flouté et fonctionne aussi avec une image importée.",
+          en: "'Decline as ad — AI full-frame' recomposes the background with AI for each ad format with no crop or blur (requires an AI-generated background); on a one-off failure for a format, the studio automatically retries then, if needed, falls back to an uncropped fill so no format is ever skipped. 'Decline without cropping — instant' fills the frame with a blurred background and also works with an uploaded image.",
         },
       },
       {
         label: { fr: "Enregistrer et diffuser", en: "Save and distribute" },
         detail: {
-          fr: "Enregistrez le résultat dans la médiathèque, puis publiez-le, programmez-le ou transformez-le en publicité Meta directement depuis le studio.",
-          en: "Save the result to the media library, then publish it, schedule it or turn it into a Meta ad directly from the studio.",
+          fr: "Enregistrez le résultat dans la médiathèque, puis publiez-le ou programmez-le directement depuis le studio, sans quitter la page. Le lien « Utiliser dans une pub Meta » redirige en revanche vers la création de campagne (/campaigns/new), avec le visuel et le texte déjà préremplis.",
+          en: "Save the result to the media library, then publish or schedule it directly from the studio, without leaving the page. The 'Use in a Meta ad' link, however, redirects to campaign creation (/campaigns/new), with the visual and text already pre-filled.",
         },
       },
     ],
-    tips: [],
+    tips: [
+      {
+        fr: "Un bouton « ↺ Réinitialiser » efface fond, texte et logo pour repartir d'une affiche vierge (le format choisi et le brand kit sont conservés).",
+        en: "A '↺ Reset' button clears background, text and logo to start over from a blank poster (the chosen format and brand kit are kept).",
+      },
+      {
+        fr: "Le modèle de génération d'image utilisé pour le fond est sélectionnable dans le panneau « Fond ».",
+        en: "The image-generation model used for the background is selectable in the 'Background' panel.",
+      },
+    ],
     faq: [],
     related: [
       { label: { fr: "Médiathèque", en: "Media library" }, href: "/media" },
@@ -2350,26 +2359,42 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
       {
         label: { fr: "Fournir ou générer le visage", en: "Provide or generate the face" },
         detail: {
-          fr: "Uploadez le visage (avec consentement de la personne) ou générez-le par IA à partir d'un prompt, et décrivez le sujet de la vidéo : l'IA rédige le script.",
-          en: "Upload the face (with the person's consent) or generate it with AI from a prompt, and describe the video topic: the AI writes the script.",
+          fr: "Uploadez le visage ou générez-le par IA à partir d'un prompt, et décrivez le sujet de la vidéo : l'IA rédige le script. Contrairement au clonage de voix, aucune case de consentement ne bloque cette étape — assurez-vous d'avoir le droit d'utiliser cette image avant de continuer.",
+          en: "Upload the face or generate it with AI from a prompt, and describe the video topic: the AI writes the script. Unlike voice cloning, no consent checkbox blocks this step — make sure you have the right to use that image before continuing.",
         },
       },
       {
         label: { fr: "Personnaliser la scène, le modèle et la voix", en: "Customize the scene, model and voice" },
         detail: {
-          fr: "Changez le décor du portrait par IA, choisissez un modèle d'avatar adapté à une photo ou à une vidéo source, et clonez votre propre voix (avec consentement) via micro ou fichier audio plutôt que la synthèse vocale par défaut.",
-          en: "Change the portrait's background with AI, pick an avatar model suited to a photo or a source video, and clone your own voice (with consent) via mic or audio file instead of the default text-to-speech.",
+          fr: "Changez le décor du portrait par IA, retouchez-le librement par instructions IA (tenue, éclairage…), choisissez un modèle d'avatar adapté à une photo ou à une vidéo source, et clonez votre propre voix via micro ou fichier audio plutôt que la synthèse vocale par défaut — le clonage exige de cocher une case de consentement, qui bloque l'enregistrement/l'upload tant qu'elle n'est pas cochée.",
+          en: "Change the portrait's background with AI, freely retouch it with AI instructions (outfit, lighting…), pick an avatar model suited to a photo or a source video, and clone your own voice via mic or audio file instead of the default text-to-speech — cloning requires ticking a consent checkbox, which blocks recording/upload until checked.",
+        },
+      },
+      {
+        label: { fr: "Régler durée, langue et voix", en: "Set duration, language and voice" },
+        detail: {
+          fr: "La durée (8 à 90 s) ajuste automatiquement la longueur du script généré. 16 langues sont proposées : le français et l'anglais utilisent des voix natives prêtes à l'emploi, les autres exigent une voix clonée. Un bouton « ▶ Écouter » prévisualise la voix avant de lancer le rendu complet.",
+          en: "Duration (8 to 90 s) automatically adjusts the generated script's length. 16 languages are available: French and English use ready-to-use native voices, the others require a cloned voice. A '▶ Listen' button previews the voice before launching the full render.",
         },
       },
       {
         label: { fr: "Générer puis publier", en: "Generate then publish" },
         detail: {
-          fr: "Lancez la génération (voix + lip-sync, avec sous-titres incrustés optionnels), prévisualisez, puis téléchargez ou publiez la vidéo. Les avatars générés sont enregistrés pour réutilisation.",
-          en: "Launch generation (voice + lip-sync, with optional burned-in subtitles), preview, then download or publish the video. Generated avatars are saved for reuse.",
+          fr: "Lancez la génération (voix + lip-sync, avec sous-titres incrustés optionnels), prévisualisez, puis téléchargez, publiez ou ouvrez le résultat directement dans Composer. La vidéo finale s'enregistre automatiquement dans la Médiathèque dès la génération réussie — et reprend automatiquement si vous rechargez la page ou revenez plus tard. Le portrait de base, lui, doit être enregistré manuellement via « 💾 Enregistrer cet avatar » pour être réutilisé.",
+          en: "Launch generation (voice + lip-sync, with optional burned-in subtitles), preview, then download, publish or open the result directly in Composer. The final video auto-saves to the Media Library as soon as generation succeeds — and resumes automatically if you reload the page or come back later. The base portrait, however, must be saved manually via '💾 Save this avatar' to be reused.",
         },
       },
     ],
-    tips: [],
+    tips: [
+      {
+        fr: "Le modèle « HeyGen Lipsync Precision » n'est pas une intégration de l'API HeyGen : c'est un modèle tiers hébergé sur Replicate qui synchronise seulement les lèvres sur une vidéo déjà fournie (doublage), il n'anime pas une simple photo.",
+        en: "The 'HeyGen Lipsync Precision' model is not a HeyGen API integration: it's a third-party model hosted on Replicate that only lip-syncs onto an already-supplied video (dubbing) — it does not animate a plain photo.",
+      },
+      {
+        fr: "Les modèles marqués comme nécessitant une vidéo source (dont HeyGen Lipsync Precision) n'acceptent pas une simple photo — préférez un modèle « photo » (ex. OmniHuman) si vous n'avez qu'un portrait.",
+        en: "Models flagged as requiring a source video (including HeyGen Lipsync Precision) don't accept a plain photo — prefer a 'photo' model (e.g. OmniHuman) if you only have a portrait.",
+      },
+    ],
     faq: [],
     related: [
       { label: { fr: "Studio Vidéo", en: "Video Studio" }, href: "/studio-video" },
@@ -2403,8 +2428,15 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
       {
         label: { fr: "Décliner ou créer une pub", en: "Decline or create an ad" },
         detail: {
-          fr: "« Décliner » (images uniquement) génère des variantes par IA ; « Créer une pub » envoie le média comme base d'une nouvelle publicité.",
-          en: "'Decline' (images only) generates AI variants; 'Create an ad' sends the media as the basis of a new advertisement.",
+          fr: "« Décliner » (images uniquement) génère une variante par IA dans le format choisi (1:1, 4:5, 9:16, 1.91:1 ou « Garder le format ») ; « Créer une pub » envoie le média comme base d'une nouvelle publicité.",
+          en: "'Decline' (images only) generates an AI variant in the chosen format (1:1, 4:5, 9:16, 1.91:1 or 'Keep format'); 'Create an ad' sends the media as the basis of a new advertisement.",
+        },
+      },
+      {
+        label: { fr: "Télécharger un média", en: "Download a media item" },
+        detail: {
+          fr: "Le bouton ⬇ télécharge le fichier original via un proxy limité à une liste d'hébergeurs autorisés (Replicate, Supabase, Cloudinary, Shotstack, Facebook/Instagram). Les dimensions réelles en pixels s'affichent sur chaque vignette dès son chargement.",
+          en: "The ⬇ button downloads the original file through a proxy limited to a list of authorized hosts (Replicate, Supabase, Cloudinary, Shotstack, Facebook/Instagram). Real pixel dimensions are shown on each thumbnail once it loads.",
         },
       },
       {
@@ -2415,7 +2447,20 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
         },
       },
     ],
-    tips: [],
+    tips: [
+      {
+        fr: "Le seul filtre disponible est le type de média (Tout / Images / Vidéos) — il n'existe aucun filtre par source, campagne ou date, bien que ces informations soient enregistrées pour chaque média.",
+        en: "The only available filter is media type (All / Images / Videos) — there is no filter by source, campaign or date, even though that information is stored for each media item.",
+      },
+      {
+        fr: "Le logo et la charte du kit de marque apparaissent directement dans cette galerie, mêlés aux médias importés — ils sont seulement protégés contre la suppression, pas isolés ailleurs.",
+        en: "The brand kit's logo and charter assets appear directly in this gallery, mixed in with imported media — they are only protected from deletion, not kept in a separate area.",
+      },
+      {
+        fr: "Il n'y a ni pagination, ni recherche, ni tri, ni action groupée : chaque média se gère individuellement. Si la médiathèque est vide, des liens rapides proposent d'aller générer un premier visuel dans Studio Affiches ou Studio Vidéo.",
+        en: "There is no pagination, search, sorting or bulk action: each media item is handled individually. If the library is empty, quick links suggest generating a first visual in Poster Studio or Video Studio.",
+      },
+    ],
     faq: [],
     related: [
       { label: { fr: "Composer un post", en: "Compose a post" }, href: "/compose" },

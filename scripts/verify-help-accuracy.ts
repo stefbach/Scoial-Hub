@@ -254,5 +254,58 @@ console.log("\n— /studio-video (BUGSSocialHub30 13-18) —");
   check("BUG 18 — le pipeline Cloudinary (formats statiques) est mentionné, distinct du rendu vidéo", /Cloudinary/.test(fr));
 }
 
+console.log("\n— /studio-avatar (BUGSSocialHub31 1-5) —");
+{
+  const fr = full("/studio-avatar", "fr");
+  check("BUG 1 — au moins une astuce est présente (tips n'est plus vide)", getHelp("/studio-avatar", "fr").tips.length > 0);
+  check("BUG 2 — ne prétend plus un consentement bloquant pour le visage", !/Uploadez le visage \(avec consentement de la personne\)/.test(fr));
+  check("BUG 2 — précise l'absence de case de consentement pour le visage", /aucune case de consentement ne bloque cette étape/.test(fr));
+  check("BUG 2 — précise que le clonage vocal, lui, est bloqué sans consentement", /bloque l.enregistrement\/l.upload tant qu.elle n.est pas cochée/.test(fr));
+  check("BUG 3 — distingue la sauvegarde auto de la vidéo et l'enregistrement manuel de l'avatar", /s.enregistre automatiquement dans la Médiathèque/.test(fr) && /Enregistrer cet avatar/.test(fr));
+  check("BUG 4 — précise que Hey Gen Lipsync Precision n'est pas une intégration HeyGen", /HeyGen Lipsync Precision.*n.est pas une intégration de l.API HeyGen/.test(fr));
+  check("BUG 5 — décrit la durée réglable (8 à 90 s)", /8 à 90 s/.test(fr));
+  check("BUG 5 — décrit les 16 langues et la distinction natif/cloné", /16 langues/.test(fr) && /voix clonée/.test(fr));
+  check("BUG 5 — décrit l'aperçu vocal", /Écouter/.test(fr));
+  check("BUG 5 — décrit la retouche IA du portrait", /retouchez-le librement par instructions IA/.test(fr));
+  check("BUG 5 — décrit la reprise automatique après rechargement", /reprend automatiquement si vous rechargez la page/.test(fr));
+  check("BUG 5 — décrit l'ouverture directe dans Composer", /ouvrez le résultat directement dans Composer/.test(fr));
+}
+
+console.log("\n— /studio-affiche (BUGSSocialHub31 6-10) —");
+{
+  const fr = full("/studio-affiche", "fr");
+  check("BUG 6 — au moins une astuce est présente (tips n'est plus vide)", getHelp("/studio-affiche", "fr").tips.length > 0);
+  check("BUG 7 — ne prétend plus une haute définition inconditionnelle pour le print", !/export PNG haute définition, utilisable hors réseaux également/.test(fr));
+  check("BUG 7 — précise les ~150 dpi du print, sous le standard 300 dpi", /~150 dpi/.test(fr) && /300 dpi/.test(fr));
+  check("BUG 8 — ne prétend plus que la pub Meta se fait directement depuis le studio", !/transformez-le en publicité Meta directement depuis le studio/.test(fr));
+  check("BUG 8 — précise la redirection vers /campaigns/new", /redirige.{0,80}\/campaigns\/new/.test(fr));
+  check("BUG 9 — décrit les 17 formats précis par réseau", /17 formats précis/.test(fr) && /3 Instagram/.test(fr) && /3 Facebook/.test(fr) && /3 LinkedIn/.test(fr));
+  check("BUG 10 — décrit le copilote créatif et la génération texte + prompt", /copilote créatif/.test(fr) && /Générer texte \+ prompt/.test(fr));
+  check("BUG 10 — décrit le zoom/déplacement de l'aperçu", /zoom à la molette, déplacement au glisser/.test(fr));
+  check("BUG 10 — décrit le brand kit (palette, couleur de texte recommandée)", /couleur de texte recommandée/.test(fr));
+  check("BUG 10 — décrit le bouton de réinitialisation", /Réinitialiser/.test(fr));
+  check("BUG 10 — décrit le sélecteur de modèle IA", /modèle de génération d.image.*sélectionnable/.test(fr));
+  check("BUG 10 — décrit la nouvelle tentative automatique en cas d'échec partiel", /retente automatiquement/.test(fr));
+}
+
+console.log("\n— /media (BUGSSocialHub31 11-14) —");
+{
+  const fr = full("/media", "fr");
+  check("BUG 11 — les 4 étapes réelles sont présentes (import, publier, décliner/pub, supprimer)", /Importer un média/.test(fr) && /Publier directement/.test(fr) && /Supprimer un média/.test(fr));
+  check(
+    "BUG 12 — les rubriques liées pointent vers Composer, pas la Bibliothèque",
+    getHelp("/media", "fr").related?.some((r) => r.href === "/compose") &&
+      !getHelp("/media", "fr").related?.some((r) => r.href === "/library")
+  );
+  check("BUG 13 — précise que le seul filtre est le type de média", /seul filtre disponible est le type de média/.test(fr));
+  check("BUG 13 — précise l'absence de filtre par source/campagne/date", /aucun filtre par source, campagne ou date/.test(fr));
+  check("BUG 14 — décrit le téléchargement direct et les hébergeurs autorisés", /bouton ⬇ télécharge/.test(fr));
+  check("BUG 14 — décrit le sélecteur de format de sortie lors de la déclinaison", /1:1, 4:5, 9:16/.test(fr));
+  check("BUG 14 — décrit l'affichage des dimensions réelles en pixels", /dimensions réelles en pixels/.test(fr));
+  check("BUG 14 — précise que les visuels du brand kit apparaissent dans la galerie", /kit de marque apparaissent directement dans cette galerie/.test(fr));
+  check("BUG 14 — décrit les liens de redirection en cas de galerie vide", /Studio Affiches ou Studio Vidéo/.test(fr));
+  check("BUG 14 — précise l'absence de pagination/recherche/tri/actions groupées", /ni pagination, ni recherche, ni tri, ni action groupée/.test(fr));
+}
+
 console.log(failed === 0 ? "\n✓ TOUT VERT" : `\n✗ ${failed} ÉCHEC(S)`);
 process.exit(failed === 0 ? 0 : 1);

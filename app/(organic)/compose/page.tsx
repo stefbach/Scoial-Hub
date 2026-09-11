@@ -24,7 +24,6 @@ import { suggestBestTime, weekdayLabel, nextDateForWeekday } from "@/lib/publish
 import { Toast } from "@/components/ui/Toast";
 import { findDraft, findPost } from "@/lib/draft-store";
 import { findTemplate } from "@/lib/template-store";
-import { findHistoryItem } from "@/lib/history-store";
 import type { ScheduledPost, TikTokPublishOptions, WeekDay } from "@/lib/types";
 
 /** Langues de diffusion proposées pour la rédaction du contenu par l'IA. */
@@ -74,7 +73,11 @@ function ComposeContent() {
   const draft = draftId ? findDraft(company.id, draftId) : undefined;
   const post = postId ? findPost(company.id, postId) : undefined;
   const template = templateId ? findTemplate(company.id, templateId) : undefined;
-  const duplicate = duplicateId ? findHistoryItem(company.id, duplicateId) : undefined;
+  // Lu depuis `data.history` (contexte, hydraté depuis la vraie base) : l'ancien
+  // lookup via lib/history-store.ts lisait le magasin de démo COMPANY_DATA,
+  // déconnecté des données réellement affichées sur /history pour une société
+  // Supabase réelle — la duplication n'y prérempliait donc jamais rien.
+  const duplicate = duplicateId ? data.history.find((h) => h.id === duplicateId) : undefined;
   // A draft being resumed, a scheduled post being edited, a template used,
   // or a published/failed history item being duplicated as a fresh post.
   const duplicateAsSource = duplicate

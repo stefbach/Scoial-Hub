@@ -14,12 +14,7 @@ import { Dropdown, DropdownItem } from "@/components/ui/Dropdown";
 import { DatePicker } from "@/components/ui/DateTimePicker";
 import { HistoryDetailModal } from "@/components/organic/HistoryDetailModal";
 import { Modal } from "@/components/ui/Modal";
-import {
-  deleteHistoryItem,
-  downloadFile,
-  toCsv,
-  toJson,
-} from "@/lib/history-store";
+import { downloadFile, toCsv, toJson } from "@/lib/history-store";
 import { postSourceLabel, type HistoryItem } from "@/lib/types";
 
 type RangeId = "7d" | "30d" | "90d" | "1y" | "all" | "custom";
@@ -81,8 +76,11 @@ function HistoryContent() {
   const [search, setSearch] = useState("");
   const [openPost, setOpenPost] = useState<HistoryItem | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<HistoryItem | null>(null);
-  const [, setTick] = useState(0);
-  const refresh = () => setTick((n) => n + 1);
+  // Suppression optimiste : `data.history` (contexte) n'est pas rafraîchi
+  // automatiquement après un DELETE serveur, donc on masque l'item localement
+  // dès le clic (même principe que /scheduled) plutôt que d'attendre un
+  // rechargement de page.
+  const [removedIds, setRemovedIds] = useState<Set<string>>(new Set());
 
   // Keep URL in sync with the range selection.
   useEffect(() => {
@@ -123,9 +121,9 @@ function HistoryContent() {
   };
 
   const baseFiltered = useMemo(
-    () => data.history.filter((i) => inRange(i) && matchSearch(i)),
+    () => data.history.filter((i) => !removedIds.has(i.id) && inRange(i) && matchSearch(i)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [data.history, range, customFrom, customTo, search]
+    [data.history, range, customFrom, customTo, search, removedIds]
   );
 
   const allItems = baseFiltered;
@@ -287,12 +285,17 @@ function HistoryContent() {
             <Button variant="secondary" onClick={() => setConfirmDelete(null)}>{t("Annuler", "Cancel")}</Button>
             <Button
               variant="danger"
-              onClick={() => {
+              onClick={async () => {
                 if (!confirmDelete) return;
-                deleteHistoryItem(company.id, confirmDelete.id);
+                const id = confirmDelete.id;
                 setConfirmDelete(null);
                 setOpenPost(null);
-                refresh();
+                setRemovedIds((prev) => new Set(prev).add(id)); // disparaît immédiatement
+                try {
+                  await fetch(`/api/history/${id}`, { method: "DELETE" });
+                } catch {
+                  /* la ligne reste masquée localement même si l'appel réseau échoue */
+                }
               }}
             >
               {t("Supprimer", "Delete")}
@@ -312,6 +315,7 @@ function List({
   onOpen: (i: HistoryItem) => void;
 }) {
   const t = useT();
+  const router = useRouter();
   if (items.length === 0) {
     return (
       <div className="card flex flex-col items-center gap-3 px-4 py-14 text-center">
@@ -373,7 +377,11 @@ function List({
                 <div className="text-2xs text-muted">{item.error.detail}</div>
               </div>
               <span onClick={(e) => e.stopPropagation()}>
-                <Button variant="secondary" className="py-1 text-2xs">
+                <Button
+                  variant="secondary"
+                  className="py-1 text-2xs"
+                  onClick={() => router.push(`/compose?duplicate=${item.id}`)}
+                >
                   {t("Réessayer", "Retry")}
                 </Button>
               </span>

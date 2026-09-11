@@ -1,15 +1,4 @@
-import { COMPANY_DATA } from "./mock-data";
 import type { HistoryItem } from "./types";
-
-export function deleteHistoryItem(companyId: string, id: string) {
-  const data = COMPANY_DATA[companyId];
-  if (!data) return;
-  data.history = data.history.filter((h) => h.id !== id);
-}
-
-export function findHistoryItem(companyId: string, id: string) {
-  return COMPANY_DATA[companyId]?.history.find((h) => h.id === id);
-}
 
 const CSV_COLUMNS = [
   "platform",

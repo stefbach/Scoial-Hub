@@ -892,6 +892,18 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
         fr: "Un post refusé redevient un brouillon avec le motif du refus visible — son auteur peut le corriger et le reprogrammer.",
         en: "A rejected post becomes a draft again with the rejection reason visible — its author can fix it and reschedule it.",
       },
+      {
+        fr: "Un badge « En retard » distingue un post dont l'heure est dépassée mais pas encore traité par le planificateur ; passé un délai de 24 h, il bascule automatiquement en « Échec » définitif et n'est plus retenté.",
+        en: "An 'Overdue' badge marks a post whose time has passed but hasn't been processed by the scheduler yet; after 24 hours it automatically flips to a definitive 'Failed' status and is no longer retried.",
+      },
+      {
+        fr: "Un badge « IA » distingue les publications créées par l'Agent IA (automatisation) des publications composées manuellement ; un badge séparé « À relire », indépendant du statut, signale celles marquées comme nécessitant une relecture avant diffusion.",
+        en: "An 'AI' badge marks posts created by the AI Agent (automation) as distinct from manually composed ones; a separate 'Needs review' badge, independent of status, flags posts marked as needing review before going out.",
+      },
+      {
+        fr: "En cas d'échec via la publication automatique (cron), le motif précis n'est pas conservé ni affiché sur cet écran — seul le badge générique « Échec » apparaît ; le détail existe parfois dans l'Historique, mais jamais ici.",
+        en: "On a failure from the automatic (cron) publish, the precise reason is neither kept nor shown on this screen — only the generic 'Failed' badge appears; the detail sometimes exists in History, but never here.",
+      },
     ],
     faq: [
       {
@@ -985,8 +997,8 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
       {
         label: { fr: "Republier un post en échec", en: "Republish a failed post" },
         detail: {
-          fr: "Les posts marqués « Échec » affichent un bouton « Réessayer » à côté du message d'erreur. Pour republier, utilisez « Dupliquer en nouvelle publication » depuis la fiche détaillée : le post se rouvre dans Composer, prêt à être renvoyé.",
-          en: "Posts marked 'Failed' show a 'Retry' button next to the error message. To republish, use 'Duplicate as new post' from the detail sheet: the post reopens in Composer, ready to resend.",
+          fr: "Les posts marqués « Échec » affichent un bouton « Réessayer » à côté du message d'erreur, et « Dupliquer en nouvelle publication » est aussi disponible depuis la fiche détaillée : les deux rouvrent le post dans Composer, prêt à être renvoyé.",
+          en: "Posts marked 'Failed' show a 'Retry' button next to the error message, and 'Duplicate as new post' is also available from the detail sheet: both reopen the post in Composer, ready to resend.",
         },
       },
       {
@@ -2215,17 +2227,24 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
     },
     actions: [
       {
+        label: { fr: "Décrire le thème et régler la génération", en: "Describe the theme and tune the generation" },
+        detail: {
+          fr: "Choisissez d'abord un réseau, la langue de publication et le nombre d'éléments (3 à 10). Décrivez le thème librement, transformez quelques mots-clés en prompt détaillé via « Générer un prompt (IA) », ou cliquez un thème suggéré par votre marque. Activez « S'appuyer sur la marque (RAG) » pour ancrer la génération sur la mémoire stratégique. Pour Facebook, un choix « Posts courts »/« Articles » est aussi disponible.",
+          en: "First choose a network, the publishing language and the number of items (3 to 10). Describe the theme freely, turn a few keywords into a detailed prompt via 'Generate a prompt (AI)', or click a brand-suggested theme. Enable 'Ground in brand (RAG)' to base the generation on the strategic memory. For Facebook, a 'Short posts'/'Articles' choice is also available.",
+        },
+      },
+      {
         label: { fr: "Générer les textes de la série", en: "Generate the series' text" },
         detail: {
-          fr: "Choisissez d'abord un réseau, puis décrivez le thème : l'IA génère le texte de chaque publication de la série.",
-          en: "First choose a network, then describe the theme: the AI generates the text for each post in the series.",
+          fr: "L'IA génère le texte de chaque publication ; un compteur de caractères s'affiche en direct sous chaque élément et signale un dépassement de la limite du réseau. Ajoutez ou retirez des éléments un par un (« + Ajouter un élément » et le ✕ de chaque carte).",
+          en: "The AI generates the text for each post; a live character counter appears under each item and flags when the network's limit is exceeded. Add or remove items one by one ('+ Add an item' and each card's ✕).",
         },
       },
       {
         label: { fr: "Générer les visuels", en: "Generate the visuals" },
         detail: {
-          fr: "Générez ensuite les visuels — élément par élément, ou en un clic pour tous les éléments qui n'en ont pas encore.",
-          en: "Then generate the visuals — one by one, or in a single click for every item still missing one.",
+          fr: "Générez ensuite les visuels — élément par élément, ou en un clic pour tous les éléments qui n'en ont pas encore —, en choisissant le modèle IA, le format d'image (4:5, 1:1, 9:16, 1.91:1) et la durée vidéo (5, 8 ou 10 s). Depuis l'aperçu agrandi d'une image, retouchez-la par IA sans quitter la série, ou piochez un visuel déjà présent dans la Médiathèque plutôt que d'en générer un.",
+          en: "Then generate the visuals — one by one, or in a single click for every item still missing one —, choosing the AI model, image format (4:5, 1:1, 9:16, 1.91:1) and video duration (5, 8 or 10 s). From an image's enlarged preview, retouch it with AI without leaving the series, or pick a visual already in the Media Library instead of generating one.",
         },
       },
       {
@@ -2236,7 +2255,12 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
         },
       },
     ],
-    tips: [],
+    tips: [
+      {
+        fr: "Le format « Articles » (en plus de « Posts courts ») n'est proposé que pour Facebook — Instagram (image) et TikTok (vidéo) n'ont que le format post.",
+        en: "The 'Articles' format (alongside 'Short posts') is only offered for Facebook — Instagram (image) and TikTok (video) only have the post format.",
+      },
+    ],
     faq: [],
     related: [
       { label: { fr: "Espace LinkedIn", en: "LinkedIn space" }, href: "/linkedin" },

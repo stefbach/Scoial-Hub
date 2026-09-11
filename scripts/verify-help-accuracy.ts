@@ -307,5 +307,33 @@ console.log("\n— /media (BUGSSocialHub31 11-14) —");
   check("BUG 14 — précise l'absence de pagination/recherche/tri/actions groupées", /ni pagination, ni recherche, ni tri, ni action groupée/.test(fr));
 }
 
+console.log("\n— /scheduled (BUGSSocialHub32 5) —");
+{
+  const fr = full("/scheduled", "fr");
+  check("BUG 5 — décrit le badge « En retard » et le délai de 24 h avant échec définitif", /En retard/.test(fr) && /24 h/.test(fr) && /bascule automatiquement en « Échec » définitif/.test(fr));
+  check("BUG 5 — décrit le badge « IA » (Agent IA) et le badge « À relire »", /badge « IA »/.test(fr) && /À relire/.test(fr));
+  check("BUG 5 — précise la perte du motif d'échec via le cron", /échec via la publication automatique \(cron\)/.test(fr) && /motif précis n.est pas conservé/.test(fr));
+}
+
+console.log("\n— /series (BUGSSocialHub32 6-9) —");
+{
+  const fr = full("/series", "fr");
+  check("BUG 6 — un seul réseau à la fois, plus « réseaux cibles » au pluriel", /UN réseau à la fois/.test(fr));
+  check("BUG 6 — texte et visuels générés en deux étapes séparées", /séparément/.test(fr));
+  check("BUG 7 — au moins une astuce est présente (tips n'est plus vide)", getHelp("/series", "fr").tips.length > 0);
+  check("BUG 8 — la génération en un clic pour les éléments manquants est mentionnée", /en un clic pour tous les éléments qui n.en ont pas encore/.test(fr));
+  check("BUG 9 — décrit le sélecteur de langue de publication", /langue de publication/.test(fr));
+  check("BUG 9 — décrit le prompt affiné à partir de mots-clés", /Générer un prompt \(IA\)/.test(fr));
+  check("BUG 9 — décrit les thèmes suggérés par la marque", /thème suggéré par votre marque/.test(fr));
+  check("BUG 9 — décrit l'option mémoire RAG", /S.appuyer sur la marque \(RAG\)/.test(fr));
+  check("BUG 9 — décrit le nombre d'éléments réglable (3 à 10)", /3 à 10/.test(fr));
+  check("BUG 9 — décrit le format Articles réservé à Facebook", /Articles.*n.est proposé que pour Facebook|Facebook.*Posts courts.*Articles/.test(fr) || /Posts courts.*Articles.*disponible/.test(fr));
+  check("BUG 9 — décrit les sélecteurs modèle/format/durée", /format d.image \(4:5, 1:1, 9:16, 1\.91:1\)/.test(fr) && /durée vidéo \(5, 8 ou 10 s\)/.test(fr));
+  check("BUG 9 — décrit le compteur de caractères en direct", /compteur de caractères s.affiche en direct/.test(fr));
+  check("BUG 9 — décrit l'ajout/retrait manuel d'éléments", /Ajouter un élément/.test(fr));
+  check("BUG 9 — décrit la retouche IA du visuel en aperçu", /retouchez-la par IA sans quitter la série/.test(fr));
+  check("BUG 9 — décrit l'import depuis la Médiathèque", /piochez un visuel déjà présent dans la Médiathèque/.test(fr));
+}
+
 console.log(failed === 0 ? "\n✓ TOUT VERT" : `\n✗ ${failed} ÉCHEC(S)`);
 process.exit(failed === 0 ? 0 : 1);

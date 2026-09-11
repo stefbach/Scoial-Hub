@@ -16,6 +16,7 @@ import crypto from "crypto";
 import { createAdminClient } from "@/lib/supabase/server";
 import { ingestMessage } from "@/lib/repositories/inbox";
 import { insertLead } from "@/lib/repositories/leads";
+import { relayLeadToAxon } from "@/lib/repositories/axon-leads-relay";
 import { graphTimeToIso } from "@/lib/inbox/meta-sync";
 import { getMetaContext } from "@/lib/connectors/meta-pages";
 import { withAppSecretProof } from "@/lib/connectors/meta-appsecret";
@@ -141,16 +142,35 @@ async function ingestLeadgen(pageId: string, value: Record<string, unknown>): Pr
       if (f.name) fieldData[f.name] = (f.values ?? []).join(", ");
     }
 
+    const formId = json.form_id ?? String(value.form_id ?? "");
+    const adId = json.ad_id ?? String(value.ad_id ?? "");
+    const adgroupId = String(value.adgroup_id ?? "");
+    const leadCreatedAt = graphTimeToIso(json.created_time ?? value.created_time);
+    const raw = json as Record<string, unknown>;
+
     await insertLead({
       companyId,
       leadgenId,
       pageId,
-      formId: json.form_id ?? String(value.form_id ?? ""),
-      adId: json.ad_id ?? String(value.ad_id ?? ""),
-      adgroupId: String(value.adgroup_id ?? ""),
+      formId,
+      adId,
+      adgroupId,
       fieldData,
-      raw: json as Record<string, unknown>,
-      leadCreatedAt: graphTimeToIso(json.created_time ?? value.created_time),
+      raw,
+      leadCreatedAt,
+    });
+
+    // Relais best-effort vers axon-ai.tech (tables dédiées Tibok/OCC) — n'a
+    // aucun effet sur l'ingestion locale ci-dessus, déjà réussie.
+    await relayLeadToAxon({
+      pageId,
+      leadgenId,
+      formId,
+      adId,
+      adgroupId,
+      fieldData,
+      raw,
+      leadCreatedAt,
     });
   } catch (e) {
     console.error("[inbox/webhook] leadgen processing error:", e);

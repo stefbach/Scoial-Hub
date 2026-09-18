@@ -10,6 +10,7 @@ export const maxDuration = 120;
 
 import { NextRequest, NextResponse } from "next/server";
 import { generateImageModel } from "@/lib/ai/replicate";
+import { generateHiggsfieldImage } from "@/lib/ai/higgsfield";
 import { resolveImageAspect } from "@/lib/social-formats";
 import { getImageModel, DEFAULT_IMAGE_MODEL_ID } from "@/lib/ai/model-catalog";
 import { requireUser, requireCompanyAccess } from "@/lib/auth/guard";
@@ -81,7 +82,11 @@ export async function POST(req: NextRequest) {
         const input = editMode
           ? { prompt, input_image: imageUrl, aspect_ratio: kontextAspect(resolvedFormat), output_format: "jpg", safety_tolerance: 2 }
           : gm.buildInput(prompt, { aspect: resolvedFormat });
-        const result = await generateImageModel(editMode ? "black-forest-labs/flux-kontext-pro" : gm.id, input, n ?? 1);
+        const result = editMode
+          ? await generateImageModel("black-forest-labs/flux-kontext-pro", input, n ?? 1)
+          : gm.provider === "higgsfield"
+          ? await generateHiggsfieldImage(gm.path ?? "", input, n ?? 1)
+          : await generateImageModel(gm.id, input, n ?? 1);
         if (result.images.length > 0 || result.simulated) {
           // Persiste (URL Replicate éphémère → Supabase) puis enregistre dans la
           // bibliothèque média (si société fournie). Non bloquant.

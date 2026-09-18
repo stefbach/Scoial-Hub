@@ -35,21 +35,30 @@ export interface QuotaDecision {
 interface CompanyPlanRow {
   plan?: string | null;
   video_seconds_quota?: number | null;
+  purchased_video_credits?: number | null;
 }
 
-/** Lit la formule et le plafond éventuel de la société. */
-async function readPlan(companyUuid: string): Promise<{ plan: PlanId; quota: number }> {
+/**
+ * Lit la formule et le plafond éventuel de la société.
+ *
+ * Le plafond total = quota de la formule (ou son override commercial) +
+ * crédits achetés à la carte. Les crédits achetés s'AJOUTENT — contrairement
+ * à `video_seconds_quota`, qui remplace le quota de formule (geste
+ * commercial), un crédit payé ne doit jamais effacer ce qui est déjà inclus.
+ */
+export async function readCompanyPlan(companyUuid: string): Promise<{ plan: PlanId; quota: number }> {
   const sb = createAdminClient();
   if (!sb) return { plan: toPlanId(undefined), quota: 0 };
   const { data } = await sb
     .from("sh_companies")
-    .select("plan, video_seconds_quota")
+    .select("plan, video_seconds_quota, purchased_video_credits")
     .eq("id", companyUuid)
     .maybeSingle();
   const row = (data ?? {}) as CompanyPlanRow;
+  const purchased = Number(row.purchased_video_credits ?? 0);
   return {
     plan: toPlanId(row.plan),
-    quota: videoSecondsQuota(row.plan, row.video_seconds_quota),
+    quota: videoSecondsQuota(row.plan, row.video_seconds_quota) + (Number.isFinite(purchased) && purchased > 0 ? Math.floor(purchased) : 0),
   };
 }
 
@@ -91,7 +100,7 @@ export async function reserveVideoSeconds(
     return { allowed: true, used: 0, quota: 0, remaining: 0, requested: seconds, plan: toPlanId(undefined) };
   }
 
-  const { plan, quota } = await readPlan(companyUuid);
+  const { plan, quota } = await readCompanyPlan(companyUuid);
   const period = usagePeriod(now);
 
   const { data, error } = await sb.rpc("sh_reserve_video_seconds", {
@@ -197,6 +206,47 @@ export async function refundVideoSeconds(predictionId: string): Promise<number> 
   return Number(data ?? 0);
 }
 
+/**
+ * Octroie des crédits vidéo ACHETÉS à une société — additifs au quota mensuel
+ * de sa formule (migration 0018), jamais un remplacement. Pas de paiement
+ * réel branché ici : à appeler manuellement (support/commercial) tant qu'un
+ * webhook Stripe n'existe pas — voir docs/AI-STACK.md.
+ *
+ * `source` : identifie l'origine pour le journal d'audit (ex. "pack:studio",
+ * "manual", "goodwill"). Lève une erreur si le crédit ne peut pas être
+ * enregistré : contrairement aux autres fonctions de ce module, un octroi qui
+ * échoue silencieusement serait un crédit facturé mais jamais livré.
+ */
+export async function grantVideoCredits(
+  companyUuid: string,
+  credits: number,
+  source: string,
+  note?: string
+): Promise<number> {
+  const amount = Math.floor(credits);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw new Error("grantVideoCredits: credits doit être un entier strictement positif.");
+  }
+  if (!isSupabaseConfigured) {
+    throw new Error("grantVideoCredits: Supabase non configuré, aucun octroi possible.");
+  }
+  const sb = createAdminClient();
+  if (!sb) {
+    throw new Error("grantVideoCredits: client Supabase indisponible.");
+  }
+  const { data, error } = await sb.rpc("sh_grant_video_credits", {
+    p_company: companyUuid,
+    p_credits: amount,
+    p_source: source,
+    p_note: note ?? null,
+  });
+  if (error) {
+    console.error("[quota/video] sh_grant_video_credits:", error.message);
+    throw new Error(`grantVideoCredits: échec de l'octroi (${error.message}).`);
+  }
+  return Number(data ?? 0);
+}
+
 /** État du quota d'une société, sans rien consommer (affichage). */
 export async function readVideoQuota(
   companyUuid: string,
@@ -207,7 +257,7 @@ export async function readVideoQuota(
   const sb = createAdminClient();
   if (!sb) return fallback;
 
-  const { plan, quota } = await readPlan(companyUuid);
+  const { plan, quota } = await readCompanyPlan(companyUuid);
   const { data } = await sb
     .from("sh_video_usage")
     .select("seconds_used")

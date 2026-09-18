@@ -307,5 +307,27 @@ console.log("\n— /media (BUGSSocialHub31 11-14) —");
   check("BUG 14 — précise l'absence de pagination/recherche/tri/actions groupées", /ni pagination, ni recherche, ni tri, ni action groupée/.test(fr));
 }
 
+console.log("\n— /scheduled (BUGSSocialHub32 5) —");
+{
+  const fr = full("/scheduled", "fr");
+  check("BUG 5 — décrit le badge « En retard » et le délai de 24 h avant échec définitif", /En retard/.test(fr) && /24 h/.test(fr) && /bascule automatiquement en « Échec » définitif/.test(fr));
+  check("BUG 5 — décrit le badge « IA » (Agent IA) et le badge « À relire »", /badge « IA »/.test(fr) && /À relire/.test(fr));
+  check("BUG 5 — précise la perte du motif d'échec via le cron", /échec via la publication automatique \(cron\)/.test(fr) && /motif précis n.est pas conservé/.test(fr));
+}
+
+console.log("\n— /inbox (BUGSSocialHub33 2-4, 6-7) —");
+{
+  const fr = full("/inbox", "fr");
+  check("BUG 3 — le diagnostic DM Instagram décrit les 6 vérifications (dont type de compte et contre-épreuve Messenger)", /portée réelle de la permission/.test(fr) && /type de compte/.test(fr) && /contre-épreuve croisée avec Messenger/.test(fr));
+  check("BUG 2 — précise le nombre de mots-clés d'escalade codés en dur et leur cumul avec ceux de l'agent", /environ 24 mots-clés d.escalade/.test(fr) && /codée en dur et toujours active/.test(fr));
+  check("BUG 4 — précise que la détection est une recherche de sous-chaîne, pas une analyse IA, avec risque de faux positifs", /simple recherche de sous-chaîne/.test(fr) && /faux positifs/.test(fr));
+  check("BUG 6 — précise que le sentiment n'apparaît qu'après génération d'une réponse IA", /sentiment n.est calculé qu.au moment où une réponse IA est générée/.test(fr));
+  check("BUG 7 — décrit la langue et la signature par agent", /sa propre langue \(auto, français, anglais ou kreol morisien\)/.test(fr) && /sa propre signature/.test(fr));
+  check("BUG 7 — décrit l'ingestion temps réel par webhook, indépendante de « Synchroniser Meta »", /temps réel par webhook, indépendamment du bouton « Synchroniser Meta »/.test(fr));
+  check("BUG 7 — décrit la gestion multi-Pages (jeton de la Page sœur)", /jeton d.accès de cette Page sœur/.test(fr));
+  check("BUG 7 — décrit le testeur d'agent intégré (aperçu non enregistré)", /essayez sa configuration actuelle.*sur un message d.exemple/.test(fr));
+  check("BUG 7 — décrit les filtres par type et par statut", /Filtrez par type.*et par statut/.test(fr));
+}
+
 console.log(failed === 0 ? "\n✓ TOUT VERT" : `\n✗ ${failed} ÉCHEC(S)`);
 process.exit(failed === 0 ? 0 : 1);

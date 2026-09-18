@@ -157,7 +157,13 @@ export function HistoryDetailModal({
               <div className="text-2xs font-medium text-red-600">{post.error.title}</div>
               <div className="text-2xs text-muted">{post.error.detail}</div>
             </div>
-            <Button variant="secondary" className="mt-2 py-1 text-2xs">{t("Réessayer", "Retry")}</Button>
+            <Button
+              variant="secondary"
+              className="mt-2 py-1 text-2xs"
+              onClick={() => { router.push(`/compose?duplicate=${post.id}`); onClose(); }}
+            >
+              {t("Réessayer", "Retry")}
+            </Button>
           </div>
         )}
       </div>

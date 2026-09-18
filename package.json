@@ -65,6 +65,7 @@
     "test:linkedinauth": "tsx scripts/verify-linkedin-auth-invalidation.ts",
     "test:videogenlocked": "tsx scripts/verify-video-gen-locked-fixes.ts",
     "test:tiktokvisibilite": "tsx scripts/verify-tiktok-visibility.ts",
+    "test:historyactions": "tsx scripts/verify-history-actions.ts",
     "higgsfield:seedance-example": "tsx scripts/higgsfield-seedance-example.ts",
     "test:higgsfield": "tsx scripts/verify-higgsfield.ts",
     "test:tiktokrefresh": "tsx scripts/verify-tiktok-token-refresh.ts",

@@ -11,6 +11,14 @@ export interface GenModel {
   id: string;
   label: string;
   note?: string;
+  /**
+   * Fournisseur d'API. Défaut : "replicate" (historique). "higgsfield" route
+   * vers lib/ai/higgsfield.ts (voir `path`) — option supplémentaire pour la
+   * création visuelle (Soul, Veo 3.1, Kling 2.5 Turbo).
+   */
+  provider?: "replicate" | "higgsfield";
+  /** Endpoint Higgsfield (ex. "/higgsfield-ai/soul/standard") — requis si provider="higgsfield". */
+  path?: string;
   buildInput: (prompt: string, opts: { aspect?: string; seconds?: number; imageUrl?: string; voice?: string }) => Record<string, unknown>;
   /**
    * Durée RÉELLEMENT produite, en secondes, pour les modèles vidéo.
@@ -134,6 +142,14 @@ export const IMAGE_MODELS: GenModel[] = [
     label: "Luma Photon",
     note: "Photoréalisme cinématique",
     buildInput: (p, o) => ({ prompt: p, aspect_ratio: imgRatio(o.aspect) }),
+  },
+  {
+    id: "higgsfield/soul-standard",
+    label: "Higgsfield Soul",
+    note: "Portraits & éditorial stylé (option Higgsfield)",
+    provider: "higgsfield",
+    path: "/higgsfield-ai/soul/standard",
+    buildInput: (p, o) => ({ prompt: p, aspect_ratio: imgRatio(o.aspect), resolution: "2K" }),
   },
 ];
 
@@ -295,6 +311,35 @@ export const VIDEO_MODELS: GenModel[] = [
     note: "Open, rapide",
     buildInput: (p) => ({ prompt: p }),
     seconds: () => 5,
+  },
+  {
+    id: "higgsfield/veo3.1",
+    label: "Higgsfield · Veo 3.1",
+    note: "Qualité max + son (option Higgsfield)",
+    provider: "higgsfield",
+    path: "/veo3.1",
+    // aspect_ratio n'accepte que 16:9 ou 9:16 ; duration : "4" | "6" | "8" (chaîne).
+    buildInput: (p, o) => {
+      const duration = !o.seconds || o.seconds >= 7 ? "8" : o.seconds >= 5 ? "6" : "4";
+      return {
+        prompt: p,
+        aspect_ratio: vidRatio(o.aspect) === "16:9" ? "16:9" : "9:16",
+        resolution: "1080",
+        generate_audio: true,
+        duration,
+      };
+    },
+    seconds: (o) => (!o.seconds || o.seconds >= 7 ? 8 : o.seconds >= 5 ? 6 : 4),
+  },
+  {
+    id: "higgsfield/kling-2.5-turbo",
+    label: "Higgsfield · Kling 2.5 Turbo",
+    note: "Mouvements fluides, rapide (option Higgsfield)",
+    provider: "higgsfield",
+    path: "/kling-video/v2.5-turbo/pro/text-to-video",
+    // Pas de paramètre aspect_ratio sur cet endpoint.
+    buildInput: (p, o) => ({ prompt: p, duration: o.seconds && o.seconds >= 10 ? 10 : 5 }),
+    seconds: (o) => (o.seconds && o.seconds >= 10 ? 10 : 5),
   },
 ];
 

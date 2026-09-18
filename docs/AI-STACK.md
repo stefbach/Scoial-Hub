@@ -1,7 +1,7 @@
 # AI-STACK — Quel modèle pour quoi
 
 Référence des modèles IA utilisés dans Social Hub, par domaine de génération.
-Cohérent avec `.env.example` et les clés `ANTHROPIC_MODEL`, `REPLICATE_API_TOKEN`, `FAL_KEY`, `OPENAI_API_KEY`, `RUNWAY_API_KEY`, `LUMA_API_KEY`.
+Cohérent avec `.env.example` et les clés `ANTHROPIC_MODEL`, `REPLICATE_API_TOKEN`, `FAL_KEY`, `OPENAI_API_KEY`, `RUNWAY_API_KEY`, `LUMA_API_KEY`, `HF_CREDENTIALS`.
 
 ---
 
@@ -249,7 +249,91 @@ curl -X POST http://localhost:3000/api/ai/generate-video \
 
 ---
 
-## 6. Garde-fou conformité santé — détail
+## 6. Branchement Higgsfield (réel) — option supplémentaire
+
+Higgsfield ([higgsfield.ai](https://higgsfield.ai), API sur `api.higgsfield.ai`) est
+une **option supplémentaire** à Replicate pour la création visuelle, pas un
+remplacement — les deux fournisseurs cohabitent dans le même catalogue de
+modèles. Attention : `github.com/higgsfield-ai/higgsfield` (le dépôt GitHub
+public du même nom) est un projet Python d'orchestration GPU distribuée **sans
+rapport** avec la plateforme de création visuelle — n'installe pas ce dépôt
+pour ça, la vraie API est un service hébergé (`api.higgsfield.ai`).
+
+Deux intégrations, pour deux besoins différents :
+
+### A. Intégration app — `lib/ai/higgsfield.ts`
+
+Suit exactement le même contrat que `lib/ai/replicate.ts` (mêmes formes de
+retour) pour que `/api/ai/generate-image` et `/api/ai/generate-video` basculent
+entre fournisseurs selon `GenModel.provider` dans `lib/ai/model-catalog.ts`,
+sans toucher à la logique de quota, de repli ou de persistance média. Appels
+REST directs (`fetch`), pas de dépendance npm.
+
+Modèles exposés dans le catalogue :
+
+| Domaine | Modèle | Endpoint Higgsfield |
+|---|---|---|
+| Image | Higgsfield Soul (`higgsfield/soul-standard`) | `/higgsfield-ai/soul/standard` |
+| Vidéo | Higgsfield · Veo 3.1 (`higgsfield/veo3.1`) | `/veo3.1` |
+| Vidéo | Higgsfield · Kling 2.5 Turbo (`higgsfield/kling-2.5-turbo`) | `/kling-video/v2.5-turbo/pro/text-to-video` |
+
+Ces modèles vidéo sont premium (jamais proposés sur Facebook/Instagram/LinkedIn
+sans `allowPremium`, comme Veo 3/Kling/Seedance Pro côté Replicate — voir
+`videoModelsForPlatform` dans `lib/ai/model-catalog.ts`).
+
+Identifiants (`console.higgsfield.ai`), deux formats acceptés — un seul suffit :
+- `HF_CREDENTIALS` (ou `HF_KEY`) = `"<key-id>:<key-secret>"` — même variable que
+  le SDK officiel (section B), pour n'avoir la clé à renseigner qu'une fois.
+- `HIGGSFIELD_API_KEY_ID` + `HIGGSFIELD_API_KEY_SECRET` — champs séparés.
+
+Sans clé : dégradation gracieuse, `{ simulated: true }`, aucun appel réseau.
+Vérifié par `npm run test:higgsfield`.
+
+### B. Exemple SDK officiel — `scripts/higgsfield-seedance-example.ts`
+
+Démonstration autonome du SDK officiel `@higgsfield/client` (v2), modèle
+`bytedance/seedance-2.5/text-to-video` — utile pour valider les identifiants ou
+comme base pour un branchement Seedance dans le catalogue.
+
+```bash
+npm install @higgsfield/client   # déjà fait dans ce dépôt
+echo 'HF_CREDENTIALS=<key-id>:<key-secret>' >> .env.local   # jamais commité (.gitignore)
+npm run higgsfield:seedance-example
+```
+
+```typescript
+import { higgsfield } from "@higgsfield/client/v2";
+
+const result = await higgsfield.subscribe("bytedance/seedance-2.5/text-to-video", {
+  input: { prompt: "A cinematic scene at sunset", duration: 5, resolution: "720p", aspect_ratio: "16:9" },
+  withPolling: true,
+});
+if (result.status === "completed") console.log(result.video?.url);
+```
+
+**Attention** : `subscribe()` déclenche un appel RÉEL et FACTURABLE dès que
+`HF_CREDENTIALS` est configuré (consomme des crédits Higgsfield). Sans clé, le
+SDK lève `CredentialsMissedError` avant toute requête réseau — le script gère
+ce cas (et `failed`/`nsfw`/timeout) sans jamais prétendre à un succès.
+
+> Le README du package `@higgsfield/client` (v0.2.6) documente un retour
+> `JobSet` (`jobSet.isCompleted`, `jobSet.jobs[0].results?.raw.url`) — **obsolète
+> par rapport au code livré** : `subscribe()` renvoie en réalité l'objet
+> `V2Response` brut (`status`, `request_id`, `images?`, `video?`). Le script
+> utilise cette forme réelle, vérifiée dans `dist/v2/client.js` du paquet
+> installé, pas celle du README.
+
+### Déploiement Vercel
+
+Ajouter `HF_CREDENTIALS` (ou les deux clés séparées) dans Vercel → Project
+Settings → Environment Variables, pour les environnements Production/Preview
+concernés — jamais dans un fichier commité. Un redéploiement suffit ensuite
+pour activer l'option (dégradation gracieuse sinon, comme les autres
+fournisseurs IA de ce document).
+
+---
+
+## 7. Garde-fou conformité santé — détail
 
 Cette étape est **bloquante** et non contournable pour les 3 marques (cliniques médicales, soins obésité, télémédecine).
 

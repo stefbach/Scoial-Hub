@@ -65,13 +65,16 @@
     "test:linkedinauth": "tsx scripts/verify-linkedin-auth-invalidation.ts",
     "test:videogenlocked": "tsx scripts/verify-video-gen-locked-fixes.ts",
     "test:tiktokvisibilite": "tsx scripts/verify-tiktok-visibility.ts",
-    "test:historyactions": "tsx scripts/verify-history-actions.ts"
+    "test:historyactions": "tsx scripts/verify-history-actions.ts",
+    "higgsfield:seedance-example": "tsx scripts/higgsfield-seedance-example.ts",
+    "test:higgsfield": "tsx scripts/verify-higgsfield.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.100.1",
     "@ffmpeg/core": "^0.12.6",
     "@ffmpeg/ffmpeg": "^0.12.10",
     "@ffmpeg/util": "^0.12.1",
+    "@higgsfield/client": "^0.2.6",
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.107.0",
     "@types/three": "^0.184.1",

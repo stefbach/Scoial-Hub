@@ -14,6 +14,7 @@ export const maxDuration = 60;
 
 import { NextRequest, NextResponse } from "next/server";
 import { startVideoPrediction, getVideoPrediction } from "@/lib/ai/replicate";
+import { startHiggsfieldVideo, getHiggsfieldVideo } from "@/lib/ai/higgsfield";
 import { resolveVideoAspect } from "@/lib/social-formats";
 import { getVideoModel, videoSecondsFor } from "@/lib/ai/model-catalog";
 import { requireCompanyAccess } from "@/lib/auth/guard";
@@ -85,9 +86,13 @@ export async function POST(req: NextRequest) {
       plan: quota.plan,
     };
 
+    const usesHiggsfield = gm.provider === "higgsfield";
+
     let started;
     try {
-      started = await startVideoPrediction({ prompt, aspect: resolvedAspect }, gm.id, input);
+      started = usesHiggsfield
+        ? await startHiggsfieldVideo(gm.path ?? "", input)
+        : await startVideoPrediction({ prompt, aspect: resolvedAspect }, gm.id, input);
     } catch (e) {
       // Rien n'a démarré : les secondes réservées doivent revenir au client.
       await creditBack(companyUuid, billed);
@@ -101,14 +106,19 @@ export async function POST(req: NextRequest) {
     if (started.status === "failed" || started.status === "canceled") {
       await creditBack(companyUuid, billed);
       return NextResponse.json(
-        { error: started.error || `Replicate ${started.status}` },
+        { error: started.error || `${usesHiggsfield ? "Higgsfield" : "Replicate"} ${started.status}` },
         { status: 500 }
       );
     }
 
-    // Réservation rattachée à la prédiction : permet de rembourser EXACTEMENT
+    // Préfixe "hf:" : distingue un id de requête Higgsfield d'une prédiction
+    // Replicate pour que GET sache quel fournisseur interroger — le seul état
+    // transmis au client entre les deux appels est cet id.
+    const publicId = started.id ? (usesHiggsfield ? `hf:${started.id}` : started.id) : undefined;
+
+    // Réservation rattachée à l'id public : permet de rembourser EXACTEMENT
     // une fois si elle échoue plus tard, pendant le suivi (GET).
-    if (started.id) await recordVideoReservation(started.id, companyUuid, billed);
+    if (publicId) await recordVideoReservation(publicId, companyUuid, billed);
 
     if (started.status === "succeeded" && started.video) {
       // Rapatrie l'URL éphémère Replicate vers notre stockage — comme pour
@@ -125,7 +135,7 @@ export async function POST(req: NextRequest) {
     }
     // En cours → le client interrogera le statut via GET ?id=.
     return NextResponse.json({
-      id: started.id,
+      id: publicId,
       status: started.status,
       pending: true,
       aspect: resolvedAspect,
@@ -148,7 +158,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "id requis" }, { status: 400 });
   }
   try {
-    const st = await getVideoPrediction(id);
+    // Préfixe "hf:" posé par le POST (cf. plus haut) : distingue une requête
+    // Higgsfield d'une prédiction Replicate — l'id public transmis au client
+    // est la seule information dont on dispose ici pour choisir le fournisseur.
+    const isHiggsfield = id.startsWith("hf:");
+    const st = isHiggsfield ? await getHiggsfieldVideo(id.slice(3)) : await getVideoPrediction(id);
     if (st.simulated) return NextResponse.json({ simulated: true });
     if (st.status === "succeeded" && st.video) {
       // Même rapatriement que ci-dessus (POST), pour le cas — le plus courant —
@@ -159,10 +173,10 @@ export async function GET(req: NextRequest) {
     }
     if (st.status === "failed" || st.status === "canceled") {
       // La génération a échoué après avoir démarré : on rend les secondes.
-      // Idempotent (clé = id de prédiction), donc un polling répété ne crédite
-      // pas plusieurs fois.
+      // Idempotent (clé = id public), donc un polling répété ne crédite pas
+      // plusieurs fois.
       await refundVideoSeconds(id);
-      return NextResponse.json({ status: st.status, error: st.error || `Replicate ${st.status}` });
+      return NextResponse.json({ status: st.status, error: st.error || `${isHiggsfield ? "Higgsfield" : "Replicate"} ${st.status}` });
     }
     return NextResponse.json({ status: st.status, pending: true });
   } catch (err) {

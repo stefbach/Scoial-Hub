@@ -49,6 +49,65 @@ export function seatLimitForPlans(plans: unknown[]): number {
   return Math.max(...plans.map((p) => PLAN_USERS[toPlanId(p)]));
 }
 
+/**
+ * Formules autorisées à débrider les modèles vidéo premium (Veo 3/3.1, Kling,
+ * Seedance Pro — Replicate et Higgsfield confondus) via l'achat de crédits.
+ * Vérité SERVEUR : `allowPremiumVideo` envoyé par le client (Studio Créatif /
+ * Compose) ne doit jamais suffire seul, cf. lib/ai/model-catalog.ts et
+ * app/api/ai/generate-video/route.ts.
+ */
+export const PLAN_ALLOWS_PREMIUM_VIDEO: Record<PlanId, boolean> = {
+  executive: false,
+  presence: false,
+  studio: true,
+  agence: true,
+};
+
+/** Vrai si la formule peut débrider les modèles vidéo premium. */
+export function planAllowsPremiumVideo(plan: unknown): boolean {
+  return PLAN_ALLOWS_PREMIUM_VIDEO[toPlanId(plan)];
+}
+
+/**
+ * Résout l'autorisation premium RÉELLE à partir d'une demande client et du
+ * plan de la société — jamais la demande seule. Extrait en fonction pure pour
+ * que app/api/ai/generate-video/route.ts (le point d'application) reste
+ * testable sans base de données ; voir scripts/verify-video-premium-gate.ts.
+ */
+export function resolveAllowPremiumVideo(requested: boolean | undefined, plan: unknown): boolean {
+  return Boolean(requested) && planAllowsPremiumVideo(plan);
+}
+
+/**
+ * Tarif des crédits vidéo — UNIQUE, quel que soit le modèle (inclus ou
+ * premium). Vérifié contre les coûts réels fournisseurs (Replicate, Higgsfield
+ * — septembre 2026) : même le cas le plus cher du catalogue (Veo 3 avec son,
+ * ~2,94 €/clip de 8 s) reste couvert avec une marge ≥ ×4 à ce tarif, la
+ * plupart des autres modèles entre ×10 et ×20. Pondérer par modèle
+ * n'apporterait rien de mesurable pour l'instant — à revérifier si les tarifs
+ * fournisseurs bougent significativement.
+ *
+ * 1 crédit = 1 seconde de vidéo générée (même unité que le quota mensuel
+ * inclus dans chaque formule, cf. PLAN_VIDEO_SECONDS) — un crédit acheté
+ * s'additionne au quota du mois, il ne le remplace pas et ne périme pas.
+ */
+export const VIDEO_CREDIT_RATE_RS = 75;
+export const VIDEO_CREDIT_RATE_EUR = 1.5;
+
+export interface CreditPack {
+  id: string;
+  seconds: number;
+  rs: number;
+  eur: number;
+}
+
+/** Packs proposés — mêmes 75 Rs / 1,50 € par seconde, avec une remise de volume affichée. */
+export const CREDIT_PACKS: CreditPack[] = [
+  { id: "decouverte", seconds: 100, rs: 100 * VIDEO_CREDIT_RATE_RS, eur: 100 * VIDEO_CREDIT_RATE_EUR },
+  { id: "studio", seconds: 500, rs: 33_750, eur: 675 },
+  { id: "agence", seconds: 1500, rs: 90_000, eur: 1800 },
+];
+
 /** Libellé commercial de la formule. */
 export const PLAN_LABEL: Record<PlanId, string> = {
   executive: "LinkedIn Executive",

@@ -333,7 +333,41 @@ fournisseurs IA de ce document).
 
 ---
 
-## 7. Garde-fou conformité santé — détail
+## 7. Crédits vidéo premium — coûts réels vérifiés (septembre 2026)
+
+Réponse à « est-ce qu'on n'est pas trop chers ? » avant de fixer le tarif des
+packs de crédits (`lib/plans.ts`, `CREDIT_PACKS`) : coûts officiels relevés
+directement sur les pages Replicate/Higgsfield (schéma de facturation intégré
+à la page, pas une estimation tierce), pour la configuration RÉELLEMENT
+utilisée par `lib/ai/model-catalog.ts`.
+
+| Modèle | Config utilisée | Coût réel | Prix facturé (75 Rs/1,50 €·s) | Marge |
+|---|---|---|---|---|
+| Veo 3 (son désactivé, cf. plus bas) | 8 s, without_audio | $0,20/s → 1,47 € | 12 € | ×8,2 |
+| Veo 3 (son activé) | 8 s, with_audio | $0,40/s → 2,94 € | 12 € | ×4,1 |
+| Veo 3 Fast | 8 s, without_audio | $0,10/s → 0,73 € | 12 € | ×16,4 |
+| Kling v2.1 Pro | 10 s, 1080p | $0,09/s → 0,83 € | 15 € | ×18 |
+| Seedance 1 Pro | 10 s, 1080p | $0,15/s → 1,38 € | 15 € | ×10,9 |
+| Hailuo 02 | 6 s, 1080p (défaut implicite) | flat → 0,44 € | 9 € | ×20,5 |
+| MiniMax Video-01 | 6 s | flat → 0,46 € | 9 € | ×19,6 |
+| Veo 3.1 (Higgsfield, son désactivé) | 8 s | flat → ~1,33 € (moitié du tarif avec son) | 12 € | ~×9 |
+| Veo 3.1 (Higgsfield, son activé) | 8 s | flat → 2,66 € | 12 € | ×4,5 |
+
+**Conclusion : un tarif UNIQUE (75 Rs/1,50 € par seconde-crédit, sans
+pondération par modèle) couvre tout le catalogue avec une marge ≥ ×8**, une
+fois l'audio désactivé par défaut sur Veo 3/3.1 — seul cas dont la marge
+tombait sous ×5 (avec son : ×4,1–4,5). Pondérer le prix par modèle
+n'apporterait rien de mesurable et compliquerait la grille pour rien : décision
+documentée dans `lib/plans.ts` (`VIDEO_CREDIT_RATE_RS`/`_EUR`). `generate_audio`
+est donc à `false` par défaut sur ces deux modèles (`lib/ai/model-catalog.ts`)
+plutôt que de complexifier le prix — l'audio reste réactivable au besoin en
+modifiant `buildInput` si un cas d'usage l'exige.
+
+Cette table est un instantané : à revérifier si les tarifs Replicate/Higgsfield
+bougent significativement, ou avant d'introduire un nouveau modèle premium
+dans le catalogue.
+
+## 8. Garde-fou conformité santé — détail
 
 Cette étape est **bloquante** et non contournable pour les 3 marques (cliniques médicales, soins obésité, télémédecine).
 

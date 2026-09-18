@@ -251,17 +251,23 @@ export const VIDEO_MODELS: GenModel[] = [
   {
     id: "google/veo-3",
     label: "Google Veo 3",
-    note: "Qualité max + son (~8 s)",
+    note: "Qualité max (~8 s)",
     // N'accepte que 16:9 (défaut) ou 9:16 — on ne force que le vertical (TikTok/Reels/Stories),
     // sinon on laisse le modèle sur son défaut plutôt que de lui envoyer un ratio non supporté (ex. 1:1).
-    buildInput: (p, o) => ({ prompt: p, ...(vidRatio(o.aspect) === "9:16" ? { aspect_ratio: "9:16" } : {}) }),
+    // generate_audio: false — Replicate facture with_audio 2× le tarif without_audio
+    // ($0.40 vs $0.20/s) ; c'est le SEUL modèle du catalogue dont la marge au
+    // tarif crédit unique (75 Rs/1,50 €·s, cf. lib/plans.ts) tombe sous ×5 avec
+    // le son activé (~×4). Désactivé par défaut pour rester large sur tous les
+    // modèles sans avoir à pondérer le prix par modèle.
+    buildInput: (p, o) => ({ prompt: p, generate_audio: false, ...(vidRatio(o.aspect) === "9:16" ? { aspect_ratio: "9:16" } : {}) }),
     seconds: () => 8,
   },
   {
     id: "google/veo-3-fast",
     label: "Veo 3 Fast",
     note: "Veo 3 plus rapide/éco",
-    buildInput: (p, o) => ({ prompt: p, ...(vidRatio(o.aspect) === "9:16" ? { aspect_ratio: "9:16" } : {}) }),
+    // Même raison qu'au-dessus : son désactivé par défaut pour préserver la marge.
+    buildInput: (p, o) => ({ prompt: p, generate_audio: false, ...(vidRatio(o.aspect) === "9:16" ? { aspect_ratio: "9:16" } : {}) }),
     seconds: () => 8,
   },
   {
@@ -315,17 +321,21 @@ export const VIDEO_MODELS: GenModel[] = [
   {
     id: "higgsfield/veo3.1",
     label: "Higgsfield · Veo 3.1",
-    note: "Qualité max + son (option Higgsfield)",
+    note: "Qualité max (option Higgsfield)",
     provider: "higgsfield",
     path: "/veo3.1",
     // aspect_ratio n'accepte que 16:9 ou 9:16 ; duration : "4" | "6" | "8" (chaîne).
+    // generate_audio: false — même raison que google/veo-3 (Replicate) : c'est
+    // le cas le plus serré en marge au tarif crédit unique (lib/plans.ts,
+    // VIDEO_CREDIT_RATE_*), désactivé par défaut pour ne pas avoir à pondérer
+    // le prix par modèle. Voir docs/AI-STACK.md.
     buildInput: (p, o) => {
       const duration = !o.seconds || o.seconds >= 7 ? "8" : o.seconds >= 5 ? "6" : "4";
       return {
         prompt: p,
         aspect_ratio: vidRatio(o.aspect) === "16:9" ? "16:9" : "9:16",
         resolution: "1080",
-        generate_audio: true,
+        generate_audio: false,
         duration,
       };
     },

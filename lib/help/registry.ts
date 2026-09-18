@@ -2205,45 +2205,6 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
     ],
   },
 
-  // ── /series ─────────────────────────────────────────────────────────────────
-  "/series": {
-    title: { fr: "Séries multi-réseaux", en: "Multi-network series" },
-    tagline: { fr: "Générez une série de posts + visuels adaptée à chaque réseau.", en: "Generate a series of posts + visuals adapted to each network." },
-    whatFor: {
-      fr: "Les séries génèrent plusieurs publications d'un coup pour UN réseau à la fois (Facebook, Instagram ou TikTok — LinkedIn garde son espace dédié). Le texte de chaque publication est généré d'abord ; les visuels (image ou vidéo selon le réseau) se génèrent ensuite, séparément.",
-      en: "Series generate several posts at once for ONE network at a time (Facebook, Instagram or TikTok — LinkedIn keeps its dedicated space). Each post's text is generated first; visuals (image or video depending on the network) are generated afterwards, separately.",
-    },
-    actions: [
-      {
-        label: { fr: "Générer les textes de la série", en: "Generate the series' text" },
-        detail: {
-          fr: "Choisissez d'abord un réseau, puis décrivez le thème : l'IA génère le texte de chaque publication de la série.",
-          en: "First choose a network, then describe the theme: the AI generates the text for each post in the series.",
-        },
-      },
-      {
-        label: { fr: "Générer les visuels", en: "Generate the visuals" },
-        detail: {
-          fr: "Générez ensuite les visuels — élément par élément, ou en un clic pour tous les éléments qui n'en ont pas encore.",
-          en: "Then generate the visuals — one by one, or in a single click for every item still missing one.",
-        },
-      },
-      {
-        label: { fr: "Diffuser la série", en: "Distribute the series" },
-        detail: {
-          fr: "Pour Facebook et Instagram, définissez une date de départ, une cadence et une heure : la série est programmée automatiquement. Pour TikTok, la diffusion est immédiate (pas de programmation).",
-          en: "For Facebook and Instagram, set a start date, a cadence and a time: the series is scheduled automatically. For TikTok, distribution is immediate (no scheduling).",
-        },
-      },
-    ],
-    tips: [],
-    faq: [],
-    related: [
-      { label: { fr: "Espace LinkedIn", en: "LinkedIn space" }, href: "/linkedin" },
-      { label: { fr: "Publications programmées", en: "Scheduled posts" }, href: "/scheduled" },
-    ],
-  },
-
   // ── /simulateur ─────────────────────────────────────────────────────────────
   "/simulateur": {
     title: { fr: "Prédiction & Simulation", en: "Prediction & Simulation" },

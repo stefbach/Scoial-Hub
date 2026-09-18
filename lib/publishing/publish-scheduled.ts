@@ -17,8 +17,7 @@ import {
   markConnectionDisconnected,
 } from "@/lib/repositories/channel-connections";
 import {
-  getTikTokConnection,
-  getTikTokConnectionAdmin,
+  getValidTikTokConnection,
   disconnectTikTokConnection,
 } from "@/lib/repositories/tiktok-connection";
 import { isConnectorAuthError, isMetaContainerPendingError } from "@/lib/connectors/types";
@@ -213,12 +212,12 @@ export async function publishScheduledPostNow(
     // (sh_tiktok_connections), isolée de sh_channel_connections que
     // partagent les autres réseaux — le reste du pipeline (post, cron,
     // historique) est inchangé.
-    const conn = opts.admin ? await getTikTokConnectionAdmin(uuid) : await getTikTokConnection(uuid);
-    if (!conn || conn.status !== "connected") {
+    const conn = await getValidTikTokConnection(uuid, { admin: opts.admin });
+    if (!conn) {
       return {
         ok: false,
         status: 409,
-        error: `Le compte ${label} n'est pas connecté. Connectez-le dans Connecteurs avant de publier.`,
+        error: `Le compte ${label} n'est pas connecté ou la session a expiré. Reconnectez-le dans Connecteurs avant de publier.`,
         platform,
       };
     }

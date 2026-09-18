@@ -34,7 +34,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured, env } from "@/lib/env";
 import { getConnectionAdmin } from "@/lib/repositories/channel-connections";
-import { getTikTokConnectionAdmin } from "@/lib/repositories/tiktok-connection";
+import { getValidTikTokConnection } from "@/lib/repositories/tiktok-connection";
 import { resolveCreds } from "@/lib/publishing/publish-scheduled";
 import { getConnector } from "@/lib/connectors/index";
 import { recordOutcome, engagementReward } from "@/lib/learning-engine";
@@ -107,8 +107,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
     let creds: { externalAccountId: string; accessToken: string } | null = null;
     if (platform === "tiktok") {
-      const conn = await getTikTokConnectionAdmin(companyId);
-      if (conn?.status === "connected" && conn.external_id && conn.access_token) {
+      const conn = await getValidTikTokConnection(companyId, { admin: true });
+      if (conn?.external_id && conn.access_token) {
         creds = { externalAccountId: conn.external_id, accessToken: conn.access_token };
       }
     } else {

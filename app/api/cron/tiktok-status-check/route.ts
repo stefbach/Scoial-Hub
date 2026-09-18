@@ -30,7 +30,7 @@ export const maxDuration = 60;
 
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
-import { getTikTokConnectionAdmin } from "@/lib/repositories/tiktok-connection";
+import { getValidTikTokConnection } from "@/lib/repositories/tiktok-connection";
 import { fetchTikTokPublishStatus } from "@/lib/connectors/providers/tiktok";
 
 function isAuthorized(req: NextRequest): boolean {
@@ -91,7 +91,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     try {
       let accessToken = tokenCache.get(row.company_id);
       if (accessToken === undefined) {
-        const conn = await getTikTokConnectionAdmin(row.company_id);
+        const conn = await getValidTikTokConnection(row.company_id, { admin: true });
         accessToken = conn?.access_token ?? null;
         tokenCache.set(row.company_id, accessToken);
       }

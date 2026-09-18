@@ -16,7 +16,7 @@ export const maxDuration = 60;
 import { NextRequest, NextResponse } from "next/server";
 import { requireCompanyAccess } from "@/lib/auth/guard";
 import { getConnection } from "@/lib/repositories/channel-connections";
-import { getTikTokConnection } from "@/lib/repositories/tiktok-connection";
+import { getValidTikTokConnection } from "@/lib/repositories/tiktok-connection";
 import { resolveCompanyUuid } from "@/lib/repositories/resolve-company";
 import { getConnector, isSupportedPlatform } from "@/lib/connectors/index";
 import { ensurePublishableImageUrl } from "@/lib/repositories/media";
@@ -45,10 +45,10 @@ export async function POST(req: NextRequest) {
     let externalId: string | undefined;
     let connected: boolean;
     if (platform === "tiktok") {
-      const conn = await getTikTokConnection(uuid);
+      const conn = await getValidTikTokConnection(uuid);
       token = conn?.access_token ?? undefined;
       externalId = conn?.external_id ?? undefined;
-      connected = !!conn && conn.status === "connected" && !!token;
+      connected = !!conn && !!token;
     } else {
       const conn = await getConnection(uuid, platform);
       token = conn?.config?.access_token;

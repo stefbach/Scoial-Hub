@@ -2222,57 +2222,6 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
     ],
   },
 
-  // ── /series ─────────────────────────────────────────────────────────────────
-  "/series": {
-    title: { fr: "Séries multi-réseaux", en: "Multi-network series" },
-    tagline: { fr: "Générez une série de posts + visuels adaptée à chaque réseau.", en: "Generate a series of posts + visuals adapted to each network." },
-    whatFor: {
-      fr: "Les séries génèrent plusieurs publications d'un coup pour UN réseau à la fois (Facebook, Instagram ou TikTok — LinkedIn garde son espace dédié). Le texte de chaque publication est généré d'abord ; les visuels (image ou vidéo selon le réseau) se génèrent ensuite, séparément.",
-      en: "Series generate several posts at once for ONE network at a time (Facebook, Instagram or TikTok — LinkedIn keeps its dedicated space). Each post's text is generated first; visuals (image or video depending on the network) are generated afterwards, separately.",
-    },
-    actions: [
-      {
-        label: { fr: "Décrire le thème et régler la génération", en: "Describe the theme and tune the generation" },
-        detail: {
-          fr: "Choisissez d'abord un réseau, la langue de publication et le nombre d'éléments (3 à 10). Décrivez le thème librement, transformez quelques mots-clés en prompt détaillé via « Générer un prompt (IA) », ou cliquez un thème suggéré par votre marque. Activez « S'appuyer sur la marque (RAG) » pour ancrer la génération sur la mémoire stratégique. Pour Facebook, un choix « Posts courts »/« Articles » est aussi disponible.",
-          en: "First choose a network, the publishing language and the number of items (3 to 10). Describe the theme freely, turn a few keywords into a detailed prompt via 'Generate a prompt (AI)', or click a brand-suggested theme. Enable 'Ground in brand (RAG)' to base the generation on the strategic memory. For Facebook, a 'Short posts'/'Articles' choice is also available.",
-        },
-      },
-      {
-        label: { fr: "Générer les textes de la série", en: "Generate the series' text" },
-        detail: {
-          fr: "L'IA génère le texte de chaque publication ; un compteur de caractères s'affiche en direct sous chaque élément et signale un dépassement de la limite du réseau. Ajoutez ou retirez des éléments un par un (« + Ajouter un élément » et le ✕ de chaque carte).",
-          en: "The AI generates the text for each post; a live character counter appears under each item and flags when the network's limit is exceeded. Add or remove items one by one ('+ Add an item' and each card's ✕).",
-        },
-      },
-      {
-        label: { fr: "Générer les visuels", en: "Generate the visuals" },
-        detail: {
-          fr: "Générez ensuite les visuels — élément par élément, ou en un clic pour tous les éléments qui n'en ont pas encore —, en choisissant le modèle IA, le format d'image (4:5, 1:1, 9:16, 1.91:1) et la durée vidéo (5, 8 ou 10 s). Depuis l'aperçu agrandi d'une image, retouchez-la par IA sans quitter la série, ou piochez un visuel déjà présent dans la Médiathèque plutôt que d'en générer un.",
-          en: "Then generate the visuals — one by one, or in a single click for every item still missing one —, choosing the AI model, image format (4:5, 1:1, 9:16, 1.91:1) and video duration (5, 8 or 10 s). From an image's enlarged preview, retouch it with AI without leaving the series, or pick a visual already in the Media Library instead of generating one.",
-        },
-      },
-      {
-        label: { fr: "Diffuser la série", en: "Distribute the series" },
-        detail: {
-          fr: "Pour Facebook et Instagram, définissez une date de départ, une cadence et une heure : la série est programmée automatiquement. Pour TikTok, la diffusion est immédiate (pas de programmation).",
-          en: "For Facebook and Instagram, set a start date, a cadence and a time: the series is scheduled automatically. For TikTok, distribution is immediate (no scheduling).",
-        },
-      },
-    ],
-    tips: [
-      {
-        fr: "Le format « Articles » (en plus de « Posts courts ») n'est proposé que pour Facebook — Instagram (image) et TikTok (vidéo) n'ont que le format post.",
-        en: "The 'Articles' format (alongside 'Short posts') is only offered for Facebook — Instagram (image) and TikTok (video) only have the post format.",
-      },
-    ],
-    faq: [],
-    related: [
-      { label: { fr: "Espace LinkedIn", en: "LinkedIn space" }, href: "/linkedin" },
-      { label: { fr: "Publications programmées", en: "Scheduled posts" }, href: "/scheduled" },
-    ],
-  },
-
   // ── /simulateur ─────────────────────────────────────────────────────────────
   "/simulateur": {
     title: { fr: "Prédiction & Simulation", en: "Prediction & Simulation" },

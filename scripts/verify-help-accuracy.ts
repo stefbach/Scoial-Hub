@@ -315,26 +315,6 @@ console.log("\n— /scheduled (BUGSSocialHub32 5) —");
   check("BUG 5 — précise la perte du motif d'échec via le cron", /échec via la publication automatique \(cron\)/.test(fr) && /motif précis n.est pas conservé/.test(fr));
 }
 
-console.log("\n— /series (BUGSSocialHub32 6-9) —");
-{
-  const fr = full("/series", "fr");
-  check("BUG 6 — un seul réseau à la fois, plus « réseaux cibles » au pluriel", /UN réseau à la fois/.test(fr));
-  check("BUG 6 — texte et visuels générés en deux étapes séparées", /séparément/.test(fr));
-  check("BUG 7 — au moins une astuce est présente (tips n'est plus vide)", getHelp("/series", "fr").tips.length > 0);
-  check("BUG 8 — la génération en un clic pour les éléments manquants est mentionnée", /en un clic pour tous les éléments qui n.en ont pas encore/.test(fr));
-  check("BUG 9 — décrit le sélecteur de langue de publication", /langue de publication/.test(fr));
-  check("BUG 9 — décrit le prompt affiné à partir de mots-clés", /Générer un prompt \(IA\)/.test(fr));
-  check("BUG 9 — décrit les thèmes suggérés par la marque", /thème suggéré par votre marque/.test(fr));
-  check("BUG 9 — décrit l'option mémoire RAG", /S.appuyer sur la marque \(RAG\)/.test(fr));
-  check("BUG 9 — décrit le nombre d'éléments réglable (3 à 10)", /3 à 10/.test(fr));
-  check("BUG 9 — décrit le format Articles réservé à Facebook", /Articles.*n.est proposé que pour Facebook|Facebook.*Posts courts.*Articles/.test(fr) || /Posts courts.*Articles.*disponible/.test(fr));
-  check("BUG 9 — décrit les sélecteurs modèle/format/durée", /format d.image \(4:5, 1:1, 9:16, 1\.91:1\)/.test(fr) && /durée vidéo \(5, 8 ou 10 s\)/.test(fr));
-  check("BUG 9 — décrit le compteur de caractères en direct", /compteur de caractères s.affiche en direct/.test(fr));
-  check("BUG 9 — décrit l'ajout/retrait manuel d'éléments", /Ajouter un élément/.test(fr));
-  check("BUG 9 — décrit la retouche IA du visuel en aperçu", /retouchez-la par IA sans quitter la série/.test(fr));
-  check("BUG 9 — décrit l'import depuis la Médiathèque", /piochez un visuel déjà présent dans la Médiathèque/.test(fr));
-}
-
 console.log("\n— /inbox (BUGSSocialHub33 2-4, 6-7) —");
 {
   const fr = full("/inbox", "fr");

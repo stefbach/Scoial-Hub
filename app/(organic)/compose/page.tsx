@@ -40,6 +40,23 @@ const DIFFUSION_LANGUAGES = [
   "中文",
 ] as const;
 
+/**
+ * Prochaine heure ronde à partir de maintenant (ex. 14:37 → 15:00, 23:50 →
+ * 00:00 le lendemain — `Date` normalise nativement le débordement d'heure).
+ * Retour client (réunion Rosiane, point #4) : la date/heure par défaut ne
+ * doit jamais être figée dans le code (elle proposait le 27 mai 2026, une
+ * date qui a fini par appartenir au passé).
+ */
+function defaultScheduleMoment(): Date {
+  const now = new Date();
+  const d = new Date(now);
+  d.setMinutes(0, 0, 0);
+  if (now.getMinutes() > 0 || now.getSeconds() > 0 || now.getMilliseconds() > 0) {
+    d.setHours(d.getHours() + 1);
+  }
+  return d;
+}
+
 const platformLabel = (p: string) =>
   p === "facebook" ? "Facebook" : p === "instagram" ? "Instagram" : p === "tiktok" ? "TikTok" : "LinkedIn";
 
@@ -102,10 +119,16 @@ function ComposeContent() {
   });
   const scheduleSource = draft ?? post; // templates carry no schedule
   const [when, setWhen] = useState<"now" | "schedule">("schedule");
+  // Sans brouillon/post existant à reprendre : la date/heure par défaut est
+  // TOUJOURS aujourd'hui + l'heure suivante arrondie — jamais une date figée
+  // dans le code. Une date fixe expirait au fil des mois (signalé : la
+  // formule proposait le 27 mai 2026 en septembre), avec le risque réel de
+  // programmer une publication sans s'en rendre compte à une date passée.
+  const defaultMoment = defaultScheduleMoment();
   const [date, setDate] = useState<Date>(
-    new Date(`${scheduleSource?.date ?? "2026-05-27"}T00:00:00`)
+    scheduleSource?.date ? new Date(`${scheduleSource.date}T00:00:00`) : defaultMoment
   );
-  const [time, setTime] = useState(scheduleSource?.time ?? "09:00");
+  const [time, setTime] = useState(scheduleSource?.time ?? format(defaultMoment, "HH:mm"));
   // Média pré-rempli depuis un studio (Avatar/Vidéo) ou la Médiathèque :
   //   /compose?media=<url>&kind=video   (ou ?video=<url> / ?image=<url>)
   const mediaParam = params.get("media") || params.get("video") || params.get("image");

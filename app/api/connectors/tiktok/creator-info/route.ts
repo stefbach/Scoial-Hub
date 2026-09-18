@@ -14,7 +14,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { getTikTokConnection } from "@/lib/repositories/tiktok-connection";
+import { getValidTikTokConnection } from "@/lib/repositories/tiktok-connection";
 import { fetchTikTokCreatorInfo } from "@/lib/connectors/providers/tiktok";
 import { requireCompanyAccess } from "@/lib/auth/guard";
 
@@ -28,16 +28,18 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const guard = await requireCompanyAccess(companyId);
     if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
 
-    const conn = await getTikTokConnection(guard.uuid ?? companyId);
-    const accessToken = conn?.access_token;
-    if (!conn || conn.status !== "connected" || !accessToken) {
+    const conn = await getValidTikTokConnection(guard.uuid ?? companyId);
+    if (!conn?.access_token) {
       return NextResponse.json(
-        { error: "Compte TikTok non connecté. Connectez-le dans Comptes & connexions." },
+        {
+          error:
+            "Compte TikTok non connecté ou session expirée. Reconnectez-le dans Comptes & connexions.",
+        },
         { status: 409 }
       );
     }
 
-    const info = await fetchTikTokCreatorInfo(accessToken);
+    const info = await fetchTikTokCreatorInfo(conn.access_token);
     return NextResponse.json(info);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Erreur inconnue";

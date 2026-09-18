@@ -14,6 +14,12 @@ import Link from "next/link";
 import { useT } from "@/lib/i18n";
 import { LanguageSwitcher } from "@/lib/i18n";
 import { LogoMark } from "@/components/brand/Logo";
+import { CREDIT_PACKS, VIDEO_CREDIT_RATE_RS, VIDEO_CREDIT_RATE_EUR } from "@/lib/plans";
+
+/** Regroupement des milliers façon FR ("33 750"), cohérent avec le reste de la page. */
+function formatRs(n: number): string {
+  return n.toLocaleString("fr-FR").replace(/ | /g, " ");
+}
 
 /* ── Types ────────────────────────────────────────────────────────────────── */
 
@@ -88,6 +94,7 @@ const PLANS: Plan[] = [
       { t: ["Storyboard et direction vidéo assistés", "Assisted storyboard and video direction"] },
       { t: ["Benchmark concurrentiel approfondi", "In-depth competitive benchmark"] },
       { t: ["Régie publicitaire Meta en autonomie", "Self-serve Meta ads console"] },
+      { t: ["Modèles premium (Veo 3.1, Kling…) débridables par crédits", "Premium models (Veo 3.1, Kling…) unlockable with credits"] },
       { t: ["Secondes supplémentaires à 75 Rs", "Extra seconds at Rs 75"] },
     ],
   },
@@ -150,6 +157,7 @@ const AGENCY_FIGURES: { k: L; v: string; sub?: L }[] = [
   { k: ["Marques incluses", "Brands included"], v: "10" },
   { k: ["Marque supplémentaire", "Extra brand"], v: "2 500 Rs", sub: ["/ 49 €", "/ €49"] },
   { k: ["Vidéo IA partagée", "Shared AI video"], v: "180 s", sub: ["/ mois", "/ month"] },
+  { k: ["Crédits vidéo premium", "Premium video credits"], v: "75 Rs", sub: ["/ s · modèles haut de gamme", "/ s · flagship models"] },
 ];
 
 /* ── Benchmark marché ─────────────────────────────────────────────────────── */
@@ -248,6 +256,7 @@ const MATRIX: { g: L; rows: { l: L; s?: L; v: [Cell, Cell, Cell] }[] }[] = [
       { l: ["Montage de vos photos et vidéos", "Editing of your own photos and videos"], v: [["illimité", "unlimited"], ["illimité", "unlimited"], ["illimité", "unlimited"]] },
       { l: ["Sous-titres automatiques", "Automatic subtitles"], v: ["y", "y", "y"] },
       { l: ["Vidéo générée par IA", "AI-generated video"], s: ["Aucun tournage nécessaire", "No filming required"], v: ["n", [" 60 s / mois", "60 s / month"], [" 60 s / mois", "60 s / month"]] },
+      { l: ["Modèles vidéo premium", "Premium video models"], s: ["Veo 3.1, Kling… — même tarif au crédit, débridable par pack", "Veo 3.1, Kling… — same credit rate, unlockable with a pack"], v: ["n", "n", ["via crédits", "with credits"]] },
       { l: ["Studio Avatar & voix clonée", "Avatar Studio & cloned voice"], s: ["Un porte-parole de synthèse à votre image", "A synthetic spokesperson in your image"], v: ["n", "n", "y"] },
       { l: ["Bibliothèque de médias", "Media library"], v: ["y", "y", "y"] },
     ],
@@ -327,8 +336,8 @@ const CARTE: { t: L; d: L; price: L; note?: L }[] = [
   {
     t: ["Secondes vidéo supplémentaires", "Extra video seconds"],
     d: [
-      "Au-delà du quota mensuel de votre formule, sans engagement de volume et facturé à l'usage.",
-      "Beyond your plan's monthly quota, with no volume commitment, billed on use.",
+      "Au-delà du quota mensuel de votre formule, sans engagement de volume et facturé à l'usage. Même tarif pour débrider les modèles premium (Studio et Agence) — voir les packs ci-dessous.",
+      "Beyond your plan's monthly quota, with no volume commitment, billed on use. Same rate to unlock premium models (Studio and Agency) — see the packs below.",
     ],
     price: ["75 Rs / seconde", "Rs 75 / second"],
     note: ["· 1,50 €", "· €1.50"],
@@ -348,7 +357,7 @@ const CARTE: { t: L; d: L; price: L; note?: L }[] = [
 const NOTES: L[] = [
   ["Prix hors taxes. Tarifs en roupies pour les entreprises établies à Maurice, en euros ailleurs.", "Prices exclude tax. Rupee pricing for businesses based in Mauritius, euro pricing elsewhere."],
   ["« Illimité » signifie sans compteur, dans le cadre d'un usage professionnel normal pour une marque.", "“Unlimited” means no counter, within normal professional use for a single brand."],
-  ["La seconde de vidéo générée est décomptée à la seconde produite, arrondie à la seconde supérieure. Quota non reportable.", "Generated video is counted per second produced, rounded up. Quotas do not roll over."],
+  ["La seconde de vidéo générée est décomptée à la seconde produite, arrondie à la seconde supérieure. Quota mensuel non reportable ; les crédits achetés, eux, ne périment jamais.", "Generated video is counted per second produced, rounded up. Monthly quotas do not roll over; purchased credits never expire."],
   ["Engagement initial de trois mois, puis mensuel sans préavis. Formule annuelle : dix mois payés.", "Three-month initial term, then monthly with no notice period. Annual plan: ten months paid."],
   ["Les deux heures de prise en main et le service client sont inclus dans toutes les formules, sans frais d'ouverture.", "The two onboarding hours and customer support are included in every plan, with no setup fee."],
 ];
@@ -654,6 +663,42 @@ export default function TarifsPage() {
               <p className="tf-tag">{tr(c.price)}{c.note && <em> {tr(c.note)}</em>}</p>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* ── Crédits vidéo premium ── */}
+      <section className="mc-section">
+        <header className="mc-sec-head mc-sec-head--left">
+          <span className="mc-kicker">{t("Crédits vidéo premium", "Premium video credits")}</span>
+          <h2 className="mc-h2">{t("Débridez Veo 3.1, Kling et les modèles haut de gamme.", "Unlock Veo 3.1, Kling and the flagship models.")}</h2>
+          <p className="mc-sec-sub">
+            {t(
+              `Réservé aux formules Studio et Agence. Même tarif que le dépassement classique — ${VIDEO_CREDIT_RATE_RS} Rs / ${VIDEO_CREDIT_RATE_EUR} € la seconde, quel que soit le modèle : nous ne facturons pas plus cher un modèle premium qu'un modèle inclus. Les crédits s'ajoutent à votre quota mensuel et ne périment jamais.`,
+              `Studio and Agency plans only. Same rate as standard overage — Rs ${VIDEO_CREDIT_RATE_RS} / €${VIDEO_CREDIT_RATE_EUR} a second, whatever the model: we don't charge more for a premium model than an included one. Credits top up your monthly quota and never expire.`
+            )}
+          </p>
+        </header>
+        <div className="tf-carte">
+          {CREDIT_PACKS.map((pack, i) => {
+            const fullRs = pack.seconds * VIDEO_CREDIT_RATE_RS;
+            const discountPct = Math.round((1 - pack.rs / fullRs) * 100);
+            return (
+              <div key={pack.id} className="tf-item">
+                <h3>{t(`Pack ${pack.seconds} s`, `${pack.seconds}s pack`)}</h3>
+                <p>
+                  {t(
+                    i === 0
+                      ? "Le tarif de référence, sans engagement — pour tester le débridage premium."
+                      : `${discountPct} % de remise sur le tarif de référence, pour un usage régulier.`,
+                    i === 0
+                      ? "The reference rate, no strings attached — to try premium unlocking."
+                      : `${discountPct}% off the reference rate, for regular use.`
+                  )}
+                </p>
+                <p className="tf-tag">{formatRs(pack.rs)} Rs<em> · {pack.eur.toLocaleString("fr-FR")} €</em></p>
+              </div>
+            );
+          })}
         </div>
       </section>
 

@@ -19,10 +19,12 @@ import { resolveVideoAspect } from "@/lib/social-formats";
 import { getVideoModel, videoSecondsFor } from "@/lib/ai/model-catalog";
 import { requireCompanyAccess } from "@/lib/auth/guard";
 import { resolveCompanyUuid } from "@/lib/repositories/resolve-company";
+import { resolveAllowPremiumVideo } from "@/lib/plans";
 import {
   reserveVideoSeconds,
   recordVideoReservation,
   refundVideoSeconds,
+  readCompanyPlan,
 } from "@/lib/quota/video-seconds";
 
 interface RequestBody {
@@ -34,9 +36,11 @@ interface RequestBody {
   model?: string;
   /**
    * Lève le verrou « meilleur rapport qualité/prix » sur Facebook/Instagram/
-   * LinkedIn — réservé à Studio Créatif et Compose. PAS ENCORE vérifié contre
-   * une autorisation réelle (habilitation par plan/rôle à brancher plus tard) :
-   * accepté tel quel pour l'instant, cf. lib/ai/model-catalog.ts.
+   * LinkedIn, ET débride le catalogue premium (Veo 3/3.1, Kling, Seedance Pro)
+   * pour les autres écrans — réservé à Studio Créatif et Compose côté UI.
+   * Vérifié CÔTÉ SERVEUR contre le plan réel de la société (Studio/Agence
+   * uniquement, cf. lib/plans.ts PLAN_ALLOWS_PREMIUM_VIDEO) avant d'être
+   * honoré : un client modifié ne peut plus se débrider lui-même.
    */
   allowPremiumVideo?: boolean;
   companyId?: string;
@@ -61,14 +65,23 @@ export async function POST(req: NextRequest) {
     if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status ?? 403 });
     const resolvedAspect = aspect ?? resolveVideoAspect(platform);
 
-    const gm = getVideoModel(model, platform, { allowPremium: allowPremiumVideo });
+    // ── Autorisation premium — VÉRITÉ SERVEUR ────────────────────────────────
+    // `allowPremiumVideo` vient du client (Studio Créatif / Compose) : ne
+    // jamais l'honorer tel quel. On résout le plan RÉEL de la société et on ne
+    // laisse passer le déverrouillage que pour Studio/Agence (lib/plans.ts) —
+    // sinon un client modifié pouvait se débrider lui-même sans jamais acheter
+    // de crédit (faille notée depuis l'introduction du verrou, jamais fermée).
+    const companyUuid = await resolveCompanyUuid(body.companyId ?? "");
+    const { plan: companyPlan } = await readCompanyPlan(companyUuid);
+    const allowPremium = resolveAllowPremiumVideo(allowPremiumVideo, companyPlan);
+
+    const gm = getVideoModel(model, platform, { allowPremium });
     const input = gm.buildInput(prompt, { aspect: resolvedAspect, seconds });
 
     // ── Quota : on RÉSERVE avant de lancer quoi que ce soit ──────────────────
     // La génération vidéo est le seul poste au coût unitaire significatif du
     // produit. On décompte la durée RÉELLEMENT produite par le modèle (Veo 3
     // sort ~8 s quelle que soit la demande), pas celle demandée par l'appelant.
-    const companyUuid = await resolveCompanyUuid(body.companyId ?? "");
     const billed = videoSecondsFor(gm, { seconds });
     const quota = await reserveVideoSeconds(companyUuid, billed);
     if (!quota.allowed) {

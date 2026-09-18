@@ -37,6 +37,7 @@ import {
   RETRY_WINDOW_HOURS,
 } from "@/lib/publishing/publish-scheduled";
 import type { Platform } from "@/lib/types";
+import { notifyCompanyTelegram } from "@/lib/telegram/notify";
 
 // Fenêtre d'exécution confortable pour traiter le lot sans coupure.
 export const maxDuration = 60;
@@ -96,13 +97,18 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       // en `failed` — l'utilisateur le reprogramme ou le publie à la main.
       if (isPastRetryWindow(post)) {
         await finalizeFailedScheduledPost(post.id, true);
+        const error = `Échéance dépassée de plus de ${RETRY_WINDOW_LABEL} — publication automatique annulée, à reprogrammer.`;
+        await notifyCompanyTelegram(
+          companyId,
+          `⚠️ Publication automatique annulée (${post.platform}) : « ${post.title} »\n${error}`
+        );
         return {
           postId: post.id,
           companyId,
           platform: post.platform,
           title: post.title,
           ok: false,
-          error: `Échéance dépassée de plus de ${RETRY_WINDOW_LABEL} — publication automatique annulée, à reprogrammer.`,
+          error,
         };
       }
 
@@ -119,6 +125,16 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           `[cron/publish-due] Échec ${permanent ? "permanent" : "transitoire"} post ${post.id} (${post.platform}, company ${companyId}):`,
           outcome.error
         );
+        // Notifie SEULEMENT à l'échec définitif — sinon un échec transitoire
+        // isolé (panne réseau, 1 tentative) alerterait pour rien à chaque
+        // retour ; c'est précisément « failed » (visible, plus de nouvel
+        // essai) que Telegram doit signaler, pas chaque tentative silencieuse.
+        if (permanent) {
+          await notifyCompanyTelegram(
+            companyId,
+            `⚠️ Échec de la publication automatique (${post.platform}) : « ${post.title} »\n${outcome.error ?? "Erreur inconnue."}`
+          );
+        }
       }
       return {
         postId: post.id,

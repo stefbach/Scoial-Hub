@@ -74,6 +74,16 @@ const META_SCOPES = [
 // ---------------------------------------------------------------------------
 
 /**
+ * Retire les valeurs sensibles (secret d'app, tokens) d'un chemin d'appel
+ * Graph avant de l'inclure dans un message d'erreur — ces messages finissent
+ * dans les logs Vercel (console.warn/console.error des callbacks OAuth), qui
+ * ne sont pas un stockage de secrets.
+ */
+function redactSecrets(path: string): string {
+  return path.replace(/([?&](?:access_token|client_secret|appsecret_proof)=)[^&]+/gi, "$1***");
+}
+
+/**
  * Effectue un appel Graph API et parse le JSON.
  * Lance une erreur si la réponse contient un champ `error`.
  */
@@ -106,7 +116,7 @@ async function graphFetch<T = Record<string, unknown>>(
       );
     }
     throw new Error(
-      `Graph API ${path} → [${data.error.code}] ${data.error.message}`
+      `Graph API ${redactSecrets(path)} → [${data.error.code}] ${data.error.message}`
     );
   }
 

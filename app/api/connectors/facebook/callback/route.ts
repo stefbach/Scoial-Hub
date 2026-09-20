@@ -36,6 +36,15 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   const code = searchParams.get("code");
   if (!code) {
+    // Callback Facebook sans `code` ni `error` : Facebook a bien redirigé
+    // l'utilisateur, mais le paramètre a été perdu en route (ex. certains
+    // navigateurs mobiles suppriment des paramètres d'URL jugés « tracking »
+    // lors d'une redirection cross-site). Sans ce log, l'échec était invisible
+    // côté serveur — aucune trace ne permettait de le distinguer d'un succès.
+    console.warn(
+      "[Facebook callback] Code d'autorisation manquant — paramètres reçus :",
+      Object.fromEntries(searchParams.entries())
+    );
     return NextResponse.redirect(
       `${REDIRECT_BASE}/accounts?error=missing_code&platform=facebook`
     );

@@ -69,6 +69,7 @@
     "test:higgsfield": "tsx scripts/verify-higgsfield.ts",
     "test:tiktokrefresh": "tsx scripts/verify-tiktok-token-refresh.ts",
     "test:videopremium": "tsx scripts/verify-video-premium-gate.ts",
+    "test:videomodelswap": "tsx scripts/verify-video-model-swap-notice.ts",
     "test:publishalert": "tsx scripts/verify-publish-failure-alert.ts"
   },
   "dependencies": {

@@ -11,6 +11,8 @@ export interface VideoGenResult {
   url?: string;
   simulated?: boolean;
   error?: string;
+  /** Modèle RÉELLEMENT utilisé (peut différer de `model` demandé — cf. videoModelSwapNotice). */
+  modelUsed?: string;
 }
 
 export interface VideoGenBody {
@@ -54,8 +56,12 @@ export async function generateVideoPolling(
   if (!res.ok) return { error: String((data as { error?: string }).error ?? `HTTP ${res.status}`) };
   if ((data as { simulated?: boolean }).simulated) return { simulated: true };
 
+  // Fixé dès la réponse POST (le modèle est résolu avant tout lancement) —
+  // reste valable même si la vidéo n'est prête qu'après polling ci-dessous.
+  const modelUsed = (data as { modelUsed?: string }).modelUsed;
+
   const direct = (data as { video?: { url?: string } }).video?.url;
-  if (direct) return { url: direct };
+  if (direct) return { url: direct, modelUsed };
 
   const id = (data as { id?: string }).id;
   if (!id) return { error: "no-id" };
@@ -78,7 +84,7 @@ export async function generateVideoPolling(
       simulated?: boolean;
     };
     if (d.simulated) return { simulated: true };
-    if (d.video?.url) return { url: d.video.url };
+    if (d.video?.url) return { url: d.video.url, modelUsed };
     if (d.error || d.status === "failed" || d.status === "canceled") {
       return { error: d.error || d.status || "failed" };
     }
@@ -118,4 +124,25 @@ export function videoGenErrorMessage(
     return t("Erreur réseau. Vérifiez votre connexion et réessayez.", "Network error. Check your connection and try again.");
   }
   return t("La génération vidéo a échoué. Réessayez ou changez de modèle.", "Video generation failed. Try again or change the model.");
+}
+
+/**
+ * Message à afficher quand la vidéo a réussi mais avec un modèle DIFFÉRENT de
+ * celui demandé — ex. un modèle premium (Higgsfield…) choisi via la case
+ * « Autoriser les modèles premium », mais non couvert par la formule réelle
+ * de la société : le serveur reste la vérité (lib/plans.ts) et retombe
+ * silencieusement sur un modèle inclus plutôt que d'échouer. Sans ce message,
+ * la sélection semble n'avoir servi à rien ("je choisis Higgsfield mais ça ne
+ * change rien").
+ */
+export function videoModelSwapNotice(
+  requested: string | undefined,
+  used: string | undefined,
+  t: (fr: string, en: string) => string
+): string | null {
+  if (!requested || !used || requested === used) return null;
+  return t(
+    "Le modèle choisi n'est pas inclus dans votre formule — remplacé automatiquement par un modèle inclus. Passez à la formule Studio ou Agence pour débloquer les modèles premium (Higgsfield…).",
+    "The chosen model isn't included in your plan — automatically replaced with an included model. Upgrade to Studio or Agence to unlock premium models (Higgsfield…)."
+  );
 }

@@ -10,7 +10,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useCompany } from "@/lib/company-context";
 import { useT, useLang } from "@/lib/i18n";
 import { PublishLanguageSelect } from "@/components/ui/PublishLanguageSelect";
-import { generateVideoPolling, videoGenErrorMessage } from "@/lib/ai/generate-video-client";
+import { generateVideoPolling, videoGenErrorMessage, videoModelSwapNotice } from "@/lib/ai/generate-video-client";
 import { DEFAULT_VIDEO_MODEL_ID, videoModelsForPlatform, isLockedVideoPlatform } from "@/lib/ai/model-catalog";
 import { resolveVideoAspect } from "@/lib/social-formats";
 
@@ -143,7 +143,13 @@ export function ComposeAgent({
           allowPremiumVideo,
           companyId: company.id,
         });
-        if (r.url) { onMedia({ url: r.url, kind: "video" }); setGenDone(out.visualPrompt); return; }
+        if (r.url) {
+          onMedia({ url: r.url, kind: "video" });
+          setGenDone(out.visualPrompt);
+          const swapNotice = videoModelSwapNotice(videoModel, r.modelUsed, t);
+          if (swapNotice) setMsgs((p) => [...p, { role: "assistant", content: swapNotice }]);
+          return;
+        }
         setMsgs((p) => [...p, { role: "assistant", content: videoGenErrorMessage(r.error, t) }]);
         return;
       }

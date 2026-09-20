@@ -9,7 +9,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useCompany } from "@/lib/company-context";
 import { useT, useLang } from "@/lib/i18n";
 import { DEFAULT_VIDEO_MODEL_ID, videoModelsForPlatform, isLockedVideoPlatform } from "@/lib/ai/model-catalog";
-import { generateVideoPolling, videoGenErrorMessage } from "@/lib/ai/generate-video-client";
+import { generateVideoPolling, videoGenErrorMessage, videoModelSwapNotice } from "@/lib/ai/generate-video-client";
 import type { MediaAsset } from "@/lib/video/types";
 
 interface Scene { index: number; prompt: string; seconds: number; onScreenText: string; voiceover?: string }
@@ -121,6 +121,7 @@ export function VideoDirector({
     setFilming(true); setNote(null);
     let ok = 0;
     let stopReason: string | null = null;
+    let swapNotice: string | null = null;
     try {
       for (const s of board.scenes) {
         setStatus((st) => ({ ...st, [s.index]: "running" }));
@@ -130,6 +131,7 @@ export function VideoDirector({
           { timeoutMs: 6 * 60_000 }
         );
         if (res.url) {
+          swapNotice = swapNotice ?? videoModelSwapNotice(model, res.modelUsed, t);
           // La voix off / le texte à l'écran décrivent ce qui se passe VRAIMENT
           // dans le clip — transmis pour que l'assemblage génère des sous-titres
           // alignés sur la vidéo, pas des accroches marketing génériques.
@@ -154,7 +156,8 @@ export function VideoDirector({
       if (stopReason) {
         setNote(ok > 0 ? `${stopReason} (${t(`${ok} clip(s) déjà ajouté(s).`, `${ok} clip(s) already added.`)})` : stopReason);
       } else if (ok > 0) {
-        setNote(t(`✓ ${ok} clip(s) ajouté(s) à la timeline ci-dessous — assemblez & montez le film.`, `✓ ${ok} clip(s) added to the timeline below — assemble & render the film.`));
+        const doneMsg = t(`✓ ${ok} clip(s) ajouté(s) à la timeline ci-dessous — assemblez & montez le film.`, `✓ ${ok} clip(s) added to the timeline below — assemble & render the film.`);
+        setNote(swapNotice ? `${doneMsg} ${swapNotice}` : doneMsg);
       } else {
         setNote(t("Aucun clip généré. Réessayez ou changez de modèle.", "No clip generated. Retry or change the model."));
       }

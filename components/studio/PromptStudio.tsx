@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useT, useLang } from "@/lib/i18n";
 import { useCompany } from "@/lib/company-context";
 import { SOCIAL_FORMATS, type SocialPlatform } from "@/lib/social-formats";
-import { generateVideoPolling, videoGenErrorMessage } from "@/lib/ai/generate-video-client";
+import { generateVideoPolling, videoGenErrorMessage, videoModelSwapNotice } from "@/lib/ai/generate-video-client";
 import type { MediaAsset } from "@/lib/video/types";
 import { IMAGE_MODELS, DEFAULT_IMAGE_MODEL_ID, DEFAULT_VIDEO_MODEL_ID, videoModelsForPlatform, isLockedVideoPlatform } from "@/lib/ai/model-catalog";
 
@@ -300,6 +300,14 @@ export default function PromptStudio({
           kind: "image",
           name: t("Image générée par IA", "AI-generated image"),
         });
+        if (data.fallbackUsed) {
+          setNotice(
+            t(
+              "Le modèle choisi était indisponible — une alternative a été utilisée.",
+              "The chosen model was unavailable — an alternative was used."
+            )
+          );
+        }
       } else {
         // Génération asynchrone avec polling (MiniMax peut prendre plusieurs min).
         const r = await generateVideoPolling({
@@ -330,6 +338,8 @@ export default function PromptStudio({
           kind: "video",
           name: t("Vidéo générée par IA", "AI-generated video"),
         });
+        const swapNotice = videoModelSwapNotice(effVideoModel, r.modelUsed, t);
+        if (swapNotice) setNotice(swapNotice);
       }
     } catch {
       setNotice(

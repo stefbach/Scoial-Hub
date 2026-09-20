@@ -300,13 +300,13 @@ export function AgentModal({
           <input
             value={keywords}
             onChange={(e) => setKeywords(e.target.value)}
-            placeholder={t("remboursement, avocat, plainte…", "refund, lawyer, complaint…")}
+            placeholder={t("résiliation, boycott, rappel produit…", "cancellation, boycott, product recall…")}
             className="mt-1 w-full rounded-lg border border-hair bg-canvas px-3 py-2 text-sm text-ink outline-none focus:border-primary-400"
           />
           <p className="mt-1 text-2xs text-muted">
             {t(
-              "Séparés par des virgules. Des sujets sensibles sont déjà escaladés d'office.",
-              "Comma-separated. Sensitive topics are already escalated by default."
+              "Séparés par des virgules. Une liste d'environ 24 mots-clés (remboursement, avocat, plainte, RGPD, décès, suicide…) est déjà codée en dur et toujours active en plus de ceux-ci — inutile de les ressaisir.",
+              "Comma-separated. A list of about 24 keywords (refund, lawyer, complaint, GDPR, death, suicide…) is already hardcoded and always active in addition to these — no need to re-enter them."
             )}
           </p>
         </div>

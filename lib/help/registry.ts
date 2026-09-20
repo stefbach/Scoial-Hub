@@ -892,6 +892,18 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
         fr: "Un post refusé redevient un brouillon avec le motif du refus visible — son auteur peut le corriger et le reprogrammer.",
         en: "A rejected post becomes a draft again with the rejection reason visible — its author can fix it and reschedule it.",
       },
+      {
+        fr: "Un badge « En retard » distingue un post dont l'heure est dépassée mais pas encore traité par le planificateur ; passé un délai de 24 h, il bascule automatiquement en « Échec » définitif et n'est plus retenté.",
+        en: "An 'Overdue' badge marks a post whose time has passed but hasn't been processed by the scheduler yet; after 24 hours it automatically flips to a definitive 'Failed' status and is no longer retried.",
+      },
+      {
+        fr: "Un badge « IA » distingue les publications créées par l'Agent IA (automatisation) des publications composées manuellement ; un badge séparé « À relire », indépendant du statut, signale celles marquées comme nécessitant une relecture avant diffusion.",
+        en: "An 'AI' badge marks posts created by the AI Agent (automation) as distinct from manually composed ones; a separate 'Needs review' badge, independent of status, flags posts marked as needing review before going out.",
+      },
+      {
+        fr: "En cas d'échec via la publication automatique (cron), le motif précis n'est pas conservé ni affiché sur cet écran — seul le badge générique « Échec » apparaît ; le détail existe parfois dans l'Historique, mais jamais ici.",
+        en: "On a failure from the automatic (cron) publish, the precise reason is neither kept nor shown on this screen — only the generic 'Failed' badge appears; the detail sometimes exists in History, but never here.",
+      },
     ],
     faq: [
       {
@@ -985,8 +997,8 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
       {
         label: { fr: "Republier un post en échec", en: "Republish a failed post" },
         detail: {
-          fr: "Les posts marqués « Échec » affichent un bouton « Réessayer » à côté du message d'erreur. Pour republier, utilisez « Dupliquer en nouvelle publication » depuis la fiche détaillée : le post se rouvre dans Composer, prêt à être renvoyé.",
-          en: "Posts marked 'Failed' show a 'Retry' button next to the error message. To republish, use 'Duplicate as new post' from the detail sheet: the post reopens in Composer, ready to resend.",
+          fr: "Les posts marqués « Échec » affichent un bouton « Réessayer » à côté du message d'erreur, et « Dupliquer en nouvelle publication » est aussi disponible depuis la fiche détaillée : les deux rouvrent le post dans Composer, prêt à être renvoyé.",
+          en: "Posts marked 'Failed' show a 'Retry' button next to the error message, and 'Duplicate as new post' is also available from the detail sheet: both reopen the post in Composer, ready to resend.",
         },
       },
       {
@@ -1922,16 +1934,21 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
       { label: { fr: "Créer un agent", en: "Create an agent" }, detail: { fr: "Donnez-lui sa voix (persona), son périmètre, son autonomie et ses mots-clés d'escalade.", en: "Give it a voice (persona), scope, autonomy and escalation keywords." } },
       { label: { fr: "Synchroniser Meta", en: "Sync Meta" }, detail: { fr: "Importe les commentaires, avis et messages privés récents de vos Pages Facebook/Instagram.", en: "Imports recent comments, reviews and private messages from your Facebook/Instagram Pages." } },
       { label: { fr: "Répondre ou valider", en: "Reply or approve" }, detail: { fr: "Générez une réponse IA, éditez-la, envoyez ; ou laissez l'agent autonome envoyer s'il est confiant. Pour un commentaire ou un avis Facebook/Instagram, cochez « Répondre en privé » pour envoyer la réponse en message privé à l'auteur plutôt qu'en public.", en: "Generate an AI reply, edit it, send; or let the autonomous agent send when confident. For a Facebook or Instagram comment/review, tick 'Reply privately' to send the reply as a private message to the author instead of publicly." } },
-      { label: { fr: "Diagnostiquer les DM Instagram", en: "Diagnose Instagram DMs" }, detail: { fr: "Vérifie pourquoi les messages privés Instagram n'arrivent pas (compte pro lié, permission accordée, webhook actif, portée réelle des permissions) et indique la cause probable et l'action à faire.", en: "Checks why Instagram private messages aren't arriving (linked professional account, granted permission, active webhook, actual permission scope) and shows the likely cause and next step." } },
+      { label: { fr: "Diagnostiquer les DM Instagram", en: "Diagnose Instagram DMs" }, detail: { fr: "Vérifie pourquoi les messages privés Instagram n'arrivent pas : compte pro lié, permission accordée, portée réelle de la permission, webhook actif, type de compte (Business/Créateur/Personnel), et une contre-épreuve croisée avec Messenger. Indique la cause probable et l'action à faire.", en: "Checks why Instagram private messages aren't arriving: linked professional account, granted permission, actual permission scope, active webhook, account type (Business/Creator/Personal), and a cross-check against Messenger. Shows the likely cause and next step." } },
       { label: { fr: "Simuler un message", en: "Simulate a message" }, detail: { fr: "Ajoute un message fictif (canal, auteur, texte) pour tester vos agents sans connexion réelle ; rien n'est envoyé sur les réseaux.", en: "Adds a fake message (channel, author, text) to test your agents without a live connection; nothing is sent to the networks." } },
+      { label: { fr: "Tester l'agent", en: "Test the agent" }, detail: { fr: "Depuis la fiche d'un agent, essayez sa configuration actuelle (même non enregistrée) sur un message d'exemple : rien n'est sauvegardé ni envoyé, c'est un aperçu.", en: "From an agent's card, try its current configuration (even unsaved) on a sample message: nothing is saved or sent, it's a preview." } },
+      { label: { fr: "Filtrer la liste", en: "Filter the list" }, detail: { fr: "Filtrez par type (commentaire, message privé, avis) et par statut (en attente, besoin d'un humain, répondu, tous), en plus du filtre par sentiment.", en: "Filter by type (comment, private message, review) and by status (pending, needs human, answered, all), in addition to the sentiment filter." } },
     ],
     tips: [
       { fr: "« Suggérer » = vous validez chaque réponse. « Auto » = l'agent envoie seul s'il est confiant et qu'aucun sujet sensible n'est détecté.", en: "“Suggest” = you approve every reply. “Auto” = the agent sends on its own when confident and no sensitive topic is detected." },
-      { fr: "Les sujets sensibles (remboursement, juridique, santé…) sont toujours escaladés à un humain.", en: "Sensitive topics (refunds, legal, health…) are always escalated to a human." },
-      { fr: "Le bandeau « Humeur de vos audiences » résume le sentiment des messages chargés (négatif, question, neutre, positif) ; cliquez une catégorie pour filtrer la liste.", en: "The 'Audience mood' panel summarizes the sentiment of loaded messages (negative, question, neutral, positive); click a category to filter the list." },
+      { fr: "Une liste d'environ 24 mots-clés d'escalade (remboursement, avocat, plainte, rgpd, décès, suicide, arnaque…) est codée en dur et toujours active, en plus de ceux que vous ajoutez à l'agent ; elle n'est pas modifiable dans l'interface. La détection est une simple recherche de sous-chaîne (insensible à la casse), pas une analyse IA — de faux positifs sont possibles si le mot apparaît dans un contexte sans rapport.", en: "A list of about 24 hardcoded escalation keywords (refund, lawyer, complaint, GDPR, death, suicide, scam…) is always active, in addition to the ones you add to the agent; it can't be edited from the UI. Detection is a plain case-insensitive substring search, not AI analysis — false positives are possible if the word appears in an unrelated context." },
+      { fr: "Le bandeau « Humeur de vos audiences » résume le sentiment des messages (négatif, question, neutre, positif) ; cliquez une catégorie pour filtrer la liste. Le sentiment n'est calculé qu'au moment où une réponse IA est générée pour le message : un message tout juste synchronisé ou simulé n'a pas encore de sentiment tant qu'aucune réponse n'a été rédigée.", en: "The 'Audience mood' panel summarizes message sentiment (negative, question, neutral, positive); click a category to filter the list. Sentiment is only computed when an AI reply is generated for the message: a just-synced or simulated message has no sentiment yet until a reply has been drafted." },
+      { fr: "Chaque agent peut avoir sa propre langue (auto, français, anglais ou kreol morisien) et sa propre signature ajoutée en bas des réponses.", en: "Each agent can have its own language (auto, French, English or Mauritian Kreol) and its own signature appended to replies." },
+      { fr: "Les messages privés Instagram/Facebook et les commentaires arrivent aussi en temps réel par webhook, indépendamment du bouton « Synchroniser Meta » qui ne fait qu'un import ponctuel.", en: "Instagram/Facebook private messages and comments also arrive in real time via webhook, independently of the 'Sync Meta' button, which only performs a one-off import." },
+      { fr: "Si une Page appartient au même compte Business qu'une Page sœur, la réponse peut être envoyée avec le jeton d'accès de cette Page sœur — utile pour la gestion multi-Pages.", en: "If a Page belongs to the same Business account as a sister Page, the reply can be sent using that sister Page's access token — useful for multi-Page management." },
     ],
     faq: [
-      { q: { fr: "L'agent peut-il publier une bêtise tout seul ?", en: "Can the agent post something wrong on its own?" }, a: { fr: "En mode « Suggérer », jamais : vous validez. En mode « Auto », il n'envoie que s'il dépasse votre seuil de confiance et qu'aucun mot-clé d'escalade n'est présent.", en: "In “Suggest” mode, never: you approve. In “Auto” mode, it only sends above your confidence threshold and with no escalation keyword present." } },
+      { q: { fr: "L'agent peut-il publier une bêtise tout seul ?", en: "Can the agent post something wrong on its own?" }, a: { fr: "En mode « Suggérer », jamais : vous validez. En mode « Auto », il n'envoie que s'il dépasse votre seuil de confiance et qu'aucun mot-clé d'escalade n'est présent — ni parmi les vôtres, ni parmi la liste d'environ 24 mots-clés toujours actifs en plus.", en: "In “Suggest” mode, never: you approve. In “Auto” mode, it only sends above your confidence threshold and with no escalation keyword present — neither yours nor the roughly 24 always-active default ones." } },
     ],
     related: [
       { label: { fr: "Mes Pages", en: "My Pages" }, href: "/pages-meta" },

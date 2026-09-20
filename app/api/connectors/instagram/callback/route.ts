@@ -31,6 +31,12 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   const code = searchParams.get("code");
   if (!code) {
+    // Voir le commentaire équivalent dans le callback Facebook : sans ce log,
+    // un callback sans `code` ni `error` était totalement invisible côté serveur.
+    console.warn(
+      "[Instagram callback] Code d'autorisation manquant — paramètres reçus :",
+      Object.fromEntries(searchParams.entries())
+    );
     return NextResponse.redirect(
       `${REDIRECT_BASE}/accounts?error=missing_code&platform=instagram`
     );

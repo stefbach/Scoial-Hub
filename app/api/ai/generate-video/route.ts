@@ -143,7 +143,7 @@ export async function POST(req: NextRequest) {
       const { persistRemoteMedia } = await import("@/lib/repositories/media");
       const url = await persistRemoteMedia(body.companyId ?? "", started.video.url, "video");
       return NextResponse.json({
-        video: { url }, aspect: resolvedAspect, platform: platform ?? null, quota: quotaPayload,
+        video: { url }, aspect: resolvedAspect, platform: platform ?? null, quota: quotaPayload, modelUsed: gm.id,
       });
     }
     // En cours → le client interrogera le statut via GET ?id=.
@@ -154,6 +154,7 @@ export async function POST(req: NextRequest) {
       aspect: resolvedAspect,
       platform: platform ?? null,
       quota: quotaPayload,
+      modelUsed: gm.id,
     });
   } catch (err) {
     console.error("[api/ai/generate-video POST] Erreur :", err);

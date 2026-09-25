@@ -12,6 +12,7 @@ import { useT } from "@/lib/i18n";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { ConnectGuide } from "@/components/connect/ConnectGuide";
 import { SeriesPlanner } from "@/components/series/SeriesPlanner";
+import { FacebookNativeSchedule } from "@/components/network/FacebookNativeSchedule";
 import { SERIES_CONFIG, type SeriesPlatform } from "@/lib/social-series";
 import type { ConnectHelpKey } from "@/lib/connect-help";
 import type { ConnectorStatus } from "@/lib/connectors/types";
@@ -81,6 +82,11 @@ export function NetworkSpace({ platform }: { platform: SeriesPlatform }) {
         </div>
         <SeriesPlanner platform={platform} />
       </section>
+
+      {/* Retour client Rosiane #7 : voir aussi ce qui est programmé
+          directement dans Meta Business Suite (hors Social Hub) — Facebook
+          uniquement, la Graph API n'exposant pas cet edge pour Instagram. */}
+      {platform === "facebook" && connected && <FacebookNativeSchedule companyId={companyId} />}
 
       <ConnectGuide
         open={guide}

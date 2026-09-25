@@ -54,6 +54,7 @@
     "test:localdraft": "tsx scripts/verify-local-draft.ts",
     "test:publishfailemail": "tsx scripts/verify-failed-publish-notification.ts",
     "test:formattoolbar": "tsx scripts/verify-formatting-toolbar.ts",
+    "test:fbnativeschedule": "tsx scripts/verify-facebook-native-schedule.ts",
     "test:videoerrormsg": "tsx scripts/verify-video-error-message.ts",
     "test:approval": "tsx scripts/verify-approval-workflow.ts",
     "test:montagepressepapier": "tsx scripts/verify-editor-clipboard.ts",

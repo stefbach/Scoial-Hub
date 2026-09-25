@@ -8,11 +8,12 @@
 //   - Facebook / Instagram : programmation auto (cron). Instagram impose un visuel.
 //   - TikTok : « Publier maintenant » via le connecteur.
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { addDays, format } from "date-fns";
 import { useCompany } from "@/lib/company-context";
 import { useT, useLang } from "@/lib/i18n";
 import { useLocalDraftAutosave, loadLocalDraft, clearLocalDraft } from "@/lib/hooks/useLocalDraft";
+import { FormattingToolbar } from "@/components/composer/FormattingToolbar";
 import { Spinner } from "@/components/ui/Spinner";
 import { DatePicker, TimePicker } from "@/components/ui/DateTimePicker";
 import { BestTimeSuggestion } from "@/components/composer/BestTimeSuggestion";
@@ -191,6 +192,15 @@ export function SeriesPlanner({ platform }: { platform: SeriesPlatform }) {
   }
   function patchDraft(i: number, patch: Partial<DraftItem>) {
     setDrafts((arr) => arr.map((x, j) => (j === i ? { ...x, ...patch } : x)));
+  }
+
+  // Réf par élément pour la barre de mise en forme (retour client Rosiane
+  // #6) : la liste est dynamique (ajout/retrait), donc un tableau plutôt
+  // qu'une réf unique — `textareaRefFor` expose une lecture toujours à jour
+  // de l'élément DOM courant sans recréer de vraie réf React à chaque rendu.
+  const draftTextareaEls = useRef<(HTMLTextAreaElement | null)[]>([]);
+  function textareaRefFor(i: number): RefObject<HTMLTextAreaElement> {
+    return { get current() { return draftTextareaEls.current[i] ?? null; } } as RefObject<HTMLTextAreaElement>;
   }
 
   /** Transforme quelques mots-clés en un prompt éditable et détaillé (même principe que le studio LinkedIn), avant de lancer la génération de la série. */
@@ -524,8 +534,20 @@ export function SeriesPlanner({ platform }: { platform: SeriesPlatform }) {
             <div key={i} className="rounded-xl border border-hair bg-canvas p-2.5">
               <div className="flex items-start gap-2">
                 <span className="mt-2 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary-100 text-2xs font-bold text-primary-700">{i + 1}</span>
-                <div className="min-w-0 flex-1">
-                  <textarea value={d.body} onChange={(e) => patchDraft(i, { body: e.target.value })}
+                <div className="min-w-0 flex-1 space-y-1">
+                  {/* Mise en forme (retour client Rosiane #6) : Facebook,
+                      Instagram et TikTok ne convertissent rien à la
+                      publication — le gras/italique s'applique donc
+                      immédiatement au texte (caractères Unicode). */}
+                  <FormattingToolbar
+                    textareaRef={textareaRefFor(i)}
+                    value={d.body}
+                    onChange={(v) => patchDraft(i, { body: v })}
+                    mode="unicode"
+                  />
+                  <textarea
+                    ref={(el) => { draftTextareaEls.current[i] = el; }}
+                    value={d.body} onChange={(e) => patchDraft(i, { body: e.target.value })}
                     rows={seriesFormat === "article" ? 12 : 6}
                     placeholder={t(`Élément ${i + 1}…`, `Item ${i + 1}…`)} className={`${inputCls} resize-y leading-relaxed`} />
                   {len > 0 && (

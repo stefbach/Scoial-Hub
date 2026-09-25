@@ -9,11 +9,12 @@
 // Les publications partent automatiquement via le cron /api/cron/publish-due
 // (vérification toutes les 10 minutes).
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { addDays, format } from "date-fns";
 import { useCompany } from "@/lib/company-context";
 import { useT, useLang } from "@/lib/i18n";
 import { useLocalDraftAutosave, loadLocalDraft, clearLocalDraft } from "@/lib/hooks/useLocalDraft";
+import { FormattingToolbar } from "@/components/composer/FormattingToolbar";
 import { Spinner } from "@/components/ui/Spinner";
 import { DatePicker, TimePicker } from "@/components/ui/DateTimePicker";
 import { BestTimeSuggestion } from "@/components/composer/BestTimeSuggestion";
@@ -278,6 +279,14 @@ export function LinkedInScheduler() {
   }
 
   /** Patch d'un brouillon par index (immutable). */
+  // Réf par élément pour la barre de mise en forme (retour client Rosiane
+  // #6) — même principe que SeriesPlanner (liste dynamique).
+  const draftTextareaEls = useRef<(HTMLTextAreaElement | null)[]>([]);
+  function textareaRefFor(i: number): RefObject<HTMLTextAreaElement> {
+    return { get current() { return draftTextareaEls.current[i] ?? null; } } as RefObject<HTMLTextAreaElement>;
+  }
+  const editTextareaRef = useRef<HTMLTextAreaElement>(null);
+
   function patchDraft(i: number, patch: Partial<DraftItem>) {
     setDrafts((arr) => arr.map((x, j) => (j === i ? { ...x, ...patch } : x)));
   }
@@ -518,7 +527,9 @@ export function LinkedInScheduler() {
               <li key={p.id} className="rounded-xl border border-hair bg-canvas p-3">
                 {editId === p.id ? (
                   <div className="space-y-2">
+                    <FormattingToolbar textareaRef={editTextareaRef} value={editBody} onChange={setEditBody} mode="markdown" />
                     <textarea
+                      ref={editTextareaRef}
                       value={editBody}
                       onChange={(e) => setEditBody(e.target.value)}
                       rows={5}
@@ -763,8 +774,15 @@ export function LinkedInScheduler() {
                 <span className="mt-2 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary-100 text-2xs font-bold text-primary-700">
                   {i + 1}
                 </span>
-                <div className="min-w-0 flex-1">
+                <div className="min-w-0 flex-1 space-y-1">
+                  <FormattingToolbar
+                    textareaRef={textareaRefFor(i)}
+                    value={d.body}
+                    onChange={(v) => patchDraft(i, { body: v })}
+                    mode="markdown"
+                  />
                   <textarea
+                    ref={(el) => { draftTextareaEls.current[i] = el; }}
                     value={d.body}
                     onChange={(e) => patchDraft(i, { body: e.target.value })}
                     rows={seriesFormat === "article" ? 12 : 6}

@@ -20,6 +20,7 @@ import { IMAGE_MODELS, DEFAULT_IMAGE_MODEL_ID, DEFAULT_VIDEO_MODEL_ID, videoMode
 import { MediaUpload, type UploadedMedia } from "@/components/ui/MediaUpload";
 import { AlbumUpload, ALBUM_MAX_ITEMS } from "@/components/compose/AlbumUpload";
 import { MediaLibraryButton } from "@/components/studio/MediaLibrary";
+import { FormattingToolbar } from "@/components/composer/FormattingToolbar";
 import { WhenToPublish } from "@/components/compose/WhenToPublish";
 import { BestTimeSuggestion } from "@/components/composer/BestTimeSuggestion";
 import { Toast } from "@/components/ui/Toast";
@@ -1120,28 +1121,38 @@ function ContentBox({ value, onChange, placeholder }: { value: string; onChange:
   // (tuile primaire pleine + étiquette ✦ IA — pas de variante d'opacité,
   // pour rester lisible dans les deux thèmes).
   const empty = value.trim() === "";
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   return (
-    <div className="relative">
-      <textarea
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={
-          placeholder ??
-          t(
-            "✦ L'IA remplira ce texte automatiquement quand vous lancerez l'agent ci-dessous — vous pourrez tout retoucher.",
-            "✦ The AI will fill this text automatically when you run the agent below — you can edit everything."
-          )
-        }
-        className={`input h-28 resize-none ${empty ? "border-primary-200 bg-primary-50" : ""}`}
-      />
-      {empty && (
-        <span
-          aria-hidden="true"
-          className="pointer-events-none absolute right-2 top-2 rounded-full bg-primary-100 px-2 py-0.5 text-2xs font-semibold text-primary-600"
-        >
-          ✦ IA
-        </span>
-      )}
+    <div className="space-y-1.5">
+      {/* Mise en forme (retour client Rosiane #6, BUGS-SocialHub35) : ni
+          Facebook ni Instagram ni TikTok n'interprètent de markdown à la
+          publication (contrairement à LinkedIn) — le gras/italique doit donc
+          être appliqué immédiatement au texte via les mêmes caractères
+          Unicode que LinkedIn utilise en coulisses (lib/linkedin-format.ts). */}
+      <FormattingToolbar textareaRef={textareaRef} value={value} onChange={onChange} mode="unicode" />
+      <div className="relative">
+        <textarea
+          ref={textareaRef}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={
+            placeholder ??
+            t(
+              "✦ L'IA remplira ce texte automatiquement quand vous lancerez l'agent ci-dessous — vous pourrez tout retoucher.",
+              "✦ The AI will fill this text automatically when you run the agent below — you can edit everything."
+            )
+          }
+          className={`input h-28 resize-none ${empty ? "border-primary-200 bg-primary-50" : ""}`}
+        />
+        {empty && (
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute right-2 top-2 rounded-full bg-primary-100 px-2 py-0.5 text-2xs font-semibold text-primary-600"
+          >
+            ✦ IA
+          </span>
+        )}
+      </div>
     </div>
   );
 }

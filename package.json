@@ -53,6 +53,7 @@
     "test:besttime": "tsx scripts/verify-best-time.ts",
     "test:localdraft": "tsx scripts/verify-local-draft.ts",
     "test:publishfailemail": "tsx scripts/verify-failed-publish-notification.ts",
+    "test:formattoolbar": "tsx scripts/verify-formatting-toolbar.ts",
     "test:videoerrormsg": "tsx scripts/verify-video-error-message.ts",
     "test:approval": "tsx scripts/verify-approval-workflow.ts",
     "test:montagepressepapier": "tsx scripts/verify-editor-clipboard.ts",

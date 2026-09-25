@@ -13,8 +13,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { addDays, format } from "date-fns";
 import { useCompany } from "@/lib/company-context";
 import { useT, useLang } from "@/lib/i18n";
+import { useLocalDraftAutosave, loadLocalDraft, clearLocalDraft } from "@/lib/hooks/useLocalDraft";
 import { Spinner } from "@/components/ui/Spinner";
 import { DatePicker, TimePicker } from "@/components/ui/DateTimePicker";
+import { BestTimeSuggestion } from "@/components/composer/BestTimeSuggestion";
 import { MediaLibraryButton } from "@/components/studio/MediaLibrary";
 import { UploadMediaButton } from "@/components/studio/UploadMediaButton";
 import { PublishLanguageSelect } from "@/components/ui/PublishLanguageSelect";
@@ -58,10 +60,27 @@ function sortKey(p: ScheduledPost): string {
   return `${p.date || "9999-12-31"}T${p.time || "23:59"}`;
 }
 
+/** Ce qui est persisté par l'autosave local (retour client Rosiane #2). */
+interface LinkedInDraftSnapshot {
+  drafts: DraftItem[];
+  theme: string;
+  count: number;
+  seriesFormat: "post" | "article";
+  pubLang: string;
+  startDate: string; // ISO
+  cadence: Cadence;
+  batchTime: string;
+  seriesImage: string | null;
+}
+
+function linkedInDraftHasContent(s: Pick<LinkedInDraftSnapshot, "drafts" | "theme" | "seriesImage">): boolean {
+  return s.theme.trim().length > 0 || Boolean(s.seriesImage) || s.drafts.some((d) => d.body.trim() || d.media);
+}
+
 export function LinkedInScheduler() {
   const t = useT();
   const { lang } = useLang();
-  const { company, access } = useCompany();
+  const { company, data, access } = useCompany();
   const canEdit = access.canEdit;
   const companyId = company.id;
 
@@ -206,6 +225,48 @@ export function LinkedInScheduler() {
   const [seriesImage, setSeriesImage] = useState<string | null>(null);
   const [schedulingAll, setSchedulingAll] = useState(false);
   const [batchMsg, setBatchMsg] = useState<string | null>(null);
+
+  // ── Autosave local du brouillon (retour client Rosiane #2) ────────────────
+  // Le lot n'a pas encore de ligne en base tant qu'il n'est pas programmé :
+  // sans ceci, quitter la page effaçait tout ce qui avait déjà été rédigé ou
+  // généré ici.
+  const draftKey = companyId ? `sh:linkedin-series-draft:${companyId}` : null;
+  const [restored, setRestored] = useState(false);
+  const [restoredNoticeVisible, setRestoredNoticeVisible] = useState(false);
+
+  useEffect(() => {
+    if (!draftKey) return;
+    const snap = loadLocalDraft<LinkedInDraftSnapshot>(draftKey);
+    if (snap && linkedInDraftHasContent(snap)) {
+      setDrafts(snap.drafts);
+      setTheme(snap.theme);
+      setCount(snap.count);
+      setSeriesFormat(snap.seriesFormat);
+      setPubLang(snap.pubLang);
+      setCadence(snap.cadence);
+      setBatchTime(snap.batchTime);
+      setSeriesImage(snap.seriesImage);
+      const parsed = new Date(snap.startDate);
+      if (!Number.isNaN(parsed.getTime())) setStartDate(parsed);
+      setRestoredNoticeVisible(true);
+    }
+    setRestored(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useLocalDraftAutosave<LinkedInDraftSnapshot>(
+    draftKey,
+    { drafts, theme, count, seriesFormat, pubLang, startDate: startDate.toISOString(), cadence, batchTime, seriesImage },
+    { enabled: restored }
+  );
+
+  function discardLocalDraft() {
+    if (draftKey) clearLocalDraft(draftKey);
+    setDrafts([{ body: "" }, { body: "" }, { body: "" }]);
+    setTheme("");
+    setSeriesImage(null);
+    setRestoredNoticeVisible(false);
+  }
 
   const filledDrafts = useMemo(
     () => drafts.map((d, i) => ({ ...d, index: i })).filter((d) => d.body.trim()),
@@ -397,7 +458,10 @@ export function LinkedInScheduler() {
         if (r.ok) ok++;
         else failed++;
       }
-      if (ok > 0) setDrafts([{ body: "" }, { body: "" }, { body: "" }]);
+      if (ok > 0) {
+        setDrafts([{ body: "" }, { body: "" }, { body: "" }]);
+        if (draftKey) clearLocalDraft(draftKey);
+      }
       setBatchMsg(
         failed === 0
           ? t(`${ok} publications programmées ✓`, `${ok} posts scheduled ✓`)
@@ -413,6 +477,15 @@ export function LinkedInScheduler() {
 
   return (
     <div className="space-y-6">
+      {restoredNoticeVisible && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-primary-200 bg-primary-50 px-3 py-2 text-2xs text-primary-800">
+          <span>💾 {t("Brouillon restauré (non programmé la dernière fois).", "Draft restored (not scheduled last time).")}</span>
+          <button type="button" onClick={discardLocalDraft} className="btn-secondary ml-auto shrink-0 px-2 py-1 text-2xs">
+            {t("Effacer le brouillon", "Discard draft")}
+          </button>
+        </div>
+      )}
+
       {/* File d'attente */}
       <section className="card p-5 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -815,6 +888,19 @@ export function LinkedInScheduler() {
           />
           <span className="text-2xs text-muted">{t("Visuel par défaut — utilisé pour les éléments sans visuel propre.", "Default visual — used for items without their own.")}</span>
         </div>
+
+        {/* Meilleur créneau de publication (retour client Rosiane #1) —
+            appliqué à la date/heure de DÉPART du lot ; la cadence choisie
+            ci-dessous espace ensuite chaque élément à partir de ce créneau. */}
+        <BestTimeSuggestion
+          platform="linkedin"
+          companyId={companyId}
+          history={data.history}
+          onApply={(d, tm) => {
+            setStartDate(d);
+            setBatchTime(tm);
+          }}
+        />
 
         {/* Cadence + programmation */}
         <div className="flex flex-wrap items-end gap-3 rounded-xl border border-hair bg-canvas p-3">

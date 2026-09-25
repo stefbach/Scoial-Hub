@@ -20,11 +20,11 @@ import { IMAGE_MODELS, DEFAULT_IMAGE_MODEL_ID, DEFAULT_VIDEO_MODEL_ID, videoMode
 import { MediaUpload, type UploadedMedia } from "@/components/ui/MediaUpload";
 import { AlbumUpload } from "@/components/compose/AlbumUpload";
 import { WhenToPublish } from "@/components/compose/WhenToPublish";
-import { suggestBestTime, weekdayLabel, nextDateForWeekday } from "@/lib/publishing/best-time";
+import { BestTimeSuggestion } from "@/components/composer/BestTimeSuggestion";
 import { Toast } from "@/components/ui/Toast";
 import { findDraft, findPost } from "@/lib/draft-store";
 import { findTemplate } from "@/lib/template-store";
-import type { ScheduledPost, TikTokPublishOptions, WeekDay } from "@/lib/types";
+import type { ScheduledPost, TikTokPublishOptions } from "@/lib/types";
 
 /** Langues de diffusion proposées pour la rédaction du contenu par l'IA. */
 const DIFFUSION_LANGUAGES = [
@@ -271,43 +271,6 @@ function ComposeContent() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [videoModelOptions]);
-
-  // Meilleur moment suggéré (retour client Rosiane #1) — calculé pour le
-  // premier réseau choisi ; s'appuie sur l'historique mesuré de CE réseau
-  // dès qu'il y en a assez, sinon un repère général documenté par réseau.
-  const bestTime = useMemo(() => {
-    const platform = selectedPlatforms[0];
-    if (!platform) return null;
-    return { platform, suggestion: suggestBestTime(platform, data.history) };
-  }, [selectedPlatforms, data.history]);
-
-  // Meilleur créneau APPRIS par le moteur d'apprentissage (Thompson Sampling,
-  // lib/learning-engine) : distinct de `bestTime` ci-dessus (moyenne simple
-  // sur l'historique visible côté client) — celui-ci lit l'état persistant,
-  // partagé entre toutes les sessions, alimenté par le cron learning-sync
-  // depuis les métriques réelles post-publication. Prend le pas sur `bestTime`
-  // dès qu'il existe (voir rendu plus bas), car il reflète un signal mesuré
-  // dans la durée plutôt qu'un instantané de l'historique local.
-  const [learnedSlot, setLearnedSlot] = useState<
-    { day: WeekDay; hour: number; confidence: number; sampleSize: number } | null
-  >(null);
-  useEffect(() => {
-    const platform = selectedPlatforms[0];
-    if (!platform) { setLearnedSlot(null); return; }
-    let cancelled = false;
-    setLearnedSlot(null);
-    fetch("/api/learning/best-slot", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ companyId: company.id, platform }),
-    })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d: { slot?: typeof learnedSlot } | null) => {
-        if (!cancelled) setLearnedSlot(d?.slot ?? null);
-      })
-      .catch(() => { if (!cancelled) setLearnedSlot(null); });
-    return () => { cancelled = true; };
-  }, [selectedPlatforms, company.id]);
 
   // ── TikTok — Required UX Implementation ───────────────────────────────────
   // Réglages, chargement des infos créateur et règle de validation vivent dans
@@ -1015,59 +978,20 @@ function ComposeContent() {
             onTimeChange={setTime}
           />
 
-          {/* Meilleur créneau APPRIS (moteur d'apprentissage) — prioritaire dès
-              qu'il existe : signal mesuré dans la durée, partagé entre
-              sessions, plus fiable que la moyenne locale ci-dessous. */}
-          {when === "schedule" && learnedSlot && (
-            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-success-200 bg-success-50 px-3 py-2 text-2xs text-success-700">
-              <span>
-                🧠{" "}
-                {t(
-                  `Appris par le moteur d'apprentissage pour ${platformLabel(bestTime?.platform ?? selectedPlatforms[0])} : ${weekdayLabel(learnedSlot.day, t)} ${String(learnedSlot.hour).padStart(2, "0")}:00 (confiance ${Math.round(learnedSlot.confidence * 100)}%, ${learnedSlot.sampleSize} mesures).`,
-                  `Learned by the learning engine for ${platformLabel(bestTime?.platform ?? selectedPlatforms[0])}: ${weekdayLabel(learnedSlot.day, t)} ${String(learnedSlot.hour).padStart(2, "0")}:00 (confidence ${Math.round(learnedSlot.confidence * 100)}%, ${learnedSlot.sampleSize} samples).`
-                )}
-              </span>
-              <button
-                type="button"
-                onClick={() => {
-                  const time = `${String(learnedSlot.hour).padStart(2, "0")}:00`;
-                  setDate(nextDateForWeekday(learnedSlot.day, time));
-                  setTime(time);
-                }}
-                className="btn-secondary shrink-0 px-2 py-1 text-2xs"
-              >
-                {t("Appliquer ce créneau", "Apply this slot")}
-              </button>
-            </div>
-          )}
-
-          {/* Meilleur moment suggéré (retour client Rosiane #1) — repli tant que
-              le moteur d'apprentissage n'a pas encore assez de mesures. */}
-          {when === "schedule" && !learnedSlot && bestTime && (
-            <div className="flex flex-wrap items-center gap-2 rounded-lg border-hair bg-canvas/60 px-3 py-2 text-2xs text-muted">
-              <span>
-                💡{" "}
-                {bestTime.suggestion.source === "historical"
-                  ? t(
-                      `Meilleur moment d'après vos ${bestTime.suggestion.sampleSize} dernières publications ${platformLabel(bestTime.platform)} : ${weekdayLabel(bestTime.suggestion.day, t)} ${bestTime.suggestion.time}.`,
-                      `Best time based on your last ${bestTime.suggestion.sampleSize} ${platformLabel(bestTime.platform)} posts: ${weekdayLabel(bestTime.suggestion.day, t)} ${bestTime.suggestion.time}.`
-                    )
-                  : t(
-                      `Créneau généralement recommandé pour ${platformLabel(bestTime.platform)} : ${weekdayLabel(bestTime.suggestion.day, t)} ${bestTime.suggestion.time} (pas encore assez d'historique mesuré pour l'affiner).`,
-                      `Generally recommended slot for ${platformLabel(bestTime.platform)}: ${weekdayLabel(bestTime.suggestion.day, t)} ${bestTime.suggestion.time} (not enough measured history yet to refine it).`
-                    )}
-              </span>
-              <button
-                type="button"
-                onClick={() => {
-                  setDate(nextDateForWeekday(bestTime.suggestion.day, bestTime.suggestion.time));
-                  setTime(bestTime.suggestion.time);
-                }}
-                className="btn-secondary shrink-0 px-2 py-1 text-2xs"
-              >
-                {t("Utiliser ce créneau", "Use this slot")}
-              </button>
-            </div>
+          {/* Meilleur créneau de publication (retour client Rosiane #1) —
+              appris par le moteur d'apprentissage dès qu'il a assez de
+              mesures, sinon repli sur l'historique local / un repère par
+              défaut (voir components/composer/BestTimeSuggestion.tsx). */}
+          {when === "schedule" && selectedPlatforms[0] && (
+            <BestTimeSuggestion
+              platform={selectedPlatforms[0]}
+              companyId={company.id}
+              history={data.history}
+              onApply={(d, tm) => {
+                setDate(d);
+                setTime(tm);
+              }}
+            />
           )}
 
           {/* Réglages TikTok — Required UX Implementation (guidelines Content

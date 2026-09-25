@@ -51,6 +51,7 @@
     "test:postsource": "tsx scripts/verify-post-source.ts",
     "test:album": "tsx scripts/verify-album-carousel.ts",
     "test:besttime": "tsx scripts/verify-best-time.ts",
+    "test:localdraft": "tsx scripts/verify-local-draft.ts",
     "test:videoerrormsg": "tsx scripts/verify-video-error-message.ts",
     "test:approval": "tsx scripts/verify-approval-workflow.ts",
     "test:montagepressepapier": "tsx scripts/verify-editor-clipboard.ts",

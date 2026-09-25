@@ -12,7 +12,7 @@
 
 import type { Platform } from "@/lib/types";
 import { withAppSecretProof } from "@/lib/connectors/meta-appsecret";
-import { ConnectorAuthError, MetaContainerPendingError } from "@/lib/connectors/types";
+import { ConnectorAuthError, MetaContainerPendingError, isConnectorAuthError } from "@/lib/connectors/types";
 import {
   inferMediaKind,
   publishToFacebookPage,
@@ -74,6 +74,16 @@ const META_SCOPES = [
 // ---------------------------------------------------------------------------
 
 /**
+ * Retire les valeurs sensibles (secret d'app, tokens) d'un chemin d'appel
+ * Graph avant de l'inclure dans un message d'erreur — ces messages finissent
+ * dans les logs Vercel (console.warn/console.error des callbacks OAuth), qui
+ * ne sont pas un stockage de secrets.
+ */
+function redactSecrets(path: string): string {
+  return path.replace(/([?&](?:access_token|client_secret|appsecret_proof)=)[^&]+/gi, "$1***");
+}
+
+/**
  * Effectue un appel Graph API et parse le JSON.
  * Lance une erreur si la réponse contient un champ `error`.
  */
@@ -106,7 +116,7 @@ async function graphFetch<T = Record<string, unknown>>(
       );
     }
     throw new Error(
-      `Graph API ${path} → [${data.error.code}] ${data.error.message}`
+      `Graph API ${redactSecrets(path)} → [${data.error.code}] ${data.error.message}`
     );
   }
 
@@ -168,6 +178,71 @@ function simulatedMetrics(): PostMetrics {
     impressions: Math.floor(Math.random() * 5000) + 500,
     simulated: true,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Publications programmées NATIVES (Meta Business Suite)
+// ---------------------------------------------------------------------------
+
+/**
+ * Une publication programmée directement dans Meta Business Suite (ou via un
+ * autre outil que Social Hub) sur cette Page — distincte des publications
+ * programmées PAR Social Hub (`sh_scheduled_posts`, publiées par notre propre
+ * cron). Retour client Rosiane #7, BUGS-SocialHub35 : ces publications
+ * n'apparaissaient nulle part dans l'app, on ne pouvait donc pas avoir une
+ * vue complète du calendrier de publication Facebook depuis un seul endroit.
+ */
+export interface FacebookNativeScheduledPost {
+  id: string;
+  message: string;
+  /** ISO 8601 — converti depuis l'horodatage Unix renvoyé par la Graph API. */
+  scheduledPublishTime: string;
+}
+
+export interface FacebookNativeScheduledResult {
+  posts: FacebookNativeScheduledPost[];
+  /** Présent si l'appel a échoué (permission manquante, Page non éligible…) — la liste reste alors vide plutôt que de faire planter l'écran. */
+  error?: string;
+}
+
+/**
+ * Liste les publications programmées NATIVEMENT sur la Page (Meta Business
+ * Suite), via l'edge Graph API `/{page-id}/scheduled_posts`. Lecture seule,
+ * jamais bloquant : sans configuration Meta ou sur erreur Graph (permission
+ * `pages_read_engagement`/`pages_manage_posts` manquante, Page non éligible…),
+ * renvoie une liste vide avec le détail dans `error` plutôt que de lever.
+ */
+export async function listFacebookNativeScheduledPosts(
+  pageId: string,
+  pageAccessToken: string
+): Promise<FacebookNativeScheduledResult> {
+  if (!isMetaConfigured || !pageId || !pageAccessToken || pageAccessToken.startsWith("simulated_")) {
+    return { posts: [] };
+  }
+  try {
+    const data = await graphFetch<{
+      data?: Array<{ id: string; message?: string; scheduled_publish_time?: number }>;
+    }>(
+      `/${pageId}/scheduled_posts?fields=id,message,scheduled_publish_time&access_token=${encodeURIComponent(pageAccessToken)}`
+    );
+    const posts = (data.data ?? [])
+      .filter((p) => typeof p.scheduled_publish_time === "number")
+      .map((p) => ({
+        id: p.id,
+        message: p.message ?? "",
+        scheduledPublishTime: new Date(p.scheduled_publish_time! * 1000).toISOString(),
+      }))
+      .sort((a, b) => a.scheduledPublishTime.localeCompare(b.scheduledPublishTime));
+    return { posts };
+  } catch (err) {
+    // Un token rejeté doit remonter tel quel : c'est ce qui permet à
+    // l'appelant de distinguer « reconnectez le compte » d'une simple
+    // fonctionnalité indisponible pour cette Page.
+    if (isConnectorAuthError(err)) throw err;
+    const message = err instanceof Error ? err.message : "Erreur inconnue";
+    console.warn("[meta] listFacebookNativeScheduledPosts a échoué (non bloquant) :", message);
+    return { posts: [], error: message };
+  }
 }
 
 // ---------------------------------------------------------------------------

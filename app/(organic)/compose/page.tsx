@@ -18,13 +18,15 @@ import { brandPromptHints } from "@/lib/brand-kit/prompt";
 import { AgentLauncher } from "@/components/agents/AgentLauncher";
 import { IMAGE_MODELS, DEFAULT_IMAGE_MODEL_ID, DEFAULT_VIDEO_MODEL_ID, videoModelsForPlatform, isLockedVideoPlatform } from "@/lib/ai/model-catalog";
 import { MediaUpload, type UploadedMedia } from "@/components/ui/MediaUpload";
-import { AlbumUpload } from "@/components/compose/AlbumUpload";
+import { AlbumUpload, ALBUM_MAX_ITEMS } from "@/components/compose/AlbumUpload";
+import { MediaLibraryButton } from "@/components/studio/MediaLibrary";
+import { FormattingToolbar } from "@/components/composer/FormattingToolbar";
 import { WhenToPublish } from "@/components/compose/WhenToPublish";
-import { suggestBestTime, weekdayLabel, nextDateForWeekday } from "@/lib/publishing/best-time";
+import { BestTimeSuggestion } from "@/components/composer/BestTimeSuggestion";
 import { Toast } from "@/components/ui/Toast";
 import { findDraft, findPost } from "@/lib/draft-store";
 import { findTemplate } from "@/lib/template-store";
-import type { ScheduledPost, TikTokPublishOptions, WeekDay } from "@/lib/types";
+import type { ScheduledPost, TikTokPublishOptions } from "@/lib/types";
 
 /** Langues de diffusion proposées pour la rédaction du contenu par l'IA. */
 const DIFFUSION_LANGUAGES = [
@@ -271,43 +273,6 @@ function ComposeContent() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [videoModelOptions]);
-
-  // Meilleur moment suggéré (retour client Rosiane #1) — calculé pour le
-  // premier réseau choisi ; s'appuie sur l'historique mesuré de CE réseau
-  // dès qu'il y en a assez, sinon un repère général documenté par réseau.
-  const bestTime = useMemo(() => {
-    const platform = selectedPlatforms[0];
-    if (!platform) return null;
-    return { platform, suggestion: suggestBestTime(platform, data.history) };
-  }, [selectedPlatforms, data.history]);
-
-  // Meilleur créneau APPRIS par le moteur d'apprentissage (Thompson Sampling,
-  // lib/learning-engine) : distinct de `bestTime` ci-dessus (moyenne simple
-  // sur l'historique visible côté client) — celui-ci lit l'état persistant,
-  // partagé entre toutes les sessions, alimenté par le cron learning-sync
-  // depuis les métriques réelles post-publication. Prend le pas sur `bestTime`
-  // dès qu'il existe (voir rendu plus bas), car il reflète un signal mesuré
-  // dans la durée plutôt qu'un instantané de l'historique local.
-  const [learnedSlot, setLearnedSlot] = useState<
-    { day: WeekDay; hour: number; confidence: number; sampleSize: number } | null
-  >(null);
-  useEffect(() => {
-    const platform = selectedPlatforms[0];
-    if (!platform) { setLearnedSlot(null); return; }
-    let cancelled = false;
-    setLearnedSlot(null);
-    fetch("/api/learning/best-slot", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ companyId: company.id, platform }),
-    })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d: { slot?: typeof learnedSlot } | null) => {
-        if (!cancelled) setLearnedSlot(d?.slot ?? null);
-      })
-      .catch(() => { if (!cancelled) setLearnedSlot(null); });
-    return () => { cancelled = true; };
-  }, [selectedPlatforms, company.id]);
 
   // ── TikTok — Required UX Implementation ───────────────────────────────────
   // Réglages, chargement des infos créateur et règle de validation vivent dans
@@ -949,8 +914,20 @@ function ComposeContent() {
           />
 
           {/* Media upload — ancre du défilement doux après génération (#20) */}
-          <div ref={mediaRef}>
+          <div ref={mediaRef} className="space-y-1.5">
             <MediaUpload media={upload} onChange={setUpload} companyId={company.id} />
+            {/* Choisir un visuel déjà créé (retour client Rosiane #4, BUGS-
+                SocialHub35) — jusqu'ici réservé aux espaces réseaux
+                (Facebook/Instagram/LinkedIn/TikTok), absent de Composer. */}
+            <MediaLibraryButton
+              companyId={company.id}
+              accept="all"
+              label={t("📚 Choisir depuis la bibliothèque", "📚 Pick from library")}
+              className="btn-secondary text-xs"
+              onPick={(a) =>
+                setUpload({ url: a.url, name: a.type === "video" ? "library-video" : "library-visual", size: 0, kind: a.type })
+              }
+            />
           </div>
           {upload && (
             <button
@@ -1002,6 +979,19 @@ function ComposeContent() {
                   {t("Album (Facebook) / carrousel (Instagram) — ajoutez d'autres photos :", "Album (Facebook) / carousel (Instagram) — add more photos:")}
                 </span>
                 <AlbumUpload extra={albumExtra} onChange={setAlbumExtra} companyId={company.id} />
+                <MediaLibraryButton
+                  companyId={company.id}
+                  accept="image"
+                  label={t("📚 Ajouter depuis la bibliothèque", "📚 Add from library")}
+                  className="btn-secondary text-2xs"
+                  onPick={(a) =>
+                    setAlbumExtra((prev) =>
+                      prev.length >= ALBUM_MAX_ITEMS - 1
+                        ? prev
+                        : [...prev, { url: a.url, name: "library-visual", size: 0, kind: "image" }]
+                    )
+                  }
+                />
               </div>
             )}
 
@@ -1015,59 +1005,20 @@ function ComposeContent() {
             onTimeChange={setTime}
           />
 
-          {/* Meilleur créneau APPRIS (moteur d'apprentissage) — prioritaire dès
-              qu'il existe : signal mesuré dans la durée, partagé entre
-              sessions, plus fiable que la moyenne locale ci-dessous. */}
-          {when === "schedule" && learnedSlot && (
-            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-success-200 bg-success-50 px-3 py-2 text-2xs text-success-700">
-              <span>
-                🧠{" "}
-                {t(
-                  `Appris par le moteur d'apprentissage pour ${platformLabel(bestTime?.platform ?? selectedPlatforms[0])} : ${weekdayLabel(learnedSlot.day, t)} ${String(learnedSlot.hour).padStart(2, "0")}:00 (confiance ${Math.round(learnedSlot.confidence * 100)}%, ${learnedSlot.sampleSize} mesures).`,
-                  `Learned by the learning engine for ${platformLabel(bestTime?.platform ?? selectedPlatforms[0])}: ${weekdayLabel(learnedSlot.day, t)} ${String(learnedSlot.hour).padStart(2, "0")}:00 (confidence ${Math.round(learnedSlot.confidence * 100)}%, ${learnedSlot.sampleSize} samples).`
-                )}
-              </span>
-              <button
-                type="button"
-                onClick={() => {
-                  const time = `${String(learnedSlot.hour).padStart(2, "0")}:00`;
-                  setDate(nextDateForWeekday(learnedSlot.day, time));
-                  setTime(time);
-                }}
-                className="btn-secondary shrink-0 px-2 py-1 text-2xs"
-              >
-                {t("Appliquer ce créneau", "Apply this slot")}
-              </button>
-            </div>
-          )}
-
-          {/* Meilleur moment suggéré (retour client Rosiane #1) — repli tant que
-              le moteur d'apprentissage n'a pas encore assez de mesures. */}
-          {when === "schedule" && !learnedSlot && bestTime && (
-            <div className="flex flex-wrap items-center gap-2 rounded-lg border-hair bg-canvas/60 px-3 py-2 text-2xs text-muted">
-              <span>
-                💡{" "}
-                {bestTime.suggestion.source === "historical"
-                  ? t(
-                      `Meilleur moment d'après vos ${bestTime.suggestion.sampleSize} dernières publications ${platformLabel(bestTime.platform)} : ${weekdayLabel(bestTime.suggestion.day, t)} ${bestTime.suggestion.time}.`,
-                      `Best time based on your last ${bestTime.suggestion.sampleSize} ${platformLabel(bestTime.platform)} posts: ${weekdayLabel(bestTime.suggestion.day, t)} ${bestTime.suggestion.time}.`
-                    )
-                  : t(
-                      `Créneau généralement recommandé pour ${platformLabel(bestTime.platform)} : ${weekdayLabel(bestTime.suggestion.day, t)} ${bestTime.suggestion.time} (pas encore assez d'historique mesuré pour l'affiner).`,
-                      `Generally recommended slot for ${platformLabel(bestTime.platform)}: ${weekdayLabel(bestTime.suggestion.day, t)} ${bestTime.suggestion.time} (not enough measured history yet to refine it).`
-                    )}
-              </span>
-              <button
-                type="button"
-                onClick={() => {
-                  setDate(nextDateForWeekday(bestTime.suggestion.day, bestTime.suggestion.time));
-                  setTime(bestTime.suggestion.time);
-                }}
-                className="btn-secondary shrink-0 px-2 py-1 text-2xs"
-              >
-                {t("Utiliser ce créneau", "Use this slot")}
-              </button>
-            </div>
+          {/* Meilleur créneau de publication (retour client Rosiane #1) —
+              appris par le moteur d'apprentissage dès qu'il a assez de
+              mesures, sinon repli sur l'historique local / un repère par
+              défaut (voir components/composer/BestTimeSuggestion.tsx). */}
+          {when === "schedule" && selectedPlatforms[0] && (
+            <BestTimeSuggestion
+              platform={selectedPlatforms[0]}
+              companyId={company.id}
+              history={data.history}
+              onApply={(d, tm) => {
+                setDate(d);
+                setTime(tm);
+              }}
+            />
           )}
 
           {/* Réglages TikTok — Required UX Implementation (guidelines Content
@@ -1170,28 +1121,38 @@ function ContentBox({ value, onChange, placeholder }: { value: string; onChange:
   // (tuile primaire pleine + étiquette ✦ IA — pas de variante d'opacité,
   // pour rester lisible dans les deux thèmes).
   const empty = value.trim() === "";
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   return (
-    <div className="relative">
-      <textarea
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={
-          placeholder ??
-          t(
-            "✦ L'IA remplira ce texte automatiquement quand vous lancerez l'agent ci-dessous — vous pourrez tout retoucher.",
-            "✦ The AI will fill this text automatically when you run the agent below — you can edit everything."
-          )
-        }
-        className={`input h-28 resize-none ${empty ? "border-primary-200 bg-primary-50" : ""}`}
-      />
-      {empty && (
-        <span
-          aria-hidden="true"
-          className="pointer-events-none absolute right-2 top-2 rounded-full bg-primary-100 px-2 py-0.5 text-2xs font-semibold text-primary-600"
-        >
-          ✦ IA
-        </span>
-      )}
+    <div className="space-y-1.5">
+      {/* Mise en forme (retour client Rosiane #6, BUGS-SocialHub35) : ni
+          Facebook ni Instagram ni TikTok n'interprètent de markdown à la
+          publication (contrairement à LinkedIn) — le gras/italique doit donc
+          être appliqué immédiatement au texte via les mêmes caractères
+          Unicode que LinkedIn utilise en coulisses (lib/linkedin-format.ts). */}
+      <FormattingToolbar textareaRef={textareaRef} value={value} onChange={onChange} mode="unicode" />
+      <div className="relative">
+        <textarea
+          ref={textareaRef}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={
+            placeholder ??
+            t(
+              "✦ L'IA remplira ce texte automatiquement quand vous lancerez l'agent ci-dessous — vous pourrez tout retoucher.",
+              "✦ The AI will fill this text automatically when you run the agent below — you can edit everything."
+            )
+          }
+          className={`input h-28 resize-none ${empty ? "border-primary-200 bg-primary-50" : ""}`}
+        />
+        {empty && (
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute right-2 top-2 rounded-full bg-primary-100 px-2 py-0.5 text-2xs font-semibold text-primary-600"
+          >
+            ✦ IA
+          </span>
+        )}
+      </div>
     </div>
   );
 }

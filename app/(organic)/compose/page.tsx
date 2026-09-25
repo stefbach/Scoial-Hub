@@ -18,7 +18,8 @@ import { brandPromptHints } from "@/lib/brand-kit/prompt";
 import { AgentLauncher } from "@/components/agents/AgentLauncher";
 import { IMAGE_MODELS, DEFAULT_IMAGE_MODEL_ID, DEFAULT_VIDEO_MODEL_ID, videoModelsForPlatform, isLockedVideoPlatform } from "@/lib/ai/model-catalog";
 import { MediaUpload, type UploadedMedia } from "@/components/ui/MediaUpload";
-import { AlbumUpload } from "@/components/compose/AlbumUpload";
+import { AlbumUpload, ALBUM_MAX_ITEMS } from "@/components/compose/AlbumUpload";
+import { MediaLibraryButton } from "@/components/studio/MediaLibrary";
 import { WhenToPublish } from "@/components/compose/WhenToPublish";
 import { BestTimeSuggestion } from "@/components/composer/BestTimeSuggestion";
 import { Toast } from "@/components/ui/Toast";
@@ -912,8 +913,20 @@ function ComposeContent() {
           />
 
           {/* Media upload — ancre du défilement doux après génération (#20) */}
-          <div ref={mediaRef}>
+          <div ref={mediaRef} className="space-y-1.5">
             <MediaUpload media={upload} onChange={setUpload} companyId={company.id} />
+            {/* Choisir un visuel déjà créé (retour client Rosiane #4, BUGS-
+                SocialHub35) — jusqu'ici réservé aux espaces réseaux
+                (Facebook/Instagram/LinkedIn/TikTok), absent de Composer. */}
+            <MediaLibraryButton
+              companyId={company.id}
+              accept="all"
+              label={t("📚 Choisir depuis la bibliothèque", "📚 Pick from library")}
+              className="btn-secondary text-xs"
+              onPick={(a) =>
+                setUpload({ url: a.url, name: a.type === "video" ? "library-video" : "library-visual", size: 0, kind: a.type })
+              }
+            />
           </div>
           {upload && (
             <button
@@ -965,6 +978,19 @@ function ComposeContent() {
                   {t("Album (Facebook) / carrousel (Instagram) — ajoutez d'autres photos :", "Album (Facebook) / carousel (Instagram) — add more photos:")}
                 </span>
                 <AlbumUpload extra={albumExtra} onChange={setAlbumExtra} companyId={company.id} />
+                <MediaLibraryButton
+                  companyId={company.id}
+                  accept="image"
+                  label={t("📚 Ajouter depuis la bibliothèque", "📚 Add from library")}
+                  className="btn-secondary text-2xs"
+                  onPick={(a) =>
+                    setAlbumExtra((prev) =>
+                      prev.length >= ALBUM_MAX_ITEMS - 1
+                        ? prev
+                        : [...prev, { url: a.url, name: "library-visual", size: 0, kind: "image" }]
+                    )
+                  }
+                />
               </div>
             )}
 

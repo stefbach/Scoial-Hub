@@ -10,6 +10,7 @@ import { useCompany } from "@/lib/company-context";
 import { useT } from "@/lib/i18n";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Spinner, BusyHint } from "@/components/ui/Spinner";
+import { MediaLightbox } from "@/components/ui/MediaLightbox";
 
 interface Asset { url: string; type: "image" | "video"; format?: string; source?: string; createdAt?: string }
 type Filter = "all" | "image" | "video";
@@ -40,6 +41,10 @@ export default function MediaLibraryPage() {
 
   // Suppression définitive
   const [deleting, setDeleting] = useState<string | null>(null);
+
+  // Aperçu agrandi (retour client Rosiane #5) — vignettes trop petites pour
+  // juger un visuel/vidéo clairement.
+  const [preview, setPreview] = useState<Asset | null>(null);
 
   async function deleteAsset(a: Asset) {
     // Les visuels du brand kit (logo/charte) ne sont pas stockés ici.
@@ -237,13 +242,34 @@ export default function MediaLibraryPage() {
                   <video src={a.url} controls preload="metadata" className="max-h-full max-w-full object-contain"
                     onLoadedMetadata={(e) => { const w = e.currentTarget.videoWidth, h = e.currentTarget.videoHeight; setDims((d) => ({ ...d, [a.url]: `${w}×${h}` })); }} />
                 ) : (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={a.url} alt="" loading="lazy" className="max-h-full max-w-full object-contain"
-                    onLoad={(e) => { const w = e.currentTarget.naturalWidth, h = e.currentTarget.naturalHeight; setDims((d) => ({ ...d, [a.url]: `${w}×${h}` })); }} />
+                  // La vidéo garde ses contrôles natifs dans la vignette (lecture
+                  // directe) — un clic dessus jouerait/mettrait en pause plutôt
+                  // que d'agrandir, d'où le bouton dédié ci-dessous pour elle.
+                  // L'image, elle, est entièrement cliquable pour s'agrandir.
+                  <button
+                    type="button"
+                    onClick={() => setPreview(a)}
+                    title={t("Agrandir", "Enlarge")}
+                    className="absolute inset-0 flex cursor-zoom-in items-center justify-center"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={a.url} alt="" loading="lazy" className="max-h-full max-w-full object-contain"
+                      onLoad={(e) => { const w = e.currentTarget.naturalWidth, h = e.currentTarget.naturalHeight; setDims((d) => ({ ...d, [a.url]: `${w}×${h}` })); }} />
+                  </button>
                 )}
                 <span className="absolute left-1.5 top-1.5 rounded-full bg-black/55 px-2 py-0.5 text-[10px] font-semibold text-white">
                   {a.type === "video" ? "▶ " + t("vidéo", "video") : (a.format || "image")}
                 </span>
+                {a.type === "video" && (
+                  <button
+                    type="button"
+                    onClick={() => setPreview(a)}
+                    title={t("Agrandir", "Enlarge")}
+                    className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-black/55 text-xs text-white hover:bg-black/70"
+                  >
+                    ⤢
+                  </button>
+                )}
                 {dims[a.url] && (
                   <span className="absolute bottom-1.5 right-1.5 rounded bg-black/55 px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-white">{dims[a.url]}</span>
                 )}
@@ -273,6 +299,13 @@ export default function MediaLibraryPage() {
           ))}
         </div>
       )}
+
+      <MediaLightbox
+        open={preview !== null}
+        onClose={() => setPreview(null)}
+        url={preview?.url ?? null}
+        kind={preview?.type ?? "image"}
+      />
     </div>
   );
 }

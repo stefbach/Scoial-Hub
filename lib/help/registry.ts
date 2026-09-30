@@ -1856,7 +1856,8 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
     actions: [
       { label: { fr: "Choisir la Page", en: "Pick the Page" }, detail: { fr: "Si votre compte gère plusieurs Pages, sélectionnez celle de cette société.", en: "If your account manages several Pages, select the one for this company." } },
       { label: { fr: "Publier (normal ou Ads)", en: "Publish (normal or Ads)" }, detail: { fr: "Onglet « Publication normale » pour un post gratuit à vos abonnés, « Publication via Ads » pour une publicité ciblée.", en: "“Normal post” tab for a free post to your followers, “Publish via Ads” for a targeted ad." } },
-      { label: { fr: "Analyser la Page avec l'IA", en: "Analyze the Page with AI" }, detail: { fr: "L'IA lit vos contenus et leur engagement et recommande la suite (formats, cadence, idées, actions).", en: "The AI reads your content and engagement and recommends what's next (formats, cadence, ideas, actions)." } },
+      { label: { fr: "Consulter les publications récentes", en: "Check recent posts" }, detail: { fr: "Deux grilles affichent vos dernières publications Facebook et Instagram avec leurs likes et commentaires — utile pour repérer d'un coup d'œil ce qui a le mieux fonctionné.", en: "Two grids show your latest Facebook and Instagram posts with their likes and comments — useful to spot at a glance what performed best." } },
+      { label: { fr: "Analyser la Page avec l'IA", en: "Analyze the Page with AI" }, detail: { fr: "L'IA lit vos contenus et leur engagement et recommande la suite (formats, cadence, idées, actions). Un bouton « Lancer une campagne basée sur ces recommandations » permet ensuite de créer directement une campagne à partir de ces actions recommandées.", en: "The AI reads your content and engagement and recommends what's next (formats, cadence, ideas, actions). A 'Launch a campaign based on these recommendations' button then lets you create a campaign directly from these recommended actions." } },
     ],
     tips: [
       { fr: "Connectez Meta depuis le Démarrage : un seul OAuth connecte Facebook ET Instagram.", en: "Connect Meta from the onboarding: a single OAuth connects both Facebook and Instagram." },
@@ -1872,6 +1873,31 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
     ],
   },
 
+  // ── /reseau/[platform] (Espace Facebook / Instagram / TikTok) ───────────────
+  "/reseau": {
+    title: { fr: "Espace réseau (Facebook, Instagram, TikTok)", en: "Network space (Facebook, Instagram, TikTok)" },
+    tagline: { fr: "Un espace dédié par réseau, façon Espace LinkedIn", en: "A dedicated space per network, LinkedIn-space style" },
+    whatFor: {
+      fr: "Même route technique pour Facebook, Instagram et TikTok (/reseau/facebook, /reseau/instagram, /reseau/tiktok) : chaque page affiche l'état de connexion du réseau, un bouton pour le connecter ou le reconnecter, puis un planificateur de série qui génère des posts ou articles avec visuels adaptés aux contraintes du réseau choisi, avant diffusion.",
+      en: "The same technical route serves Facebook, Instagram and TikTok (/reseau/facebook, /reseau/instagram, /reseau/tiktok): each page shows the network's connection state, a button to connect or reconnect it, then a series planner that generates posts or articles with visuals adapted to the chosen network's constraints, before publishing.",
+    },
+    actions: [
+      { label: { fr: "Connecter / reconnecter le réseau", en: "Connect / reconnect the network" }, detail: { fr: "Le bouton en haut de page ouvre le guide de connexion adapté — Facebook et Instagram passent par l'assistant Meta, TikTok par le sien.", en: "The button at the top of the page opens the matching connection guide — Facebook and Instagram go through the Meta assistant, TikTok through its own." } },
+      { label: { fr: "Programmer une série de publications", en: "Schedule a series of posts" }, detail: { fr: "Générez une série de posts (ou d'articles) avec visuels via l'IA, adaptée aux contraintes du réseau (longueur, format), puis publiez ou programmez.", en: "Generate a series of posts (or articles) with visuals via AI, adapted to the network's constraints (length, format), then publish or schedule." } },
+    ],
+    tips: [
+      { fr: "Facebook et Instagram partagent le même connecteur Meta : les connecter une fois suffit pour les deux espaces.", en: "Facebook and Instagram share the same Meta connector: connecting once is enough for both spaces." },
+    ],
+    faq: [
+      { q: { fr: "Pourquoi Facebook, Instagram et TikTok se ressemblent-ils autant ici ?", en: "Why do Facebook, Instagram and TikTok look so similar here?" }, a: { fr: "Les trois espaces partagent le même composant technique ; seuls le réseau connecté et les contraintes de contenu (longueur, formats acceptés) changent d'un espace à l'autre.", en: "The three spaces share the same underlying component; only the connected network and the content constraints (length, accepted formats) change from one space to another." } },
+    ],
+    related: [
+      { label: { fr: "Espace LinkedIn", en: "LinkedIn space" }, href: "/linkedin" },
+      { label: { fr: "Mes Pages", en: "My Pages" }, href: "/pages-meta" },
+      { label: { fr: "Connecteurs", en: "Connectors" }, href: "/parametres-connecteurs" },
+    ],
+  },
+
   // ── /linkedin ─────────────────────────────────────────────────────────────
   "/linkedin": {
     title: { fr: "Espace LinkedIn", en: "LinkedIn space" },
@@ -1881,11 +1907,13 @@ const HELP_BILINGUAL: Record<string, BilingualEntry> = {
       en: "The dedicated, all-in-one LinkedIn space: see the connected account, choose where to publish (your profile or a company Page), write a short post or a full article with AI-generated visuals (keywords/text → editable prompt → article → visuals), publish or schedule it, manage the queue, and generate a LinkedIn content strategy.",
     },
     actions: [
-      { label: { fr: "Connecter / reconnecter LinkedIn", en: "Connect / reconnect LinkedIn" }, detail: { fr: "Un clic lance l'OAuth LinkedIn ; la connexion est enregistrée pour cette société.", en: "One click starts the LinkedIn OAuth; the connection is saved for this company." } },
+      { label: { fr: "Connecter / reconnecter LinkedIn", en: "Connect / reconnect LinkedIn" }, detail: { fr: "Deux points d'entrée coexistent sur la page : le bandeau du haut (« Connecter LinkedIn ») lance l'OAuth LinkedIn directement, tandis que le bouton du même nom dans le bloc « Connexion LinkedIn », juste en dessous, ouvre un guide de connexion pas-à-pas avant de lancer l'OAuth. Les deux aboutissent à la même connexion, enregistrée pour cette société.", en: "Two entry points coexist on the page: the banner at the top ('Connect LinkedIn') starts the LinkedIn OAuth directly, while the same-named button in the 'LinkedIn connection' block just below opens a step-by-step connection guide before starting the OAuth. Both lead to the same connection, saved for this company." } },
       { label: { fr: "Publier en tant que…", en: "Publish as…" }, detail: { fr: "Choisissez votre profil ou une Page entreprise (les Pages nécessitent l'accès « Community Management » de LinkedIn).", en: "Choose your profile or a company Page (Pages require LinkedIn's “Community Management” access)." } },
+      { label: { fr: "Choisir le format (Post court / Article / Article long)", en: "Choose the format (Short post / Article / Long article)" }, detail: { fr: "Avant de générer quoi que ce soit, un sélecteur impose le format visé — Post court, Article ou Article long — qui conditionne la longueur et le style du contenu généré par l'IA.", en: "Before generating anything, a selector requires the target format — Short post, Article or Long article — which drives the length and style of the AI-generated content." } },
       { label: { fr: "① Générer le prompt d'un article", en: "① Generate an article prompt" }, detail: { fr: "À partir de mots-clés ou d'un texte, plus votre profil de marque, l'IA rédige un brief éditorial que vous pouvez ajuster.", en: "From keywords or text, plus your brand profile, the AI writes an editorial brief you can adjust." } },
       { label: { fr: "② Générer l'article et ses visuels", en: "② Generate the article and its visuals" }, detail: { fr: "Titre, accroche, corps structuré, points clés, hashtags et CTA, puis des visuels HD associés — le tout ajustable via un chatbot avant publication.", en: "Title, hook, structured body, key takeaways, hashtags and CTA, then associated HD visuals — all adjustable via a chatbot before publishing." } },
-      { label: { fr: "Analyser ma stratégie", en: "Analyze my strategy" }, detail: { fr: "L'IA bâtit positionnement, cadence, piliers éditoriaux et idées de posts à partir de votre profil de marque.", en: "The AI builds positioning, cadence, content pillars and post ideas from your brand profile." } },
+      { label: { fr: "Gérer la file d'attente", en: "Manage the queue" }, detail: { fr: "Sous le studio d'écriture, un planificateur dédié liste les publications LinkedIn déjà programmées (file d'attente) : vous pouvez continuer à écrire un nouveau post pendant qu'elle se met à jour.", en: "Below the writing studio, a dedicated scheduler lists your already-scheduled LinkedIn posts (queue): you can keep writing a new post while it refreshes." } },
+      { label: { fr: "Analyser ma stratégie", en: "Analyze my strategy" }, detail: { fr: "L'IA bâtit positionnement, cadence, piliers éditoriaux et idées de posts à partir de votre profil de marque. Sous chaque idée de post, un bouton « Utiliser » l'envoie en un clic dans le studio d'écriture pour la finaliser et la publier.", en: "The AI builds positioning, cadence, content pillars and post ideas from your brand profile. Under each post idea, a 'Use' button sends it in one click to the writing studio to finalize and publish it." } },
     ],
     tips: [
       { fr: "La génération de visuels d'article nécessite la clé Replicate (REPLICATE_API_TOKEN) côté serveur.", en: "Article visual generation requires the Replicate key (REPLICATE_API_TOKEN) server-side." },

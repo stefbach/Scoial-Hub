@@ -8,12 +8,15 @@
 //   - Facebook / Instagram : programmation auto (cron). Instagram impose un visuel.
 //   - TikTok : « Publier maintenant » via le connecteur.
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { addDays, format } from "date-fns";
 import { useCompany } from "@/lib/company-context";
 import { useT, useLang } from "@/lib/i18n";
+import { useLocalDraftAutosave, loadLocalDraft, clearLocalDraft } from "@/lib/hooks/useLocalDraft";
+import { FormattingToolbar } from "@/components/composer/FormattingToolbar";
 import { Spinner } from "@/components/ui/Spinner";
 import { DatePicker, TimePicker } from "@/components/ui/DateTimePicker";
+import { BestTimeSuggestion } from "@/components/composer/BestTimeSuggestion";
 import { MediaLibraryButton } from "@/components/studio/MediaLibrary";
 import { UploadMediaButton } from "@/components/studio/UploadMediaButton";
 import { ThemeSuggestions, useBrandThemes } from "@/components/brand/ThemeSuggestions";
@@ -52,11 +55,27 @@ function titleFromBody(body: string): string {
   return body.trim().split("\n")[0].slice(0, 80) || "Post";
 }
 
+/** Ce qui est persisté par l'autosave local (retour client Rosiane #2). */
+interface SeriesDraftSnapshot {
+  drafts: DraftItem[];
+  theme: string;
+  count: number;
+  seriesFormat: "post" | "article";
+  pubLang: string;
+  startDate: string; // ISO
+  cadence: Cadence;
+  batchTime: string;
+}
+
+function seriesDraftHasContent(s: Pick<SeriesDraftSnapshot, "drafts" | "theme">): boolean {
+  return s.theme.trim().length > 0 || s.drafts.some((d) => d.body.trim() || d.media);
+}
+
 export function SeriesPlanner({ platform }: { platform: SeriesPlatform }) {
   const cfg = SERIES_CONFIG[platform];
   const t = useT();
   const { lang } = useLang();
-  const { company, access } = useCompany();
+  const { company, data, access } = useCompany();
   const canEdit = access.canEdit;
   const companyId = company.id;
 
@@ -121,6 +140,48 @@ export function SeriesPlanner({ platform }: { platform: SeriesPlatform }) {
   const [working, setWorking] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
+  // ── Autosave local du brouillon (retour client Rosiane #2) ────────────────
+  // Le lot n'a pas encore de ligne en base tant qu'il n'est pas programmé /
+  // publié : sans ceci, quitter la page (ou fermer l'onglet) par erreur
+  // effaçait tout ce qui avait déjà été rédigé ou généré.
+  const draftKey = companyId ? `sh:series-draft:${companyId}:${platform}` : null;
+  const [restored, setRestored] = useState(false);
+  const [restoredNoticeVisible, setRestoredNoticeVisible] = useState(false);
+
+  useEffect(() => {
+    if (!draftKey) return;
+    const snap = loadLocalDraft<SeriesDraftSnapshot>(draftKey);
+    if (snap && seriesDraftHasContent(snap)) {
+      setDrafts(snap.drafts);
+      setTheme(snap.theme);
+      setCount(snap.count);
+      setSeriesFormat(snap.seriesFormat);
+      setPubLang(snap.pubLang);
+      setCadence(snap.cadence);
+      setBatchTime(snap.batchTime);
+      const parsed = new Date(snap.startDate);
+      if (!Number.isNaN(parsed.getTime())) setStartDate(parsed);
+      setRestoredNoticeVisible(true);
+    }
+    setRestored(true);
+    // Ne s'exécute qu'une fois par montage (changement de réseau = remontage
+    // du composant, cf. `key` posé par la page appelante).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useLocalDraftAutosave<SeriesDraftSnapshot>(
+    draftKey,
+    { drafts, theme, count, seriesFormat, pubLang, startDate: startDate.toISOString(), cadence, batchTime },
+    { enabled: restored }
+  );
+
+  function discardLocalDraft() {
+    if (draftKey) clearLocalDraft(draftKey);
+    setDrafts([{ body: "" }, { body: "" }, { body: "" }]);
+    setTheme("");
+    setRestoredNoticeVisible(false);
+  }
+
   const filledDrafts = useMemo(
     () => drafts.map((d, i) => ({ ...d, index: i })).filter((d) => d.body.trim()),
     [drafts]
@@ -131,6 +192,15 @@ export function SeriesPlanner({ platform }: { platform: SeriesPlatform }) {
   }
   function patchDraft(i: number, patch: Partial<DraftItem>) {
     setDrafts((arr) => arr.map((x, j) => (j === i ? { ...x, ...patch } : x)));
+  }
+
+  // Réf par élément pour la barre de mise en forme (retour client Rosiane
+  // #6) : la liste est dynamique (ajout/retrait), donc un tableau plutôt
+  // qu'une réf unique — `textareaRefFor` expose une lecture toujours à jour
+  // de l'élément DOM courant sans recréer de vraie réf React à chaque rendu.
+  const draftTextareaEls = useRef<(HTMLTextAreaElement | null)[]>([]);
+  function textareaRefFor(i: number): RefObject<HTMLTextAreaElement> {
+    return { get current() { return draftTextareaEls.current[i] ?? null; } } as RefObject<HTMLTextAreaElement>;
   }
 
   /** Transforme quelques mots-clés en un prompt éditable et détaillé (même principe que le studio LinkedIn), avant de lancer la génération de la série. */
@@ -291,7 +361,10 @@ export function SeriesPlanner({ platform }: { platform: SeriesPlatform }) {
           r.ok && d.connected !== false ? ok++ : failed++;
         }
       }
-      if (ok > 0) setDrafts([{ body: "" }, { body: "" }, { body: "" }]);
+      if (ok > 0) {
+        setDrafts([{ body: "" }, { body: "" }, { body: "" }]);
+        if (draftKey) clearLocalDraft(draftKey);
+      }
       const verb = cfg.delivery === "schedule" ? t("programmées", "scheduled") : t("publiées", "published");
       setMsg(failed === 0
         ? t(`${ok} publications ${verb} ✓`, `${ok} posts ${verb} ✓`)
@@ -303,6 +376,15 @@ export function SeriesPlanner({ platform }: { platform: SeriesPlatform }) {
 
   return (
     <div className="space-y-4">
+      {restoredNoticeVisible && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-primary-200 bg-primary-50 px-3 py-2 text-2xs text-primary-800">
+          <span>💾 {t("Brouillon restauré (non publié la dernière fois).", "Draft restored (not published last time).")}</span>
+          <button type="button" onClick={discardLocalDraft} className="btn-secondary ml-auto shrink-0 px-2 py-1 text-2xs">
+            {t("Effacer le brouillon", "Discard draft")}
+          </button>
+        </div>
+      )}
+
       {/* Génération IA */}
       <div className="rounded-xl border border-hair bg-canvas p-3 space-y-2">
         <p className="section-label text-ai-text">{t("✨ Générer la série avec l'IA", "✨ Generate the series with AI")}</p>
@@ -452,8 +534,20 @@ export function SeriesPlanner({ platform }: { platform: SeriesPlatform }) {
             <div key={i} className="rounded-xl border border-hair bg-canvas p-2.5">
               <div className="flex items-start gap-2">
                 <span className="mt-2 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary-100 text-2xs font-bold text-primary-700">{i + 1}</span>
-                <div className="min-w-0 flex-1">
-                  <textarea value={d.body} onChange={(e) => patchDraft(i, { body: e.target.value })}
+                <div className="min-w-0 flex-1 space-y-1">
+                  {/* Mise en forme (retour client Rosiane #6) : Facebook,
+                      Instagram et TikTok ne convertissent rien à la
+                      publication — le gras/italique s'applique donc
+                      immédiatement au texte (caractères Unicode). */}
+                  <FormattingToolbar
+                    textareaRef={textareaRefFor(i)}
+                    value={d.body}
+                    onChange={(v) => patchDraft(i, { body: v })}
+                    mode="unicode"
+                  />
+                  <textarea
+                    ref={(el) => { draftTextareaEls.current[i] = el; }}
+                    value={d.body} onChange={(e) => patchDraft(i, { body: e.target.value })}
                     rows={seriesFormat === "article" ? 12 : 6}
                     placeholder={t(`Élément ${i + 1}…`, `Item ${i + 1}…`)} className={`${inputCls} resize-y leading-relaxed`} />
                   {len > 0 && (
@@ -585,6 +679,21 @@ export function SeriesPlanner({ platform }: { platform: SeriesPlatform }) {
       {/* Réglages TikTok — obligatoires avant toute publication (guidelines
           Content Posting API). Ils valent pour toute la série. */}
       {platform === "tiktok" && <TikTokOptionsPanel state={tiktokState} isImage={!isVideo} />}
+
+      {/* Meilleur créneau de publication (retour client Rosiane #1) — appliqué
+          à la date/heure de DÉPART du lot ; la cadence choisie ci-dessous
+          espace ensuite chaque élément à partir de ce créneau. */}
+      {cfg.delivery === "schedule" && (
+        <BestTimeSuggestion
+          platform={platform}
+          companyId={companyId}
+          history={data.history}
+          onApply={(d, tm) => {
+            setStartDate(d);
+            setBatchTime(tm);
+          }}
+        />
+      )}
 
       {/* Diffusion : programmer (FB/IG) OU publier maintenant (autres) */}
       <div className="flex flex-wrap items-end gap-3 rounded-xl border border-hair bg-canvas p-3">

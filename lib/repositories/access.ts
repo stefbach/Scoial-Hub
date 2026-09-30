@@ -74,6 +74,43 @@ export async function getEffectiveMode(
   return (data.mode as AccessMode) ?? "view";
 }
 
+/**
+ * Adresse e-mail du PROPRIÉTAIRE (role "owner") de l'organisation d'une
+ * société — utilisée pour les notifications automatiques (ex. échec
+ * définitif d'une publication programmée, cf. lib/notifications/failed-publish.ts).
+ * `null` si société, organisation, propriétaire ou e-mail introuvable —
+ * jamais d'exception (best-effort, ne doit jamais faire échouer l'appelant).
+ */
+export async function getCompanyOwnerEmail(companyUuid: string): Promise<string | null> {
+  if (!isSupabaseConfigured) return null;
+  const sb = createAdminClient();
+  if (!sb) return null;
+  try {
+    const { data: company } = await sb
+      .from("sh_companies")
+      .select("org_id")
+      .eq("id", companyUuid)
+      .maybeSingle();
+    const orgId = (company as { org_id?: string } | null)?.org_id;
+    if (!orgId) return null;
+
+    const { data: membership } = await sb
+      .from("sh_memberships")
+      .select("user_id")
+      .eq("org_id", orgId)
+      .eq("role", "owner")
+      .limit(1)
+      .maybeSingle();
+    const userId = (membership as { user_id?: string } | null)?.user_id;
+    if (!userId) return null;
+
+    const { data: userData } = await sb.auth.admin.getUserById(userId);
+    return userData?.user?.email ?? null;
+  } catch {
+    return null;
+  }
+}
+
 // ── Équipe : liste, ajout, mise à jour, suppression ──────────────────────────
 
 /** Résout email → id pour tous les membres de l'org (via auth admin). */

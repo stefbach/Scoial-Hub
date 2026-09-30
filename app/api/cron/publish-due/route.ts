@@ -37,7 +37,7 @@ import {
   RETRY_WINDOW_HOURS,
 } from "@/lib/publishing/publish-scheduled";
 import type { Platform } from "@/lib/types";
-import { notifyCompanyTelegram } from "@/lib/telegram/notify";
+import { notifyFailedScheduledPublish } from "@/lib/notifications/failed-publish";
 
 // Fenêtre d'exécution confortable pour traiter le lot sans coupure.
 export const maxDuration = 60;
@@ -98,10 +98,13 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       if (isPastRetryWindow(post)) {
         await finalizeFailedScheduledPost(post.id, true);
         const error = `Échéance dépassée de plus de ${RETRY_WINDOW_LABEL} — publication automatique annulée, à reprogrammer.`;
-        await notifyCompanyTelegram(
+        await notifyFailedScheduledPublish({
           companyId,
-          `⚠️ Publication automatique annulée (${post.platform}) : « ${post.title} »\n${error}`
-        );
+          platform: post.platform,
+          title: post.title,
+          reason: error,
+          headline: "cancelled",
+        });
         return {
           postId: post.id,
           companyId,
@@ -130,10 +133,12 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         // retour ; c'est précisément « failed » (visible, plus de nouvel
         // essai) que Telegram doit signaler, pas chaque tentative silencieuse.
         if (permanent) {
-          await notifyCompanyTelegram(
+          await notifyFailedScheduledPublish({
             companyId,
-            `⚠️ Échec de la publication automatique (${post.platform}) : « ${post.title} »\n${outcome.error ?? "Erreur inconnue."}`
-          );
+            platform: post.platform,
+            title: post.title,
+            reason: outcome.error ?? "Erreur inconnue.",
+          });
         }
       }
       return {

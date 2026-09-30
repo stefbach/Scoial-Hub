@@ -329,5 +329,35 @@ console.log("\n— /inbox (BUGSSocialHub33 2-4, 6-7) —");
   check("BUG 7 — décrit les filtres par type et par statut", /Filtrez par type.*et par statut/.test(fr));
 }
 
+console.log("\n— /linkedin (BUGSSocialHub34 1-6) —");
+{
+  const fr = full("/linkedin", "fr");
+  check("BUG 1 — ne décrit pas la page comme un jeu d'onglets séparés (défilement vertical réel)", !/onglets séparés/.test(fr));
+  check("BUG 2 — décrit les deux points d'entrée de connexion (bandeau direct + guide pas-à-pas)", /guide de connexion pas-à-pas/.test(fr) && /lance l.OAuth LinkedIn directement/.test(fr));
+  check("BUG 3 — la file d'attente a sa propre étape dédiée", /Gérer la file d.attente/.test(fr));
+  check("BUG 4 — le choix de format (Post court/Article/Article long) est décrit avant génération", /Post court, Article ou Article long/.test(fr));
+  check("BUG 5 — le bouton « Utiliser » (idée de post → studio) est documenté", /bouton « Utiliser » l.envoie en un clic dans le studio d.écriture/.test(fr));
+  check("BUG 6 — le sélecteur « Publier en tant que » reste bien décrit (ne régresse pas)", /Publier en tant que/.test(fr));
+}
+
+console.log("\n— /reseau/[platform] : Espace Facebook/Instagram/TikTok (BUGSSocialHub34 7-10) —");
+{
+  const fb = full("/reseau/facebook", "fr");
+  const ig = full("/reseau/instagram", "fr");
+  const tk = full("/reseau/tiktok", "fr");
+  check("BUG 7 — /reseau/facebook n'affiche plus l'aide générique de bienvenue", getHelp("/reseau/facebook", "fr").title !== "Aide contextuelle");
+  check("BUG 7/8 — décrit bien un espace dédié pour Facebook, pas le message d'accueil générique", /Facebook/.test(fb) && !/Bienvenue dans AXON-AI/.test(fb));
+  check("BUG 9 — /reseau/instagram a la même aide dédiée (même route technique)", /Instagram/.test(ig) && !/Bienvenue dans AXON-AI/.test(ig));
+  check("BUG 10 — /reseau/tiktok a la même aide dédiée (même route technique)", /TikTok/.test(tk) && !/Bienvenue dans AXON-AI/.test(tk));
+  check("décrit le planificateur de série (posts/articles + visuels adaptés au réseau)", /planificateur de série/.test(fb));
+}
+
+console.log("\n— /pages-meta : Mes Pages & données (BUGSSocialHub34 11-12) —");
+{
+  const fr = full("/pages-meta", "fr");
+  check("BUG 11 — la section « Publications récentes » (grilles Facebook/Instagram) est décrite", /publications récentes/i.test(fr) && /likes et.{0,10}commentaires|likes\/commentaires/i.test(fr));
+  check("BUG 12 — le bouton « Lancer une campagne basée sur ces recommandations » est décrit", /Lancer une campagne basée sur ces recommandations/.test(fr));
+}
+
 console.log(failed === 0 ? "\n✓ TOUT VERT" : `\n✗ ${failed} ÉCHEC(S)`);
 process.exit(failed === 0 ? 0 : 1);
